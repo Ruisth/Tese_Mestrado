@@ -1,0 +1,216 @@
+% =============================================================================
+% references.bib — VERIFIED core bibliography for the EGW dissertation.
+%
+% RULES (plan §6.2, review protocol thesis/research/literature_review_protocol.md):
+% - Every entry carries a "% verified <date> via <source>" comment. Do not add
+%   entries without completing verification against the primary record.
+% - The compass leads file (compass_artifact_*.md) is a LEADS list only; its
+%   metadata is unreliable and must never be bulk-imported.
+% - Target: >= 30 verified sources by gate G6 (18/09/2026); growth happens via
+%   the review protocol, never by padding.
+% Encoding: ASCII-safe LaTeX accents used throughout.
+% =============================================================================
+
+% --- Core project / prior work -----------------------------------------------
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1016/j.bcra.2025.100342):
+% title, authors, journal, vol. 7, no. 3, art. 100342, June 2026 issue, Elsevier.
+% Note: the project plan refers to this as "Pinto et al. 2025" (online-first
+% year in the DOI); the version of record is assigned to the June 2026 issue.
+@article{pinto2026c2dta,
+  author  = {Pinto, Filipe and Ferreira da Silva, Catarina and Moro, Sergio and Aquino, Pedro},
+  title   = {Consumer-controlled digital twin architecture: {How} blockchain technology gives consumers control over their smart devices' digital twins and data},
+  journal = {Blockchain: Research and Applications},
+  year    = {2026},
+  volume  = {7},
+  number  = {3},
+  pages   = {100342},
+  doi     = {10.1016/j.bcra.2025.100342},
+  note    = {Article 100342. Available online 2025}
+}
+
+% --- Methodology -------------------------------------------------------------
+
+% verified 2026-08-07 via Crossref API (doi.org/10.2307/25148625): MIS Quarterly,
+% vol. 28, no. 1, 2004. Crossref registers pages 75-106; the range 75-105 also
+% appears in common citations. AISEL record (aisel.aisnet.org/misq/vol28/iss1/6)
+% confirms vol. 28, iss. 1, 2004.
+@article{hevner2004design,
+  author  = {Hevner, Alan R. and March, Salvatore T. and Park, Jinsoo and Ram, Sudha},
+  title   = {Design Science in Information Systems Research},
+  journal = {MIS Quarterly},
+  year    = {2004},
+  volume  = {28},
+  number  = {1},
+  pages   = {75--106},
+  doi     = {10.2307/25148625}
+}
+
+% verified 2026-08-07 via Crossref API (doi.org/10.2753/MIS0742-1222240302):
+% JMIS, vol. 24, no. 3, pp. 45-77, 2007.
+@article{peffers2007design,
+  author  = {Peffers, Ken and Tuunanen, Tuure and Rothenberger, Marcus A. and Chatterjee, Samir},
+  title   = {A Design Science Research Methodology for Information Systems Research},
+  journal = {Journal of Management Information Systems},
+  year    = {2007},
+  volume  = {24},
+  number  = {3},
+  pages   = {45--77},
+  doi     = {10.2753/MIS0742-1222240302}
+}
+
+% --- Standards and official documentation ------------------------------------
+
+% verified 2026-08-07 via w3.org/TR/wot-thing-description11/: W3C Recommendation,
+% 05 December 2023; canonical URL w3.org/TR/2023/REC-wot-thing-description11-20231205/.
+@online{w3c2023wottd,
+  author   = {{World Wide Web Consortium (W3C)}},
+  title    = {Web of Things ({WoT}) Thing Description 1.1},
+  year     = {2023},
+  url      = {https://www.w3.org/TR/wot-thing-description11/},
+  urldate  = {2026-08-07},
+  note     = {W3C Recommendation, 5 December 2023}
+}
+
+% verified 2026-08-07 via docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html:
+% OASIS Standard, 07 March 2019; editors Banks, Briggs, Borgendale, Gupta.
+@online{oasis2019mqtt,
+  author   = {{OASIS}},
+  title    = {{MQTT} Version 5.0},
+  year     = {2019},
+  url      = {https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html},
+  urldate  = {2026-08-07},
+  note     = {OASIS Standard, 7 March 2019. Edited by A. Banks, E. Briggs, K. Borgendale and R. Gupta}
+}
+
+% verified 2026-08-07 via eclipse.dev/ditto/release_notes_394.html: release
+% notes for Eclipse Ditto 3.9.4, released 16.07.2026 (bugfix release of the
+% 3.9 line used in this project).
+@online{eclipse2026ditto,
+  author   = {{Eclipse Foundation}},
+  title    = {Eclipse Ditto: open source framework for digital twins in the {IoT}},
+  year     = {2026},
+  url      = {https://eclipse.dev/ditto/},
+  urldate  = {2026-08-07},
+  note     = {Project documentation; version 3.9.4 release notes at https://eclipse.dev/ditto/release\_notes\_394.html}
+}
+
+% verified 2026-08-07 via docs.yoctoproject.org/scarthgap/ (5.0 documentation)
+% and wiki.yoctoproject.org/wiki/Releases: "Scarthgap | 5.0 | April 2024 |
+% ... | Long Term Support (until April 2028)".
+@online{yocto2024scarthgap,
+  author   = {{Yocto Project}},
+  title    = {Yocto Project Documentation ({Scarthgap}, 5.0 {LTS})},
+  year     = {2024},
+  url      = {https://docs.yoctoproject.org/scarthgap/},
+  urldate  = {2026-08-07},
+  note     = {Scarthgap 5.0 released April 2024; Long-Term Support until April 2028}
+}
+
+% --- Edge computing and digital twins ----------------------------------------
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1109/JIOT.2016.2579198):
+% IEEE IoT-J, vol. 3, no. 5, pp. 637-646, 2016.
+@article{shi2016edge,
+  author  = {Shi, Weisong and Cao, Jie and Zhang, Quan and Li, Youhuizi and Xu, Lanyu},
+  title   = {Edge Computing: Vision and Challenges},
+  journal = {IEEE Internet of Things Journal},
+  year    = {2016},
+  volume  = {3},
+  number  = {5},
+  pages   = {637--646},
+  doi     = {10.1109/JIOT.2016.2579198}
+}
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1109/ACCESS.2020.2998358):
+% IEEE Access, vol. 8, pp. 108952-108971, 2020.
+@article{fuller2020digital,
+  author  = {Fuller, Aidan and Fan, Zhong and Day, Charles and Barlow, Chris},
+  title   = {Digital Twin: Enabling Technologies, Challenges and Open Research},
+  journal = {IEEE Access},
+  year    = {2020},
+  volume  = {8},
+  pages   = {108952--108971},
+  doi     = {10.1109/ACCESS.2020.2998358}
+}
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1109/JPROC.2020.2998530):
+% Proceedings of the IEEE, vol. 108, no. 10, pp. 1785-1824, 2020.
+@article{minerva2020digital,
+  author  = {Minerva, Roberto and Lee, Gyu Myoung and Crespi, Noel},
+  title   = {Digital Twin in the {IoT} Context: {A} Survey on Technical Features, Scenarios, and Architectural Models},
+  journal = {Proceedings of the IEEE},
+  year    = {2020},
+  volume  = {108},
+  number  = {10},
+  pages   = {1785--1824},
+  doi     = {10.1109/JPROC.2020.2998530}
+}
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1145/3573206): ACM TIOT,
+% vol. 4, no. 1, pp. 1-32, February 2023.
+@article{picone2023flexible,
+  author  = {Picone, Marco and Mamei, Marco and Zambonelli, Franco},
+  title   = {A Flexible and Modular Architecture for Edge Digital Twin: Implementation and Evaluation},
+  journal = {ACM Transactions on Internet of Things},
+  year    = {2023},
+  volume  = {4},
+  number  = {1},
+  pages   = {1--32},
+  doi     = {10.1145/3573206}
+}
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1145/3444692): ACM Computing
+% Surveys, vol. 54, no. 3, pp. 1-33, 2021.
+@article{varghese2021survey,
+  author  = {Varghese, Blesson and Wang, Nan and Bermbach, David and Hong, Cheol-Ho and De Lara, Eyal and Shi, Weisong and Stewart, Christopher},
+  title   = {A Survey on Edge Performance Benchmarking},
+  journal = {ACM Computing Surveys},
+  year    = {2021},
+  volume  = {54},
+  number  = {3},
+  pages   = {1--33},
+  doi     = {10.1145/3444692}
+}
+
+% --- Containers and virtualisation at the edge -------------------------------
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1109/ISPASS.2015.7095802):
+% 2015 IEEE ISPASS, pp. 171-172.
+@inproceedings{felter2015updated,
+  author    = {Felter, Wes and Ferreira, Alexandre and Rajamony, Ram and Rubio, Juan},
+  title     = {An updated performance comparison of virtual machines and {Linux} containers},
+  booktitle = {2015 IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)},
+  year      = {2015},
+  pages     = {171--172},
+  doi       = {10.1109/ISPASS.2015.7095802}
+}
+
+% verified 2026-08-07 via Crossref API (doi.org/10.1109/ACCESS.2017.2704444):
+% IEEE Access, vol. 5, pp. 8835-8850, 2017; single author Roberto Morabito.
+% Plan §6.2 flags this entry as frequently mis-cited; metadata above matches
+% the Crossref record exactly.
+@article{morabito2017virtualization,
+  author  = {Morabito, Roberto},
+  title   = {Virtualization on {Internet of Things} Edge Devices With Container Technologies: {A} Performance Evaluation},
+  journal = {IEEE Access},
+  year    = {2017},
+  volume  = {5},
+  pages   = {8835--8850},
+  doi     = {10.1109/ACCESS.2017.2704444}
+}
+
+% --- MQTT / messaging --------------------------------------------------------
+
+% verified 2026-08-07 via Crossref API bibliographic query ("A Comparison of
+% MQTT Brokers for Distributed IoT Edge Computing"): LNCS (Software
+% Architecture / ECSA 2020), pp. 352-368, doi 10.1007/978-3-030-58923-3_23.
+@inproceedings{koziolek2020mqtt,
+  author    = {Koziolek, Heiko and Gr{\"u}ner, Sten and R{\"u}ckert, Julius},
+  title     = {A Comparison of {MQTT} Brokers for Distributed {IoT} Edge Computing},
+  booktitle = {Software Architecture (ECSA 2020), Lecture Notes in Computer Science},
+  publisher = {Springer},
+  year      = {2020},
+  pages     = {352--368},
+  doi       = {10.1007/978-3-030-58923-3_23}
+}

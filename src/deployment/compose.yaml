@@ -1,0 +1,275 @@
+# compose.yaml — minimal ARM64 Digital Twin Edge Gateway stack (gate G2).
+#
+# Scope (plan §4.3, CONTRACTS.md §8): Mosquitto (TLS, 8883), Eclipse Ditto 3.9.4
+# core (gateway, policies, things ONLY — search/connectivity/UI/nginx are
+# deliberately excluded), MongoDB (internal), and the local MQTT->Ditto
+# controller. All pulled images are linux/arm64-native and pinned by digest in
+# images.lock.env (plan §9.2).
+#
+# Run from this directory. The image references below are interpolated from
+# images.lock.env, so BOTH env files must be passed explicitly (passing any
+# --env-file disables the automatic .env loading):
+#
+#   docker compose --env-file .env --env-file images.lock.env up -d --build
+#
+# Ditto/Mongo service definitions (env vars, JVM options, healthchecks,
+# cluster alias, memory limits) were copied from the upstream Ditto 3.9.4
+# deployment descriptor, consulted on 2026-08-07:
+#   https://raw.githubusercontent.com/eclipse-ditto/ditto/3.9.4/deployment/docker/docker-compose.yml
+# Deviations from upstream are marked with "DEVIATION" comments.
+#
+# Memory budget (limits only, not measurements) for the 8 GiB campaign VM
+# (plan §5.1: 4 vCPU / 8 GiB): mosquitto 128M + mongodb 512M + 3x ditto 512M
+# + controller 256M = 2432 MiB reserved cap, leaving ample headroom for the
+# OS, page cache and tooling.
+
+name: egw
+
+x-ditto:
+  # Verbatim upstream JAVA_TOOL_OPTIONS (3.9.4). The trailing
+  # "-Dpekko.cluster.downing-provider-class=" (empty value) is intentional
+  # upstream: it disables the split-brain-resolver downing provider for this
+  # static single-node-per-role compose cluster.
+  java-tool-options: &ditto-java-tool-options "JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport -XX:+UseStringDeduplication -Xss512k -XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:MaxGCPauseMillis=150 -Dpekko.coordinated-shutdown.exit-jvm=on -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=180s -Dpekko.cluster.failure-detector.threshold=15.0 -Dpekko.cluster.failure-detector.expected-response-after=10s -Dpekko.cluster.failure-detector.acceptable-heartbeat-pause=20s -Dpekko.cluster.downing-provider-class="
+  # Verbatim upstream healthcheck (pekko-management /alive endpoint, port 7626).
+  healthcheck: &ditto-healthcheck
+    test: ["CMD-SHELL", "curl --fail `hostname`:7626/alive || exit 1"]
+    interval: 30s
+    timeout: 15s
+    retries: 4
+    start_period: 120s
+
+x-logging: &default-logging
+  # Upstream caps log size at 50m; max-file added so a 24 h soak cannot fill
+  # the disk while still retaining enough broker/controller log evidence.
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+services:
+
+  mosquitto:
+    image: ${IMAGE_MOSQUITTO:?set via images.lock.env (pass --env-file images.lock.env)}
+    restart: unless-stopped
+    # 8883/TLS is the ONLY port of the whole stack published on all host
+    # interfaces: the simulator runs outside the VM during benchmarks
+    # (plan §5.1). Everything else is loopback-only or internal.
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/config/acl:/mosquitto/config/acl:ro
+      - ./mosquitto/config/passwd:/mosquitto/config/passwd:ro
+      - ./mosquitto/config/certs:/mosquitto/config/certs:ro
+      - mosquitto-data:/mosquitto/data
+    networks:
+      - egw-net
+    # The probe connects over TLS with a deliberately unknown user and treats
+    # the broker's "not authorised" refusal as healthy: it exercises the TCP
+    # listener, the TLS handshake against our CA and the auth enforcement
+    # without embedding any real credential. Probe lines are identifiable in
+    # the broker log by client id "egw-healthcheck" (filter them out of
+    # connection-evidence counts).
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -i egw-healthcheck -u egw-healthcheck -P nope -t healthcheck -m ping 2>&1 | grep -q 'not authorised'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging: *default-logging
+
+  mongodb:
+    image: ${IMAGE_MONGODB:?set via images.lock.env (pass --env-file images.lock.env)}
+    # Verbatim upstream command and user.
+    command: mongod --storageEngine wiredTiger --noscripting
+    user: mongodb
+    restart: unless-stopped
+    # DEVIATION from upstream: no host port mapping — MongoDB stays internal
+    # to the compose network (CONTRACTS.md §8).
+    environment:
+      # DEVIATION: upstream hardcodes TZ=Europe/Berlin; UTC keeps container
+      # log timestamps aligned with the RFC 3339 UTC event timestamps.
+      - TZ=${TZ:-UTC}
+    volumes:
+      # DEVIATION from upstream (which has no volume): persistence is needed
+      # so twins survive stack restarts between experiment runs.
+      - mongodb-data:/data/db
+    networks:
+      egw-net:
+        aliases:
+          - mongodb
+    healthcheck:
+      # DEVIATION from upstream (which has no mongodb healthcheck): mongosh
+      # ping; --noscripting only disables server-side JS, not client eval.
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ping:1}).ok' | grep -q 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          # DEVIATION: upstream caps at 256m; 512M gives WiredTiger headroom
+          # for the load-sweep and 24 h soak on the 8 GiB VM.
+          memory: 512M
+    logging: *default-logging
+
+  ditto-policies:
+    image: ${IMAGE_DITTO_POLICIES:?set via images.lock.env (pass --env-file images.lock.env)}
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_started
+    environment:
+      - TZ=${TZ:-UTC}
+      - BIND_HOSTNAME=0.0.0.0
+      - *ditto-java-tool-options
+      - MONGO_DB_HOSTNAME=mongodb
+    networks:
+      egw-net:
+        aliases:
+          # Upstream cluster bootstrap contract: every Ditto service shares
+          # the DNS alias "ditto-cluster"; the Pekko cluster seed-node lookup
+          # resolves this alias to discover its peers. Do not remove.
+          - ditto-cluster
+    healthcheck: *ditto-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
+
+  ditto-things:
+    image: ${IMAGE_DITTO_THINGS:?set via images.lock.env (pass --env-file images.lock.env)}
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_started
+      ditto-policies:
+        condition: service_started
+    environment:
+      - TZ=${TZ:-UTC}
+      - BIND_HOSTNAME=0.0.0.0
+      - *ditto-java-tool-options
+      - MONGO_DB_HOSTNAME=mongodb
+    networks:
+      egw-net:
+        aliases:
+          - ditto-cluster
+    healthcheck: *ditto-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
+
+  ditto-gateway:
+    image: ${IMAGE_DITTO_GATEWAY:?set via images.lock.env (pass --env-file images.lock.env)}
+    restart: unless-stopped
+    depends_on:
+      ditto-policies:
+        condition: service_started
+    # Loopback-only on the host (CONTRACTS.md §8): reachable as
+    # http://127.0.0.1:8080 on the VM and as http://ditto-gateway:8080 inside
+    # the compose network. Never expose publicly: with pre-authentication
+    # enabled, whoever can reach this port can claim any authorization
+    # subject via the x-ditto-pre-authenticated header.
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - TZ=${TZ:-UTC}
+      - BIND_HOSTNAME=0.0.0.0
+      # Upstream default. Allows the controller to authenticate with the
+      # header "x-ditto-pre-authenticated: pre:egw-controller"
+      # (CONTRACTS.md §4/§8) instead of user credentials.
+      - ENABLE_PRE_AUTHENTICATION=true
+      - *ditto-java-tool-options
+      # Upstream ships this commented out with a default of "foobar"; here it
+      # must be set explicitly (used by the /devops and /status endpoints).
+      - DEVOPS_PASSWORD=${DITTO_DEVOPS_PASSWORD:?set DITTO_DEVOPS_PASSWORD in .env}
+    networks:
+      egw-net:
+        aliases:
+          - ditto-cluster
+    healthcheck: *ditto-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
+
+  controller:
+    # Built locally from src/Dockerfile; not part of images.lock.env because
+    # it is never pulled from a registry (reproducibility comes from the
+    # pinned base image inside the Dockerfile plus the git commit).
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: egw-controller:0.1.0
+    platform: linux/arm64
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      ditto-gateway:
+        condition: service_healthy
+    # Loopback-only on the host (CONTRACTS.md §8).
+    ports:
+      - "127.0.0.1:8000:8000"
+    # User configuration (credentials, retry policy, EGW_ID, ...) comes from
+    # .env; the entries under "environment" below OVERRIDE .env on purpose
+    # because they encode compose-network topology and in-image paths that
+    # must not drift when .env is reused for host-run tooling.
+    env_file:
+      - .env
+    environment:
+      - EGW_MQTT_HOST=mosquitto
+      - EGW_MQTT_PORT=8883
+      - EGW_MQTT_TLS=true
+      - EGW_MQTT_CA_CERT=/certs/ca.crt
+      - EGW_MQTT_USERNAME=egw-controller
+      - EGW_MQTT_PASSWORD=${MOSQUITTO_CONTROLLER_PASSWORD:?set MOSQUITTO_CONTROLLER_PASSWORD in .env}
+      - EGW_DITTO_BASE_URL=http://ditto-gateway:8080
+      - EGW_DITTO_AUTH_MODE=pre
+      - EGW_DITTO_PREAUTH_SUBJECT=pre:egw-controller
+      - EGW_SCHEMA_DIR=/app/schemas
+      - EGW_EVENT_LOG_DIR=/data/events
+      - EGW_HTTP_PORT=8000
+    volumes:
+      - ./mosquitto/config/certs/ca.crt:/certs/ca.crt:ro
+      # Bind mount so the experiments harness on the host can read
+      # events.jsonl (CONTRACTS.md §5). Create the directory BEFORE first
+      # "up" (validate-config.sh does it) or docker creates it root-owned
+      # and the non-root container user (uid 1000) cannot write.
+      - ./data/events:/data/events
+    healthcheck:
+      # Same probe as the image HEALTHCHECK; kept here so compose semantics
+      # (depends_on: service_healthy, docker events) do not depend on image
+      # metadata. stdlib-only on purpose: no curl/wget/httpx in the probe.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging: *default-logging
+
+networks:
+  # Single user-defined bridge for all inter-service traffic. Not marked
+  # "internal: true" because mosquitto must publish 8883 to the outside;
+  # isolation of the remaining services comes from publishing no ports
+  # (mongodb, policies, things) or loopback-only ports (gateway, controller).
+  egw-net:
+    driver: bridge
+
+volumes:
+  mosquitto-data:
+  mongodb-data:

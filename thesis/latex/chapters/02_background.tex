@@ -1,0 +1,177 @@
+% Chapter 2 — Background and Related Work
+% Plan mapping: PLANO §6.1 (row 2): edge, digital twins, IoT/wearables, Yocto,
+% containers, MQTT, WoT, SSI as context only. Indicative target: 6,000–7,000 words.
+% Sections marked \todo are expanded as the literature-review protocol
+% (thesis/research/literature_review_protocol.md) is executed and sources are
+% verified into thesis/refs/references.bib.
+
+\chapter{Background and Related Work}
+\label{ch:background}
+
+\noindent This chapter provides the technical background for the artefact and
+positions the dissertation against related work. It is organised
+topic-by-topic; a final section synthesises the comparison and restates the
+gap. The underlying literature search is governed by the structured
+scoping/narrative review protocol described in
+Section~\ref{sec:method-review}; only sources verified against their primary
+records are cited.
+
+\section{Edge Computing}
+\label{sec:bg-edge}
+
+\noindent Edge computing designates the paradigm in which computation and
+storage are placed near the sources of data, at or close to the network edge,
+rather than in centralised data centres. Shi et al.\ articulate its canonical
+motivations: latency reduction, bandwidth economy, availability under
+intermittent connectivity, and the ability to keep sensitive data close to its
+origin \cite{shi2016edge}. For consumer households, these motivations
+translate into a gateway-class device that mediates between local sensors and
+any external services. Benchmarking edge systems raises specific
+methodological questions --- workload representativeness, metric selection and
+repetition discipline --- surveyed by Varghese et al.\ \cite{varghese2021survey},
+which inform the experimental protocol of this work
+(Section~\ref{sec:method-protocol}).
+
+\todo{Expand with additional verified sources on edge gateway architectures
+identified by the review protocol (axis: edge gateways).}
+
+\section{Digital Twins}
+\label{sec:bg-dt}
+
+\noindent A digital twin is a synchronised, addressable digital counterpart of
+a physical entity. Fuller et al.\ survey enabling technologies and open
+research directions \cite{fuller2020digital}, while Minerva et al.\ analyse
+architectural models for digital twins specifically in the \ac{IoT} context,
+including the notion of the twin as a continuously updated state
+representation exposed through uniform interfaces \cite{minerva2020digital}.
+Most published deployments assume cloud hosting; a smaller body of work
+studies twins on constrained edge infrastructure. Picone et al.\ design and
+evaluate a modular edge digital-twin architecture on resource-limited
+hardware, providing the closest methodological precedent for hosting and
+measuring twins at the edge \cite{picone2023flexible}.
+
+\subsection{Digital Twins of Wearable Devices}
+\label{sec:bg-dt-wearables}
+
+\noindent Wearables are a natural subject for consumer digital twins: they
+emit frequent, structured, personal measurements. In this work three device
+types are modelled --- smartwatch, smart ring and smart clothing --- each with a
+distinct measurement schema and nominal emission rate
+(Chapter~\ref{ch:architecture}). \todo{Add verified sources on wearable
+telemetry characteristics and synthetic workload generation (review axis:
+wearables and simulators).}
+
+\section{The C2DTA Line of Work}
+\label{sec:bg-c2dta}
+
+\noindent Pinto et al.\ propose the Consumer-Controlled Digital Twin
+Architecture, in which blockchain technology is used to give consumers control
+over their smart devices' digital twins and data \cite{pinto2026c2dta}. The
+architecture spans consumer-side gateways and distributed-ledger components.
+Its published evaluation instantiates a single smartwatch profile at one
+message per second on an x86 virtual machine. The present dissertation takes
+the edge-gateway component of that vision and subjects it to a substantially
+broader engineering and empirical treatment: a Yocto-built reproducible ARM64
+platform, three concurrent device types, six workload scenarios including
+fault injection and a 24-hour soak, and resource-consumption profiling. The
+ledger, identity and marketplace aspects of C2DTA are context only and are not
+implemented or evaluated here.
+
+\section{Embedded Linux and the Yocto Project}
+\label{sec:bg-yocto}
+
+\noindent The Yocto Project is an open-source build framework for creating
+custom Linux distributions for embedded targets. Its layer model, recipe
+metadata and pinned-revision configuration make the resulting images
+\emph{reproducible}: a documented checkout rebuilds the same system
+\cite{yocto2024scarthgap}. This work uses the Scarthgap release line (5.0,
+\ac{LTS} until April 2028) \cite{yocto2024scarthgap}, with all layer revisions
+fixed in a \texttt{kas} manifest. The alternative approaches --- generic binary
+distributions or manually configured systems --- were rejected because they
+weaken the reproducibility claim at the platform's foundation.
+
+\todo{Add verified comparative sources on Yocto versus alternative image-build
+approaches (review axis: embedded Linux build systems), avoiding
+vendor-authored comparisons or marking them as grey literature.}
+
+\section{Containerisation at the Edge}
+\label{sec:bg-containers}
+
+\noindent Containers package services with their dependencies under \ac{OCI}
+images and runtimes, enabling digest-pinned, architecture-specific deployment.
+Felter et al.\ compare virtual machines and Linux containers on server-class
+hardware, establishing the baseline expectation that container overhead is
+modest relative to full virtualisation \cite{felter2015updated}. Morabito
+evaluates container technologies specifically on \ac{IoT}-class edge devices,
+concluding that containerisation is viable on constrained ARM hardware
+\cite{morabito2017virtualization}. These results motivate the architectural
+choice of running the digital-twin stack as containers on the gateway; the
+resource measurements of Chapter~\ref{ch:evaluation} characterise the cost of
+this choice for the specific stack used here.
+
+\section{MQTT and Telemetry Ingestion}
+\label{sec:bg-mqtt}
+
+\noindent \ac{MQTT} is a lightweight publish/subscribe protocol standardised
+by OASIS; version 5.0 is the current OASIS Standard \cite{oasis2019mqtt}. Its
+\ac{QoS}~1 delivery mode (at-least-once) matches the reliability need of
+telemetry ingestion, at the price of possible duplicates, which the receiving
+side must detect --- a requirement that shapes the idempotent controller design
+of Chapter~\ref{ch:architecture}. Koziolek et al.\ compare MQTT brokers for
+distributed edge deployments and find substantial differences in throughput
+and loss behaviour between implementations \cite{koziolek2020mqtt}; Mosquitto,
+used here, is attractive for single-node edge deployment due to its small
+footprint and operational simplicity.
+
+\section{The Web of Things}
+\label{sec:bg-wot}
+
+\noindent The W3C \ac{WoT} \ac{TD} 1.1 Recommendation defines a standard,
+machine-readable description format for the capabilities and interfaces of
+things \cite{w3c2023wottd}. In this work each wearable type has a \ac{TD}
+aligned with its \ac{JSON} Schema, providing an interoperable, standard
+description of the twin's data model. Eclipse Ditto, the digital-twin
+framework used here, documents native \ac{WoT} integration
+\cite{eclipse2026ditto}.
+
+\section{Eclipse Ditto}
+\label{sec:bg-ditto}
+
+\noindent Eclipse Ditto is an open-source framework for managing digital twins
+as addressable resources: things with attributes and features, guarded by
+policies, exposed through \ac{HTTP} and messaging \ac{API}s
+\cite{eclipse2026ditto}. Ditto is self-hostable as a set of microservices,
+which makes a minimal-core deployment possible on resource-limited hardware:
+this work runs only the gateway, policies and things services with MongoDB
+persistence, on version 3.9.4 (Chapter~\ref{ch:architecture}).
+
+\section{Self-Sovereign Identity as Context}
+\label{sec:bg-ssi}
+
+\noindent The broader C2DTA vision includes decentralised identity and
+verifiable interactions between consumer agents. In this dissertation, \ac{SSI}
+appears exclusively as architectural context: the evaluated platform neither
+implements nor depends on identity agents, ledgers or credentials, and no
+statement in this document should be read as an \ac{SSI} or blockchain result.
+The delimitation is deliberate: the research questions
+(Section~\ref{sec:intro-rqs}) are answerable without identity components, and
+the project plan classifies such components as strictly conditional,
+non-essential scope.
+
+\section{Synthesis and Gap}
+\label{sec:bg-synthesis}
+
+\noindent Table~\ref{tab:related-work} \todo{insert comparison table of
+related systems versus this work, along the axes: reproducible platform
+build, ARM64 deployment, multi-device concurrency, fault-injection scenarios,
+resource profiling, long-duration stability, artefact availability} summarises
+the comparison between the closest related systems and the present work.
+In summary: component-level evidence exists for edge digital twins
+\cite{picone2023flexible}, broker behaviour \cite{koziolek2020mqtt} and
+container overhead on constrained devices
+\cite{morabito2017virtualization,felter2015updated}, and the C2DTA line
+provides the architectural vision \cite{pinto2026c2dta}; but, within the
+review protocol executed for this work, no published study was identified that
+composes these elements into a reproducible, Yocto-built ARM64 gateway with a
+pre-registered multi-scenario evaluation of wearable digital-twin ingestion.
+That composition is the subject of the remaining chapters.

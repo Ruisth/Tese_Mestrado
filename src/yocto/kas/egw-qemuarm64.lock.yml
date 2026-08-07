@@ -1,0 +1,29 @@
+# kas lock file for egw-qemuarm64.yml.
+#
+# kas (>= 4.0) loads <name>.lock.yml automatically right before the main
+# file, so these commits override any floating refs. Keep this file in sync
+# with the 'commit' keys in egw-qemuarm64.yml; regenerate from an actual
+# checkout with:
+#     kas dump --lock --inplace kas/egw-qemuarm64.yml
+#
+# Pin provenance (verified 2026-08-07, details in egw-qemuarm64.yml header):
+#   poky                : tag yocto-5.0.19 (GitHub API mirror, dereferenced
+#                         annotated tag; canonical git.yoctoproject.org/poky)
+#   meta-openembedded   : scarthgap head 2026-07-30 (GitHub API +
+#                         OpenEmbedded Layer Index API, agreeing)
+#   meta-virtualization : scarthgap head 2026-07-20 (OpenEmbedded Layer
+#                         Index API; confirm once on WSL2 with
+#                         'git ls-remote https://git.yoctoproject.org/meta-virtualization scarthgap')
+# meta-egw is local (part of this repository) and is not pinned here.
+
+header:
+  version: 14
+
+overrides:
+  repos:
+    poky:
+      commit: bb98354685781296e3b3737e7762412100f359c2
+    meta-openembedded:
+      commit: ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+    meta-virtualization:
+      commit: f851f730ec415d266bfe0c5941c228a63a896298

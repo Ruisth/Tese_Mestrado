@@ -1,0 +1,199 @@
+% Chapter 1 — Introduction
+% Plan mapping: PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md §6.1 (row 1),
+% §4.1 (objective), §4.2 (research questions, quoted verbatim), §4.3–4.5 (scope).
+% Indicative target: 2,500–3,000 words.
+
+\chapter{Introduction}
+\label{ch:introduction}
+
+\section{Context and Motivation}
+\label{sec:intro-context}
+
+\noindent Consumer wearable devices --- smartwatches, smart rings and sensorised
+clothing --- continuously produce streams of personal measurements such as heart
+rate, skin temperature, blood-oxygen saturation and motion. In the prevailing
+deployment model, this telemetry is transmitted to vendor-operated cloud
+platforms, where it is stored, processed and exposed back to the consumer
+through proprietary applications. Digital twins --- synchronised digital
+representations of physical assets --- offer a principled way to organise such
+device state and make it queryable through uniform interfaces
+\cite{fuller2020digital,minerva2020digital}. At the same time, edge computing
+argues for moving computation and data handling closer to where data is
+produced, reducing dependence on wide-area connectivity and keeping sensitive
+data under local control \cite{shi2016edge}.
+
+This dissertation is developed in the context of the Consumer-Controlled
+Digital Twin Architecture (C2DTA) proposed by Pinto et
+al.~\cite{pinto2026c2dta}, which places the consumer, rather than the device
+vendor, in control of the digital twins of their smart devices. Within that
+broader architecture, the component studied here is the \emph{edge gateway}:
+the household-side platform that receives device telemetry, validates it and
+materialises it as digital twins on local, self-hosted infrastructure.
+
+The engineering motivation is concrete. If a household edge gateway is to be
+credible, its operating platform must be \emph{reproducible} --- buildable from
+a pinned, versioned configuration rather than assembled by hand --- and its
+digital-twin services must run on the ARM64 architecture that dominates
+low-power edge hardware. Whether an open-source digital-twin stack, hosted on
+such a platform, can correctly and reliably absorb the concurrent telemetry of
+several heterogeneous wearables, and at what resource cost, is an empirical
+question that requires systematic evidence.
+
+\section{Problem Statement}
+\label{sec:intro-problem}
+
+\noindent The problem addressed by this dissertation is the absence of a
+reproducible, evidence-backed reference implementation and evaluation of an
+ARM64 edge gateway for wearable digital twins. Prior work in the C2DTA line
+evaluated a single smartwatch profile at one message per second on an x86
+virtual machine \cite{pinto2026c2dta}; it did not demonstrate a Yocto-built
+platform, ARM64 deployment, concurrent heterogeneous devices, load or
+robustness scenarios, resource-consumption profiling, or long-duration
+stability. Component-level studies exist --- digital-twin frameworks at the edge
+\cite{picone2023flexible}, MQTT broker comparisons \cite{koziolek2020mqtt},
+container overhead on constrained devices
+\cite{morabito2017virtualization,felter2015updated} --- but they do not compose
+into a validated, reproducible gateway platform for this use case.
+
+\section{Research Gap}
+\label{sec:intro-gap}
+
+\noindent Within the searches executed for this work (Chapter~\ref{ch:methodology}
+describes the review protocol and its limits), we did not identify a published,
+reproducible evaluation of an edge gateway that combines (i) an operating
+system image built with the Yocto Project from a pinned configuration for
+ARM64, (ii) a containerised digital-twin stack based on Eclipse Ditto with an
+MQTT ingestion path, and (iii) a pre-registered experimental protocol covering
+correctness, reliability, latency, throughput, resource consumption and
+long-duration stability under concurrent multi-device wearable telemetry. This
+combination is the gap this dissertation addresses. The claim is deliberately
+bounded: it is relative to the literature review protocol actually executed,
+not an absolute statement about all published work.
+
+\section{Research Questions}
+\label{sec:intro-rqs}
+
+\noindent The dissertation answers three research questions, fixed in the
+project plan and unchanged since its adoption:
+
+\begin{enumerate}[label=\textbf{RQ\arabic*.}]
+  \item \textit{How can a reproducible Yocto-based ARM64 edge gateway be
+        designed to host containerised digital-twin services?}
+  \item \textit{To what extent can the gateway ingest and materialise
+        concurrent synthetic telemetry from three wearable-device types
+        correctly and reliably?}
+  \item \textit{What latency, throughput and resource-consumption trade-offs
+        constrain deployment of the proposed platform on an ARM64 edge-class
+        environment?}
+\end{enumerate}
+
+RQ1 is a design and constructive question, answered by the artefact itself and
+by functional evidence of its reproducibility. RQ2 and RQ3 are empirical
+questions, answered exclusively with data produced by the experimental
+campaign described in Chapters~\ref{ch:methodology}
+and~\ref{ch:evaluation}.
+
+\section{Objectives}
+\label{sec:intro-objectives}
+
+\noindent The overall objective is to conceive, implement and evaluate a
+reproducible ARM64 edge gateway, based on the Yocto Project and containerised
+services, capable of receiving concurrent synthetic telemetry from three
+wearable-device types, validating the events, and materialising them as
+digital twins in Eclipse Ditto. This decomposes into the following specific
+objectives:
+
+\begin{enumerate}
+  \item Define versioned, normative interfaces for the telemetry path: MQTT
+        topic layout, a common event envelope, per-device JSON Schemas, and
+        \ac{WoT} Thing Descriptions.
+  \item Build a minimal, reproducible operating-system image (\texttt{egw-image})
+        with the Yocto Project Scarthgap \ac{LTS} line from a pinned
+        \texttt{kas} manifest, validated functionally on emulated ARM64
+        (\texttt{qemuarm64}) with systemd, networking and an \ac{OCI} container
+        runtime.
+  \item Deploy a minimal ARM64 digital-twin stack --- Mosquitto with \ac{TLS},
+        Eclipse Ditto (gateway, policies, things), MongoDB and a purpose-built
+        ingestion controller --- with all images verified for
+        \texttt{linux/arm64} and pinned by digest.
+  \item Implement a deterministic, seedable \ac{CLI} simulator for the three
+        wearable types and six scenarios (\texttt{smoke}, \texttt{nominal},
+        \texttt{load-sweep}, \texttt{dropout-reconnect},
+        \texttt{invalid-payload}, \texttt{soak}).
+  \item Execute a pre-registered experimental campaign on a native ARM64
+        environment and analyse it with a single reproducible pipeline from
+        raw data to tables and figures.
+  \item Deliver a reproducibility package: code, configuration, manifests,
+        raw data, checksums and analysis scripts.
+\end{enumerate}
+
+\section{Contributions}
+\label{sec:intro-contributions}
+
+\noindent As designed, the dissertation contributes the following artefacts
+and evidence. Each contribution stands or falls with the evidence presented in
+Chapter~\ref{ch:evaluation}; none is claimed as demonstrated until that
+evidence exists.
+
+\begin{enumerate}
+  \item \textbf{A reproducible platform recipe.} A pinned Yocto/Scarthgap
+        configuration (\texttt{kas} manifest and custom layer) producing a
+        bootable ARM64 image with a container runtime, together with the
+        documented procedure to rebuild it from a clean checkout.
+  \item \textbf{A contract-first ingestion architecture.} Normative interfaces
+        (topic layout, event envelope, JSON Schemas, Thing Descriptions, twin
+        model) and a controller design providing validation, idempotent twin
+        updates and structured evidence logging.
+  \item \textbf{A deterministic wearable workload generator.} A seedable
+        simulator producing reproducible multi-device telemetry across six
+        scenarios, suitable for reuse in comparable studies.
+  \item \textbf{A pre-registered, reproducible evaluation.} A protocol with
+        fixed metrics, run counts and statistical rules, and a campaign whose
+        raw data, manifests and analysis pipeline are archived and
+        re-executable.
+  \item \textbf{An evidence-bounded characterisation} of the latency,
+        throughput, resource-consumption and stability envelope of the
+        proposed gateway on an ARM64 edge-class environment.
+\end{enumerate}
+
+\section{Scope and Delimitation}
+\label{sec:intro-scope}
+
+\noindent The scope is deliberately narrow so that every claim can be backed
+by evidence produced within the project window:
+
+\begin{itemize}
+  \item Telemetry is \emph{synthetic}, produced by the deterministic
+        simulator; no physical wearables or human-subject data are used.
+  \item Functional platform validation uses QEMU emulation
+        (\texttt{qemuarm64}); performance evaluation uses a native ARM64
+        virtual machine. No performance conclusions are drawn from emulation,
+        and no physical single-board hardware is evaluated.
+  \item The digital-twin stack is a minimal core (Mosquitto, Ditto gateway,
+        policies and things, MongoDB, controller); Ditto search, connectivity
+        and user-interface services are excluded.
+  \item \ac{SSI} and blockchain elements of the broader C2DTA vision are
+        discussed as context only (Chapter~\ref{ch:background}); they are
+        neither implemented nor evaluated here, and no claims are made about
+        them.
+  \item Exactly three wearable-device types are modelled; graphical
+        interfaces, Bluetooth connectivity, over-the-air updates and energy
+        measurements are out of scope.
+\end{itemize}
+
+\section{Document Structure}
+\label{sec:intro-structure}
+
+\noindent The remainder of this document is organised as follows.
+Chapter~\ref{ch:background} reviews the background technologies and related
+work on edge computing, digital twins, embedded Linux, containerisation, MQTT
+and the Web of Things, and positions this work against the C2DTA line.
+Chapter~\ref{ch:methodology} presents the research methodology: a Design
+Science Research framing, the literature-review protocol, the mapping from
+research questions to methods and metrics, and the experimental protocol.
+Chapter~\ref{ch:architecture} describes the architecture and implementation of
+the gateway as realised in the project repository.
+Chapter~\ref{ch:evaluation} reports the evaluation and discusses the results
+against the research questions, including threats to validity.
+Chapter~\ref{ch:conclusions} summarises contributions, limitations and future
+work.
