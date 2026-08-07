@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Secrets / local env
+.env
+*.key
+*.pem
+!**/certs/README.md
+src/deployment/mosquitto/config/passwd
+src/deployment/mosquitto/config/certs/
+
+# Yocto build outputs (builds correm fora deste repo, em ext4)
+src/yocto/build/
+src/yocto/downloads/
+src/yocto/sstate-cache/
+
+# Experiment raw data: arquivado fora do histórico Git normal (ver plano §5.8)
+experiments/results/raw/*
+!experiments/results/raw/.gitkeep
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.synctex.gz
+*.toc
+thesis/latex/main.pdf
+
+# OS
+Thumbs.db
+.DS_Store
+
+# local db/data
+data/
+*.db
+*.db-shm
+*.db-wal
