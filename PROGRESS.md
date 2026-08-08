@@ -47,7 +47,7 @@ dos claims e gates.
 | Entregável | Implementado | Verificado | Aceite no gate | M |
 |---|---|---|---|---|
 | Repositório Git inicializado | sim | estático — 4 commits, working tree limpo (auditoria 08/08); sem remote nem tags | G0 — Pendente | M1 |
-| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte dos 400 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
+| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte dos 452 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
 | Âmbito, RQs e matriz claim→evidência (15 claims) | sim | estático — 15/15 claims `Pendente — sem evidência`; sem validação dos orientadores | G0 — Pendente | M1 |
 | Backlog e registo de riscos | sim | não (documentos de gestão) | G0 — Pendente | M1 |
 | Guia WSL2 Ubuntu 24.04 (ext4) | sim | não — instalação não executada | G0 — Pendente | M1 |
@@ -61,13 +61,14 @@ dos claims e gates.
 |---|---|---|---|---|
 | Manifesto `kas` + layer `meta-egw` + receita `egw-image` | sim | estático — pins Scarthgap 5.0.19 documentados 07/08; zero builds, zero boots | G1 — Bloqueado (requer WSL2 ext4; gate 16/08, trigger 20/08) | M1 |
 | Compose ARM64 mínimo (Mosquitto TLS, Ditto 3.9.4, MongoDB, controlador) | sim | estático — `docker compose config` (validação sintática, sem log persistido); digests arm64 verificados documentalmente 07/08; `.env`/certificados/passwords operacionais não existem | G2 — Bloqueado (requer VM ARM; gate 23/08, trigger 25/08) | M1 |
-| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte dos 400 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
-| Simulador unificado (3 wearables, 6 cenários) | sim | unitário — determinismo verificado; auditoria §7.3: `dropout-reconnect` não induzia desconexão MQTT real — correção em curso a 08/08 | G2–G3 — Pendente | M2 |
+| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte dos 452 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
+| Simulador unificado (3 wearables, 6 cenários) | sim | unitário — determinismo verificado; `dropout-reconnect` induz desconexão MQTT real com buffering e redelivery ordenado (correção da auditoria §7.3 concluída 08/08; cobre C10 em unitário) | G2–G3 — Pendente | M2 |
 | Thing Descriptions WoT TD 1.1 | sim | unitário — `tests/test_things.py` cruza TD↔schema; integração real não demonstrada | G2–G3 — Pendente | M2 |
 | Harness experimental + análise | sim | unitário — testes locais; auditoria §9 identifica lacunas (topologia de recolha, manifesto de ambiente, recolha de `events.jsonl`, warm-up, condições em falta); correções em curso a 08/08 (riscos R18/R19/R22) | G4 — Pendente | M1–M2 |
 | Estrutura de evidência `experiments/results/` | sim | estático — diretórios `raw/processed/figures` criados; zero dados (evidência experimental M0) | G5 — Pendente | M1 |
-| Dissertação (esqueleto sem números inventados) | sim | estático — latexmk compila: 46 pp., 0 referências por resolver, 15 refs verificadas; ~5 953 palavras totais e 27 TODOs — muito abaixo do alvo (auditoria §6) | G6 — Pendente | M1 |
-| Suite de testes unitários | sim | unitário — 400 testes a passar (Windows, Python 3.14, venv); zero testes live/`integration`, sem execução Linux persistida | G3 — Pendente | M2 |
+| Dissertação (esqueleto + cap. 2 substantivo) | sim | estático — latexmk compila: 57 pp., 0 referências por resolver, 25 refs verificadas; cap. 2 com 4 248 palavras (alvo do draft de orientador 4 000–5 000 cumprido, auditoria §6.6); caps. 3/5/6 continuam esqueleto | G6 — Pendente | M1–M2 |
+| Suite de testes unitários | sim | unitário — 452 testes a passar (Windows, Python 3.14, venv); evidência persistida em `docs/evidence/tests/2026-08-08/` (JUnit + stdout + ambiente); zero testes live/`integration`, sem execução Linux | G3 — Pendente | M2 |
+| Correções do harness pós-auditoria (fetch de eventos, 2 ambientes, collector na VM, janela medida, condições C10–C14, queue growth, CPU normalizada) | sim | unitário — testes novos incluídos nos 452; plano de campanha passou de 76 para 95 runs; execução real pendente de VM | G3–G4 — Pendente | M2 |
 
 Nota: «Implementado = sim» significa apenas que o artefacto existe e, quando
 indicado, passou verificação unitária/estática neste repositório. Os gates

@@ -83,3 +83,57 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
 - **Próximos passos (ações do estudante):** enviar email G0; instalar WSL2
   Ubuntu 24.04 e correr build Yocto (guia em docs/setup/); criar VM ARM64 e
   validar `aarch64` até 10/08; confirmar regras administrativas da extensão.
+
+---
+
+## Entrada #C004
+- **Data:** 2026-08-08
+- **Fase:** Correções da auditoria externa de gestão (ChatGPT, 08/08) — grupos A/B/C/D
+- **Ação:** Análise da auditoria (fatos verificados contra o repositório antes
+  de aceitar), aplicação integral das correções em 4 fluxos paralelos.
+- **Resultado:**
+  - **A — Higiene:** `main.bcf`/`main.run.xml` removidos do Git; regra do
+    `certs/README.md` corrigida (agora versionado); bit executável nos 7
+    scripts; `src/requirements.lock` (pip freeze, caveat de runtime lock na
+    VM antes de `exp-v1`); `addopts` desseleciona `integration` por omissão;
+    doc de backup/remote (`docs/setup/git_backup_remote.md`).
+  - **B — Verdade documental:** PROGRESS reescrito como fonte única com modelo
+    de 3 campos (Implementado/Verificado/Aceite) + escala M0–M5 + controlo de
+    esforço; backlog sem estado; riscos R1–R27 com prob./impacto/owner;
+    frase "review protocol executed" do cap. 2 substituída por claim limitado
+    (revisão preliminar, protocolo por executar); diagramas e cap. 4
+    sincronizados com CONTRACTS v1.1.
+  - **C — Harness (riscos R18–R23):** fetch automático de `events.jsonl`
+    (template + retries + subcomando `collect` de recuperação);
+    `sut_environment.json` (script na VM) separado de
+    `loadgen_environment.json`; collector de recursos na VM
+    (`collect-resources.sh`); runs cronometrados sem ambiente/recursos do SUT
+    ficam `validity: invalid`; janela medida no manifest com filtro do warm-up
+    na análise; plano de campanha 76→95 runs (smoke×10, invalid-payload×3,
+    dropout×3, controller-restart×3) mapeados aos claims C10–C14;
+    `controller_metrics.csv` (queue_depth/dropped a 1 Hz) fecha o TODO do
+    queue growth; CPU normalizada por nproc do SUT; condições externas
+    (cold start, twin creation, boots QEMU) ingeridas e analisadas (C15);
+    `measure-cold-start.sh` na VM. Regras de saturação marcadas
+    "pending advisor sign-off" antes de `exp-v1`.
+  - **C — Simulador:** `dropout-reconnect` agora faz desconexão MQTT real com
+    buffering ordenado e redelivery no reconnect (janelas ao nível da execução,
+    deterministas por seed); verificado contra o código-fonte do paho 2.1.0.
+  - **D — Sprint teórico:** cap. 2 expandido de ~1 034 para 4 248 palavras
+    substantivas; tabela de related work (C2DTA, Edge DT, OpenTwins, ODT vs
+    este trabalho); bibliografia 15→25 entradas, todas verificadas em 08/08
+    (Crossref/W3C/OASIS/páginas oficiais) com comentários datados;
+    `study_selection.csv` com proveniência honesta (seed/snowball);
+    `search_log.csv` só com pesquisas realmente executadas, marcadas
+    "preliminary; non-institutional"; queries institucionais continuam
+    pendentes (ação do estudante).
+- **Evidência:** suite completa **452 passed** com evidência persistida em
+  `docs/evidence/tests/2026-08-08/` (junit.xml, stdout, ambiente, commit);
+  `main.pdf` 57 páginas, 0 referências/citações por resolver, 0 overfull
+  > 20 pt nos capítulos editados; bundle de backup em `backups/`.
+- **Decisões:** auditoria aceite em quase tudo; divergências documentadas:
+  logs de pesquisa nunca fabricados (queries institucionais ficam para o
+  estudante); dropout implementado (não apenas documentado) por ser o único
+  caminho para o claim C10.
+- **Próximos passos:** inalterados — ações externas do estudante (email G0,
+  VM, WSL2, regras da extensão) e, depois, G1 com evidência real.
