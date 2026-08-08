@@ -1,7 +1,7 @@
 # EGW architecture diagrams
 
 Source of truth: `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` section 5
-(normative) and `src/CONTRACTS.md` v1.0. These diagrams show only contracted
+(normative) and `src/CONTRACTS.md` v1.1. These diagrams show only contracted
 behaviour (topics, ports, endpoints, outcomes); they make no performance claims.
 
 ## 1. Logical component diagram
@@ -18,7 +18,7 @@ flowchart LR
 
     subgraph STACK["Edge Gateway stack (docker compose, linux/arm64 images pinned by digest)"]
         MOSQ["Mosquitto broker<br/>:8883 TLS, QoS 1<br/>password_file + ACL<br/>(no anonymous access)"]
-        CTRL["egw_controller (MQTT-to-Ditto bridge)<br/>1. JSON Schema validation (draft 2020-12)<br/>2. dedupe: message_id + seq vs twin ingestion<br/>3. merge-patch conversion<br/>counters: accepted / rejected / duplicate / failed"]
+        CTRL["egw_controller (MQTT-to-Ditto bridge)<br/>1. JSON Schema validation (draft 2020-12)<br/>2. dedupe: message_id replay + run-scoped seq vs twin ingestion<br/>3. merge-patch conversion<br/>counters: accepted / rejected / duplicate / failed"]
         DGW["Ditto gateway<br/>:8080 (localhost-only on host)<br/>pre-authentication pre:egw-controller"]
         DPOL["Ditto policies<br/>(internal)"]
         DTHG["Ditto things<br/>(internal)"]
@@ -99,7 +99,7 @@ sequenceDiagram
 
     alt payload invalid
         CT->>EL: outcome=rejected (ditto_ack ns and latency_ms null)
-    else duplicate: message_id already processed or seq <= last_seq
+    else duplicate: message_id already processed, or seq <= last_seq within the same run_id (CONTRACTS v1.1)
         Note over CT: dedupe state from twin ingestion feature;<br/>local cache rebuilt from twin after controller restart
         CT->>EL: outcome=duplicate (ditto_ack ns and latency_ms null)
     else valid and new
@@ -109,7 +109,7 @@ sequenceDiagram
         end
         CT->>DT: PATCH /api/2/things/org.c2dta:(device_uuid) (merge-patch+json)
         Note over CT,DT: transient errors (timeout, 5xx): retry up to EGW_RETRY_MAX,<br/>exponential backoff base EGW_RETRY_BACKOFF_MS; 4xx not retried
-        DT->>DB: persist feature update + ingestion (last_message_id, last_seq, last_ts, accepted_count)
+        DT->>DB: persist feature update + ingestion (last_message_id, last_seq, last_run_id, last_ts, accepted_count)
         DT-->>CT: 2xx acknowledgement
         Note over CT: ditto_ack_monotonic_ns; latency_ms = (ack - received) / 1e6
         CT->>EL: outcome=accepted (latency_ms, attempts)

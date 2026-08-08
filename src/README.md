@@ -26,8 +26,11 @@ cd src && python -m pytest tests -q
 ```
 
 The suite is self-contained (fakes for MQTT/Ditto; schemas loaded from
-`schemas/`). Integration tests that need a live stack are marked
-`integration` and deselected by default configuration.
+`schemas/`). Live integration tests are marked `integration` and deselected
+by default via `addopts` in `pyproject.toml`; run them against a live stack
+with `python -m pytest tests -m integration`. Unit results with fakes are
+level M2 evidence only — they never close a gate on their own (see
+`../docs/claim_evidence_matrix.md`).
 
 ## Run the simulator (reference invocation, CONTRACTS §7)
 

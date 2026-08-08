@@ -31,6 +31,7 @@ packages = ["egw_simulator", "egw_controller", "egw_experiments"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not integration'"
 markers = [
-    "integration: requires live Mosquitto/Ditto stack (deselect with '-m \"not integration\"')",
+    "integration: requires a live Mosquitto/Ditto stack (deselected by default via addopts; run with -m integration)",
 ]

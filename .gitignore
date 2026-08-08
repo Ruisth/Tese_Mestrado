@@ -14,9 +14,9 @@ build/
 .env
 *.key
 *.pem
-!**/certs/README.md
 src/deployment/mosquitto/config/passwd
-src/deployment/mosquitto/config/certs/
+src/deployment/mosquitto/config/certs/*
+!src/deployment/mosquitto/config/certs/README.md
 
 # Yocto build outputs (builds correm fora deste repo, em ext4)
 src/yocto/build/
@@ -30,7 +30,9 @@ experiments/results/raw/*
 # LaTeX
 *.aux
 *.bbl
+*.bcf
 *.blg
+*.run.xml
 *.fdb_latexmk
 *.fls
 *.lof
