@@ -157,25 +157,74 @@ normalization threshold (0.90/60 s), the exact queue-growth rule
 must be confirmed with the advisor before the protocol freeze (G4); they
 must not change afterwards. ``saturation.json`` echoes this notice.
 
-Per-condition acceptance (audit 9.5, claims C10/C11/C12/C14)
-------------------------------------------------------------
+Sampling cadence and coverage (work order P1b)
+----------------------------------------------
 
-``acceptance_by_condition.csv`` evaluates the acceptance criteria of the
-robustness conditions over the non-excluded runs:
+Both sustained-window detectors (host CPU > 0.90 for 60 s; persistent
+queue growth over 60 s) BREAK the streak whenever the distance between
+consecutive samples exceeds ``MAX_SAMPLE_GAP_S`` (protocol.py, default
+5 s, pending advisor sign-off): continuity above a threshold cannot be
+claimed across an unobserved interval, so two samples minutes apart can
+never fake a sustained minute. Every run additionally gets sampling
+coverage of the measured window in ``per_run.csv``
+(``resources_coverage_pct`` / ``metrics_coverage_pct``): each sample
+covers from its timestamp until the next sample or for MAX_SAMPLE_GAP_S,
+whichever is shorter (the last sample covers up to the window end, same
+cap); time before the first sample is uncovered.
 
-- ``smoke_sequence`` (C14): all 10 runs present and valid; zero lost valid
-  messages across all runs.
+Saturation evidence sufficiency (work order P1b): a load's verdict is
+decided ONLY when the planned number of valid runs exists at that load
+AND every run carries the required instrumentation (host-CPU criterion
+evaluable, resources coverage >= SATURATION_MIN_RESOURCE_COVERAGE_PCT,
+controller metrics present for the queue-growth criterion). Otherwise the
+load's ``verdict`` in ``saturation.json`` is ``"insufficient-evidence"``
+(with per-run detail) — never ``"not-saturated"``. The threshold-crossing
+logic itself is unchanged (stop-condition rule: no material change to the
+statistical criteria beyond completeness).
+
+Per-condition acceptance (audit 9.5, claims C10-C14; work order P1b)
+--------------------------------------------------------------------
+
+``acceptance_by_condition.csv`` evaluates acceptance for EVERY planned
+simulator condition of the frozen protocol (iterating over protocol.py
+CONDITIONS, not only over conditions found in raw/), over the INCLUDED
+(valid, non-excluded) runs:
+
+- Completeness gate: every condition gets an explicit ``runs_complete``
+  row (n_valid == planned repetitions; for load_sweep, repetitions x
+  number of swept rates). Every substantive criterion is gated on it:
+  ``passed`` is False when n_valid == 0 or n_valid != expected (the
+  detail shows 'n_valid/expected valid runs'); the substantive check
+  applies only on top of completeness. A planned condition with zero
+  runs therefore yields FAILED rows, never blanks.
+- ``smoke_sequence`` (C14): zero lost valid messages across all runs.
 - ``invalid_payload`` (C11): every ``intended_invalid`` event rejected;
   zero ``intended_invalid`` accepted; the valid-message delivery rate is
   reported informationally under the plan 7.3 accounting (invalid events
   never enter the denominator).
 - ``dropout_reconnect`` (C10): zero lost valid messages (the accounting is
   tolerant of late buffered redelivery within the confirmation window, see
-  above) and zero double-accepted message_ids.
-- ``controller_restart`` (C12): delivery across the restart (zero lost
-  valid messages within the window) and zero double-accepted message_ids
-  (dedupe state survives the restart via the twin ingestion feature,
-  CONTRACTS 4).
+  above); zero double-accepted message_ids; every run's SIMULATOR manifest
+  (logs/simulator/) must report totals ``dropout_disconnects >= 1`` AND
+  ``buffered_dropout >= 1`` — a "dropout" run in which no disconnect
+  actually happened must not pass as C10 evidence.
+- ``controller_restart`` (C12): every run's manifest must carry the
+  restart-hook record with executed timestamps and exit code 0 (no error);
+  delivery across the restart (zero lost valid messages within the
+  window); zero double-accepted message_ids (dedupe state survives the
+  restart via the twin ingestion feature, CONTRACTS 4).
+- ``soak`` (C13) Definition of Done (thresholds in protocol.py, pending
+  advisor sign-off): measured window >= 24 h; resources.csv AND
+  controller_metrics.csv each cover >= 99% of the measured window with no
+  sampling gap > 60 s; no unrecovered interruption (no controller-metrics
+  gap > 120 s and last sample within 120 s of the window end); delivery
+  reported descriptively per plan 7.3 (no CI, as before).
+- Controller-metrics reconciliation (dropout_reconnect, load_sweep, soak —
+  mandated instrumentation): per run, the accepted-counter delta over the
+  measured window must match the events.jsonl accepted count within
+  max(METRICS_RECONCILIATION_TOLERANCE_ABS, _FRAC * count); a run without
+  controller metrics FAILS this criterion (detail 'controller metrics
+  missing'), it is never blank.
 
 Exclusions and validity (plan 7.3; work order P1)
 -------------------------------------------------
@@ -228,16 +277,25 @@ from .environment import read_sut_environment, sut_nproc
 from .protocol import (
     CONDITION_CLAIMS,
     CONDITION_ORDER,
+    CONDITIONS,
     CONDITIONS_BY_ID,
     CONFIRMATION_WINDOW_S,
+    MAX_SAMPLE_GAP_S,
+    METRICS_RECONCILIATION_TOLERANCE_ABS,
+    METRICS_RECONCILIATION_TOLERANCE_FRAC,
     PROTOCOL_VERSION,
     SATURATION_CPU_PCT,
     SATURATION_CPU_SUSTAIN_S,
     SATURATION_HOST_CPU_UTILIZATION,
     SATURATION_LOSS_RATE,
+    SATURATION_MIN_RESOURCE_COVERAGE_PCT,
     SATURATION_P95_MS,
     SATURATION_QUEUE_DEPTH_FLOOR,
     SATURATION_QUEUE_GROWTH_SUSTAIN_S,
+    SOAK_MAX_INTERRUPTION_GAP_S,
+    SOAK_MAX_SAMPLING_GAP_S,
+    SOAK_MIN_COVERAGE_PCT,
+    SOAK_MIN_WINDOW_S,
 )
 from .run import DEFAULT_RESULTS_BASE
 
@@ -443,25 +501,43 @@ def filter_samples_to_window(
 
 
 def _sustained_seconds(
-    points: list[dict[str, Any]], key: str, threshold: float
+    points: list[dict[str, Any]],
+    key: str,
+    threshold: float,
+    max_gap_s: float = MAX_SAMPLE_GAP_S,
 ) -> float:
     """Longest span (seconds) of consecutive samples with ``key`` > threshold.
 
     The span is the timestamp distance from the first to the last sample of
     the streak, so with 1 Hz sampling, 61 consecutive samples above the
     threshold yield 60 s.
+
+    Cadence cap (work order P1b): a gap between consecutive samples larger
+    than ``max_gap_s`` (protocol.py MAX_SAMPLE_GAP_S, default 5 s, pending
+    advisor sign-off before exp-v1) BREAKS the streak — continuity above
+    the threshold cannot be claimed across an unobserved interval, so two
+    samples minutes apart can never fake a sustained window.
     """
     best = 0.0
     streak_start: datetime | None = None
+    prev_ts: datetime | None = None
     for point in points:
         value = point.get(key)
         ts = point.get("ts")
         if value is not None and ts is not None and value > threshold:
+            if (
+                prev_ts is not None
+                and (ts - prev_ts).total_seconds() > max_gap_s
+            ):
+                # Cadence gap: the streak restarts at this sample.
+                streak_start = ts
             if streak_start is None:
                 streak_start = ts
             best = max(best, (ts - streak_start).total_seconds())
+            prev_ts = ts
         else:
             streak_start = None
+            prev_ts = None
     return best
 
 
@@ -516,6 +592,7 @@ def host_cpu_sustained_seconds(
 def queue_growth_sustained_seconds(
     samples: list[dict[str, Any]],
     floor: float = SATURATION_QUEUE_DEPTH_FLOOR,
+    max_gap_s: float = MAX_SAMPLE_GAP_S,
 ) -> float:
     """Longest span (seconds) of persistent queue growth (audit 9.7).
 
@@ -526,6 +603,11 @@ def queue_growth_sustained_seconds(
     100 messages; the floor suppresses small-queue noise). The span is the
     timestamp distance from the first to the last sample of the window;
     >= 60 s of span marks the run as showing persistent queue growth.
+
+    Cadence cap (work order P1b): a gap between consecutive samples larger
+    than ``max_gap_s`` (protocol.py MAX_SAMPLE_GAP_S, default 5 s, pending
+    advisor sign-off before exp-v1) BREAKS the window — growth cannot be
+    claimed continuous across an unobserved interval.
     """
     best = 0.0
     streak_start: datetime | None = None
@@ -539,6 +621,12 @@ def queue_growth_sustained_seconds(
             prev_ts = None
             prev_depth = None
             continue
+        if prev_ts is not None and (ts - prev_ts).total_seconds() > max_gap_s:
+            # Cadence gap: continuity restarts at this sample.
+            streak_start = None
+            prev_ts = ts
+            prev_depth = depth
+            continue
         if prev_depth is not None and depth > prev_depth:
             if streak_start is None:
                 streak_start = prev_ts
@@ -548,6 +636,56 @@ def queue_growth_sustained_seconds(
         prev_ts = ts
         prev_depth = depth
     return best
+
+
+def sampling_stats(
+    timestamps: list[datetime],
+    window: tuple[datetime, datetime] | None,
+    max_gap_s: float = MAX_SAMPLE_GAP_S,
+) -> dict[str, float | None]:
+    """Coverage and gap statistics of a sample series over the measured window.
+
+    Returns ``{"coverage_pct", "max_gap_s", "tail_gap_s"}``:
+
+    - ``coverage_pct``: percentage of the window covered, where each sample
+      covers from its timestamp until the next sample or for ``max_gap_s``
+      seconds, whichever is shorter (the last sample covers up to the
+      window end, same cap). Time before the first sample is uncovered.
+      With nominal 1 Hz sampling and no holes this is 100%.
+    - ``max_gap_s``: largest distance between consecutive in-window samples
+      (interior gaps only; head/tail truncation is captured by
+      ``coverage_pct`` and ``tail_gap_s``). 0.0 for a single sample.
+    - ``tail_gap_s``: window end minus the last in-window sample.
+
+    All three are None when ``window`` is None (no measured_window_utc) or
+    has zero span. An empty in-window series yields coverage 0.0 with gap
+    fields None.
+    """
+    none_stats: dict[str, float | None] = {
+        "coverage_pct": None, "max_gap_s": None, "tail_gap_s": None
+    }
+    if window is None:
+        return none_stats
+    start, end = window
+    span = (end - start).total_seconds()
+    if span <= 0:
+        return none_stats
+    ts = sorted({t for t in timestamps if t is not None and start <= t <= end})
+    if not ts:
+        return {"coverage_pct": 0.0, "max_gap_s": None, "tail_gap_s": None}
+    covered = 0.0
+    interior_max = 0.0
+    for i, t in enumerate(ts):
+        nxt = ts[i + 1] if i + 1 < len(ts) else end
+        gap = (nxt - t).total_seconds()
+        covered += min(gap, max_gap_s)
+        if i + 1 < len(ts):
+            interior_max = max(interior_max, gap)
+    return {
+        "coverage_pct": min(100.0, 100.0 * covered / span),
+        "max_gap_s": interior_max,
+        "tail_gap_s": max(0.0, (end - ts[-1]).total_seconds()),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -599,6 +737,17 @@ PER_RUN_COLUMNS = [
     "controller_metric_samples",
     "queue_depth_max",
     "queue_growth_sustained_s",
+    "measured_window_s",
+    "resources_coverage_pct",
+    "resources_max_gap_s",
+    "metrics_coverage_pct",
+    "metrics_max_gap_s",
+    "metrics_tail_gap_s",
+    "events_accepted_total",
+    "metrics_accepted_delta",
+    "dropout_disconnects",
+    "buffered_dropout",
+    "restart_hook_ok",
     "warnings",
 ]
 
@@ -612,6 +761,44 @@ RESOURCES_BY_RUN_COLUMNS = [
     "mem_bytes_max",
     "cpu_sustained_gt90_s",
 ]
+
+
+def read_simulator_manifest(
+    run_dir: Path, run_id: str
+) -> dict[str, Any] | None:
+    """Read the SIMULATOR's own manifest.json from the run directory.
+
+    The harness keeps the simulator outputs under ``logs/simulator/`` (see
+    egw_experiments.run); the simulator itself writes its manifest under
+    ``<output>/<run_id>/manifest.json`` (egw_simulator.runner). Both
+    layouts are probed, plus any single-level subdirectory, so pre-P1b raw
+    runs stay readable. Returns None when no readable simulator manifest
+    exists. Used by the C10 acceptance to verify the dropout scenario
+    really disconnected (totals ``dropout_disconnects``/``buffered_dropout``).
+    """
+    sim_dir = run_dir / "logs" / "simulator"
+    candidates = [
+        sim_dir / run_id / "manifest.json",
+        sim_dir / "manifest.json",
+    ]
+    if sim_dir.is_dir():
+        candidates.extend(
+            sorted(
+                child / "manifest.json"
+                for child in sim_dir.iterdir()
+                if child.is_dir()
+            )
+        )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            obj = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(obj, dict):
+            return obj
+    return None
 
 
 def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
@@ -744,11 +931,16 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     rejected_valid = 0
     rejected_intended = 0
     rejected_unmatched = 0
+    # Raw count of 'accepted' outcome records (late and repeated included):
+    # the counterpart of the controller's cumulative accepted counter on
+    # GET /metrics, used by the reconciliation acceptance (work order P1b).
+    events_accepted_total = 0
 
     for ev in events:
         outcome = ev.get("outcome")
         mid = ev.get("message_id")
         if outcome == "accepted":
+            events_accepted_total += 1
             ack = ev.get("ditto_ack_monotonic_ns")
             if ack is None:
                 # CONTRACTS 5 violation: accepted events must carry the
@@ -811,6 +1003,9 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
 
     # --- measured window (audit 9.4) ---------------------------------------
     window = measured_window(manifest)
+    measured_window_s = (
+        (window[1] - window[0]).total_seconds() if window is not None else None
+    )
     if window is None:
         warnings.append(
             "manifest has no usable measured_window_utc; resources.csv and "
@@ -827,6 +1022,14 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     nproc = sut_nproc(read_sut_environment(run_dir))
     host_util_max: float | None = None
     host_sustained: float | None = None
+    # Sampling coverage of the measured window (work order P1b): exposed in
+    # per_run.csv and consumed by the soak DoD and saturation sufficiency.
+    res_stats: dict[str, float | None] = {
+        "coverage_pct": None, "max_gap_s": None, "tail_gap_s": None
+    }
+    metrics_stats: dict[str, float | None] = {
+        "coverage_pct": None, "max_gap_s": None, "tail_gap_s": None
+    }
     resources_path = run_dir / "resources.csv"
     if resources_path.is_file():
         by_container_all = read_resources_csv(resources_path)
@@ -834,6 +1037,17 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             container: filter_samples_to_window(samples, window)
             for container, samples in by_container_all.items()
         }
+        res_stats = sampling_stats(
+            sorted(
+                {
+                    s["ts"]
+                    for samples in by_container.values()
+                    for s in samples
+                    if s.get("ts") is not None
+                }
+            ),
+            window,
+        )
         for container in sorted(by_container):
             samples = by_container[container]
             cpus = [s["cpu_pct"] for s in samples if s["cpu_pct"] is not None]
@@ -878,6 +1092,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     controller_metric_samples = 0
     queue_depth_max: float | None = None
     queue_growth_sustained: float | None = None
+    metrics_accepted_delta: float | None = None
     metrics_path = run_dir / "controller_metrics.csv"
     if metrics_path.is_file():
         metric_samples = filter_samples_to_window(
@@ -890,6 +1105,22 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         if depths:
             queue_depth_max = max(depths)
         queue_growth_sustained = queue_growth_sustained_seconds(metric_samples)
+        metrics_stats = sampling_stats(
+            [s["ts"] for s in metric_samples if s.get("ts") is not None],
+            window,
+        )
+        # Accepted-counter delta over the measured window (work order P1b):
+        # the /metrics 'accepted' field is cumulative, so last - first is
+        # the number of accepts the controller itself counted during the
+        # window; the reconciliation acceptance compares it against the
+        # events.jsonl accepted count within a documented tolerance.
+        accepted_series = [
+            s["accepted"] for s in metric_samples if s.get("accepted") is not None
+        ]
+        if accepted_series:
+            metrics_accepted_delta = float(
+                accepted_series[-1] - accepted_series[0]
+            )
     else:
         warnings.append(
             "controller_metrics.csv missing: queue growth not measurable "
@@ -927,6 +1158,59 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             if isinstance(d, dict)
         )
         warnings.append(f"protocol deviation(s) recorded: {listed}")
+
+    # Simulator-manifest totals (work order P1b, claim C10): the simulator
+    # records how many disconnect/reconnect cycles actually happened and
+    # how many events were buffered during disconnects. The dropout
+    # acceptance requires both >= 1 in every included dropout run — a
+    # "dropout" run without a real disconnect is not C10 evidence.
+    dropout_disconnects: int | None = None
+    buffered_dropout: int | None = None
+    sim_manifest = read_simulator_manifest(run_dir, str(run_id))
+    if sim_manifest is not None:
+        totals = sim_manifest.get("totals")
+        if isinstance(totals, dict):
+            dd = totals.get("dropout_disconnects")
+            bd = totals.get("buffered_dropout")
+            if isinstance(dd, (int, float)) and not isinstance(dd, bool):
+                dropout_disconnects = int(dd)
+            if isinstance(bd, (int, float)) and not isinstance(bd, bool):
+                buffered_dropout = int(bd)
+    if (
+        manifest.get("condition_id") == "dropout_reconnect"
+        or manifest.get("scenario") == "dropout-reconnect"
+    ) and (dropout_disconnects is None or buffered_dropout is None):
+        warnings.append(
+            "dropout run without simulator-manifest totals "
+            "(logs/simulator/.../manifest.json): dropout_disconnects and "
+            "buffered_dropout not verifiable; the C10 acceptance criterion "
+            "fails for this run (work order P1b)"
+        )
+
+    # Restart-hook record (work order P1b, claim C12): the harness records
+    # the --restart-cmd execution in the manifest with timestamps and exit
+    # code. OK means: executed, both timestamps present, exit code 0, no
+    # error. None when the manifest has no restart record at all.
+    restart_record = manifest.get("restart")
+    restart_hook_ok: bool | None = None
+    if isinstance(restart_record, dict):
+        restart_hook_ok = bool(
+            restart_record.get("executed")
+            and restart_record.get("started_utc")
+            and restart_record.get("finished_utc")
+            and restart_record.get("returncode") == 0
+            and not restart_record.get("error")
+        )
+    if (
+        manifest.get("condition_id") == "controller_restart"
+        and restart_hook_ok is not True
+    ):
+        warnings.append(
+            "controller_restart run without a successfully executed "
+            "restart-hook record (executed timestamps + exit 0) in the "
+            "manifest; the C12 acceptance criterion fails for this run "
+            "(work order P1b)"
+        )
 
     return {
         "run_id": run_id,
@@ -977,6 +1261,17 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "controller_metric_samples": controller_metric_samples,
         "queue_depth_max": queue_depth_max,
         "queue_growth_sustained_s": queue_growth_sustained,
+        "measured_window_s": measured_window_s,
+        "resources_coverage_pct": res_stats["coverage_pct"],
+        "resources_max_gap_s": res_stats["max_gap_s"],
+        "metrics_coverage_pct": metrics_stats["coverage_pct"],
+        "metrics_max_gap_s": metrics_stats["max_gap_s"],
+        "metrics_tail_gap_s": metrics_stats["tail_gap_s"],
+        "events_accepted_total": events_accepted_total,
+        "metrics_accepted_delta": metrics_accepted_delta,
+        "dropout_disconnects": dropout_disconnects,
+        "buffered_dropout": buffered_dropout,
+        "restart_hook_ok": restart_hook_ok,
         "warnings": " | ".join(warnings),
         "_resources": resources_rows,
     }
@@ -1217,12 +1512,40 @@ ACCEPTANCE_COLUMNS = [
 ]
 
 
-def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Acceptance evaluation for the robustness conditions (module docstring).
+def _metrics_reconciled(row: dict[str, Any]) -> bool:
+    """Per-run controller-metrics reconciliation (work order P1b).
 
-    ``rows`` are NON-EXCLUDED per-run rows. ``passed`` is True/False, or
-    None (rendered empty) when the criterion is informational or there are
-    no runs yet.
+    The /metrics accepted-counter delta over the measured window must match
+    the events.jsonl accepted count within max(ABS, FRAC * count)
+    (protocol.py, pending advisor sign-off). Missing metrics never
+    reconcile: mandated instrumentation must be present, not tolerated.
+    """
+    delta = row.get("metrics_accepted_delta")
+    total = row.get("events_accepted_total")
+    if delta is None or total is None:
+        return False
+    tolerance = max(
+        METRICS_RECONCILIATION_TOLERANCE_ABS,
+        METRICS_RECONCILIATION_TOLERANCE_FRAC * float(total),
+    )
+    return abs(float(delta) - float(total)) <= tolerance
+
+
+def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Acceptance evaluation for ALL planned simulator conditions.
+
+    ``rows`` are the INCLUDED per-run rows (valid, non-excluded); a
+    defensive re-filter is applied anyway. The function iterates over the
+    protocol's planned simulator conditions — NOT over the conditions found
+    in raw/ — so a planned condition with zero runs still yields FAILED
+    rows (work order P1b): ``passed`` is None ONLY for the explicitly
+    informational/descriptive criteria.
+
+    Completeness gate: each condition gets a ``runs_complete`` row
+    (n_valid == planned repetitions; for load_sweep repetitions x number of
+    swept rates), and every substantive criterion is gated on it — passed
+    is False whenever n_valid == 0 or n_valid != expected, with the
+    'n_valid/expected valid runs' detail in the observed column.
     """
     by_condition: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
@@ -1230,135 +1553,263 @@ def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if isinstance(cid, str):
             by_condition.setdefault(cid, []).append(row)
 
-    def _claims(cid: str) -> str:
-        return " ".join(CONDITION_CLAIMS.get(cid, ()))
-
-    def _expected(cid: str) -> int | None:
-        condition = CONDITIONS_BY_ID.get(cid)
-        return condition.repetitions if condition is not None else None
-
     def _total(members: list[dict[str, Any]], key: str) -> int:
         return sum(int(r.get(key) or 0) for r in members)
 
     out: list[dict[str, Any]] = []
 
-    def add(
-        cid: str,
-        criterion: str,
-        observed: str,
-        passed: bool | None,
-        n_runs: int,
-    ) -> None:
-        out.append(
-            {
-                "condition_id": cid,
-                "claims": _claims(cid),
-                "criterion": criterion,
-                "expected_runs": _expected(cid),
-                "n_runs": n_runs,
-                "observed": observed,
-                "passed": passed,
-            }
+    for condition in CONDITIONS:
+        if condition.runner != "simulator":
+            continue
+        cid = condition.id
+        claims = " ".join(CONDITION_CLAIMS.get(cid, ()))
+        members = by_condition.get(cid, [])
+        # Defensive re-filter (the caller already passes included rows):
+        # only valid, non-excluded runs may satisfy acceptance criteria.
+        valid = [
+            r
+            for r in members
+            if not r.get("excluded") and r.get("validity") in (None, "valid")
+        ]
+        not_counted = len(members) - len(valid)
+        expected = condition.repetitions * (
+            len(condition.rates_msg_s) if condition.rates_msg_s else 1
         )
+        n_valid = len(valid)
+        complete = n_valid == expected
+        note = f"{n_valid}/{expected} valid runs"
 
-    # smoke_sequence (C14): all runs complete, zero lost.
-    cid = "smoke_sequence"
-    members = by_condition.get(cid, [])
-    n = len(members)
-    expected = _expected(cid) or 0
-    invalid = sum(1 for r in members if r.get("validity") == "invalid")
-    add(
-        cid,
-        "all_runs_complete",
-        f"{n}/{expected} runs present, {invalid} invalid",
-        (n == expected and invalid == 0) if n else None,
-        n,
-    )
-    lost = _total(members, "lost")
-    add(cid, "zero_lost", f"{lost} lost", (lost == 0) if n else None, n)
+        def add(criterion: str, observed: str, passed: bool | None) -> None:
+            out.append(
+                {
+                    "condition_id": cid,
+                    "claims": claims,
+                    "criterion": criterion,
+                    "expected_runs": expected,
+                    "n_runs": n_valid,
+                    "observed": observed,
+                    "passed": passed,
+                }
+            )
 
-    # invalid_payload (C11).
-    cid = "invalid_payload"
-    members = by_condition.get(cid, [])
-    n = len(members)
-    sent_invalid = _total(members, "intended_invalid_sent")
-    rejected_invalid = _total(members, "rejected_intended_invalid")
-    accepted_invalid = _total(members, "intended_invalid_accepted")
-    add(
-        cid,
-        "all_intended_invalid_rejected",
-        f"{rejected_invalid}/{sent_invalid} rejected",
-        (sent_invalid > 0 and rejected_invalid == sent_invalid) if n else None,
-        n,
-    )
-    add(
-        cid,
-        "zero_intended_invalid_accepted",
-        f"{accepted_invalid} accepted",
-        (accepted_invalid == 0) if n else None,
-        n,
-    )
-    # Informational: valid messages keep the plan 7.3 delivery accounting
-    # (intended_invalid never enters the denominator); no pass threshold of
-    # its own here — C06 owns the >= 99% nominal target.
-    delivery_values = [
-        float(r["delivery_rate"]) for r in members if r.get("delivery_rate") is not None
-    ]
-    add(
-        cid,
-        "valid_delivery_rate_mean_informational",
-        (
-            f"{statistics.fmean(delivery_values):.6f}"
-            if delivery_values
-            else "no data"
-        ),
-        None,
-        n,
-    )
+        def gate(substantive_ok: bool, observed: str) -> tuple[bool, str]:
+            """Completeness-gate a substantive criterion (never None)."""
+            if not complete:
+                return False, f"{observed}; INCOMPLETE: {note}"
+            return bool(substantive_ok), f"{observed}; {note}"
 
-    # dropout_reconnect (C10): accounting tolerant of late buffered
-    # redelivery within the window (module docstring assumptions).
-    cid = "dropout_reconnect"
-    members = by_condition.get(cid, [])
-    n = len(members)
-    lost = _total(members, "lost")
-    double = _total(members, "double_accepted")
-    add(
-        cid,
-        "zero_lost_within_window",
-        f"{lost} lost (buffered redelivery counted when confirmed in-window)",
-        (lost == 0) if n else None,
-        n,
-    )
-    add(
-        cid,
-        "zero_double_accepted",
-        f"{double} double-accepted",
-        (double == 0) if n else None,
-        n,
-    )
+        def count_ok(pred: Any) -> int:
+            return sum(1 for r in valid if pred(r))
 
-    # controller_restart (C12): delivery across the restart, zero
-    # double-accepted message_ids.
-    cid = "controller_restart"
-    members = by_condition.get(cid, [])
-    n = len(members)
-    lost = _total(members, "lost")
-    double = _total(members, "double_accepted")
-    add(
-        cid,
-        "delivery_across_restart_zero_lost",
-        f"{lost} lost",
-        (lost == 0) if n else None,
-        n,
-    )
-    add(
-        cid,
-        "zero_double_accepted",
-        f"{double} double-accepted",
-        (double == 0) if n else None,
-        n,
-    )
+        # Explicit per-condition completeness row (work order P1b): the
+        # CSV shows completeness separately from the substantive criteria.
+        observed = note
+        if not_counted:
+            observed += f" ({not_counted} excluded/invalid run(s) not counted)"
+        add("runs_complete", observed, complete)
+
+        if cid == "smoke_sequence":
+            # C14: zero lost valid messages across all runs.
+            lost = _total(valid, "lost")
+            passed, observed = gate(lost == 0, f"{lost} lost")
+            add("zero_lost", observed, passed)
+
+        elif cid == "invalid_payload":
+            # C11.
+            sent_invalid = _total(valid, "intended_invalid_sent")
+            rejected_invalid = _total(valid, "rejected_intended_invalid")
+            accepted_invalid = _total(valid, "intended_invalid_accepted")
+            passed, observed = gate(
+                sent_invalid > 0 and rejected_invalid == sent_invalid,
+                f"{rejected_invalid}/{sent_invalid} rejected",
+            )
+            add("all_intended_invalid_rejected", observed, passed)
+            passed, observed = gate(
+                accepted_invalid == 0, f"{accepted_invalid} accepted"
+            )
+            add("zero_intended_invalid_accepted", observed, passed)
+            # Informational: valid messages keep the plan 7.3 delivery
+            # accounting (intended_invalid never enters the denominator);
+            # no pass threshold of its own here — C06 owns the >= 99%
+            # nominal target. Deliberately passed=None (informational).
+            delivery_values = [
+                float(r["delivery_rate"])
+                for r in valid
+                if r.get("delivery_rate") is not None
+            ]
+            add(
+                "valid_delivery_rate_mean_informational",
+                (
+                    f"{statistics.fmean(delivery_values):.6f}; {note}"
+                    if delivery_values
+                    else f"no data; {note}"
+                ),
+                None,
+            )
+
+        elif cid == "dropout_reconnect":
+            # C10: accounting tolerant of late buffered redelivery within
+            # the window (module docstring assumptions).
+            lost = _total(valid, "lost")
+            double = _total(valid, "double_accepted")
+            passed, observed = gate(
+                lost == 0,
+                f"{lost} lost (buffered redelivery counted when confirmed "
+                "in-window)",
+            )
+            add("zero_lost_within_window", observed, passed)
+            passed, observed = gate(double == 0, f"{double} double-accepted")
+            add("zero_double_accepted", observed, passed)
+            # The dropout scenario must have DONE something (work order
+            # P1b): every run's simulator manifest totals must show at
+            # least one real disconnect and at least one buffered event.
+            for key, criterion in (
+                ("dropout_disconnects", "dropout_disconnects_ge_1_every_run"),
+                ("buffered_dropout", "buffered_dropout_ge_1_every_run"),
+            ):
+                ok = count_ok(
+                    lambda r, k=key: isinstance(r.get(k), (int, float))
+                    and r.get(k) >= 1
+                )
+                missing = count_ok(lambda r, k=key: r.get(k) is None)
+                observed = f"{ok}/{n_valid} run(s) with {key} >= 1"
+                if missing:
+                    observed += (
+                        f"; simulator manifest totals missing in {missing} "
+                        "run(s)"
+                    )
+                passed, observed = gate(ok == n_valid, observed)
+                add(criterion, observed, passed)
+
+        elif cid == "controller_restart":
+            # C12: the restart hook must actually have run (executed
+            # timestamps + exit 0 in the manifest record, work order P1b),
+            # delivery across the restart, zero double-accepted.
+            hook_ok = count_ok(lambda r: r.get("restart_hook_ok") is True)
+            observed = (
+                f"{hook_ok}/{n_valid} run(s) with executed restart hook "
+                "(timestamps + exit 0)"
+            )
+            passed, observed = gate(hook_ok == n_valid, observed)
+            add("restart_hook_executed_every_run", observed, passed)
+            lost = _total(valid, "lost")
+            double = _total(valid, "double_accepted")
+            passed, observed = gate(lost == 0, f"{lost} lost")
+            add("delivery_across_restart_zero_lost", observed, passed)
+            passed, observed = gate(double == 0, f"{double} double-accepted")
+            add("zero_double_accepted", observed, passed)
+
+        elif cid == "soak":
+            # C13 Definition of Done (work order P1b; thresholds in
+            # protocol.py, pending advisor sign-off before exp-v1).
+            def _fmt_val(value: Any, suffix: str = "") -> str:
+                if value is None:
+                    return "n/a"
+                return f"{float(value):.2f}{suffix}"
+
+            win_ok = count_ok(
+                lambda r: r.get("measured_window_s") is not None
+                and float(r["measured_window_s"]) >= SOAK_MIN_WINDOW_S
+            )
+            windows = ", ".join(
+                _fmt_val(r.get("measured_window_s"), " s") for r in valid
+            )
+            observed = (
+                f"{win_ok}/{n_valid} run(s) with measured window >= "
+                f"{SOAK_MIN_WINDOW_S} s (observed: {windows or 'none'})"
+            )
+            passed, observed = gate(win_ok == n_valid, observed)
+            add("measured_window_ge_24h", observed, passed)
+
+            for cov_key, gap_key, criterion in (
+                (
+                    "resources_coverage_pct",
+                    "resources_max_gap_s",
+                    "resources_coverage_and_cadence",
+                ),
+                (
+                    "metrics_coverage_pct",
+                    "metrics_max_gap_s",
+                    "controller_metrics_coverage_and_cadence",
+                ),
+            ):
+                ok = count_ok(
+                    lambda r, ck=cov_key, gk=gap_key: (
+                        r.get(ck) is not None
+                        and float(r[ck]) >= SOAK_MIN_COVERAGE_PCT
+                        and r.get(gk) is not None
+                        and float(r[gk]) <= SOAK_MAX_SAMPLING_GAP_S
+                    )
+                )
+                details = ", ".join(
+                    f"coverage {_fmt_val(r.get(cov_key), '%')} / max gap "
+                    f"{_fmt_val(r.get(gap_key), ' s')}"
+                    for r in valid
+                )
+                observed = (
+                    f"{ok}/{n_valid} run(s) with coverage >= "
+                    f"{SOAK_MIN_COVERAGE_PCT:g}% and no sampling gap > "
+                    f"{SOAK_MAX_SAMPLING_GAP_S:g} s (observed: "
+                    f"{details or 'none'})"
+                )
+                passed, observed = gate(ok == n_valid, observed)
+                add(criterion, observed, passed)
+
+            interruption_ok = count_ok(
+                lambda r: (
+                    r.get("metrics_max_gap_s") is not None
+                    and float(r["metrics_max_gap_s"])
+                    <= SOAK_MAX_INTERRUPTION_GAP_S
+                    and r.get("metrics_tail_gap_s") is not None
+                    and float(r["metrics_tail_gap_s"])
+                    <= SOAK_MAX_INTERRUPTION_GAP_S
+                )
+            )
+            tails = ", ".join(
+                f"max gap {_fmt_val(r.get('metrics_max_gap_s'), ' s')} / "
+                f"tail gap {_fmt_val(r.get('metrics_tail_gap_s'), ' s')}"
+                for r in valid
+            )
+            observed = (
+                f"{interruption_ok}/{n_valid} run(s) with no "
+                f"controller-metrics gap > {SOAK_MAX_INTERRUPTION_GAP_S:g} s "
+                f"and last sample within {SOAK_MAX_INTERRUPTION_GAP_S:g} s "
+                f"of the window end (observed: {tails or 'none'})"
+            )
+            passed, observed = gate(interruption_ok == n_valid, observed)
+            add("no_unrecovered_interruption", observed, passed)
+
+            # Delivery stays descriptive per plan 7.3 (no CI of its own):
+            # deliberately passed=None (descriptive), unchanged by P1b.
+            delivered = _total(valid, "delivered_unique")
+            sent_valid_total = _total(valid, "sent_valid")
+            lost = _total(valid, "lost")
+            add(
+                "delivery_descriptive",
+                f"delivered {delivered}/{sent_valid_total} valid sent, "
+                f"{lost} lost (descriptive, no CI, plan 7.3); {note}",
+                None,
+            )
+
+        # Controller-metrics reconciliation (work order P1b): mandated
+        # instrumentation for dropout_reconnect, load_sweep and soak. A
+        # run without metrics FAILS the criterion — never blank.
+        if cid in ("dropout_reconnect", "load_sweep", "soak"):
+            ok = count_ok(_metrics_reconciled)
+            missing = count_ok(
+                lambda r: r.get("metrics_accepted_delta") is None
+                or r.get("events_accepted_total") is None
+            )
+            observed = (
+                f"{ok}/{n_valid} run(s) with |accepted-counter delta - "
+                f"events accepted| <= max("
+                f"{METRICS_RECONCILIATION_TOLERANCE_ABS:g}, "
+                f"{METRICS_RECONCILIATION_TOLERANCE_FRAC:.0%})"
+            )
+            if missing:
+                observed += f"; controller metrics missing in {missing} run(s)"
+            passed, observed = gate(ok == n_valid, observed)
+            add("controller_metrics_reconciled", observed, passed)
 
     return out
 
@@ -1372,20 +1823,51 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Evaluate the plan 7.3 saturation criteria on load-sweep runs.
 
     ``rows`` are non-excluded per-run rows; only ``condition_id ==
-    "load_sweep"`` entries are used. See the module docstring for the
-    documented decision rule. The CPU criterion is host-level (audit 9.7)
-    and the queue-growth criterion uses the controller_metrics.csv samples;
-    both, plus the >= 0.5 run-fraction rule, are PENDING ADVISOR SIGN-OFF
-    BEFORE exp-v1 (G4) and must not change after the protocol freeze.
-    A criterion evaluates to None (not evaluable) at a load where no run
-    carries the required instrumentation (missing nproc or missing
+    "load_sweep"`` entries are used (a defensive validity re-filter is
+    applied). See the module docstring for the documented decision rule.
+    The CPU criterion is host-level (audit 9.7) and the queue-growth
+    criterion uses the controller_metrics.csv samples; both, plus the
+    >= 0.5 run-fraction rule, are PENDING ADVISOR SIGN-OFF BEFORE exp-v1
+    (G4) and must not change after the protocol freeze. A criterion
+    evaluates to None (not evaluable) at a load where no run carries the
+    required instrumentation (missing nproc or missing
     controller_metrics.csv) — never silently to False.
+
+    Evidence sufficiency (work order P1b): every PLANNED sweep load is
+    listed, and a load's ``verdict`` ("saturated" / "not-saturated" /
+    "insufficient-evidence") is decided only when the planned number of
+    valid runs exists AND every run carries the required instrumentation
+    (host-CPU criterion evaluable; resources coverage >=
+    SATURATION_MIN_RESOURCE_COVERAGE_PCT; controller metrics present).
+    Anything less yields "insufficient-evidence" with per-run detail —
+    never "not-saturated". ``first_saturated_load_msg_s`` considers only
+    loads with verdict "saturated". The per-load ``saturated`` flag keeps
+    the raw threshold-crossing outcome over the available runs
+    (stop-condition rule: the statistical criteria are unchanged beyond
+    completeness).
     """
+    sweep_condition = CONDITIONS_BY_ID.get("load_sweep")
+    expected_per_load = (
+        sweep_condition.repetitions if sweep_condition is not None else 0
+    )
+    planned_rates = [
+        float(rate)
+        for rate in (
+            sweep_condition.rates_msg_s
+            if sweep_condition is not None and sweep_condition.rates_msg_s
+            else ()
+        )
+    ]
+
     sweep = [
         r
         for r in rows
         if r.get("condition_id") == "load_sweep"
         and isinstance(r.get("rate_msg_s"), (int, float))
+        # Defensive re-filter (work order P1b): saturation may only ever
+        # see valid, non-excluded runs.
+        and not r.get("excluded")
+        and r.get("validity") in (None, "valid")
     ]
     by_rate: dict[float, list[dict[str, Any]]] = {}
     for row in sweep:
@@ -1403,8 +1885,8 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     loads: list[dict[str, Any]] = []
     first_saturated: float | None = None
-    for rate in sorted(by_rate):
-        member_rows = by_rate[rate]
+    for rate in sorted(set(planned_rates) | set(by_rate)):
+        member_rows = by_rate.get(rate, [])
         loss_values = [
             float(r["loss_rate"]) for r in member_rows if r.get("loss_rate") is not None
         ]
@@ -1432,19 +1914,63 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             ),
         }
         saturated = any(v for v in triggered.values() if v is not None)
+
+        # Evidence sufficiency (work order P1b): a subset of runs, or runs
+        # without the mandated instrumentation, must never decide a load's
+        # verdict.
+        insufficiency: list[str] = []
+        if len(member_rows) != expected_per_load:
+            insufficiency.append(
+                f"{len(member_rows)}/{expected_per_load} valid runs"
+            )
+        for r in member_rows:
+            rid = r.get("run_id") or "?"
+            if r.get("host_cpu_sustained_gt090_s") is None:
+                insufficiency.append(
+                    f"run {rid}: host CPU criterion not evaluable (missing "
+                    "nproc or SUT resources)"
+                )
+            coverage = r.get("resources_coverage_pct")
+            if (
+                coverage is None
+                or float(coverage) < SATURATION_MIN_RESOURCE_COVERAGE_PCT
+            ):
+                observed_cov = (
+                    "n/a" if coverage is None else f"{float(coverage):.1f}%"
+                )
+                insufficiency.append(
+                    f"run {rid}: resources coverage {observed_cov} below the "
+                    f"{SATURATION_MIN_RESOURCE_COVERAGE_PCT:g}% minimum"
+                )
+            if r.get("queue_growth_sustained_s") is None:
+                insufficiency.append(
+                    f"run {rid}: controller metrics missing (queue-growth "
+                    "criterion not evaluable)"
+                )
+        if insufficiency:
+            verdict = "insufficient-evidence"
+        elif saturated:
+            verdict = "saturated"
+        else:
+            verdict = "not-saturated"
+
         loads.append(
             {
                 "rate_msg_s": rate,
                 "n_runs": len(member_rows),
+                "expected_runs": expected_per_load,
                 "loss_rate_mean": loss_mean,
                 "latency_ms_p95_mean": p95_mean,
                 "host_cpu_sustained_run_fraction": host_cpu_fraction,
                 "queue_growth_run_fraction": queue_fraction,
                 "triggered": triggered,
                 "saturated": saturated,
+                "evidence_sufficient": not insufficiency,
+                "insufficient_evidence_detail": insufficiency,
+                "verdict": verdict,
             }
         )
-        if saturated and first_saturated is None:
+        if verdict == "saturated" and first_saturated is None:
             first_saturated = rate
 
     return {
@@ -1458,6 +1984,9 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "queue_depth_floor": SATURATION_QUEUE_DEPTH_FLOOR,
             "queue_growth_sustain_s": SATURATION_QUEUE_GROWTH_SUSTAIN_S,
             "run_fraction_gte": 0.5,
+            "max_sample_gap_s": MAX_SAMPLE_GAP_S,
+            "expected_runs_per_load": expected_per_load,
+            "min_resource_coverage_pct": SATURATION_MIN_RESOURCE_COVERAGE_PCT,
         },
         "decision_rule": (
             "Unit of analysis is the run (plan 7.3). A load is saturated "
@@ -1471,13 +2000,23 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "controller queue_depth (1 Hz GET /metrics samples) strictly "
             "increasing across consecutive samples for a span of at least "
             "60 s with every sample above the floor of 100 messages. "
-            "Saturation is the first (lowest) saturated load."
+            "Sustained windows break across sampling gaps larger than "
+            "max_sample_gap_s (work order P1b). A load's verdict is "
+            "decided ONLY when the planned number of valid runs exists and "
+            "every run carries the required instrumentation (host-CPU "
+            "criterion evaluable, resources coverage >= "
+            "min_resource_coverage_pct, controller metrics present); "
+            "otherwise the verdict is 'insufficient-evidence', never "
+            "'not-saturated'. Saturation is the first (lowest) load with "
+            "verdict 'saturated'."
         ),
         "pending_advisor_signoff": (
             "PENDING ADVISOR SIGN-OFF BEFORE exp-v1 (audit R23): the "
             "host-level CPU rule (> 0.90 utilization sustained 60 s), the "
             "queue-growth rule (strictly increasing over >= 60 s, floor "
-            "100) and the >= 0.5 run-fraction rule must be confirmed with "
+            "100), the >= 0.5 run-fraction rule, the 5 s sampling-cadence "
+            "cap (MAX_SAMPLE_GAP_S) and the 90% minimum resources coverage "
+            "(SATURATION_MIN_RESOURCE_COVERAGE_PCT) must be confirmed with "
             "the advisor before the protocol freeze (G4); they must not "
             "change afterwards."
         ),

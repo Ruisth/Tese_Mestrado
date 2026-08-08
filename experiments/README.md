@@ -299,7 +299,14 @@ everything from `results/raw/` alone:
 
 - `processed/per_run.csv` — one row per message run with the plan 7.3
   metric definitions applied verbatim, plus validity, double-accepted
-  count, host-level CPU (see below) and queue-depth columns;
+  count, host-level CPU (see below), queue-depth columns and the work
+  order P1b evidence columns: `measured_window_s`, sampling coverage of
+  the measured window (`resources_coverage_pct`, `metrics_coverage_pct`)
+  with max/tail gap columns, the reconciliation inputs
+  (`events_accepted_total`, `metrics_accepted_delta`), the simulator
+  totals `dropout_disconnects`/`buffered_dropout` (read from the
+  simulator's own manifest under `logs/simulator/`) and
+  `restart_hook_ok`;
 - `processed/resources_by_run.csv` — per-container CPU/memory aggregates
   over the measured window;
 - `processed/summary_by_condition.csv` — cross-run statistics (unit of
@@ -312,16 +319,22 @@ everything from `results/raw/` alone:
 - `processed/external_runs.csv` — per-sample listing of external runs,
   including the strictly functional qemu-boot pass/fail outcomes;
 - `processed/acceptance_by_condition.csv` — acceptance evaluation for
-  `smoke_sequence` (all runs complete, zero lost), `invalid_payload` (all
-  intended_invalid rejected, zero accepted), `dropout_reconnect` (zero
-  lost with in-window buffered redelivery tolerance, zero double-accepted)
-  and `controller_restart` (delivery across the restart, zero
-  double-accepted message_ids);
+  EVERY planned simulator condition (see "Acceptance completeness"
+  below): completeness (`runs_complete`) per condition, then
+  `smoke_sequence` (zero lost), `invalid_payload` (all intended_invalid
+  rejected, zero accepted), `dropout_reconnect` (zero lost with in-window
+  buffered redelivery tolerance, zero double-accepted, real disconnects
+  and buffered events in every run, metrics reconciliation),
+  `controller_restart` (executed restart hook in every run, delivery
+  across the restart, zero double-accepted message_ids) and the `soak`
+  Definition of Done;
 - `processed/saturation.json` — the plan 7.3 saturation evaluation per
   load, including the queue-growth criterion (persistent `queue_depth`
   growth: strictly increasing over a >= 60 s window with every sample
   above the floor of 100) and the host-level CPU criterion — both marked
-  PENDING ADVISOR SIGN-OFF before `exp-v1`;
+  PENDING ADVISOR SIGN-OFF before `exp-v1`. Every PLANNED sweep load is
+  listed with a `verdict`: `saturated`, `not-saturated` or
+  `insufficient-evidence` (see "Saturation evidence sufficiency" below);
 - `figures/*.png` — generated only when `matplotlib` is importable
   (install with `pip install -e src[analysis]`); without it the command
   prints a notice, still regenerates all tables, and exits 0.
@@ -332,6 +345,81 @@ per-container values are reported raw, and host-level utilization is
 `sut_environment.json`. The saturation CPU criterion is host-level
 utilization > 0.90 sustained 60 s, holding at a load when at least half of
 its runs show such an event.
+
+### Acceptance completeness (work order P1b)
+
+`acceptance_by_condition.csv` iterates over the PLANNED simulator
+conditions of the frozen protocol (`protocol.py CONDITIONS`), never only
+over the conditions found in `raw/`. Each condition gets an explicit
+`runs_complete` row: the number of INCLUDED runs (valid, non-excluded)
+must equal the planned repetitions (for `load_sweep`, repetitions x the
+number of swept rates = 40). Every substantive criterion is gated on that
+completeness: `passed` is `false` whenever there are zero valid runs or
+fewer/more than planned (the `observed` column shows
+`n_valid/expected valid runs`), and the substantive check applies only on
+top of completeness. A planned condition entirely absent from `raw/`
+therefore yields FAILED rows — never blank ones. Only the explicitly
+informational criteria (`valid_delivery_rate_mean_informational`,
+`delivery_descriptive`) keep an empty `passed`.
+
+Additional evidence criteria:
+
+- `dropout_reconnect` (C10): every run's SIMULATOR manifest
+  (`logs/simulator/.../manifest.json`) must report totals
+  `dropout_disconnects >= 1` AND `buffered_dropout >= 1` — a "dropout"
+  run in which no disconnect actually happened is not C10 evidence;
+- `controller_restart` (C12): every run's harness manifest must carry the
+  restart-hook record with executed timestamps and exit code 0;
+- `dropout_reconnect` / `load_sweep` / `soak` (mandated `--controller-url`
+  instrumentation): per run, the `/metrics` accepted-counter delta over
+  the measured window must match the `events.jsonl` accepted count within
+  max(1 message, 1%) (`protocol.py`, pending advisor sign-off); a run
+  without `controller_metrics.csv` FAILS the criterion with the detail
+  `controller metrics missing` — it is never blank.
+
+### Soak Definition of Done (C13, work order P1b)
+
+The single 24 h soak run is accepted only when ALL hold (thresholds in
+`protocol.py`, each PENDING ADVISOR SIGN-OFF before `exp-v1`), on top of
+`runs_complete`:
+
+- `measured_window_ge_24h`: the manifest's `measured_window_utc` spans
+  >= 86 400 s;
+- `resources_coverage_and_cadence` and
+  `controller_metrics_coverage_and_cadence`: `resources.csv` AND
+  `controller_metrics.csv` each cover >= 99% of the measured window with
+  no sampling gap > 60 s;
+- `no_unrecovered_interruption`: no controller-metrics gap > 120 s and
+  the last controller-metrics sample within 120 s of the window end;
+- `delivery_descriptive`: the events.jsonl delivery accounting per plan
+  7.3 stays descriptive (no CI) — reported, not pass/fail.
+
+### Sampling cadence and coverage (work order P1b)
+
+Resources and controller metrics are sampled at 1 Hz (plan 7.1). Both
+sustained-window detectors (host CPU > 0.90 for 60 s; persistent queue
+growth over 60 s) BREAK their window whenever consecutive samples are more
+than `MAX_SAMPLE_GAP_S` (5 s, `protocol.py`, pending advisor sign-off)
+apart: continuity cannot be claimed across an unobserved interval, so two
+samples minutes apart can never fake a sustained minute. The same cap
+bounds how far one sample extends when computing the per-run sampling
+coverage of the measured window (`resources_coverage_pct` /
+`metrics_coverage_pct` in `per_run.csv`: each sample covers until the next
+sample or for at most 5 s; time before the first sample is uncovered).
+
+### Saturation evidence sufficiency (work order P1b)
+
+`saturation.json` lists every PLANNED sweep load (10/50/100/250 msg/s). A
+load's `verdict` is decided ONLY when the planned 10 valid runs exist at
+that load AND every run carries the required instrumentation: host-CPU
+criterion evaluable (nproc + SUT resources), resources coverage >= 90% of
+the measured window (`SATURATION_MIN_RESOURCE_COVERAGE_PCT`, pending
+advisor sign-off) and controller metrics present for the queue-growth
+criterion. Anything less makes the verdict `insufficient-evidence` (with
+per-run detail in `insufficient_evidence_detail`) — never `not-saturated`:
+a subset of runs must not decide a load. The threshold-crossing rules
+themselves are unchanged, and `first_saturated_load_msg_s` considers only
+loads with verdict `saturated`.
 
 Re-running `analyze` after a fresh checkout plus the archived raw data
 must reproduce every table and figure bit-for-bit from the same inputs.

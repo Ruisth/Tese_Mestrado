@@ -97,6 +97,60 @@ SATURATION_HOST_CPU_UTILIZATION = 0.90
 SATURATION_QUEUE_DEPTH_FLOOR = 100
 SATURATION_QUEUE_GROWTH_SUSTAIN_S = 60
 
+# Sampling-cadence cap for sustained-window computations (work order P1b).
+# Resources and controller metrics are sampled at 1 Hz (plan 7.1); a gap
+# larger than MAX_SAMPLE_GAP_S between consecutive samples BREAKS any
+# sustained window (CPU > 90% for 60 s, persistent queue growth over 60 s):
+# continuity above a threshold cannot be claimed across an unobserved
+# interval, so two samples minutes apart can never fake a sustained minute.
+# The same cap bounds how far a single sample extends when computing
+# sampling coverage of the measured window (per_run.csv
+# resources_coverage_pct / metrics_coverage_pct).
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the 5 s cap (5x the nominal 1 s
+# cadence) must be confirmed with the advisor before the protocol freeze
+# (G4); it must not change afterwards.
+MAX_SAMPLE_GAP_S = 5.0
+
+# Saturation evidence sufficiency (work order P1b): a load's saturation
+# verdict is decided ONLY when the planned number of valid runs exists AND
+# every run carries the required instrumentation, including SUT resources
+# covering at least this percentage of the measured window; otherwise the
+# verdict is 'insufficient-evidence', never 'not-saturated'.
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the 90% minimum coverage must be
+# confirmed with the advisor before the protocol freeze (G4).
+SATURATION_MIN_RESOURCE_COVERAGE_PCT = 90.0
+
+# Soak Definition of Done (claim C13, work order P1b). The single 24 h soak
+# run is accepted only when ALL of the following hold (evaluated in
+# acceptance_by_condition.csv, completeness-gated):
+# - the measured window spans at least SOAK_MIN_WINDOW_S seconds;
+# - resources.csv AND controller_metrics.csv each cover at least
+#   SOAK_MIN_COVERAGE_PCT of the measured window with no sampling gap
+#   longer than SOAK_MAX_SAMPLING_GAP_S;
+# - no unrecovered interruption: no controller-metrics gap longer than
+#   SOAK_MAX_INTERRUPTION_GAP_S and the last controller-metrics sample
+#   within SOAK_MAX_INTERRUPTION_GAP_S of the window end;
+# - events.jsonl delivery reported per plan 7.3 (descriptive, no CI).
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the 24 h / 99% / 60 s / 120 s
+# thresholds must be confirmed with the advisor before the protocol freeze
+# (G4); they must not change afterwards.
+SOAK_MIN_WINDOW_S = 86_400
+SOAK_MIN_COVERAGE_PCT = 99.0
+SOAK_MAX_SAMPLING_GAP_S = 60.0
+SOAK_MAX_INTERRUPTION_GAP_S = 120.0
+
+# Controller-metrics reconciliation (work order P1b): for conditions where
+# GET /metrics sampling is mandated instrumentation (dropout_reconnect,
+# load_sweep, soak) the accepted-counter delta over the measured window
+# must match the events.jsonl accepted count within max(ABS, FRAC * count).
+# The tolerance absorbs window-edge effects (the sampler starts/stops on
+# the harness clock while confirmations land on the controller clock).
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the +-1% (floor 1 message)
+# tolerance must be confirmed with the advisor before the protocol freeze
+# (G4).
+METRICS_RECONCILIATION_TOLERANCE_FRAC = 0.01
+METRICS_RECONCILIATION_TOLERANCE_ABS = 1.0
+
 
 @dataclass(frozen=True)
 class Condition:

@@ -82,9 +82,19 @@ def make_run(
     resources_rows: list[list] | None = None,
     controller_metrics_rows: list[list] | None = None,
     sut_env: dict | None = None,
+    sim_totals: dict | None = None,
 ) -> Path:
     run_dir = base / "raw" / run_id
     run_dir.mkdir(parents=True)
+    if sim_totals is not None:
+        # The simulator's own manifest (egw_simulator.runner) under the
+        # harness's logs/simulator/ output dir: carries the run totals the
+        # C10 acceptance verifies (dropout_disconnects, buffered_dropout).
+        sim_dir = run_dir / "logs" / "simulator" / run_id
+        sim_dir.mkdir(parents=True)
+        (sim_dir / "manifest.json").write_text(
+            json.dumps({"run_id": run_id, "totals": sim_totals}) + "\n", "utf-8"
+        )
     manifest = {
         "run_id": run_id,
         "condition_id": "nominal",
@@ -520,138 +530,196 @@ def test_sustained_cpu_seconds() -> None:
     assert analyze.sustained_cpu_seconds(samples) < 60.0
 
 
+def _cpu_samples_at(start: datetime, count: int, cpu_pct: float) -> list[dict]:
+    return [
+        {"ts": start + timedelta(seconds=i), "cpu_pct": cpu_pct, "mem_bytes": 1}
+        for i in range(count)
+    ]
+
+
+def test_sustained_cpu_gap_over_cadence_cap_breaks_the_streak() -> None:
+    """Cadence cap (work order P1b): a sampling gap > MAX_SAMPLE_GAP_S
+    breaks the sustained window — two samples far apart can never fake a
+    sustained minute."""
+    start = datetime(2026, 9, 7, 10, 0, 0, tzinfo=timezone.utc)
+    # 30 samples at 1 Hz, a 10 s hole, then 40 more: without the cap the
+    # naive span would be 79 s; with the cap the best streak is 39 s.
+    samples = _cpu_samples_at(start, 30, 95.0)
+    samples += _cpu_samples_at(start + timedelta(seconds=40), 40, 95.0)
+    assert analyze.sustained_cpu_seconds(samples) == 39.0
+
+    # Degenerate case E5: two above-threshold samples 10 minutes apart must
+    # not count as a sustained 10 minutes.
+    sparse = [
+        {"ts": start, "cpu_pct": 95.0},
+        {"ts": start + timedelta(seconds=600), "cpu_pct": 95.0},
+    ]
+    assert analyze.sustained_cpu_seconds(sparse) == 0.0
+
+    # Gaps up to the cap (5 s) do NOT break the streak.
+    tolerated = [
+        {"ts": start + timedelta(seconds=i * 5), "cpu_pct": 95.0}
+        for i in range(13)
+    ]
+    assert analyze.sustained_cpu_seconds(tolerated) == 60.0
+
+
+def test_queue_growth_gap_over_cadence_cap_breaks_the_window() -> None:
+    """Cadence cap (work order P1b) for the queue-growth detector: growth
+    cannot be claimed continuous across a > MAX_SAMPLE_GAP_S hole."""
+    depths_a = [101.0 + i for i in range(31)]  # 30 s of strict growth
+    samples = _queue_samples(depths_a)
+    # 10 s hole, then 40 more strictly increasing samples (still above the
+    # floor and above the previous depth).
+    start_b = T0 + timedelta(seconds=40)
+    depths_b = [200.0 + i for i in range(41)]
+    samples += [
+        {"ts": start_b + timedelta(seconds=i), "queue_depth": depth}
+        for i, depth in enumerate(depths_b)
+    ]
+    span = analyze.queue_growth_sustained_seconds(samples)
+    assert span == 40.0  # the post-gap window only; never 70+ s across it
+
+
 def _sweep_row(
     rate: float,
     loss: float,
     p95: float,
     host_sustained_s: float = 0.0,
     queue_sustained_s: float = 0.0,
+    **overrides,
 ) -> dict:
-    return {
+    """One valid, fully instrumented load-sweep run row (P1b sufficiency)."""
+    row = {
+        "run_id": f"load_sweep-{rate}-r",
         "condition_id": "load_sweep",
         "rate_msg_s": rate,
+        "validity": "valid",
+        "excluded": False,
         "loss_rate": loss,
         "latency_ms_p95": p95,
         "host_cpu_sustained_gt090_s": host_sustained_s,
         "queue_growth_sustained_s": queue_sustained_s,
+        "resources_coverage_pct": 100.0,
     }
+    row.update(overrides)
+    return row
+
+
+def _sweep_load(rate: float, loss: float, p95: float, n: int = 10, **kw) -> list[dict]:
+    """A complete load: n (default: the planned 10) identical valid runs."""
+    return [_sweep_row(rate, loss, p95, **kw) for _ in range(n)]
+
+
+def _load_at(result: dict, rate: float) -> dict:
+    return next(load for load in result["loads"] if load["rate_msg_s"] == rate)
 
 
 def test_saturation_triggers_on_loss_criterion() -> None:
-    rows = [
-        _sweep_row(10.0, 0.0, 100.0),
-        _sweep_row(50.0, 0.02, 100.0),  # mean loss 2% > 1%
-    ]
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.02, 100.0)  # mean loss 2% > 1%
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
-    by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
-    assert by_rate[10.0]["saturated"] is False
-    assert by_rate[50.0]["triggered"]["loss_rate"] is True
-    assert by_rate[50.0]["triggered"]["p95_latency"] is False
+    assert _load_at(result, 10.0)["saturated"] is False
+    assert _load_at(result, 10.0)["verdict"] == "not-saturated"
+    assert _load_at(result, 50.0)["triggered"]["loss_rate"] is True
+    assert _load_at(result, 50.0)["triggered"]["p95_latency"] is False
+    assert _load_at(result, 50.0)["verdict"] == "saturated"
 
 
 def test_saturation_triggers_on_p95_criterion() -> None:
-    rows = [
-        _sweep_row(10.0, 0.0, 200.0),
-        _sweep_row(50.0, 0.0, 1500.0),  # mean p95 > 1000 ms
-    ]
+    rows = _sweep_load(10.0, 0.0, 200.0)
+    rows += _sweep_load(50.0, 0.0, 1500.0)  # mean p95 > 1000 ms
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
-    by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
-    assert by_rate[50.0]["triggered"]["p95_latency"] is True
-    assert by_rate[50.0]["triggered"]["loss_rate"] is False
+    assert _load_at(result, 50.0)["triggered"]["p95_latency"] is True
+    assert _load_at(result, 50.0)["triggered"]["loss_rate"] is False
 
 
 def test_saturation_triggers_on_sustained_host_cpu_criterion() -> None:
     # Audit 9.7: the CPU criterion is HOST-LEVEL (normalized by nproc),
     # not the raw per-container docker-stats percentage.
-    rows = [
-        _sweep_row(10.0, 0.0, 100.0),
-        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=65.0),
-    ]
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, host_sustained_s=65.0)
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
-    by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
-    assert by_rate[50.0]["triggered"]["host_cpu_sustained"] is True
+    assert _load_at(result, 50.0)["triggered"]["host_cpu_sustained"] is True
 
 
-def test_saturation_cpu_fraction_one_of_three_runs_is_not_saturated() -> None:
+def test_saturation_cpu_fraction_below_half_is_not_saturated() -> None:
     # Decision rule: the CPU criterion holds only when at least HALF of the
-    # runs at a load show a sustained >= 60 s event. 1 of 3 < 0.5.
-    rows = [
-        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=65.0),
-        _sweep_row(50.0, 0.0, 100.0),
-        _sweep_row(50.0, 0.0, 100.0),
-    ]
+    # runs at a load show a sustained >= 60 s event. 4 of 10 < 0.5.
+    rows = _sweep_load(50.0, 0.0, 100.0, n=4, host_sustained_s=65.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=6)
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] is None
-    load = result["loads"][0]
-    assert load["n_runs"] == 3
+    load = _load_at(result, 50.0)
+    assert load["n_runs"] == 10
     assert load["host_cpu_sustained_run_fraction"] < 0.5
     assert load["triggered"]["host_cpu_sustained"] is False
     assert load["saturated"] is False
+    assert load["verdict"] == "not-saturated"
 
 
-def test_saturation_cpu_fraction_two_of_three_runs_is_saturated() -> None:
-    # 2 of 3 runs with sustained >= 60 s: fraction >= 0.5, criterion holds.
-    rows = [
-        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=65.0),
-        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=61.0),
-        _sweep_row(50.0, 0.0, 100.0),
-    ]
+def test_saturation_cpu_fraction_at_least_half_is_saturated() -> None:
+    # 5 of 10 runs with sustained >= 60 s: fraction >= 0.5, criterion holds.
+    rows = _sweep_load(50.0, 0.0, 100.0, n=5, host_sustained_s=65.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=5)
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
-    load = result["loads"][0]
+    load = _load_at(result, 50.0)
     assert load["triggered"]["host_cpu_sustained"] is True
     assert load["saturated"] is True
+    assert load["verdict"] == "saturated"
 
 
 def test_saturation_triggers_on_queue_growth_criterion() -> None:
     # Audit 9.7: queue growth is measured (controller_metrics.csv), no TODO.
-    rows = [
-        _sweep_row(10.0, 0.0, 100.0),
-        _sweep_row(50.0, 0.0, 100.0, queue_sustained_s=61.0),
-        _sweep_row(50.0, 0.0, 100.0, queue_sustained_s=75.0),
-        _sweep_row(50.0, 0.0, 100.0, queue_sustained_s=0.0),
-    ]
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=6, queue_sustained_s=75.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=4, queue_sustained_s=0.0)
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
-    by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
-    assert by_rate[50.0]["triggered"]["queue_growth"] is True
-    assert by_rate[50.0]["queue_growth_run_fraction"] == 2 / 3
-    assert by_rate[10.0]["triggered"]["queue_growth"] is False
+    assert _load_at(result, 50.0)["triggered"]["queue_growth"] is True
+    assert _load_at(result, 50.0)["queue_growth_run_fraction"] == 0.6
+    assert _load_at(result, 10.0)["triggered"]["queue_growth"] is False
 
 
 def test_saturation_criteria_not_evaluable_without_instrumentation() -> None:
     # Runs without nproc/controller_metrics carry None; the criterion is
-    # None (not evaluable), never silently False, and cannot saturate.
+    # None (not evaluable), never silently False, and cannot saturate. The
+    # load's verdict is insufficient-evidence (P1b), never not-saturated.
     rows = [
-        {
-            "condition_id": "load_sweep",
-            "rate_msg_s": 50.0,
-            "loss_rate": 0.0,
-            "latency_ms_p95": 100.0,
-            "host_cpu_sustained_gt090_s": None,
-            "queue_growth_sustained_s": None,
-        }
+        _sweep_row(
+            50.0,
+            0.0,
+            100.0,
+            host_sustained_s=None,
+            queue_sustained_s=None,
+            resources_coverage_pct=None,
+        )
+        for _ in range(10)
     ]
     result = analyze.detect_saturation(rows)
-    load = result["loads"][0]
+    load = _load_at(result, 50.0)
     assert load["triggered"]["host_cpu_sustained"] is None
     assert load["triggered"]["queue_growth"] is None
     assert load["saturated"] is False
+    assert load["verdict"] == "insufficient-evidence"
 
 
 def test_saturation_not_triggered_below_thresholds() -> None:
-    rows = [
-        _sweep_row(10.0, 0.0, 100.0),
-        # thresholds are strict (>) for loss/p95; sustained windows below
-        # 60 s never count.
-        _sweep_row(50.0, 0.01, 1000.0, host_sustained_s=59.0, queue_sustained_s=59.0),
-    ]
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    # thresholds are strict (>) for loss/p95; sustained windows below
+    # 60 s never count.
+    rows += _sweep_load(
+        50.0, 0.01, 1000.0, host_sustained_s=59.0, queue_sustained_s=59.0
+    )
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] is None
     assert all(not load["saturated"] for load in result["loads"])
+    assert _load_at(result, 10.0)["verdict"] == "not-saturated"
+    assert _load_at(result, 50.0)["verdict"] == "not-saturated"
     # The queue-growth rule is now documented and evaluated (audit 9.7)
     # and explicitly marked pending advisor sign-off before exp-v1 (R23).
     criteria = result["criteria"]
@@ -659,8 +727,88 @@ def test_saturation_not_triggered_below_thresholds() -> None:
     assert criteria["queue_growth_sustain_s"] == 60
     assert criteria["host_cpu_utilization_gt"] == 0.90
     assert criteria["run_fraction_gte"] == 0.5
+    assert criteria["max_sample_gap_s"] == 5.0
+    assert criteria["expected_runs_per_load"] == 10
+    assert criteria["min_resource_coverage_pct"] == 90.0
     assert "PENDING ADVISOR SIGN-OFF" in result["pending_advisor_signoff"]
     assert "exp-v1" in result["pending_advisor_signoff"]
+
+
+# ---------------------------------------------------------------------------
+# Saturation evidence sufficiency (work order P1b)
+# ---------------------------------------------------------------------------
+
+
+def test_saturation_planned_loads_without_runs_are_insufficient_evidence() -> None:
+    # Every PLANNED sweep rate is listed even with zero runs, with verdict
+    # insufficient-evidence — an absent load can never read as a decided one.
+    result = analyze.detect_saturation([])
+    rates = [load["rate_msg_s"] for load in result["loads"]]
+    assert rates == [10.0, 50.0, 100.0, 250.0]
+    for load in result["loads"]:
+        assert load["n_runs"] == 0
+        assert load["verdict"] == "insufficient-evidence"
+        assert "0/10 valid runs" in load["insufficient_evidence_detail"][0]
+    assert result["first_saturated_load_msg_s"] is None
+
+
+def test_saturation_nine_of_ten_valid_runs_is_insufficient_evidence() -> None:
+    # 9/10 valid runs: even a clear threshold crossing must not decide the
+    # load from a subset (work order P1b).
+    rows = _sweep_load(50.0, 0.05, 100.0, n=9)
+    result = analyze.detect_saturation(rows)
+    load = _load_at(result, 50.0)
+    assert load["triggered"]["loss_rate"] is True  # threshold logic intact
+    assert load["saturated"] is True
+    assert load["verdict"] == "insufficient-evidence"
+    assert any(
+        "9/10 valid runs" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+    assert result["first_saturated_load_msg_s"] is None
+
+
+def test_saturation_run_below_resource_coverage_is_insufficient_evidence() -> None:
+    # 10/10 runs but one with resources covering only half of the measured
+    # window: the load cannot be decided (documented 90% minimum).
+    rows = _sweep_load(50.0, 0.0, 100.0, n=9)
+    rows += _sweep_load(
+        50.0, 0.0, 100.0, n=1, resources_coverage_pct=50.0
+    )
+    result = analyze.detect_saturation(rows)
+    load = _load_at(result, 50.0)
+    assert load["verdict"] == "insufficient-evidence"
+    assert any(
+        "resources coverage 50.0% below the 90% minimum" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+
+
+def test_saturation_run_without_metrics_is_insufficient_not_unsaturated() -> None:
+    # A run without controller metrics makes the load insufficient-evidence
+    # (queue-growth criterion not evaluable), never 'not-saturated'.
+    rows = _sweep_load(50.0, 0.0, 100.0, n=9)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=1, queue_sustained_s=None)
+    result = analyze.detect_saturation(rows)
+    load = _load_at(result, 50.0)
+    assert load["verdict"] == "insufficient-evidence"
+    assert any(
+        "controller metrics missing" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+
+
+def test_saturation_invalid_and_excluded_sweep_rows_are_refiltered() -> None:
+    # Defensive re-filter: rows with validity != 'valid' or excluded True
+    # never enter the saturation evaluation even if a caller passes them.
+    rows = _sweep_load(50.0, 0.0, 100.0)
+    rows += [_sweep_row(50.0, 0.9, 100.0, validity="invalid")]
+    rows += [_sweep_row(50.0, 0.9, 100.0, excluded=True)]
+    result = analyze.detect_saturation(rows)
+    load = _load_at(result, 50.0)
+    assert load["n_runs"] == 10
+    assert load["triggered"]["loss_rate"] is False
+    assert load["verdict"] == "not-saturated"
 
 
 # ---------------------------------------------------------------------------
@@ -884,6 +1032,265 @@ def test_double_accepted_counted_for_restart_acceptance(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Sampling coverage, cadence columns and manifest evidence (work order P1b)
+# ---------------------------------------------------------------------------
+
+
+def test_sampling_stats_coverage_and_gaps() -> None:
+    window = (T0, T0 + timedelta(seconds=600))
+    # Perfect 1 Hz series: 100% coverage, 1 s interior gaps, no tail gap.
+    full = [T0 + timedelta(seconds=i) for i in range(601)]
+    stats = analyze.sampling_stats(full, window)
+    assert stats["coverage_pct"] == 100.0
+    assert stats["max_gap_s"] == 1.0
+    assert stats["tail_gap_s"] == 0.0
+
+    # 100 s hole: coverage drops by (100 - 5) s; interior max gap 100 s.
+    holed = [T0 + timedelta(seconds=i) for i in range(101)]
+    holed += [T0 + timedelta(seconds=i) for i in range(200, 601)]
+    stats = analyze.sampling_stats(holed, window)
+    assert math.isclose(stats["coverage_pct"], 100.0 * 505 / 600, abs_tol=1e-9)
+    assert stats["max_gap_s"] == 100.0
+    assert stats["tail_gap_s"] == 0.0
+
+    # Truncated tail: last sample 60 s before the window end; a sample
+    # covers at most MAX_SAMPLE_GAP_S (5 s) forward.
+    truncated = [T0 + timedelta(seconds=i) for i in range(541)]
+    stats = analyze.sampling_stats(truncated, window)
+    assert math.isclose(stats["coverage_pct"], 100.0 * 545 / 600, abs_tol=1e-9)
+    assert stats["tail_gap_s"] == 60.0
+
+    # No usable window -> stats are None (cannot be computed).
+    stats = analyze.sampling_stats(full, None)
+    assert stats == {"coverage_pct": None, "max_gap_s": None, "tail_gap_s": None}
+
+    # Empty in-window series: 0% coverage, gaps not measurable.
+    stats = analyze.sampling_stats([], window)
+    assert stats["coverage_pct"] == 0.0
+    assert stats["max_gap_s"] is None and stats["tail_gap_s"] is None
+
+
+def test_per_run_coverage_columns_computed_from_csvs(tmp_path) -> None:
+    """E4/E5: per_run rows expose resources/metrics coverage of the measured
+    window plus max/tail gaps (work order P1b columns)."""
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    resources = []
+    for i in range(0, 101):  # 1 Hz, then a 100 s hole, then 1 Hz again
+        resources.append([_iso(start + timedelta(seconds=i)), "egw-controller", 10.0, 1024, 1.0])
+    for i in range(200, 601):
+        resources.append([_iso(start + timedelta(seconds=i)), "egw-controller", 10.0, 1024, 1.0])
+    metrics = [
+        [_iso(start + timedelta(seconds=i)), i, 0, 0, 0, 0, 5]
+        for i in range(0, 541)  # stops 60 s before the window end
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "coverage-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        resources_rows=resources,
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["measured_window_s"] == 600.0
+    assert math.isclose(row["resources_coverage_pct"], 100.0 * 505 / 600, abs_tol=1e-9)
+    assert row["resources_max_gap_s"] == 100.0
+    assert math.isclose(row["metrics_coverage_pct"], 100.0 * 545 / 600, abs_tol=1e-9)
+    assert row["metrics_max_gap_s"] == 1.0
+    assert row["metrics_tail_gap_s"] == 60.0
+    # The mandated columns are part of the per_run.csv schema.
+    for column in ("resources_coverage_pct", "metrics_coverage_pct"):
+        assert column in analyze.PER_RUN_COLUMNS
+
+
+def test_metrics_accepted_delta_and_events_accepted_total(tmp_path) -> None:
+    """Reconciliation inputs (work order P1b): the raw accepted-event count
+    and the cumulative accepted-counter delta over the measured window."""
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    mids = [f"m{i}" for i in range(5)]
+    metrics = [
+        [_iso(start + timedelta(seconds=0)), 100, 0, 0, 0, 0, 5],
+        [_iso(start + timedelta(seconds=1)), 103, 0, 0, 0, 0, 5],
+        [_iso(start + timedelta(seconds=2)), 105, 0, 0, 0, 0, 5],
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "reconcile-run",
+        sent=[sent_record(m, i) for i, m in enumerate(mids)],
+        events=[event_record(m, "accepted") for m in mids]
+        + [event_record(mids[0], "duplicate")],
+        manifest_extra=_window_manifest(start, end),
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["events_accepted_total"] == 5  # 'duplicate' outcomes excluded
+    assert row["metrics_accepted_delta"] == 5.0  # 105 - 100
+
+    # Without controller_metrics.csv the delta is None (criterion fails).
+    bare = make_run(
+        tmp_path,
+        "no-metrics-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    bare_row = analyze.compute_run_metrics(bare)
+    assert bare_row["metrics_accepted_delta"] is None
+
+
+def test_simulator_manifest_totals_read_for_dropout_runs(tmp_path) -> None:
+    """E2: dropout_disconnects/buffered_dropout come from the SIMULATOR's
+    manifest under logs/simulator/; missing totals warn on dropout runs."""
+    run_dir = make_run(
+        tmp_path,
+        "dropout_reconnect-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "dropout_reconnect",
+            "scenario": "dropout-reconnect",
+        },
+        sim_totals={
+            "sent": 100,
+            "intended_invalid": 0,
+            "buffered_dropout": 17,
+            "dropout_disconnects": 3,
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["dropout_disconnects"] == 3
+    assert row["buffered_dropout"] == 17
+    assert "totals missing" not in row["warnings"]
+
+    # A dropout run WITHOUT the simulator manifest: values None + warning.
+    bare = make_run(
+        tmp_path,
+        "dropout_reconnect-r02",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "dropout_reconnect",
+            "scenario": "dropout-reconnect",
+            "repetition": 2,
+        },
+    )
+    bare_row = analyze.compute_run_metrics(bare)
+    assert bare_row["dropout_disconnects"] is None
+    assert bare_row["buffered_dropout"] is None
+    assert "dropout run without simulator-manifest totals" in bare_row["warnings"]
+
+    # Non-dropout runs stay quiet about absent totals.
+    nominal = make_run(
+        tmp_path,
+        "nominal-r09",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    nominal_row = analyze.compute_run_metrics(nominal)
+    assert nominal_row["dropout_disconnects"] is None
+    assert "totals missing" not in nominal_row["warnings"]
+
+
+def test_restart_hook_record_read_from_manifest(tmp_path) -> None:
+    """E3: restart_hook_ok reflects the manifest's restart record (executed
+    timestamps + exit 0, no error); its absence warns on restart runs."""
+    ok_record = {
+        "template": "ssh vm docker compose restart controller",
+        "requested_at_s": 300,
+        "executed": True,
+        "started_utc": "2026-09-07T10:05:00Z",
+        "finished_utc": "2026-09-07T10:05:03Z",
+        "returncode": 0,
+    }
+    ok_dir = make_run(
+        tmp_path,
+        "controller_restart-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "controller_restart",
+            "restart": ok_record,
+        },
+    )
+    assert analyze.compute_run_metrics(ok_dir)["restart_hook_ok"] is True
+
+    failed_record = dict(ok_record, returncode=1)
+    failed_dir = make_run(
+        tmp_path,
+        "controller_restart-r02",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "controller_restart",
+            "restart": failed_record,
+            "repetition": 2,
+        },
+    )
+    failed_row = analyze.compute_run_metrics(failed_dir)
+    assert failed_row["restart_hook_ok"] is False
+    assert "restart-hook record" in failed_row["warnings"]
+
+    missing_dir = make_run(
+        tmp_path,
+        "controller_restart-r03",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={"condition_id": "controller_restart", "repetition": 3},
+    )
+    missing_row = analyze.compute_run_metrics(missing_dir)
+    assert missing_row["restart_hook_ok"] is None
+    assert "restart-hook record" in missing_row["warnings"]
+
+
+def test_analyze_end_to_end_dropout_acceptance_from_files(tmp_path) -> None:
+    """File-level positive control (work order P1b): three fully-formed
+    dropout runs pass every C10 criterion in acceptance_by_condition.csv."""
+    base = tmp_path / "results"
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    mids = [f"m{i}" for i in range(3)]
+    for rep in range(1, 4):
+        metrics = [
+            [_iso(start), 0, 0, 0, 0, 0, 5],
+            [_iso(start + timedelta(seconds=1)), 3, 0, 0, 0, 0, 5],
+        ]
+        make_run(
+            base,
+            f"dropout_reconnect-r{rep:02d}",
+            sent=[sent_record(m, i) for i, m in enumerate(mids)],
+            events=[event_record(m, "accepted") for m in mids],
+            manifest_extra={
+                "condition_id": "dropout_reconnect",
+                "scenario": "dropout-reconnect",
+                "repetition": rep,
+                "validity": "valid",
+                **_window_manifest(start, end),
+            },
+            controller_metrics_rows=metrics,
+            sim_totals={"buffered_dropout": 9, "dropout_disconnects": 2},
+        )
+    assert analyze.analyze(base_dir=base) == 0
+    acceptance = _read_csv(base / "processed" / "acceptance_by_condition.csv")
+    dropout = {
+        r["criterion"]: r
+        for r in acceptance
+        if r["condition_id"] == "dropout_reconnect"
+    }
+    for criterion in (
+        "runs_complete",
+        "zero_lost_within_window",
+        "zero_double_accepted",
+        "dropout_disconnects_ge_1_every_run",
+        "buffered_dropout_ge_1_every_run",
+        "controller_metrics_reconciled",
+    ):
+        assert dropout[criterion]["passed"] == "true", criterion
+    assert "3/3 valid runs" in dropout["runs_complete"]["observed"]
+
+
+# ---------------------------------------------------------------------------
 # End-to-end analyze on a synthetic raw tree
 # ---------------------------------------------------------------------------
 
@@ -975,7 +1382,24 @@ def test_analyze_end_to_end_regenerates_processed_outputs(tmp_path, capsys) -> N
         (base / "processed" / "saturation.json").read_text("utf-8")
     )
     assert saturation["first_saturated_load_msg_s"] is None
-    assert saturation["loads"] == []  # no load_sweep runs in this fixture
+    # No load_sweep runs in this fixture: every PLANNED load is listed as
+    # insufficient-evidence (work order P1b), never as decided.
+    assert [load["rate_msg_s"] for load in saturation["loads"]] == [
+        10.0, 50.0, 100.0, 250.0,
+    ]
+    assert all(
+        load["verdict"] == "insufficient-evidence" for load in saturation["loads"]
+    )
+    # Acceptance rows exist for every planned condition; absent conditions
+    # (e.g. smoke_sequence) are FAILED, not blank (work order P1b).
+    acceptance = _read_csv(base / "processed" / "acceptance_by_condition.csv")
+    smoke_complete = next(
+        r
+        for r in acceptance
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    assert smoke_complete["passed"] == "false"
+    assert "0/10 valid runs" in smoke_complete["observed"]
     assert (base / "figures").is_dir()
     capsys.readouterr()  # notices printed; not asserted
 
@@ -1082,11 +1506,15 @@ def test_invalid_runs_excluded_from_aggregation_but_listed(tmp_path, capsys) -> 
     assert float(delivery[0]["mean"]) == 1.0
     assert not any(r["condition_id"] == "load_sweep" for r in summary)
 
-    # Saturation sees no load_sweep input from the invalid run.
+    # Saturation sees no load_sweep input from the invalid run: every
+    # planned load stays insufficient-evidence with zero valid runs (P1b).
     saturation = json.loads(
         (base / "processed" / "saturation.json").read_text("utf-8")
     )
-    assert saturation["loads"] == []
+    assert all(
+        load["n_runs"] == 0 and load["verdict"] == "insufficient-evidence"
+        for load in saturation["loads"]
+    )
     assert saturation["first_saturated_load_msg_s"] is None
 
 
@@ -1223,10 +1651,31 @@ def test_read_resources_csv_accepts_old_and_new_headers(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 
+#: Criteria that stay deliberately informational/descriptive (passed=None
+#: by design, work order P1b); every other criterion must be True/False.
+INFORMATIONAL_CRITERIA = {
+    "valid_delivery_rate_mean_informational",
+    "delivery_descriptive",
+}
+
+#: The planned simulator conditions (protocol.py CONDITIONS): acceptance
+#: rows must exist for ALL of them, even with an empty raw/ tree.
+PLANNED_SIMULATOR_CONDITIONS = {
+    "smoke_sequence",
+    "nominal",
+    "load_sweep",
+    "invalid_payload",
+    "dropout_reconnect",
+    "controller_restart",
+    "soak",
+}
+
+
 def _acc_row(cid: str, **overrides) -> dict:
     base = {
         "condition_id": cid,
         "validity": "valid",
+        "excluded": False,
         "lost": 0,
         "double_accepted": 0,
         "intended_invalid_sent": 0,
@@ -1234,6 +1683,45 @@ def _acc_row(cid: str, **overrides) -> dict:
         "intended_invalid_accepted": 0,
         "delivery_rate": 1.0,
     }
+    base.update(overrides)
+    return base
+
+
+def _dropout_row(**overrides) -> dict:
+    """A dropout run satisfying every C10 criterion (work order P1b)."""
+    base = _acc_row(
+        "dropout_reconnect",
+        dropout_disconnects=2,
+        buffered_dropout=15,
+        events_accepted_total=100,
+        metrics_accepted_delta=100.0,
+    )
+    base.update(overrides)
+    return base
+
+
+def _restart_row(**overrides) -> dict:
+    """A controller_restart run satisfying every C12 criterion."""
+    base = _acc_row("controller_restart", restart_hook_ok=True)
+    base.update(overrides)
+    return base
+
+
+def _soak_row(**overrides) -> dict:
+    """A soak run satisfying the full C13 Definition of Done (P1b)."""
+    base = _acc_row(
+        "soak",
+        measured_window_s=86_400.0,
+        resources_coverage_pct=99.9,
+        resources_max_gap_s=2.0,
+        metrics_coverage_pct=99.9,
+        metrics_max_gap_s=2.0,
+        metrics_tail_gap_s=1.0,
+        events_accepted_total=900_000,
+        metrics_accepted_delta=900_100.0,  # within the +-1% tolerance
+        delivered_unique=900_000,
+        sent_valid=900_000,
+    )
     base.update(overrides)
     return base
 
@@ -1249,7 +1737,7 @@ def _acc(result: list[dict], cid: str, criterion: str) -> dict:
 def test_acceptance_smoke_sequence_all_complete_zero_lost() -> None:
     rows = [_acc_row("smoke_sequence") for _ in range(10)]
     result = analyze.evaluate_acceptance(rows)
-    complete = _acc(result, "smoke_sequence", "all_runs_complete")
+    complete = _acc(result, "smoke_sequence", "runs_complete")
     assert complete["passed"] is True
     assert complete["expected_runs"] == 10
     assert complete["claims"] == "C14"
@@ -1259,12 +1747,17 @@ def test_acceptance_smoke_sequence_all_complete_zero_lost() -> None:
 def test_acceptance_smoke_sequence_fails_on_missing_run_or_loss() -> None:
     rows = [_acc_row("smoke_sequence") for _ in range(9)]  # one run missing
     result = analyze.evaluate_acceptance(rows)
-    assert _acc(result, "smoke_sequence", "all_runs_complete")["passed"] is False
+    assert _acc(result, "smoke_sequence", "runs_complete")["passed"] is False
+    # The sibling substantive criterion is completeness-gated too (P1b):
+    # zero lost over 9 runs is NOT acceptance evidence for 10 planned runs.
+    zero_lost = _acc(result, "smoke_sequence", "zero_lost")
+    assert zero_lost["passed"] is False
+    assert "9/10 valid runs" in zero_lost["observed"]
 
     rows = [_acc_row("smoke_sequence") for _ in range(10)]
     rows[3]["lost"] = 1
     result = analyze.evaluate_acceptance(rows)
-    assert _acc(result, "smoke_sequence", "all_runs_complete")["passed"] is True
+    assert _acc(result, "smoke_sequence", "runs_complete")["passed"] is True
     assert _acc(result, "smoke_sequence", "zero_lost")["passed"] is False
 
 
@@ -1272,7 +1765,10 @@ def test_acceptance_smoke_sequence_invalid_run_fails_completeness() -> None:
     rows = [_acc_row("smoke_sequence") for _ in range(10)]
     rows[0]["validity"] = "invalid"
     result = analyze.evaluate_acceptance(rows)
-    assert _acc(result, "smoke_sequence", "all_runs_complete")["passed"] is False
+    complete = _acc(result, "smoke_sequence", "runs_complete")
+    assert complete["passed"] is False
+    assert "9/10 valid runs" in complete["observed"]
+    assert complete["n_runs"] == 9
 
 
 def test_acceptance_invalid_payload_rejection_criteria() -> None:
@@ -1313,8 +1809,8 @@ def test_acceptance_invalid_payload_rejection_criteria() -> None:
 
 def test_acceptance_dropout_reconnect_tolerates_buffered_redelivery() -> None:
     # Buffered messages confirmed within the window are simply not lost;
-    # acceptance = zero lost + zero double-accepted (module docstring).
-    rows = [_acc_row("dropout_reconnect") for _ in range(3)]
+    # zero lost + zero double-accepted (module docstring).
+    rows = [_dropout_row() for _ in range(3)]
     result = analyze.evaluate_acceptance(rows)
     zero_lost = _acc(result, "dropout_reconnect", "zero_lost_within_window")
     assert zero_lost["passed"] is True
@@ -1335,14 +1831,127 @@ def test_acceptance_dropout_reconnect_tolerates_buffered_redelivery() -> None:
     )
 
 
+def test_acceptance_dropout_one_of_three_runs_fails_completeness() -> None:
+    """E1: dropout_reconnect with 1/3 runs must FAIL, never pass or blank."""
+    result = analyze.evaluate_acceptance([_dropout_row()])
+    complete = _acc(result, "dropout_reconnect", "runs_complete")
+    assert complete["passed"] is False
+    assert "1/3 valid runs" in complete["observed"]
+    # Every substantive criterion is gated on completeness.
+    for criterion in (
+        "zero_lost_within_window",
+        "zero_double_accepted",
+        "dropout_disconnects_ge_1_every_run",
+        "buffered_dropout_ge_1_every_run",
+        "controller_metrics_reconciled",
+    ):
+        row = _acc(result, "dropout_reconnect", criterion)
+        assert row["passed"] is False
+        assert "1/3 valid runs" in row["observed"]
+
+
+def test_acceptance_dropout_requires_real_disconnects_every_run() -> None:
+    """E2: a 'dropout' run in which no disconnect actually happened (or
+    whose simulator manifest totals are missing) fails the C10 criteria."""
+    rows = [_dropout_row() for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "dropout_reconnect", "dropout_disconnects_ge_1_every_run")[
+            "passed"
+        ]
+        is True
+    )
+    assert (
+        _acc(result, "dropout_reconnect", "buffered_dropout_ge_1_every_run")[
+            "passed"
+        ]
+        is True
+    )
+
+    # One run with zero disconnects: that criterion fails, buffered intact.
+    rows = [_dropout_row(), _dropout_row(dropout_disconnects=0), _dropout_row()]
+    result = analyze.evaluate_acceptance(rows)
+    disconnects = _acc(
+        result, "dropout_reconnect", "dropout_disconnects_ge_1_every_run"
+    )
+    assert disconnects["passed"] is False
+    assert "2/3 run(s) with dropout_disconnects >= 1" in disconnects["observed"]
+    assert (
+        _acc(result, "dropout_reconnect", "buffered_dropout_ge_1_every_run")[
+            "passed"
+        ]
+        is True
+    )
+
+    # One run without simulator-manifest totals (None): fails and says why.
+    rows = [
+        _dropout_row(),
+        _dropout_row(dropout_disconnects=None, buffered_dropout=None),
+        _dropout_row(),
+    ]
+    result = analyze.evaluate_acceptance(rows)
+    disconnects = _acc(
+        result, "dropout_reconnect", "dropout_disconnects_ge_1_every_run"
+    )
+    assert disconnects["passed"] is False
+    assert "simulator manifest totals missing in 1 run(s)" in disconnects["observed"]
+    assert (
+        _acc(result, "dropout_reconnect", "buffered_dropout_ge_1_every_run")[
+            "passed"
+        ]
+        is False
+    )
+
+
+def test_acceptance_controller_metrics_reconciliation() -> None:
+    """Work order P1b: dropout/load_sweep/soak mandate controller metrics;
+    the accepted-counter delta must reconcile with events.jsonl within the
+    documented +-1% (floor 1) tolerance; missing metrics FAIL, never blank."""
+    rows = [_dropout_row() for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "dropout_reconnect", "controller_metrics_reconciled")["passed"]
+        is True
+    )
+
+    # Delta within +-1%: 100 accepted vs delta 101 still reconciles.
+    rows = [_dropout_row(metrics_accepted_delta=101.0) for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "dropout_reconnect", "controller_metrics_reconciled")["passed"]
+        is True
+    )
+
+    # Out of tolerance: 100 vs 110 fails.
+    rows = [_dropout_row(), _dropout_row(metrics_accepted_delta=110.0), _dropout_row()]
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "dropout_reconnect", "controller_metrics_reconciled")["passed"]
+        is False
+    )
+
+    # Metrics absent: failed with the mandated detail, not blank.
+    rows = [_dropout_row(), _dropout_row(metrics_accepted_delta=None), _dropout_row()]
+    result = analyze.evaluate_acceptance(rows)
+    reconciled = _acc(result, "dropout_reconnect", "controller_metrics_reconciled")
+    assert reconciled["passed"] is False
+    assert "controller metrics missing" in reconciled["observed"]
+
+
 def test_acceptance_controller_restart_criteria() -> None:
-    rows = [_acc_row("controller_restart") for _ in range(3)]
+    rows = [_restart_row() for _ in range(3)]
     result = analyze.evaluate_acceptance(rows)
     across = _acc(result, "controller_restart", "delivery_across_restart_zero_lost")
     assert across["passed"] is True
     assert across["claims"] == "C12"
     assert (
         _acc(result, "controller_restart", "zero_double_accepted")["passed"] is True
+    )
+    assert (
+        _acc(result, "controller_restart", "restart_hook_executed_every_run")[
+            "passed"
+        ]
+        is True
     )
 
     rows[1]["double_accepted"] = 3
@@ -1352,11 +1961,168 @@ def test_acceptance_controller_restart_criteria() -> None:
     )
 
 
-def test_acceptance_without_runs_is_not_evaluable() -> None:
+def test_acceptance_restart_without_hook_record_fails() -> None:
+    """E3: a controller_restart run whose manifest has no successfully
+    executed restart-hook record fails the C12 hook criterion."""
+    # Hook record absent entirely (restart_hook_ok None).
+    rows = [_restart_row(), _restart_row(restart_hook_ok=None), _restart_row()]
+    result = analyze.evaluate_acceptance(rows)
+    hook = _acc(result, "controller_restart", "restart_hook_executed_every_run")
+    assert hook["passed"] is False
+    assert "2/3 run(s) with executed restart hook" in hook["observed"]
+    # The other criteria are unaffected.
+    assert (
+        _acc(result, "controller_restart", "delivery_across_restart_zero_lost")[
+            "passed"
+        ]
+        is True
+    )
+
+    # Hook executed but with a non-zero exit (restart_hook_ok False).
+    rows = [_restart_row(), _restart_row(restart_hook_ok=False), _restart_row()]
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "controller_restart", "restart_hook_executed_every_run")[
+            "passed"
+        ]
+        is False
+    )
+
+
+def test_acceptance_soak_definition_of_done_passes_when_all_met() -> None:
+    result = analyze.evaluate_acceptance([_soak_row()])
+    assert _acc(result, "soak", "runs_complete")["passed"] is True
+    for criterion in (
+        "measured_window_ge_24h",
+        "resources_coverage_and_cadence",
+        "controller_metrics_coverage_and_cadence",
+        "no_unrecovered_interruption",
+        "controller_metrics_reconciled",
+    ):
+        row = _acc(result, "soak", criterion)
+        assert row["passed"] is True, criterion
+    # Delivery stays descriptive (plan 7.3): informational, no pass/fail.
+    descriptive = _acc(result, "soak", "delivery_descriptive")
+    assert descriptive["passed"] is None
+    assert "no CI" in descriptive["observed"]
+
+
+def test_acceptance_soak_shorter_than_24h_fails_window_criterion_only() -> None:
+    result = analyze.evaluate_acceptance([_soak_row(measured_window_s=80_000.0)])
+    assert _acc(result, "soak", "measured_window_ge_24h")["passed"] is False
+    # The other DoD criteria are unaffected.
+    assert _acc(result, "soak", "resources_coverage_and_cadence")["passed"] is True
+    assert (
+        _acc(result, "soak", "controller_metrics_coverage_and_cadence")["passed"]
+        is True
+    )
+    assert _acc(result, "soak", "no_unrecovered_interruption")["passed"] is True
+
+
+def test_acceptance_soak_90s_metrics_gap_fails_cadence_not_interruption() -> None:
+    # A 90 s hole in controller_metrics: > 60 s sampling gap (cadence DoD
+    # fails) but <= 120 s (no unrecovered interruption) — the criteria are
+    # independent.
+    result = analyze.evaluate_acceptance([_soak_row(metrics_max_gap_s=90.0)])
+    assert (
+        _acc(result, "soak", "controller_metrics_coverage_and_cadence")["passed"]
+        is False
+    )
+    assert _acc(result, "soak", "no_unrecovered_interruption")["passed"] is True
+    assert _acc(result, "soak", "resources_coverage_and_cadence")["passed"] is True
+    assert _acc(result, "soak", "measured_window_ge_24h")["passed"] is True
+
+
+def test_acceptance_soak_truncated_tail_fails_interruption_criterion() -> None:
+    # Collection dying 300 s before the window end: the last sample is not
+    # within 120 s of the end -> unrecovered interruption; coverage (99.66%)
+    # still passes, isolating the failing criterion.
+    result = analyze.evaluate_acceptance(
+        [_soak_row(metrics_tail_gap_s=300.0, metrics_coverage_pct=99.66)]
+    )
+    assert _acc(result, "soak", "no_unrecovered_interruption")["passed"] is False
+    assert (
+        _acc(result, "soak", "controller_metrics_coverage_and_cadence")["passed"]
+        is True
+    )
+    assert _acc(result, "soak", "measured_window_ge_24h")["passed"] is True
+
+
+def test_acceptance_soak_missing_window_or_stats_fails_not_blank() -> None:
+    # A soak run without measured_window_utc (all stats None) fails every
+    # DoD criterion with observable detail — never a blank verdict.
+    result = analyze.evaluate_acceptance(
+        [
+            _soak_row(
+                measured_window_s=None,
+                resources_coverage_pct=None,
+                resources_max_gap_s=None,
+                metrics_coverage_pct=None,
+                metrics_max_gap_s=None,
+                metrics_tail_gap_s=None,
+            )
+        ]
+    )
+    for criterion in (
+        "measured_window_ge_24h",
+        "resources_coverage_and_cadence",
+        "controller_metrics_coverage_and_cadence",
+        "no_unrecovered_interruption",
+    ):
+        assert _acc(result, "soak", criterion)["passed"] is False, criterion
+
+
+def test_acceptance_without_runs_emits_failed_rows_for_all_conditions() -> None:
+    """E1: zero runs must NEVER produce blank acceptance rows — every
+    planned simulator condition gets FAILED rows (work order P1b)."""
     result = analyze.evaluate_acceptance([])
+    assert {r["condition_id"] for r in result} == PLANNED_SIMULATOR_CONDITIONS
     for row in result:
-        assert row["passed"] is None
         assert row["n_runs"] == 0
+        if row["criterion"] in INFORMATIONAL_CRITERIA:
+            assert row["passed"] is None
+        else:
+            assert row["passed"] is False, (row["condition_id"], row["criterion"])
+    # load_sweep expects repetitions x number of swept rates (10 x 4).
+    assert _acc(result, "load_sweep", "runs_complete")["expected_runs"] == 40
+    assert "0/40 valid runs" in _acc(result, "load_sweep", "runs_complete")["observed"]
+    assert _acc(result, "soak", "runs_complete")["expected_runs"] == 1
+
+
+def test_acceptance_full_synthetic_campaign_passes_every_criterion() -> None:
+    """A fully-formed synthetic campaign satisfies every acceptance
+    criterion (work order P1b positive control)."""
+    rows: list[dict] = []
+    rows += [_acc_row("smoke_sequence") for _ in range(10)]
+    rows += [_acc_row("nominal") for _ in range(10)]
+    for rate in (10.0, 50.0, 100.0, 250.0):
+        rows += [
+            _acc_row(
+                "load_sweep",
+                rate_msg_s=rate,
+                events_accepted_total=1000,
+                metrics_accepted_delta=1000.0,
+            )
+            for _ in range(10)
+        ]
+    rows += [
+        _acc_row(
+            "invalid_payload",
+            intended_invalid_sent=20,
+            rejected_intended_invalid=20,
+        )
+        for _ in range(3)
+    ]
+    rows += [_dropout_row() for _ in range(3)]
+    rows += [_restart_row() for _ in range(3)]
+    rows += [_soak_row()]
+    result = analyze.evaluate_acceptance(rows)
+    assert {r["condition_id"] for r in result} == PLANNED_SIMULATOR_CONDITIONS
+    for row in result:
+        if row["criterion"] in INFORMATIONAL_CRITERIA:
+            assert row["passed"] is None
+        else:
+            assert row["passed"] is True, (row["condition_id"], row["criterion"])
 
 
 # ---------------------------------------------------------------------------
