@@ -32,6 +32,8 @@
 \usepackage[printonlyused]{acronym}
 \usepackage{xcolor}   % standard TeX Live; used only for the \todo marker
 \usepackage{booktabs} % standard TeX Live; used for the RQ->method->metric table
+\usepackage{array}    % standard TeX Live; >{...} column specifiers in tables
+\usepackage{ragged2e} % standard TeX Live; \RaggedRight (hyphenation-friendly) in narrow table columns
 %
 % you may need to uncomment the command below if you use eps format for figures
 %\usepackage{epstopdf}
@@ -236,14 +238,15 @@ September, 2026
 Os gémeos digitais de dispositivos de consumo dependem, com frequência, de
 plataformas cloud centralizadas, o que levanta questões de latência, de
 disponibilidade e de controlo dos dados por parte do consumidor. Esta
-dissertação concebe, implementa e avalia um \emph{edge gateway} ARM64
+dissertação concebe e implementa um \emph{edge gateway} ARM64
 reproduzível, construído com o Yocto Project (linha LTS Scarthgap) e composto
 por serviços contentorizados --- broker MQTT com TLS, controlador de ingestão
-e Eclipse Ditto com MongoDB --- capaz de receber telemetria sintética
+e Eclipse Ditto com MongoDB --- concebido para receber telemetria sintética
 concorrente de três tipos de wearables (smartwatch, smart ring e smart
 clothing), validar os eventos contra esquemas JSON versionados e
 materializá-los como gémeos digitais. A avaliação segue um protocolo
-experimental pré-registado, executado num ambiente ARM64 nativo, medindo
+experimental pré-especificado, congelado antes da recolha de dados e a
+executar num ambiente ARM64 nativo, medindo
 latência, débito, consumo de recursos e estabilidade. Todos os resultados
 quantitativos serão introduzidos apenas após o \emph{data freeze}, a partir de
 dados brutos com manifesto e análise reproduzível.
@@ -257,14 +260,15 @@ dados brutos com manifesto e análise reproduzível.
 [Provisional --- rewritten after data freeze]
 Digital twins of consumer devices frequently depend on centralised cloud
 platforms, raising latency, availability and data-control concerns. This
-dissertation designs, implements and evaluates a reproducible ARM64 edge
+dissertation designs and implements a reproducible ARM64 edge
 gateway, built with the Yocto Project (Scarthgap LTS line) and composed of
 containerised services --- an MQTT broker with TLS, an ingestion controller,
-and Eclipse Ditto backed by MongoDB --- capable of receiving concurrent
+and Eclipse Ditto backed by MongoDB --- designed to receive concurrent
 synthetic telemetry from three wearable-device types (smartwatch, smart ring
-and smart clothing), validating events against versioned JSON Schemas, and
-materialising them as digital twins. The evaluation follows a pre-registered
-experimental protocol executed on a native ARM64 environment, measuring
+and smart clothing), validate events against versioned JSON Schemas, and
+materialise them as digital twins. The evaluation follows a pre-specified
+experimental protocol, frozen before data collection and to be executed on a
+native ARM64 environment, measuring
 latency, throughput, resource consumption and stability. All quantitative
 results are introduced only after the data freeze, from raw data with
 manifests and a reproducible analysis pipeline.

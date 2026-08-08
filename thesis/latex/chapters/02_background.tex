@@ -162,7 +162,7 @@ Ditto provides the twin layer. Architecturally it is a set of microservices
 --- gateway, policies, things, search and connectivity, over MongoDB
 persistence --- that can be deployed selectively; this modularity is what
 makes a minimal-core deployment possible on resource-limited hardware. The
-artefact of this dissertation runs only the gateway, policies and things
+artefact of this dissertation includes only the gateway, policies and things
 services, with MongoDB, on Ditto 3.9.4 \cite{eclipse2026ditto}. Ditto also
 documents native \ac{WoT} support, introduced as an optional integration in
 version 2.4.0 and considered stable and active by default since version 3.0.0
@@ -247,12 +247,12 @@ assumption of it --- and it is precisely the assumption this dissertation
 sets out to engineer and measure.
 
 This dissertation is positioned as the \emph{edge-platform layer} of that
-line of work. It takes the gateway component of the C2DTA vision and subjects
-it to a substantially broader engineering and empirical treatment: a
-Yocto-built, revision-pinned ARM64 operating platform; three concurrent
+line of work. It takes the gateway component of the C2DTA vision and defines
+for it a substantially broader engineering and empirical programme: a
+Yocto-defined, revision-pinned ARM64 operating platform; three concurrent
 wearable types instead of one; six workload scenarios including fault
 injection and a 24-hour soak; and per-container resource profiling under a
-pre-registered protocol. Conversely, everything above the platform layer in
+pre-specified protocol, frozen before data collection. Conversely, everything above the platform layer in
 C2DTA --- ledger, identity, marketplace and consent mechanics --- is context
 only here: none of it is implemented or evaluated, and no result in this
 document supports or weakens claims about those components
@@ -397,7 +397,7 @@ than from third-party benchmarks.
 \section{Containers on Constrained ARM Hardware}
 \label{sec:bg-containers}
 
-\noindent The service layer of the gateway is deployed as \ac{OCI}
+\noindent The service layer of the gateway is packaged as \ac{OCI}
 containers: services are packaged with their dependencies into
 architecture-specific images that can be pinned by digest, which extends the
 reproducibility argument from the operating system to the deployed stack. Two
@@ -491,7 +491,7 @@ protocol bindings through which they are reachable \cite{w3c2023wottd}. In
 this work each wearable type has a \ac{TD} aligned with its \ac{JSON}
 Schema, so the twin's data model is documented in a standard form rather
 than only in project-specific schemas; the two artefacts are kept
-consistent by construction and validated together
+consistent by construction
 (Chapter~\ref{ch:architecture}). The choice is reinforced by the platform:
 Eclipse Ditto documents native \ac{WoT} integration, stable and active by
 default since version 3.0.0 \cite{eclipse2026ditto}, making the \ac{TD} the
@@ -531,52 +531,78 @@ dissertation against the properties that define it.
 \begin{table}[htb]
   \caption{Closest related systems compared with this work. ``n/r'' = not
   reported in the cited publication; cells describe only what the cited
-  sources state. The last row describes the \emph{design} of this work; its
-  evaluation is pending (Chapter~\ref{ch:evaluation}).}
+  sources state. The last row states the \emph{design targets} of this work:
+  each entry is a design intention whose demonstration is pending until the
+  evaluation of Chapter~\ref{ch:evaluation} has been executed; no entry in
+  that row is a demonstrated result.}
   \label{tab:related-work}
   \centering
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{p{0.17\textwidth} p{0.13\textwidth} p{0.12\textwidth} p{0.16\textwidth} p{0.13\textwidth} p{0.15\textwidth}}
+  \setlength{\tabcolsep}{3.5pt}
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{
+      >{\RaggedRight\arraybackslash}p{0.150\textwidth}
+      >{\RaggedRight\arraybackslash}p{0.140\textwidth}
+      >{\RaggedRight\arraybackslash}p{0.135\textwidth}
+      >{\RaggedRight\arraybackslash}p{0.160\textwidth}
+      >{\RaggedRight\arraybackslash}p{0.140\textwidth}
+      >{\RaggedRight\arraybackslash}p{0.165\textwidth}}
     \toprule
-    \textbf{System} & \textbf{Repro\-ducible OS build} & \textbf{ARM64 edge target} & \textbf{DT platform} & \textbf{Multi-wearable ingestion} & \textbf{Pre-registered protocol / artefacts} \\
+    \textbf{System} &
+    \textbf{OS build} &
+    \textbf{Edge target} &
+    \textbf{Twin platform} &
+    \textbf{Wearable workload} &
+    \textbf{Evaluation discipline} \\
     \midrule
     C2DTA \cite{pinto2026c2dta} &
     Not addressed &
-    No (x86 VM) &
+    x86 virtual machine &
     Custom, ledger-centred &
-    No (one smartwatch profile) &
-    Published evaluation; no pre-registration reported \\
+    One smartwatch profile &
+    Published evaluation; pre-specification not reported \\
     \addlinespace
     Edge DT architecture \cite{picone2023flexible} &
     Not addressed &
-    Constrained edge devices; ISA n/r &
-    WLDT-based edge twins \cite{picone2021wldt} &
-    No (generic IoT devices) &
-    Open-source library; pre-registration n/r \\
+    Constrained devices; ISA n/r &
+    WLDT edge twins \cite{picone2021wldt} &
+    Generic IoT devices, not wearables &
+    Open-source library; pre-specification n/r \\
     \addlinespace
     OpenTwins \cite{robles2023opentwins} &
     No (Kubernetes on existing hosts) &
     n/r &
-    Eclipse Ditto core plus messaging, storage, dashboards &
-    No (Industry 4.0 use case) &
-    Open-source framework; pre-registration n/r \\
+    Ditto core plus messaging, storage, dashboards &
+    Industry 4.0 use case, not wearables &
+    Open-source framework; pre-specification n/r \\
     \addlinespace
     ODT failover \cite{neagu2026odt} &
     n/r &
-    Resource-constrained edge; ISA n/r &
+    Constrained edge; ISA n/r &
     Custom standby-twin mechanism &
-    No (IoT sensor networks) &
+    IoT sensor networks, not wearables &
     Fault-injection experiments; artefacts n/r \\
     \addlinespace
-    \textbf{This work} (design) &
-    Yes (Yocto Scarthgap, pinned \texttt{kas} manifest) &
-    Yes (\texttt{qemuarm64} functional; native ARM64 measurement) &
-    Eclipse Ditto 3.9.4, minimal core &
-    Yes (three concurrent device types, six scenarios) &
-    Pre-registered protocol; versioned artefacts; campaign pending \\
+    \textbf{This work} (design targets) &
+    Design target: Yocto Scarthgap, pinned \texttt{kas} manifest (rebuild evidence pending) &
+    Design target: emulated ARM64 check, native ARM64 measurement (evaluation pending) &
+    Eclipse Ditto 3.9.4, minimal core (design choice) &
+    Design target: three concurrent device types, six scenarios (evaluation pending) &
+    Pre-specified protocol, frozen before data collection; versioned artefacts; campaign pending \\
     \bottomrule
   \end{tabular}
+  \par\medskip
+  \begin{minipage}{0.94\textwidth}
+    \footnotesize
+    Column key: \emph{OS build} --- whether the operating platform is
+    rebuilt from a versioned, pinned description; \emph{Edge target} ---
+    deployment hardware class and instruction-set architecture (ISA);
+    \emph{Twin platform} --- the digital-twin service layer used;
+    \emph{Wearable workload} --- concurrent ingestion of telemetry from
+    multiple wearable-device types; \emph{Evaluation discipline} --- whether
+    the evaluation protocol is pre-specified (frozen before data collection)
+    and its artefacts published.
+  \end{minipage}
 \end{table}
 
 The comparison axes of Table~\ref{tab:related-work} are not arbitrary: each
@@ -586,13 +612,14 @@ native ARM64 target keeps the deployment representative of edge-class
 hardware rather than of development machines; an off-the-shelf twin platform
 distinguishes reusable results from bespoke-engine results; multi-wearable
 ingestion makes the workload representative of a household rather than of a
-single-device demonstration; and a pre-registered protocol with published
-artefacts is what allows any of the resulting numbers to be checked. The
+single-device demonstration; and a pre-specified protocol, frozen before
+data collection and published with its artefacts, is what allows any of the
+resulting numbers to be checked. The
 pattern across the rows is consistent: each related system contributes one
 or two of the defining properties, and none of the examined works combines a
 reproducibly built operating platform, a native ARM64 target, an
 off-the-shelf twin platform and concurrent multi-wearable ingestion under a
-pre-registered evaluation. In summary: component-level
+pre-specified evaluation protocol. In summary: component-level
 evidence exists for edge digital twins \cite{picone2023flexible}, broker
 behaviour \cite{koziolek2020mqtt} and container overhead on constrained
 devices \cite{morabito2017virtualization,felter2015updated,gamess2023docker},
@@ -601,7 +628,7 @@ but, among the sources examined in this preliminary review --- assembled from
 seed references and snowballing, prior to execution of the registered search
 protocol of Chapter~3 --- no published study was identified that composes
 these elements into a reproducible, Yocto-built ARM64 gateway with a
-pre-registered multi-scenario evaluation of wearable digital-twin ingestion.
+pre-specified multi-scenario evaluation of wearable digital-twin ingestion.
 That composition is the subject of the remaining chapters, and the claim
 remains deliberately bounded: it is relative to the sources examined so far,
 and will be re-stated against the full protocol once the institutional

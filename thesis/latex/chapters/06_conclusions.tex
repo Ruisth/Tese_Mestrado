@@ -9,11 +9,15 @@
 \section{Summary}
 \label{sec:concl-summary}
 
-\noindent This dissertation designed, implemented and evaluated a reproducible
-ARM64 edge gateway for digital twins of wearable devices: a Yocto-built
-platform image hosting a containerised stack of Mosquitto, a purpose-built
-ingestion controller, Eclipse Ditto and MongoDB, exercised by a deterministic
-three-device simulator under a pre-registered experimental protocol.
+\noindent This dissertation designs and implements a reproducible ARM64 edge
+gateway for digital twins of wearable devices: a Yocto-defined platform
+image intended to host a containerised stack of Mosquitto, a purpose-built
+ingestion controller, Eclipse Ditto and MongoDB, exercised by a
+deterministic three-device simulator. Its evaluation follows the
+pre-specified experimental protocol of Chapter~\ref{ch:methodology}, frozen
+before data collection, and is reported in Chapter~\ref{ch:evaluation} once
+the measurement campaign completes; no evaluation result is claimed in
+advance of that evidence.
 \todo{pending data-v1 --- complete the summary with what the evidence actually
 demonstrated, after Chapter~\ref{ch:evaluation} is populated.}
 
@@ -41,19 +45,19 @@ regardless of the campaign outcomes:
 
 \begin{itemize}
   \item All telemetry is synthetic; no physical wearables, real users or
-        clinical-grade signals were involved.
-  \item Performance evidence comes from a single native ARM64 cloud
+        clinical-grade signals are involved.
+  \item Performance evidence is to come from a single native ARM64 cloud
         \ac{VM} with shared vCPUs; no physical single-board or embedded
-        hardware was evaluated, and platform evidence from emulation is
+        hardware is evaluated, and platform evidence from emulation is
         functional only.
-  \item The evaluated stack is a minimal digital-twin core; Ditto search and
-        connectivity services, horizontal scaling and multi-gateway
-        federation were not studied.
+  \item The stack under evaluation is a minimal digital-twin core; Ditto
+        search and connectivity services, horizontal scaling and
+        multi-gateway federation are not studied.
   \item The security configuration is a baseline (\ac{TLS}, authentication,
-        least-privilege \ac{ACL}s) and was not subjected to a security
+        least-privilege \ac{ACL}s) and is not subjected to a security
         evaluation.
   \item The identity, ledger and marketplace aspects of the broader C2DTA
-        vision were out of scope; nothing in this work validates them.
+        vision are out of scope; nothing in this work validates them.
   \item \todo{pending data-v1 --- add limitations that emerge from the
         campaign itself (e.g.\ conditions removed, variance observed,
         exclusions applied).}

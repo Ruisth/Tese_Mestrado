@@ -16,18 +16,21 @@ versioned \ac{JSON} Schemas
 (\texttt{src/schemas/}) bind the simulator, the controller, the deployment and
 the tests; every component described below implements those contracts. All
 statements in this chapter are design and implementation facts traceable to
-the repository; operational behaviour is evaluated separately in
+the repository; operational behaviour is left to the evaluation of
 Chapter~\ref{ch:evaluation}.
 
 \section{Overview}
 \label{sec:arch-overview}
 
 \noindent The system comprises two environments and five runtime components.
-The \emph{platform layer} is \texttt{egw-image}, a minimal Linux image built
-with the Yocto Project (Scarthgap \ac{LTS} line) from a pinned \texttt{kas}
-manifest, validated functionally on \texttt{qemuarm64} with systemd,
-networking and an \ac{OCI} container runtime. The \emph{service layer} is a
-containerised digital-twin stack deployed on a native ARM64 environment:
+The \emph{platform layer} is \texttt{egw-image}, a minimal Linux image
+defined with the Yocto Project (Scarthgap \ac{LTS} line) from a pinned
+\texttt{kas} manifest; its functional validation --- boot to systemd with
+networking and an \ac{OCI} container runtime on \texttt{qemuarm64} --- is
+prescribed by the experimental protocol
+(Section~\ref{sec:method-protocol}) and is to be reported in
+Chapter~\ref{ch:evaluation}. The \emph{service layer} is a containerised
+digital-twin stack designed for deployment on a native ARM64 environment:
 Mosquitto (\ac{MQTT} broker with \ac{TLS}), a purpose-built ingestion
 controller, Eclipse Ditto 3.9.4 (gateway, policies and things services) and
 MongoDB. A deterministic \ac{CLI} simulator generates the wearable telemetry.
@@ -108,28 +111,36 @@ with its schema (\texttt{src/things/}).
 \label{sec:arch-yocto}
 
 \noindent The platform image is defined by a custom Yocto layer
-(\texttt{meta-egw}) and built for the \texttt{qemuarm64} machine from a
-\texttt{kas} manifest that pins every layer to an exact revision of the
-Scarthgap (5.0) \ac{LTS} line, rather than tracking moving branches. The image
-provides systemd, networking and an \ac{OCI} container runtime --- the minimum
-required to host the service layer --- and is validated functionally by booting
-under QEMU and executing a test container. Emulation is used exclusively for
-build and functional validation; no performance conclusions are drawn from it.
+(\texttt{meta-egw}) and targets the \texttt{qemuarm64} machine, described by
+a \texttt{kas} manifest that pins every layer to an exact revision of the
+Scarthgap (5.0) \ac{LTS} line, rather than tracking moving branches. The
+image is specified to provide systemd, networking and an \ac{OCI} container
+runtime --- the minimum required to host the service layer. Its validation
+procedure, fixed in the experimental protocol, is functional only and
+consists of booting the built image under QEMU and executing a test
+container; that validation is to be performed as part of the campaign and
+reported in Chapter~\ref{ch:evaluation}. Emulation is reserved exclusively
+for build and functional validation; no performance conclusions are to be
+drawn from it.
 \todo{Record the exact pinned revisions and image recipe contents from
 src/yocto/ once frozen at the platform gate.}
 
 \section{Service Layer: Digital-Twin Stack}
 \label{sec:arch-stack}
 
-\noindent The stack is intentionally minimal. Only three Ditto services run
---- \texttt{gateway}, \texttt{policies} and \texttt{things} --- with MongoDB as
-persistence; Ditto's \texttt{search}, \texttt{connectivity} and user-interface
-services are excluded because no research question requires them. All
-container images are verified to be native \texttt{linux/arm64} and pinned by
-digest in a lock file (\texttt{images.lock.env}); the controller image is
-built locally for \texttt{linux/arm64}. Externally, only the broker's
+\begin{sloppypar}
+\noindent The stack is intentionally minimal. The composition includes only
+three Ditto services --- \texttt{gateway}, \texttt{policies} and
+\texttt{things} --- with MongoDB as persistence; Ditto's \texttt{search},
+\texttt{connectivity} and user-interface services are excluded because no
+research question requires them. All third-party container images are pinned
+by digest in a lock file (\texttt{images.lock.env}), and the deployment
+procedure requires each image to be native \texttt{linux/arm64}, a property
+checked when the lock file is populated; the controller image is built
+locally for \texttt{linux/arm64}. Externally, only the broker's
 \ac{TLS} port is exposed; the Ditto gateway (port 8080) and the controller
 \ac{API} (port 8000) bind to the internal network or localhost.
+\end{sloppypar}
 
 \section{Ingestion Controller}
 \label{sec:arch-controller}

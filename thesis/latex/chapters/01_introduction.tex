@@ -58,17 +58,25 @@ into a validated, reproducible gateway platform for this use case.
 \section{Research Gap}
 \label{sec:intro-gap}
 
-\noindent Within the searches executed for this work (Chapter~\ref{ch:methodology}
-describes the review protocol and its limits), we did not identify a published,
-reproducible evaluation of an edge gateway that combines (i) an operating
-system image built with the Yocto Project from a pinned configuration for
-ARM64, (ii) a containerised digital-twin stack based on Eclipse Ditto with an
-MQTT ingestion path, and (iii) a pre-registered experimental protocol covering
-correctness, reliability, latency, throughput, resource consumption and
-long-duration stability under concurrent multi-device wearable telemetry. This
-combination is the gap this dissertation addresses. The claim is deliberately
-bounded: it is relative to the literature review protocol actually executed,
-not an absolute statement about all published work.
+\noindent Within the preliminary corpus assembled so far for this work ---
+seed references from the project context, sources identified by snowballing
+from them, and preliminary non-institutional searches
+(Chapter~\ref{ch:methodology} describes the review protocol and its limits)
+--- we did not identify a published, reproducible evaluation of an edge
+gateway that combines (i) an operating system image built with the Yocto
+Project from a pinned configuration for ARM64, (ii) a containerised
+digital-twin stack based on Eclipse Ditto with an MQTT ingestion path, and
+(iii) a pre-specified experimental protocol, frozen before data collection,
+covering correctness, reliability, latency, throughput, resource consumption
+and long-duration stability under concurrent multi-device wearable telemetry.
+This combination is the gap this dissertation addresses. The claim is
+deliberately bounded: it is relative to the preliminary corpus examined at
+the time of writing, not an absolute statement about all published work. In
+particular, the institutional database queries prescribed by the review
+protocol (IEEE Xplore, the ACM Digital Library, and Scopus or Web of
+Science) have not yet been executed; the gap claim will be re-examined and
+re-stated once those searches are complete
+(Section~\ref{sec:method-review}).
 
 \section{Research Questions}
 \label{sec:intro-rqs}
@@ -109,7 +117,7 @@ objectives:
         \ac{WoT} Thing Descriptions.
   \item Build a minimal, reproducible operating-system image (\texttt{egw-image})
         with the Yocto Project Scarthgap \ac{LTS} line from a pinned
-        \texttt{kas} manifest, validated functionally on emulated ARM64
+        \texttt{kas} manifest, and validate it functionally on emulated ARM64
         (\texttt{qemuarm64}) with systemd, networking and an \ac{OCI} container
         runtime.
   \item Deploy a minimal ARM64 digital-twin stack --- Mosquitto with \ac{TLS},
@@ -120,7 +128,7 @@ objectives:
         wearable types and six scenarios (\texttt{smoke}, \texttt{nominal},
         \texttt{load-sweep}, \texttt{dropout-reconnect},
         \texttt{invalid-payload}, \texttt{soak}).
-  \item Execute a pre-registered experimental campaign on a native ARM64
+  \item Execute a pre-specified experimental campaign on a native ARM64
         environment and analyse it with a single reproducible pipeline from
         raw data to tables and figures.
   \item Deliver a reproducibility package: code, configuration, manifests,
@@ -147,8 +155,9 @@ evidence exists.
   \item \textbf{A deterministic wearable workload generator.} A seedable
         simulator producing reproducible multi-device telemetry across six
         scenarios, suitable for reuse in comparable studies.
-  \item \textbf{A pre-registered, reproducible evaluation.} A protocol with
-        fixed metrics, run counts and statistical rules, and a campaign whose
+  \item \textbf{A pre-specified, reproducible evaluation.} A protocol with
+        fixed metrics, run counts and statistical rules, frozen before data
+        collection, and a campaign whose
         raw data, manifests and analysis pipeline are archived and
         re-executable.
   \item \textbf{An evidence-bounded characterisation} of the latency,
