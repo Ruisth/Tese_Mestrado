@@ -1,21 +1,29 @@
 """Command-line interface of the experiment harness.
 
-Subcommands (plan 5.8/9.1 'Reprodutibilidade')::
+Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
 
     python -m egw_experiments plan --master-seed 42 [--output PATH] [--force]
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
+    python -m egw_experiments collect --run-id nominal-r01 [...]
     python -m egw_experiments analyze [--base-dir PATH]
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan; ``run``
-executes exactly one planned simulator run from the harness host, OFF the
-ARM VM (plan 5.1: the simulator never runs on the VM during benchmarks;
-``--broker`` is the VM's address, port 8883 with TLS). The controller
-writes ``events.jsonl`` ON the VM, so after each run the file must be
-fetched into the local event-log directory (scp) before events collection;
-``analyze`` regenerates everything under ``results/processed`` and
-``results/figures`` from ``results/raw``; ``verify-checksums`` re-verifies
-the SHA256SUMS of raw run directories (evidence integrity, plan 5.8).
+executes exactly one planned run from the harness host, OFF the ARM VM
+(plan 5.1: the simulator never runs on the VM during benchmarks;
+``--broker`` is the VM's address, port 8883 with TLS). After the 60 s
+confirmation window the runner collects the controller's ``events.jsonl``
+AUTOMATICALLY via ``--fetch-events-cmd`` (or env ``EGW_FETCH_EVENTS_CMD``),
+a command template with ``{run_id}`` and ``{dest}`` placeholders, retried
+3 times with backoff; without a template it falls back to the local
+event-log directory (dev only). External conditions (QEMU boots, cold
+starts, twin creations) are ingested with ``--external-timings``.
+``collect`` is the recovery path: it re-attempts events/resources/SUT
+environment collection for an EXISTING run directory and (re)writes
+SHA256SUMS only after successful collection. ``analyze`` regenerates
+everything under ``results/processed`` and ``results/figures`` from
+``results/raw``; ``verify-checksums`` re-verifies the SHA256SUMS of raw
+run directories (evidence integrity, plan 5.8).
 """
 
 from __future__ import annotations
@@ -27,13 +35,69 @@ from pathlib import Path
 from .analyze import analyze
 from .checksums import verify_sha256sums
 from .plan_gen import generate_campaign_plan, write_campaign_plan
-from .run import DEFAULT_PLAN_PATH, DEFAULT_RESULTS_BASE, execute_run
+from .run import (
+    DEFAULT_PLAN_PATH,
+    DEFAULT_RESULTS_BASE,
+    FETCH_EVENTS_CMD_ENV,
+    SUT_ENV_FILE_ENV,
+    collect_run,
+    execute_run,
+)
+
+
+def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
+    """Arguments shared by ``run`` and ``collect`` (audit 9.1-9.3)."""
+    parser.add_argument(
+        "--fetch-events-cmd",
+        default=None,
+        help="command template that fetches the controller's events.jsonl "
+        "from the VM; {run_id} and {dest} are substituted, e.g. "
+        "'scp vm:/opt/egw/data/events/{run_id}/events.jsonl {dest}'. "
+        "Executed after the confirmation window with 3 attempts and "
+        f"exponential backoff (default: env {FETCH_EVENTS_CMD_ENV}). "
+        "Without it the runner falls back to the local --event-log-dir "
+        "lookup (dev only)",
+    )
+    parser.add_argument(
+        "--event-log-dir",
+        default=None,
+        help="local fallback directory holding the controller's "
+        "events.jsonl when no --fetch-events-cmd is configured "
+        "(default: EGW_EVENT_LOG_DIR env or ./data/events)",
+    )
+    parser.add_argument(
+        "--sut-env-from",
+        default=None,
+        help="path of the sut_environment.json captured ON the ARM VM by "
+        "deployment/scripts/capture-sut-environment.sh and fetched here "
+        f"(default: env {SUT_ENV_FILE_ENV}). Timed runs without it are "
+        "marked validity 'invalid'",
+    )
+    parser.add_argument(
+        "--resources-from",
+        default=None,
+        help="path of the resources.csv produced ON the ARM VM by "
+        "deployment/scripts/collect-resources.sh and fetched here. Timed "
+        "runs without SUT resources are marked validity 'invalid'",
+    )
+    parser.add_argument(
+        "--allow-missing-sut-env",
+        action="store_true",
+        help="deliberately accept a timed run without sut_environment.json; "
+        "the decision is recorded in the manifest (audit 9.2)",
+    )
+    parser.add_argument(
+        "--allow-missing-resources",
+        action="store_true",
+        help="deliberately accept a timed run without SUT resources; the "
+        "decision is recorded in the manifest (audit 9.1)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="egw_experiments",
-        description="EGW experiment harness: plan, run, analyze, verify.",
+        description="EGW experiment harness: plan, run, collect, analyze, verify.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -62,10 +126,11 @@ def build_parser() -> argparse.ArgumentParser:
     # run -------------------------------------------------------------------
     p_run = sub.add_parser(
         "run",
-        help="execute one planned simulator run from the harness host, OFF "
-        "the ARM VM (plan 5.1): --broker is the VM's address (port 8883, "
-        "TLS); the controller writes events.jsonl ON the VM, fetch it into "
-        "the local --event-log-dir (scp) before events collection",
+        help="execute one planned run from the harness host, OFF the ARM VM "
+        "(plan 5.1): --broker is the VM's address (port 8883, TLS). Events "
+        "are collected automatically via --fetch-events-cmd; SUT "
+        "environment and resources are ingested via --sut-env-from / "
+        "--resources-from; external conditions via --external-timings",
     )
     p_run.add_argument("--run-id", required=True, help="run_id from the plan")
     p_run.add_argument(
@@ -103,14 +168,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--egw-id", default=None, help="gateway id (default: EGW_ID env or egw-01)"
     )
     p_run.add_argument(
-        "--event-log-dir",
-        default=None,
-        help="local directory holding the controller's events.jsonl fetched "
-        "from the VM, e.g. scp vm:/path/to/data/events/<run_id>/events.jsonl "
-        "<event-log-dir>/<run_id>/events.jsonl "
-        "(default: EGW_EVENT_LOG_DIR env or ./data/events)",
-    )
-    p_run.add_argument(
         "--post-run-wait",
         type=float,
         default=None,
@@ -123,6 +180,74 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument(
         "--skip-cooldown", action="store_true", help="skip the planned cooldown"
     )
+    _add_collection_arguments(p_run)
+    p_run.add_argument(
+        "--local-resources",
+        action="store_true",
+        help="DEV ONLY: sample docker stats on THIS host (the load "
+        "generator, NOT the SUT) into resources.csv; mutually exclusive "
+        "with --resources-from; recorded as resource_source 'local-dev'",
+    )
+    p_run.add_argument(
+        "--controller-url",
+        default=None,
+        help="controller base URL for 1 Hz GET /metrics sampling into "
+        "controller_metrics.csv (queue growth, audit 9.7). Port 8000 is "
+        "loopback-only on the VM: open an SSH tunnel first, e.g. "
+        "'ssh -N -L 8000:127.0.0.1:8000 <vm>' then use "
+        "http://127.0.0.1:8000",
+    )
+    p_run.add_argument(
+        "--restart-cmd",
+        default=None,
+        help="command template ({run_id} placeholder) executed exactly once "
+        "mid-run for the controller_restart condition (claim C12), e.g. "
+        "'ssh vm docker compose -f /opt/egw/compose.yaml restart "
+        "controller'; recorded in the manifest with timestamps",
+    )
+    p_run.add_argument(
+        "--restart-at-s",
+        type=float,
+        default=None,
+        help="offset in seconds into the measured run at which "
+        "--restart-cmd fires (default: half the run duration)",
+    )
+    p_run.add_argument(
+        "--external-timings",
+        default=None,
+        help="operator-produced timings.json for external conditions "
+        "(qemu_boots, cold_start, twin_creation): {run_id, condition, "
+        "samples:[{label, started_utc, ended_utc, duration_s}], method, "
+        "notes}; see deployment/scripts/measure-cold-start.sh",
+    )
+    p_run.add_argument(
+        "--external-logs",
+        default=None,
+        help="optional directory of operator logs copied into the external "
+        "run's logs/ directory",
+    )
+
+    # collect (recovery, audit 9.3) ------------------------------------------
+    p_col = sub.add_parser(
+        "collect",
+        help="re-attempt events/resources/SUT-environment collection for an "
+        "EXISTING run directory and (re)write SHA256SUMS after successful "
+        "collection (recovery path; raw evidence is never overwritten)",
+    )
+    p_col.add_argument("--run-id", required=True, help="existing raw run_id")
+    p_col.add_argument(
+        "--plan",
+        type=Path,
+        default=DEFAULT_PLAN_PATH,
+        help=f"campaign plan path (default: {DEFAULT_PLAN_PATH})",
+    )
+    p_col.add_argument(
+        "--base-dir",
+        type=Path,
+        default=None,
+        help=f"results base directory (default: {DEFAULT_RESULTS_BASE})",
+    )
+    _add_collection_arguments(p_col)
 
     # analyze ---------------------------------------------------------------
     p_an = sub.add_parser(
@@ -188,6 +313,31 @@ def _cmd_run(args: argparse.Namespace) -> int:
         post_run_wait_s=args.post_run_wait,
         skip_warmup=args.skip_warmup,
         skip_cooldown=args.skip_cooldown,
+        fetch_events_cmd=args.fetch_events_cmd,
+        sut_env_from=args.sut_env_from,
+        resources_from=args.resources_from,
+        local_resources=args.local_resources,
+        allow_missing_sut_env=args.allow_missing_sut_env,
+        allow_missing_resources=args.allow_missing_resources,
+        controller_url=args.controller_url,
+        restart_cmd=args.restart_cmd,
+        restart_at_s=args.restart_at_s,
+        external_timings=args.external_timings,
+        external_logs=args.external_logs,
+    )
+
+
+def _cmd_collect(args: argparse.Namespace) -> int:
+    return collect_run(
+        args.run_id,
+        base_dir=args.base_dir,
+        plan_path=args.plan,
+        fetch_events_cmd=args.fetch_events_cmd,
+        event_log_dir=args.event_log_dir,
+        sut_env_from=args.sut_env_from,
+        resources_from=args.resources_from,
+        allow_missing_sut_env=args.allow_missing_sut_env,
+        allow_missing_resources=args.allow_missing_resources,
     )
 
 
@@ -234,6 +384,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_plan(args)
     if args.command == "run":
         return _cmd_run(args)
+    if args.command == "collect":
+        return _cmd_collect(args)
     if args.command == "analyze":
         return analyze(base_dir=args.base_dir)
     if args.command == "verify-checksums":

@@ -5,21 +5,38 @@ After gate G4 ("protocolo congelado", tag ``exp-v1``) any change here is a
 protocol change and requires a new ``PROTOCOL_VERSION`` plus a LOG entry;
 metrics, conditions and exclusion criteria must not change after G4.
 
-Conditions (plan 7.1):
+Conditions (plan 7.1, completed per the 2026-08-08 audit section 9.5 so
+claims C10/C11/C12/C14 have a full path through the campaign plan):
 
-- ``qemu_boots``     : 5 QEMU boots, functional consistency only, never a
-                       source of performance claims (plan 5.1).
-- ``cold_start``     : 10 cold starts of the ARM stack (time to readiness).
-- ``twin_creation``  : 10 independent twin creations.
-- ``nominal``        : 10 runs x 600 s at the nominal aggregate rate
-                       (~11.2 msg/s, plan 7.3) after 120 s warm-up.
-- ``load_sweep``     : rates 10/50/100/250 msg/s, 10 runs x 300 s per rate,
-                       randomized execution order (derived from the campaign
-                       master seed), 120 s cooldown between runs.
-- ``soak``           : 1 x 24 h nominal run, analyzed descriptively only
-                       (no confidence interval, plan 7.3).
+- ``qemu_boots``          : 5 QEMU boots, functional consistency only, never
+                            a source of performance claims (plan 5.1).
+- ``cold_start``          : 10 cold starts of the ARM stack (time to
+                            readiness). Claim C04.
+- ``twin_creation``       : 10 independent twin creations.
+- ``smoke_sequence``      : 10 consecutive smoke runs, all must complete
+                            with zero lost messages. Claim C14.
+- ``nominal``             : 10 runs x 600 s at the nominal aggregate rate
+                            (~11.2 msg/s, plan 7.3) after 120 s warm-up.
+                            Claims C06/C07.
+- ``load_sweep``          : rates 10/50/100/250 msg/s, 10 runs x 300 s per
+                            rate, randomized execution order (derived from
+                            the campaign master seed), 120 s cooldown
+                            between runs. Claims C08/C09.
+- ``invalid_payload``     : 3 runs x 300 s at the nominal aggregate rate
+                            with deterministic invalid-event injection.
+                            Claim C11.
+- ``dropout_reconnect``   : 3 runs x 600 s dropout-reconnect scenario.
+                            Claim C10.
+- ``controller_restart``  : 3 runs x 600 s nominal with one controller
+                            restart mid-run (harness ``--restart-cmd`` /
+                            ``--restart-at-s`` hook). Claim C12.
+- ``soak``                : 1 x 24 h nominal run, analyzed descriptively
+                            only (no confidence interval, plan 7.3).
+                            Claim C13.
 
-CPU and RAM are sampled every second in every timed run (plan 7.1).
+CPU and RAM are sampled every second in every timed run (plan 7.1), by the
+SUT-side collector (``src/deployment/scripts/collect-resources.sh``) whose
+output is ingested with ``--resources-from``.
 """
 
 from __future__ import annotations
@@ -45,12 +62,40 @@ RESOURCE_SAMPLE_INTERVAL_S = 1.0
 
 # Operational saturation criteria (plan 7.3): first load with at least one of
 # loss > 1%, persistent queue growth, p95 > 1 s, or CPU sustained above 90%
-# for 60 s. Queue growth is not measurable with the current instrumentation
-# and is marked TODO in the analysis output.
+# for 60 s.
 SATURATION_LOSS_RATE = 0.01
 SATURATION_P95_MS = 1000.0
+# Legacy per-container docker-stats threshold (single-CPU basis); kept for
+# per-container reporting only. The saturation CPU criterion itself is
+# host-level: see SATURATION_HOST_CPU_UTILIZATION below.
 SATURATION_CPU_PCT = 90.0
 SATURATION_CPU_SUSTAIN_S = 60
+
+# Host-level CPU criterion (audit 9.7 / R23): docker-stats cpu_pct is
+# expressed relative to a single CPU, so the analysis normalizes it by the
+# SUT's nproc (from sut_environment.json):
+#   host_cpu_utilization = sum(container cpu_pct) / (100 * nproc)  per sample
+# The CPU saturation criterion is host_cpu_utilization > 0.90 sustained for
+# at least 60 s within a run; a load saturates on CPU when at least half of
+# its runs show such an event (run-fraction rule, unit of analysis = run).
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: both the host-level normalization
+# threshold and the >= 0.5 run-fraction rule must be confirmed with the
+# advisor before the protocol freeze (G4); they must not change afterwards.
+SATURATION_HOST_CPU_UTILIZATION = 0.90
+
+# Queue-growth criterion (audit 9.7 / R23): the controller exposes
+# queue_depth on GET /metrics (CONTRACTS v1.1); the harness samples it at
+# 1 Hz into controller_metrics.csv. Persistent queue growth in a run is a
+# window of consecutive samples spanning >= 60 s in which queue_depth is
+# strictly increasing from sample to sample AND every sample in the window
+# is above the floor of 100 messages (the floor suppresses small-queue
+# noise). A load saturates on queue growth when at least half of its runs
+# show such an event (same run-fraction rule as CPU).
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the exact rule (strictly
+# increasing, 60 s window, floor 100, run-fraction >= 0.5) must be
+# confirmed with the advisor before the protocol freeze (G4).
+SATURATION_QUEUE_DEPTH_FLOOR = 100
+SATURATION_QUEUE_GROWTH_SUSTAIN_S = 60
 
 
 @dataclass(frozen=True)
@@ -140,6 +185,25 @@ CONDITIONS: tuple[Condition, ...] = (
         notes="Ten independent twin creations (policy + thing, CONTRACTS 4).",
     ),
     Condition(
+        id="smoke_sequence",
+        runner="simulator",
+        scenario="smoke",
+        repetitions=10,
+        duration_s=30,
+        warmup_s=0,
+        cooldown_s=0,
+        rates_msg_s=None,
+        rate_msg_s=NOMINAL_RATE_MSG_S,
+        metrics=("delivery_counts", "delivery_rate"),
+        performance_claims_allowed=False,
+        notes=(
+            "Ten consecutive smoke runs in the campaign environment (claim "
+            "C14): every run must complete (simulator exit 0) with zero "
+            "lost valid messages. Functional acceptance only; no "
+            "performance inference."
+        ),
+    ),
+    Condition(
         id="nominal",
         runner="simulator",
         scenario="nominal",
@@ -186,6 +250,81 @@ CONDITIONS: tuple[Condition, ...] = (
         ),
     ),
     Condition(
+        id="invalid_payload",
+        runner="simulator",
+        scenario="invalid-payload",
+        repetitions=3,
+        duration_s=300,
+        warmup_s=0,
+        cooldown_s=0,
+        rates_msg_s=None,
+        rate_msg_s=NOMINAL_RATE_MSG_S,
+        metrics=(
+            "delivery_counts",
+            "delivery_rate",
+            "intended_invalid_rejected",
+            "intended_invalid_accepted",
+        ),
+        performance_claims_allowed=True,
+        notes=(
+            "Three 300 s runs at the nominal aggregate rate with the "
+            "simulator's deterministic invalid-event injection (claim C11): "
+            "every intended_invalid event must be rejected by JSON Schema "
+            "validation, zero intended_invalid events may be accepted, and "
+            "valid messages follow the plan 7.3 delivery accounting."
+        ),
+    ),
+    Condition(
+        id="dropout_reconnect",
+        runner="simulator",
+        scenario="dropout-reconnect",
+        repetitions=3,
+        duration_s=600,
+        warmup_s=0,
+        cooldown_s=0,
+        rates_msg_s=None,
+        rate_msg_s=NOMINAL_RATE_MSG_S,
+        metrics=(
+            "delivery_counts",
+            "delivery_rate",
+            "reconnect_recovery",
+        ),
+        performance_claims_allowed=True,
+        notes=(
+            "Three 600 s dropout-reconnect runs (claim C10). Delivery "
+            "accounting tolerates late buffered redelivery inside the 60 s "
+            "confirmation window (QoS 1 requeues after reconnect); "
+            "sent_events puback_monotonic_ns is null for publishes whose "
+            "PUBACK was not observed and never enters the primary metrics."
+        ),
+    ),
+    Condition(
+        id="controller_restart",
+        runner="simulator",
+        scenario="nominal",
+        repetitions=3,
+        duration_s=600,
+        warmup_s=0,
+        cooldown_s=0,
+        rates_msg_s=None,
+        rate_msg_s=NOMINAL_RATE_MSG_S,
+        metrics=(
+            "delivery_counts",
+            "delivery_rate",
+            "restart_recovery",
+            "duplicate_suppression",
+        ),
+        performance_claims_allowed=True,
+        notes=(
+            "Three 600 s nominal runs with one controller restart mid-run "
+            "(claim C12), executed by the harness --restart-cmd hook at "
+            "--restart-at-s and recorded in the manifest with timestamps. "
+            "Acceptance: delivery across the restart and zero "
+            "double-accepted message_ids (dedupe state survives via the "
+            "twin ingestion feature, CONTRACTS 4)."
+        ),
+    ),
+    Condition(
         id="soak",
         runner="simulator",
         scenario="soak",
@@ -215,3 +354,28 @@ CONDITIONS_BY_ID: dict[str, Condition] = {c.id: c for c in CONDITIONS}
 
 # Execution-order index used by the analysis for stable output ordering.
 CONDITION_ORDER: dict[str, int] = {c.id: i for i, c in enumerate(CONDITIONS)}
+
+# Timed conditions (audit 9.1/9.2): every simulator-driven run is a timed
+# run. Timed runs REQUIRE sut_environment.json and SUT-side resources in the
+# run directory; otherwise the run manifest is marked validity 'invalid'
+# (overridable only by the explicit --allow-missing-* flags, which record
+# the decision in the manifest). External conditions (qemu_boots,
+# cold_start, twin_creation) are operator-measured and exempt.
+TIMED_CONDITION_IDS: frozenset[str] = frozenset(
+    c.id for c in CONDITIONS if c.runner == "simulator"
+)
+
+# Condition -> claim mapping (docs/claim_evidence_matrix.csv). twin_creation
+# is a plan 7.1 condition without a dedicated claim id of its own.
+CONDITION_CLAIMS: dict[str, tuple[str, ...]] = {
+    "qemu_boots": ("C02",),
+    "cold_start": ("C04",),
+    "twin_creation": (),
+    "smoke_sequence": ("C14",),
+    "nominal": ("C06", "C07"),
+    "load_sweep": ("C08", "C09"),
+    "invalid_payload": ("C11",),
+    "dropout_reconnect": ("C10",),
+    "controller_restart": ("C12",),
+    "soak": ("C13",),
+}

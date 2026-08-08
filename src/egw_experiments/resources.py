@@ -1,5 +1,13 @@
 """Per-second container resource sampling into ``resources.csv`` (plan 7.1).
 
+DEV-ONLY LOCAL SAMPLER (audit 9.1): this samples the Docker daemon reachable
+from THIS host — the load generator, NOT the ARM VM under test. During the
+campaign, SUT resources are collected ON the VM by
+``src/deployment/scripts/collect-resources.sh`` (same CSV schema) and
+ingested with ``run --resources-from``. This local sampler is opt-in via
+``run --local-resources`` and its output is recorded as ``resource_source:
+'local-dev'`` in the manifest.
+
 Samples ``docker stats --no-stream`` once per second in a background thread
 and appends one row per container to ``resources.csv`` with the columns
 ``ts_utc, container, cpu_pct, mem_bytes, mem_pct``.
@@ -14,8 +22,8 @@ Notes:
   timestamps are recorded in ``ts_utc`` and the analysis uses them as-is.
 - Docker's ``CPUPerc`` is expressed as a percentage of a single CPU and can
   exceed 100% for multi-threaded containers. Normalization to host
-  utilization (dividing by the CPU count from environment.json) happens in
-  the analysis, not here.
+  utilization (dividing by 100 * nproc from sut_environment.json, audit
+  9.7) happens in the analysis, not here.
 - Degrades gracefully: when docker is absent or the daemon is unreachable,
   the sampler records a clear error message, writes only the CSV header and
   never raises out of the context manager.

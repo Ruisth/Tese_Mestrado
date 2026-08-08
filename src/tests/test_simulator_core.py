@@ -261,9 +261,10 @@ def test_scenario_registry_matches_contract():
 
 
 def test_dropout_windows_deterministic_and_bounded():
-    device_uuid = "2f6a1c1e-3d4b-4a5e-9b6f-1a2b3c4d5e6f"
-    windows = dropout_windows(42, device_uuid, 600.0)
-    assert windows == dropout_windows(42, device_uuid, 600.0)
+    # Windows are RUN-LEVEL (one shared MQTT connection for all devices):
+    # fully determined by (seed, duration), no device dimension.
+    windows = dropout_windows(42, 600.0)
+    assert windows == dropout_windows(42, 600.0)
     assert len(windows) == 10  # one per 60 s of run time
     previous_end = 0.0
     rounding_tol = 0.002  # windows are rounded to 3 decimals
@@ -274,11 +275,11 @@ def test_dropout_windows_deterministic_and_bounded():
         previous_end = end
 
 
-def test_dropout_windows_vary_with_seed_and_device():
-    device_a = "2f6a1c1e-3d4b-4a5e-9b6f-1a2b3c4d5e6f"
-    device_b = "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
-    assert dropout_windows(42, device_a, 600.0) != dropout_windows(42, device_b, 600.0)
-    assert dropout_windows(42, device_a, 600.0) != dropout_windows(43, device_a, 600.0)
+def test_dropout_windows_vary_with_seed_not_wall_clock():
+    assert dropout_windows(42, 600.0) != dropout_windows(43, 600.0)
+    # Short runs still get at least one disconnect window.
+    assert len(dropout_windows(42, 30.0)) == 1
+    assert dropout_windows(7, 0.0) == []
 
 
 def test_in_window_half_open_membership():

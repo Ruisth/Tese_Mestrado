@@ -1,9 +1,15 @@
-"""Scenario registry, dropout windows and invalid-payload injection.
+"""Scenario registry, disconnect windows and invalid-payload injection.
 
 Implements the six normative scenarios of CONTRACTS.md section 7 / plan
 section 4.3: smoke, nominal, load-sweep, dropout-reconnect, invalid-payload
 and soak. Everything here is deterministic for a given seed (plan section
 5.6); wall-clock time never enters window or injection decisions.
+
+dropout-reconnect (plan section 7.2): windows are run-level disconnect
+windows — the runner drops the MQTT connection at each window start, keeps
+generating (and buffering) events on schedule, and reconnects/flushes in
+order at window end. See ``DROPOUT_SCOPE_NOTE`` for the binding statement
+recorded in the run manifest.
 """
 
 from __future__ import annotations
@@ -18,17 +24,21 @@ from .profiles import MEASUREMENT_FIELDS
 DEFAULT_INVALID_RATIO = 20
 
 #: Scope statement recorded in the manifest of every dropout-reconnect run.
-#: The scenario models DEVICE-SIDE silence only: events inside a window are
-#: simply not generated, while the simulator's MQTT session stays connected
-#: the whole time. Broker/network-level dropout is induced externally by the
-#: test harness; the reconnect metrics of plan section 7.2 come from
-#: integration tests, not from this scenario.
+#: The scenario performs a REAL client-side disconnect/reconnect cycle with
+#: device-side buffering (plan section 7.2 'recuperacao apos
+#: restart/reconnect'). The harness reads this note verbatim for its dropout
+#: acceptance rule: keep the text precise.
 DROPOUT_SCOPE_NOTE = (
-    "dropout-reconnect models device-side silence only: events scheduled "
-    "inside a window are not generated and the MQTT session stays "
-    "connected. Broker/network-level dropout is induced externally by the "
-    "test harness; plan section 7.2 reconnect metrics come from "
-    "integration tests, not from this scenario."
+    "dropout-reconnect performs a real client disconnect with buffered "
+    "redelivery: at each deterministic window the simulator drops its MQTT "
+    "connection (client disconnect, socket closed); events scheduled inside "
+    "the window are still generated on schedule and buffered locally in "
+    "order; at window end the client reconnects and flushes the buffer in "
+    "order before resuming live publishing. Every generated event is "
+    "published exactly once, seq stays strictly monotonic and gap-free, and "
+    "buffered events carry a late publish_monotonic_ns (the actual publish "
+    "instant). PUBACK capture stays best-effort (CONTRACTS.md section 7, "
+    "v1.1). Broker-side/network-level faults remain test-harness territory."
 )
 
 #: Mutation kinds applied to intentionally invalid events.
@@ -93,8 +103,9 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         ),
         ScenarioSpec(
             "dropout-reconnect",
-            "Nominal load with deterministic DEVICE-SIDE silence windows "
-            "(MQTT session stays connected; see DROPOUT_SCOPE_NOTE)",
+            "Nominal load with deterministic disconnect windows: real MQTT "
+            "client disconnect, device-side buffering, reconnect and "
+            "in-order flush at window end (see DROPOUT_SCOPE_NOTE)",
             600.0,
             NOMINAL_AGGREGATE_RATE_HZ,
             dropout=True,
@@ -118,28 +129,29 @@ SCENARIOS: dict[str, ScenarioSpec] = {
 
 def dropout_windows(
     seed: int,
-    device_uuid: str,
     duration_s: float,
     *,
     mean_period_s: float = 60.0,
     min_len_s: float = 2.0,
     max_len_s: float = 8.0,
 ) -> list[tuple[float, float]]:
-    """Deterministic per-device silence windows for dropout-reconnect.
+    """Deterministic run-level disconnect windows for dropout-reconnect.
 
     Roughly one window per ``mean_period_s`` of run time (at least one),
     each 2-8 s long (capped at half its segment), placed uniformly inside
-    consecutive equal segments so windows never overlap. Fully determined by
-    (seed, device_uuid, duration_s).
+    consecutive equal segments so windows never overlap and stay ordered.
+    Fully determined by (seed, duration_s).
 
-    Scope (see ``DROPOUT_SCOPE_NOTE``): windows model device-side silence
-    only — the simulator stops generating events but its MQTT session stays
-    connected throughout. Broker/network-level dropout is induced
-    externally by the test harness (plan section 7.2).
+    Windows are run-level, not per-device: the simulator holds ONE MQTT
+    connection for all simulated wearables, so a window means the client
+    disconnects at the window start and reconnects at the window end (see
+    ``DROPOUT_SCOPE_NOTE``). Events scheduled inside a window keep being
+    generated and are buffered by the runner, then flushed in order on
+    reconnect.
     """
     if duration_s <= 0:
         return []
-    rng = random.Random(f"egw-dropout:{seed}:{device_uuid}")
+    rng = random.Random(f"egw-dropout:{seed}")
     n_windows = max(1, int(duration_s // mean_period_s))
     seg_len = duration_s / n_windows
     windows: list[tuple[float, float]] = []
@@ -151,13 +163,21 @@ def dropout_windows(
     return windows
 
 
-def in_window(t_s: float, windows) -> bool:
-    """True when scheduled time ``t_s`` falls inside any half-open window.
+def window_index(t_s: float, windows) -> int | None:
+    """Index of the half-open window containing ``t_s``, or ``None``.
 
     Windows are ``(start, end)`` pairs with ``start <= t < end`` membership.
     Shared by the runner and the tests so both sides agree exactly.
     """
-    return any(start <= t_s < end for start, end in windows)
+    for i, (start, end) in enumerate(windows):
+        if start <= t_s < end:
+            return i
+    return None
+
+
+def in_window(t_s: float, windows) -> bool:
+    """True when scheduled time ``t_s`` falls inside any half-open window."""
+    return window_index(t_s, windows) is not None
 
 
 class InvalidInjector:

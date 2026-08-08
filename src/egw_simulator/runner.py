@@ -16,6 +16,20 @@ receives a wait budget of ``max(0, next_scheduled_event_time - now)``, so
 waiting for the QoS 1 acknowledgement can never delay the schedule. A
 bounded drain at end of run gives the last in-flight message(s) a capped
 window before disconnect. No primary metric uses the puback field.
+
+dropout-reconnect (plan section 7.2; see ``DROPOUT_SCOPE_NOTE``): the run
+has deterministic run-level disconnect windows. At the first event scheduled
+inside a window the publisher's connection is dropped
+(``publisher.disconnect()``, socket close); events scheduled inside the
+window keep being GENERATED on schedule (a real wearable keeps sampling) and
+are buffered in order; at window end — the first event scheduled after the
+window, or the window end itself when the run tail is covered — the
+publisher reconnects and the buffer is flushed in order BEFORE live
+publishing resumes. Flushed publishes use a zero puback wait budget, so the
+flush never blocks live events longer than their own budget. ``seq`` stays
+strictly monotonic and gap-free; every generated event is published exactly
+once, and buffered events carry their ACTUAL (late) publish instant in
+``publish_monotonic_ns``.
 """
 
 from __future__ import annotations
@@ -38,7 +52,7 @@ from .scenarios import (
     SCENARIOS,
     InvalidInjector,
     dropout_windows,
-    in_window,
+    window_index,
 )
 from .validation import SchemaValidator
 
@@ -132,12 +146,20 @@ class RunConfig:
 
 @dataclass(frozen=True)
 class RunResult:
-    """Summary of one completed (or interrupted) run."""
+    """Summary of one completed (or interrupted) run.
+
+    ``buffered_dropout`` counts the events generated inside disconnect
+    windows and buffered device-side; in a completed run every one of them
+    was flushed (published late), so they are included in ``sent``.
+    ``dropout_disconnects`` counts the disconnect/reconnect cycles actually
+    performed (one per window that contained at least one scheduled event).
+    """
 
     run_id: str
     sent: int
     intended_invalid: int
-    skipped_dropout: int
+    buffered_dropout: int
+    dropout_disconnects: int
     completed: bool
     run_dir: Path
     manifest_path: Path
@@ -150,7 +172,6 @@ class _DeviceState:
     interval_s: float
     profile: MeasurementProfile
     injector: InvalidInjector | None
-    windows: tuple[tuple[float, float], ...]
     seq: int = 0
 
 
@@ -167,13 +188,22 @@ def run(
     The publisher must already be connected (the CLI owns its lifecycle).
     Determinism (plan section 5.6): for a fixed (scenario, seed, run_id,
     egw_id, device_types, rate, duration), device UUIDs, payload sequences,
-    injected-invalid positions and dropout windows are identical across
-    runs; only ``ts`` and the monotonic timing fields differ.
+    injected-invalid positions, disconnect windows and therefore the exact
+    set of buffered events are identical across runs; only ``ts`` and the
+    monotonic timing fields differ (buffered events are inherently
+    published late).
 
-    Each publish gets a puback wait budget equal to the free time until the
-    next scheduled event (0 when none is left or the loop is behind), so
-    acknowledgement capture never throttles the schedule; ``drain_timeout_s``
-    bounds the end-of-run wait for the last in-flight message(s).
+    Each live publish gets a puback wait budget equal to the free time
+    until the next scheduled event (0 when none is left or the loop is
+    behind), so acknowledgement capture never throttles the schedule;
+    flushed publishes use a zero budget; ``drain_timeout_s`` bounds the
+    end-of-run wait for the last in-flight message(s).
+
+    dropout-reconnect: run-level window membership of each event's
+    scheduled time drives the buffer/flush transitions (module docstring);
+    ``publisher.disconnect()`` / ``publisher.reconnect()`` are called
+    exactly once per window that contains at least one scheduled event, and
+    nothing is ever published while disconnected.
     """
     try:
         spec = SCENARIOS[config.scenario]
@@ -203,15 +233,16 @@ def run(
                     if spec.invalid_ratio
                     else None
                 ),
-                windows=(
-                    tuple(
-                        dropout_windows(config.seed, dev.device_uuid, config.duration_s)
-                    )
-                    if spec.dropout
-                    else ()
-                ),
             )
         )
+
+    # Run-level disconnect windows (dropout-reconnect only): the simulator
+    # holds ONE MQTT connection for all devices, so windows are shared.
+    windows: tuple[tuple[float, float], ...] = (
+        tuple(dropout_windows(config.seed, config.duration_s))
+        if spec.dropout
+        else ()
+    )
 
     run_dir = Path(config.output_dir) / config.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -220,7 +251,7 @@ def run(
 
     started_utc = rfc3339_utc_ms()
     git_commit = detect_git_commit()
-    sent = intended_invalid_count = skipped_dropout = 0
+    sent = intended_invalid_count = buffered_dropout = disconnects = 0
     completed = False
 
     # Lazy merged schedule: heap of (due_time_s, device_index, k). The k-th
@@ -232,6 +263,45 @@ def run(
 
     writer = SentEventsWriter(sent_events_path)
     start_mono = clock.monotonic()
+
+    # dropout-reconnect state: index of the window the publisher is
+    # currently disconnected for (None = connected) and the device-side
+    # buffer of (topic, payload_bytes, record_base) awaiting the flush.
+    open_window: int | None = None
+    buffer: list[tuple[str, bytes, dict]] = []
+
+    def flush_buffer() -> None:
+        """Publish the buffered window events in order (buffered redelivery).
+
+        Called immediately after ``publisher.reconnect()``. Buffer order is
+        generation order, so per-device ``seq`` order is preserved. Each
+        flushed publish uses a zero puback wait budget — the flush must
+        never block the schedule of live events longer than their own
+        budget — and its record carries the ACTUAL (late) publish instant.
+        """
+        nonlocal sent
+        for buffered_topic, buffered_payload, record_base in buffer:
+            flush_result = publisher.publish(
+                buffered_topic, buffered_payload, wait_budget_s=0.0
+            )
+            writer.write(
+                {
+                    **record_base,
+                    "publish_monotonic_ns": flush_result.publish_monotonic_ns,
+                    "puback_monotonic_ns": flush_result.puback_monotonic_ns,
+                }
+            )
+            sent += 1
+        buffer.clear()
+
+    def pace_until(t_target_s: float) -> None:
+        """Sleep until ``start + t_target_s``; no-op when already behind."""
+        while True:
+            delay = (start_mono + t_target_s) - clock.monotonic()
+            if delay <= 0:
+                break
+            clock.sleep(delay)
+
     try:
         while heap:
             t_sched, idx, k = heapq.heappop(heap)
@@ -240,20 +310,39 @@ def run(
             if t_next < config.duration_s - SCHEDULE_EPSILON_S:
                 heapq.heappush(heap, (t_next, idx, k + 1))
 
-            # dropout-reconnect: events scheduled inside a silence window are
-            # not generated at all (no seq consumed, nothing recorded).
-            if state.windows and in_window(t_sched, state.windows):
-                skipped_dropout += 1
-                continue
-
             # Pace on the absolute target; if behind schedule, publish
             # immediately (catch-up) without altering the payload sequence.
-            while True:
-                delay = (start_mono + t_sched) - clock.monotonic()
-                if delay <= 0:
-                    break
-                clock.sleep(delay)
+            pace_until(t_sched)
 
+            # dropout-reconnect transitions, driven by run-level window
+            # membership of the event's SCHEDULED time (deterministic per
+            # seed). Ordered after pacing so the disconnect happens at the
+            # first in-window event and the reconnect strictly after the
+            # window has ended in wall-clock terms.
+            w = window_index(t_sched, windows) if windows else None
+            if w is not None:
+                if open_window is None:
+                    publisher.disconnect()
+                    disconnects += 1
+                    open_window = w
+                elif w != open_window:
+                    # No live event fell between two windows: settle the
+                    # previous window (reconnect + in-order flush), then
+                    # open the new one.
+                    publisher.reconnect()
+                    flush_buffer()
+                    publisher.disconnect()
+                    disconnects += 1
+                    open_window = w
+            elif open_window is not None:
+                # First event scheduled after the open window: reconnect
+                # and flush the buffer BEFORE resuming live publishing.
+                publisher.reconnect()
+                flush_buffer()
+                open_window = None
+
+            # Events are ALWAYS generated on schedule — inside a window a
+            # real wearable keeps sampling — so seq stays gap-free.
             seq = state.seq
             state.seq += 1
             payload = build_envelope(
@@ -275,6 +364,23 @@ def run(
             topic = TOPIC_TEMPLATE.format(
                 egw_id=config.egw_id, device_uuid=state.spec.device_uuid
             )
+            payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            record_base = {
+                "run_id": config.run_id,
+                "message_id": payload["message_id"],
+                "device_uuid": state.spec.device_uuid,
+                "device_type": state.spec.device_type,
+                "seq": seq,
+                "intended_invalid": is_invalid,
+            }
+
+            if open_window is not None:
+                # Disconnected: buffer in generation order; published (and
+                # recorded) on flush, so nothing is sent while offline.
+                buffer.append((topic, payload_bytes, record_base))
+                buffered_dropout += 1
+                continue
+
             # Best-effort puback capture (CONTRACTS.md section 7): the wait
             # budget is the free time until the next scheduled event, so the
             # acknowledgement round-trip can never delay the schedule.
@@ -284,23 +390,26 @@ def run(
                 else 0.0
             )
             result = publisher.publish(
-                topic,
-                json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-                wait_budget_s=wait_budget_s,
+                topic, payload_bytes, wait_budget_s=wait_budget_s
             )
             writer.write(
                 {
-                    "run_id": config.run_id,
-                    "message_id": payload["message_id"],
-                    "device_uuid": state.spec.device_uuid,
-                    "device_type": state.spec.device_type,
-                    "seq": seq,
+                    **record_base,
                     "publish_monotonic_ns": result.publish_monotonic_ns,
                     "puback_monotonic_ns": result.puback_monotonic_ns,
-                    "intended_invalid": is_invalid,
                 }
             )
             sent += 1
+
+        if open_window is not None:
+            # The last scheduled events fell inside a window: wait for the
+            # window to actually end (never past the run duration), then
+            # reconnect and flush so every generated event is published.
+            pace_until(min(windows[open_window][1], config.duration_s))
+            publisher.reconnect()
+            flush_buffer()
+            open_window = None
+
         completed = True
         # Bounded end-of-run drain: give the last in-flight QoS 1
         # message(s) a capped window to be acknowledged before disconnect.
@@ -333,7 +442,8 @@ def run(
             totals={
                 "sent": sent,
                 "intended_invalid": intended_invalid_count,
-                "skipped_dropout": skipped_dropout,
+                "buffered_dropout": buffered_dropout,
+                "dropout_disconnects": disconnects,
             },
             note=DROPOUT_SCOPE_NOTE if spec.dropout else None,
         )
@@ -341,7 +451,8 @@ def run(
         run_id=config.run_id,
         sent=sent,
         intended_invalid=intended_invalid_count,
-        skipped_dropout=skipped_dropout,
+        buffered_dropout=buffered_dropout,
+        dropout_disconnects=disconnects,
         completed=completed,
         run_dir=run_dir,
         manifest_path=manifest_path,

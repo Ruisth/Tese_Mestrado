@@ -80,6 +80,8 @@ def make_run(
     events: list[dict],
     manifest_extra: dict | None = None,
     resources_rows: list[list] | None = None,
+    controller_metrics_rows: list[list] | None = None,
+    sut_env: dict | None = None,
 ) -> Path:
     run_dir = base / "raw" / run_id
     run_dir.mkdir(parents=True)
@@ -113,7 +115,24 @@ def make_run(
         lines = ["ts_utc,container,cpu_pct,mem_bytes,mem_pct"]
         lines += [",".join(str(v) for v in row) for row in resources_rows]
         (run_dir / "resources.csv").write_text("\n".join(lines) + "\n", "utf-8")
+    if controller_metrics_rows is not None:
+        lines = ["ts_utc,accepted,rejected,duplicate,failed,dropped,queue_depth"]
+        lines += [",".join(str(v) for v in row) for row in controller_metrics_rows]
+        (run_dir / "controller_metrics.csv").write_text(
+            "\n".join(lines) + "\n", "utf-8"
+        )
+    if sut_env is not None:
+        (run_dir / "sut_environment.json").write_text(
+            json.dumps(sut_env) + "\n", "utf-8"
+        )
     return run_dir
+
+
+def _iso(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+T0 = datetime(2026, 9, 7, 10, 0, 0, tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -501,20 +520,27 @@ def test_sustained_cpu_seconds() -> None:
     assert analyze.sustained_cpu_seconds(samples) < 60.0
 
 
-def _sweep_row(rate: float, loss: float, p95: float, sustained_s: float) -> dict:
+def _sweep_row(
+    rate: float,
+    loss: float,
+    p95: float,
+    host_sustained_s: float = 0.0,
+    queue_sustained_s: float = 0.0,
+) -> dict:
     return {
         "condition_id": "load_sweep",
         "rate_msg_s": rate,
         "loss_rate": loss,
         "latency_ms_p95": p95,
-        "cpu_sustained_gt90_s": sustained_s,
+        "host_cpu_sustained_gt090_s": host_sustained_s,
+        "queue_growth_sustained_s": queue_sustained_s,
     }
 
 
 def test_saturation_triggers_on_loss_criterion() -> None:
     rows = [
-        _sweep_row(10.0, 0.0, 100.0, 0.0),
-        _sweep_row(50.0, 0.02, 100.0, 0.0),  # mean loss 2% > 1%
+        _sweep_row(10.0, 0.0, 100.0),
+        _sweep_row(50.0, 0.02, 100.0),  # mean loss 2% > 1%
     ]
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
@@ -526,8 +552,8 @@ def test_saturation_triggers_on_loss_criterion() -> None:
 
 def test_saturation_triggers_on_p95_criterion() -> None:
     rows = [
-        _sweep_row(10.0, 0.0, 200.0, 0.0),
-        _sweep_row(50.0, 0.0, 1500.0, 0.0),  # mean p95 > 1000 ms
+        _sweep_row(10.0, 0.0, 200.0),
+        _sweep_row(50.0, 0.0, 1500.0),  # mean p95 > 1000 ms
     ]
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
@@ -536,58 +562,325 @@ def test_saturation_triggers_on_p95_criterion() -> None:
     assert by_rate[50.0]["triggered"]["loss_rate"] is False
 
 
-def test_saturation_triggers_on_sustained_cpu_criterion() -> None:
+def test_saturation_triggers_on_sustained_host_cpu_criterion() -> None:
+    # Audit 9.7: the CPU criterion is HOST-LEVEL (normalized by nproc),
+    # not the raw per-container docker-stats percentage.
     rows = [
-        _sweep_row(10.0, 0.0, 100.0, 0.0),
-        _sweep_row(50.0, 0.0, 100.0, 65.0),  # sustained >= 60 s in this run
+        _sweep_row(10.0, 0.0, 100.0),
+        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=65.0),
     ]
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
     by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
-    assert by_rate[50.0]["triggered"]["cpu_sustained"] is True
+    assert by_rate[50.0]["triggered"]["host_cpu_sustained"] is True
 
 
 def test_saturation_cpu_fraction_one_of_three_runs_is_not_saturated() -> None:
     # Decision rule: the CPU criterion holds only when at least HALF of the
     # runs at a load show a sustained >= 60 s event. 1 of 3 < 0.5.
     rows = [
-        _sweep_row(50.0, 0.0, 100.0, 65.0),
-        _sweep_row(50.0, 0.0, 100.0, 0.0),
-        _sweep_row(50.0, 0.0, 100.0, 0.0),
+        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=65.0),
+        _sweep_row(50.0, 0.0, 100.0),
+        _sweep_row(50.0, 0.0, 100.0),
     ]
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] is None
     load = result["loads"][0]
     assert load["n_runs"] == 3
-    assert load["cpu_sustained_run_fraction"] < 0.5
-    assert load["triggered"]["cpu_sustained"] is False
+    assert load["host_cpu_sustained_run_fraction"] < 0.5
+    assert load["triggered"]["host_cpu_sustained"] is False
     assert load["saturated"] is False
 
 
 def test_saturation_cpu_fraction_two_of_three_runs_is_saturated() -> None:
     # 2 of 3 runs with sustained >= 60 s: fraction >= 0.5, criterion holds.
     rows = [
-        _sweep_row(50.0, 0.0, 100.0, 65.0),
-        _sweep_row(50.0, 0.0, 100.0, 61.0),
-        _sweep_row(50.0, 0.0, 100.0, 0.0),
+        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=65.0),
+        _sweep_row(50.0, 0.0, 100.0, host_sustained_s=61.0),
+        _sweep_row(50.0, 0.0, 100.0),
     ]
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] == 50.0
     load = result["loads"][0]
-    assert load["triggered"]["cpu_sustained"] is True
+    assert load["triggered"]["host_cpu_sustained"] is True
     assert load["saturated"] is True
+
+
+def test_saturation_triggers_on_queue_growth_criterion() -> None:
+    # Audit 9.7: queue growth is measured (controller_metrics.csv), no TODO.
+    rows = [
+        _sweep_row(10.0, 0.0, 100.0),
+        _sweep_row(50.0, 0.0, 100.0, queue_sustained_s=61.0),
+        _sweep_row(50.0, 0.0, 100.0, queue_sustained_s=75.0),
+        _sweep_row(50.0, 0.0, 100.0, queue_sustained_s=0.0),
+    ]
+    result = analyze.detect_saturation(rows)
+    assert result["first_saturated_load_msg_s"] == 50.0
+    by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
+    assert by_rate[50.0]["triggered"]["queue_growth"] is True
+    assert by_rate[50.0]["queue_growth_run_fraction"] == 2 / 3
+    assert by_rate[10.0]["triggered"]["queue_growth"] is False
+
+
+def test_saturation_criteria_not_evaluable_without_instrumentation() -> None:
+    # Runs without nproc/controller_metrics carry None; the criterion is
+    # None (not evaluable), never silently False, and cannot saturate.
+    rows = [
+        {
+            "condition_id": "load_sweep",
+            "rate_msg_s": 50.0,
+            "loss_rate": 0.0,
+            "latency_ms_p95": 100.0,
+            "host_cpu_sustained_gt090_s": None,
+            "queue_growth_sustained_s": None,
+        }
+    ]
+    result = analyze.detect_saturation(rows)
+    load = result["loads"][0]
+    assert load["triggered"]["host_cpu_sustained"] is None
+    assert load["triggered"]["queue_growth"] is None
+    assert load["saturated"] is False
 
 
 def test_saturation_not_triggered_below_thresholds() -> None:
     rows = [
-        _sweep_row(10.0, 0.0, 100.0, 0.0),
-        _sweep_row(50.0, 0.01, 1000.0, 59.0),  # thresholds are strict (>)
+        _sweep_row(10.0, 0.0, 100.0),
+        # thresholds are strict (>) for loss/p95; sustained windows below
+        # 60 s never count.
+        _sweep_row(50.0, 0.01, 1000.0, host_sustained_s=59.0, queue_sustained_s=59.0),
     ]
     result = analyze.detect_saturation(rows)
     assert result["first_saturated_load_msg_s"] is None
     assert all(not load["saturated"] for load in result["loads"])
-    # queue growth is documented as TODO, never evaluated
-    assert "TODO" in result["criteria"]["queue_growth"]
+    # The queue-growth rule is now documented and evaluated (audit 9.7)
+    # and explicitly marked pending advisor sign-off before exp-v1 (R23).
+    criteria = result["criteria"]
+    assert criteria["queue_depth_floor"] == 100
+    assert criteria["queue_growth_sustain_s"] == 60
+    assert criteria["host_cpu_utilization_gt"] == 0.90
+    assert criteria["run_fraction_gte"] == 0.5
+    assert "PENDING ADVISOR SIGN-OFF" in result["pending_advisor_signoff"]
+    assert "exp-v1" in result["pending_advisor_signoff"]
+
+
+# ---------------------------------------------------------------------------
+# Queue-growth detector (audit 9.7; rule pending advisor sign-off)
+# ---------------------------------------------------------------------------
+
+
+def _queue_samples(depths: list[float | None], start: datetime = T0) -> list[dict]:
+    return [
+        {"ts": start + timedelta(seconds=i), "queue_depth": depth}
+        for i, depth in enumerate(depths)
+    ]
+
+
+def test_queue_growth_61_increasing_samples_above_floor_span_60s() -> None:
+    depths = [101.0 + i for i in range(61)]  # strictly increasing, > 100
+    assert analyze.queue_growth_sustained_seconds(_queue_samples(depths)) == 60.0
+
+
+def test_queue_growth_below_floor_never_counts() -> None:
+    depths = [10.0 + i for i in range(61)]  # strictly increasing but <= 100
+    assert analyze.queue_growth_sustained_seconds(_queue_samples(depths)) == 0.0
+
+
+def test_queue_growth_plateau_breaks_the_window() -> None:
+    # Strict increase required: a plateau splits the streak.
+    depths = [101.0 + i for i in range(31)]
+    depths += [depths[-1]]  # plateau
+    depths += [depths[-1] + 1 + i for i in range(31)]
+    span = analyze.queue_growth_sustained_seconds(_queue_samples(depths))
+    assert span < 60.0
+
+
+def test_queue_growth_dip_below_floor_resets() -> None:
+    depths = [101.0 + i for i in range(30)] + [50.0] + [200.0 + i for i in range(30)]
+    span = analyze.queue_growth_sustained_seconds(_queue_samples(depths))
+    assert span < 60.0
+
+
+# ---------------------------------------------------------------------------
+# Host-level CPU normalization (audit 9.7)
+# ---------------------------------------------------------------------------
+
+
+def test_host_cpu_series_normalizes_by_nproc() -> None:
+    by_container = {
+        "a": [{"ts": T0, "cpu_pct": 200.0}, {"ts": T0 + timedelta(seconds=1), "cpu_pct": 100.0}],
+        "b": [{"ts": T0, "cpu_pct": 200.0}, {"ts": T0 + timedelta(seconds=1), "cpu_pct": 60.0}],
+    }
+    series = analyze.host_cpu_series(by_container, nproc=4)
+    # (200+200)/(100*4) = 1.0; (100+60)/(100*4) = 0.4
+    assert [round(p["host_cpu_utilization"], 6) for p in series] == [1.0, 0.4]
+
+
+def test_host_cpu_sustained_seconds_thresholds() -> None:
+    series = [
+        {"ts": T0 + timedelta(seconds=i), "host_cpu_utilization": 0.95}
+        for i in range(61)
+    ]
+    assert analyze.host_cpu_sustained_seconds(series) == 60.0
+    series_low = [
+        {"ts": T0 + timedelta(seconds=i), "host_cpu_utilization": 0.90}
+        for i in range(61)
+    ]  # threshold is strict (> 0.90)
+    assert analyze.host_cpu_sustained_seconds(series_low) == 0.0
+
+
+def test_compute_run_metrics_host_cpu_from_sut_environment(tmp_path) -> None:
+    # Two containers at 200% each with nproc=4 -> host utilization 1.0.
+    n = 65
+    resources = []
+    for i in range(n):
+        ts = _iso(T0 + timedelta(seconds=i))
+        resources.append([ts, "egw-controller", 200.0, 1024, 1.0])
+        resources.append([ts, "mosquitto", 200.0, 1024, 1.0])
+    run_dir = make_run(
+        tmp_path,
+        "host-cpu",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        resources_rows=resources,
+        sut_env={"role": "sut", "nproc": 4},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["nproc"] == 4
+    assert row["host_cpu_utilization_max"] == 1.0
+    assert row["host_cpu_sustained_gt090_s"] == float(n - 1)
+    # Raw per-container basis still reported (single-CPU docker semantics).
+    assert row["cpu_pct_max"] == 200.0
+
+
+def test_compute_run_metrics_without_nproc_flags_host_cpu_not_evaluable(tmp_path) -> None:
+    resources = [[_iso(T0), "egw-controller", 95.0, 1024, 1.0]]
+    run_dir = make_run(
+        tmp_path,
+        "no-nproc",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        resources_rows=resources,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["nproc"] is None
+    assert row["host_cpu_utilization_max"] is None
+    assert row["host_cpu_sustained_gt090_s"] is None
+    assert "nproc unavailable" in row["warnings"]
+
+
+# ---------------------------------------------------------------------------
+# Measured-window filtering (audit 9.4)
+# ---------------------------------------------------------------------------
+
+
+def _window_manifest(start: datetime, end: datetime) -> dict:
+    return {
+        "measured_window_utc": {"start": _iso(start), "end": _iso(end)},
+        "measured_started_monotonic_ns": 123,
+    }
+
+
+def test_resources_filtered_to_measured_window(tmp_path) -> None:
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    resources = [
+        # Warm-up sample (before the window): must be excluded.
+        [_iso(start - timedelta(seconds=30)), "egw-controller", 99.0, 9_000_000, 9.0],
+        # In-window samples.
+        [_iso(start + timedelta(seconds=10)), "egw-controller", 10.0, 1_000_000, 1.0],
+        [_iso(start + timedelta(seconds=11)), "egw-controller", 20.0, 2_000_000, 2.0],
+        # Post-run sample (after the window): must be excluded.
+        [_iso(end + timedelta(seconds=30)), "egw-controller", 98.0, 8_000_000, 8.0],
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "windowed",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        resources_rows=resources,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["resource_samples"] == 2  # only the in-window samples
+    assert row["cpu_pct_max"] == 20.0  # 99/98 outside the window ignored
+    assert row["mem_bytes_max"] == 2_000_000
+    res = row["_resources"][0]
+    assert res["samples"] == 2
+    assert res["cpu_pct_mean"] == 15.0
+
+
+def test_controller_metrics_filtered_to_measured_window(tmp_path) -> None:
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    metrics = [
+        # Before the window: huge queue depth must not leak into the max.
+        [_iso(start - timedelta(seconds=5)), 1, 0, 0, 0, 0, 9999],
+        [_iso(start + timedelta(seconds=1)), 2, 0, 0, 0, 0, 5],
+        [_iso(start + timedelta(seconds=2)), 3, 0, 0, 0, 0, 7],
+        [_iso(end + timedelta(seconds=5)), 4, 0, 0, 0, 0, 8888],
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "windowed-metrics",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["controller_metric_samples"] == 2
+    assert row["queue_depth_max"] == 7.0
+
+
+def test_missing_measured_window_aggregates_unfiltered_with_warning(tmp_path) -> None:
+    resources = [[_iso(T0), "egw-controller", 12.0, 1024, 1.0]]
+    run_dir = make_run(
+        tmp_path,
+        "no-window",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        resources_rows=resources,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["resource_samples"] == 1
+    assert "measured_window_utc" in row["warnings"]
+
+
+def test_queue_growth_detected_from_controller_metrics_csv(tmp_path) -> None:
+    metrics = [
+        [_iso(T0 + timedelta(seconds=i)), i, 0, 0, 0, 0, 101 + i]
+        for i in range(61)
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "queue-growth",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["controller_metric_samples"] == 61
+    assert row["queue_depth_max"] == 161.0
+    assert row["queue_growth_sustained_s"] == 60.0
+
+
+def test_double_accepted_counted_for_restart_acceptance(tmp_path) -> None:
+    # Two accepted events for the SAME message_id: the second is a
+    # double-accept (twin patched twice) - claim C12's failure mode.
+    run_dir = make_run(
+        tmp_path,
+        "double-accept",
+        sent=[sent_record("m0"), sent_record("m1", 1)],
+        events=[
+            event_record("m0", "accepted"),
+            event_record("m0", "accepted"),
+            event_record("m1", "accepted"),
+        ],
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["double_accepted"] == 1
+    assert row["delivered_unique"] == 2
+    assert "repeated accepted event" in row["warnings"]
 
 
 # ---------------------------------------------------------------------------
@@ -717,6 +1010,267 @@ def test_summary_ci_matches_hand_computed_value_across_runs(tmp_path) -> None:
     assert math.isclose(float(delivery["ci95_lo"]), mean - half, abs_tol=1e-6)
     assert math.isclose(float(delivery["ci95_hi"]), mean + half, abs_tol=1e-6)
     assert math.isclose(float(delivery["median"]), 0.8, abs_tol=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Per-condition acceptance (audit 9.5, claims C10/C11/C12/C14)
+# ---------------------------------------------------------------------------
+
+
+def _acc_row(cid: str, **overrides) -> dict:
+    base = {
+        "condition_id": cid,
+        "validity": "valid",
+        "lost": 0,
+        "double_accepted": 0,
+        "intended_invalid_sent": 0,
+        "rejected_intended_invalid": 0,
+        "intended_invalid_accepted": 0,
+        "delivery_rate": 1.0,
+    }
+    base.update(overrides)
+    return base
+
+
+def _acc(result: list[dict], cid: str, criterion: str) -> dict:
+    return next(
+        r
+        for r in result
+        if r["condition_id"] == cid and r["criterion"] == criterion
+    )
+
+
+def test_acceptance_smoke_sequence_all_complete_zero_lost() -> None:
+    rows = [_acc_row("smoke_sequence") for _ in range(10)]
+    result = analyze.evaluate_acceptance(rows)
+    complete = _acc(result, "smoke_sequence", "all_runs_complete")
+    assert complete["passed"] is True
+    assert complete["expected_runs"] == 10
+    assert complete["claims"] == "C14"
+    assert _acc(result, "smoke_sequence", "zero_lost")["passed"] is True
+
+
+def test_acceptance_smoke_sequence_fails_on_missing_run_or_loss() -> None:
+    rows = [_acc_row("smoke_sequence") for _ in range(9)]  # one run missing
+    result = analyze.evaluate_acceptance(rows)
+    assert _acc(result, "smoke_sequence", "all_runs_complete")["passed"] is False
+
+    rows = [_acc_row("smoke_sequence") for _ in range(10)]
+    rows[3]["lost"] = 1
+    result = analyze.evaluate_acceptance(rows)
+    assert _acc(result, "smoke_sequence", "all_runs_complete")["passed"] is True
+    assert _acc(result, "smoke_sequence", "zero_lost")["passed"] is False
+
+
+def test_acceptance_smoke_sequence_invalid_run_fails_completeness() -> None:
+    rows = [_acc_row("smoke_sequence") for _ in range(10)]
+    rows[0]["validity"] = "invalid"
+    result = analyze.evaluate_acceptance(rows)
+    assert _acc(result, "smoke_sequence", "all_runs_complete")["passed"] is False
+
+
+def test_acceptance_invalid_payload_rejection_criteria() -> None:
+    rows = [
+        _acc_row(
+            "invalid_payload",
+            intended_invalid_sent=20,
+            rejected_intended_invalid=20,
+            delivery_rate=1.0,
+        )
+        for _ in range(3)
+    ]
+    result = analyze.evaluate_acceptance(rows)
+    rejected = _acc(result, "invalid_payload", "all_intended_invalid_rejected")
+    assert rejected["passed"] is True
+    assert rejected["claims"] == "C11"
+    assert (
+        _acc(result, "invalid_payload", "zero_intended_invalid_accepted")["passed"]
+        is True
+    )
+    # The plan 7.3 valid-delivery accounting is reported informationally.
+    info = _acc(result, "invalid_payload", "valid_delivery_rate_mean_informational")
+    assert info["passed"] is None
+    assert info["observed"].startswith("1.0")
+
+    rows[1]["rejected_intended_invalid"] = 19
+    rows[1]["intended_invalid_accepted"] = 1
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "invalid_payload", "all_intended_invalid_rejected")["passed"]
+        is False
+    )
+    assert (
+        _acc(result, "invalid_payload", "zero_intended_invalid_accepted")["passed"]
+        is False
+    )
+
+
+def test_acceptance_dropout_reconnect_tolerates_buffered_redelivery() -> None:
+    # Buffered messages confirmed within the window are simply not lost;
+    # acceptance = zero lost + zero double-accepted (module docstring).
+    rows = [_acc_row("dropout_reconnect") for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    zero_lost = _acc(result, "dropout_reconnect", "zero_lost_within_window")
+    assert zero_lost["passed"] is True
+    assert zero_lost["claims"] == "C10"
+    assert (
+        _acc(result, "dropout_reconnect", "zero_double_accepted")["passed"] is True
+    )
+
+    rows[0]["lost"] = 2
+    rows[2]["double_accepted"] = 1
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "dropout_reconnect", "zero_lost_within_window")["passed"]
+        is False
+    )
+    assert (
+        _acc(result, "dropout_reconnect", "zero_double_accepted")["passed"] is False
+    )
+
+
+def test_acceptance_controller_restart_criteria() -> None:
+    rows = [_acc_row("controller_restart") for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    across = _acc(result, "controller_restart", "delivery_across_restart_zero_lost")
+    assert across["passed"] is True
+    assert across["claims"] == "C12"
+    assert (
+        _acc(result, "controller_restart", "zero_double_accepted")["passed"] is True
+    )
+
+    rows[1]["double_accepted"] = 3
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "controller_restart", "zero_double_accepted")["passed"] is False
+    )
+
+
+def test_acceptance_without_runs_is_not_evaluable() -> None:
+    result = analyze.evaluate_acceptance([])
+    for row in result:
+        assert row["passed"] is None
+        assert row["n_runs"] == 0
+
+
+# ---------------------------------------------------------------------------
+# External conditions analyzed by the same script (audit 9.6, claim C15)
+# ---------------------------------------------------------------------------
+
+
+def make_external_run(
+    base: Path,
+    run_id: str,
+    condition: str,
+    samples: list[dict],
+    exclusion=None,
+) -> Path:
+    run_dir = base / "raw" / run_id
+    run_dir.mkdir(parents=True)
+    manifest = {
+        "run_id": run_id,
+        "condition_id": condition,
+        "runner": "external",
+        "exclusion": exclusion,
+    }
+    (run_dir / "manifest.json").write_text(json.dumps(manifest) + "\n", "utf-8")
+    timings = {
+        "run_id": run_id,
+        "condition": condition,
+        "samples": samples,
+        "method": "fixture",
+        "notes": None,
+    }
+    (run_dir / "timings.json").write_text(json.dumps(timings) + "\n", "utf-8")
+    return run_dir
+
+
+def test_analyze_summarizes_external_cold_start_durations(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    durations = [30.0, 40.0, 50.0]
+    for i, duration in enumerate(durations, start=1):
+        make_external_run(
+            base,
+            f"cold_start-r{i:02d}",
+            "cold_start",
+            [
+                {
+                    "label": f"cold_start-r{i:02d}",
+                    "started_utc": "2026-09-07T10:00:00Z",
+                    "ended_utc": "2026-09-07T10:01:00Z",
+                    "duration_s": duration,
+                }
+            ],
+        )
+    assert analyze.analyze(base_dir=base) == 0
+    capsys.readouterr()
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    row = next(
+        r
+        for r in summary
+        if r["condition_id"] == "cold_start" and r["metric"] == "duration_s"
+    )
+    assert row["n_runs"] == "3"
+    assert float(row["mean"]) == 40.0
+    assert float(row["min"]) == 30.0
+    assert float(row["max"]) == 50.0
+    # mean/sd/CI95 per the task: stdev = 10, half = t(2)=4.303 * 10/sqrt(3)
+    expected_half = 4.303 * 10.0 / math.sqrt(3)
+    assert math.isclose(float(row["ci95_lo"]), 40.0 - expected_half, abs_tol=1e-4)
+    assert math.isclose(float(row["ci95_hi"]), 40.0 + expected_half, abs_tol=1e-4)
+    # Per-sample listing regenerated too.
+    listing = _read_csv(base / "processed" / "external_runs.csv")
+    assert len(listing) == 3
+    assert {r["condition_id"] for r in listing} == {"cold_start"}
+
+
+def test_analyze_lists_qemu_boots_pass_fail_without_stats(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    make_external_run(
+        base,
+        "qemu_boot-r01",
+        "qemu_boots",
+        [
+            {"label": "boot1", "duration_s": 12.0, "outcome": "pass"},
+            {"label": "boot2", "duration_s": 900.0, "outcome": "fail"},
+            {"label": "boot3"},
+        ],
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    capsys.readouterr()
+    listing = _read_csv(base / "processed" / "external_runs.csv")
+    outcomes = {r["sample_label"]: r["outcome"] for r in listing}
+    assert outcomes == {"boot1": "pass", "boot2": "fail", "boot3": "unspecified"}
+    # Plan 5.1: NO performance statistics from QEMU - no summary row at all.
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    assert not any(r["condition_id"] == "qemu_boots" for r in summary)
+
+
+def test_excluded_external_run_out_of_duration_summary(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    make_external_run(
+        base,
+        "twin_creation-r01",
+        "twin_creation",
+        [{"label": "t1", "duration_s": 5.0}],
+    )
+    make_external_run(
+        base,
+        "twin_creation-r02",
+        "twin_creation",
+        [{"label": "t2", "duration_s": 500.0}],
+        exclusion="proven instrumentation failure",
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    capsys.readouterr()
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    row = next(
+        r
+        for r in summary
+        if r["condition_id"] == "twin_creation" and r["metric"] == "duration_s"
+    )
+    assert row["n_runs"] == "1"
+    assert float(row["mean"]) == 5.0
 
 
 def test_soak_summary_is_descriptive_without_ci(tmp_path) -> None:

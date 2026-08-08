@@ -181,3 +181,89 @@ and survives both forms; archive it with the run evidence (plan 5.8).
   `images.lock.env` (plan 9.2); the controller base image is digest-pinned
   in `src/Dockerfile`. Never deploy after a failed
   `scripts/resolve-image-lock.sh` run.
+
+## SUT-side evidence collection (experiments harness)
+
+The experiments harness (`src/egw_experiments/`, see `experiments/README.md`)
+runs OFF this VM (plan 5.1). Three scripts in `scripts/` run ON the VM and
+produce the SUT-side evidence the harness ingests (2026-08-08 audit, section
+9). Timed runs without the first two are marked `validity: "invalid"` by the
+harness.
+
+### 1. `scripts/capture-sut-environment.sh` — SUT environment manifest
+
+Captures the environment of the system under test (`uname -a`, OS
+`PRETTY_NAME`, `nproc`, CPU model, `MemTotal`, Docker/Compose versions,
+capture time) plus the plan 5.1 normative fields passed via environment
+variables (`EGW_PROVIDER`, `EGW_REGION`, `EGW_INSTANCE_TYPE`,
+`EGW_SHARED_VCPU_NOTE` — the shared-vCPU caveat is mandatory):
+
+```sh
+EGW_PROVIDER="Hetzner Cloud" EGW_REGION="fsn1" \
+EGW_INSTANCE_TYPE="CAX21 (4 vCPU ARM64, 8 GiB)" \
+EGW_SHARED_VCPU_NOTE="shared vCPU; neighbor load may affect results" \
+sh scripts/capture-sut-environment.sh sut_environment.json
+```
+
+Fetch the file to the harness host and pass `--sut-env-from` on every timed
+run. The harness writes its own host capture as `loadgen_environment.json`;
+the run manifest references both (two-environments rule, audit 9.2). The
+analysis also uses `nproc` from this file to normalize docker-stats CPU
+percentages to host-level utilization (audit 9.7). Re-capture after any VM
+change (resize, kernel or Docker update).
+
+### 2. `scripts/collect-resources.sh` — 1 Hz container resources
+
+Samples `docker stats` once per second into a CSV the analysis reads
+directly (`ts_utc,container,cpu_pct,mem_bytes,mem_pct`), until SIGTERM or
+`--duration`. Start it before the run's warm-up, stop it after the 60 s
+confirmation window, fetch the CSV and ingest with `--resources-from`:
+
+```sh
+# on the VM (or via ssh/systemd-run; see the script header):
+sh scripts/collect-resources.sh /tmp/resources-<run_id>.csv --duration 900
+```
+
+The harness's own `--local-resources` sampler measures the load-generator
+host and is dev-only (audit 9.1).
+
+### 3. `scripts/measure-cold-start.sh` — cold-start sample (claim C04)
+
+One invocation performs one cold start (`down -v`, `up -d`, poll
+`GET /ready` until the first 200) and writes an operator `timings.json` the
+harness ingests as an external run:
+
+```sh
+sh scripts/measure-cold-start.sh cold_start-r01 timings-cold_start-r01.json
+# then, on the harness host:
+python -m egw_experiments run --run-id cold_start-r01 \
+    --external-timings timings-cold_start-r01.json
+```
+
+On timeout or compose failure it writes nothing — measurements are never
+fabricated.
+
+### Controller /metrics sampling through an SSH tunnel
+
+Port `8000` is loopback-only on this VM (see Security notes), so the
+harness samples `GET /metrics` (1 Hz, `queue_depth` for the queue-growth
+saturation criterion, CONTRACTS v1.1) through an SSH tunnel opened from the
+harness host:
+
+```sh
+ssh -N -L 8000:127.0.0.1:8000 <vm> &
+python -m egw_experiments run --run-id <run_id> ... \
+    --controller-url http://127.0.0.1:8000
+```
+
+### Fetching the controller event log automatically
+
+The controller writes `data/events/` per run on this VM. Give the harness a
+fetch template so collection is automatic after the confirmation window
+(retried 3 times with backoff; recovery via `python -m egw_experiments
+collect`):
+
+```sh
+python -m egw_experiments run --run-id <run_id> ... \
+    --fetch-events-cmd 'scp vm:/opt/egw/src/deployment/data/events/{run_id}/events.jsonl {dest}'
+```

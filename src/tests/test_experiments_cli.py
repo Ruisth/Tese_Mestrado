@@ -81,5 +81,73 @@ def test_run_with_external_condition_run_id_exits_2(tmp_path, capsys) -> None:
     assert rc == 2
     err = capsys.readouterr().err
     assert "not driven by the simulator" in err
+    # The refusal points to the ingestion path for external evidence.
+    assert "--external-timings" in err
     # Nothing was created: the refusal happens before any side effect.
     assert not (tmp_path / "results").exists()
+
+
+# ---------------------------------------------------------------------------
+# run: new collection/validity flags parse (audit 9.1-9.7)
+# ---------------------------------------------------------------------------
+
+
+def test_run_parser_accepts_collection_and_hook_flags() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "run",
+            "--run-id",
+            "nominal-r01",
+            "--fetch-events-cmd",
+            "scp vm:/opt/egw/data/events/{run_id}/events.jsonl {dest}",
+            "--sut-env-from",
+            "sut_environment.json",
+            "--resources-from",
+            "resources.csv",
+            "--allow-missing-sut-env",
+            "--allow-missing-resources",
+            "--controller-url",
+            "http://127.0.0.1:8000",
+            "--restart-cmd",
+            "ssh vm docker compose restart controller",
+            "--restart-at-s",
+            "300",
+            "--external-timings",
+            "timings.json",
+            "--external-logs",
+            "logs",
+            "--local-resources",
+        ]
+    )
+    assert args.fetch_events_cmd.endswith("{dest}")
+    assert args.sut_env_from == "sut_environment.json"
+    assert args.resources_from == "resources.csv"
+    assert args.allow_missing_sut_env is True
+    assert args.allow_missing_resources is True
+    assert args.controller_url == "http://127.0.0.1:8000"
+    assert args.restart_at_s == 300.0
+    assert args.external_timings == "timings.json"
+    assert args.local_resources is True
+
+
+# ---------------------------------------------------------------------------
+# collect (recovery path, audit 9.3)
+# ---------------------------------------------------------------------------
+
+
+def test_collect_on_missing_run_dir_exits_2(tmp_path, capsys) -> None:
+    plan_path = tmp_path / "campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+    rc = cli.main(
+        [
+            "collect",
+            "--run-id",
+            "nominal-r01",
+            "--plan",
+            str(plan_path),
+            "--base-dir",
+            str(tmp_path / "results"),
+        ]
+    )
+    assert rc == 2
+    assert "only recovers runs already executed" in capsys.readouterr().err

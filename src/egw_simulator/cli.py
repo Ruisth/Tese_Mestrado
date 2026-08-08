@@ -247,7 +247,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"egw_simulator: done sent={result.sent} "
         f"intended_invalid={result.intended_invalid} "
-        f"skipped_dropout={result.skipped_dropout}",
+        f"buffered_dropout={result.buffered_dropout} "
+        f"dropout_disconnects={result.dropout_disconnects}",
         file=sys.stderr,
     )
     print(str(result.run_dir))

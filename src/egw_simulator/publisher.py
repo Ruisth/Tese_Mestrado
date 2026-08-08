@@ -20,7 +20,11 @@ only ``InMemoryPublisher`` do not require the dependency at import time.
 
 Lifecycle contract: the caller (CLI) invokes ``connect()`` before handing the
 publisher to the runner and ``close()`` after the run finishes; the runner
-calls ``publish()`` during the run and ``drain()`` once at the end.
+calls ``publish()`` during the run and ``drain()`` once at the end. In the
+dropout-reconnect scenario the runner additionally calls ``disconnect()`` at
+each deterministic window start (real connection drop, socket closed) and
+``reconnect()`` at window end, before flushing its device-side buffer; no
+``publish()`` happens between the two.
 """
 
 from __future__ import annotations
@@ -52,9 +56,21 @@ class PublishResult:
 
 @runtime_checkable
 class Publisher(Protocol):
-    """Minimal publishing interface used by the runner."""
+    """Minimal publishing interface used by the runner.
+
+    ``disconnect()`` / ``reconnect()`` model a real connection drop and
+    recovery mid-run (dropout-reconnect scenario): ``disconnect()`` closes
+    the network connection, ``reconnect()`` re-establishes it (blocking,
+    with backoff for real clients). The runner never calls ``publish()``
+    while disconnected — window events are buffered device-side and flushed
+    after ``reconnect()``.
+    """
 
     def connect(self) -> None: ...
+
+    def disconnect(self) -> None: ...
+
+    def reconnect(self) -> None: ...
 
     def publish(
         self, topic: str, payload: bytes, *, wait_budget_s: float = 0.0
@@ -74,10 +90,18 @@ class InMemoryPublisher:
     ``time.monotonic_ns``. Acknowledgement is instantaneous: the puback is
     always captured regardless of the wait budget, and ``drain()`` succeeds
     immediately.
+
+    For dropout-reconnect assertions it also records:
+
+    - ``lifecycle``: every connect/disconnect/reconnect/close call in order;
+    - ``publish_connected``: the connection state at each publish (aligned
+      with ``records``), so tests can assert no publish while disconnected.
     """
 
     def __init__(self, clock=None) -> None:
         self.records: list[tuple[str, str, int]] = []
+        self.publish_connected: list[bool] = []
+        self.lifecycle: list[str] = []
         self.connected = False
         self._clock = clock
 
@@ -88,12 +112,30 @@ class InMemoryPublisher:
 
     def connect(self) -> None:
         self.connected = True
+        self.lifecycle.append("connect")
+
+    def disconnect(self) -> None:
+        self.connected = False
+        self.lifecycle.append("disconnect")
+
+    def reconnect(self) -> None:
+        self.connected = True
+        self.lifecycle.append("reconnect")
+
+    @property
+    def disconnect_calls(self) -> int:
+        return self.lifecycle.count("disconnect")
+
+    @property
+    def reconnect_calls(self) -> int:
+        return self.lifecycle.count("reconnect")
 
     def publish(
         self, topic: str, payload: bytes, *, wait_budget_s: float = 0.0
     ) -> PublishResult:
         now_ns = self._now_ns()
         self.records.append((topic, payload.decode("utf-8"), now_ns))
+        self.publish_connected.append(self.connected)
         return PublishResult(publish_monotonic_ns=now_ns, puback_monotonic_ns=now_ns)
 
     def drain(self, timeout_s: float = DEFAULT_DRAIN_TIMEOUT_S) -> bool:
@@ -101,6 +143,7 @@ class InMemoryPublisher:
 
     def close(self) -> None:
         self.connected = False
+        self.lifecycle.append("close")
 
     def decoded_payloads(self) -> list[dict]:
         """All recorded payloads parsed back into dicts (publish order)."""
@@ -122,10 +165,18 @@ class PahoPublisher:
     - ``drain(timeout_s)`` waits (bounded) for the still-unacknowledged
       in-flight messages at end of run; records written with a ``null``
       puback are never revisited (CONTRACTS.md section 7).
-    - Automatic reconnect with exponential backoff between
-      ``reconnect_min_delay_s`` and ``reconnect_max_delay_s`` (paho network
-      loop thread); QoS 1 messages published while disconnected are queued
-      by the client and flushed on reconnect.
+    - Unplanned connection losses: paho's network loop reconnects
+      automatically with exponential backoff between
+      ``reconnect_min_delay_s`` and ``reconnect_max_delay_s``.
+    - Deliberate mid-run drop (dropout-reconnect scenario):
+      ``disconnect()`` sends DISCONNECT and closes the socket — paho v2's
+      ``loop_forever`` exits after a deliberate disconnect, so the loop
+      thread is joined deterministically via ``loop_stop()``.
+      ``reconnect()`` re-establishes the connection with the same
+      exponential backoff bounds, restarts the loop thread and blocks until
+      the broker acknowledges (``ConnectionError`` on timeout). The runner
+      buffers events device-side while disconnected; it never publishes
+      between the two calls.
     - ``close()`` performs a clean DISCONNECT and stops the loop thread.
     """
 
@@ -152,6 +203,8 @@ class PahoPublisher:
         self.qos = qos
         self._keepalive_s = keepalive_s
         self._connect_timeout_s = connect_timeout_s
+        self._reconnect_min_delay_s = reconnect_min_delay_s
+        self._reconnect_max_delay_s = reconnect_max_delay_s
         self._connected = threading.Event()
         # In-flight MQTTMessageInfo objects, oldest first, pruned on every
         # publish; only drain() ever waits on them. Memory stays negligible
@@ -196,11 +249,75 @@ class PahoPublisher:
         self._client.connect(self.host, self.port, keepalive=self._keepalive_s)
         self._client.loop_start()
         if not self._connected.wait(self._connect_timeout_s):
-            self._client.loop_stop()
+            self._loop_stop_quietly()
             raise ConnectionError(
                 f"MQTT connect to {self.host}:{self.port} not acknowledged "
                 f"within {self._connect_timeout_s:.0f} s"
             )
+
+    def _loop_stop_quietly(self) -> None:
+        """loop_stop() tolerant of the thread having already exited.
+
+        After a deliberate ``disconnect()`` paho v2's ``loop_forever`` exits
+        on its own and ``_thread_main``'s ``finally`` clears ``_thread``;
+        ``loop_stop()`` can then race between its ``None`` check and the
+        ``join()`` (verified against paho-mqtt 2.1.0 ``client.py``). The
+        stray ``AttributeError`` is benign: the thread is gone either way.
+        """
+        try:
+            self._client.loop_stop()
+        except AttributeError:
+            pass
+
+    def disconnect(self) -> None:
+        """Drop the MQTT connection mid-run (dropout-reconnect scenario).
+
+        Sends DISCONNECT and closes the socket. paho v2's ``loop_forever``
+        returns after a deliberate ``disconnect()`` (the loop thread
+        terminates; see the ``loop_start`` docstring in paho-mqtt 2.1.0),
+        so the thread is joined here to leave a deterministic stopped
+        state for ``reconnect()``.
+        """
+        try:
+            self._client.disconnect()
+        finally:
+            self._loop_stop_quietly()
+            self._connected.clear()
+
+    def reconnect(self, timeout_s: float | None = None) -> None:
+        """Re-establish the connection, blocking, with exponential backoff.
+
+        Retries ``client.reconnect()`` (synchronous socket + CONNECT, per
+        paho-mqtt 2.1.0) with the configured backoff — starting at
+        ``reconnect_min_delay_s`` and doubling up to
+        ``reconnect_max_delay_s`` — restarting the network loop thread on
+        each attempt, until the broker acknowledges the session or
+        ``timeout_s`` (default: ``connect_timeout_s``) elapses; raises
+        ``ConnectionError`` on timeout.
+        """
+        timeout_s = self._connect_timeout_s if timeout_s is None else timeout_s
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        delay_s = self._reconnect_min_delay_s
+        while True:
+            try:
+                self._client.reconnect()
+                self._client.loop_start()
+                remaining = deadline - time.monotonic()
+                if remaining > 0 and self._connected.wait(remaining):
+                    return
+            except OSError:
+                pass  # socket-level failure: back off and retry below
+            # Attempt failed or CONNACK missing: stop a half-started loop
+            # thread before retrying or giving up.
+            self._loop_stop_quietly()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ConnectionError(
+                    f"MQTT reconnect to {self.host}:{self.port} not "
+                    f"acknowledged within {timeout_s:.0f} s"
+                )
+            time.sleep(min(delay_s, remaining))
+            delay_s = min(delay_s * 2.0, self._reconnect_max_delay_s)
 
     def _prune_pending(self) -> None:
         """Drop leading pending entries that are acked or permanently failed.
@@ -277,5 +394,5 @@ class PahoPublisher:
         try:
             self._client.disconnect()
         finally:
-            self._client.loop_stop()
+            self._loop_stop_quietly()
             self._connected.clear()

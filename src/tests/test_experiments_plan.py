@@ -1,4 +1,5 @@
-"""Tests for egw_experiments.protocol and plan_gen (plan 7.1; CONTRACTS 2).
+"""Tests for egw_experiments.protocol and plan_gen (plan 7.1 completed per
+audit 2026-08-08 section 9.5; CONTRACTS 2).
 
 Stdlib-only fixtures; no docker, no network.
 """
@@ -8,7 +9,25 @@ import json
 
 from egw_experiments import plan_gen, protocol
 
-EXPECTED_TOTAL_RUNS = 5 + 10 + 10 + 10 + 4 * 10 + 1  # 76
+# Audit 9.5: the plan must enumerate EVERY condition claims C10/C11/C12/C14
+# depend on, not only the original 76 runs.
+#   qemu_boots 5 + cold_start 10 + twin_creation 10 + smoke_sequence 10
+#   + nominal 10 + load_sweep 4*10 + invalid_payload 3 + dropout_reconnect 3
+#   + controller_restart 3 + soak 1 = 95
+EXPECTED_TOTAL_RUNS = 5 + 10 + 10 + 10 + 10 + 4 * 10 + 3 + 3 + 3 + 1  # 95
+
+EXPECTED_CONDITION_IDS = {
+    "qemu_boots",
+    "cold_start",
+    "twin_creation",
+    "smoke_sequence",
+    "nominal",
+    "load_sweep",
+    "invalid_payload",
+    "dropout_reconnect",
+    "controller_restart",
+    "soak",
+}
 
 
 def _load_sweep_order(plan: dict) -> list[tuple[float, int]]:
@@ -21,14 +40,7 @@ def _load_sweep_order(plan: dict) -> list[tuple[float, int]]:
 
 def test_protocol_conditions_match_plan_7_1() -> None:
     by_id = protocol.CONDITIONS_BY_ID
-    assert set(by_id) == {
-        "qemu_boots",
-        "cold_start",
-        "twin_creation",
-        "nominal",
-        "load_sweep",
-        "soak",
-    }
+    assert set(by_id) == EXPECTED_CONDITION_IDS
     assert by_id["qemu_boots"].repetitions == 5
     assert by_id["qemu_boots"].performance_claims_allowed is False
     assert by_id["cold_start"].repetitions == 10
@@ -40,6 +52,62 @@ def test_protocol_conditions_match_plan_7_1() -> None:
     assert (sweep.repetitions, sweep.duration_s, sweep.cooldown_s) == (10, 300, 120)
     soak = by_id["soak"]
     assert (soak.repetitions, soak.duration_s) == (1, 24 * 3600)
+
+
+def test_missing_conditions_added_per_audit_9_5() -> None:
+    """smoke_sequence/invalid_payload/dropout_reconnect/controller_restart
+    exist with the audit-mandated shapes so C14/C11/C10/C12 have a full
+    path through the campaign plan."""
+    by_id = protocol.CONDITIONS_BY_ID
+
+    smoke = by_id["smoke_sequence"]
+    assert (smoke.runner, smoke.scenario, smoke.repetitions) == (
+        "simulator",
+        "smoke",
+        10,
+    )
+
+    invalid = by_id["invalid_payload"]
+    assert (invalid.runner, invalid.scenario) == ("simulator", "invalid-payload")
+    assert (invalid.repetitions, invalid.duration_s) == (3, 300)
+    assert invalid.rate_msg_s == protocol.NOMINAL_RATE_MSG_S
+
+    dropout = by_id["dropout_reconnect"]
+    assert (dropout.runner, dropout.scenario) == ("simulator", "dropout-reconnect")
+    assert (dropout.repetitions, dropout.duration_s) == (3, 600)
+
+    restart = by_id["controller_restart"]
+    assert (restart.runner, restart.scenario) == ("simulator", "nominal")
+    assert (restart.repetitions, restart.duration_s) == (3, 600)
+    assert restart.rate_msg_s == protocol.NOMINAL_RATE_MSG_S
+    assert "--restart-cmd" in restart.notes
+
+
+def test_timed_conditions_are_exactly_the_simulator_driven_ones() -> None:
+    # Audit 9.1/9.2: every simulator-driven run is timed (requires SUT env
+    # and SUT resources); external conditions are operator-measured.
+    simulator_ids = {c.id for c in protocol.CONDITIONS if c.runner == "simulator"}
+    assert protocol.TIMED_CONDITION_IDS == simulator_ids
+    assert simulator_ids == {
+        "smoke_sequence",
+        "nominal",
+        "load_sweep",
+        "invalid_payload",
+        "dropout_reconnect",
+        "controller_restart",
+        "soak",
+    }
+
+
+def test_condition_claim_map_covers_audit_claims() -> None:
+    claims = protocol.CONDITION_CLAIMS
+    assert set(claims) == EXPECTED_CONDITION_IDS
+    assert claims["smoke_sequence"] == ("C14",)
+    assert claims["invalid_payload"] == ("C11",)
+    assert claims["dropout_reconnect"] == ("C10",)
+    assert claims["controller_restart"] == ("C12",)
+    assert claims["cold_start"] == ("C04",)
+    assert claims["soak"] == ("C13",)
 
 
 def test_plan_is_deterministic_for_same_master_seed() -> None:
@@ -77,6 +145,22 @@ def test_plan_enumerates_all_runs_with_unique_ids_and_orders() -> None:
     sweep = [run for run in runs if run["condition_id"] == "load_sweep"]
     for rate in (10.0, 50.0, 100.0, 250.0):
         assert sum(1 for run in sweep if run["rate_msg_s"] == rate) == 10
+    # The audit 9.5 conditions are enumerated with the expected run counts.
+    by_condition: dict[str, int] = {}
+    for run in runs:
+        by_condition[run["condition_id"]] = by_condition.get(run["condition_id"], 0) + 1
+    assert by_condition["smoke_sequence"] == 10
+    assert by_condition["invalid_payload"] == 3
+    assert by_condition["dropout_reconnect"] == 3
+    assert by_condition["controller_restart"] == 3
+    # run_id naming: smoke_sequence-r01 .. smoke_sequence-r10 etc.
+    assert "smoke_sequence-r01" in set(run_ids)
+    assert "invalid_payload-r03" in set(run_ids)
+    assert "dropout_reconnect-r03" in set(run_ids)
+    assert "controller_restart-r03" in set(run_ids)
+    # Every run carries its runner so the harness can route it.
+    for run in runs:
+        assert run["runner"] in ("simulator", "external")
 
 
 def test_per_run_seeds_are_deterministic_and_distinct() -> None:

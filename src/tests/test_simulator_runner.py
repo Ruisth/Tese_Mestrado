@@ -20,7 +20,7 @@ from egw_simulator.scenarios import (
     DROPOUT_SCOPE_NOTE,
     InvalidInjector,
     dropout_windows,
-    in_window,
+    window_index,
 )
 from egw_simulator.validation import SchemaValidator
 
@@ -125,7 +125,11 @@ def test_smoke_run_topics_payloads_and_outputs(tmp_path, validator):
     assert result.completed is True
     assert result.sent == sum(expected.values()) == len(publisher.records)
     assert result.intended_invalid == 0
-    assert result.skipped_dropout == 0
+    assert result.buffered_dropout == 0
+    assert result.dropout_disconnects == 0
+    # Non-dropout scenarios never touch the connection mid-run.
+    assert publisher.disconnect_calls == 0
+    assert publisher.reconnect_calls == 0
 
     devices = {d.device_uuid: d.device_type for d in make_devices(7)}
     seqs_per_device: dict[str, list[int]] = {u: [] for u in devices}
@@ -203,9 +207,30 @@ def test_smoke_run_manifest_contents(tmp_path):
     assert manifest["totals"] == {
         "sent": result.sent,
         "intended_invalid": 0,
-        "skipped_dropout": 0,
+        "buffered_dropout": 0,
+        "dropout_disconnects": 0,
     }
     assert manifest["note"] is None  # scope note is dropout-reconnect only
+
+
+@pytest.mark.parametrize("scenario", ["nominal", "smoke"])
+def test_non_dropout_scenarios_never_touch_the_connection(tmp_path, scenario):
+    """nominal/smoke are unaffected by the dropout machinery.
+
+    No disconnect/reconnect call, no buffering: every event is published
+    live, in schedule order, on the single connection the CLI opened.
+    """
+    config = make_config(
+        tmp_path, scenario=scenario, run_id=f"test-{scenario}-conn", duration_s=2.0
+    )
+    publisher = InMemoryPublisher()
+    publisher.connect()
+    result = run(config, publisher, clock=FakeClock())
+    assert result.completed is True
+    assert result.buffered_dropout == 0
+    assert result.dropout_disconnects == 0
+    assert publisher.lifecycle == ["connect"]  # no disconnect/reconnect/close
+    assert publisher.publish_connected == [True] * len(publisher.records)
 
 
 def test_runner_is_deterministic_across_runs(tmp_path):
@@ -267,9 +292,41 @@ def test_invalid_payload_run_marks_exactly_the_injected_events(tmp_path, validat
 
 # ----------------------------------------------------- dropout-reconnect run
 
-def test_dropout_run_skips_deterministic_windows(tmp_path):
+def dropout_expectations(seed: int, rate_hz: float, duration: float):
+    """Recompute the deterministic dropout bookkeeping used by the runner.
+
+    Returns (windows, per-device scheduled counts, buffered (uuid, seq)
+    set, number of windows containing at least one scheduled event).
+    Windows are RUN-LEVEL (one shared MQTT connection), so a single
+    ``dropout_windows(seed, duration)`` call covers all devices.
+    """
+    windows = dropout_windows(seed, duration)
+    rates = split_rate(rate_hz)
+    scheduled: dict[str, int] = {}
+    buffered: set[tuple[str, int]] = set()
+    windows_with_events: set[int] = set()
+    for dev in make_devices(seed):
+        times = scheduled_times(rates[dev.device_type], duration)
+        scheduled[dev.device_uuid] = len(times)
+        for seq, t in enumerate(times):
+            w = window_index(t, windows)
+            if w is not None:
+                buffered.add((dev.device_uuid, seq))
+                windows_with_events.add(w)
+    return windows, scheduled, buffered, len(windows_with_events)
+
+
+def test_dropout_run_buffers_window_events_and_flushes_in_order(tmp_path):
+    """Real disconnect windows: buffer during, flush in order after.
+
+    Covers the audit 7.3 / claim C10 semantics: every scheduled event is
+    published exactly once (window events late, after the reconnect), seq
+    stays strictly monotonic and gap-free, nothing is published while
+    disconnected, and disconnect/reconnect run exactly once per window
+    that contains at least one scheduled event.
+    """
     seed = 5
-    duration = 12.0
+    duration = 120.0  # two deterministic windows (one per 60 s)
     config = make_config(
         tmp_path,
         scenario="dropout-reconnect",
@@ -277,40 +334,117 @@ def test_dropout_run_skips_deterministic_windows(tmp_path):
         run_id="test-dropout-5",
         duration_s=duration,
     )
-    publisher = InMemoryPublisher()
-    result = run(config, publisher, clock=FakeClock())
+    clock = FakeClock()
+    publisher = InMemoryPublisher(clock=clock)
+    publisher.connect()  # the CLI owns connect()/close() (publisher contract)
+    result = run(config, publisher, clock=clock)
 
-    rates = split_rate(11.2)
-    expected_published: dict[str, int] = {}
-    total_scheduled = 0
-    for dev in make_devices(seed):
-        windows = dropout_windows(seed, dev.device_uuid, duration)
-        times = scheduled_times(rates[dev.device_type], duration)
-        total_scheduled += len(times)
-        expected_published[dev.device_uuid] = sum(
-            1 for t in times if not in_window(t, windows)
-        )
+    windows, scheduled, buffered, n_active_windows = dropout_expectations(
+        seed, 11.2, duration
+    )
+    assert len(windows) == 2
+    assert buffered  # windows are >= 2 s; smart_clothing runs at 10 Hz
 
+    # Every generated event is published exactly once: no skips, no dupes.
     lines = read_jsonl(result.sent_events_path)
+    assert result.completed is True
+    assert result.sent == sum(scheduled.values()) == len(lines)
+    assert len({line["message_id"] for line in lines}) == len(lines)
+
+    # Buffered accounting matches the deterministic window membership.
+    assert result.buffered_dropout == len(buffered)
+    assert result.dropout_disconnects == n_active_windows
+
+    # No publish while disconnected: connection state at each publish.
+    assert publisher.publish_connected == [True] * len(publisher.records)
+
+    # disconnect/reconnect exactly once per window with scheduled events.
+    assert publisher.disconnect_calls == n_active_windows
+    assert publisher.reconnect_calls == n_active_windows
+    # The runner itself never calls connect/close (the CLI owns those; the
+    # single "connect" is the one issued above), and every disconnect is
+    # followed by exactly one reconnect.
+    assert publisher.lifecycle == (
+        ["connect"] + ["disconnect", "reconnect"] * n_active_windows
+    )
+
+    # Flush preserves per-device seq order: strictly monotonic, gap-free
+    # in actual PUBLISH order (live + flushed interleavings included).
     published: dict[str, list[int]] = {}
     for line in lines:
         published.setdefault(line["device_uuid"], []).append(line["seq"])
+    for device_uuid, count in scheduled.items():
+        assert published.get(device_uuid, []) == list(range(count))
 
-    assert result.skipped_dropout == total_scheduled - result.sent
-    assert result.skipped_dropout > 0  # windows are >= 2 s; clothing runs at 10 Hz
-    for device_uuid, count in expected_published.items():
-        seqs = published.get(device_uuid, [])
-        assert len(seqs) == count
-        # seq counts only published events and stays gap-free.
-        assert seqs == list(range(count))
+    # Buffered events are published LATE: their publish instant lies at or
+    # after the end of their window (never at the scheduled time), while
+    # live events publish exactly on schedule under the fake clock.
+    rates = split_rate(11.2)
+    sched_time = {
+        (dev.device_uuid, seq): t
+        for dev in make_devices(seed)
+        for seq, t in enumerate(
+            scheduled_times(rates[dev.device_type], duration)
+        )
+    }
+    for line in lines:
+        key = (line["device_uuid"], line["seq"])
+        t_sched_ns = int(sched_time[key] * 1e9)
+        if key in buffered:
+            w = window_index(sched_time[key], windows)
+            flush_floor_ns = int(min(windows[w][1], duration) * 1e9)
+            assert line["publish_monotonic_ns"] >= flush_floor_ns
+            assert line["publish_monotonic_ns"] > t_sched_ns
+        else:
+            assert line["publish_monotonic_ns"] >= t_sched_ns
+
+    # sent_events order matches publish order exactly.
+    assert [line["message_id"] for line in lines] == [
+        json.loads(p)["message_id"] for _, p, _ in publisher.records
+    ]
 
 
-def test_dropout_manifest_records_device_side_scope_note(tmp_path):
-    """Manifest of dropout-reconnect states the device-side-only scope.
+def test_dropout_run_is_deterministic_per_seed(tmp_path):
+    """Same seed => same windows => same buffered set and payloads."""
+    config_a = make_config(
+        tmp_path / "a",
+        scenario="dropout-reconnect",
+        seed=9,
+        run_id="test-dropout-det",
+        duration_s=60.0,
+    )
+    config_b = make_config(
+        tmp_path / "b",
+        scenario="dropout-reconnect",
+        seed=9,
+        run_id="test-dropout-det",
+        duration_s=60.0,
+    )
+    pub_a, pub_b = InMemoryPublisher(), InMemoryPublisher()
+    result_a = run(config_a, pub_a, clock=FakeClock())
+    result_b = run(config_b, pub_b, clock=FakeClock())
 
-    Windows model device-side silence only; the MQTT session stays
-    connected and broker-level dropout is induced externally (plan
-    section 7.2 reconnect metrics come from integration tests).
+    def strip_ts(payloads):
+        return [{k: v for k, v in p.items() if k != "ts"} for p in payloads]
+
+    # Identical publish order and payload content (except wall-clock ts).
+    assert strip_ts(pub_a.decoded_payloads()) == strip_ts(pub_b.decoded_payloads())
+    assert pub_a.lifecycle == pub_b.lifecycle
+    assert result_a.sent == result_b.sent
+    assert result_a.buffered_dropout == result_b.buffered_dropout > 0
+    assert result_a.dropout_disconnects == result_b.dropout_disconnects > 0
+    manifest_a = json.loads(result_a.manifest_path.read_text(encoding="utf-8"))
+    manifest_b = json.loads(result_b.manifest_path.read_text(encoding="utf-8"))
+    assert manifest_a["totals"] == manifest_b["totals"]
+
+
+def test_dropout_manifest_records_buffered_redelivery_scope_note(tmp_path):
+    """Manifest of dropout-reconnect states the real-disconnect semantics.
+
+    The scenario performs a real client disconnect with device-side
+    buffering and in-order flush on reconnect; broker-side/network-level
+    faults remain test-harness territory. The harness reads this note for
+    its dropout acceptance rule, so the text is asserted verbatim.
     """
     config = make_config(
         tmp_path,
@@ -321,8 +455,10 @@ def test_dropout_manifest_records_device_side_scope_note(tmp_path):
     result = run(config, InMemoryPublisher(), clock=FakeClock())
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["note"] == DROPOUT_SCOPE_NOTE
-    assert "device-side silence" in manifest["note"]
-    assert "MQTT session stays connected" in manifest["note"]
+    assert "real client disconnect" in manifest["note"]
+    assert "buffered" in manifest["note"]
+    assert "published exactly once" in manifest["note"]
+    assert "test-harness territory" in manifest["note"]
 
 
 # ------------------------------------------------- best-effort puback capture

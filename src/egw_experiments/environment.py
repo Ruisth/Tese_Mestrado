@@ -1,9 +1,26 @@
-"""Host environment capture for run manifests (plan 5.1/5.8).
+"""Environment capture for run manifests (plan 5.1/5.8, audit 9.2).
 
-Captures platform metadata (OS, kernel via ``platform.uname``, CPU count,
-Python version) and, best-effort, the Docker client/server versions via
-subprocess. Everything is optional-degrading: a missing docker CLI never
-fails the capture, it is simply recorded as unavailable.
+Two distinct environments are recorded per run (audit recommendation:
+"sut_environment.json capturado na VM ARM; loadgen_environment.json
+capturado no host do simulador; ambos referenciados pelo manifest"):
+
+- ``loadgen_environment.json`` — captured HERE, on the host running the
+  harness and the simulator (the load generator, which runs OFF the ARM VM
+  per plan 5.1). This is what :func:`write_loadgen_environment` writes.
+- ``sut_environment.json`` — captured ON the ARM VM (the system under
+  test) by ``src/deployment/scripts/capture-sut-environment.sh`` and
+  fetched to the harness host; the runner ingests it with
+  ``--sut-env-from``. It carries the plan 5.1 normative fields: provider,
+  region, instance type and the shared-vCPU caveat (``EGW_PROVIDER``,
+  ``EGW_REGION``, ``EGW_INSTANCE_TYPE``, ``EGW_SHARED_VCPU_NOTE``), plus
+  ``nproc`` which the analysis uses to normalize docker-stats CPU
+  percentages to host-level utilization.
+
+The load-generator capture records platform metadata (OS, kernel via
+``platform.uname``, CPU count, Python version) and, best-effort, the Docker
+client/server versions via subprocess. Everything is optional-degrading: a
+missing docker CLI never fails the capture, it is simply recorded as
+unavailable.
 """
 
 from __future__ import annotations
@@ -15,6 +32,10 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+#: File names inside a raw run directory (audit 9.2).
+SUT_ENVIRONMENT_FILENAME = "sut_environment.json"
+LOADGEN_ENVIRONMENT_FILENAME = "loadgen_environment.json"
 
 
 def utc_now_iso() -> str:
@@ -45,9 +66,12 @@ def _run_capture(cmd: list[str], timeout_s: float = 10.0) -> str | None:
 
 
 def capture_environment() -> dict[str, Any]:
-    """Capture host metadata as a JSON-safe dict."""
+    """Capture load-generator host metadata as a JSON-safe dict."""
     uname = platform.uname()
     return {
+        # This file describes the LOAD GENERATOR (harness+simulator host),
+        # never the system under test (audit 9.2).
+        "role": "loadgen",
         "captured_utc": utc_now_iso(),
         "platform": platform.platform(),
         "system": uname.system,
@@ -69,8 +93,9 @@ def capture_environment() -> dict[str, Any]:
     }
 
 
-def write_environment(path: str | Path) -> Path:
-    """Capture the environment and write it to ``environment.json``."""
+def write_loadgen_environment(path: str | Path) -> Path:
+    """Capture the load-generator environment and write it to ``path``
+    (normally ``<run_dir>/loadgen_environment.json``)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -78,3 +103,41 @@ def write_environment(path: str | Path) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+# Backwards-compatible alias (pre-audit name). The file it should target is
+# now loadgen_environment.json; do not use it for the SUT.
+write_environment = write_loadgen_environment
+
+
+def read_sut_environment(run_dir: str | Path) -> dict[str, Any] | None:
+    """Read ``sut_environment.json`` from a run directory.
+
+    Returns the parsed dict, or None when the file is absent or unreadable
+    (the caller decides whether that invalidates the run).
+    """
+    path = Path(run_dir) / SUT_ENVIRONMENT_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def sut_nproc(sut_env: dict[str, Any] | None) -> int | None:
+    """The SUT's CPU count from sut_environment.json, or None.
+
+    Used by the analysis to normalize docker-stats ``cpu_pct`` (single-CPU
+    basis) to host-level utilization (audit 9.7):
+    ``host_cpu_utilization = sum(container cpu_pct) / (100 * nproc)``.
+    """
+    if not sut_env:
+        return None
+    value = sut_env.get("nproc")
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None

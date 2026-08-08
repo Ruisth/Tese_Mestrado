@@ -3,7 +3,10 @@
 ``analyze(base_dir)`` regenerates EVERYTHING under ``results/processed/`` and
 ``results/figures/`` from ``results/raw/`` alone ("processados e figuras sao
 sempre regenerados por um unico script", plan 5.8). It never modifies
-``results/raw/``.
+``results/raw/``. Since the 2026-08-08 audit (section 9.6, claim C15) this
+includes the EXTERNAL conditions (QEMU boots, cold starts, twin creations)
+ingested by ``run --external-timings``: no run type needs a second analysis
+tool.
 
 Metric definitions (plan 7.3 / CONTRACTS 9, applied verbatim)
 -------------------------------------------------------------
@@ -27,7 +30,10 @@ Metric definitions (plan 7.3 / CONTRACTS 9, applied verbatim)
                   controller events. A plausibility check flags manifest
                   deadlines outside [max(received), max(received) +
                   2*window] with a loud warning. Repeated confirmations of
-                  the same ``message_id`` count once.
+                  the same ``message_id`` count once; every repeat past the
+                  first is counted in ``double_accepted`` (a repeat means the
+                  twin was patched more than once for the same message — the
+                  defect the ``controller_restart`` acceptance rules out).
 - ``lost``      : valid sent message without a unique confirmation within the
                   window. Late confirmations (past the deadline) do not
                   rescue a message: it is counted lost and the late
@@ -44,6 +50,40 @@ Metric definitions (plan 7.3 / CONTRACTS 9, applied verbatim)
   (``(ditto_ack_monotonic_ns - received_monotonic_ns)/1e6``, same process);
   per-run statistics are p50/p95/p99 plus mean over the unique in-window
   confirmations of valid sent messages.
+
+Dropout-reconnect accounting (claim C10, documented assumptions)
+----------------------------------------------------------------
+
+The simulator's ``dropout-reconnect`` scenario performs a REAL client
+disconnect with device-side buffering; buffered events are flushed after
+reconnect with a zero PUBACK wait budget, so their ``sent_events.jsonl``
+records carry ``puback_monotonic_ns: null``. The delivery accounting above
+is already tolerant of that late buffered redelivery: a buffered message
+counts as delivered as long as its unique Ditto confirmation lands within
+the confirmation window (controller clock domain), and
+``puback_monotonic_ns`` never enters any primary metric (CONTRACTS 7).
+Assumptions: (1) disconnect windows are short relative to the run so
+flushed messages can still be confirmed in-window; (2) QoS 1 redelivery
+after reconnect may produce broker-level duplicates, which the controller
+counts as ``duplicate`` — they never inflate ``delivered`` (unique
+``message_id`` set) and are not acceptance failures; a failure is a
+``double_accepted`` message (twin patched twice).
+
+Measured window (audit 9.4)
+---------------------------
+
+Timed-run manifests record ``measured_window_utc`` {start, end}: harness
+wall-clock stamps around the measured simulator invocation (NTP-sync
+assumption between the harness host and the VM — acceptable for windowing
+1 Hz samples, NEVER used for latency). Before aggregating, the analysis
+filters ``resources.csv`` AND ``controller_metrics.csv`` rows to this
+window, so warm-up and cooldown samples cannot contaminate the measured
+aggregates (the warm-up alone would otherwise add 120 s of load to every
+nominal run's CPU/RAM). ``events.jsonl`` needs no such filtering: the
+warm-up publishes under ``run_id`` ``<run_id>.warmup``, so the measured
+run's event log contains only measured-run events. Runs without a
+``measured_window_utc`` (older manifests, dev fixtures) are aggregated
+unfiltered and flagged with a warning.
 
 Statistics (plan 7.3)
 ---------------------
@@ -63,24 +103,79 @@ Statistics (plan 7.3)
   ``per_run.csv`` and in ``summary_by_condition.csv`` without CI columns
   (plan 7.3: no confidence interval of its own).
 
-Saturation (plan 7.3)
----------------------
+External conditions (audit 9.6, claim C15)
+------------------------------------------
+
+Raw run directories containing ``timings.json`` (ingested by
+``run --external-timings``) are analyzed here too:
+
+- ``cold_start`` and ``twin_creation``: descriptive statistics plus
+  mean/stdev/CI95 of the per-run duration (per-run value = mean of that
+  run's ``duration_s`` samples; normally one sample per run; unit of
+  analysis = run) go into ``summary_by_condition.csv`` as metric
+  ``duration_s``.
+- ``qemu_boots``: strictly a functional pass/fail listing in
+  ``external_runs.csv`` — NO performance statistics are computed, per plan
+  5.1 (QEMU results never support performance conclusions). Each sample's
+  ``outcome`` field ("pass"/"fail") is listed as provided by the operator;
+  samples without it are listed as ``unspecified``, never inferred.
+
+CPU semantics (audit 9.7)
+-------------------------
+
+``docker stats`` ``CPUPerc`` is expressed relative to a SINGLE CPU (a busy
+4-thread container can read 400%). Per-container values are reported raw in
+``resources_by_run.csv``. For host-level saturation the analysis normalizes
+by the SUT's CPU count (``nproc`` from ``sut_environment.json``, captured ON
+the VM):
+
+    host_cpu_utilization = sum(container cpu_pct) / (100 * nproc)   per sample
+
+Saturation (plan 7.3, completed per audit 9.7)
+----------------------------------------------
 
 Operational saturation is the first (lowest) load of the sweep at which at
 least one criterion holds:
 
 - loss criterion: across-run mean loss rate > 1%;
 - latency criterion: across-run mean p95 > 1 s;
-- CPU criterion: CPU sustained above 90% for at least 60 s (a per-run event,
-  evaluated per container on the raw ``docker stats`` ``cpu_pct``, which is
-  expressed relative to a single CPU); the criterion holds at a load when at
-  least half of the runs at that load show such an event;
-- queue-growth criterion: TODO — persistent queue growth is not measurable
-  with the current instrumentation; recorded as such in ``saturation.json``.
+- CPU criterion (host-level): host_cpu_utilization > 0.90 sustained for at
+  least 60 s within a run; the criterion holds at a load when at least half
+  of the runs at that load show such an event (run-fraction rule, unit of
+  analysis = run). The legacy per-container ``cpu_pct > 90`` sustained span
+  is still reported per run/container but is NOT a saturation criterion.
+- queue-growth criterion: the controller's ``queue_depth`` (GET /metrics,
+  CONTRACTS v1.1, sampled at 1 Hz into ``controller_metrics.csv``) shows
+  persistent growth within a run: a window of consecutive samples spanning
+  >= 60 s in which queue_depth is strictly increasing sample-to-sample AND
+  every sample is above the floor of 100 messages (the floor suppresses
+  small-queue noise). Same >= 0.5 run-fraction rule.
 
-The decision rule (means across runs for loss/p95, run-fraction >= 0.5 for
-CPU) follows plan 7.3's unit-of-analysis rule (the run) and is echoed in
-``saturation.json`` so the thesis text can cite it exactly.
+PENDING ADVISOR SIGN-OFF BEFORE exp-v1 (audit R23): the host-CPU
+normalization threshold (0.90/60 s), the exact queue-growth rule
+(strictly increasing, 60 s, floor 100) and the >= 0.5 run-fraction rule
+must be confirmed with the advisor before the protocol freeze (G4); they
+must not change afterwards. ``saturation.json`` echoes this notice.
+
+Per-condition acceptance (audit 9.5, claims C10/C11/C12/C14)
+------------------------------------------------------------
+
+``acceptance_by_condition.csv`` evaluates the acceptance criteria of the
+robustness conditions over the non-excluded runs:
+
+- ``smoke_sequence`` (C14): all 10 runs present and valid; zero lost valid
+  messages across all runs.
+- ``invalid_payload`` (C11): every ``intended_invalid`` event rejected;
+  zero ``intended_invalid`` accepted; the valid-message delivery rate is
+  reported informationally under the plan 7.3 accounting (invalid events
+  never enter the denominator).
+- ``dropout_reconnect`` (C10): zero lost valid messages (the accounting is
+  tolerant of late buffered redelivery within the confirmation window, see
+  above) and zero double-accepted message_ids.
+- ``controller_restart`` (C12): delivery across the restart (zero lost
+  valid messages within the window) and zero double-accepted message_ids
+  (dedupe state survives the restart via the twin ingestion feature,
+  CONTRACTS 4).
 
 Exclusions (plan 7.3)
 ---------------------
@@ -88,22 +183,26 @@ Exclusions (plan 7.3)
 A run is excluded only for a proven cloud/instrumentation/configuration
 failure, with the cause documented in the run manifest's ``exclusion``
 field. Excluded runs still appear in ``per_run.csv`` (flagged) but are
-removed from summaries, saturation and figures. A slow run is never
-excluded for its result alone.
+removed from summaries, saturation, acceptance and figures. A slow run is
+never excluded for its result alone.
 
 Outputs
 -------
 
-- ``processed/per_run.csv``            one row per raw run;
-- ``processed/resources_by_run.csv``   per-run, per-container resource
-                                       aggregates (mean/max cpu, mean/max
-                                       mem);
-- ``processed/summary_by_condition.csv`` cross-run statistics, long format;
-- ``processed/saturation.json``        saturation evaluation per load;
-- ``figures/*.png``                    only when matplotlib is importable
-                                       (optional dependency); otherwise a
-                                       clear notice is printed and the exit
-                                       code stays 0.
+- ``processed/per_run.csv``              one row per raw message run;
+- ``processed/resources_by_run.csv``     per-run, per-container resource
+                                         aggregates (measured window only);
+- ``processed/summary_by_condition.csv`` cross-run statistics, long format,
+                                         including external cold_start /
+                                         twin_creation durations;
+- ``processed/external_runs.csv``        per-sample listing of external
+                                         runs (incl. qemu boot pass/fail);
+- ``processed/acceptance_by_condition.csv`` acceptance evaluation above;
+- ``processed/saturation.json``          saturation evaluation per load;
+- ``figures/*.png``                      only when matplotlib is importable
+                                         (optional dependency); otherwise a
+                                         clear notice is printed and the
+                                         exit code stays 0.
 """
 
 from __future__ import annotations
@@ -117,14 +216,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .environment import read_sut_environment, sut_nproc
 from .protocol import (
+    CONDITION_CLAIMS,
     CONDITION_ORDER,
+    CONDITIONS_BY_ID,
     CONFIRMATION_WINDOW_S,
     PROTOCOL_VERSION,
     SATURATION_CPU_PCT,
     SATURATION_CPU_SUSTAIN_S,
+    SATURATION_HOST_CPU_UTILIZATION,
     SATURATION_LOSS_RATE,
     SATURATION_P95_MS,
+    SATURATION_QUEUE_DEPTH_FLOOR,
+    SATURATION_QUEUE_GROWTH_SUSTAIN_S,
 )
 from .run import DEFAULT_RESULTS_BASE
 
@@ -192,6 +297,8 @@ def ci95(values: list[float]) -> tuple[float | None, float | None, float | None]
 # Raw-file readers
 # ---------------------------------------------------------------------------
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
@@ -220,7 +327,10 @@ def read_resources_csv(path: Path) -> dict[str, list[dict[str, Any]]]:
     """Read resources.csv into ``{container: [sample, ...]}`` sorted by time.
 
     Each sample: ``{ts, cpu_pct, mem_bytes, mem_pct}`` (ts is a datetime;
-    unparseable fields become None).
+    unparseable fields become None). The CSV schema
+    (``ts_utc,container,cpu_pct,mem_bytes,mem_pct``) is shared by the local
+    dev sampler (resources.py) and the SUT-side collector
+    (``deployment/scripts/collect-resources.sh``).
     """
     by_container: dict[str, list[dict[str, Any]]] = {}
     with open(path, "r", encoding="utf-8", newline="") as fh:
@@ -246,17 +356,81 @@ def read_resources_csv(path: Path) -> dict[str, list[dict[str, Any]]]:
                     "mem_pct": _num("mem_pct", float),
                 }
             )
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
     for samples in by_container.values():
         # Unparseable timestamps sort first without ever comparing None.
-        samples.sort(key=lambda s: s["ts"] or epoch)
+        samples.sort(key=lambda s: s["ts"] or _EPOCH)
     return by_container
 
 
-def sustained_cpu_seconds(
-    samples: list[dict[str, Any]], threshold_pct: float = SATURATION_CPU_PCT
+def read_controller_metrics_csv(path: Path) -> list[dict[str, Any]]:
+    """Read controller_metrics.csv (1 Hz GET /metrics samples) sorted by time.
+
+    Each sample: ``{ts, accepted, rejected, duplicate, failed, dropped,
+    queue_depth}`` — numbers or None. Schema written by
+    ``egw_experiments.controller_metrics.ControllerMetricsSampler``.
+    """
+    samples: list[dict[str, Any]] = []
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        for row in csv.DictReader(fh):
+            sample: dict[str, Any] = {"ts": _parse_ts(row.get("ts_utc") or "")}
+            for key in ("accepted", "rejected", "duplicate", "failed", "dropped", "queue_depth"):
+                raw = (row.get(key) or "").strip()
+                try:
+                    sample[key] = float(raw) if raw else None
+                except ValueError:
+                    sample[key] = None
+            samples.append(sample)
+    samples.sort(key=lambda s: s["ts"] or _EPOCH)
+    return samples
+
+
+# ---------------------------------------------------------------------------
+# Measured window (audit 9.4)
+# ---------------------------------------------------------------------------
+
+
+def measured_window(manifest: dict[str, Any]) -> tuple[datetime, datetime] | None:
+    """Parse the manifest's ``measured_window_utc`` into (start, end).
+
+    Returns None when the manifest has no usable window (older manifests);
+    the caller then aggregates unfiltered and warns.
+    """
+    win = manifest.get("measured_window_utc")
+    if not isinstance(win, dict):
+        return None
+    start = _parse_ts(win.get("start") or "")
+    end = _parse_ts(win.get("end") or "")
+    if start is None or end is None or end < start:
+        return None
+    return start, end
+
+
+def filter_samples_to_window(
+    samples: list[dict[str, Any]], window: tuple[datetime, datetime] | None
+) -> list[dict[str, Any]]:
+    """Keep only samples whose ``ts`` lies inside [start, end] (inclusive).
+
+    With ``window`` None the list is returned unchanged (no filtering
+    possible). Samples with an unparseable ``ts`` are dropped when a window
+    is active: they cannot be placed inside or outside it.
+    """
+    if window is None:
+        return samples
+    start, end = window
+    return [
+        s for s in samples if s.get("ts") is not None and start <= s["ts"] <= end
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Sustained-condition helpers (1 Hz series)
+# ---------------------------------------------------------------------------
+
+
+def _sustained_seconds(
+    points: list[dict[str, Any]], key: str, threshold: float
 ) -> float:
-    """Longest span (seconds) of consecutive samples with cpu_pct > threshold.
+    """Longest span (seconds) of consecutive samples with ``key`` > threshold.
 
     The span is the timestamp distance from the first to the last sample of
     the streak, so with 1 Hz sampling, 61 consecutive samples above the
@@ -264,18 +438,100 @@ def sustained_cpu_seconds(
     """
     best = 0.0
     streak_start: datetime | None = None
-    last_in_streak: datetime | None = None
-    for sample in samples:
-        cpu = sample.get("cpu_pct")
-        ts = sample.get("ts")
-        if cpu is not None and ts is not None and cpu > threshold_pct:
+    for point in points:
+        value = point.get(key)
+        ts = point.get("ts")
+        if value is not None and ts is not None and value > threshold:
             if streak_start is None:
                 streak_start = ts
-            last_in_streak = ts
-            best = max(best, (last_in_streak - streak_start).total_seconds())
+            best = max(best, (ts - streak_start).total_seconds())
         else:
             streak_start = None
-            last_in_streak = None
+    return best
+
+
+def sustained_cpu_seconds(
+    samples: list[dict[str, Any]], threshold_pct: float = SATURATION_CPU_PCT
+) -> float:
+    """Longest span (seconds) of consecutive samples with cpu_pct > threshold.
+
+    Per-container, raw docker-stats basis (single CPU). Reported per run and
+    container; NOT a saturation criterion (see host_cpu_sustained_seconds).
+    """
+    return _sustained_seconds(samples, "cpu_pct", threshold_pct)
+
+
+def host_cpu_series(
+    by_container: dict[str, list[dict[str, Any]]], nproc: int
+) -> list[dict[str, Any]]:
+    """Host-level utilization series from per-container docker-stats samples.
+
+    Per sample timestamp: ``host_cpu_utilization = sum(container cpu_pct) /
+    (100 * nproc)`` (audit 9.7). Docker-stats cpu_pct is single-CPU based,
+    so the sum over containers divided by 100*nproc is the fraction of the
+    whole SUT the stack is using (1.0 = all CPUs busy). Samples missing ts
+    or cpu_pct are skipped.
+    """
+    totals: dict[datetime, float] = {}
+    for samples in by_container.values():
+        for s in samples:
+            ts = s.get("ts")
+            cpu = s.get("cpu_pct")
+            if ts is None or cpu is None:
+                continue
+            totals[ts] = totals.get(ts, 0.0) + float(cpu)
+    return [
+        {"ts": ts, "host_cpu_utilization": total / (100.0 * nproc)}
+        for ts, total in sorted(totals.items())
+    ]
+
+
+def host_cpu_sustained_seconds(
+    host_series: list[dict[str, Any]],
+    threshold: float = SATURATION_HOST_CPU_UTILIZATION,
+) -> float:
+    """Longest span (s) with host_cpu_utilization > threshold (default 0.90).
+
+    PENDING ADVISOR SIGN-OFF BEFORE exp-v1 (audit R23): threshold and 60 s
+    sustain window must be confirmed before the G4 protocol freeze.
+    """
+    return _sustained_seconds(host_series, "host_cpu_utilization", threshold)
+
+
+def queue_growth_sustained_seconds(
+    samples: list[dict[str, Any]],
+    floor: float = SATURATION_QUEUE_DEPTH_FLOOR,
+) -> float:
+    """Longest span (seconds) of persistent queue growth (audit 9.7).
+
+    Documented rule — PENDING ADVISOR SIGN-OFF BEFORE exp-v1 (audit R23):
+    persistent growth is a window of consecutive 1 Hz samples in which
+    ``queue_depth`` is strictly increasing from sample to sample AND every
+    sample in the window (including the first) is above ``floor`` (default
+    100 messages; the floor suppresses small-queue noise). The span is the
+    timestamp distance from the first to the last sample of the window;
+    >= 60 s of span marks the run as showing persistent queue growth.
+    """
+    best = 0.0
+    streak_start: datetime | None = None
+    prev_ts: datetime | None = None
+    prev_depth: float | None = None
+    for sample in samples:
+        depth = sample.get("queue_depth")
+        ts = sample.get("ts")
+        if depth is None or ts is None or depth <= floor:
+            streak_start = None
+            prev_ts = None
+            prev_depth = None
+            continue
+        if prev_depth is not None and depth > prev_depth:
+            if streak_start is None:
+                streak_start = prev_ts
+            best = max(best, (ts - streak_start).total_seconds())
+        else:
+            streak_start = None
+        prev_ts = ts
+        prev_depth = depth
     return best
 
 
@@ -291,6 +547,7 @@ PER_RUN_COLUMNS = [
     "duration_s",
     "seed",
     "repetition",
+    "validity",
     "excluded",
     "exclusion_reason",
     "sent_total",
@@ -301,6 +558,7 @@ PER_RUN_COLUMNS = [
     "delivery_rate",
     "loss_rate",
     "duplicates",
+    "double_accepted",
     "rejected_valid",
     "rejected_intended_invalid",
     "rejected_unmatched",
@@ -319,6 +577,12 @@ PER_RUN_COLUMNS = [
     "cpu_pct_max",
     "cpu_sustained_gt90_s",
     "mem_bytes_max",
+    "nproc",
+    "host_cpu_utilization_max",
+    "host_cpu_sustained_gt090_s",
+    "controller_metric_samples",
+    "queue_depth_max",
+    "queue_growth_sustained_s",
     "warnings",
 ]
 
@@ -339,8 +603,8 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
 
     Returns None (with a notice on stderr) when the directory has no
     ``sent_events.jsonl``: external conditions (cold starts, twin creations,
-    QEMU boots) are not message runs and their evidence is analyzed by the
-    deployment/platform procedures.
+    QEMU boots) are not message runs — ``analyze()`` handles their
+    ``timings.json`` separately (audit 9.6).
 
     The returned dict has the PER_RUN_COLUMNS keys plus ``"_resources"``:
     the rows destined for ``resources_by_run.csv``.
@@ -362,7 +626,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     if not sent_path.is_file():
         print(
             f"[analyze] notice: {run_dir.name} has no sent_events.jsonl; "
-            "skipped (external condition or incomplete run)",
+            "skipped as a message run (external condition or incomplete run)",
             file=sys.stderr,
         )
         return None
@@ -459,6 +723,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     first_latency: dict[str, float] = {}
     late_confirmations = 0
     duplicates = 0
+    double_accepted = 0
     failed = 0
     rejected_valid = 0
     rejected_intended = 0
@@ -481,6 +746,12 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
                 warnings.append("accepted event without message_id ignored")
                 continue
             if mid in confirmed_in_window:
+                # The twin was patched more than once for the same message:
+                # the exact defect the controller_restart acceptance (claim
+                # C12) must rule out. Broker-level QoS 1 redeliveries that
+                # the controller correctly deduplicates appear as outcome
+                # 'duplicate', never here.
+                double_accepted += 1
                 warnings.append(f"repeated accepted event for message_id {mid}")
                 continue
             confirmed_in_window.add(mid)
@@ -522,15 +793,31 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     # Latency sample: unique in-window confirmations of valid sent messages.
     latencies = [first_latency[m] for m in sorted(first_latency) if m in valid_ids]
 
-    # --- resources ---------------------------------------------------------
+    # --- measured window (audit 9.4) ---------------------------------------
+    window = measured_window(manifest)
+    if window is None:
+        warnings.append(
+            "manifest has no usable measured_window_utc; resources.csv and "
+            "controller_metrics.csv aggregated UNFILTERED (warm-up/cooldown "
+            "samples may contaminate the aggregates, audit 9.4)"
+        )
+
+    # --- resources (SUT collector output; filtered to the measured window) -
     resources_rows: list[dict[str, Any]] = []
     resource_samples = 0
     cpu_max_overall: float | None = None
     mem_max_overall: int | None = None
     cpu_sustained_max = 0.0
+    nproc = sut_nproc(read_sut_environment(run_dir))
+    host_util_max: float | None = None
+    host_sustained: float | None = None
     resources_path = run_dir / "resources.csv"
     if resources_path.is_file():
-        by_container = read_resources_csv(resources_path)
+        by_container_all = read_resources_csv(resources_path)
+        by_container = {
+            container: filter_samples_to_window(samples, window)
+            for container, samples in by_container_all.items()
+        }
         for container in sorted(by_container):
             samples = by_container[container]
             cpus = [s["cpu_pct"] for s in samples if s["cpu_pct"] is not None]
@@ -554,8 +841,44 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             if mems:
                 mem_max_overall = max(mem_max_overall or 0, max(mems))
             cpu_sustained_max = max(cpu_sustained_max, sustained)
+        # Host-level CPU normalization (audit 9.7): needs the SUT's nproc
+        # from sut_environment.json; without it the host-level values stay
+        # None and the saturation CPU criterion is not evaluable.
+        if nproc:
+            series = host_cpu_series(by_container, nproc)
+            if series:
+                host_util_max = max(p["host_cpu_utilization"] for p in series)
+                host_sustained = host_cpu_sustained_seconds(series)
+        elif resource_samples:
+            warnings.append(
+                "sut_environment.json nproc unavailable: host-level CPU "
+                "utilization not computed (audit 9.7); the saturation CPU "
+                "criterion cannot be evaluated for this run"
+            )
     else:
         warnings.append("resources.csv missing")
+
+    # --- controller metrics (queue growth, audit 9.7) ----------------------
+    controller_metric_samples = 0
+    queue_depth_max: float | None = None
+    queue_growth_sustained: float | None = None
+    metrics_path = run_dir / "controller_metrics.csv"
+    if metrics_path.is_file():
+        metric_samples = filter_samples_to_window(
+            read_controller_metrics_csv(metrics_path), window
+        )
+        controller_metric_samples = len(metric_samples)
+        depths = [
+            s["queue_depth"] for s in metric_samples if s["queue_depth"] is not None
+        ]
+        if depths:
+            queue_depth_max = max(depths)
+        queue_growth_sustained = queue_growth_sustained_seconds(metric_samples)
+    else:
+        warnings.append(
+            "controller_metrics.csv missing: queue growth not measurable "
+            "for this run (audit 9.7; use --controller-url)"
+        )
 
     exclusion = manifest.get("exclusion")
 
@@ -567,6 +890,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "duration_s": manifest.get("duration_s"),
         "seed": manifest.get("seed"),
         "repetition": manifest.get("repetition"),
+        "validity": manifest.get("validity"),
         "excluded": exclusion is not None,
         "exclusion_reason": (
             json.dumps(exclusion, ensure_ascii=False)
@@ -581,6 +905,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "delivery_rate": delivery_rate,
         "loss_rate": loss_rate,
         "duplicates": duplicates,
+        "double_accepted": double_accepted,
         "rejected_valid": rejected_valid,
         "rejected_intended_invalid": rejected_intended,
         "rejected_unmatched": rejected_unmatched,
@@ -599,9 +924,148 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "cpu_pct_max": cpu_max_overall,
         "cpu_sustained_gt90_s": cpu_sustained_max,
         "mem_bytes_max": mem_max_overall,
+        "nproc": nproc,
+        "host_cpu_utilization_max": host_util_max,
+        "host_cpu_sustained_gt090_s": host_sustained,
+        "controller_metric_samples": controller_metric_samples,
+        "queue_depth_max": queue_depth_max,
+        "queue_growth_sustained_s": queue_growth_sustained,
         "warnings": " | ".join(warnings),
         "_resources": resources_rows,
     }
+
+
+# ---------------------------------------------------------------------------
+# External runs (audit 9.6, claim C15)
+# ---------------------------------------------------------------------------
+
+EXTERNAL_RUNS_COLUMNS = [
+    "run_id",
+    "condition_id",
+    "sample_label",
+    "started_utc",
+    "ended_utc",
+    "duration_s",
+    "outcome",
+]
+
+#: External conditions whose per-run duration gets full cross-run statistics.
+#: qemu_boots is deliberately absent: plan 5.1 forbids performance inference
+#: from QEMU; its runs get a strictly functional pass/fail listing only.
+EXTERNAL_DURATION_CONDITIONS = ("cold_start", "twin_creation")
+
+
+def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
+    """Read one external run (``timings.json`` ingested by the runner).
+
+    Returns ``{run_id, condition_id, excluded, sample_rows, duration_mean_s}``
+    or None when timings.json is absent/unreadable (notice on stderr).
+    ``duration_mean_s`` is the per-run value used as the unit of analysis
+    (mean of the run's samples; normally one sample per run).
+    """
+    run_dir = Path(run_dir)
+    timings_path = run_dir / "timings.json"
+    if not timings_path.is_file():
+        return None
+    try:
+        timings = json.loads(timings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(
+            f"[analyze] notice: {run_dir.name} has an unreadable "
+            f"timings.json ({exc}); skipped",
+            file=sys.stderr,
+        )
+        return None
+    manifest: dict[str, Any] = {}
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    run_id = manifest.get("run_id") or timings.get("run_id") or run_dir.name
+    condition_id = manifest.get("condition_id") or timings.get("condition")
+    samples = timings.get("samples")
+    if not isinstance(samples, list):
+        samples = []
+
+    sample_rows: list[dict[str, Any]] = []
+    durations: list[float] = []
+    for sample in samples:
+        if not isinstance(sample, dict):
+            continue
+        duration = sample.get("duration_s")
+        if isinstance(duration, (int, float)):
+            durations.append(float(duration))
+        else:
+            duration = None
+        # qemu boot samples carry a functional outcome ("pass"/"fail")
+        # provided by the operator; it is listed verbatim, never inferred.
+        outcome = sample.get("outcome")
+        sample_rows.append(
+            {
+                "run_id": run_id,
+                "condition_id": condition_id,
+                "sample_label": sample.get("label"),
+                "started_utc": sample.get("started_utc"),
+                "ended_utc": sample.get("ended_utc"),
+                "duration_s": duration,
+                "outcome": outcome if isinstance(outcome, str) else "unspecified",
+            }
+        )
+
+    return {
+        "run_id": run_id,
+        "condition_id": condition_id,
+        "excluded": manifest.get("exclusion") is not None,
+        "sample_rows": sample_rows,
+        "duration_mean_s": statistics.fmean(durations) if durations else None,
+    }
+
+
+def summarize_external_durations(
+    external_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Cross-run duration statistics for cold_start and twin_creation.
+
+    Unit of analysis = run (plan 7.3): one duration value per run
+    (``duration_mean_s``). Output rows use the SUMMARY_COLUMNS schema with
+    metric ``duration_s``. qemu_boots is deliberately excluded (plan 5.1:
+    no performance statistics from QEMU).
+    """
+    out: list[dict[str, Any]] = []
+    for condition_id in EXTERNAL_DURATION_CONDITIONS:
+        values = [
+            float(r["duration_mean_s"])
+            for r in external_rows
+            if r.get("condition_id") == condition_id
+            and not r.get("excluded")
+            and r.get("duration_mean_s") is not None
+        ]
+        if not values:
+            continue
+        mean, stdev, half = ci95(values)
+        record: dict[str, Any] = {
+            "condition_id": condition_id,
+            "rate_msg_s": None,
+            "metric": "duration_s",
+            "n_runs": len(values),
+            "mean": mean,
+            "stdev": stdev,
+            "ci95_lo": None,
+            "ci95_hi": None,
+            "median": percentile(values, 50),
+            "p25": percentile(values, 25),
+            "p75": percentile(values, 75),
+            "min": min(values),
+            "max": max(values),
+        }
+        if half is not None and mean is not None:
+            record["ci95_lo"] = mean - half
+            record["ci95_hi"] = mean + half
+        out.append(record)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +1080,8 @@ SUMMARY_METRICS = [
     "latency_ms_p95",
     "latency_ms_p99",
     "cpu_pct_max",
+    "host_cpu_utilization_max",
+    "queue_depth_max",
     "mem_bytes_max",
 ]
 
@@ -690,7 +1156,168 @@ def summarize_by_condition(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Saturation (plan 7.3)
+# Per-condition acceptance (audit 9.5, claims C10/C11/C12/C14)
+# ---------------------------------------------------------------------------
+
+ACCEPTANCE_COLUMNS = [
+    "condition_id",
+    "claims",
+    "criterion",
+    "expected_runs",
+    "n_runs",
+    "observed",
+    "passed",
+]
+
+
+def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Acceptance evaluation for the robustness conditions (module docstring).
+
+    ``rows`` are NON-EXCLUDED per-run rows. ``passed`` is True/False, or
+    None (rendered empty) when the criterion is informational or there are
+    no runs yet.
+    """
+    by_condition: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        cid = row.get("condition_id")
+        if isinstance(cid, str):
+            by_condition.setdefault(cid, []).append(row)
+
+    def _claims(cid: str) -> str:
+        return " ".join(CONDITION_CLAIMS.get(cid, ()))
+
+    def _expected(cid: str) -> int | None:
+        condition = CONDITIONS_BY_ID.get(cid)
+        return condition.repetitions if condition is not None else None
+
+    def _total(members: list[dict[str, Any]], key: str) -> int:
+        return sum(int(r.get(key) or 0) for r in members)
+
+    out: list[dict[str, Any]] = []
+
+    def add(
+        cid: str,
+        criterion: str,
+        observed: str,
+        passed: bool | None,
+        n_runs: int,
+    ) -> None:
+        out.append(
+            {
+                "condition_id": cid,
+                "claims": _claims(cid),
+                "criterion": criterion,
+                "expected_runs": _expected(cid),
+                "n_runs": n_runs,
+                "observed": observed,
+                "passed": passed,
+            }
+        )
+
+    # smoke_sequence (C14): all runs complete, zero lost.
+    cid = "smoke_sequence"
+    members = by_condition.get(cid, [])
+    n = len(members)
+    expected = _expected(cid) or 0
+    invalid = sum(1 for r in members if r.get("validity") == "invalid")
+    add(
+        cid,
+        "all_runs_complete",
+        f"{n}/{expected} runs present, {invalid} invalid",
+        (n == expected and invalid == 0) if n else None,
+        n,
+    )
+    lost = _total(members, "lost")
+    add(cid, "zero_lost", f"{lost} lost", (lost == 0) if n else None, n)
+
+    # invalid_payload (C11).
+    cid = "invalid_payload"
+    members = by_condition.get(cid, [])
+    n = len(members)
+    sent_invalid = _total(members, "intended_invalid_sent")
+    rejected_invalid = _total(members, "rejected_intended_invalid")
+    accepted_invalid = _total(members, "intended_invalid_accepted")
+    add(
+        cid,
+        "all_intended_invalid_rejected",
+        f"{rejected_invalid}/{sent_invalid} rejected",
+        (sent_invalid > 0 and rejected_invalid == sent_invalid) if n else None,
+        n,
+    )
+    add(
+        cid,
+        "zero_intended_invalid_accepted",
+        f"{accepted_invalid} accepted",
+        (accepted_invalid == 0) if n else None,
+        n,
+    )
+    # Informational: valid messages keep the plan 7.3 delivery accounting
+    # (intended_invalid never enters the denominator); no pass threshold of
+    # its own here — C06 owns the >= 99% nominal target.
+    delivery_values = [
+        float(r["delivery_rate"]) for r in members if r.get("delivery_rate") is not None
+    ]
+    add(
+        cid,
+        "valid_delivery_rate_mean_informational",
+        (
+            f"{statistics.fmean(delivery_values):.6f}"
+            if delivery_values
+            else "no data"
+        ),
+        None,
+        n,
+    )
+
+    # dropout_reconnect (C10): accounting tolerant of late buffered
+    # redelivery within the window (module docstring assumptions).
+    cid = "dropout_reconnect"
+    members = by_condition.get(cid, [])
+    n = len(members)
+    lost = _total(members, "lost")
+    double = _total(members, "double_accepted")
+    add(
+        cid,
+        "zero_lost_within_window",
+        f"{lost} lost (buffered redelivery counted when confirmed in-window)",
+        (lost == 0) if n else None,
+        n,
+    )
+    add(
+        cid,
+        "zero_double_accepted",
+        f"{double} double-accepted",
+        (double == 0) if n else None,
+        n,
+    )
+
+    # controller_restart (C12): delivery across the restart, zero
+    # double-accepted message_ids.
+    cid = "controller_restart"
+    members = by_condition.get(cid, [])
+    n = len(members)
+    lost = _total(members, "lost")
+    double = _total(members, "double_accepted")
+    add(
+        cid,
+        "delivery_across_restart_zero_lost",
+        f"{lost} lost",
+        (lost == 0) if n else None,
+        n,
+    )
+    add(
+        cid,
+        "zero_double_accepted",
+        f"{double} double-accepted",
+        (double == 0) if n else None,
+        n,
+    )
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Saturation (plan 7.3; audit 9.7)
 # ---------------------------------------------------------------------------
 
 
@@ -699,7 +1326,13 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     ``rows`` are non-excluded per-run rows; only ``condition_id ==
     "load_sweep"`` entries are used. See the module docstring for the
-    documented decision rule.
+    documented decision rule. The CPU criterion is host-level (audit 9.7)
+    and the queue-growth criterion uses the controller_metrics.csv samples;
+    both, plus the >= 0.5 run-fraction rule, are PENDING ADVISOR SIGN-OFF
+    BEFORE exp-v1 (G4) and must not change after the protocol freeze.
+    A criterion evaluates to None (not evaluable) at a load where no run
+    carries the required instrumentation (missing nproc or missing
+    controller_metrics.csv) — never silently to False.
     """
     sweep = [
         r
@@ -710,6 +1343,16 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by_rate: dict[float, list[dict[str, Any]]] = {}
     for row in sweep:
         by_rate.setdefault(float(row["rate_msg_s"]), []).append(row)
+
+    def _run_fraction(
+        member_rows: list[dict[str, Any]], key: str, sustain_s: float
+    ) -> float | None:
+        """Fraction of evaluable runs with a sustained event >= sustain_s."""
+        evaluable = [r for r in member_rows if r.get(key) is not None]
+        if not evaluable:
+            return None
+        flags = [1 if float(r[key]) >= sustain_s else 0 for r in evaluable]
+        return statistics.fmean(flags)
 
     loads: list[dict[str, Any]] = []
     first_saturated: float | None = None
@@ -723,20 +1366,23 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             for r in member_rows
             if r.get("latency_ms_p95") is not None
         ]
-        sustained_flags = [
-            1 if (r.get("cpu_sustained_gt90_s") or 0.0) >= SATURATION_CPU_SUSTAIN_S else 0
-            for r in member_rows
-        ]
         loss_mean = statistics.fmean(loss_values) if loss_values else None
         p95_mean = statistics.fmean(p95_values) if p95_values else None
-        cpu_fraction = (
-            statistics.fmean(sustained_flags) if sustained_flags else None
+        host_cpu_fraction = _run_fraction(
+            member_rows, "host_cpu_sustained_gt090_s", SATURATION_CPU_SUSTAIN_S
+        )
+        queue_fraction = _run_fraction(
+            member_rows, "queue_growth_sustained_s", SATURATION_QUEUE_GROWTH_SUSTAIN_S
         )
         triggered = {
             "loss_rate": loss_mean is not None and loss_mean > SATURATION_LOSS_RATE,
             "p95_latency": p95_mean is not None and p95_mean > SATURATION_P95_MS,
-            "cpu_sustained": cpu_fraction is not None and cpu_fraction >= 0.5,
-            "queue_growth": None,  # TODO: not measurable, see below
+            "host_cpu_sustained": (
+                None if host_cpu_fraction is None else host_cpu_fraction >= 0.5
+            ),
+            "queue_growth": (
+                None if queue_fraction is None else queue_fraction >= 0.5
+            ),
         }
         saturated = any(v for v in triggered.values() if v is not None)
         loads.append(
@@ -745,7 +1391,8 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "n_runs": len(member_rows),
                 "loss_rate_mean": loss_mean,
                 "latency_ms_p95_mean": p95_mean,
-                "cpu_sustained_run_fraction": cpu_fraction,
+                "host_cpu_sustained_run_fraction": host_cpu_fraction,
+                "queue_growth_run_fraction": queue_fraction,
                 "triggered": triggered,
                 "saturated": saturated,
             }
@@ -759,20 +1406,33 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "criteria": {
             "loss_rate_gt": SATURATION_LOSS_RATE,
             "latency_ms_p95_gt": SATURATION_P95_MS,
-            "cpu_pct_gt": SATURATION_CPU_PCT,
-            "cpu_sustain_s": SATURATION_CPU_SUSTAIN_S,
-            "queue_growth": (
-                "TODO: persistent queue growth is not measurable with the "
-                "current instrumentation and is not evaluated"
-            ),
+            "host_cpu_utilization_gt": SATURATION_HOST_CPU_UTILIZATION,
+            "host_cpu_sustain_s": SATURATION_CPU_SUSTAIN_S,
+            "queue_depth_floor": SATURATION_QUEUE_DEPTH_FLOOR,
+            "queue_growth_sustain_s": SATURATION_QUEUE_GROWTH_SUSTAIN_S,
+            "run_fraction_gte": 0.5,
         },
         "decision_rule": (
             "Unit of analysis is the run (plan 7.3). A load is saturated "
             "when the across-run mean loss rate exceeds 1%, OR the "
             "across-run mean p95 latency exceeds 1000 ms, OR at least half "
-            "of the runs at that load show CPU above 90% (docker stats "
-            "cpu_pct, single-CPU basis, per container) sustained for at "
-            "least 60 s. Saturation is the first (lowest) saturated load."
+            "of the evaluable runs at that load sustain host-level CPU "
+            "utilization above 0.90 for at least 60 s "
+            "(host_cpu_utilization = sum of container docker-stats cpu_pct "
+            "/ (100 * nproc from sut_environment.json)), OR at least half "
+            "of the evaluable runs show persistent queue growth: "
+            "controller queue_depth (1 Hz GET /metrics samples) strictly "
+            "increasing across consecutive samples for a span of at least "
+            "60 s with every sample above the floor of 100 messages. "
+            "Saturation is the first (lowest) saturated load."
+        ),
+        "pending_advisor_signoff": (
+            "PENDING ADVISOR SIGN-OFF BEFORE exp-v1 (audit R23): the "
+            "host-level CPU rule (> 0.90 utilization sustained 60 s), the "
+            "queue-growth rule (strictly increasing over >= 60 s, floor "
+            "100) and the >= 0.5 run-fraction rule must be confirmed with "
+            "the advisor before the protocol freeze (G4); they must not "
+            "change afterwards."
         ),
         "loads": loads,
         "first_saturated_load_msg_s": first_saturated,
@@ -822,6 +1482,14 @@ def _run_sort_key(row: dict[str, Any]) -> tuple[int, float, int, str]:
         float(rate) if isinstance(rate, (int, float)) else -1.0,
         int(rep) if isinstance(rep, int) else 0,
         str(row.get("run_id")),
+    )
+
+
+def _summary_sort_key(row: dict[str, Any]) -> tuple[int, float]:
+    rate = row.get("rate_msg_s")
+    return (
+        CONDITION_ORDER.get(row.get("condition_id"), len(CONDITION_ORDER)),
+        float(rate) if isinstance(rate, (int, float)) else -1.0,
     )
 
 
@@ -978,11 +1646,26 @@ def analyze(base_dir: str | Path | None = None) -> int:
     _clean_dir(figures_dir)
 
     rows: list[dict[str, Any]] = []
+    external_rows: list[dict[str, Any]] = []
     for run_dir in sorted(p for p in raw_dir.iterdir() if p.is_dir()):
+        # External runs (audit 9.6): timings.json marks an operator-measured
+        # run ingested by 'run --external-timings'; analyzed here so a
+        # single script covers every run type (claim C15).
+        if (run_dir / "timings.json").is_file():
+            ext = compute_external_run(run_dir)
+            if ext is not None:
+                external_rows.append(ext)
+            continue
         row = compute_run_metrics(run_dir)
         if row is not None:
             rows.append(row)
     rows.sort(key=_run_sort_key)
+    external_rows.sort(
+        key=lambda r: (
+            CONDITION_ORDER.get(r.get("condition_id"), len(CONDITION_ORDER)),
+            str(r.get("run_id")),
+        )
+    )
 
     resources_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -1003,11 +1686,29 @@ def analyze(base_dir: str | Path | None = None) -> int:
         RESOURCES_BY_RUN_COLUMNS,
         resources_rows,
     )
+
+    summary_rows = summarize_by_condition(included)
+    summary_rows.extend(summarize_external_durations(external_rows))
+    summary_rows.sort(key=_summary_sort_key)
     _write_csv(
-        processed_dir / "summary_by_condition.csv",
-        SUMMARY_COLUMNS,
-        summarize_by_condition(included),
+        processed_dir / "summary_by_condition.csv", SUMMARY_COLUMNS, summary_rows
     )
+
+    external_sample_rows: list[dict[str, Any]] = []
+    for ext in external_rows:
+        external_sample_rows.extend(ext["sample_rows"])
+    _write_csv(
+        processed_dir / "external_runs.csv",
+        EXTERNAL_RUNS_COLUMNS,
+        external_sample_rows,
+    )
+
+    _write_csv(
+        processed_dir / "acceptance_by_condition.csv",
+        ACCEPTANCE_COLUMNS,
+        evaluate_acceptance(included),
+    )
+
     (processed_dir / "saturation.json").write_text(
         json.dumps(detect_saturation(included), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -1016,8 +1717,9 @@ def analyze(base_dir: str | Path | None = None) -> int:
     figures = generate_figures(figures_dir, included)
 
     print(
-        f"[analyze] {len(rows)} run(s) processed "
+        f"[analyze] {len(rows)} message run(s) processed "
         f"({len(included)} included, {excluded_count} excluded); "
+        f"{len(external_rows)} external run(s); "
         f"{len(figures)} figure(s) written to {figures_dir}"
     )
     return 0

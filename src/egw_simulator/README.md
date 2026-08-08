@@ -65,7 +65,7 @@ python -m egw_simulator run --scenario load-sweep --seed 42 \
 | `smoke` | 3 | 30 s | 11.2 msg/s | short functional check |
 | `nominal` | 3 | 600 s | 11.2 msg/s | baseline load (plan section 7.1) |
 | `load-sweep` | 3 | 300 s | from `--rate` (required) | five-minute executions per load (plan section 7.1) |
-| `dropout-reconnect` | 3 | 600 s | 11.2 msg/s | deterministic device-side silence windows |
+| `dropout-reconnect` | 3 | 600 s | 11.2 msg/s | real disconnect windows with buffered redelivery |
 | `invalid-payload` | 3 | 600 s | 11.2 msg/s | deterministic 1-in-20 invalid injection |
 | `soak` | 3 | 86400 s | 11.2 msg/s | 24 h stability run |
 
@@ -83,15 +83,32 @@ only in `sent_events.jsonl`, never in the published payload. All other
 payloads are validated against the real JSON Schemas in `src/schemas/`
 before publish (plan section 5.6).
 
-In `dropout-reconnect`, each device gets deterministic silence windows
-(roughly one per minute of run time, 2-8 s each); events scheduled inside a
-window are not generated at all. The windows model DEVICE-SIDE silence
-only: the simulator's MQTT session stays connected for the whole run and
-no disconnect is ever triggered by this scenario. Broker/network-level
-dropout is induced externally by the test harness, and the reconnect
-metrics of plan section 7.2 come from integration tests, not from this
-scenario. This scope statement is also recorded in the run's
-`manifest.json` (`note` field).
+In `dropout-reconnect`, the run has deterministic RUN-LEVEL disconnect
+windows (roughly one per minute of run time, 2-8 s each; the simulator
+holds one MQTT connection for all devices, so windows are shared). At each
+window start the simulator drops its MQTT connection for real
+(`disconnect()` — DISCONNECT plus socket close). Events scheduled inside
+the window are STILL generated on schedule — a real wearable keeps
+sampling — and are buffered locally in order. At window end the client
+reconnects (same exponential backoff as unplanned losses) and the buffer
+is flushed in order BEFORE live publishing resumes. Consequences
+(plan section 7.2, 'recuperacao apos restart/reconnect'; claim C10):
+
+- `seq` stays strictly monotonic and gap-free per device;
+- every generated event is published exactly once — buffered events are
+  published late, at flush time;
+- buffered events carry their ACTUAL (late) publish instant in
+  `publish_monotonic_ns`, so they are visibly delayed in
+  `sent_events.jsonl`;
+- PUBACK capture stays best-effort (CONTRACTS.md section 7, v1.1):
+  flushed publishes use a zero puback wait budget, so the flush never
+  blocks the schedule of live events longer than their own budget.
+
+Broker-side/network-level faults remain test-harness territory: this
+scenario exercises the CLIENT-side disconnect/reconnect and buffered
+redelivery path only. This scope statement is also recorded verbatim in
+the run's `manifest.json` (`note` field), and the harness reads it for
+its dropout acceptance rule.
 
 ## Determinism guarantees (plan section 5.6)
 
@@ -103,11 +120,15 @@ the following are byte-identical across runs and hosts:
   `ts`), including `message_id` (UUID v5 of `"{run_id}:{device_uuid}:{seq}"`
   in namespace `6b1a3f52-8c1e-5e2b-9f0d-c2d7a1e4b8a0`);
 - the positions and contents of injected invalid events;
-- the dropout silence windows.
+- the run-level disconnect windows of `dropout-reconnect` and therefore
+  the exact set of events that are buffered (and later flushed) in a run.
 
 Excluded from the determinism guarantee: `ts` (wall-clock RFC 3339 UTC,
 millisecond resolution, `Z` suffix), `publish_monotonic_ns` /
-`puback_monotonic_ns`, and the manifest timestamps.
+`puback_monotonic_ns`, and the manifest timestamps. Payload CONTENT is
+deterministic even for buffered events; their publish TIMING is inherently
+late (they are flushed at window end instead of at their scheduled time),
+which is by design and visible in `sent_events.jsonl`.
 
 ## Outputs
 
@@ -117,6 +138,7 @@ Each run writes to `<output>/<run_id>/`:
   seed, run_id, egw_id, devices with UUIDs, aggregate and per-device rates,
   duration, QoS, broker endpoint without secrets, git commit (best effort,
   else `null`), started/finished UTC timestamps, completion flag, totals
+  (`sent`, `intended_invalid`, `buffered_dropout`, `dropout_disconnects`)
   and a `note` field (scenario scope statement for `dropout-reconnect`,
   `null` otherwise).
 - `sent_events.jsonl` — one record per published message with exactly:
@@ -124,7 +146,11 @@ Each run writes to `<output>/<run_id>/`:
   `publish_monotonic_ns`, `puback_monotonic_ns`, `intended_invalid`.
 
 `publish_monotonic_ns` is captured immediately before the MQTT publish
-call. `puback_monotonic_ns` capture is best-effort (CONTRACTS.md section 7,
+call — it is always the ACTUAL publish instant. For `dropout-reconnect`
+events buffered during a disconnect window that instant is the (late)
+flush time after the reconnect, not the scheduled generation time, so
+buffered events are visibly delayed in `sent_events.jsonl`.
+`puback_monotonic_ns` capture is best-effort (CONTRACTS.md section 7,
 v1.1): each publish waits for the QoS 1 acknowledgement at most for the
 free time until the next scheduled event (`max(0, next_event_time - now)`,
 possibly 0), so the acknowledgement round-trip never throttles the
@@ -143,10 +169,10 @@ are only comparable within the same process.
 | `envelope.py` | common envelope, `EGW_UUID_NAMESPACE`, `message_id`, `ts` |
 | `devices.py` | deterministic device UUIDs, nominal rates, rate split |
 | `profiles.py` | deterministic measurement generators per device type |
-| `scenarios.py` | `ScenarioSpec` registry, dropout windows, invalid injection |
+| `scenarios.py` | `ScenarioSpec` registry, disconnect windows, invalid injection |
 | `validation.py` | draft 2020-12 validators over the real project schemas |
-| `publisher.py` | `Publisher` protocol, `PahoPublisher`, `InMemoryPublisher` |
-| `runner.py` | paced deterministic run loop, evidence writing |
+| `publisher.py` | `Publisher` protocol (with `disconnect()`/`reconnect()`), `PahoPublisher`, `InMemoryPublisher` |
+| `runner.py` | paced deterministic run loop, dropout buffering/flush, evidence writing |
 | `output.py` | `manifest.json` and `sent_events.jsonl` writers |
 | `cli.py` / `__main__.py` | `python -m egw_simulator run ...` |
 
