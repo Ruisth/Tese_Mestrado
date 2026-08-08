@@ -37,6 +37,30 @@ from typing import Any
 SUT_ENVIRONMENT_FILENAME = "sut_environment.json"
 LOADGEN_ENVIRONMENT_FILENAME = "loadgen_environment.json"
 
+#: Required content of a usable sut_environment.json (work order P1 fix 4).
+#: Presence of the file alone is NOT enough: a timed run whose SUT manifest
+#: cannot identify the host, its CPU count or its OS describes nothing and
+#: is marked validity 'invalid' (override: --allow-missing-sut-env, which
+#: records a protocol deviation). Each entry maps a logical requirement to
+#: the accepted JSON keys (the first non-empty one wins):
+#:
+#: - ``node/hostname``: the SUT's hostname — also cross-checked against the
+#:   ``host`` provenance column of resources.csv at ingest time;
+#: - ``nproc``: positive integer — required by the audit 9.7 host-level CPU
+#:   normalization;
+#: - ``os identification``: uname/os-release identification of the SUT
+#:   (``uname_a``/``os_pretty_name`` as written by
+#:   deployment/scripts/capture-sut-environment.sh; ``uname``/``os``/
+#:   ``kernel_release`` accepted for hand-written manifests).
+REQUIRED_SUT_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("node/hostname", ("node", "hostname")),
+    ("nproc", ("nproc",)),
+    (
+        "os identification",
+        ("uname_a", "os_pretty_name", "uname", "os", "kernel_release"),
+    ),
+)
+
 
 def utc_now_iso() -> str:
     """RFC 3339 UTC timestamp with Z suffix, millisecond resolution."""
@@ -124,6 +148,46 @@ def read_sut_environment(run_dir: str | Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return obj if isinstance(obj, dict) else None
+
+
+def sut_env_node(sut_env: dict[str, Any] | None) -> str | None:
+    """The SUT's node/hostname from sut_environment.json, or None.
+
+    Accepts either the ``node`` or the ``hostname`` key (first non-empty
+    string wins). Used to cross-check the ``host`` provenance column of the
+    SUT collector's resources.csv (work order P1 fix 3).
+    """
+    if not sut_env:
+        return None
+    for key in ("node", "hostname"):
+        value = sut_env.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def validate_sut_environment(sut_env: dict[str, Any] | None) -> list[str]:
+    """Check a sut_environment.json dict against REQUIRED_SUT_FIELDS.
+
+    Returns the list of missing logical fields (empty when the manifest is
+    usable). ``None`` (absent/unreadable file) reports every field missing;
+    the caller distinguishes "file absent" from "file present but unusable"
+    itself. ``nproc`` must parse as a positive int (see :func:`sut_nproc`);
+    the other fields need a non-empty string under any accepted key.
+    """
+    missing: list[str] = []
+    for logical_name, keys in REQUIRED_SUT_FIELDS:
+        if logical_name == "nproc":
+            if sut_nproc(sut_env) is None:
+                missing.append("nproc (positive integer)")
+            continue
+        if sut_env is None or not any(
+            isinstance(sut_env.get(key), str) and sut_env.get(key).strip()
+            for key in keys
+        ):
+            accepted = "/".join(keys)
+            missing.append(f"{logical_name} (accepted keys: {accepted})")
+    return missing
 
 
 def sut_nproc(sut_env: dict[str, Any] | None) -> int | None:

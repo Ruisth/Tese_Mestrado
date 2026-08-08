@@ -10,7 +10,13 @@ ingested with ``run --resources-from``. This local sampler is opt-in via
 
 Samples ``docker stats --no-stream`` once per second in a background thread
 and appends one row per container to ``resources.csv`` with the columns
-``ts_utc, container, cpu_pct, mem_bytes, mem_pct``.
+``ts_utc, container, cpu_pct, mem_bytes, mem_pct, host``. The ``host``
+column records the hostname of the machine the sample was taken on (host
+provenance, work order P1): for this local dev sampler that is the LOAD
+GENERATOR host, which is exactly why run-time ingestion
+(:func:`egw_experiments.run.ingest_resources` via
+:func:`validate_resources_csv`) can detect that a CSV was not produced on
+the SUT.
 
 Notes:
 
@@ -33,6 +39,7 @@ from __future__ import annotations
 
 import csv
 import json
+import platform
 import subprocess
 import threading
 import time
@@ -42,7 +49,25 @@ from typing import Any
 
 from .protocol import RESOURCE_SAMPLE_INTERVAL_S
 
-CSV_HEADER = ["ts_utc", "container", "cpu_pct", "mem_bytes", "mem_pct"]
+#: Canonical resources.csv schema (work order P1: host provenance column).
+#: Written by BOTH producers: this local dev sampler and the SUT-side
+#: collector ``src/deployment/scripts/collect-resources.sh``. Run-time
+#: ingestion (``run/collect --resources-from``) accepts ONLY this header;
+#: the analysis reader additionally tolerates the pre-P1 5-column header
+#: for old fixtures/raw runs (see ``egw_experiments.analyze.read_resources_csv``).
+CSV_HEADER = ["ts_utc", "container", "cpu_pct", "mem_bytes", "mem_pct", "host"]
+
+#: Legacy pre-P1 header (no host provenance): readable by the analysis for
+#: old fixtures, but NOT ingestible for new runs.
+LEGACY_CSV_HEADER = ["ts_utc", "container", "cpu_pct", "mem_bytes", "mem_pct"]
+
+#: Minimum number of data rows a resources.csv must carry to be ingested as
+#: SUT evidence (work order P1 fix 3). Rationale: the collector samples at
+#: 1 Hz and every timed condition lasts at least 30 s (smoke runs), so even
+#: the shortest valid run yields >= 30 rows for a single container; a file
+#: with fewer rows is header-only noise or a collector that died early and
+#: cannot support the RQ3 CPU/RAM aggregates.
+MIN_RESOURCE_SAMPLES = 30
 
 DOCKER_STATS_CMD = ["docker", "stats", "--no-stream", "--format", "{{json .}}"]
 
@@ -154,6 +179,84 @@ def sample_docker_stats(timeout_s: float = 20.0) -> list[dict[str, Any]]:
     return rows
 
 
+def validate_resources_csv(
+    path: str | Path,
+    *,
+    expected_host: str | None = None,
+    min_samples: int = MIN_RESOURCE_SAMPLES,
+) -> list[str]:
+    """Validate a resources.csv before RUN-TIME ingestion (work order P1).
+
+    Returns a list of human-readable problems; an empty list means the file
+    is ingestible. Checks, in order:
+
+    - the file exists and has a header line;
+    - the header matches :data:`CSV_HEADER` EXACTLY (the 6-column schema
+      with the ``host`` provenance column; the legacy 5-column schema is
+      readable by the analysis for old fixtures but never ingestible for
+      new runs);
+    - at least ``min_samples`` (:data:`MIN_RESOURCE_SAMPLES`) data rows;
+    - every row carries a non-empty ``host`` value;
+    - when ``expected_host`` is given (the SUT's node/hostname from
+      sut_environment.json), every distinct ``host`` value equals it —
+      a mismatch means the CSV was collected on the wrong machine.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return [f"resources file not found: {path}"]
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as fh:
+            reader = csv.reader(fh)
+            try:
+                header = next(reader)
+            except StopIteration:
+                return [f"resources file is empty (not even a header): {path}"]
+            if header != CSV_HEADER:
+                return [
+                    f"resources header {header!r} does not match the "
+                    f"required schema {CSV_HEADER!r} "
+                    "(collect-resources.sh with the host provenance column; "
+                    "legacy 5-column files are readable by the analysis but "
+                    "not ingestible for new runs)"
+                ]
+            data_rows = 0
+            empty_host_rows = 0
+            hosts: set[str] = set()
+            for row in reader:
+                if not row or not any(cell.strip() for cell in row):
+                    continue
+                data_rows += 1
+                host = row[5].strip() if len(row) > 5 else ""
+                if host:
+                    hosts.add(host)
+                else:
+                    empty_host_rows += 1
+    except OSError as exc:
+        return [f"resources file unreadable: {exc}"]
+
+    problems: list[str] = []
+    if data_rows == 0:
+        problems.append("no data rows beyond the header")
+    elif data_rows < min_samples:
+        problems.append(
+            f"only {data_rows} sample row(s); at least {min_samples} "
+            "required (MIN_RESOURCE_SAMPLES: 1 Hz collector over the "
+            "shortest 30 s timed run)"
+        )
+    if empty_host_rows:
+        problems.append(
+            f"{empty_host_rows} row(s) without a host value (host "
+            "provenance is mandatory)"
+        )
+    if expected_host is not None and hosts and hosts != {expected_host}:
+        problems.append(
+            f"host value(s) {sorted(hosts)!r} do not match the SUT "
+            f"node/hostname {expected_host!r} from sut_environment.json "
+            "(the CSV was collected on the wrong machine)"
+        )
+    return problems
+
+
 class ResourceSampler:
     """Context manager sampling docker stats into a CSV file.
 
@@ -175,6 +278,9 @@ class ResourceSampler:
     ) -> None:
         self.csv_path = Path(csv_path)
         self.interval_s = interval_s
+        # Host provenance (work order P1): the hostname of THIS machine —
+        # the load generator, since this sampler is the dev-only local one.
+        self.host = platform.node()
         self.error: str | None = None
         self.samples_written = 0
         self._stop = threading.Event()
@@ -196,6 +302,7 @@ class ResourceSampler:
                         "" if row["cpu_pct"] is None else row["cpu_pct"],
                         "" if row["mem_bytes"] is None else row["mem_bytes"],
                         "" if row["mem_pct"] is None else row["mem_pct"],
+                        self.host,
                     ]
                 )
                 self.samples_written += 1

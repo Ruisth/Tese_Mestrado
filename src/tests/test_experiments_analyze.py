@@ -1013,6 +1013,212 @@ def test_summary_ci_matches_hand_computed_value_across_runs(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Validity gate (work order P1 fix 1): invalid runs never aggregate
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_runs_excluded_from_aggregation_but_listed(tmp_path, capsys) -> None:
+    """Runs with validity != 'valid' are removed from summaries, saturation,
+    acceptance and figures, stay listed in per_run.csv, and a notice names
+    them (work order P1 fix 1)."""
+    base = tmp_path / "results"
+    mids = [f"m{i}" for i in range(5)]
+    make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record(m, i) for i, m in enumerate(mids)],
+        events=[event_record(m, "accepted") for m in mids],
+        manifest_extra={"validity": "valid", "validity_reasons": []},
+    )
+    # Invalid nominal run with a much worse delivery rate: it must not
+    # drag the summary down.
+    make_run(
+        base,
+        "nominal-r02",
+        sent=[sent_record(f"x{i}", i) for i in range(5)],
+        events=[event_record("x0", "accepted")],
+        manifest_extra={
+            "repetition": 2,
+            "validity": "invalid",
+            "validity_reasons": ["no SUT resources"],
+        },
+    )
+    # Invalid load_sweep run with 100% loss: saturation must see NO sweep
+    # data at all.
+    make_run(
+        base,
+        "load_sweep-100.0-r01",
+        sent=[sent_record(f"s{i}", i) for i in range(5)],
+        events=[],
+        manifest_extra={
+            "condition_id": "load_sweep",
+            "scenario": "load-sweep",
+            "rate_msg_s": 100.0,
+            "validity": "invalid",
+            "validity_reasons": ["simulator exited with code 1"],
+        },
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "2 run(s) with validity != 'valid'" in out
+    assert "nominal-r02" in out
+    assert "load_sweep-100.0-r01" in out
+
+    # per_run.csv keeps ALL runs listed with their validity flag.
+    per_run = {r["run_id"]: r for r in _read_csv(base / "processed" / "per_run.csv")}
+    assert set(per_run) == {"nominal-r01", "nominal-r02", "load_sweep-100.0-r01"}
+    assert per_run["nominal-r01"]["validity"] == "valid"
+    assert per_run["nominal-r02"]["validity"] == "invalid"
+
+    # Summaries aggregate only the valid run.
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    delivery = [
+        r
+        for r in summary
+        if r["condition_id"] == "nominal" and r["metric"] == "delivery_rate"
+    ]
+    assert len(delivery) == 1
+    assert delivery[0]["n_runs"] == "1"
+    assert float(delivery[0]["mean"]) == 1.0
+    assert not any(r["condition_id"] == "load_sweep" for r in summary)
+
+    # Saturation sees no load_sweep input from the invalid run.
+    saturation = json.loads(
+        (base / "processed" / "saturation.json").read_text("utf-8")
+    )
+    assert saturation["loads"] == []
+    assert saturation["first_saturated_load_msg_s"] is None
+
+
+def test_legacy_manifest_without_validity_key_still_aggregated(
+    tmp_path, capsys
+) -> None:
+    """A manifest WITHOUT a validity key (legacy raw runs/fixtures) is
+    treated as valid; only a present non-'valid' value excludes."""
+    base = tmp_path / "results"
+    mids = [f"m{i}" for i in range(3)]
+    make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record(m, i) for i, m in enumerate(mids)],
+        events=[event_record(m, "accepted") for m in mids],
+        # make_run writes no 'validity' key at all (legacy shape).
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "validity != 'valid'" not in out
+    per_run = _read_csv(base / "processed" / "per_run.csv")
+    assert per_run[0]["validity"] == ""
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    delivery = next(
+        r
+        for r in summary
+        if r["condition_id"] == "nominal" and r["metric"] == "delivery_rate"
+    )
+    assert delivery["n_runs"] == "1"
+
+
+def test_per_run_reports_resource_source_and_flags_non_sut(tmp_path) -> None:
+    """per_run rows carry resource_source; anything other than
+    'sut-collector' gets a per-run warning (work order P1 fix 2)."""
+    run_dir = make_run(
+        tmp_path,
+        "local-dev-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={"resource_source": "local-dev"},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["resource_source"] == "local-dev"
+    assert "not 'sut-collector'" in row["warnings"]
+
+    ok_dir = make_run(
+        tmp_path,
+        "sut-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={"resource_source": "sut-collector"},
+    )
+    ok_row = analyze.compute_run_metrics(ok_dir)
+    assert ok_row["resource_source"] == "sut-collector"
+    assert "not 'sut-collector'" not in ok_row["warnings"]
+
+    # Legacy manifest without the key: flagged too (None provenance).
+    legacy_dir = make_run(
+        tmp_path,
+        "legacy-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    legacy_row = analyze.compute_run_metrics(legacy_dir)
+    assert legacy_row["resource_source"] is None
+    assert "not 'sut-collector'" in legacy_row["warnings"]
+
+
+def test_manifest_deviations_listed_as_per_run_warning(tmp_path) -> None:
+    """Any manifest 'deviations' entries produce a per-run warning listing
+    them (work order P1 fix 5)."""
+    run_dir = make_run(
+        tmp_path,
+        "deviant-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "deviations": [
+                {
+                    "kind": "skip_warmup",
+                    "detail": "warm-up skipped",
+                    "authorized_by_flag": "--allow-protocol-deviation",
+                },
+                {
+                    "kind": "warmup_nonzero_exit",
+                    "detail": "warm-up exited with code 1",
+                    "authorized_by_flag": None,
+                },
+            ]
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert "protocol deviation(s) recorded" in row["warnings"]
+    assert "skip_warmup (authorized by --allow-protocol-deviation)" in row["warnings"]
+    assert "warmup_nonzero_exit (no authorizing flag)" in row["warnings"]
+
+    clean_dir = make_run(
+        tmp_path,
+        "clean-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={"deviations": []},
+    )
+    clean_row = analyze.compute_run_metrics(clean_dir)
+    assert "protocol deviation(s)" not in clean_row["warnings"]
+
+
+def test_read_resources_csv_accepts_old_and_new_headers(tmp_path) -> None:
+    """The analysis READER tolerates both the legacy 5-column schema (old
+    fixtures/raw runs) and the new 6-column host-provenance schema; only
+    run-time ingestion is strict (work order P1 fix 3)."""
+    old = tmp_path / "old.csv"
+    old.write_text(
+        "ts_utc,container,cpu_pct,mem_bytes,mem_pct\n"
+        "2026-09-07T10:00:00Z,egw-controller,12.5,1024,1.2\n",
+        "utf-8",
+    )
+    new = tmp_path / "new.csv"
+    new.write_text(
+        "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host\n"
+        "2026-09-07T10:00:00Z,egw-controller,12.5,1024,1.2,sut-vm\n",
+        "utf-8",
+    )
+    for path in (old, new):
+        by_container = analyze.read_resources_csv(path)
+        assert set(by_container) == {"egw-controller"}
+        (sample,) = by_container["egw-controller"]
+        assert sample["cpu_pct"] == 12.5
+        assert sample["mem_bytes"] == 1024
+
+
+# ---------------------------------------------------------------------------
 # Per-condition acceptance (audit 9.5, claims C10/C11/C12/C14)
 # ---------------------------------------------------------------------------
 

@@ -38,12 +38,31 @@ Evidence collection topology (audit 9.1-9.3):
   when ``--controller-url`` is given (port 8000 is loopback-only on the
   VM; use an SSH tunnel, see the deployment README).
 
-Validity (audit: warning-only is NOT acceptable): timed runs (every
-simulator-driven condition) REQUIRE ``sut_environment.json`` and SUT
-resources in the run directory; otherwise the manifest is marked
-``validity: 'invalid'`` with explicit reasons. The only overrides are the
-explicit ``--allow-missing-sut-env`` / ``--allow-missing-resources`` flags,
-which record that decision in the manifest.
+Validity (audit: warning-only is NOT acceptable; hardened by work order
+P1): timed runs (every simulator-driven condition) REQUIRE
+
+- a usable ``sut_environment.json`` (present AND carrying the
+  REQUIRED_SUT_FIELDS of ``environment.py``: node/hostname, positive
+  ``nproc``, OS identification);
+- SUT resources with ``resource_source == 'sut-collector'`` — the
+  ``--local-resources`` dev sampler measures the load generator and makes
+  a timed run INVALID; the ingested CSV is content-validated (exact
+  6-column header with ``host`` provenance, >= MIN_RESOURCE_SAMPLES rows,
+  every ``host`` matching the SUT's node) or it is treated as missing;
+- a clean simulator exit (non-zero exit => invalid, no override);
+- a clean warm-up exit (non-zero => invalid unless
+  ``--allow-warmup-failure``, which records a protocol deviation);
+- the planned warm-up: ``--skip-warmup`` on nominal/load_sweep/soak =>
+  invalid unless ``--allow-protocol-deviation`` (deviation recorded).
+
+Otherwise the manifest is marked ``validity: 'invalid'`` with explicit
+reasons. The only overrides are the explicit ``--allow-missing-sut-env`` /
+``--allow-missing-resources`` / ``--allow-warmup-failure`` /
+``--allow-protocol-deviation`` flags; every override that takes effect is
+recorded in the manifest's ``deviations`` list ({kind, detail,
+authorized_by_flag}), alongside shortened confirmation windows or skipped
+cooldowns. The analysis surfaces the deviations per run and aggregates
+ONLY runs with ``validity == 'valid'``.
 
 Measured window (audit 9.4): the manifest records ``measured_window_utc``
 {start, end} — harness wall-clock stamps taken immediately around the
@@ -77,7 +96,8 @@ Produces the plan 5.8 raw structure::
       controller_metrics.csv   # 1 Hz controller /metrics samples
       manifest.json            # scenario, seed, commit, digests, env refs,
                                # config echo, timestamps, measured window,
-                               # validity, protocol version, exclusion
+                               # validity, deviations, protocol version,
+                               # exclusion
       sut_environment.json     # captured ON the VM (ingested)
       loadgen_environment.json # captured here (harness host)
       logs/                    # simulator stdout/stderr, warmup artifacts
@@ -122,7 +142,10 @@ from .controller_metrics import ControllerMetricsSampler
 from .environment import (
     LOADGEN_ENVIRONMENT_FILENAME,
     SUT_ENVIRONMENT_FILENAME,
+    read_sut_environment,
+    sut_env_node,
     utc_now_iso,
+    validate_sut_environment,
     write_loadgen_environment,
 )
 from .plan_gen import load_campaign_plan, plan_to_json
@@ -131,7 +154,7 @@ from .protocol import (
     PROTOCOL_VERSION,
     TIMED_CONDITION_IDS,
 )
-from .resources import ResourceSampler
+from .resources import ResourceSampler, validate_resources_csv
 
 # Repository root: <repo>/src/egw_experiments/run.py -> parents[2] == <repo>
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -154,7 +177,17 @@ FETCH_TIMEOUT_S = 300.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
-MANIFEST_VERSION = "1.1"
+# 1.2 (work order P1): adds 'deviations', 'sut_environment_missing_fields',
+# 'allow_warmup_failure', 'allow_protocol_deviation'; hardens validity.
+MANIFEST_VERSION = "1.2"
+
+#: Conditions on which --skip-warmup invalidates the run unless explicitly
+#: authorized with --allow-protocol-deviation (work order P1 fix 5). These
+#: are the performance conditions whose protocol timing (warm-up/cooldown
+#: structure, plan 7.1) underpins the RQ2/RQ3 claims.
+SKIP_WARMUP_STRICT_CONDITIONS: frozenset[str] = frozenset(
+    {"nominal", "load_sweep", "soak"}
+)
 
 MEASURED_WINDOW_CLOCK_NOTE = (
     "harness-host wall clock; assumes NTP-synchronized clocks between the "
@@ -401,16 +434,30 @@ def ingest_sut_environment(
 def ingest_resources(
     run_dir: Path, resources_from: str | Path | None, warnings: list[str]
 ) -> bool:
-    """Copy the fetched SUT resources.csv into the run dir.
+    """Validate and copy the fetched SUT resources.csv into the run dir.
 
-    Returns True on success. A source path that does not exist is a
-    warning (the validity rules then apply).
+    Work order P1 fix 3: file presence alone is NOT evidence. The source is
+    content-validated (:func:`egw_experiments.resources.validate_resources_csv`):
+    exact 6-column header including ``host`` provenance, at least
+    MIN_RESOURCE_SAMPLES data rows, and — when the run dir already holds a
+    sut_environment.json with a node/hostname — every distinct ``host``
+    value must equal it. Any problem rejects the ingest with a clear
+    warning and the run's resources are treated as missing (the validity
+    rules then apply). Returns True only on a successful, validated copy.
     """
     if resources_from is None:
         return False
     src = Path(resources_from)
     if not src.is_file():
         warnings.append(f"--resources-from file not found: {src}")
+        return False
+    expected_host = sut_env_node(read_sut_environment(run_dir))
+    problems = validate_resources_csv(src, expected_host=expected_host)
+    if problems:
+        warnings.append(
+            f"--resources-from {src} REJECTED (SUT resources treated as "
+            "missing): " + "; ".join(problems)
+        )
         return False
     shutil.copyfile(src, run_dir / "resources.csv")
     return True
@@ -430,17 +477,41 @@ def compute_validity(
     allow_missing_resources: bool,
     restart_required: bool,
     restart_ok: bool,
+    sut_env_missing_fields: list[str] | None = None,
+    simulator_returncode: int | None = 0,
+    warmup_returncode: int | None = None,
+    allow_warmup_failure: bool = False,
+    skip_warmup: bool = False,
+    condition_id: str | None = None,
+    allow_protocol_deviation: bool = False,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
-    Timed runs (every simulator-driven condition) without the SUT
-    environment manifest or without SUT resources are INVALID — CPU/RAM on
-    the SUT are essential for RQ3 and an environment file captured on the
-    wrong host describes the wrong system (audit 9.1/9.2). The explicit
-    allow flags suppress the corresponding reason but are recorded in the
-    manifest as a deliberate decision.
+    Timed runs (every simulator-driven condition) without a USABLE SUT
+    environment manifest or without SUT-collector resources are INVALID —
+    CPU/RAM on the SUT are essential for RQ3 and an environment file
+    captured on the wrong host describes the wrong system (audit 9.1/9.2).
+    Work order P1 hardening:
+
+    - ``resource_source`` must be exactly ``'sut-collector'``: the
+      ``--local-resources`` dev sampler measures the LOAD GENERATOR host
+      and never evidences the SUT (override: --allow-missing-resources,
+      recorded as a deviation);
+    - a present sut_environment.json failing REQUIRED_SUT_FIELDS
+      validation is as invalid as a missing one (override:
+      --allow-missing-sut-env, recorded as a deviation);
+    - a non-zero simulator exit invalidates the run outright (no
+      override: the measured run itself failed);
+    - a non-zero warm-up exit invalidates the run unless
+      --allow-warmup-failure (recorded as a deviation);
+    - --skip-warmup on the SKIP_WARMUP_STRICT_CONDITIONS invalidates the
+      run unless --allow-protocol-deviation (recorded as a deviation).
+
+    The explicit allow flags suppress the corresponding reason but are
+    recorded in the manifest (``deviations``) as a deliberate decision.
     """
     reasons: list[str] = []
+    missing_fields = list(sut_env_missing_fields or [])
     if timed:
         if not sut_env_present and not allow_missing_sut_env:
             reasons.append(
@@ -450,19 +521,85 @@ def compute_validity(
                 "via --sut-env-from); override only with "
                 "--allow-missing-sut-env"
             )
-        if resource_source == "none" and not allow_missing_resources:
+        elif sut_env_present and missing_fields and not allow_missing_sut_env:
             reasons.append(
-                "no SUT resources: timed runs require the VM-side collector "
-                "output (deployment/scripts/collect-resources.sh, ingested "
-                "via --resources-from); CPU/RAM on the SUT are essential "
-                "for RQ3; override only with --allow-missing-resources"
+                "sut_environment.json unusable, missing required field(s): "
+                + ", ".join(missing_fields)
+                + " (REQUIRED_SUT_FIELDS, egw_experiments/environment.py); "
+                "a SUT manifest without host identity, CPU count and OS "
+                "identification cannot support RQ3; override only with "
+                "--allow-missing-sut-env"
             )
+        if resource_source != "sut-collector" and not allow_missing_resources:
+            if resource_source == "local-dev":
+                reasons.append(
+                    "resource_source 'local-dev': --local-resources samples "
+                    "docker stats on the LOAD GENERATOR host, not the SUT "
+                    "(dev only, audit 9.1); timed runs require the VM-side "
+                    "collector output "
+                    "(deployment/scripts/collect-resources.sh, ingested via "
+                    "--resources-from); override only with "
+                    "--allow-missing-resources"
+                )
+            else:
+                reasons.append(
+                    "no SUT resources: timed runs require the VM-side "
+                    "collector output "
+                    "(deployment/scripts/collect-resources.sh, ingested "
+                    "via --resources-from); CPU/RAM on the SUT are "
+                    "essential for RQ3; override only with "
+                    "--allow-missing-resources"
+                )
         if restart_required and not restart_ok:
             reasons.append(
                 "controller_restart condition without a successfully "
                 "executed --restart-cmd: the run cannot evidence claim C12"
             )
+        if simulator_returncode not in (0, None):
+            reasons.append(
+                f"simulator exited with code {simulator_returncode}: the "
+                "measured run did not complete cleanly; there is no "
+                "override for a failed measured run"
+            )
+        if warmup_returncode not in (0, None) and not allow_warmup_failure:
+            reasons.append(
+                f"warm-up exited with code {warmup_returncode}: the twins "
+                "were not warmed as the protocol prescribes; override only "
+                "with --allow-warmup-failure (records a protocol deviation)"
+            )
+        if (
+            skip_warmup
+            and condition_id in SKIP_WARMUP_STRICT_CONDITIONS
+            and not allow_protocol_deviation
+        ):
+            reasons.append(
+                f"--skip-warmup on condition {condition_id!r}: the frozen "
+                "protocol (plan 7.1) prescribes this condition's "
+                "warm-up/cooldown structure; override only with "
+                "--allow-protocol-deviation (records a protocol deviation)"
+            )
     return ("valid" if not reasons else "invalid"), reasons
+
+
+def _append_deviation(
+    deviations: list[dict[str, Any]],
+    kind: str,
+    detail: str,
+    authorized_by_flag: str | None,
+) -> None:
+    """Append a protocol-deviation record, once per kind (work order P1).
+
+    Entries are ``{kind, detail, authorized_by_flag}``;
+    ``authorized_by_flag`` is None for a deviation that happened WITHOUT an
+    explicit authorizing flag (those normally also produce a validity
+    reason). Deduplicated by ``kind`` so repeated 'collect' passes never
+    stack duplicates.
+    """
+    if any(d.get("kind") == kind for d in deviations):
+        return
+    deviations.append(
+        {"kind": kind, "detail": detail, "authorized_by_flag": authorized_by_flag}
+    )
 
 
 def update_plan_status(
@@ -791,6 +928,8 @@ def execute_run(
     local_resources: bool = False,
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
+    allow_warmup_failure: bool = False,
+    allow_protocol_deviation: bool = False,
     controller_url: str | None = None,
     restart_cmd: str | None = None,
     restart_at_s: float | None = None,
@@ -892,6 +1031,18 @@ def execute_run(
     # GENERATOR; the SUT capture comes from the VM via --sut-env-from.
     write_loadgen_environment(run_dir / LOADGEN_ENVIRONMENT_FILENAME)
     sut_env_present = ingest_sut_environment(run_dir, sut_env_from, warnings)
+    # SUT environment QUALITY (work order P1 fix 4): presence alone is not
+    # enough; a manifest without the REQUIRED_SUT_FIELDS is unusable.
+    sut_env_missing_fields: list[str] = []
+    if sut_env_present:
+        sut_env_missing_fields = validate_sut_environment(
+            read_sut_environment(run_dir)
+        )
+        if sut_env_missing_fields:
+            warnings.append(
+                "sut_environment.json missing required field(s): "
+                + ", ".join(sut_env_missing_fields)
+            )
 
     commit = read_git_commit()
     if commit is None:
@@ -1079,6 +1230,68 @@ def execute_run(
     restart_ok = (
         restart_record is not None and restart_record.get("returncode") == 0
     )
+
+    # Protocol-deviation record (work order P1 fix 5): every departure from
+    # the frozen protocol is written down, whether authorized by an explicit
+    # flag (authorized_by_flag set) or not (None; those normally also
+    # produce a validity reason).
+    deviations: list[dict[str, Any]] = []
+    if skip_warmup:
+        _append_deviation(
+            deviations,
+            "skip_warmup",
+            f"planned warm-up ({warmup_s} s) skipped via --skip-warmup on "
+            f"condition {condition_id!r}",
+            "--allow-protocol-deviation" if allow_protocol_deviation else None,
+        )
+    if warmup_returncode not in (0, None):
+        _append_deviation(
+            deviations,
+            "warmup_nonzero_exit",
+            f"warm-up simulator subprocess exited with code "
+            f"{warmup_returncode}",
+            "--allow-warmup-failure" if allow_warmup_failure else None,
+        )
+    if float(post_run_wait_s) != float(CONFIRMATION_WINDOW_S):
+        _append_deviation(
+            deviations,
+            "confirmation_window_override",
+            f"post-run wait {post_run_wait_s} s differs from the protocol "
+            f"confirmation window {CONFIRMATION_WINDOW_S} s (plan 7.3)",
+            "--post-run-wait",
+        )
+    if skip_cooldown and cooldown_s > 0:
+        _append_deviation(
+            deviations,
+            "cooldown_skipped",
+            f"planned cooldown ({cooldown_s} s) skipped via --skip-cooldown",
+            "--skip-cooldown",
+        )
+    if (
+        timed
+        and allow_missing_sut_env
+        and (not sut_env_present or sut_env_missing_fields)
+    ):
+        _append_deviation(
+            deviations,
+            "missing_sut_environment",
+            "timed run without a usable sut_environment.json accepted"
+            + (
+                f" (present but missing: {', '.join(sut_env_missing_fields)})"
+                if sut_env_present
+                else " (file absent)"
+            ),
+            "--allow-missing-sut-env",
+        )
+    if timed and allow_missing_resources and resource_source != "sut-collector":
+        _append_deviation(
+            deviations,
+            "missing_sut_resources",
+            "timed run without SUT-collector resources accepted "
+            f"(resource_source: {resource_source})",
+            "--allow-missing-resources",
+        )
+
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -1087,6 +1300,13 @@ def execute_run(
         allow_missing_resources=allow_missing_resources,
         restart_required=condition_id == "controller_restart",
         restart_ok=restart_ok,
+        sut_env_missing_fields=sut_env_missing_fields,
+        simulator_returncode=sim_returncode,
+        warmup_returncode=warmup_returncode,
+        allow_warmup_failure=allow_warmup_failure,
+        skip_warmup=skip_warmup,
+        condition_id=condition_id,
+        allow_protocol_deviation=allow_protocol_deviation,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -1117,9 +1337,15 @@ def execute_run(
             "sut": SUT_ENVIRONMENT_FILENAME if sut_env_present else None,
         },
         "sut_environment_present": sut_env_present,
+        "sut_environment_missing_fields": sut_env_missing_fields,
         "allow_missing_sut_env": allow_missing_sut_env,
         "resource_source": resource_source,
         "allow_missing_resources": allow_missing_resources,
+        "allow_warmup_failure": allow_warmup_failure,
+        "allow_protocol_deviation": allow_protocol_deviation,
+        # Protocol deviations (work order P1 fix 5): {kind, detail,
+        # authorized_by_flag} entries; the analysis lists them per run.
+        "deviations": deviations,
         "controller_metrics": (
             {
                 "url": controller_url,
@@ -1151,6 +1377,10 @@ def execute_run(
                 "sut_env_from": str(sut_env_from) if sut_env_from else None,
                 "resources_from": str(resources_from) if resources_from else None,
                 "local_resources": local_resources,
+                "allow_missing_sut_env": allow_missing_sut_env,
+                "allow_missing_resources": allow_missing_resources,
+                "allow_warmup_failure": allow_warmup_failure,
+                "allow_protocol_deviation": allow_protocol_deviation,
                 "controller_url": controller_url,
                 "restart_cmd": restart_cmd,
                 "restart_at_s": restart_at_s,
@@ -1339,8 +1569,21 @@ def collect_run(
     manifest["allow_missing_sut_env"] = allow_missing_sut_env
     manifest["allow_missing_resources"] = allow_missing_resources
 
+    # SUT environment quality (work order P1 fix 4): re-validate the file
+    # currently in the run dir against REQUIRED_SUT_FIELDS.
+    sut_env_missing_fields: list[str] = []
+    if sut_env_present:
+        sut_env_missing_fields = validate_sut_environment(
+            read_sut_environment(run_dir)
+        )
+    manifest["sut_environment_missing_fields"] = sut_env_missing_fields
+
     timed = manifest.get("runner", "simulator") == "simulator"
     restart_record = manifest.get("restart")
+    cli_echo = (manifest.get("config") or {}).get("cli") or {}
+    allow_warmup_failure = bool(manifest.get("allow_warmup_failure"))
+    allow_protocol_deviation = bool(manifest.get("allow_protocol_deviation"))
+    skip_warmup = bool(cli_echo.get("skip_warmup"))
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -1350,9 +1593,48 @@ def collect_run(
         restart_required=manifest.get("condition_id") == "controller_restart",
         restart_ok=isinstance(restart_record, dict)
         and restart_record.get("returncode") == 0,
+        sut_env_missing_fields=sut_env_missing_fields,
+        simulator_returncode=manifest.get("simulator_returncode", 0),
+        warmup_returncode=manifest.get("warmup_returncode"),
+        allow_warmup_failure=allow_warmup_failure,
+        skip_warmup=skip_warmup,
+        condition_id=manifest.get("condition_id"),
+        allow_protocol_deviation=allow_protocol_deviation,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons
+
+    # Overrides taking effect at collect time must leave the same recorded
+    # deviation entries a 'run' would (work order P1 fix 5); deduplicated
+    # by kind so repeated collect passes never stack duplicates.
+    deviations = manifest.get("deviations")
+    if not isinstance(deviations, list):
+        deviations = []
+    if (
+        timed
+        and allow_missing_sut_env
+        and (not sut_env_present or sut_env_missing_fields)
+    ):
+        _append_deviation(
+            deviations,
+            "missing_sut_environment",
+            "timed run without a usable sut_environment.json accepted"
+            + (
+                f" (present but missing: {', '.join(sut_env_missing_fields)})"
+                if sut_env_present
+                else " (file absent)"
+            ),
+            "--allow-missing-sut-env",
+        )
+    if timed and allow_missing_resources and resource_source != "sut-collector":
+        _append_deviation(
+            deviations,
+            "missing_sut_resources",
+            "timed run without SUT-collector resources accepted "
+            f"(resource_source: {resource_source})",
+            "--allow-missing-resources",
+        )
+    manifest["deviations"] = deviations
     if warnings:
         manifest.setdefault("warnings", [])
         manifest["warnings"] = list(manifest["warnings"]) + warnings

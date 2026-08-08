@@ -77,8 +77,12 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
         "--resources-from",
         default=None,
         help="path of the resources.csv produced ON the ARM VM by "
-        "deployment/scripts/collect-resources.sh and fetched here. Timed "
-        "runs without SUT resources are marked validity 'invalid'",
+        "deployment/scripts/collect-resources.sh and fetched here. The "
+        "file is content-validated before ingestion (exact "
+        "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host header; at least "
+        "30 sample rows; every host value matching the sut_environment "
+        "node/hostname); a rejected file is treated as missing. Timed runs "
+        "without SUT resources are marked validity 'invalid'",
     )
     parser.add_argument(
         "--allow-missing-sut-env",
@@ -175,10 +179,32 @@ def build_parser() -> argparse.ArgumentParser:
         "(default: the 60 s confirmation window of plan 7.3)",
     )
     p_run.add_argument(
-        "--skip-warmup", action="store_true", help="skip the planned warm-up"
+        "--skip-warmup",
+        action="store_true",
+        help="skip the planned warm-up. Recorded as a protocol deviation; "
+        "on nominal/load_sweep/soak the run is marked validity 'invalid' "
+        "unless --allow-protocol-deviation is also given",
     )
     p_run.add_argument(
-        "--skip-cooldown", action="store_true", help="skip the planned cooldown"
+        "--skip-cooldown",
+        action="store_true",
+        help="skip the planned cooldown (recorded as a protocol deviation "
+        "when the condition prescribes one)",
+    )
+    p_run.add_argument(
+        "--allow-warmup-failure",
+        action="store_true",
+        help="keep a timed run valid when the warm-up subprocess exits "
+        "non-zero; the decision is recorded as a protocol deviation in the "
+        "manifest (without this flag the run is marked validity 'invalid')",
+    )
+    p_run.add_argument(
+        "--allow-protocol-deviation",
+        action="store_true",
+        help="authorize an explicit protocol deviation (currently: "
+        "--skip-warmup on nominal/load_sweep/soak); the deviation is "
+        "recorded in the manifest (without this flag such a run is marked "
+        "validity 'invalid')",
     )
     _add_collection_arguments(p_run)
     p_run.add_argument(
@@ -319,6 +345,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
         local_resources=args.local_resources,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
+        allow_warmup_failure=args.allow_warmup_failure,
+        allow_protocol_deviation=args.allow_protocol_deviation,
         controller_url=args.controller_url,
         restart_cmd=args.restart_cmd,
         restart_at_s=args.restart_at_s,

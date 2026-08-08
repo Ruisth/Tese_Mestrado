@@ -117,6 +117,8 @@ def test_run_parser_accepts_collection_and_hook_flags() -> None:
             "--external-logs",
             "logs",
             "--local-resources",
+            "--allow-warmup-failure",
+            "--allow-protocol-deviation",
         ]
     )
     assert args.fetch_events_cmd.endswith("{dest}")
@@ -128,6 +130,15 @@ def test_run_parser_accepts_collection_and_hook_flags() -> None:
     assert args.restart_at_s == 300.0
     assert args.external_timings == "timings.json"
     assert args.local_resources is True
+    # Work order P1 fix 5: deviation-authorization flags.
+    assert args.allow_warmup_failure is True
+    assert args.allow_protocol_deviation is True
+
+
+def test_run_parser_deviation_flags_default_false() -> None:
+    args = cli.build_parser().parse_args(["run", "--run-id", "nominal-r01"])
+    assert args.allow_warmup_failure is False
+    assert args.allow_protocol_deviation is False
 
 
 # ---------------------------------------------------------------------------

@@ -177,14 +177,22 @@ robustness conditions over the non-excluded runs:
   (dedupe state survives the restart via the twin ingestion feature,
   CONTRACTS 4).
 
-Exclusions (plan 7.3)
----------------------
+Exclusions and validity (plan 7.3; work order P1)
+-------------------------------------------------
 
 A run is excluded only for a proven cloud/instrumentation/configuration
 failure, with the cause documented in the run manifest's ``exclusion``
 field. Excluded runs still appear in ``per_run.csv`` (flagged) but are
 removed from summaries, saturation, acceptance and figures. A slow run is
 never excluded for its result alone.
+
+Validity gate (work order P1 fix 1): the same removal applies to any run
+whose manifest ``validity`` is present and not ``'valid'`` — invalid runs
+must never contaminate summaries, saturation, acceptance or figures. A
+manifest WITHOUT a validity key (legacy fixtures/raw runs) is treated as
+valid; a present non-'valid' value always excludes. Every run stays listed
+in ``per_run.csv`` with its validity flag, its ``resource_source`` and a
+warning listing any recorded protocol ``deviations``.
 
 Outputs
 -------
@@ -327,10 +335,17 @@ def read_resources_csv(path: Path) -> dict[str, list[dict[str, Any]]]:
     """Read resources.csv into ``{container: [sample, ...]}`` sorted by time.
 
     Each sample: ``{ts, cpu_pct, mem_bytes, mem_pct}`` (ts is a datetime;
-    unparseable fields become None). The CSV schema
-    (``ts_utc,container,cpu_pct,mem_bytes,mem_pct``) is shared by the local
-    dev sampler (resources.py) and the SUT-side collector
-    (``deployment/scripts/collect-resources.sh``).
+    unparseable fields become None). The current CSV schema
+    (``ts_utc,container,cpu_pct,mem_bytes,mem_pct,host``, work order P1) is
+    shared by the local dev sampler (resources.py) and the SUT-side
+    collector (``deployment/scripts/collect-resources.sh``).
+
+    Header tolerance (documented, work order P1 fix 3): this READER accepts
+    BOTH the new 6-column header and the legacy 5-column one WITHOUT
+    ``host`` — old fixtures and pre-P1 raw runs must stay analyzable, and
+    the ``host`` provenance column does not enter any aggregate. RUN-TIME
+    ingestion is the strict side: ``run/collect --resources-from`` accepts
+    only the new header (``egw_experiments.resources.validate_resources_csv``).
     """
     by_container: dict[str, list[dict[str, Any]]] = {}
     with open(path, "r", encoding="utf-8", newline="") as fh:
@@ -550,6 +565,7 @@ PER_RUN_COLUMNS = [
     "validity",
     "excluded",
     "exclusion_reason",
+    "resource_source",
     "sent_total",
     "sent_valid",
     "intended_invalid_sent",
@@ -882,6 +898,36 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
 
     exclusion = manifest.get("exclusion")
 
+    # Resource provenance (work order P1 fix 2): every message run is a
+    # timed run, and timed runs require the SUT-side collector. A
+    # non-'sut-collector' source (local-dev sampler, none, or a legacy
+    # manifest without the key) is flagged loudly so it can never pass
+    # silently as SUT evidence.
+    resource_source = manifest.get("resource_source")
+    if resource_source != "sut-collector":
+        warnings.append(
+            f"resource_source {resource_source!r} is not 'sut-collector': "
+            "resources.csv (if any) was NOT collected on the SUT VM for "
+            "this timed run (audit 9.1)"
+        )
+
+    # Protocol deviations (work order P1 fix 5): recorded by the runner in
+    # the manifest; listed here per run so no deviation stays invisible in
+    # the processed outputs.
+    deviations = manifest.get("deviations")
+    if isinstance(deviations, list) and deviations:
+        listed = "; ".join(
+            str(d.get("kind", "unknown"))
+            + (
+                f" (authorized by {d.get('authorized_by_flag')})"
+                if d.get("authorized_by_flag")
+                else " (no authorizing flag)"
+            )
+            for d in deviations
+            if isinstance(d, dict)
+        )
+        warnings.append(f"protocol deviation(s) recorded: {listed}")
+
     return {
         "run_id": run_id,
         "condition_id": manifest.get("condition_id"),
@@ -897,6 +943,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             if isinstance(exclusion, (dict, list))
             else exclusion
         ),
+        "resource_source": resource_source,
         "sent_total": sent_total,
         "sent_valid": sent_valid,
         "intended_invalid_sent": len(intended_ids),
@@ -1671,13 +1718,33 @@ def analyze(base_dir: str | Path | None = None) -> int:
     for row in rows:
         resources_rows.extend(row.get("_resources", []))
 
-    included = [r for r in rows if not r["excluded"]]
-    excluded_count = len(rows) - len(included)
+    # Aggregation gate (work order P1 fix 1): a run enters summaries,
+    # saturation, acceptance and figures only when it is NOT excluded AND
+    # its validity is 'valid'. A missing/None validity is tolerated ONLY
+    # for legacy manifests without the key; any present non-'valid' value
+    # always excludes the run from aggregation. per_run.csv keeps every
+    # run listed with its validity flag (visibility without contamination).
+    def _invalid_validity(row: dict[str, Any]) -> bool:
+        validity = row.get("validity")
+        return validity is not None and validity != "valid"
+
+    invalid_rows = [r for r in rows if _invalid_validity(r)]
+    included = [
+        r for r in rows if not r["excluded"] and not _invalid_validity(r)
+    ]
+    excluded_count = sum(1 for r in rows if r["excluded"])
     if excluded_count:
         print(
             f"[analyze] {excluded_count} run(s) excluded per manifest "
             "'exclusion' (documented cause required, plan 7.3); they remain "
             "listed in per_run.csv"
+        )
+    if invalid_rows:
+        invalid_ids = ", ".join(str(r.get("run_id")) for r in invalid_rows)
+        print(
+            f"[analyze] {len(invalid_rows)} run(s) with validity != 'valid' "
+            "removed from summaries, saturation, acceptance and figures; "
+            f"they remain listed in per_run.csv: {invalid_ids}"
         )
 
     _write_csv(processed_dir / "per_run.csv", PER_RUN_COLUMNS, rows)
@@ -1718,7 +1785,8 @@ def analyze(base_dir: str | Path | None = None) -> int:
 
     print(
         f"[analyze] {len(rows)} message run(s) processed "
-        f"({len(included)} included, {excluded_count} excluded); "
+        f"({len(included)} included, {excluded_count} excluded, "
+        f"{len(invalid_rows)} invalid); "
         f"{len(external_rows)} external run(s); "
         f"{len(figures)} figure(s) written to {figures_dir}"
     )

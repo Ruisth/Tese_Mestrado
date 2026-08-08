@@ -17,7 +17,9 @@ experiments/
     │   │                     # fetched from the VM (--fetch-events-cmd)
     │   ├── sent_events.jsonl # simulator log (delivery-rate denominator)
     │   ├── resources.csv     # 1 Hz SUT docker stats, collected ON the VM
-    │   │                     # (collect-resources.sh, --resources-from)
+    │   │                     # (collect-resources.sh, --resources-from);
+    │   │                     # 6 columns incl. host provenance, content-
+    │   │                     # validated at ingest (see Validity rules)
     │   ├── controller_metrics.csv # 1 Hz GET /metrics samples (queue depth)
     │   ├── manifest.json     # scenario, seed, commit, image digests, env
     │   │                     # refs, config echo, timestamps, measured
@@ -76,6 +78,13 @@ EGW_PROVIDER=... EGW_REGION=... EGW_INSTANCE_TYPE=... EGW_SHARED_VCPU_NOTE=... \
   sh scripts/capture-sut-environment.sh sut_environment.json
 # fetch to the harness host:
 scp vm:/opt/egw/src/deployment/sut_environment.json .
+# NOTE (work order P1): the harness now REQUIRES a node/hostname field in
+# sut_environment.json (REQUIRED_SUT_FIELDS) and cross-checks it against
+# the host column of resources.csv. Until capture-sut-environment.sh emits
+# it, add it manually after capture, e.g.:
+#   python3 -c "import json,socket,sys; p='sut_environment.json'; \
+#     d=json.load(open(p)); d['node']=socket.gethostname(); \
+#     json.dump(d,open(p,'w'),indent=2)"   # run ON the VM
 # loopback-only controller API (port 8000): open a tunnel for /metrics:
 ssh -N -L 8000:127.0.0.1:8000 vm &
 ```
@@ -200,23 +209,67 @@ manifest/release (plan 5.8).
 python -m egw_experiments analyze
 ```
 
-## Validity rules (audit 9.1/9.2 — never warning-only)
+## Validity rules (audit 9.1/9.2, hardened by work order P1 — never warning-only)
 
 Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
 
-- `sut_environment.json` (captured ON the VM, ingested via
-  `--sut-env-from` / env `EGW_SUT_ENV_FILE`);
-- SUT resources (`resources.csv` from the VM-side collector, ingested via
-  `--resources-from`);
+- a USABLE `sut_environment.json` (captured ON the VM, ingested via
+  `--sut-env-from` / env `EGW_SUT_ENV_FILE`): presence alone is not
+  enough — it must carry the `REQUIRED_SUT_FIELDS` of
+  `src/egw_experiments/environment.py` (node/hostname, `nproc` as a
+  positive integer, uname/OS identification);
+- SUT resources with `resource_source: "sut-collector"` — `resources.csv`
+  from the VM-side collector, ingested via `--resources-from` and
+  CONTENT-VALIDATED before ingestion:
+  - header exactly `ts_utc,container,cpu_pct,mem_bytes,mem_pct,host`
+    (the `host` column records the hostname the sample was taken on),
+  - at least 30 data rows (`MIN_RESOURCE_SAMPLES`,
+    `src/egw_experiments/resources.py`),
+  - every distinct `host` value equal to the node/hostname in
+    `sut_environment.json` (when that file provides one);
+  a rejected file is treated as MISSING resources. The analysis reader
+  still tolerates the legacy 5-column header for pre-P1 raw runs and
+  fixtures — but run-time ingestion never does;
+- a clean simulator exit: a non-zero measured-run exit code marks the run
+  invalid with the code in the reason, and there is NO override;
+- a clean warm-up exit: non-zero marks the run invalid unless
+  `--allow-warmup-failure` is given (recorded as a protocol deviation);
+- the planned warm-up: `--skip-warmup` on `nominal`/`load_sweep`/`soak`
+  marks the run invalid unless `--allow-protocol-deviation` is given
+  (recorded as a protocol deviation);
 - for `controller_restart`: a successfully executed `--restart-cmd`.
 
-A missing item marks the manifest `validity: "invalid"` with explicit
-reasons — it never degrades to a warning, because CPU/RAM measured on the
-wrong host would silently invalidate RQ3. The only overrides are the
-explicit `--allow-missing-sut-env` / `--allow-missing-resources` flags,
-which record the deliberate decision in the manifest. The manifest also
+A failed requirement marks the manifest `validity: "invalid"` with
+explicit reasons — it never degrades to a warning, because CPU/RAM
+measured on the wrong host would silently invalidate RQ3. The overrides
+are the explicit `--allow-missing-sut-env` / `--allow-missing-resources`
+/ `--allow-warmup-failure` / `--allow-protocol-deviation` flags; every
+override that takes effect is recorded in the manifest. The manifest also
 records `resource_source`: `sut-collector` | `local-dev`
-(`--local-resources`, dev only — measures the load generator) | `none`.
+(`--local-resources`, dev only — measures the load generator and makes a
+timed run INVALID without an override) | `none`.
+
+### Protocol deviations (work order P1)
+
+The manifest carries a `deviations` list of
+`{kind, detail, authorized_by_flag}` entries recording every departure
+from the frozen protocol: `--skip-warmup`, skipped cooldowns, a post-run
+wait differing from the 60 s confirmation window, warm-up subprocess
+failures, and every `--allow-*` override that took effect
+(`authorized_by_flag` names the flag; `null` means the deviation happened
+without explicit authorization and normally also produced a validity
+reason). The analysis appends a per-run warning listing the recorded
+deviations, and per_run.csv carries each run's `resource_source`.
+
+### Validity gate in the analysis (work order P1)
+
+`analyze` aggregates ONLY runs whose manifest `validity` is `"valid"`:
+runs with any other present value are removed from
+`summary_by_condition.csv`, `saturation.json`,
+`acceptance_by_condition.csv` and the figures, and a notice with their
+count and run_ids is printed. They remain fully listed in `per_run.csv`
+with their validity flag (visibility without contamination). Manifests
+WITHOUT a validity key (legacy raw runs) are treated as valid.
 
 ## Measured window (audit 9.4)
 

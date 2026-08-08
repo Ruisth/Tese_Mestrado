@@ -8,7 +8,19 @@
 # appends CSV rows compatible with the harness analysis reader
 # (egw_experiments.analyze.read_resources_csv):
 #
-#   ts_utc,container,cpu_pct,mem_bytes,mem_pct
+#   ts_utc,container,cpu_pct,mem_bytes,mem_pct,host
+#
+# host (work order P1): the hostname of the machine every sample was taken
+# on — provenance the harness VERIFIES at ingestion. `run/collect
+# --resources-from` rejects the file (and treats SUT resources as missing,
+# invalidating the timed run) unless:
+#   - the header is exactly the 6 columns above,
+#   - it carries at least 30 data rows (MIN_RESOURCE_SAMPLES,
+#     egw_experiments/resources.py),
+#   - every host value equals the node/hostname recorded in
+#     sut_environment.json (when that file provides one).
+# So this script MUST run on the SUT VM itself; a CSV produced anywhere
+# else will fail the host check by construction.
 #
 # cpu_pct keeps docker's single-CPU basis (can exceed 100 for
 # multi-threaded containers); the harness analysis normalizes it by nproc
@@ -77,9 +89,19 @@ command -v docker >/dev/null 2>&1 || {
 stop=0
 trap 'stop=1' TERM INT
 
-# Header only when creating a fresh file (append mode allows restarts).
+# Host provenance (work order P1): recorded on every row and verified by
+# the harness against sut_environment.json at ingestion.
+HOST=$(hostname 2>/dev/null || uname -n)
+
+# Header only when creating a fresh file (append mode allows restarts) —
+# but never append to a file with a different (e.g. pre-host-column)
+# header: the ingest validation would reject the mixed schema anyway.
+HEADER="ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"
 if [ ! -s "$OUT" ]; then
-    echo "ts_utc,container,cpu_pct,mem_bytes,mem_pct" > "$OUT"
+    echo "$HEADER" > "$OUT"
+elif [ "$(head -n 1 "$OUT")" != "$HEADER" ]; then
+    echo "error: $OUT exists with a different header (old schema?); refusing to append" >&2
+    exit 1
 fi
 
 started_epoch=$(date +%s)
@@ -121,8 +143,8 @@ function bytes(s,    n, u, mult) {
 {
     name = field($0, "Name")
     if (name == "") next
-    printf "%s,%s,%s,%s,%s\n", TS, name, pct(field($0, "CPUPerc")), \
-        bytes(field($0, "MemUsage")), pct(field($0, "MemPerc"))
+    printf "%s,%s,%s,%s,%s,%s\n", TS, name, pct(field($0, "CPUPerc")), \
+        bytes(field($0, "MemUsage")), pct(field($0, "MemPerc")), HOST
 }
 '
 
@@ -137,7 +159,7 @@ while [ "$stop" -eq 0 ]; do
         lines=$(docker stats --no-stream --format '{{json .}}' 2>/dev/null)
     fi
     if [ -n "$lines" ]; then
-        printf '%s\n' "$lines" | awk -v TS="$ts" "$AWK_PARSE" >> "$OUT"
+        printf '%s\n' "$lines" | awk -v TS="$ts" -v HOST="$HOST" "$AWK_PARSE" >> "$OUT"
     fi
     if [ "$DURATION" -gt 0 ]; then
         now=$(date +%s)

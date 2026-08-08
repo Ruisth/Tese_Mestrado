@@ -49,6 +49,12 @@ first_line() {
 }
 
 kernel=$(first_line uname -a)
+# Hostname: required by the harness (REQUIRED_SUT_FIELDS node/hostname) and
+# cross-checked against the "host" column of collect-resources.sh samples.
+node_name=$(first_line hostname)
+if [ -z "$node_name" ]; then
+    node_name=$(first_line uname -n)
+fi
 os_pretty=""
 if [ -r /etc/os-release ]; then
     # PRETTY_NAME="Ubuntu 24.04.2 LTS" -> Ubuntu 24.04.2 LTS
@@ -79,6 +85,7 @@ cat > "$OUT" <<EOF
 {
   "role": "sut",
   "captured_utc": "$(json_escape "$captured_utc")",
+  "node": "$(json_escape "$node_name")",
   "uname_a": "$(json_escape "$kernel")",
   "os_pretty_name": "$(json_escape "$os_pretty")",
   "nproc": $nproc_json,

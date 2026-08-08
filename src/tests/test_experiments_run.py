@@ -68,6 +68,11 @@ def fast_run(monkeypatch, tmp_path: Path):
         sleep_s = getattr(fake_subprocess, "sleep_s", 0.0)
         if sleep_s:
             time.sleep(sleep_s)
+        # Per-call exit codes (e.g. warm-up fails, measured run succeeds):
+        # pop from 'returncodes' when set; else the scalar 'returncode'.
+        rc_list = getattr(fake_subprocess, "returncodes", None)
+        if rc_list:
+            return rc_list.pop(0)
         return getattr(fake_subprocess, "returncode", 0)
 
     monkeypatch.setattr(run_mod, "_run_subprocess", fake_subprocess)
@@ -91,22 +96,45 @@ def _write_script(tmp_path: Path, name: str, body: str) -> Path:
     return script
 
 
-def _sut_env_file(tmp_path: Path) -> Path:
+SUT_NODE = "sut-vm"
+
+RESOURCES_HEADER = "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"
+
+
+def _sut_env_file(tmp_path: Path, **overrides) -> Path:
+    """A sut_environment.json satisfying REQUIRED_SUT_FIELDS (fix 4)."""
+    env = {
+        "role": "sut",
+        "node": SUT_NODE,
+        "nproc": 4,
+        "uname_a": "Linux sut-vm 6.8.0 aarch64",
+        "os_pretty_name": "fixture",
+    }
+    env.update(overrides)
+    env = {k: v for k, v in env.items() if v is not None}
     path = tmp_path / "sut_environment.json"
-    path.write_text(
-        json.dumps({"role": "sut", "nproc": 4, "os_pretty_name": "fixture"}) + "\n",
-        "utf-8",
-    )
+    path.write_text(json.dumps(env) + "\n", "utf-8")
     return path
 
 
-def _resources_file(tmp_path: Path) -> Path:
-    path = tmp_path / "resources.csv"
-    path.write_text(
-        "ts_utc,container,cpu_pct,mem_bytes,mem_pct\n"
-        "2026-09-07T10:00:00Z,egw-controller,10.0,1024,1.0\n",
-        "utf-8",
-    )
+def _resources_file(
+    tmp_path: Path,
+    *,
+    rows: int = 40,
+    host: str = SUT_NODE,
+    header: str = RESOURCES_HEADER,
+    name: str = "resources.csv",
+) -> Path:
+    """A SUT collector resources.csv passing the ingest validation (fix 3):
+    exact 6-column header with host provenance, >= MIN_RESOURCE_SAMPLES
+    rows, every host equal to the SUT node."""
+    path = tmp_path / name
+    lines = [header]
+    for i in range(rows):
+        lines.append(
+            f"2026-09-07T10:00:{i % 60:02d}Z,egw-controller,10.0,1024,1.0,{host}"
+        )
+    path.write_text("\n".join(lines) + "\n", "utf-8")
     return path
 
 
@@ -336,6 +364,17 @@ def test_allow_missing_flags_record_deliberate_decision(
     assert manifest["validity"] == "valid"
     assert manifest["allow_missing_sut_env"] is True
     assert manifest["allow_missing_resources"] is True
+    # Work order P1 fix 5: the overrides are valid ONLY together with an
+    # explicit deviation record in the manifest.
+    kinds = {d["kind"]: d for d in manifest["deviations"]}
+    assert (
+        kinds["missing_sut_environment"]["authorized_by_flag"]
+        == "--allow-missing-sut-env"
+    )
+    assert (
+        kinds["missing_sut_resources"]["authorized_by_flag"]
+        == "--allow-missing-resources"
+    )
 
 
 def test_resources_from_and_local_resources_mutually_exclusive(
@@ -366,6 +405,396 @@ def test_existing_run_dir_refused_with_collect_hint(
     err = capsys.readouterr().err
     assert "already exists" in err
     assert "collect" in err
+
+
+# ---------------------------------------------------------------------------
+# Work order P1: resources ingest validation, SUT-env quality, protocol
+# deviations and exit-code validity rules
+# ---------------------------------------------------------------------------
+
+
+class _StubSampler:
+    """Replacement for ResourceSampler: no docker, header-only CSV."""
+
+    def __init__(self, csv_path, *args, **kwargs) -> None:
+        self.csv_path = Path(csv_path)
+        self.error = None
+        self.samples_written = 0
+
+    def __enter__(self) -> "_StubSampler":
+        self.csv_path.parent.mkdir(parents=True, exist_ok=True)
+        self.csv_path.write_text(RESOURCES_HEADER + "\n", encoding="utf-8")
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+def test_ingest_resources_validation_rejects_bad_files(tmp_path) -> None:
+    """Run-time ingest accepts only a content-valid SUT collector CSV:
+    presence alone is never evidence (work order P1 fix 3)."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "sut_environment.json").write_text(
+        json.dumps({"node": SUT_NODE, "nproc": 4, "uname_a": "Linux sut-vm"})
+        + "\n",
+        "utf-8",
+    )
+
+    def attempt(source):
+        warnings: list[str] = []
+        ok = run_mod.ingest_resources(run_dir, source, warnings)
+        return ok, " ".join(warnings)
+
+    # Missing file.
+    ok, msg = attempt(tmp_path / "nope.csv")
+    assert ok is False and "not found" in msg
+    assert not (run_dir / "resources.csv").exists()
+
+    # Entirely empty file.
+    empty = tmp_path / "empty.csv"
+    empty.write_text("", "utf-8")
+    ok, msg = attempt(empty)
+    assert ok is False and "REJECTED" in msg
+
+    # Header-only file.
+    header_only = tmp_path / "header-only.csv"
+    header_only.write_text(RESOURCES_HEADER + "\n", "utf-8")
+    ok, msg = attempt(header_only)
+    assert ok is False and "no data rows" in msg
+
+    # Wrong header: the legacy 5-column schema is not ingestible (the
+    # analysis still READS it for old fixtures, see analyze tests).
+    legacy = tmp_path / "legacy.csv"
+    legacy.write_text(
+        "ts_utc,container,cpu_pct,mem_bytes,mem_pct\n"
+        + "2026-09-07T10:00:00Z,egw-controller,10.0,1024,1.0\n" * 40,
+        "utf-8",
+    )
+    ok, msg = attempt(legacy)
+    assert ok is False and "header" in msg
+
+    # Too few samples.
+    short = _resources_file(tmp_path, rows=5, name="short.csv")
+    ok, msg = attempt(short)
+    assert ok is False and "MIN_RESOURCE_SAMPLES" in msg
+
+    # Host mismatch against sut_environment.json's node.
+    wrong_host = _resources_file(
+        tmp_path, host="loadgen-laptop", name="wrong-host.csv"
+    )
+    ok, msg = attempt(wrong_host)
+    assert ok is False and "do not match" in msg
+    assert not (run_dir / "resources.csv").exists()
+
+    # A valid file is copied into the run dir.
+    ok, msg = attempt(_resources_file(tmp_path))
+    assert ok is True
+    assert (run_dir / "resources.csv").is_file()
+
+
+def test_ingest_resources_without_sut_node_skips_host_match(tmp_path) -> None:
+    """The host equality check applies only when sut_environment.json
+    provides a node/hostname (work order P1 fix 3)."""
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    warnings: list[str] = []
+    src = _resources_file(tmp_path, host="whatever-host")
+    assert run_mod.ingest_resources(run_dir, src, warnings) is True
+    assert warnings == []
+
+
+def test_local_resources_timed_run_is_invalid(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """--local-resources samples the load generator (dev only): a timed run
+    with resource_source 'local-dev' is INVALID without an override
+    (work order P1 fix 2)."""
+    monkeypatch.setattr(run_mod, "ResourceSampler", _StubSampler)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        local_resources=True,
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["resource_source"] == "local-dev"
+    assert manifest["validity"] == "invalid"
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "local-dev" in reasons
+    assert "LOAD GENERATOR" in reasons
+
+
+def test_local_resources_with_override_is_valid_and_recorded(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """--allow-missing-resources keeps a local-dev timed run valid ONLY
+    together with the recorded override deviation (fixes 2+5); the
+    analysis still surfaces the wrong provenance per run."""
+    from egw_experiments import analyze as analyze_mod
+
+    monkeypatch.setattr(run_mod, "ResourceSampler", _StubSampler)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        local_resources=True,
+        allow_missing_resources=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["resource_source"] == "local-dev"
+    deviation = next(
+        d for d in manifest["deviations"] if d["kind"] == "missing_sut_resources"
+    )
+    assert deviation["authorized_by_flag"] == "--allow-missing-resources"
+    assert "local-dev" in deviation["detail"]
+
+    # The analysis keeps the run aggregatable (validity 'valid') but warns
+    # about the provenance and lists the recorded deviation.
+    assert analyze_mod.analyze(base_dir=base) == 0
+    import csv as _csv
+
+    with open(
+        base / "processed" / "per_run.csv", encoding="utf-8", newline=""
+    ) as fh:
+        row = next(iter(_csv.DictReader(fh)))
+    assert row["run_id"] == "smoke_sequence-r01"
+    assert row["validity"] == "valid"
+    assert row["resource_source"] == "local-dev"
+    assert "not 'sut-collector'" in row["warnings"]
+    assert "protocol deviation(s) recorded" in row["warnings"]
+    assert "missing_sut_resources" in row["warnings"]
+
+
+def test_sut_env_missing_required_fields_is_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """File presence is not enough: a sut_environment.json without the
+    REQUIRED_SUT_FIELDS invalidates a timed run (work order P1 fix 4)."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path, node=None, nproc=None),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "invalid"
+    missing = " ".join(manifest["sut_environment_missing_fields"])
+    assert "node/hostname" in missing
+    assert "nproc" in missing
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "missing required field(s)" in reasons
+    assert "--allow-missing-sut-env" in reasons
+
+
+def test_sut_env_missing_fields_override_records_deviation(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path, node=None, nproc=None),
+        resources_from=_resources_file(tmp_path),
+        allow_missing_sut_env=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    deviation = next(
+        d
+        for d in manifest["deviations"]
+        if d["kind"] == "missing_sut_environment"
+    )
+    assert deviation["authorized_by_flag"] == "--allow-missing-sut-env"
+    assert "missing" in deviation["detail"]
+
+
+def test_simulator_nonzero_exit_is_invalid(tmp_path, plan_path, fast_run) -> None:
+    """A non-zero simulator exit invalidates the run outright; there is no
+    override for a failed measured run (work order P1 fix 5)."""
+    fast_run.returncode = 3
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["simulator_returncode"] == 3
+    assert manifest["validity"] == "invalid"
+    assert any(
+        "simulator exited with code 3" in reason
+        for reason in manifest["validity_reasons"]
+    )
+
+
+def test_warmup_failure_is_invalid_without_allow_flag(
+    tmp_path, plan_path, fast_run
+) -> None:
+    fast_run.returncodes = [1, 0]  # warm-up fails, measured run succeeds
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 1
+    manifest = _manifest(base, "nominal-r01")
+    assert manifest["warmup_returncode"] == 1
+    assert manifest["simulator_returncode"] == 0
+    assert manifest["validity"] == "invalid"
+    assert any(
+        "warm-up exited with code 1" in reason
+        for reason in manifest["validity_reasons"]
+    )
+    # The unauthorized deviation is still recorded (authorized_by_flag None).
+    deviation = next(
+        d for d in manifest["deviations"] if d["kind"] == "warmup_nonzero_exit"
+    )
+    assert deviation["authorized_by_flag"] is None
+
+
+def test_warmup_failure_with_allow_flag_is_valid_with_deviation(
+    tmp_path, plan_path, fast_run
+) -> None:
+    fast_run.returncodes = [1, 0]
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        allow_warmup_failure=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "nominal-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["allow_warmup_failure"] is True
+    deviation = next(
+        d for d in manifest["deviations"] if d["kind"] == "warmup_nonzero_exit"
+    )
+    assert deviation["authorized_by_flag"] == "--allow-warmup-failure"
+    assert "code 1" in deviation["detail"]
+
+
+def test_skip_warmup_on_nominal_is_invalid_without_authorization(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        skip_warmup=True,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 1
+    manifest = _manifest(base, "nominal-r01")
+    assert manifest["validity"] == "invalid"
+    assert any(
+        "--skip-warmup" in reason for reason in manifest["validity_reasons"]
+    )
+    deviation = next(
+        d for d in manifest["deviations"] if d["kind"] == "skip_warmup"
+    )
+    assert deviation["authorized_by_flag"] is None
+    # Only the measured run was invoked.
+    assert len(fast_run.calls) == 1
+
+
+def test_skip_warmup_with_allow_protocol_deviation_is_valid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        skip_warmup=True,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        allow_protocol_deviation=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "nominal-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["allow_protocol_deviation"] is True
+    kinds = {d["kind"]: d for d in manifest["deviations"]}
+    assert (
+        kinds["skip_warmup"]["authorized_by_flag"] == "--allow-protocol-deviation"
+    )
+    # The shortened confirmation window (post_run_wait_s=0 vs the 60 s
+    # protocol window) is recorded as a deviation too (fix 5).
+    assert "confirmation_window_override" in kinds
+
+
+def test_skip_warmup_on_smoke_records_deviation_but_stays_valid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """smoke_sequence is not in SKIP_WARMUP_STRICT_CONDITIONS (its planned
+    warm-up is 0 s): --skip-warmup is recorded but does not invalidate."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        skip_warmup=True,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert any(d["kind"] == "skip_warmup" for d in manifest["deviations"])
 
 
 # ---------------------------------------------------------------------------
