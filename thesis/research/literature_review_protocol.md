@@ -4,6 +4,24 @@ Version 1.0 — 2026-08-07.
 Normative basis: integrated plan (`../../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`) §6.2;
 summarised in the dissertation, Chapter 3, Section "Literature Review Protocol".
 
+> **Status note — 2026-08-08.** The institutional database queries required by
+> Section 3 (IEEE Xplore, ACM Digital Library, Scopus/Web of Science) have
+> **not yet been executed**: they require institutional access and are a
+> pending student action, scheduled for the search-execution window of
+> 2026-08-10 to 2026-08-30 (plan §8). What exists as of this date is the
+> preliminary corpus for the advisor draft of Chapter 2: 25 verified entries
+> in `thesis/refs/references.bib`, every one registered in
+> `study_selection.csv` with its honest provenance (`known-source` seeds,
+> standards and official documentation, and `compass-lead` candidates), and
+> `search_log.csv` containing **only** the preliminary non-institutional
+> searches actually performed (Crossref API and open web), labelled as such.
+> No IEEE/ACM/Scopus/WoS query has been logged because none has been run.
+> Peer-reviewed papers included at this stage are marked
+> `stage = title_abstract` with a provisional-inclusion note; the full-text
+> screening pass and the institutional queries remain to be done under this
+> protocol, and all absence/gap claims in the dissertation remain bounded to
+> the sources examined so far.
+
 ## 1. Method designation
 
 This review is a **structured scoping/narrative review**. It is explicitly

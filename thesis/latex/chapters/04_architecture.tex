@@ -1,6 +1,8 @@
 % Chapter 4 — Architecture and Implementation
 % Plan mapping: PLANO §6.1 (row 4). Content mirrors the repository's normative
-% contracts (src/CONTRACTS.md v1.0) and JSON Schemas (src/schemas/). Describe
+% contracts (src/CONTRACTS.md v1.1, 2026-08-08: run-scoped idempotency,
+% last_run_id in the ingestion feature, device_type in sent_events.jsonl,
+% best-effort PUBACK capture) and JSON Schemas (src/schemas/). Describe
 % ONLY what the repository actually contains; no operational or performance
 % claims here. Indicative target: 5,000–6,000 words.
 
@@ -9,7 +11,8 @@
 
 \noindent This chapter describes the gateway as it is realised in the project
 repository. The design is \emph{contract-first}: a normative interface
-document (\texttt{src/CONTRACTS.md}) and versioned \ac{JSON} Schemas
+document (\texttt{src/CONTRACTS.md}, version 1.1 at the time of writing) and
+versioned \ac{JSON} Schemas
 (\texttt{src/schemas/}) bind the simulator, the controller, the deployment and
 the tests; every component described below implements those contracts. All
 statements in this chapter are design and implementation facts traceable to
@@ -63,7 +66,7 @@ used in benchmarks.
 (\texttt{schema\_version} 1.0.0) alongside the device-specific measurements:
 
 \begin{table}[htb]
-  \caption{Common event envelope (from \texttt{src/schemas/telemetry-envelope-v1.schema.json}).}
+  \caption[Common event envelope.]{Common event envelope (from \texttt{src/schemas/telemetry-envelope-v1.schema.json}).}
   \label{tab:envelope}
   \centering
   \small
@@ -141,10 +144,26 @@ idempotency check; conversion to a \ac{JSON} merge patch; twin update via
 \label{sec:arch-idempotency}
 
 \noindent Because \ac{QoS}~1 delivery is at-least-once, duplicates are
-expected. The controller rejects any \texttt{message\_id} it has already
-processed and any \texttt{seq} not greater than the last accepted sequence
-for that device. The deduplication state (last accepted
-\texttt{message\_id}, \texttt{seq}, timestamp and an accepted-events counter)
+expected. Deduplication is \emph{run-scoped} (contract version 1.1) and uses
+two complementary guards. The first guard is replay detection: the
+controller rejects any \texttt{message\_id} it has already processed (a
+bounded per-device history), and this rejection applies unconditionally ---
+since \texttt{message\_id} is a \ac{UUID}~v5 of
+\texttt{run\_id}, \texttt{device\_uuid} and \texttt{seq}, a replayed message
+is recognised regardless of which run it belongs to. The second guard is a
+sequence floor: an event whose \texttt{seq} is not greater than the last
+accepted sequence for that device is rejected as a duplicate, but this floor
+holds \emph{only within the same} \texttt{run\_id}. When an event arrives
+whose \texttt{run\_id} differs from the device's recorded
+\texttt{last\_run\_id}, the sequence floor is reset, because each new
+execution legitimately restarts \texttt{seq} at zero --- as happens in the
+ten consecutive \texttt{smoke} executions and in the warm-up phase that
+precedes every measured run. Without the run scoping, a warm-up run using
+the same seed (and therefore the same device identifiers) would raise the
+sequence floor and cause the first messages of the subsequent measured run
+to be wrongly rejected as duplicates, corrupting the delivery-rate metric.
+The deduplication state (last accepted \texttt{message\_id}, \texttt{seq},
+\texttt{run\_id} and timestamp, plus an accepted-events counter)
 is stored \emph{in the twin itself}, under a dedicated \texttt{ingestion}
 feature, so that it survives controller restarts; after a restart the local
 cache is rebuilt by reading the twin on the first event of each device.
@@ -185,27 +204,40 @@ type, gateway identifier and schema version. Measurements are organised into
 features per device type: the smartwatch twin has \texttt{vitals} and
 \texttt{location}; the smart ring has \texttt{thermo} and \texttt{oximetry};
 the smart clothing has \texttt{motion} and \texttt{respiration}; and all twins
-share the \texttt{ingestion} bookkeeping feature described above. The
+share the \texttt{ingestion} bookkeeping feature described above, whose
+properties are \texttt{last\_message\_id}, \texttt{last\_seq},
+\texttt{last\_run\_id}, \texttt{last\_ts} and \texttt{accepted\_count} ---
+\texttt{last\_run\_id} being the property that anchors the run-scoped
+sequence floor of Section~\ref{sec:arch-idempotency}. The
 controller authenticates to Ditto as a pre-authenticated subject with
 read/write permission on the thing and policy resources.
 
 \section{Simulator}
 \label{sec:arch-simulator}
 
+\begin{sloppypar}
 \noindent The workload generator is a single \ac{CLI} package
-(\texttt{egw\_simulator}) covering the three device types and six scenarios
-(\texttt{smoke}, \texttt{nominal}, \texttt{load-sweep},
-\texttt{dropout-reconnect}, \texttt{invalid-payload}, \texttt{soak}). All
+(\texttt{egw\_simulator}) covering the three device types and six scenarios:
+\texttt{smoke}, \texttt{nominal}, \texttt{load-sweep},
+\texttt{dropout-reconnect}, \texttt{invalid-payload} and \texttt{soak}. All
 experimental parameters --- scenario, seed, broker, duration, aggregate rate,
-device set, credentials, \ac{QoS} --- are explicit \ac{CLI} arguments recorded
-in a per-run manifest. Generation is deterministic: the same seed yields the
+device set, credentials, \ac{QoS} --- are explicit \ac{CLI} arguments, and
+all except the credentials are recorded in a per-run manifest (secrets are
+never written to evidence files). Generation is deterministic: the same seed yields the
 same per-device payload sequence. Every payload is validated locally against
 its schema before publication; the \texttt{invalid-payload} scenario
 deliberately injects invalid events and marks them as intended-invalid in the
 simulator's own send log (never in the payload), so that correct rejections
 can be distinguished from losses. The simulator writes its own evidence file
-per run (\texttt{sent\_events.jsonl}) with publish and acknowledgement
-monotonic timestamps for every message.
+per run (\texttt{sent\_events.jsonl}) with one record per message, carrying
+the message identifiers, the device type (added in contract version 1.1 so
+that per-type analyses need no join with the manifest), the publish
+monotonic timestamp and, when observed in time, the broker-acknowledgement
+monotonic timestamp; acknowledgement capture is best-effort --- the wait for
+the \ac{MQTT} acknowledgement is bounded by the time available before the
+next scheduled event, the field is null when not observed, and no primary
+metric depends on it.
+\end{sloppypar}
 
 \section{Security Considerations}
 \label{sec:arch-security}
@@ -221,8 +253,9 @@ is out of scope (Section~\ref{sec:intro-scope}).
 \section{Reproducibility and Evidence Structure}
 \label{sec:arch-repro}
 
-\noindent Every experimental run produces an immutable raw-evidence directory
-(\texttt{results/raw/\{run\_id\}/}) containing the controller event log, the
+\begin{sloppypar}
+\noindent Every experimental run produces an immutable directory of raw
+evidence, \texttt{results/raw/\{run\_id\}/}, containing the controller event log, the
 per-second resource samples, service logs, a manifest (scenario, seed, commit,
 image digests, environment, configuration, timestamps, protocol version) and
 SHA-256 checksums. Raw data becomes immutable at the data freeze; processed
@@ -230,3 +263,4 @@ tables and figures are regenerated exclusively by a single analysis script, so
 that every number in Chapter~\ref{ch:evaluation} has a recorded provenance
 chain from raw file to figure. \todo{Reference the final harness and analysis
 script paths in src/egw\_experiments/ once frozen.}
+\end{sloppypar}
