@@ -9,10 +9,11 @@
 # Pin provenance (verified 2026-08-07, details in egw-qemuarm64.yml header):
 #   poky                : tag yocto-5.0.19 (GitHub API mirror, dereferenced
 #                         annotated tag; canonical git.yoctoproject.org/poky)
-#   meta-openembedded   : scarthgap head 2026-07-30 (GitHub API +
-#                         OpenEmbedded Layer Index API, agreeing)
-#   meta-virtualization : scarthgap head 2026-07-20 (OpenEmbedded Layer
-#                         Index API; confirm once on WSL2 with
+#   meta-openembedded   : scarthgap head, commit date 2026-07-30 (GitHub API
+#                         + OpenEmbedded Layer Index API, agreeing)
+#   meta-virtualization : scarthgap head, commit date 2026-08-07 (OpenEmbedded
+#                         Layer Index API only — canonical cgit blocked
+#                         automated fetches; confirm once on WSL2 with
 #                         'git ls-remote https://git.yoctoproject.org/meta-virtualization scarthgap')
 # meta-egw is local (part of this repository) and is not pinned here.
 
@@ -26,4 +27,4 @@ overrides:
     meta-openembedded:
       commit: ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
     meta-virtualization:
-      commit: f851f730ec415d266bfe0c5941c228a63a896298
+      commit: 0d9fb7fef86c5cbc177045c7b86bc71948f8657d

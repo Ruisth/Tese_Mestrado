@@ -130,6 +130,15 @@ def dropout_windows(
     return windows
 
 
+def in_window(t_s: float, windows) -> bool:
+    """True when scheduled time ``t_s`` falls inside any half-open window.
+
+    Windows are ``(start, end)`` pairs with ``start <= t < end`` membership.
+    Shared by the runner and the tests so both sides agree exactly.
+    """
+    return any(start <= t_s < end for start, end in windows)
+
+
 class InvalidInjector:
     """Deterministic invalid-event injection for one device.
 

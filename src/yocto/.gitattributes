@@ -1,0 +1,5 @@
+# Everything under src/yocto is consumed on Linux (WSL2 build host or the
+# target rootfs). Force LF on checkout regardless of core.autocrlf so shell
+# scripts, recipes and systemd/networkd files never gain CRLF endings on a
+# Windows checkout.
+* text=auto eol=lf

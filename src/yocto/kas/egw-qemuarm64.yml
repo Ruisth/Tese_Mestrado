@@ -14,29 +14,32 @@
 # HEAD of a moving branch. To re-lock after a deliberate update:
 #     kas dump --lock --inplace kas/egw-qemuarm64.yml
 #
-# Verified pins (recorded 2026-08-07):
+# Verified pins (all re-verified online on 2026-08-07):
 #   poky
 #     tag yocto-5.0.19 -> commit bb98354685781296e3b3737e7762412100f359c2
 #     Source: GitHub API mirror github.com/yoctoproject/poky
 #             (refs/tags/yocto-5.0.19 -> annotated tag object
-#             c3be1502bad8beffb8bafc1e3ab9461b33ab792d, dereferenced;
-#             tagger date 2026-07-21). Canonical repo:
+#             c3be1502bad8beffb8bafc1e3ab9461b33ab792d, dereferenced to the
+#             commit above; tagger date 2026-07-21). Canonical repo:
 #             https://git.yoctoproject.org/poky
 #   meta-openembedded (branch scarthgap)
 #     commit ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f (commit date 2026-07-30)
-#     Sources (two, agreeing): GitHub API github.com/openembedded/
-#             meta-openembedded branches/scarthgap, and OpenEmbedded Layer
-#             Index API layers.openembedded.org (layerBranches, branch 30
-#             = scarthgap, vcs_last_rev). Both checked 2026-08-07.
+#     Sources (two, agreeing, both checked 2026-08-07): GitHub API
+#             github.com/openembedded/meta-openembedded branches/scarthgap,
+#             and OpenEmbedded Layer Index API layers.openembedded.org
+#             (layerBranches for meta-oe, branch id 30 = scarthgap,
+#             vcs_last_rev).
 #   meta-virtualization (branch scarthgap)
-#     commit f851f730ec415d266bfe0c5941c228a63a896298 (commit date 2026-07-20)
+#     commit 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+#             (commit date 2026-08-07T17:08 UTC)
 #     Source: OpenEmbedded Layer Index API layers.openembedded.org
-#             (layerBranches, layer meta-virtualization, branch 30 =
-#             scarthgap, vcs_last_rev), checked 2026-08-07. The canonical
-#             cgit (git.yoctoproject.org) refused automated page fetches
-#             (HTTP 403), so this pin has one online source; 'kas checkout'
-#             fails loudly if the commit does not exist on the branch, and
-#             you can confirm on WSL2 with:
+#             (layerBranches, layer meta-virtualization, branch id 30 =
+#             scarthgap, vcs_last_rev), checked 2026-08-07; the Layer Index
+#             HTML page for the layer agreed on the commit age. The
+#             canonical cgit (git.yoctoproject.org) refused automated page
+#             fetches (HTTP 403), so this pin has ONE authoritative online
+#             source. 'kas checkout' fails loudly if the commit does not
+#             exist on the branch; confirm once on WSL2 with:
 #                 git ls-remote https://git.yoctoproject.org/meta-virtualization scarthgap
 
 header:
@@ -73,7 +76,7 @@ repos:
   meta-virtualization:
     url: https://git.yoctoproject.org/meta-virtualization
     branch: scarthgap
-    commit: f851f730ec415d266bfe0c5941c228a63a896298
+    commit: 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
     # Provides docker-moby (OCI runtime), containerd/runc, and the
     # linux-yocto kernel configuration fragments for containers, activated
     # by DISTRO_FEATURES 'virtualization' (see local_conf_header below).
