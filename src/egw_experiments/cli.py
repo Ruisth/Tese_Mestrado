@@ -3,12 +3,19 @@
 Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
 
     python -m egw_experiments plan --master-seed 42 [--output PATH] [--force]
+    python -m egw_experiments campaign [--plan PATH] [--results-dir DIR] ...
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
     python -m egw_experiments collect --run-id nominal-r01 [...]
     python -m egw_experiments analyze [--base-dir PATH]
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
-``plan`` writes the fully enumerated deterministic campaign plan; ``run``
+``plan`` writes the fully enumerated deterministic campaign plan;
+``campaign`` (work order P1 item 12) is the OFFICIAL way to execute the
+frozen plan end-to-end: it iterates the plan in its frozen order, runs
+every simulator condition through the same code path as ``run``, skips
+runs already sealed and valid (resume), prints an operator checklist for
+external conditions and appends one JSONL line per run to
+``<results-dir>/campaign_log.jsonl``. ``run``
 executes exactly one planned run from the harness host, OFF the ARM VM
 (plan 5.1: the simulator never runs on the VM during benchmarks;
 ``--broker`` is the VM's address, port 8883 with TLS). After the 60 s
@@ -33,6 +40,7 @@ import sys
 from pathlib import Path
 
 from .analyze import analyze
+from .campaign import run_campaign
 from .checksums import verify_sha256sums
 from .plan_gen import generate_campaign_plan, write_campaign_plan
 from .run import (
@@ -45,8 +53,13 @@ from .run import (
 )
 
 
-def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
-    """Arguments shared by ``run`` and ``collect`` (audit 9.1-9.3)."""
+def _add_collection_arguments(
+    parser: argparse.ArgumentParser, *, resources_template: bool = False
+) -> None:
+    """Arguments shared by ``run``, ``collect`` and ``campaign``
+    (audit 9.1-9.3). With ``resources_template`` (campaign) the
+    ``--resources-from`` value may contain a ``{run_id}`` placeholder
+    substituted per run."""
     parser.add_argument(
         "--fetch-events-cmd",
         default=None,
@@ -82,7 +95,13 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
         "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host header; at least "
         "30 sample rows; every host value matching the sut_environment "
         "node/hostname); a rejected file is treated as missing. Timed runs "
-        "without SUT resources are marked validity 'invalid'",
+        "without SUT resources are marked validity 'invalid'"
+        + (
+            ". May contain a {run_id} placeholder substituted per run, "
+            "e.g. 'fetched/resources-{run_id}.csv'"
+            if resources_template
+            else ""
+        ),
     )
     parser.add_argument(
         "--allow-missing-sut-env",
@@ -95,6 +114,79 @@ def _add_collection_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="deliberately accept a timed run without SUT resources; the "
         "decision is recorded in the manifest (audit 9.1)",
+    )
+
+
+def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
+    """Run-level flags shared by ``run`` and ``campaign`` (same wiring)."""
+    parser.add_argument(
+        "--broker",
+        default="localhost",
+        help="MQTT broker host: the ARM VM's address (the harness and the "
+        "simulator run off the VM during benchmarks, plan 5.1)",
+    )
+    parser.add_argument(
+        "--port", type=int, default=8883, help="MQTT port (default 8883, TLS)"
+    )
+    parser.add_argument("--username", default=None, help="MQTT username")
+    parser.add_argument("--password", default=None, help="MQTT password")
+    parser.add_argument("--ca-cert", default=None, help="CA certificate path (TLS)")
+    parser.add_argument(
+        "--no-tls",
+        action="store_true",
+        help="disable TLS; allowed only against localhost and never in "
+        "benchmarks (CONTRACTS 1)",
+    )
+    parser.add_argument("--qos", type=int, default=1, help="MQTT QoS (default 1)")
+    parser.add_argument(
+        "--egw-id", default=None, help="gateway id (default: EGW_ID env or egw-01)"
+    )
+    parser.add_argument(
+        "--post-run-wait",
+        type=float,
+        default=None,
+        help="seconds to wait after the run for late confirmations "
+        "(default: the 60 s confirmation window of plan 7.3)",
+    )
+    parser.add_argument(
+        "--allow-warmup-failure",
+        action="store_true",
+        help="keep a timed run valid when the warm-up subprocess exits "
+        "non-zero; the decision is recorded as a protocol deviation in the "
+        "manifest (without this flag the run is marked validity 'invalid')",
+    )
+    parser.add_argument(
+        "--allow-protocol-deviation",
+        action="store_true",
+        help="authorize an explicit protocol deviation (currently: "
+        "--skip-warmup on nominal/load_sweep/soak); the deviation is "
+        "recorded in the manifest (without this flag such a run is marked "
+        "validity 'invalid')",
+    )
+    parser.add_argument(
+        "--controller-url",
+        default=None,
+        help="controller base URL for 1 Hz GET /metrics sampling into "
+        "controller_metrics.csv (queue growth, audit 9.7). Port 8000 is "
+        "loopback-only on the VM: open an SSH tunnel first, e.g. "
+        "'ssh -N -L 8000:127.0.0.1:8000 <vm>' then use "
+        "http://127.0.0.1:8000",
+    )
+    parser.add_argument(
+        "--restart-cmd",
+        default=None,
+        help="command template ({run_id} placeholder) executed exactly once "
+        "mid-run for the controller_restart condition (claim C12), e.g. "
+        "'ssh vm docker compose -f /opt/egw/compose.yaml restart "
+        "controller'; recorded in the manifest with timestamps. The "
+        "campaign subcommand applies it ONLY to controller_restart runs",
+    )
+    parser.add_argument(
+        "--restart-at-s",
+        type=float,
+        default=None,
+        help="offset in seconds into the measured run at which "
+        "--restart-cmd fires (default: half the run duration)",
     )
 
 
@@ -149,35 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"results base directory (default: {DEFAULT_RESULTS_BASE})",
     )
-    p_run.add_argument(
-        "--broker",
-        default="localhost",
-        help="MQTT broker host: the ARM VM's address (the harness and the "
-        "simulator run off the VM during benchmarks, plan 5.1)",
-    )
-    p_run.add_argument(
-        "--port", type=int, default=8883, help="MQTT port (default 8883, TLS)"
-    )
-    p_run.add_argument("--username", default=None, help="MQTT username")
-    p_run.add_argument("--password", default=None, help="MQTT password")
-    p_run.add_argument("--ca-cert", default=None, help="CA certificate path (TLS)")
-    p_run.add_argument(
-        "--no-tls",
-        action="store_true",
-        help="disable TLS; allowed only against localhost and never in "
-        "benchmarks (CONTRACTS 1)",
-    )
-    p_run.add_argument("--qos", type=int, default=1, help="MQTT QoS (default 1)")
-    p_run.add_argument(
-        "--egw-id", default=None, help="gateway id (default: EGW_ID env or egw-01)"
-    )
-    p_run.add_argument(
-        "--post-run-wait",
-        type=float,
-        default=None,
-        help="seconds to wait after the run for late confirmations "
-        "(default: the 60 s confirmation window of plan 7.3)",
-    )
+    _add_run_level_arguments(p_run)
     p_run.add_argument(
         "--skip-warmup",
         action="store_true",
@@ -191,21 +255,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip the planned cooldown (recorded as a protocol deviation "
         "when the condition prescribes one)",
     )
-    p_run.add_argument(
-        "--allow-warmup-failure",
-        action="store_true",
-        help="keep a timed run valid when the warm-up subprocess exits "
-        "non-zero; the decision is recorded as a protocol deviation in the "
-        "manifest (without this flag the run is marked validity 'invalid')",
-    )
-    p_run.add_argument(
-        "--allow-protocol-deviation",
-        action="store_true",
-        help="authorize an explicit protocol deviation (currently: "
-        "--skip-warmup on nominal/load_sweep/soak); the deviation is "
-        "recorded in the manifest (without this flag such a run is marked "
-        "validity 'invalid')",
-    )
     _add_collection_arguments(p_run)
     p_run.add_argument(
         "--local-resources",
@@ -213,30 +262,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="DEV ONLY: sample docker stats on THIS host (the load "
         "generator, NOT the SUT) into resources.csv; mutually exclusive "
         "with --resources-from; recorded as resource_source 'local-dev'",
-    )
-    p_run.add_argument(
-        "--controller-url",
-        default=None,
-        help="controller base URL for 1 Hz GET /metrics sampling into "
-        "controller_metrics.csv (queue growth, audit 9.7). Port 8000 is "
-        "loopback-only on the VM: open an SSH tunnel first, e.g. "
-        "'ssh -N -L 8000:127.0.0.1:8000 <vm>' then use "
-        "http://127.0.0.1:8000",
-    )
-    p_run.add_argument(
-        "--restart-cmd",
-        default=None,
-        help="command template ({run_id} placeholder) executed exactly once "
-        "mid-run for the controller_restart condition (claim C12), e.g. "
-        "'ssh vm docker compose -f /opt/egw/compose.yaml restart "
-        "controller'; recorded in the manifest with timestamps",
-    )
-    p_run.add_argument(
-        "--restart-at-s",
-        type=float,
-        default=None,
-        help="offset in seconds into the measured run at which "
-        "--restart-cmd fires (default: half the run duration)",
     )
     p_run.add_argument(
         "--external-timings",
@@ -252,6 +277,66 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional directory of operator logs copied into the external "
         "run's logs/ directory",
     )
+
+    # campaign (batch runner, work order P1 item 12) --------------------------
+    p_camp = sub.add_parser(
+        "campaign",
+        help="execute the frozen campaign plan end-to-end IN PLAN ORDER: "
+        "the OFFICIAL way to run the campaign. Simulator conditions run "
+        "through the same code path as 'run'; sealed+valid runs are "
+        "skipped (resume); external conditions print an operator "
+        "checklist; one JSONL line per run is appended to "
+        "<results-dir>/campaign_log.jsonl",
+    )
+    p_camp.add_argument(
+        "--plan",
+        type=Path,
+        default=DEFAULT_PLAN_PATH,
+        help=f"campaign plan path (default: {DEFAULT_PLAN_PATH})",
+    )
+    p_camp.add_argument(
+        "--results-dir",
+        type=Path,
+        default=None,
+        help=f"results base directory (default: {DEFAULT_RESULTS_BASE}); "
+        "runs land in <results-dir>/raw/<run_id>/ and the batch log in "
+        "<results-dir>/campaign_log.jsonl",
+    )
+    p_camp.add_argument(
+        "--only-conditions",
+        default=None,
+        help="comma-separated condition ids to execute (e.g. "
+        "'smoke_sequence,nominal'); the frozen plan order among them is "
+        "preserved",
+    )
+    p_camp.add_argument(
+        "--start-from",
+        default=None,
+        help="skip every run BEFORE this run_id in the plan order (resume "
+        "an interrupted campaign; sealed+valid runs are skipped anyway)",
+    )
+    p_camp.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the ordered execution table (including skips and "
+        "external checklists) without executing anything",
+    )
+    p_camp.add_argument(
+        "--continue-on-invalid",
+        action="store_true",
+        help="record an invalid/failed/blocked run in campaign_log.jsonl "
+        "and move on instead of stopping at it (the exit code still "
+        "reports the failure)",
+    )
+    p_camp.add_argument(
+        "--no-cooldown",
+        action="store_true",
+        help="skip the plan's cooldown_s between runs; recorded as a "
+        "protocol deviation (kind cooldown_skipped_before_run) in the "
+        "manifest of the FOLLOWING executed run",
+    )
+    _add_run_level_arguments(p_camp)
+    _add_collection_arguments(p_camp, resources_template=True)
 
     # collect (recovery, audit 9.3) ------------------------------------------
     p_col = sub.add_parser(
@@ -355,6 +440,49 @@ def _cmd_run(args: argparse.Namespace) -> int:
     )
 
 
+def _cmd_campaign(args: argparse.Namespace) -> int:
+    only_conditions = None
+    if args.only_conditions:
+        only_conditions = [
+            c.strip() for c in args.only_conditions.split(",") if c.strip()
+        ]
+        if not only_conditions:
+            print(
+                "error: --only-conditions given but names no condition",
+                file=sys.stderr,
+            )
+            return 2
+    return run_campaign(
+        args.plan,
+        results_dir=args.results_dir,
+        only_conditions=only_conditions,
+        start_from=args.start_from,
+        dry_run=args.dry_run,
+        continue_on_invalid=args.continue_on_invalid,
+        no_cooldown=args.no_cooldown,
+        broker=args.broker,
+        port=args.port,
+        username=args.username,
+        password=args.password,
+        ca_cert=args.ca_cert,
+        no_tls=args.no_tls,
+        qos=args.qos,
+        egw_id=args.egw_id,
+        event_log_dir=args.event_log_dir,
+        post_run_wait_s=args.post_run_wait,
+        fetch_events_cmd=args.fetch_events_cmd,
+        sut_env_from=args.sut_env_from,
+        resources_from=args.resources_from,
+        controller_url=args.controller_url,
+        restart_cmd=args.restart_cmd,
+        restart_at_s=args.restart_at_s,
+        allow_missing_sut_env=args.allow_missing_sut_env,
+        allow_missing_resources=args.allow_missing_resources,
+        allow_warmup_failure=args.allow_warmup_failure,
+        allow_protocol_deviation=args.allow_protocol_deviation,
+    )
+
+
 def _cmd_collect(args: argparse.Namespace) -> int:
     return collect_run(
         args.run_id,
@@ -412,6 +540,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_plan(args)
     if args.command == "run":
         return _cmd_run(args)
+    if args.command == "campaign":
+        return _cmd_campaign(args)
     if args.command == "collect":
         return _cmd_collect(args)
     if args.command == "analyze":

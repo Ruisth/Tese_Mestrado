@@ -132,12 +132,18 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Any
 
-from .checksums import write_sha256sums
+from .checksums import (
+    SUMS_FILENAME,
+    sha256_file,
+    verify_sha256sums,
+    write_sha256sums,
+)
 from .controller_metrics import ControllerMetricsSampler
 from .environment import (
     LOADGEN_ENVIRONMENT_FILENAME,
@@ -231,6 +237,79 @@ def read_git_commit(repo_root: str | Path = REPO_ROOT) -> str | None:
         return None
     out = proc.stdout.strip()
     return out or None
+
+
+# ---------------------------------------------------------------------------
+# Raw immutability (work order P1 item 11)
+# ---------------------------------------------------------------------------
+
+
+class SealedRunError(RuntimeError):
+    """Refusal to replace raw run evidence (work order P1 item 11).
+
+    Raised by the ingest/collection paths when a destination file already
+    exists with DIFFERENT content. Raw run directories are write-once:
+    once ``SHA256SUMS`` exists the directory is sealed, and recording
+    different evidence requires a NEW run identity.
+    """
+
+
+def run_dir_is_sealed(run_dir: str | Path) -> bool:
+    """True when the run directory carries SHA256SUMS (sealed evidence)."""
+    return (Path(run_dir) / SUMS_FILENAME).is_file()
+
+
+def ingest_copy(src: str | Path, dest: str | Path, run_dir: str | Path) -> bool:
+    """Copy ``src`` into the run dir under the raw-immutability rules.
+
+    - destination absent: plain copy;
+    - destination present with IDENTICAL content: no-op (idempotent
+      re-collection);
+    - destination present with DIFFERENT content: :class:`SealedRunError`
+      — raw evidence is never overwritten; a different measurement needs a
+      new run identity.
+
+    Returns True when ``dest`` holds ``src``'s content afterwards.
+    """
+    src = Path(src)
+    dest = Path(dest)
+    if dest.is_file():
+        if sha256_file(src) == sha256_file(dest):
+            return True
+        sealed_note = (
+            f"this run directory is sealed ({SUMS_FILENAME} present)"
+            if run_dir_is_sealed(run_dir)
+            else "raw run evidence is write-once"
+        )
+        raise SealedRunError(
+            f"refusing to overwrite {dest.name} in {run_dir}: the existing "
+            f"raw file's content differs from {src}; {sealed_note}. "
+            "Recording different evidence requires a NEW run identity: "
+            "repeat the run under a new versioned run_id and document the "
+            "exclusion of the old one (plan 5.8)."
+        )
+    shutil.copyfile(src, dest)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Simulator output layout (CONTRACTS 7; work order P1c fix F0)
+# ---------------------------------------------------------------------------
+
+
+def simulator_run_dir(output_dir: str | Path, run_id: str) -> Path:
+    """Directory the simulator ACTUALLY writes into for a given --output.
+
+    ``egw_simulator.runner`` writes ``manifest.json`` and
+    ``sent_events.jsonl`` under ``<output_dir>/<run_id>/`` (its module
+    docstring and ``--output`` help). The harness passes ``--output
+    logs/simulator``, so the real outputs land at
+    ``logs/simulator/<run_id>/`` — collection MUST use this same mapping
+    (probing ``<output_dir>/sent_events.jsonl`` directly would silently
+    lose the simulator log of every real run). The analysis side
+    (``analyze.read_simulator_manifest``) probes this layout first.
+    """
+    return Path(output_dir) / run_id
 
 
 # ---------------------------------------------------------------------------
@@ -419,13 +498,15 @@ def ingest_sut_environment(
 
     Returns True when ``sut_environment.json`` is present in the run dir
     afterwards. A source path that does not exist is a warning (the
-    validity rules then apply).
+    validity rules then apply). An already-ingested file is never
+    overwritten with different content (raises :class:`SealedRunError`);
+    an identical re-copy is a no-op (work order P1 item 11).
     """
     dest = run_dir / SUT_ENVIRONMENT_FILENAME
     if sut_env_from is not None:
         src = Path(sut_env_from)
         if src.is_file():
-            shutil.copyfile(src, dest)
+            ingest_copy(src, dest, run_dir)
         else:
             warnings.append(f"--sut-env-from file not found: {src}")
     return dest.is_file()
@@ -444,6 +525,9 @@ def ingest_resources(
     value must equal it. Any problem rejects the ingest with a clear
     warning and the run's resources are treated as missing (the validity
     rules then apply). Returns True only on a successful, validated copy.
+    An existing ``resources.csv`` is never overwritten with different
+    content (raises :class:`SealedRunError`); an identical re-copy is a
+    no-op (work order P1 item 11).
     """
     if resources_from is None:
         return False
@@ -459,7 +543,7 @@ def ingest_resources(
             "missing): " + "; ".join(problems)
         )
         return False
-    shutil.copyfile(src, run_dir / "resources.csv")
+    ingest_copy(src, run_dir / "resources.csv", run_dir)
     return True
 
 
@@ -822,10 +906,16 @@ def execute_external_run(
 
     run_dir = base_dir / "raw" / run_id
     if run_dir.exists():
+        sealed_note = (
+            f" The directory is sealed ({SUMS_FILENAME} present)."
+            if run_dir_is_sealed(run_dir)
+            else ""
+        )
         print(
-            f"error: {run_dir} already exists. Raw run directories are "
-            "immutable evidence (plan 5.8); to repeat a run use a new "
-            "versioned run_id and document the exclusion of the old one.",
+            f"error: {run_dir} already exists.{sealed_note} Raw run "
+            "directories are immutable evidence (plan 5.8); a repeat "
+            "requires a NEW run identity: use a new versioned run_id and "
+            "document the exclusion of the old one.",
             file=sys.stderr,
         )
         return 2
@@ -935,8 +1025,17 @@ def execute_run(
     restart_at_s: float | None = None,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
+    extra_deviations: list[dict[str, Any]] | None = None,
 ) -> int:
-    """Execute one planned run end-to-end. Returns a process exit code."""
+    """Execute one planned run end-to-end. Returns a process exit code.
+
+    ``extra_deviations`` lets a caller that manages protocol structure
+    ACROSS runs (the campaign batch runner, work order P1 item 12) record
+    deviations it is responsible for — e.g. the skipped cooldown BEFORE
+    this run — in this run's manifest; entries are {kind, detail,
+    authorized_by_flag} and are deduplicated by kind like every other
+    deviation.
+    """
     plan_path = Path(plan_path)
     try:
         plan = load_campaign_plan(plan_path)
@@ -1010,11 +1109,17 @@ def execute_run(
 
     run_dir = base / "raw" / run_id
     if run_dir.exists():
+        sealed_note = (
+            f" The directory is sealed ({SUMS_FILENAME} present)."
+            if run_dir_is_sealed(run_dir)
+            else ""
+        )
         print(
-            f"error: {run_dir} already exists. Raw run directories are "
-            "immutable evidence (plan 5.8); to repeat a run use a new "
-            "versioned run_id and document the exclusion of the old one. "
-            "To re-attempt COLLECTION for this existing run use: "
+            f"error: {run_dir} already exists.{sealed_note} Raw run "
+            "directories are immutable evidence (plan 5.8); a repeat "
+            "requires a NEW run identity: use a new versioned run_id and "
+            "document the exclusion of the old one. To re-attempt "
+            "COLLECTION for this existing run use: "
             f"python -m egw_experiments collect --run-id {run_id}",
             file=sys.stderr,
         )
@@ -1192,8 +1297,11 @@ def execute_run(
         time.sleep(post_run_wait_s)
 
     # Simulator outputs: sent_events.jsonl to the run root (the analysis
-    # joins on it); the simulator manifest stays under logs/simulator/.
-    sent_src = sim_output_dir / "sent_events.jsonl"
+    # joins on it); the simulator's own manifest stays where the simulator
+    # wrote it, logs/simulator/<run_id>/ (P1c fix F0: the simulator writes
+    # under <output>/<run_id>/, never directly into <output>/ — see
+    # simulator_run_dir and egw_simulator.runner).
+    sent_src = simulator_run_dir(sim_output_dir, run_id) / "sent_events.jsonl"
     if sent_src.is_file():
         shutil.copyfile(sent_src, run_dir / "sent_events.jsonl")
     else:
@@ -1236,6 +1344,13 @@ def execute_run(
     # flag (authorized_by_flag set) or not (None; those normally also
     # produce a validity reason).
     deviations: list[dict[str, Any]] = []
+    for extra in extra_deviations or []:
+        _append_deviation(
+            deviations,
+            str(extra.get("kind")),
+            str(extra.get("detail")),
+            extra.get("authorized_by_flag"),
+        )
     if skip_warmup:
         _append_deviation(
             deviations,
@@ -1486,6 +1601,15 @@ def collect_run(
     (re)writes SHA256SUMS — but ONLY after successful collection. Intended
     for use BEFORE the data freeze; after ``data-v1`` raw directories are
     immutable.
+
+    Sealed-raw rules (work order P1 item 11): a run dir with SHA256SUMS is
+    sealed. This subcommand is the ONLY path allowed to ADD a genuinely
+    missing file to a sealed dir — it first verifies every existing
+    checksum (refusing on any mismatch), then adds the file, records
+    {when_utc, added_files} in the manifest's ``collection_history`` and
+    rewrites SHA256SUMS. Existing raw files are NEVER overwritten with
+    different content (SealedRunError => exit 2); identical re-copies are
+    no-ops, so re-running collect is idempotent.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -1504,6 +1628,28 @@ def collect_run(
         print(f"error: cannot read {manifest_path}: {exc}", file=sys.stderr)
         return 2
 
+    # Sealed-raw rules (work order P1 item 11): once SHA256SUMS exists the
+    # directory is sealed. Adding a genuinely MISSING file is allowed only
+    # here, and only after every existing checksum verifies — tampered or
+    # inconsistent evidence is never silently resealed.
+    sealed = run_dir_is_sealed(run_dir)
+    if sealed:
+        problems = verify_sha256sums(run_dir)
+        if problems:
+            print(
+                f"error: {run_dir} is sealed ({SUMS_FILENAME} present) but "
+                "fails integrity verification; collection refused. A sealed "
+                "run directory whose checksums no longer verify cannot be "
+                "extended — problems: " + "; ".join(problems),
+                file=sys.stderr,
+            )
+            return 2
+    pre_files = {
+        p.relative_to(run_dir).as_posix()
+        for p in run_dir.rglob("*")
+        if p.is_file()
+    }
+
     if fetch_events_cmd is None:
         fetch_events_cmd = os.environ.get(FETCH_EVENTS_CMD_ENV) or None
     if sut_env_from is None:
@@ -1517,44 +1663,94 @@ def collect_run(
     warnings: list[str] = []
     actions: list[str] = []
 
-    # Events: only re-attempted while missing (raw evidence is never
-    # overwritten once present).
-    events_dest = run_dir / "events.jsonl"
-    if events_dest.is_file():
-        actions.append("events.jsonl already present")
-    else:
-        fetch_info: dict[str, Any] = {}
-        events_source = collect_events(
-            run_id=run_id,
-            dest=events_dest,
-            fetch_events_cmd=fetch_events_cmd,
-            event_log_dir=event_log_dir,
-            warnings=warnings,
-            fetch_info=fetch_info,
-        )
-        if events_source is not None:
-            manifest["events_source"] = events_source
-            if fetch_info:
-                manifest["events_fetch"] = fetch_info
-            actions.append(f"collected events.jsonl from {events_source}")
+    try:
+        # Events: re-attempted while missing; raw evidence already present
+        # is never overwritten. When events.jsonl exists AND a fetch
+        # template is given, the fetch runs against a scratch destination
+        # and the result is compared: identical => no-op (idempotent
+        # collect), different => refused (work order P1 item 11).
+        events_dest = run_dir / "events.jsonl"
+        if events_dest.is_file():
+            if fetch_events_cmd:
+                with tempfile.TemporaryDirectory() as tmp:
+                    probe = Path(tmp) / "events.jsonl"
+                    ok, _cmd_str, _attempts = fetch_events_via_cmd(
+                        fetch_events_cmd, run_id, probe
+                    )
+                    if not ok:
+                        actions.append(
+                            "events.jsonl already present (re-fetch failed; "
+                            "existing raw copy kept)"
+                        )
+                    elif sha256_file(probe) == sha256_file(events_dest):
+                        actions.append(
+                            "events.jsonl already present (re-fetch "
+                            "identical; no-op)"
+                        )
+                    else:
+                        sealed_note = (
+                            f"this run directory is sealed ({SUMS_FILENAME} "
+                            "present)"
+                            if sealed
+                            else "raw run evidence is write-once"
+                        )
+                        raise SealedRunError(
+                            f"refusing to overwrite events.jsonl in "
+                            f"{run_dir}: the re-fetched content differs "
+                            f"from the existing raw file; {sealed_note}. "
+                            "Recording different evidence requires a NEW "
+                            "run identity: repeat the run under a new "
+                            "versioned run_id and document the exclusion "
+                            "of the old one (plan 5.8)."
+                        )
+            else:
+                actions.append("events.jsonl already present")
         else:
-            actions.append("events.jsonl collection failed again")
+            fetch_info: dict[str, Any] = {}
+            events_source = collect_events(
+                run_id=run_id,
+                dest=events_dest,
+                fetch_events_cmd=fetch_events_cmd,
+                event_log_dir=event_log_dir,
+                warnings=warnings,
+                fetch_info=fetch_info,
+            )
+            if events_source is not None:
+                manifest["events_source"] = events_source
+                if fetch_info:
+                    manifest["events_fetch"] = fetch_info
+                actions.append(f"collected events.jsonl from {events_source}")
+            else:
+                actions.append("events.jsonl collection failed again")
 
-    # SUT environment: ingest when provided and still missing.
-    if not (run_dir / SUT_ENVIRONMENT_FILENAME).is_file() and sut_env_from:
-        if ingest_sut_environment(run_dir, sut_env_from, warnings):
-            actions.append(f"ingested {SUT_ENVIRONMENT_FILENAME}")
+        # SUT environment: ingest when provided; ingest_copy makes an
+        # identical re-ingest a no-op and refuses a differing one.
+        if sut_env_from:
+            was_present = (run_dir / SUT_ENVIRONMENT_FILENAME).is_file()
+            if (
+                ingest_sut_environment(run_dir, sut_env_from, warnings)
+                and not was_present
+            ):
+                actions.append(f"ingested {SUT_ENVIRONMENT_FILENAME}")
+    except SealedRunError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     sut_env_present = (run_dir / SUT_ENVIRONMENT_FILENAME).is_file()
     manifest["sut_environment_present"] = sut_env_present
     refs = manifest.get("environment_refs")
     if isinstance(refs, dict):
         refs["sut"] = SUT_ENVIRONMENT_FILENAME if sut_env_present else None
 
-    # Resources: ingest the SUT collector output when provided.
+    # Resources: ingest the SUT collector output when provided (identical
+    # re-ingest is a no-op; differing content is refused, P1 item 11).
     if resources_from is not None:
-        if ingest_resources(run_dir, resources_from, warnings):
-            manifest["resource_source"] = "sut-collector"
-            actions.append("ingested resources.csv (sut-collector)")
+        try:
+            if ingest_resources(run_dir, resources_from, warnings):
+                manifest["resource_source"] = "sut-collector"
+                actions.append("ingested resources.csv (sut-collector)")
+        except SealedRunError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     resource_source = manifest.get("resource_source") or (
         "sut-collector" if (run_dir / "resources.csv").is_file() else "none"
     )
@@ -1643,6 +1839,27 @@ def collect_run(
         history = []
     history.append({"utc": utc_now_iso(), "actions": actions})
     manifest["collect_history"] = history
+
+    # Sealed-dir additions (work order P1 item 11b): the only legitimate
+    # change to a sealed run directory is ADDING a genuinely missing file
+    # here, after the up-front checksum verification; each such addition is
+    # recorded as {when_utc, added_files} and SHA256SUMS is rewritten below
+    # to cover the final state.
+    if sealed:
+        added_files = sorted(
+            p.relative_to(run_dir).as_posix()
+            for p in run_dir.rglob("*")
+            if p.is_file()
+            and p.relative_to(run_dir).as_posix() not in pre_files
+        )
+        if added_files:
+            collection_history = manifest.get("collection_history")
+            if not isinstance(collection_history, list):
+                collection_history = []
+            collection_history.append(
+                {"when_utc": utc_now_iso(), "added_files": added_files}
+            )
+            manifest["collection_history"] = collection_history
 
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"

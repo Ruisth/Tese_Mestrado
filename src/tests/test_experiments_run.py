@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from egw_experiments import plan_gen
+from egw_experiments import checksums, plan_gen
 from egw_experiments import run as run_mod
 
 PY = Path(sys.executable).as_posix()
@@ -41,8 +41,11 @@ def fast_run(monkeypatch, tmp_path: Path):
     """Fake simulator subprocess + fast environment/commit capture.
 
     The fake honors the CONTRACTS 7 CLI shape (reads --output/--run-id from
-    the argv built by _simulator_cmd) and writes a minimal sent_events.jsonl
-    exactly where the real simulator would.
+    the argv built by _simulator_cmd) and reproduces the REAL simulator
+    output layout: egw_simulator.runner writes manifest.json and
+    sent_events.jsonl under ``<output>/<run_id>/`` (deliberately hardcoded
+    here as ``out_dir / run_id``, mirroring the runner, so a harness-side
+    layout regression cannot hide behind a shared helper — P1c fix F0).
     """
     calls: list[list[str]] = []
 
@@ -50,14 +53,31 @@ def fast_run(monkeypatch, tmp_path: Path):
         calls.append(list(cmd))
         out_dir = Path(cmd[cmd.index("--output") + 1])
         run_id = cmd[cmd.index("--run-id") + 1]
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "sent_events.jsonl").write_text(
+        # REAL layout (egw_simulator/runner.py): <output_dir>/<run_id>/.
+        sim_run_dir = out_dir / run_id
+        sim_run_dir.mkdir(parents=True, exist_ok=True)
+        (sim_run_dir / "sent_events.jsonl").write_text(
             json.dumps(
                 {
                     "run_id": run_id,
                     "message_id": "00000000-0000-5000-8000-000000000001",
                     "seq": 0,
                     "intended_invalid": False,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (sim_run_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "totals": {
+                        "sent": 1,
+                        "intended_invalid": 0,
+                        "buffered_dropout": 0,
+                        "dropout_disconnects": 0,
+                    },
                 }
             )
             + "\n",
@@ -1103,3 +1123,313 @@ def test_warmup_uses_distinct_run_id_and_same_seed(
     assert _arg(warmup_cmd, "--seed") == _arg(measured_cmd, "--seed")
     assert _arg(warmup_cmd, "--duration") == "120"
     assert _arg(measured_cmd, "--duration") == "600"
+
+
+# ---------------------------------------------------------------------------
+# Simulator output layout (work order P1c fix F0)
+# ---------------------------------------------------------------------------
+
+
+def test_sent_events_collected_from_real_simulator_layout(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The real simulator writes under <output>/<run_id>/
+    (egw_simulator.runner); the harness must collect from exactly that
+    path. The expected path is derived from the SAME helper the invocation
+    uses (run_mod.simulator_run_dir), while the fake simulator hardcodes
+    the real layout independently — so a divergence fails here."""
+    base = tmp_path / "results"
+    run_id = "smoke_sequence-r01"
+    rc = run_mod.execute_run(
+        plan_path,
+        run_id,
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, run_id),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 0
+    run_dir = base / "raw" / run_id
+    # The helper encodes the simulator's documented contract.
+    assert run_mod.simulator_run_dir(Path("out"), "rid") == Path("out") / "rid"
+    sim_src = run_mod.simulator_run_dir(run_dir / "logs" / "simulator", run_id)
+    assert (sim_src / "sent_events.jsonl").is_file()
+    # Collection copied the simulator log byte-for-byte to the run root.
+    assert (run_dir / "sent_events.jsonl").read_text(encoding="utf-8") == (
+        sim_src / "sent_events.jsonl"
+    ).read_text(encoding="utf-8")
+    manifest = _manifest(base, run_id)
+    assert not any(
+        "sent_events.jsonl not found" in w for w in manifest["warnings"]
+    )
+    # The analysis's tolerant probing finds the simulator's own manifest in
+    # the real layout (logs/simulator/<run_id>/manifest.json).
+    from egw_experiments.analyze import read_simulator_manifest
+
+    sim_manifest = read_simulator_manifest(run_dir, run_id)
+    assert sim_manifest is not None
+    assert sim_manifest["run_id"] == run_id
+
+
+# ---------------------------------------------------------------------------
+# Sealed raw run directories (work order P1 item 11)
+# ---------------------------------------------------------------------------
+
+
+def _sealed_valid_run(
+    tmp_path: Path, plan_path: Path, run_id: str = "smoke_sequence-r01", **kwargs
+) -> Path:
+    """Execute one valid run end-to-end; its dir is sealed afterwards."""
+    base = tmp_path / "results"
+    defaults = dict(
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, run_id),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    defaults.update(kwargs)
+    assert run_mod.execute_run(plan_path, run_id, **defaults) == 0
+    assert (base / "raw" / run_id / "SHA256SUMS").is_file()
+    return base
+
+
+def test_run_refuses_sealed_run_dir(tmp_path, plan_path, fast_run, capsys) -> None:
+    """(d) 'run' never reuses a run identity whose dir is sealed."""
+    base = _sealed_valid_run(tmp_path, plan_path)
+    capsys.readouterr()
+    rc = run_mod.execute_run(
+        plan_path, "smoke_sequence-r01", base_dir=base, no_tls=True
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "sealed" in err
+    assert "SHA256SUMS" in err
+    assert "NEW run identity" in err
+
+
+def test_collect_refuses_resources_overwrite_with_different_content(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    base = _sealed_valid_run(tmp_path, plan_path)
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    before = (run_dir / "resources.csv").read_bytes()
+    different = _resources_file(tmp_path, rows=55, name="different.csv")
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        resources_from=different,
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "refusing to overwrite resources.csv" in err
+    assert "sealed" in err
+    assert "NEW run identity" in err
+    # The raw evidence is untouched and still verifies.
+    assert (run_dir / "resources.csv").read_bytes() == before
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_collect_identical_resources_recopy_is_noop(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = _sealed_valid_run(tmp_path, plan_path)
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    identical = _resources_file(tmp_path, name="same-content.csv")
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        resources_from=identical,
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 0
+    assert checksums.verify_sha256sums(run_dir) == []
+    # Nothing was added, so no sealed-dir collection_history entry appears.
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert "collection_history" not in manifest
+
+
+def test_collect_refuses_events_refetch_with_different_content(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    base = _sealed_valid_run(tmp_path, plan_path)
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    before = (run_dir / "events.jsonl").read_bytes()
+    script = _write_script(
+        tmp_path,
+        "different_fetch.py",
+        """\
+        import sys
+        from pathlib import Path
+        Path(sys.argv[1]).write_text('{"outcome": "DIFFERENT"}\\n', encoding="utf-8")
+        """,
+    )
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        fetch_events_cmd=f'"{PY}" "{script.as_posix()}" {{dest}}',
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "refusing to overwrite events.jsonl" in err
+    assert "sealed" in err
+    assert "NEW run identity" in err
+    assert (run_dir / "events.jsonl").read_bytes() == before
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_collect_identical_events_refetch_is_noop(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = _sealed_valid_run(tmp_path, plan_path)
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    # The sealed events.jsonl came from the local per-run fallback; a
+    # re-fetch producing byte-identical content is a no-op.
+    script = _write_script(
+        tmp_path,
+        "identical_fetch.py",
+        """\
+        import json, sys
+        from pathlib import Path
+        Path(sys.argv[1]).write_text(
+            json.dumps({"run_id": "smoke_sequence-r01", "outcome": "accepted"})
+            + "\\n",
+            encoding="utf-8",
+        )
+        """,
+    )
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        fetch_events_cmd=f'"{PY}" "{script.as_posix()}" {{dest}}',
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 0
+    assert checksums.verify_sha256sums(run_dir) == []
+    history = _manifest(base, "smoke_sequence-r01")["collect_history"]
+    assert any(
+        "re-fetch identical" in action
+        for entry in history
+        for action in entry["actions"]
+    )
+
+
+def test_collect_on_tampered_sealed_dir_refuses_naming_path(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    base = _sealed_valid_run(tmp_path, plan_path)
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    (run_dir / "resources.csv").write_text("tampered\n", encoding="utf-8")
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "sealed" in err
+    assert "fails integrity verification" in err
+    assert "mismatch: resources.csv" in err
+
+
+def test_collect_adds_missing_file_to_sealed_dir_with_history(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """(b) a genuinely missing file may be ADDED to a sealed dir only via
+    'collect': checksums verified first, SHA256SUMS rewritten, and the
+    addition recorded as collection_history {when_utc, added_files}."""
+    # Sealed WITHOUT resources.csv (deliberate --allow-missing-resources).
+    base = _sealed_valid_run(
+        tmp_path,
+        plan_path,
+        resources_from=None,
+        allow_missing_resources=True,
+    )
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    assert not (run_dir / "resources.csv").exists()
+
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        resources_from=_resources_file(tmp_path),
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 0
+    assert (run_dir / "resources.csv").is_file()
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["resource_source"] == "sut-collector"
+    history = manifest["collection_history"]
+    assert len(history) == 1
+    assert history[0]["added_files"] == ["resources.csv"]
+    assert history[0]["when_utc"]
+    # The rewritten SHA256SUMS covers the addition and verifies cleanly.
+    assert checksums.verify_sha256sums(run_dir) == []
+
+    # (c) idempotent re-collect: same inputs again => no-op, no new entry.
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        resources_from=_resources_file(tmp_path, name="same-again.csv"),
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert len(manifest["collection_history"]) == 1
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_external_reingest_refused_mentions_sealed(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    """External timings are never re-ingested over an existing (sealed)
+    external run directory."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "cold_start-r01",
+        base_dir=base,
+        external_timings=_timings_file(tmp_path, "cold_start-r01", "cold_start"),
+    )
+    assert rc == 0
+    assert (base / "raw" / "cold_start-r01" / "SHA256SUMS").is_file()
+    capsys.readouterr()
+
+    different = tmp_path / "different-timings.json"
+    different.write_text(
+        json.dumps(
+            {
+                "run_id": "cold_start-r01",
+                "condition": "cold_start",
+                "samples": [
+                    {
+                        "label": "cold_start-r01",
+                        "started_utc": "2026-09-07T11:00:00Z",
+                        "ended_utc": "2026-09-07T11:01:00Z",
+                        "duration_s": 60,
+                    }
+                ],
+                "method": "different measurement",
+            }
+        )
+        + "\n",
+        "utf-8",
+    )
+    rc = run_mod.execute_run(
+        plan_path, "cold_start-r01", base_dir=base, external_timings=different
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "sealed" in err
+    assert "NEW run identity" in err

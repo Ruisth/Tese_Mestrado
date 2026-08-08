@@ -12,6 +12,8 @@ harness, which runs OFF the VM.
 experiments/
 ├── campaign_plan.json        # generated; fully enumerated ordered run list
 └── results/
+    ├── campaign_log.jsonl    # appended by the campaign batch runner:
+    │                         # one JSONL line per visited run
     ├── raw/<run_id>/         # immutable evidence, one directory per run
     │   ├── events.jsonl      # controller log (primary latency source),
     │   │                     # fetched from the VM (--fetch-events-cmd)
@@ -101,7 +103,62 @@ seed, and the load-sweep block in randomized order
 (`random.Random(master_seed)`). The same master seed always produces an
 identical plan; the file also tracks per-run `status`.
 
-### 2. Run (one planned simulator run at a time)
+### 2. Execute the frozen plan: `campaign` (the OFFICIAL way)
+
+The `campaign` subcommand is the official way to run the frozen plan
+end-to-end; `run` and `collect` (below) are single-run and recovery tools.
+It iterates `campaign_plan.json` IN ITS FROZEN ORDER (the load-sweep
+randomization is already baked into the plan) and drives every
+simulator-runner condition through exactly the same code path as `run`:
+
+```bash
+python -m egw_experiments campaign \
+    --broker <vm-address> --port 8883 \
+    --username egw-simulator --ca-cert ca.crt \
+    --fetch-events-cmd 'scp vm:/opt/egw/src/deployment/data/events/{run_id}/events.jsonl {dest}' \
+    --sut-env-from sut_environment.json \
+    --resources-from 'fetched/resources-{run_id}.csv' \
+    --controller-url http://127.0.0.1:8000 \
+    --restart-cmd 'ssh vm docker compose -f /opt/egw/src/deployment/compose.yaml restart controller'
+```
+
+Behaviour:
+
+- **Frozen order, never reshuffled.** `--only-conditions a,b` and
+  `--start-from <run_id>` select a subset; the plan order among the
+  selected runs is preserved.
+- **Resumable.** A run whose raw directory is already sealed
+  (`SHA256SUMS` present) AND `validity: "valid"` is skipped with a log
+  line — re-running the campaign after an interruption continues where it
+  stopped. An existing directory that is NOT sealed-and-valid blocks the
+  campaign: unsealed needs `collect`, sealed-but-invalid needs a new
+  versioned run_id.
+- **External conditions are not executed.** For `qemu_boots`,
+  `cold_start` and `twin_creation` the campaign prints an operator
+  checklist line (produce `timings.json`, ingest with
+  `run --external-timings`) and continues.
+- **Cooldowns are honored** via the run wiring (the plan's `cooldown_s`,
+  minus the confirmation window already waited). `--no-cooldown` skips
+  them and records a protocol deviation (kind
+  `cooldown_skipped_before_run`) in the manifest of the FOLLOWING
+  executed run — a skipped cooldown compromises the settling of the run
+  that comes after it.
+- **Stops at the first run that ends invalid or failed** unless
+  `--continue-on-invalid` records it and moves on.
+- **Batch log:** one JSONL line per visited run is appended to
+  `results/campaign_log.jsonl`: `{run_id, condition, started_utc,
+  finished_utc, outcome, validity, note}` with outcome one of
+  `completed | invalid | failed | skipped | external | blocked | error`.
+- **`--dry-run`** prints the ordered execution table (including skips and
+  external checklists) without executing anything.
+- **`--resources-from` may be a `{run_id}` template** (like the fetch
+  command), addressing one pre-fetched collector CSV per run;
+  `--restart-cmd`/`--restart-at-s` are applied ONLY to
+  `controller_restart` runs.
+- Exit codes: `0` all done and clean; `1` stopped on (or finished with)
+  an invalid/failed/blocked run; `2` usage or plan errors.
+
+### 2a. Run (one planned simulator run at a time; recovery/manual tool)
 
 ```bash
 # start the VM-side resource collector for this run (duration >= warm-up +
@@ -165,6 +222,28 @@ python -m egw_experiments collect --run-id nominal-r01 \
 
 Raw evidence already present is never overwritten. After the data freeze
 (`data-v1`) raw directories are immutable and `collect` must not be used.
+
+### Sealed raw run directories (work order P1)
+
+Once a run directory contains `SHA256SUMS` it is **sealed**. The rules,
+enforced by the tooling:
+
+- **No overwrites, ever.** Every ingest/collection path (`--sut-env-from`,
+  `--resources-from`, the events fetch, external timings ingestion)
+  REFUSES to replace an existing raw file with different content; the
+  error names the file and states that recording different evidence
+  requires a NEW run identity (a new versioned `run_id`, with the old
+  directory's exclusion documented). Re-copying identical content is a
+  no-op, so re-running `collect` is idempotent.
+- **Additions only via `collect`.** Adding a genuinely missing file
+  (e.g. a late `resources.csv`) to a sealed directory is allowed ONLY
+  through the `collect` subcommand, which first verifies EVERY existing
+  checksum (refusing on any mismatch, naming the offending path), then
+  adds the file, rewrites `SHA256SUMS` and appends a
+  `collection_history` entry `{when_utc, added_files}` to the manifest.
+- **No run_id reuse.** `run` refuses to start a run whose raw directory
+  already exists — sealed or not; the refusal message points to
+  `collect` (unsealed recovery) or to a new versioned run_id (sealed).
 
 ### 2c. External conditions (audit 9.6, claim C15)
 
