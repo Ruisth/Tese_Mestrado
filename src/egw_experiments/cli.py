@@ -8,10 +8,14 @@ Subcommands (plan 5.8/9.1 'Reprodutibilidade')::
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan; ``run``
-executes exactly one planned simulator run on the VM (CONTRACTS 7); ``analyze``
-regenerates everything under ``results/processed`` and ``results/figures``
-from ``results/raw``; ``verify-checksums`` re-verifies the SHA256SUMS of raw
-run directories (evidence integrity, plan 5.8).
+executes exactly one planned simulator run from the harness host, OFF the
+ARM VM (plan 5.1: the simulator never runs on the VM during benchmarks;
+``--broker`` is the VM's address, port 8883 with TLS). The controller
+writes ``events.jsonl`` ON the VM, so after each run the file must be
+fetched into the local event-log directory (scp) before events collection;
+``analyze`` regenerates everything under ``results/processed`` and
+``results/figures`` from ``results/raw``; ``verify-checksums`` re-verifies
+the SHA256SUMS of raw run directories (evidence integrity, plan 5.8).
 """
 
 from __future__ import annotations
@@ -57,7 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # run -------------------------------------------------------------------
     p_run = sub.add_parser(
-        "run", help="execute one planned simulator run on the VM"
+        "run",
+        help="execute one planned simulator run from the harness host, OFF "
+        "the ARM VM (plan 5.1): --broker is the VM's address (port 8883, "
+        "TLS); the controller writes events.jsonl ON the VM, fetch it into "
+        "the local --event-log-dir (scp) before events collection",
     )
     p_run.add_argument("--run-id", required=True, help="run_id from the plan")
     p_run.add_argument(
@@ -72,7 +80,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"results base directory (default: {DEFAULT_RESULTS_BASE})",
     )
-    p_run.add_argument("--broker", default="localhost", help="MQTT broker host")
+    p_run.add_argument(
+        "--broker",
+        default="localhost",
+        help="MQTT broker host: the ARM VM's address (the harness and the "
+        "simulator run off the VM during benchmarks, plan 5.1)",
+    )
     p_run.add_argument(
         "--port", type=int, default=8883, help="MQTT port (default 8883, TLS)"
     )
@@ -92,7 +105,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument(
         "--event-log-dir",
         default=None,
-        help="controller EGW_EVENT_LOG_DIR (default: env or ./data/events)",
+        help="local directory holding the controller's events.jsonl fetched "
+        "from the VM, e.g. scp vm:/path/to/data/events/<run_id>/events.jsonl "
+        "<event-log-dir>/<run_id>/events.jsonl "
+        "(default: EGW_EVENT_LOG_DIR env or ./data/events)",
     )
     p_run.add_argument(
         "--post-run-wait",

@@ -18,17 +18,14 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .devices import DEVICE_TYPES
-from .runner import RunConfig, run
+from .publisher import PahoPublisher
+from .runner import RUN_ID_RE, RunConfig, run
 from .scenarios import SCENARIOS
-
-#: Envelope pattern for run_id and egw_id (CONTRACTS.md section 2).
-RUN_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 #: Hosts for which the --no-tls dev profile is allowed (CONTRACTS.md section 1).
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
@@ -211,8 +208,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"unknown command {args.command!r}")
     config = config_from_args(args, parser)
 
-    from .publisher import PahoPublisher  # lazy: needs paho-mqtt
-
+    # Module-level PahoPublisher reference so tests can monkeypatch it with
+    # a recording fake (paho-mqtt itself is imported lazily on instantiation).
     publisher = PahoPublisher(
         config.broker_host,
         config.broker_port,

@@ -160,7 +160,7 @@ df -T . | tail -1    # filesystem type must be ext4 (or ext4-backed), NOT 9p/drv
 Run the build via kas (manifest file name per `src/yocto/`):
 
 ```bash
-kas build kas-egw-qemuarm64.yml 2>&1 | tee ~/yocto/logs/kas-build-$(date -u +%Y%m%dT%H%M%SZ).log
+kas build kas/egw-qemuarm64.yml 2>&1 | tee ~/yocto/logs/kas-build-$(date -u +%Y%m%dT%H%M%SZ).log
 ```
 
 The kas manifest pins Scarthgap (Yocto 5.0.19) layer revisions to exact
@@ -173,7 +173,7 @@ validation — never for performance claims (plan 5.1). After a successful build
 
 ```bash
 # From the kas/poky environment shell:
-kas shell kas-egw-qemuarm64.yml -c "runqemu qemuarm64 nographic slirp"
+kas shell kas/egw-qemuarm64.yml -c "runqemu qemuarm64 nographic slirp"
 ```
 
 Notes:
@@ -199,7 +199,7 @@ Record everything; unlogged runs do not count as evidence (plan section 1).
 ```bash
 mkdir -p ~/yocto/logs
 # Boot 1 — capture the full serial console including the in-guest checks:
-kas shell kas-egw-qemuarm64.yml -c "runqemu qemuarm64 nographic slirp" \
+kas shell kas/egw-qemuarm64.yml -c "runqemu qemuarm64 nographic slirp" \
   2>&1 | tee ~/yocto/logs/boot1.log
 # Repeat for boot2.log.
 ```

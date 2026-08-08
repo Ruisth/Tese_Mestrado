@@ -2,8 +2,9 @@
 
 MQTT-to-Ditto bridge of the C2DTA Edge Gateway. Subscribes to wearable
 telemetry (QoS 1), validates every payload against the JSON Schemas (draft
-2020-12), deduplicates by `message_id` and `seq`, updates the Eclipse Ditto
-twin via merge-patch and records one line per message in an append-only
+2020-12), deduplicates by `message_id` (across runs) and by `seq` within the
+same `run_id` (CONTRACTS 4, v1.1 run scoping), updates the Eclipse Ditto twin
+via merge-patch and records one line per message in an append-only
 `events.jsonl` (primary latency source of the experiments).
 
 The binding contracts are `../CONTRACTS.md` (MQTT, envelope, twin layout,
@@ -17,7 +18,7 @@ retry policy, event fields, environment variables) and the schemas in
 | `config.py` | `Settings.from_env()` for all `EGW_*` variables (CONTRACTS 6) |
 | `topic.py` | Parse/validate `c2dt/{egw_id}/{device_uuid}/telemetry` |
 | `schema.py` | Draft 2020-12 validators per `device_type`, `$ref` via Registry |
-| `dedupe.py` | Per-device `last_seq` + bounded message-id LRU, seeded from the twin |
+| `dedupe.py` | Run-scoped per-device `last_seq` + bounded message-id LRU, seeded from the twin |
 | `ditto.py` | Async Ditto client: ensure/get/patch twin, bounded retries, readiness |
 | `events.py` | Append-only `events.jsonl` per `run_id`, exact contract fields |
 | `metrics.py` | Thread-safe outcome counters + uptime |
@@ -51,12 +52,15 @@ in `../CONTRACTS.md`, section 6.
 ## HTTP API (port `EGW_HTTP_PORT`, default 8000)
 
 - `GET /health` - process alive, always `{"status": "ok"}`.
-- `GET /ready` - 200 only when the MQTT client is connected and Ditto answers;
-  503 otherwise.
+- `GET /ready` - 200 only when the MQTT subscription was granted (SUBACK at
+  QoS 0/1) and Ditto answers; 503 otherwise.
 - `GET /twins/{device_id}` - twin read normalized by the controller; accepts a
-  bare `device_uuid` or the full `org.c2dta:{device_uuid}` thing id.
-- `GET /metrics` - counters `accepted`/`rejected`/`duplicate`/`failed`,
-  `started_at` and `uptime_s`.
+  bare `device_uuid` or the full `org.c2dta:{device_uuid}` thing id; ids that
+  are not a lowercase UUID v4 are answered 404 without calling Ditto.
+- `GET /metrics` - the four contract counters
+  `accepted`/`rejected`/`duplicate`/`failed`, plus `dropped` (messages
+  discarded on inbound queue overflow), `queue_depth`, `started_at` and
+  `uptime_s`.
 
 ## Event log
 

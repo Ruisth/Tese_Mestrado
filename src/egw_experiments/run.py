@@ -1,4 +1,15 @@
-"""Execute one planned run on the ARM64 VM (plan 5.8, CONTRACTS 5/7).
+"""Execute one planned run from the harness host, OFF the ARM VM
+(plan 5.1/5.8, CONTRACTS 5/7).
+
+Plan 5.1 requires the simulator to run off the ARM VM during benchmarks, so
+this harness (which drives the simulator as a subprocess) runs off the VM
+too: ``--broker`` is the VM's address and the connection uses port 8883
+with TLS (CONTRACTS 1). The controller writes its per-run ``events.jsonl``
+ON the VM (under its ``EGW_EVENT_LOG_DIR``); after each run that file must
+be fetched into the local event-log directory before events collection,
+e.g.::
+
+    scp vm:/path/to/data/events/<run_id>/events.jsonl <local EGW_EVENT_LOG_DIR>/<run_id>/events.jsonl
 
 Produces exactly the plan 5.8 raw structure::
 
@@ -21,11 +32,24 @@ CONTRACTS 7, wait the 60 s confirmation window (plan 7.3), collect the
 controller's events.jsonl and the simulator's sent_events.jsonl, write the
 manifest and finally SHA256SUMS.
 
-Monotonic note: the confirmation deadline stored in the manifest is taken
-with ``time.monotonic_ns()`` on the same host (VM) where the controller
-runs; CLOCK_MONOTONIC is system-wide per boot on Linux (shared with
-containers), so comparing it against the controller's
-``ditto_ack_monotonic_ns`` is valid there.
+Warm-up note (CONTRACTS >= v1.1): the warm-up reuses the run's seed, hence
+the same ``device_uuid`` set as the measured run. This is intentional: it
+warms the real twins the measured run will patch. The measured run then
+restarts ``seq`` at 0 under a distinct ``run_id``, which is safe only with
+a controller implementing CONTRACTS >= v1.1 run-scoped dedupe (section 4:
+the ``seq`` floor applies only within the same ``run_id`` and resets when
+``run_id`` changes). With an older controller the measured run's first
+messages would be misclassified as duplicates, corrupting the delivery
+rate.
+
+Clock-domain note (CONTRACTS v1.1): because the harness runs off the ARM
+VM, its ``time.monotonic_ns()`` values are NOT comparable with the
+controller's (monotonic clocks are per-host). The manifest's
+``confirmation_deadline_monotonic_ns`` is therefore informational only
+(``confirmation_deadline_clock_domain: "harness-host"``); the analysis
+derives the effective deadline in the controller's clock domain from the
+run's own events (max ``received_monotonic_ns`` plus
+``confirmation_window_s``).
 """
 
 from __future__ import annotations
@@ -412,11 +436,19 @@ def execute_run(
         event_log_dir, run_id, run_dir / "events.jsonl"
     )
     if events_source is None:
-        warnings.append(
+        expected_local = event_log_dir / run_id / "events.jsonl"
+        missing_events_msg = (
             f"controller events.jsonl for run_id {run_id!r} not found under "
-            f"{event_log_dir} (is the controller running with "
-            "EGW_EVENT_LOG_DIR pointing there?)"
+            f"{event_log_dir} (expected e.g. {expected_local}). The "
+            "controller writes events.jsonl ON the ARM VM (under its "
+            "EGW_EVENT_LOG_DIR) while this harness runs OFF the VM (plan "
+            "5.1); fetch the file from the VM into the local event-log "
+            "directory before events collection, e.g.: "
+            f"scp vm:/path/to/data/events/{run_id}/events.jsonl "
+            f"{expected_local}"
         )
+        warnings.append(missing_events_msg)
+        print(f"[harness] error: {missing_events_msg}", file=sys.stderr, flush=True)
 
     ok = sim_returncode == 0 and events_source is not None
 
@@ -459,8 +491,14 @@ def execute_run(
         "finished_utc": finished_utc,
         "finished_monotonic_ns": finished_monotonic_ns,
         "confirmation_window_s": CONFIRMATION_WINDOW_S,
+        # Informational only (CONTRACTS v1.1): captured on the harness host,
+        # which runs off the ARM VM (plan 5.1), so this value is not
+        # comparable with the controller's monotonic timestamps. The
+        # analysis derives the effective deadline in the controller's clock
+        # domain from the run's own events.
         "confirmation_deadline_monotonic_ns": finished_monotonic_ns
         + CONFIRMATION_WINDOW_S * 1_000_000_000,
+        "confirmation_deadline_clock_domain": "harness-host",
         "simulator_returncode": sim_returncode,
         "warmup_returncode": warmup_returncode,
         "events_source": events_source,

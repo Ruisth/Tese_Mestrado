@@ -14,9 +14,14 @@ from egw_simulator import __version__
 from egw_simulator.devices import DEVICE_TYPES, make_devices, split_rate
 from egw_simulator.envelope import EGW_UUID_NAMESPACE
 from egw_simulator.output import SENT_EVENT_FIELDS, SentEventsWriter
-from egw_simulator.publisher import InMemoryPublisher
+from egw_simulator.publisher import InMemoryPublisher, PublishResult
 from egw_simulator.runner import RunConfig, run, scheduled_times
-from egw_simulator.scenarios import InvalidInjector, dropout_windows, in_window
+from egw_simulator.scenarios import (
+    DROPOUT_SCOPE_NOTE,
+    InvalidInjector,
+    dropout_windows,
+    in_window,
+)
 from egw_simulator.validation import SchemaValidator
 
 TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -37,6 +42,42 @@ class FakeClock:
     def sleep(self, seconds: float) -> None:
         assert seconds >= 0
         self.t += seconds
+
+
+class DelayedAckPublisher:
+    """Fake broker whose PUBACK arrives ``ack_delay_s`` after each publish.
+
+    Mirrors the paho semantics on the injected fake clock: ``publish()``
+    waits for the acknowledgement at most ``wait_budget_s``; if the ack
+    delay fits the budget the puback is captured, otherwise the full budget
+    is consumed (as a real timed wait would) and the puback is ``None``.
+    """
+
+    def __init__(self, clock: FakeClock, ack_delay_s: float) -> None:
+        self.clock = clock
+        self.ack_delay_s = ack_delay_s
+        self.wait_budgets: list[float] = []
+        self.drain_calls: list[float] = []
+        self.connected = False
+
+    def connect(self) -> None:
+        self.connected = True
+
+    def publish(self, topic, payload, *, wait_budget_s: float = 0.0):
+        publish_ns = self.clock.monotonic_ns()
+        self.wait_budgets.append(wait_budget_s)
+        if wait_budget_s >= self.ack_delay_s:
+            self.clock.sleep(self.ack_delay_s)
+            return PublishResult(publish_ns, self.clock.monotonic_ns())
+        self.clock.sleep(wait_budget_s)
+        return PublishResult(publish_ns, None)
+
+    def drain(self, timeout_s: float = 60.0) -> bool:
+        self.drain_calls.append(timeout_s)
+        return True
+
+    def close(self) -> None:
+        self.connected = False
 
 
 @pytest.fixture(scope="module")
@@ -164,6 +205,7 @@ def test_smoke_run_manifest_contents(tmp_path):
         "intended_invalid": 0,
         "skipped_dropout": 0,
     }
+    assert manifest["note"] is None  # scope note is dropout-reconnect only
 
 
 def test_runner_is_deterministic_across_runs(tmp_path):
@@ -261,6 +303,192 @@ def test_dropout_run_skips_deterministic_windows(tmp_path):
         assert len(seqs) == count
         # seq counts only published events and stays gap-free.
         assert seqs == list(range(count))
+
+
+def test_dropout_manifest_records_device_side_scope_note(tmp_path):
+    """Manifest of dropout-reconnect states the device-side-only scope.
+
+    Windows model device-side silence only; the MQTT session stays
+    connected and broker-level dropout is induced externally (plan
+    section 7.2 reconnect metrics come from integration tests).
+    """
+    config = make_config(
+        tmp_path,
+        scenario="dropout-reconnect",
+        run_id="test-dropout-note",
+        duration_s=2.0,
+    )
+    result = run(config, InMemoryPublisher(), clock=FakeClock())
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["note"] == DROPOUT_SCOPE_NOTE
+    assert "device-side silence" in manifest["note"]
+    assert "MQTT session stays connected" in manifest["note"]
+
+
+# ------------------------------------------------- best-effort puback capture
+
+def test_delayed_acks_never_throttle_the_schedule(tmp_path):
+    """CONTRACTS.md section 7 (v1.1): puback capture is best-effort.
+
+    With a broker whose PUBACK takes 5 s and a high aggregate rate, the
+    old blocking wait_for_publish would stretch the run to hours; the
+    budgeted wait must keep the elapsed time at the nominal duration and
+    record null pubacks.
+    """
+    clock = FakeClock()
+    config = make_config(
+        tmp_path,
+        run_id="test-slow-acks",
+        duration_s=2.0,
+        aggregate_rate_hz=112.0,  # smart_clothing at 100 Hz
+    )
+    publisher = DelayedAckPublisher(clock, ack_delay_s=5.0)
+    result = run(config, publisher, clock=clock)
+
+    expected = expected_event_count(112.0, 2.0)
+    assert result.completed is True
+    assert result.sent == sum(expected.values())
+    # Schedule not throttled: elapsed stays within the nominal duration.
+    assert clock.t <= config.duration_s + 1e-6
+    lines = read_jsonl(result.sent_events_path)
+    assert len(lines) == result.sent
+    assert all(line["puback_monotonic_ns"] is None for line in lines)
+    # The wait budget never exceeds the gap to the next scheduled event.
+    assert all(0.0 <= b <= 1.0 for b in publisher.wait_budgets)
+    # End of run still performs the bounded drain for in-flight messages.
+    assert publisher.drain_calls == [60.0]
+
+
+def test_fast_acks_are_captured_within_the_budget(tmp_path):
+    """At low rate with fast acks the puback fits the budget and is kept.
+
+    Events whose budget is legitimately 0 (coincident schedule instants
+    and the final event of the run) record null; every other event has a
+    captured puback exactly ack_delay after its publish instant.
+    """
+    clock = FakeClock()
+    ack_delay_s = 0.01
+    config = make_config(
+        tmp_path,
+        run_id="test-fast-acks",
+        duration_s=2.0,
+        aggregate_rate_hz=11.2,
+    )
+    publisher = DelayedAckPublisher(clock, ack_delay_s=ack_delay_s)
+    result = run(config, publisher, clock=clock)
+
+    lines = read_jsonl(result.sent_events_path)
+    assert len(lines) == result.sent
+    captured = [l for l in lines if l["puback_monotonic_ns"] is not None]
+    assert len(captured) >= int(0.8 * len(lines)) > 0
+    for line in captured:
+        delta_ns = line["puback_monotonic_ns"] - line["publish_monotonic_ns"]
+        assert abs(delta_ns - ack_delay_s * 1e9) <= 1_000  # float rounding
+    # Null pubacks happen exactly when the budget could not fit the ack.
+    nulls = [
+        line
+        for line, budget in zip(lines, publisher.wait_budgets)
+        if line["puback_monotonic_ns"] is None
+    ]
+    for line, budget in zip(lines, publisher.wait_budgets):
+        assert (line["puback_monotonic_ns"] is None) == (budget < ack_delay_s)
+    assert nulls  # coincident instants and the final event exist in this run
+    assert publisher.drain_calls == [60.0]
+
+
+def test_drain_can_be_disabled(tmp_path):
+    clock = FakeClock()
+    publisher = DelayedAckPublisher(clock, ack_delay_s=5.0)
+    config = make_config(tmp_path, run_id="test-no-drain", duration_s=1.0)
+    run(config, publisher, clock=clock, drain_timeout_s=0.0)
+    assert publisher.drain_calls == []
+
+
+class _FakeMessageInfo:
+    """Stands in for paho's MQTTMessageInfo in drain/prune unit tests."""
+
+    def __init__(self, published=False, exc: Exception | None = None) -> None:
+        self._published = published
+        self._exc = exc
+
+    def is_published(self) -> bool:
+        if self._exc is not None:
+            raise self._exc
+        return self._published
+
+    def wait_for_publish(self, timeout=None) -> None:
+        if self._exc is not None:
+            raise self._exc
+        # Not published and no error: behave like a paho timed-out wait.
+
+
+def test_paho_drain_settles_acked_and_failed_messages():
+    """drain() pops acked/permanently-failed infos, keeps unacked ones.
+
+    paho's MQTTMessageInfo raises RuntimeError/ValueError from both
+    is_published() and wait_for_publish() for messages that failed
+    permanently or could not be queued; those must count as settled
+    instead of crashing or blocking the bounded drain.
+    """
+    pytest.importorskip("paho.mqtt.client")
+    from egw_simulator.publisher import PahoPublisher
+
+    publisher = PahoPublisher("localhost", tls=False)  # never connected
+    acked = _FakeMessageInfo(published=True)
+    failed = _FakeMessageInfo(exc=RuntimeError("Message publish failed"))
+    unqueued = _FakeMessageInfo(exc=ValueError("not queued"))
+    publisher._pending.extend([acked, failed, unqueued])
+    assert publisher.drain(timeout_s=0.2) is True
+    assert not publisher._pending
+
+    stuck = _FakeMessageInfo(published=False)
+    publisher._pending.extend([acked, stuck])
+    assert publisher.drain(timeout_s=0.05) is False
+    assert list(publisher._pending) == [stuck]
+
+
+# ------------------------------------------------- identifier re-validation
+
+@pytest.mark.parametrize("bad_run_id", ["../x", "a/b", "run id", "", "x" * 65])
+def test_run_config_rejects_path_escaping_run_id(tmp_path, bad_run_id):
+    with pytest.raises(ValueError, match="run_id"):
+        make_config(tmp_path, run_id=bad_run_id)
+
+
+@pytest.mark.parametrize("bad_egw_id", ["../x", "egw/01", "egw 01", "", "e" * 65])
+def test_run_config_rejects_topic_corrupting_egw_id(tmp_path, bad_egw_id):
+    with pytest.raises(ValueError, match="egw_id"):
+        make_config(tmp_path, egw_id=bad_egw_id)
+
+
+def test_run_revalidates_ids_on_duck_typed_config(tmp_path):
+    """run() re-checks ids even for configs built without RunConfig."""
+    from types import SimpleNamespace
+
+    base = dict(
+        scenario="smoke",
+        seed=7,
+        run_id="ok-run",
+        egw_id="egw-01",
+        duration_s=1.0,
+        aggregate_rate_hz=11.2,
+        device_types=DEVICE_TYPES,
+        qos=1,
+        broker_host="localhost",
+        broker_port=8883,
+        tls=True,
+        ca_cert=None,
+        output_dir=tmp_path,
+    )
+    bad_run = SimpleNamespace(**{**base, "run_id": "../escape"})
+    with pytest.raises(ValueError, match="run_id"):
+        run(bad_run, InMemoryPublisher(), clock=FakeClock())
+    bad_egw = SimpleNamespace(**{**base, "egw_id": "a/b"})
+    with pytest.raises(ValueError, match="egw_id"):
+        run(bad_egw, InMemoryPublisher(), clock=FakeClock())
+    # Nothing may be written before validation fails.
+    assert not (tmp_path / "../escape").exists()
+    assert not (tmp_path / "ok-run").exists()
 
 
 # ------------------------------------------------------------- writer guard

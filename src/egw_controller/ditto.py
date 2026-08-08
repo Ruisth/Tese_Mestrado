@@ -69,6 +69,7 @@ def build_merge_patch(
         "properties": {
             "last_message_id": payload["message_id"],
             "last_seq": payload["seq"],
+            "last_run_id": payload["run_id"],
             "last_ts": payload["ts"],
             "accepted_count": accepted_count,
         }
@@ -289,6 +290,7 @@ class DittoClient:
                     "properties": {
                         "last_message_id": None,
                         "last_seq": None,
+                        "last_run_id": None,
                         "last_ts": None,
                         "accepted_count": 0,
                     }

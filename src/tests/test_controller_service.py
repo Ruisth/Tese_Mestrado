@@ -153,11 +153,12 @@ async def test_accepted_all_device_types(
 async def test_seeding_from_existing_twin_restores_dedupe(
     service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
 ) -> None:
-    # Twin already exists with last_seq=5: a replayed seq must be duplicate
-    # without recreating the twin, and the next seq resumes the count.
+    # Twin already exists with last_seq=5 in the SAME run: a replayed seq must
+    # be duplicate without recreating the twin, and the next seq resumes.
     last_id = make_message_id(RUN_ID, WATCH, 5)
     ditto.twins[WATCH] = make_raw_twin(
-        WATCH, last_message_id=last_id, last_seq=5, accepted_count=6
+        WATCH, last_message_id=last_id, last_seq=5, last_run_id=RUN_ID,
+        accepted_count=6,
     )
 
     await service.process(make_inbound(make_payload("smartwatch", seq=5)))
@@ -167,10 +168,105 @@ async def test_seeding_from_existing_twin_restores_dedupe(
     (device_uuid, patch) = ditto.patch_calls[0]
     assert device_uuid == WATCH
     assert patch["features"]["ingestion"]["properties"]["last_seq"] == 6
+    assert patch["features"]["ingestion"]["properties"]["last_run_id"] == RUN_ID
     assert patch["features"]["ingestion"]["properties"]["accepted_count"] == 7
 
     records = read_events(tmp_path)
     assert [record["outcome"] for record in records] == ["duplicate", "accepted"]
+
+
+# ---------------------------------------------------------------------------
+# run scoping (CONTRACTS 4, v1.1)
+# ---------------------------------------------------------------------------
+
+
+async def test_warmup_then_measured_run_first_seq_accepted(
+    service: ControllerService,
+    ditto: FakeDittoClient,
+    tmp_path: Path,
+    metrics: MetricsCounters,
+) -> None:
+    # Warm-up run: same device (same seed), seqs 0..2 all accepted.
+    warmup_run = f"{RUN_ID}.warmup"
+    for seq in range(3):
+        await service.process(
+            make_inbound(make_payload("smartwatch", seq=seq, run_id=warmup_run))
+        )
+    warmup_records = read_events(tmp_path, warmup_run)
+    assert [record["outcome"] for record in warmup_records] == ["accepted"] * 3
+
+    # Measured run restarts seq at 0: accepted, NOT duplicate (v1.1).
+    await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    await service.process(make_inbound(make_payload("smartwatch", seq=1)))
+    measured_records = read_events(tmp_path)
+    assert [record["outcome"] for record in measured_records] == [
+        "accepted",
+        "accepted",
+    ]
+    # Monotonicity binds within the measured run: seq 0 again is duplicate.
+    stale = make_payload(
+        "smartwatch", seq=0, message_id=make_message_id(RUN_ID, WATCH, 900)
+    )
+    await service.process(make_inbound(stale))
+    assert read_events(tmp_path)[-1]["outcome"] == "duplicate"
+    assert metrics.snapshot()["accepted"] == 5
+    # The measured run's patches carry its run_id in the ingestion feature.
+    last_patch = ditto.patch_calls[-2][1]  # last accepted patch
+    assert last_patch["features"]["ingestion"]["properties"]["last_run_id"] == (
+        RUN_ID
+    )
+
+
+async def test_replayed_message_id_rejected_across_run_switch(
+    service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
+) -> None:
+    warmup_run = f"{RUN_ID}.warmup"
+    warmup_payload = make_payload("smartwatch", seq=2, run_id=warmup_run)
+    await service.process(make_inbound(warmup_payload))
+    await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    # QoS 1 redelivery of the warm-up message after the run switch.
+    await service.process(make_inbound(warmup_payload))
+    warmup_records = read_events(tmp_path, warmup_run)
+    assert [record["outcome"] for record in warmup_records] == [
+        "accepted",
+        "duplicate",
+    ]
+    assert "message_id" in warmup_records[1]["error"]
+    assert len(ditto.patch_calls) == 2  # the replay never reached Ditto
+
+
+async def test_seeding_from_twin_of_other_run_resets_floor(
+    service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
+) -> None:
+    # Restart scenario: the twin holds warm-up state; the incoming run
+    # differs, so its seq 0 must be accepted (floor reset), never duplicate.
+    warmup_run = f"{RUN_ID}.warmup"
+    ditto.twins[WATCH] = make_raw_twin(
+        WATCH,
+        last_message_id=make_message_id(warmup_run, WATCH, 9),
+        last_seq=9,
+        last_run_id=warmup_run,
+        accepted_count=10,
+    )
+    await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    (record,) = read_events(tmp_path)
+    assert record["outcome"] == "accepted"
+    assert ditto.ensure_calls == []
+
+
+async def test_seeding_from_legacy_twin_without_last_run_id(
+    service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
+) -> None:
+    # Legacy twin (pre-v1.1, no last_run_id): unknown run, so a new run's
+    # seq 0 is accepted and the twin gains last_run_id on the first accept.
+    twin = make_raw_twin(WATCH, last_seq=7, accepted_count=8)
+    del twin["features"]["ingestion"]["properties"]["last_run_id"]
+    ditto.twins[WATCH] = twin
+    await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    (record,) = read_events(tmp_path)
+    assert record["outcome"] == "accepted"
+    (_, patch) = ditto.patch_calls[0]
+    assert patch["features"]["ingestion"]["properties"]["last_run_id"] == RUN_ID
 
 
 # ---------------------------------------------------------------------------
@@ -424,7 +520,7 @@ async def test_mixed_batch_counts_all_four_outcomes(
     assert outcomes == ["accepted", "duplicate", "failed", "rejected"]
 
 
-def test_queue_full_drops_message(
+def test_queue_full_drops_message_and_counts_dropped(
     repository: SchemaRepository,
     ditto: FakeDittoClient,
     events: EventLogger,
@@ -438,10 +534,22 @@ def test_queue_full_drops_message(
         metrics=metrics,
         queue_maxsize=1,
     )
+    assert service.queue_depth() == 0
     service.submit(make_inbound(make_payload("smartwatch", seq=0)))
-    # Queue is full now: the second submit is dropped without raising.
+    assert service.queue_depth() == 1
+    assert metrics.snapshot()["dropped"] == 0
+    # Queue is full now: the second submit is dropped without raising,
+    # incrementing the dropped counter only.
     service.submit(make_inbound(make_payload("smartwatch", seq=1)))
-    assert service._queue.qsize() == 1
+    service.submit(make_inbound(make_payload("smartwatch", seq=2)))
+    assert service.queue_depth() == 1
+    snapshot = metrics.snapshot()
+    assert snapshot["dropped"] == 2
+    # The four contract counters are untouched by drops.
+    assert snapshot["accepted"] == 0
+    assert snapshot["rejected"] == 0
+    assert snapshot["duplicate"] == 0
+    assert snapshot["failed"] == 0
 
 
 def test_inbound_message_is_immutable() -> None:

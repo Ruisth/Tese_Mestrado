@@ -37,19 +37,48 @@ experiments/
    (`random.Random(master_seed)`). The same master seed always produces
    an identical plan; the file also tracks per-run `status`.
 
-2. **Run** (N times, on the ARM64 VM, one planned run at a time):
+2. **Run** (N times, from the harness host — OFF the ARM VM — one planned
+   run at a time):
 
    ```bash
    python -m egw_experiments run --run-id nominal-r01 \
-       --broker localhost --username egw-simulator --ca-cert ca.crt
+       --broker <vm-address> --port 8883 \
+       --username egw-simulator --ca-cert ca.crt
    ```
 
-   Executes the simulator CLI as a subprocess (CONTRACTS section 7),
-   samples `docker stats` at 1 Hz into `resources.csv`, waits the 60 s
-   confirmation window (plan 7.3), collects the controller's
-   `events.jsonl` for that `run_id` from `EGW_EVENT_LOG_DIR`, writes
-   `manifest.json` and finally `SHA256SUMS`. The runner refuses to reuse
-   an existing `results/raw/<run_id>/`.
+   Plan 5.1 requires the simulator (and therefore this harness, which
+   drives it as a subprocess) to run OFF the ARM VM during benchmarks:
+   `--broker` is the VM's address and the connection uses port 8883 with
+   TLS (CONTRACTS 1). The harness executes the simulator CLI (CONTRACTS
+   section 7), samples `docker stats` at 1 Hz into `resources.csv`, waits
+   the 60 s confirmation window (plan 7.3), collects the controller's
+   `events.jsonl` for that `run_id` from the local event-log directory,
+   writes `manifest.json` and finally `SHA256SUMS`. The runner refuses to
+   reuse an existing `results/raw/<run_id>/`.
+
+   The controller writes `events.jsonl` ON the VM (under its
+   `EGW_EVENT_LOG_DIR`), so after each run the file must be fetched into
+   the local `EGW_EVENT_LOG_DIR` (or `--event-log-dir`) before events
+   collection:
+
+   ```bash
+   scp vm:/path/to/data/events/<run_id>/events.jsonl <local EGW_EVENT_LOG_DIR>/<run_id>/events.jsonl
+   ```
+
+   Warm-up: planned warm-ups reuse the run's seed, hence the same
+   `device_uuid` set as the measured run — intentional, it warms the real
+   twins. The measured run then restarts `seq` at 0 under a distinct
+   `run_id`; this requires a controller implementing CONTRACTS >= v1.1
+   run-scoped dedupe (section 4: the `seq` floor applies only within the
+   same `run_id`). With an older controller the measured run's first
+   messages would be misclassified as duplicates.
+
+   Clock domains: the manifest's `confirmation_deadline_monotonic_ns` is
+   captured on the harness host and is informational only
+   (`confirmation_deadline_clock_domain: "harness-host"`); the analysis
+   derives the effective confirmation deadline in the controller's clock
+   domain from the run's own events (max `received_monotonic_ns` plus
+   `confirmation_window_s`).
 
    Conditions not driven by the simulator (QEMU boots, cold starts, twin
    creations) are measured by the deployment/platform procedures; their

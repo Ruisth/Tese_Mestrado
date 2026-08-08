@@ -1,4 +1,4 @@
-"""Publisher interface and implementations (CONTRACTS.md section 1).
+"""Publisher interface and implementations (CONTRACTS.md sections 1 and 7).
 
 ``Publisher`` is the minimal protocol the runner publishes through, so the
 run loop is testable without a broker. ``PahoPublisher`` is the production
@@ -6,20 +6,34 @@ implementation (paho-mqtt 2.x, TLS server-auth, username/password, QoS 1,
 automatic reconnect with backoff); ``InMemoryPublisher`` records messages in
 memory for tests.
 
+PUBACK capture is best-effort (CONTRACTS.md section 7, v1.1): ``publish()``
+never blocks the publishing schedule. The caller passes a ``wait_budget_s``
+(the free time until its next scheduled event, possibly 0); if the QoS 1
+acknowledgement arrives within that budget the puback instant is recorded,
+otherwise it is ``None`` and the loop moves on. paho's network thread keeps
+handling QoS 1 retransmission regardless. ``drain()`` gives the last
+in-flight message(s) a bounded window at end of run. No primary metric
+(plan section 7.3) depends on the puback field.
+
 paho-mqtt is imported lazily inside ``PahoPublisher`` so that tests using
 only ``InMemoryPublisher`` do not require the dependency at import time.
 
 Lifecycle contract: the caller (CLI) invokes ``connect()`` before handing the
 publisher to the runner and ``close()`` after the run finishes; the runner
-itself only calls ``publish()``.
+calls ``publish()`` during the run and ``drain()`` once at the end.
 """
 
 from __future__ import annotations
 
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+
+#: Default bound of the end-of-run drain, aligned with the 60 s post-run
+#: confirmation window of plan section 7.3.
+DEFAULT_DRAIN_TIMEOUT_S = 60.0
 
 
 @dataclass(frozen=True)
@@ -28,7 +42,8 @@ class PublishResult:
 
     ``publish_monotonic_ns`` is captured immediately before the client
     publish call; ``puback_monotonic_ns`` after the QoS 1 acknowledgement
-    (``None`` when no acknowledgement arrived within the timeout).
+    (``None`` when the acknowledgement was not observed within the caller's
+    wait budget — best-effort capture, CONTRACTS.md section 7).
     """
 
     publish_monotonic_ns: int
@@ -41,7 +56,11 @@ class Publisher(Protocol):
 
     def connect(self) -> None: ...
 
-    def publish(self, topic: str, payload: bytes) -> PublishResult: ...
+    def publish(
+        self, topic: str, payload: bytes, *, wait_budget_s: float = 0.0
+    ) -> PublishResult: ...
+
+    def drain(self, timeout_s: float = DEFAULT_DRAIN_TIMEOUT_S) -> bool: ...
 
     def close(self) -> None: ...
 
@@ -52,7 +71,9 @@ class InMemoryPublisher:
     ``records`` preserves publish order. Payloads are stored as decoded
     UTF-8 strings for convenient assertions. An optional clock object with a
     ``monotonic_ns()`` method may be injected; the default is
-    ``time.monotonic_ns``.
+    ``time.monotonic_ns``. Acknowledgement is instantaneous: the puback is
+    always captured regardless of the wait budget, and ``drain()`` succeeds
+    immediately.
     """
 
     def __init__(self, clock=None) -> None:
@@ -68,10 +89,15 @@ class InMemoryPublisher:
     def connect(self) -> None:
         self.connected = True
 
-    def publish(self, topic: str, payload: bytes) -> PublishResult:
+    def publish(
+        self, topic: str, payload: bytes, *, wait_budget_s: float = 0.0
+    ) -> PublishResult:
         now_ns = self._now_ns()
         self.records.append((topic, payload.decode("utf-8"), now_ns))
         return PublishResult(publish_monotonic_ns=now_ns, puback_monotonic_ns=now_ns)
+
+    def drain(self, timeout_s: float = DEFAULT_DRAIN_TIMEOUT_S) -> bool:
+        return True
 
     def close(self) -> None:
         self.connected = False
@@ -88,8 +114,14 @@ class PahoPublisher:
 
     - TLS server authentication with an optional CA file (``--ca-cert``);
       plain TCP only when ``tls=False`` (dev/localhost profile).
-    - Username/password authentication (Mosquitto ``password_file``).
-    - QoS 1 by default; ``wait_for_publish`` captures the puback instant.
+    - QoS 1 by default; puback capture is best-effort: ``publish()`` waits
+      for the acknowledgement at most ``wait_budget_s`` (the caller's free
+      time until its next scheduled event), so publishing throughput is
+      never capped by the broker round-trip. Unacknowledged messages stay
+      in paho's outgoing queue and are retransmitted by the network thread.
+    - ``drain(timeout_s)`` waits (bounded) for the still-unacknowledged
+      in-flight messages at end of run; records written with a ``null``
+      puback are never revisited (CONTRACTS.md section 7).
     - Automatic reconnect with exponential backoff between
       ``reconnect_min_delay_s`` and ``reconnect_max_delay_s`` (paho network
       loop thread); QoS 1 messages published while disconnected are queued
@@ -110,7 +142,6 @@ class PahoPublisher:
         client_id: str = "egw-simulator",
         keepalive_s: int = 30,
         connect_timeout_s: float = 15.0,
-        publish_timeout_s: float = 30.0,
         reconnect_min_delay_s: float = 1.0,
         reconnect_max_delay_s: float = 30.0,
     ) -> None:
@@ -121,8 +152,11 @@ class PahoPublisher:
         self.qos = qos
         self._keepalive_s = keepalive_s
         self._connect_timeout_s = connect_timeout_s
-        self._publish_timeout_s = publish_timeout_s
         self._connected = threading.Event()
+        # In-flight MQTTMessageInfo objects, oldest first, pruned on every
+        # publish; only drain() ever waits on them. Memory stays negligible
+        # next to paho's own outgoing-message queue for the same backlog.
+        self._pending: deque = deque()
 
         client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -168,20 +202,75 @@ class PahoPublisher:
                 f"within {self._connect_timeout_s:.0f} s"
             )
 
-    def publish(self, topic: str, payload: bytes) -> PublishResult:
+    def _prune_pending(self) -> None:
+        """Drop leading pending entries that are acked or permanently failed.
+
+        ``is_published()`` raises RuntimeError/ValueError for messages that
+        failed permanently or could not be queued; those will never be
+        acknowledged, so they are settled for draining purposes too.
+        """
+        while self._pending:
+            try:
+                if not self._pending[0].is_published():
+                    break
+            except (RuntimeError, ValueError):
+                pass  # permanently failed: nothing further to wait for
+            self._pending.popleft()
+
+    def publish(
+        self, topic: str, payload: bytes, *, wait_budget_s: float = 0.0
+    ) -> PublishResult:
+        """Publish and capture the puback only if it fits the wait budget.
+
+        Never waits longer than ``wait_budget_s`` (may be 0), so the
+        caller's schedule is never delayed by the broker round-trip; QoS 1
+        delivery of unacknowledged messages continues in paho's network
+        thread (best-effort capture, CONTRACTS.md section 7).
+        """
         publish_ns = time.monotonic_ns()
         info = self._client.publish(topic, payload, qos=self.qos)
-        puback_ns: int | None = None
+        self._prune_pending()
+        self._pending.append(info)
+        acked = False
         try:
-            info.wait_for_publish(timeout=self._publish_timeout_s)
+            if wait_budget_s > 0.0:
+                info.wait_for_publish(timeout=wait_budget_s)
+            acked = info.is_published()
         except (RuntimeError, ValueError):
-            # Message could not be queued (e.g. queue full while offline).
+            # Message failed permanently or could not be queued (e.g.
+            # queue full while offline): no acknowledgement will come.
             pass
-        if info.is_published():
-            puback_ns = time.monotonic_ns()
         return PublishResult(
-            publish_monotonic_ns=publish_ns, puback_monotonic_ns=puback_ns
+            publish_monotonic_ns=publish_ns,
+            puback_monotonic_ns=time.monotonic_ns() if acked else None,
         )
+
+    def drain(self, timeout_s: float = DEFAULT_DRAIN_TIMEOUT_S) -> bool:
+        """Bounded end-of-run wait for the remaining in-flight message(s).
+
+        Returns True when every tracked message was acknowledged before the
+        shared deadline. Never raises; a False return simply means some
+        QoS 1 messages were still unacknowledged when the budget ran out
+        (their sent_events records already hold a null puback).
+        """
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        self._prune_pending()
+        while self._pending:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                break
+            info = self._pending[0]
+            try:
+                info.wait_for_publish(timeout=remaining)
+                acked = info.is_published()
+            except (RuntimeError, ValueError):
+                self._pending.popleft()  # permanently failed: settled
+                continue
+            if not acked:
+                break  # deadline hit while waiting on this message
+            self._pending.popleft()
+        self._prune_pending()
+        return not self._pending
 
     def close(self) -> None:
         """Clean shutdown: DISCONNECT, then stop the network loop thread."""

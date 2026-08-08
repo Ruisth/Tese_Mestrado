@@ -17,6 +17,20 @@ from .profiles import MEASUREMENT_FIELDS
 #: Default injection ratio for invalid-payload: 1 event in 20 per device.
 DEFAULT_INVALID_RATIO = 20
 
+#: Scope statement recorded in the manifest of every dropout-reconnect run.
+#: The scenario models DEVICE-SIDE silence only: events inside a window are
+#: simply not generated, while the simulator's MQTT session stays connected
+#: the whole time. Broker/network-level dropout is induced externally by the
+#: test harness; the reconnect metrics of plan section 7.2 come from
+#: integration tests, not from this scenario.
+DROPOUT_SCOPE_NOTE = (
+    "dropout-reconnect models device-side silence only: events scheduled "
+    "inside a window are not generated and the MQTT session stays "
+    "connected. Broker/network-level dropout is induced externally by the "
+    "test harness; plan section 7.2 reconnect metrics come from "
+    "integration tests, not from this scenario."
+)
+
 #: Mutation kinds applied to intentionally invalid events.
 INVALID_MUTATION_KINDS: tuple[str, ...] = (
     "out_of_range",
@@ -72,13 +86,15 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         ),
         ScenarioSpec(
             "load-sweep",
-            "Nominal profile at an operator-chosen aggregate rate (--rate required)",
-            600.0,
+            "Nominal profile at an operator-chosen aggregate rate "
+            "(--rate required); five-minute executions per plan section 7.1",
+            300.0,
             None,
         ),
         ScenarioSpec(
             "dropout-reconnect",
-            "Nominal load with deterministic per-device silence windows",
+            "Nominal load with deterministic DEVICE-SIDE silence windows "
+            "(MQTT session stays connected; see DROPOUT_SCOPE_NOTE)",
             600.0,
             NOMINAL_AGGREGATE_RATE_HZ,
             dropout=True,
@@ -115,6 +131,11 @@ def dropout_windows(
     each 2-8 s long (capped at half its segment), placed uniformly inside
     consecutive equal segments so windows never overlap. Fully determined by
     (seed, device_uuid, duration_s).
+
+    Scope (see ``DROPOUT_SCOPE_NOTE``): windows model device-side silence
+    only — the simulator stops generating events but its MQTT session stays
+    connected throughout. Broker/network-level dropout is induced
+    externally by the test harness (plan section 7.2).
     """
     if duration_s <= 0:
         return []

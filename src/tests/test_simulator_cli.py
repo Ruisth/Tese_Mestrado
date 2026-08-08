@@ -1,20 +1,26 @@
 """CLI tests: exact reference flags of CONTRACTS.md section 7 and defaults.
 
-Only parsing and config resolution are exercised; no broker connection is
-made (``main()`` is not called).
+Parsing and config resolution are exercised directly; ``main()`` is
+exercised end-to-end with a recording fake monkeypatched over
+``egw_simulator.cli.PahoPublisher``, so no broker is ever contacted.
 """
 
+import json
 import re
+import time
 
 import pytest
 
+import egw_simulator.cli as cli
 from egw_simulator.cli import (
     RUN_ID_RE,
     build_parser,
     config_from_args,
     default_run_id,
+    main,
 )
 from egw_simulator.devices import DEVICE_TYPES
+from egw_simulator.publisher import PublishResult
 from egw_simulator.runner import RunConfig
 
 ENV_VARS = (
@@ -141,7 +147,8 @@ def test_load_sweep_requires_rate():
     parser, args = parse(["run", "--scenario", "load-sweep", "--rate", "100"])
     config = config_from_args(args, parser)
     assert config.aggregate_rate_hz == 100.0
-    assert config.duration_s == 600.0
+    # Five-minute executions per load (plan section 7.1).
+    assert config.duration_s == 300.0
 
 
 def test_no_tls_allowed_only_for_localhost():
@@ -185,3 +192,145 @@ def test_invalid_run_id_and_scenario_rejected():
         parser.parse_args(["run", "--scenario", "unknown-scenario"])
     with pytest.raises(SystemExit):  # QoS outside choices
         parser.parse_args(["run", "--scenario", "nominal", "--qos", "3"])
+
+
+# --------------------------------------------------------------- main() tests
+
+def install_fake_publisher(monkeypatch, *, connect_exc=None, interrupt_after=None):
+    """Monkeypatch cli.PahoPublisher with a recording, broker-free fake.
+
+    ``connect_exc``: exception instance raised by ``connect()``.
+    ``interrupt_after``: raise KeyboardInterrupt on publish number N+1
+    (after N successful publishes), emulating Ctrl-C mid-run.
+    """
+
+    class RecordingPublisher:
+        instances: list = []
+
+        def __init__(self, host, port=8883, **kwargs):
+            self.host = host
+            self.port = port
+            self.kwargs = kwargs
+            self.connected = False
+            self.closed = False
+            self.published: list[tuple[str, bytes]] = []
+            self.drain_calls: list[float] = []
+            type(self).instances.append(self)
+
+        def connect(self):
+            if connect_exc is not None:
+                raise connect_exc
+            self.connected = True
+
+        def publish(self, topic, payload, *, wait_budget_s=0.0):
+            if interrupt_after is not None and len(self.published) >= interrupt_after:
+                raise KeyboardInterrupt
+            self.published.append((topic, payload))
+            now = time.monotonic_ns()
+            return PublishResult(now, now)  # instant ack
+
+        def drain(self, timeout_s=60.0):
+            self.drain_calls.append(timeout_s)
+            return True
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(cli, "PahoPublisher", RecordingPublisher)
+    return RecordingPublisher
+
+
+def main_argv(tmp_path, run_id, *extra):
+    """Short smoke run (3 events, all at t=0) writing under tmp_path."""
+    return [
+        "run",
+        "--scenario", "smoke",
+        "--seed", "42",
+        "--duration", "0.05",
+        "--run-id", run_id,
+        "--output", str(tmp_path),
+        *extra,
+    ]
+
+
+def test_main_passes_flags_to_publisher_and_closes_it(tmp_path, monkeypatch, capsys):
+    fake_cls = install_fake_publisher(monkeypatch)
+    rc = main(
+        main_argv(
+            tmp_path,
+            "cli-success",
+            "--broker", "broker.example.org",
+            "--port", "8884",
+            "--username", "egw-simulator",
+            "--password", "secret",
+            "--ca-cert", "ca.crt",
+            "--qos", "1",
+        )
+    )
+    assert rc == 0
+    (publisher,) = fake_cls.instances
+    # Constructor receives exactly the connection flags (CONTRACTS section 7).
+    assert publisher.host == "broker.example.org"
+    assert publisher.port == 8884
+    assert publisher.kwargs["username"] == "egw-simulator"
+    assert publisher.kwargs["password"] == "secret"
+    assert publisher.kwargs["ca_cert"] == "ca.crt"
+    assert publisher.kwargs["tls"] is True
+    assert publisher.kwargs["qos"] == 1
+    assert publisher.kwargs["client_id"] == "egw-simulator-cli-success"
+    # Lifecycle: connected, drained once, closed on the finally path.
+    assert publisher.connected is True
+    assert publisher.closed is True
+    assert publisher.drain_calls == [60.0]
+    assert len(publisher.published) == 3  # one event per device at t=0
+    # Outputs written; run dir printed on stdout; no secrets in outputs.
+    run_dir = tmp_path / "cli-success"
+    assert capsys.readouterr().out.strip() == str(run_dir)
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["completed"] is True
+    assert "secret" not in (run_dir / "manifest.json").read_text(encoding="utf-8")
+
+
+def test_main_no_tls_flag_reaches_publisher(tmp_path, monkeypatch):
+    fake_cls = install_fake_publisher(monkeypatch)
+    rc = main(main_argv(tmp_path, "cli-notls", "--broker", "localhost", "--no-tls"))
+    assert rc == 0
+    (publisher,) = fake_cls.instances
+    assert publisher.host == "localhost"
+    assert publisher.kwargs["tls"] is False
+
+
+def test_main_returns_nonzero_on_connect_failure(tmp_path, monkeypatch, capsys):
+    fake_cls = install_fake_publisher(
+        monkeypatch, connect_exc=ConnectionError("refused")
+    )
+    rc = main(main_argv(tmp_path, "cli-noconnect"))
+    assert rc == 1
+    (publisher,) = fake_cls.instances
+    assert publisher.published == []
+    assert "connection failed" in capsys.readouterr().err
+    # The run never started, so no run directory may exist.
+    assert not (tmp_path / "cli-noconnect").exists()
+
+
+def test_main_keyboard_interrupt_exits_130_with_partial_outputs(
+    tmp_path, monkeypatch
+):
+    fake_cls = install_fake_publisher(monkeypatch, interrupt_after=1)
+    rc = main(main_argv(tmp_path, "cli-kbint"))
+    assert rc == 130
+    (publisher,) = fake_cls.instances
+    assert publisher.closed is True  # finally path still closes the publisher
+    run_dir = tmp_path / "cli-kbint"
+    # Partial outputs are written: manifest flags the incomplete run and
+    # sent_events.jsonl holds the records published before the interrupt.
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["completed"] is False
+    lines = [
+        json.loads(line)
+        for line in (run_dir / "sent_events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(lines) == len(publisher.published) == 1

@@ -240,6 +240,7 @@ async def test_ensure_twin_puts_policy_then_thing() -> None:
     assert thing["features"]["ingestion"]["properties"] == {
         "last_message_id": None,
         "last_seq": None,
+        "last_run_id": None,
         "last_ts": None,
         "accepted_count": 0,
     }
@@ -318,6 +319,7 @@ def test_merge_patch_shape_smartwatch() -> None:
                 "properties": {
                     "last_message_id": payload["message_id"],
                     "last_seq": 7,
+                    "last_run_id": payload["run_id"],
                     "last_ts": payload["ts"],
                     "accepted_count": 8,
                 }
@@ -337,6 +339,7 @@ def test_merge_patch_shape_smart_ring() -> None:
                 "properties": {
                     "last_message_id": payload["message_id"],
                     "last_seq": 2,
+                    "last_run_id": payload["run_id"],
                     "last_ts": payload["ts"],
                     "accepted_count": 3,
                 }
@@ -364,6 +367,7 @@ def test_merge_patch_shape_smart_clothing() -> None:
                 "properties": {
                     "last_message_id": payload["message_id"],
                     "last_seq": 0,
+                    "last_run_id": payload["run_id"],
                     "last_ts": payload["ts"],
                     "accepted_count": 1,
                 }
@@ -389,6 +393,7 @@ def test_normalize_twin_shape() -> None:
         DEVICE,
         last_message_id="00000000-0000-5000-8000-000000000000",
         last_seq=9,
+        last_run_id="run-2026-08-07-0001",
         accepted_count=10,
         extra_features={
             "vitals": {"properties": {"heart_rate_bpm": 72}},
@@ -410,6 +415,7 @@ def test_normalize_twin_shape() -> None:
         "ingestion": {
             "last_message_id": "00000000-0000-5000-8000-000000000000",
             "last_seq": 9,
+            "last_run_id": "run-2026-08-07-0001",
             "last_ts": raw["features"]["ingestion"]["properties"]["last_ts"],
             "accepted_count": 10,
         },

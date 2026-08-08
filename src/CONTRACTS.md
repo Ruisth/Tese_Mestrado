@@ -1,4 +1,4 @@
-# CONTRACTS.md — Interfaces normativas internas do EGW (v1.0, 07/08/2026)
+# CONTRACTS.md — Interfaces normativas internas do EGW (v1.1, 08/08/2026)
 
 > Derivado do plano integrado §5 (normativo). Qualquer alteração aqui exige
 > atualização coordenada de simulador, controlador, schemas, TDs, deployment,
@@ -67,12 +67,22 @@ Features por tipo:
 | `smartwatch` | `vitals` → `heart_rate_bpm`; `location` → `lat`, `lon` |
 | `smart_ring` | `thermo` → `skin_temp_c`; `oximetry` → `spo2_pct` |
 | `smart_clothing` | `motion` → `accel_x`, `accel_y`, `accel_z`; `respiration` → `breathing_rpm` |
-| todos | `ingestion` → `last_message_id`, `last_seq`, `last_ts`, `accepted_count` |
+| todos | `ingestion` → `last_message_id`, `last_seq`, `last_run_id`, `last_ts`, `accepted_count` |
 
-Idempotência (plano §5.4): rejeitar `message_id` repetido e `seq` ≤ `last_seq`
-conhecido. O estado (`ingestion`) vive no twin para sobreviver a restarts do
-controlador; cache local é reconstruída lendo o twin no primeiro evento de cada
-dispositivo após arranque.
+Idempotência (plano §5.4), **com âmbito por execução** (v1.1): rejeitar
+`message_id` repetido (LRU por dispositivo; os `message_id` são UUID v5 de
+`run_id:device_uuid:seq`, logo já são únicos por execução) e rejeitar
+`seq` ≤ `last_seq` conhecido **apenas dentro do mesmo `run_id`**. Quando o
+`run_id` de um evento difere do `last_run_id` do dispositivo, o piso de `seq`
+é reiniciado (novas execuções recomeçam `seq` em 0 — caso das 10 execuções
+`smoke` consecutivas e do warm-up que precede cada execução medida). O estado
+(`ingestion`, incluindo `last_run_id`) vive no twin para sobreviver a restarts
+do controlador; a cache local é reconstruída lendo o twin no primeiro evento de
+cada dispositivo após arranque.
+
+*Racional (v1.1):* sem âmbito por execução, o warm-up do harness (mesma seed →
+mesmos `device_uuid`) elevaria o piso de `seq` e faria rejeitar como duplicadas
+as primeiras mensagens de cada execução medida, corrompendo a taxa de entrega.
 
 ## 5. Controlador (bridge MQTT→Ditto)
 
@@ -143,7 +153,12 @@ python -m egw_simulator run --scenario nominal --seed 42 \
   do simulador (`intended_invalid: true`), nunca no payload.
 - Output por execução: `manifest.json` (cenário, seed, commit, config, timestamps,
   versão de protocolo) + `sent_events.jsonl`
-  (`{run_id, message_id, device_uuid, seq, publish_monotonic_ns, puback_monotonic_ns, intended_invalid}`).
+  (`{run_id, message_id, device_uuid, device_type, seq, publish_monotonic_ns, puback_monotonic_ns, intended_invalid}`).
+  *(v1.1: `device_type` acrescentado — permite análises por tipo sem join com o manifesto.)*
+- Captura de `puback_monotonic_ns` é *best-effort*: a espera pelo PUBACK é
+  limitada ao tempo livre até ao próximo evento agendado (nunca bloqueia o
+  ritmo de publicação); `null` quando o PUBACK não foi observado a tempo. As
+  métricas primárias (plano §7.3) nunca dependem deste campo.
 
 ## 8. Portas e serviços (deployment)
 

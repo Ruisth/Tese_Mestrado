@@ -4,7 +4,8 @@ Outcome semantics (CONTRACTS.md sections 5 and 9):
 
 - ``accepted``  - validated, fresh and confirmed by a Ditto 2xx;
 - ``rejected``  - failed topic/JSON/schema/consistency validation (no Ditto call);
-- ``duplicate`` - repeated ``message_id`` or non-increasing ``seq``;
+- ``duplicate`` - repeated ``message_id``, or non-increasing ``seq`` within
+  the same ``run_id`` (CONTRACTS.md section 4, v1.1 run scoping);
 - ``failed``    - valid and fresh, but the Ditto update (or first-contact
   seeding) failed after bounded retries.
 
@@ -115,10 +116,15 @@ class ControllerService:
         try:
             self._queue.put_nowait(message)
         except asyncio.QueueFull:
+            self._metrics.increment_dropped()
             logger.warning(
                 "inbound queue full; dropping message",
                 extra={"context": {"topic": message.topic}},
             )
+
+    def queue_depth(self) -> int:
+        """Current number of queued inbound messages (for ``GET /metrics``)."""
+        return self._queue.qsize()
 
     async def run(self) -> None:
         """Drain the queue until :meth:`stop` enqueues the shutdown sentinel."""
@@ -209,7 +215,9 @@ class ControllerService:
                 )
                 return
 
-        reason = self._dedupe.check(device_uuid, payload["message_id"], payload["seq"])
+        reason = self._dedupe.check(
+            device_uuid, payload["message_id"], payload["seq"], payload["run_id"]
+        )
         if reason is not None:
             self._emit(
                 identity=identity,
@@ -236,7 +244,9 @@ class ControllerService:
             return
 
         ack = self._monotonic_ns()
-        self._dedupe.record(device_uuid, payload["message_id"], payload["seq"])
+        self._dedupe.record(
+            device_uuid, payload["message_id"], payload["seq"], payload["run_id"]
+        )
         self._emit(
             identity=identity,
             received=received,

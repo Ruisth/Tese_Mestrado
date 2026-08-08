@@ -14,7 +14,15 @@ from pathlib import Path
 
 from egw_experiments import analyze
 
-DEADLINE_NS = 1_000_000_000_000  # confirmation window end (monotonic ns)
+# v1.1 clock-domain rule (CONTRACTS/plan 5.1): the confirmation deadline
+# lives in the CONTROLLER's clock domain — max(received_monotonic_ns) over
+# the run's controller events plus confirmation_window_s. Every default
+# fixture event uses MAX_RECEIVED_NS, so DEADLINE_NS is the event-derived
+# deadline of the standard fixture run.
+WINDOW_S = 60
+WINDOW_NS = WINDOW_S * 1_000_000_000
+MAX_RECEIVED_NS = 100
+DEADLINE_NS = MAX_RECEIVED_NS + WINDOW_NS
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +48,7 @@ def event_record(
     latency_ms: float | None = None,
     ack_ns: int | None = None,
     seq: int = 0,
+    received_ns: int = MAX_RECEIVED_NS,
 ) -> dict:
     if outcome == "accepted":
         if ack_ns is None:
@@ -55,7 +64,7 @@ def event_record(
         "device_uuid": "d0000000-0000-4000-8000-000000000000",
         "device_type": "smartwatch",
         "seq": seq,
-        "received_monotonic_ns": 100,
+        "received_monotonic_ns": received_ns,
         "ditto_ack_monotonic_ns": ack_ns,
         "latency_ms": latency_ms,
         "outcome": outcome,
@@ -82,7 +91,11 @@ def make_run(
         "duration_s": 600,
         "seed": 1,
         "repetition": 1,
+        "confirmation_window_s": WINDOW_S,
+        # Harness-host clock domain, informational only (v1.1); the fixture
+        # value is plausible against the events so no warning fires.
         "confirmation_deadline_monotonic_ns": DEADLINE_NS,
+        "confirmation_deadline_clock_domain": "harness-host",
         "exclusion": None,
     }
     if manifest_extra:
@@ -209,6 +222,193 @@ def test_valid_rejected_message_is_lost_and_counted_rejected(tmp_path) -> None:
     assert row["rejected_valid"] == 1
     assert row["delivered_unique"] == 2
     assert row["lost"] == 1  # no unique confirmation for the rejected one
+
+
+# ---------------------------------------------------------------------------
+# Confirmation deadline in the controller's clock domain (v1.1, plan 5.1)
+# ---------------------------------------------------------------------------
+
+
+def test_deadline_derived_from_controller_events_in_window_vs_late(tmp_path) -> None:
+    """The deadline is max(received_monotonic_ns) + window, in the
+    controller's clock domain — no manifest deadline is needed."""
+    mids = ["m0", "m1", "m2"]
+    max_received = 2_000
+    events = [
+        event_record("m0", "accepted", received_ns=500, ack_ns=500 + 10_000),
+        # Ack exactly 1 ns inside the event-derived window: in-window.
+        event_record(
+            "m1",
+            "accepted",
+            received_ns=max_received,
+            ack_ns=max_received + WINDOW_NS - 1,
+        ),
+        # Ack past max(received) + window: late, hence lost.
+        event_record(
+            "m2",
+            "accepted",
+            received_ns=1_000,
+            ack_ns=max_received + WINDOW_NS + 1,
+        ),
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "clock-domain",
+        sent=[sent_record(m, i) for i, m in enumerate(mids)],
+        events=events,
+        manifest_extra={"confirmation_deadline_monotonic_ns": None},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["delivered_unique"] == 2
+    assert row["late_confirmations"] == 1
+    assert row["lost"] == 1
+    # The manifest deadline is informational only; its absence is noted.
+    assert "missing from manifest" in row["warnings"]
+
+
+def test_zero_events_fall_back_to_manifest_deadline(tmp_path) -> None:
+    """With zero controller events the manifest deadline (harness-host
+    clock domain) is the last-resort fallback."""
+    run_dir = make_run(
+        tmp_path,
+        "no-events",
+        sent=[sent_record("m0"), sent_record("m1", 1)],
+        events=[],
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["delivered_unique"] == 0
+    assert row["lost"] == 2
+    assert "falling back" in row["warnings"]
+    assert "harness-host" in row["warnings"]
+
+
+def test_implausible_manifest_deadline_warns_and_uses_event_derived(tmp_path) -> None:
+    """A manifest deadline captured on another host (plan 5.1: harness runs
+    off the ARM VM) can be arbitrarily far from the controller's monotonic
+    values; it must be flagged loudly and the event-derived deadline used."""
+    implausible = 999_000_000_000_000_000  # far outside [max(received), +2w]
+    events = [
+        event_record("m0", "accepted"),  # inside the event-derived window
+        # Late per the event-derived deadline although far below the
+        # (implausible) manifest deadline.
+        event_record("m1", "accepted", ack_ns=DEADLINE_NS + 1),
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "implausible-deadline",
+        sent=[sent_record("m0"), sent_record("m1", 1)],
+        events=events,
+        manifest_extra={"confirmation_deadline_monotonic_ns": implausible},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert "IMPLAUSIBLE" in row["warnings"]
+    assert row["late_confirmations"] == 1
+    assert row["delivered_unique"] == 1
+    assert row["lost"] == 1
+
+
+def test_accepted_event_without_ack_counts_but_warns(tmp_path) -> None:
+    """An accepted event with ditto_ack_monotonic_ns null violates
+    CONTRACTS 5; it is still counted (as before) but flagged."""
+    rec = event_record("m0", "accepted")
+    rec["ditto_ack_monotonic_ns"] = None
+    rec["latency_ms"] = None
+    run_dir = make_run(
+        tmp_path, "no-ack", sent=[sent_record("m0")], events=[rec]
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["delivered_unique"] == 1
+    assert row["latency_count"] == 0
+    assert "accepted event without ditto_ack_monotonic_ns" in row["warnings"]
+
+
+# ---------------------------------------------------------------------------
+# Warm-up interplay (CONTRACTS v1.1 section 4: run-scoped dedupe)
+# ---------------------------------------------------------------------------
+
+
+def test_measured_run_after_warmup_has_zero_duplicates(tmp_path) -> None:
+    """A measured run following a same-seed warm-up (same device_uuids, seq
+    restarting at 0, distinct run_id) must contain zero 'duplicate'
+    outcomes in its OWN events.jsonl for delivery_rate to be ~1.0.
+
+    The harness warm-up intentionally reuses the run's seed (it warms the
+    real twins), so this holds only with a controller implementing
+    CONTRACTS >= v1.1 run-scoped dedupe: the seq floor resets when the
+    run_id changes. Controller-side regression coverage lives in
+    tests/test_controller_dedupe.py; this fixture encodes the expected
+    v1.1 evidence shape (seq restarts at 0, no duplicates).
+    """
+    mids = [f"m{i}" for i in range(5)]
+    # Same device_uuid as the warm-up would use; seq restarts at 0.
+    sent = [sent_record(m, seq=i) for i, m in enumerate(mids)]
+    events = [event_record(m, "accepted", seq=i) for i, m in enumerate(mids)]
+    run_dir = make_run(tmp_path, "after-warmup", sent=sent, events=events)
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["duplicates"] == 0
+    assert row["delivery_rate"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Guard rails
+# ---------------------------------------------------------------------------
+
+
+def test_intended_invalid_accepted_is_flagged_and_delivered_unchanged(tmp_path) -> None:
+    sent = [
+        sent_record("m0"),
+        sent_record("m1", 1),
+        sent_record("bad0", 2, intended_invalid=True),
+    ]
+    events = [
+        event_record("m0", "accepted"),
+        event_record("m1", "accepted"),
+        event_record("bad0", "accepted"),  # validation defect
+    ]
+    run_dir = make_run(tmp_path, "invalid-accepted", sent=sent, events=events)
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["intended_invalid_accepted"] == 1
+    assert row["delivered_unique"] == 2  # only valid sent messages count
+    assert row["delivery_rate"] == 1.0
+    assert "validation defect" in row["warnings"]
+
+
+def test_confirmed_message_id_absent_from_sent_events_is_unmatched(tmp_path) -> None:
+    run_dir = make_run(
+        tmp_path,
+        "ghost-confirmation",
+        sent=[sent_record("m0")],
+        events=[
+            event_record("m0", "accepted"),
+            event_record("ghost", "accepted"),
+        ],
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["confirmed_unmatched"] == 1
+    assert row["delivered_unique"] == 1
+    assert "absent" in row["warnings"]
+
+
+def test_run_dir_with_only_manifest_returns_none(tmp_path, capsys) -> None:
+    run_dir = tmp_path / "raw" / "cold_start-r01"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        '{"run_id": "cold_start-r01"}\n', "utf-8"
+    )
+    assert analyze.compute_run_metrics(run_dir) is None
+    assert "no sent_events.jsonl" in capsys.readouterr().err
+
+
+def test_manifest_without_deadline_warns(tmp_path) -> None:
+    run_dir = make_run(
+        tmp_path,
+        "no-deadline",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={"confirmation_deadline_monotonic_ns": None},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert "missing from manifest" in row["warnings"]
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +545,37 @@ def test_saturation_triggers_on_sustained_cpu_criterion() -> None:
     assert result["first_saturated_load_msg_s"] == 50.0
     by_rate = {load["rate_msg_s"]: load for load in result["loads"]}
     assert by_rate[50.0]["triggered"]["cpu_sustained"] is True
+
+
+def test_saturation_cpu_fraction_one_of_three_runs_is_not_saturated() -> None:
+    # Decision rule: the CPU criterion holds only when at least HALF of the
+    # runs at a load show a sustained >= 60 s event. 1 of 3 < 0.5.
+    rows = [
+        _sweep_row(50.0, 0.0, 100.0, 65.0),
+        _sweep_row(50.0, 0.0, 100.0, 0.0),
+        _sweep_row(50.0, 0.0, 100.0, 0.0),
+    ]
+    result = analyze.detect_saturation(rows)
+    assert result["first_saturated_load_msg_s"] is None
+    load = result["loads"][0]
+    assert load["n_runs"] == 3
+    assert load["cpu_sustained_run_fraction"] < 0.5
+    assert load["triggered"]["cpu_sustained"] is False
+    assert load["saturated"] is False
+
+
+def test_saturation_cpu_fraction_two_of_three_runs_is_saturated() -> None:
+    # 2 of 3 runs with sustained >= 60 s: fraction >= 0.5, criterion holds.
+    rows = [
+        _sweep_row(50.0, 0.0, 100.0, 65.0),
+        _sweep_row(50.0, 0.0, 100.0, 61.0),
+        _sweep_row(50.0, 0.0, 100.0, 0.0),
+    ]
+    result = analyze.detect_saturation(rows)
+    assert result["first_saturated_load_msg_s"] == 50.0
+    load = result["loads"][0]
+    assert load["triggered"]["cpu_sustained"] is True
+    assert load["saturated"] is True
 
 
 def test_saturation_not_triggered_below_thresholds() -> None:

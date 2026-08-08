@@ -166,6 +166,28 @@ async def test_twin_read_unknown_device_404(client: httpx.AsyncClient) -> None:
     assert response.status_code == 404
 
 
+@pytest.mark.parametrize(
+    "device_id",
+    [
+        "not-a-uuid",
+        "1B46A1F5-9A3E-4C2D-8F6B-2D9E5A7C1B3D",  # uppercase is invalid
+        "1b46a1f5-9a3e-1c2d-8f6b-2d9e5a7c1b3d",  # version nibble != 4
+        "1b46a1f5-9a3e-4c2d-0f6b-2d9e5a7c1b3d",  # variant not in [89ab]
+        "org.c2dta:not-a-uuid",
+        "1b46a1f59a3e4c2d8f6b2d9e5a7c1b3d",  # missing dashes
+        "1b46a1f5-9a3e-4c2d-8f6b-2d9e5a7c1b3d0",  # one char too long
+    ],
+)
+async def test_twin_read_malformed_id_404_without_ditto_call(
+    client: httpx.AsyncClient, ditto: FakeDittoClient, device_id: str
+) -> None:
+    response = await client.get(f"/twins/{device_id}")
+    assert response.status_code == 404
+    assert "invalid device id" in response.json()["detail"]
+    # Malformed ids never reach Ditto: 502 stays reserved for real failures.
+    assert ditto.get_calls == []
+
+
 async def test_twin_read_ditto_unavailable_502(
     deps: AppDeps, ditto: FakeDittoClient
 ) -> None:
@@ -202,11 +224,45 @@ async def test_metrics_counts_and_uptime(
         "rejected": 1,
         "duplicate": 1,
         "failed": 1,
+        "dropped": 0,
+        "queue_depth": 0,
         "started_at": "2026-08-07T12:00:00.000Z",
         "uptime_s": 60.5,
     }
 
 
+async def test_metrics_reports_dropped_and_live_queue_depth(
+    metrics: MetricsCounters, ditto: FakeDittoClient
+) -> None:
+    depth = 7
+    deps = AppDeps(
+        metrics=metrics,
+        ditto=ditto,
+        mqtt_connected=lambda: True,
+        queue_depth=lambda: depth,
+    )
+    metrics.increment_dropped()
+    metrics.increment_dropped()
+    app = create_app(deps)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as http:
+        body = (await http.get("/metrics")).json()
+        assert body["dropped"] == 2
+        assert body["queue_depth"] == 7
+        # The four contract counters are untouched by drops.
+        assert body["accepted"] == 0
+        assert body["rejected"] == 0
+        assert body["duplicate"] == 0
+        assert body["failed"] == 0
+        depth = 3  # live read on each request, not a construction-time copy
+        assert (await http.get("/metrics")).json()["queue_depth"] == 3
+
+
 def test_metrics_rejects_unknown_outcome(metrics: MetricsCounters) -> None:
     with pytest.raises(ValueError):
         metrics.increment("lost")
+    # "dropped" is not an event outcome; it has its own increment method.
+    with pytest.raises(ValueError):
+        metrics.increment("dropped")

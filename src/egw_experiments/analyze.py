@@ -15,9 +15,19 @@ Metric definitions (plan 7.3 / CONTRACTS 9, applied verbatim)
 - ``delivered`` : unique Ditto confirmations, i.e. distinct ``message_id``
                   values with an ``accepted`` controller event whose
                   ``ditto_ack_monotonic_ns`` falls within the confirmation
-                  window (60 s after run end; ``confirmation_deadline_
-                  monotonic_ns`` in the run manifest). Repeated confirmations
-                  of the same ``message_id`` count once.
+                  window. The window deadline lives in the CONTROLLER's
+                  clock domain: max ``received_monotonic_ns`` over the run's
+                  controller events plus ``confirmation_window_s`` from the
+                  run manifest (default 60 s). The manifest's
+                  ``confirmation_deadline_monotonic_ns`` was captured on the
+                  harness host, which runs OFF the ARM VM (plan 5.1), and
+                  monotonic clocks are not comparable across hosts; it is
+                  informational only (clock_domain ``harness-host``) and is
+                  used as a last-resort fallback only when the run has zero
+                  controller events. A plausibility check flags manifest
+                  deadlines outside [max(received), max(received) +
+                  2*window] with a loud warning. Repeated confirmations of
+                  the same ``message_id`` count once.
 - ``lost``      : valid sent message without a unique confirmation within the
                   window. Late confirmations (past the deadline) do not
                   rescue a message: it is counted lost and the late
@@ -109,6 +119,7 @@ from typing import Any
 
 from .protocol import (
     CONDITION_ORDER,
+    CONFIRMATION_WINDOW_S,
     PROTOCOL_VERSION,
     SATURATION_CPU_PCT,
     SATURATION_CPU_SUSTAIN_S,
@@ -357,12 +368,6 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         return None
 
     run_id = manifest.get("run_id") or run_dir.name
-    deadline_ns = manifest.get("confirmation_deadline_monotonic_ns")
-    if deadline_ns is None:
-        warnings.append(
-            "confirmation_deadline_monotonic_ns missing from manifest; "
-            "all confirmations in events.jsonl counted as in-window"
-        )
 
     # --- sent side (simulator, CONTRACTS 7) -------------------------------
     sent_records = _read_jsonl(sent_path)
@@ -390,6 +395,66 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     else:
         warnings.append("events.jsonl missing: no confirmations recorded")
 
+    # --- confirmation deadline (controller clock domain; plan 5.1) --------
+    # The harness and simulator run OFF the ARM VM (plan 5.1), so the
+    # manifest's confirmation_deadline_monotonic_ns was captured on a
+    # different host than the controller's monotonic timestamps, and
+    # cross-host monotonic values are incomparable. The effective deadline
+    # is therefore derived in the CONTROLLER's clock domain: max
+    # received_monotonic_ns over the run's controller events plus the
+    # manifest's confirmation_window_s (default 60 s). The manifest
+    # deadline (clock_domain 'harness-host') is informational only and is
+    # used as a last-resort fallback when the run has zero controller
+    # events.
+    manifest_deadline_ns = manifest.get("confirmation_deadline_monotonic_ns")
+    window_s = manifest.get("confirmation_window_s")
+    if not isinstance(window_s, (int, float)) or window_s <= 0:
+        window_s = CONFIRMATION_WINDOW_S
+    window_ns = int(window_s * 1_000_000_000)
+    received_values = [
+        ev["received_monotonic_ns"]
+        for ev in events
+        if isinstance(ev.get("received_monotonic_ns"), (int, float))
+    ]
+    deadline_ns: int | None = None
+    if received_values:
+        max_received_ns = int(max(received_values))
+        deadline_ns = max_received_ns + window_ns
+        if manifest_deadline_ns is None:
+            warnings.append(
+                "confirmation_deadline_monotonic_ns missing from manifest "
+                "(informational only; deadline derived from controller "
+                "events)"
+            )
+        elif not (
+            max_received_ns
+            <= manifest_deadline_ns
+            <= max_received_ns + 2 * window_ns
+        ):
+            warnings.append(
+                "IMPLAUSIBLE manifest confirmation_deadline_monotonic_ns "
+                f"({manifest_deadline_ns}): outside "
+                f"[{max_received_ns}, {max_received_ns + 2 * window_ns}] "
+                "(max received_monotonic_ns to max + 2x confirmation "
+                "window). The manifest deadline is captured on the harness "
+                "host, which runs off the ARM VM (plan 5.1), and monotonic "
+                "clocks are not comparable across hosts; using the "
+                "event-derived deadline in the controller's clock domain"
+            )
+    elif manifest_deadline_ns is not None:
+        deadline_ns = manifest_deadline_ns
+        warnings.append(
+            "no controller events with received_monotonic_ns; falling back "
+            "to the manifest confirmation_deadline_monotonic_ns "
+            "(clock_domain harness-host, informational only)"
+        )
+    else:
+        warnings.append(
+            "no confirmation deadline available (no controller events and "
+            "no manifest deadline); all confirmations in events.jsonl "
+            "counted as in-window"
+        )
+
     confirmed_in_window: set[str] = set()
     first_latency: dict[str, float] = {}
     late_confirmations = 0
@@ -404,7 +469,12 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         mid = ev.get("message_id")
         if outcome == "accepted":
             ack = ev.get("ditto_ack_monotonic_ns")
-            if deadline_ns is not None and ack is not None and ack > deadline_ns:
+            if ack is None:
+                # CONTRACTS 5 violation: accepted events must carry the
+                # Ditto ack timestamp. Still counted as a confirmation
+                # (as before), but flagged.
+                warnings.append("accepted event without ditto_ack_monotonic_ns")
+            elif deadline_ns is not None and ack > deadline_ns:
                 late_confirmations += 1
                 continue
             if mid is None:

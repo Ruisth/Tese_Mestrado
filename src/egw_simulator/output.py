@@ -109,12 +109,16 @@ def write_manifest(
     finished_utc: str,
     completed: bool,
     totals: dict,
+    note: str | None = None,
 ) -> None:
     """Write manifest.json for one run (CONTRACTS.md section 7).
 
     ``devices`` is a sequence of objects with ``device_type`` and
     ``device_uuid`` attributes (DeviceSpec). ``broker`` must already be
-    secret-free: host, port, tls, ca_cert only.
+    secret-free: host, port, tls, ca_cert only. ``note`` carries an
+    optional scenario scope statement (used by dropout-reconnect); it is
+    always emitted, as JSON null when absent, so the manifest shape is
+    stable across scenarios.
     """
     forbidden = {"username", "password"} & {k.lower() for k in broker}
     if forbidden:
@@ -142,6 +146,7 @@ def write_manifest(
         "finished_utc": finished_utc,
         "completed": completed,
         "totals": dict(totals),
+        "note": note,
     }
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(manifest, fh, indent=2)

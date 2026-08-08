@@ -12,8 +12,9 @@ TOPIC_PREFIX = "c2dt"
 TOPIC_LEAF = "telemetry"
 
 # Same lexical rules as the envelope schema (telemetry-envelope-v1.schema.json).
+# UUID4_RE is public: the HTTP layer reuses it to validate /twins/{device_id}.
 _ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-_UUID4_RE = re.compile(
+UUID4_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
 
@@ -45,7 +46,7 @@ def parse_topic(topic: str) -> TelemetryTopic:
         raise TopicError(f"topic must end with {TOPIC_LEAF!r}, got {topic!r}")
     if not _ID_RE.fullmatch(egw_id):
         raise TopicError(f"invalid egw_id segment {egw_id!r} in topic {topic!r}")
-    if not _UUID4_RE.fullmatch(device_uuid):
+    if not UUID4_RE.fullmatch(device_uuid):
         raise TopicError(
             f"invalid device_uuid segment {device_uuid!r} in topic {topic!r} "
             "(lowercase UUID v4 required)"

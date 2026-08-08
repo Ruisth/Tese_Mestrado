@@ -30,11 +30,12 @@ python -m egw_simulator run --scenario smoke --seed 42 \
   --username egw-simulator --password <dev-password> --output results/raw
 ```
 
-Load sweep at 100 msg/s aggregate for five minutes:
+Load sweep at 100 msg/s aggregate (default duration is already the
+five-minute execution of plan section 7.1):
 
 ```text
 python -m egw_simulator run --scenario load-sweep --seed 42 \
-  --broker <host> --port 8883 --duration 300 --rate 100 \
+  --broker <host> --port 8883 --rate 100 \
   --username egw-simulator --password <p> --ca-cert ca.crt --output results/raw
 ```
 
@@ -63,8 +64,8 @@ python -m egw_simulator run --scenario load-sweep --seed 42 \
 |---|---|---:|---:|---|
 | `smoke` | 3 | 30 s | 11.2 msg/s | short functional check |
 | `nominal` | 3 | 600 s | 11.2 msg/s | baseline load (plan section 7.1) |
-| `load-sweep` | 3 | 600 s | from `--rate` (required) | operator-chosen aggregate rate |
-| `dropout-reconnect` | 3 | 600 s | 11.2 msg/s | deterministic per-device silence windows |
+| `load-sweep` | 3 | 300 s | from `--rate` (required) | five-minute executions per load (plan section 7.1) |
+| `dropout-reconnect` | 3 | 600 s | 11.2 msg/s | deterministic device-side silence windows |
 | `invalid-payload` | 3 | 600 s | 11.2 msg/s | deterministic 1-in-20 invalid injection |
 | `soak` | 3 | 86400 s | 11.2 msg/s | 24 h stability run |
 
@@ -84,7 +85,13 @@ before publish (plan section 5.6).
 
 In `dropout-reconnect`, each device gets deterministic silence windows
 (roughly one per minute of run time, 2-8 s each); events scheduled inside a
-window are not generated at all.
+window are not generated at all. The windows model DEVICE-SIDE silence
+only: the simulator's MQTT session stays connected for the whole run and
+no disconnect is ever triggered by this scenario. Broker/network-level
+dropout is induced externally by the test harness, and the reconnect
+metrics of plan section 7.2 come from integration tests, not from this
+scenario. This scope statement is also recorded in the run's
+`manifest.json` (`note` field).
 
 ## Determinism guarantees (plan section 5.6)
 
@@ -109,15 +116,25 @@ Each run writes to `<output>/<run_id>/`:
 - `manifest.json` — protocol_version (`1.0`), simulator version, scenario,
   seed, run_id, egw_id, devices with UUIDs, aggregate and per-device rates,
   duration, QoS, broker endpoint without secrets, git commit (best effort,
-  else `null`), started/finished UTC timestamps, completion flag and totals.
+  else `null`), started/finished UTC timestamps, completion flag, totals
+  and a `note` field (scenario scope statement for `dropout-reconnect`,
+  `null` otherwise).
 - `sent_events.jsonl` — one record per published message with exactly:
   `run_id`, `message_id`, `device_uuid`, `device_type`, `seq`,
   `publish_monotonic_ns`, `puback_monotonic_ns`, `intended_invalid`.
 
-`publish_monotonic_ns` is captured immediately before the MQTT publish call
-and `puback_monotonic_ns` after the QoS 1 acknowledgement (`null` when the
-acknowledgement did not arrive within the timeout). Monotonic values are
-only comparable within the same process.
+`publish_monotonic_ns` is captured immediately before the MQTT publish
+call. `puback_monotonic_ns` capture is best-effort (CONTRACTS.md section 7,
+v1.1): each publish waits for the QoS 1 acknowledgement at most for the
+free time until the next scheduled event (`max(0, next_event_time - now)`,
+possibly 0), so the acknowledgement round-trip never throttles the
+publishing schedule; the field is `null` when the PUBACK was not observed
+within that budget. paho-mqtt's network thread still handles QoS 1
+retransmission for unacknowledged messages, and a bounded end-of-run drain
+(default 60 s) waits for the last in-flight message(s) before disconnect.
+No primary metric uses `puback_monotonic_ns` — the primary latency of plan
+section 7.3 comes from the controller's `events.jsonl`. Monotonic values
+are only comparable within the same process.
 
 ## Module layout
 

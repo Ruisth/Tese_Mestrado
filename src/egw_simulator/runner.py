@@ -10,12 +10,19 @@ record (``intended_invalid``), never in the payload.
 The loop publishes through the ``Publisher`` protocol and, on completion (or
 interruption), writes the per-run evidence outputs ``manifest.json`` and
 ``sent_events.jsonl`` under ``<output_dir>/<run_id>/``.
+
+PUBACK capture is best-effort (CONTRACTS.md section 7, v1.1): each publish
+receives a wait budget of ``max(0, next_scheduled_event_time - now)``, so
+waiting for the QoS 1 acknowledgement can never delay the schedule. A
+bounded drain at end of run gives the last in-flight message(s) a capped
+window before disconnect. No primary metric uses the puback field.
 """
 
 from __future__ import annotations
 
 import heapq
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,12 +32,23 @@ from .devices import DEVICE_TYPES, DeviceSpec, make_devices, split_rate
 from .envelope import build_envelope, rfc3339_utc_ms
 from .output import SentEventsWriter, detect_git_commit, write_manifest
 from .profiles import MeasurementProfile, make_profile
-from .publisher import Publisher
-from .scenarios import SCENARIOS, InvalidInjector, dropout_windows, in_window
+from .publisher import DEFAULT_DRAIN_TIMEOUT_S, Publisher
+from .scenarios import (
+    DROPOUT_SCOPE_NOTE,
+    SCENARIOS,
+    InvalidInjector,
+    dropout_windows,
+    in_window,
+)
 from .validation import SchemaValidator
 
 #: Telemetry topic layout (CONTRACTS.md section 1).
 TOPIC_TEMPLATE = "c2dt/{egw_id}/{device_uuid}/telemetry"
+
+#: Identifier pattern for run_id and egw_id (CONTRACTS.md section 2). Both
+#: land in filesystem paths and in the MQTT topic, so they are re-validated
+#: here for programmatic callers, not only in the CLI.
+RUN_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 #: Strict-inequality guard against float artifacts at the run boundary.
 SCHEDULE_EPSILON_S = 1e-9
@@ -72,6 +90,24 @@ def scheduled_times(rate_hz: float, duration_s: float) -> list[float]:
     return times
 
 
+def _validate_identifiers(run_id: str, egw_id: str) -> None:
+    """Reject identifiers that could escape paths or corrupt the topic.
+
+    ``run_id`` names the output directory and ``egw_id`` is a topic level
+    (CONTRACTS.md sections 1-2), so both must match
+    ``^[A-Za-z0-9._-]{1,64}$`` even for programmatic callers that bypass
+    the CLI (e.g. ``run_id='../x'`` or ``egw_id='a/b'``).
+    """
+    if not isinstance(run_id, str) or not RUN_ID_RE.fullmatch(run_id):
+        raise ValueError(
+            "run_id must match ^[A-Za-z0-9._-]{1,64}$ (CONTRACTS.md section 2)"
+        )
+    if not isinstance(egw_id, str) or not RUN_ID_RE.fullmatch(egw_id):
+        raise ValueError(
+            "egw_id must match ^[A-Za-z0-9._-]{1,64}$ (CONTRACTS.md section 2)"
+        )
+
+
 @dataclass(frozen=True)
 class RunConfig:
     """Concrete configuration of one run (defaults already resolved)."""
@@ -89,6 +125,9 @@ class RunConfig:
     tls: bool = True
     ca_cert: str | None = None
     output_dir: str | Path = "results/raw"
+
+    def __post_init__(self) -> None:
+        _validate_identifiers(self.run_id, self.egw_id)
 
 
 @dataclass(frozen=True)
@@ -121,6 +160,7 @@ def run(
     *,
     clock: Clock | None = None,
     validator: SchemaValidator | None = None,
+    drain_timeout_s: float = DEFAULT_DRAIN_TIMEOUT_S,
 ) -> RunResult:
     """Execute one simulation run and write its evidence outputs.
 
@@ -129,6 +169,11 @@ def run(
     egw_id, device_types, rate, duration), device UUIDs, payload sequences,
     injected-invalid positions and dropout windows are identical across
     runs; only ``ts`` and the monotonic timing fields differ.
+
+    Each publish gets a puback wait budget equal to the free time until the
+    next scheduled event (0 when none is left or the loop is behind), so
+    acknowledgement capture never throttles the schedule; ``drain_timeout_s``
+    bounds the end-of-run wait for the last in-flight message(s).
     """
     try:
         spec = SCENARIOS[config.scenario]
@@ -138,6 +183,9 @@ def run(
         ) from None
     if config.duration_s <= 0:
         raise ValueError("duration_s must be positive")
+    # Re-validate even though RunConfig.__post_init__ already does: run()
+    # may receive a duck-typed config object built without the dataclass.
+    _validate_identifiers(config.run_id, config.egw_id)
     clock = clock if clock is not None else MonotonicClock()
     validator = validator if validator is not None else SchemaValidator()
 
@@ -227,8 +275,18 @@ def run(
             topic = TOPIC_TEMPLATE.format(
                 egw_id=config.egw_id, device_uuid=state.spec.device_uuid
             )
+            # Best-effort puback capture (CONTRACTS.md section 7): the wait
+            # budget is the free time until the next scheduled event, so the
+            # acknowledgement round-trip can never delay the schedule.
+            wait_budget_s = (
+                max(0.0, (start_mono + heap[0][0]) - clock.monotonic())
+                if heap
+                else 0.0
+            )
             result = publisher.publish(
-                topic, json.dumps(payload, separators=(",", ":")).encode("utf-8")
+                topic,
+                json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+                wait_budget_s=wait_budget_s,
             )
             writer.write(
                 {
@@ -244,6 +302,11 @@ def run(
             )
             sent += 1
         completed = True
+        # Bounded end-of-run drain: give the last in-flight QoS 1
+        # message(s) a capped window to be acknowledged before disconnect.
+        # Records already written with a null puback are never revisited.
+        if drain_timeout_s > 0.0:
+            publisher.drain(drain_timeout_s)
     finally:
         writer.close()
         write_manifest(
@@ -272,6 +335,7 @@ def run(
                 "intended_invalid": intended_invalid_count,
                 "skipped_dropout": skipped_dropout,
             },
+            note=DROPOUT_SCOPE_NOTE if spec.dropout else None,
         )
     return RunResult(
         run_id=config.run_id,

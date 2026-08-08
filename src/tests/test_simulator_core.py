@@ -247,6 +247,8 @@ def test_scenario_registry_matches_contract():
     assert SCENARIOS["nominal"].default_duration_s == 600.0
     assert SCENARIOS["nominal"].default_rate_hz == pytest.approx(11.2)
     assert SCENARIOS["load-sweep"].default_rate_hz is None
+    # Ten five-minute executions per load (plan section 7.1).
+    assert SCENARIOS["load-sweep"].default_duration_s == 300.0
     assert SCENARIOS["dropout-reconnect"].dropout is True
     assert SCENARIOS["invalid-payload"].invalid_ratio == DEFAULT_INVALID_RATIO == 20
     assert SCENARIOS["soak"].default_duration_s == 86400.0

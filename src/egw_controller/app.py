@@ -30,6 +30,7 @@ from .logging_config import configure_logging
 from .metrics import MetricsCounters
 from .schema import SchemaRepository
 from .service import ControllerService
+from .topic import UUID4_RE
 
 
 class TwinReader(Protocol):
@@ -40,6 +41,10 @@ class TwinReader(Protocol):
     async def is_ready(self) -> bool: ...
 
 
+def _zero_queue_depth() -> int:
+    return 0
+
+
 @dataclass(slots=True)
 class AppDeps:
     """Runtime dependencies of the HTTP endpoints."""
@@ -47,6 +52,7 @@ class AppDeps:
     metrics: MetricsCounters
     ditto: TwinReader
     mqtt_connected: Callable[[], bool]
+    queue_depth: Callable[[], int] = _zero_queue_depth
 
 
 def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
@@ -73,6 +79,16 @@ def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
     @app.get("/twins/{device_id}")
     async def get_twin(device_id: str) -> dict[str, Any]:
         device_uuid = device_id.removeprefix(f"{THING_NAMESPACE}:")
+        # Validate before any Ditto call: a malformed id can never name a twin
+        # (404); 502 is reserved for genuine Ditto failures.
+        if not UUID4_RE.fullmatch(device_uuid):
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"invalid device id {device_id!r}: expected a lowercase "
+                    f"UUID v4, optionally prefixed with '{THING_NAMESPACE}:'"
+                ),
+            )
         try:
             twin = await deps.ditto.get_twin(device_uuid)
         except DittoError as exc:
@@ -85,7 +101,7 @@ def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
 
     @app.get("/metrics")
     async def metrics() -> dict[str, Any]:
-        return deps.metrics.snapshot()
+        return {**deps.metrics.snapshot(), "queue_depth": deps.queue_depth()}
 
     return app
 
@@ -128,5 +144,6 @@ def create_app_from_env() -> FastAPI:
         metrics=metrics,
         ditto=ditto,
         mqtt_connected=lambda: bridge.connected,
+        queue_depth=service.queue_depth,
     )
     return create_app(deps, lifespan=lifespan)

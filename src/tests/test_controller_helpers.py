@@ -96,6 +96,7 @@ def make_raw_twin(
     egw_id: str = EGW_ID,
     last_message_id: str | None = None,
     last_seq: int | None = None,
+    last_run_id: str | None = None,
     accepted_count: int = 0,
     extra_features: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -105,6 +106,7 @@ def make_raw_twin(
             "properties": {
                 "last_message_id": last_message_id,
                 "last_seq": last_seq,
+                "last_run_id": last_run_id,
                 "last_ts": TS if last_seq is not None else None,
                 "accepted_count": accepted_count,
             }

@@ -3,33 +3,38 @@
 Estados permitidos: `Pendente`, `Em curso`, `Bloqueado`, `Concluído`, `Cortado`
 (plano §1). Nenhum `Concluído` sem evidência.
 
-Atualizado: 2026-08-07.
+Atualizado: 2026-08-08.
 
 ## Bloco 07–09/08 (G0)
 
 | Item do plano | Estado | Evidência |
 |---|---|---|
 | Inicializar Git | Concluído | repo `Claude/` (`git log`) |
-| Contratos e schemas normativos | Em curso | `src/CONTRACTS.md`, `src/schemas/*.json` |
-| Âmbito/RQs/matriz claim→evidência fechados | Em curso | `docs/g0/` |
-| Backlog e registo de riscos | Em curso | `docs/g0/` |
-| Guia WSL2 Ubuntu 24.04 (ext4) | Em curso | `docs/setup/` — execução da instalação é ação do estudante |
-| Pedido de VM ARM (Hetzner CAX21) | Bloqueado | requer conta/pagamento do estudante; checklist em `docs/setup/` |
-| Email de âmbito aos orientadores (G0) | Em curso | draft em `docs/g0/` — envio é ação do estudante |
-| Quarentena de resultados sem evidência | Concluído (neste repo) | a dissertação deste repo nasce sem números não suportados |
+| Contratos e schemas normativos | Concluído | `src/CONTRACTS.md` v1.1, `src/schemas/*.json`; validados por `tests/test_schemas.py` |
+| Âmbito/RQs/matriz claim→evidência fechados | Concluído (draft p/ orientadores) | `docs/g0/ambito_e_rqs.md`, `docs/claim_evidence_matrix.{csv,md}` (15 claims, todos Pendente) |
+| Backlog e registo de riscos | Concluído | `docs/g0/backlog.md`, `docs/g0/riscos.md` (R1–R15) |
+| Guia WSL2 Ubuntu 24.04 (ext4) | Concluído (guia) | `docs/setup/wsl2_ubuntu_yocto.md` — execução da instalação é ação do estudante |
+| Pedido de VM ARM (Hetzner CAX21) | Bloqueado | requer conta/pagamento do estudante; checklist em `docs/setup/vm_arm64_hetzner.md` |
+| Email de âmbito aos orientadores (G0) | Bloqueado (envio) | draft pronto em `docs/g0/email_orientadores_G0.md` — envio é ação do estudante |
+| Quarentena de resultados sem evidência | Concluído (neste repo) | cap. 5 tem 16 `\todo{pending data-v1}` e zero números; grep sem claims Pi/SSI |
 
-## Blocos seguintes (G1–G7) — desenvolvimento antecipável sem VM/WSL
+## Blocos seguintes (G1–G7) — desenvolvimento antecipado sem VM/WSL
 
 | Item | Estado | Evidência |
 |---|---|---|
-| Manifesto kas + layer meta-egw (G1) | Em curso | `src/yocto/` — build/boot QEMU requer WSL2 ext4 |
-| Compose ARM64 mínimo + Mosquitto TLS + Ditto/MongoDB (G2) | Em curso | `src/deployment/` — deploy requer VM ARM |
-| Controlador MQTT→Ditto (G2) | Em curso | `src/egw_controller/`, testes |
-| Simulador unificado 3 wearables, 6 cenários (G2–G3) | Em curso | `src/egw_simulator/`, testes |
-| WoT TD 1.1 (G2–G3) | Em curso | `src/things/` |
-| Harness experimental + análise (G3–G4) | Em curso | `src/egw_experiments/` |
+| Manifesto kas + layer meta-egw (G1) | Concluído (código) / Bloqueado (build) | `src/yocto/` com pins verificados 07/08; build/boot QEMU requer WSL2 ext4 |
+| Compose ARM64 mínimo + Mosquitto TLS + Ditto/MongoDB (G2) | Concluído (código) / Bloqueado (deploy) | `src/deployment/`; `docker compose config` OK; digests arm64 verificados 07/08 |
+| Controlador MQTT→Ditto (G2) | Concluído (código+testes) | `src/egw_controller/`; 185 testes; revisão adversarial aplicada |
+| Simulador unificado 3 wearables, 6 cenários (G2–G3) | Concluído (código+testes) | `src/egw_simulator/`; determinismo verificado; revisão aplicada |
+| WoT TD 1.1 (G2–G3) | Concluído | `src/things/`; `tests/test_things.py` cruza TD↔schema |
+| Harness experimental + análise (G3–G4) | Concluído (código+testes) | `src/egw_experiments/`; definições do plano §7.3; revisão aplicada |
 | Estrutura de evidência `results/` | Concluído | `experiments/results/{raw,processed,figures}` |
-| Dissertação (esqueleto sem números inventados) | Em curso | `thesis/latex/` |
+| Dissertação (esqueleto sem números inventados) | Concluído (esqueleto) | `thesis/latex/` compila: main.pdf 46 pp., 0 refs/citações por resolver; 15 refs verificadas |
+| Suite de testes | Concluído | **400 testes a passar** (Windows, Python 3.14, venv) |
+
+Nota: "Concluído (código)" significa pronto e testado unitariamente neste
+repositório; os gates G1/G2 só fecham com evidência de execução real
+(boot QEMU, deploy ARM), que depende das ações externas abaixo.
 
 ## Dependências externas (não executáveis por agente)
 
