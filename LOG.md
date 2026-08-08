@@ -137,3 +137,55 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
   caminho para o claim C10.
 - **Próximos passos:** inalterados — ações externas do estudante (email G0,
   VM, WSL2, regras da extensão) e, depois, G1 com evidência real.
+
+---
+
+## Entrada #C005
+- **Data:** 2026-08-08
+- **Fase:** Execução da ordem de trabalhos do Senior PM (P2 → P1 → P3);
+  GO formal em `../ChatGPT/DECISAO_FINAL_E_ORDEM_DE_TRABALHOS_CLAUDE_2026-08-08.md`
+- **Ação e resultado por bloco:**
+  - **P2 (académico):** claims prematuros removidos — caps. 1 e 3 já não
+    afirmam protocolo/pesquisas executados; Tabela 2.1 com linha "This work"
+    em linguagem de design e "pre-specified" em vez de "pre-registered";
+    caps. 4/6 e abstracts sem tempos verbais de resultado; tabela reconstruída
+    (legível). **PDF standalone do cap. 2 criado**:
+    `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., zero TODOs/placeholders,
+    inspecionado página a página). Checkpoint cumprido: caminho comunicado ao
+    estudante para envio imediato.
+  - **P1a (validade base):** agregação bloqueada a runs `validity != valid`;
+    `resource_source` tem de ser `sut-collector` em runs cronometrados
+    (`local-dev` invalida); proveniência de host no CSV do collector com
+    cross-check ao `sut_environment.json`; qualidade mínima de amostras e de
+    campos SUT; exit codes do simulador/warm-up e overrides do protocolo
+    passam a invalidar ou a registar `deviations` no manifesto (v1.2).
+  - **P1b (aceitação/completude):** aceitação itera as condições PLANEADAS —
+    zero runs ou n≠esperado = failed, nunca em branco; C10 exige
+    `dropout_disconnects≥1` e `buffered_dropout≥1` + reconciliação com
+    `/metrics`; C12 exige registo do hook de restart; DoD do soak (≥24 h,
+    cobertura ≥99%, sem gaps >60 s, sem interrupção não recuperada); gaps
+    >5 s quebram janelas "sustained"; saturação com veredicto
+    `insufficient-evidence` quando falta evidência (regra estatística
+    inalterada). Constantes novas marcadas "pending advisor sign-off".
+  - **P1c (imutabilidade + batch):** raw write-once com diretórios selados
+    (SHA256SUMS) — `collect` verifica checksums, só adiciona ficheiros em
+    falta e regista `collection_history`; subcomando `campaign` executa o
+    plano congelado pela ordem, com resume, stop-on-invalid, cooldowns e
+    `campaign_log.jsonl`; **corrigido bug real de caminho** (o harness lia
+    `sent_events.jsonl` fora do layout `<output>/<run_id>/` que o simulador
+    escreve — o fake dos testes reproduzia o layout errado e escondia-o).
+  - **P3 (selagem):** +x nos 3 scripts novos; `capture-sut-environment.sh`
+    passou a emitir `node` (exigido pela validação); PROGRESS/backlog/
+    riscos/título do doc G0 sincronizados (R16–R22 atualizados; RA1–RA15 da
+    reanálise mapeados); re-execução da suite em HEAD limpo com evidência
+    re-selada (ver `docs/evidence/tests/`).
+- **Evidência:** suite completa **515 passed** (452 → 470 → 493 → 515);
+  commits por entregável: P2 `59efa3f`, P1a `8a927d1`, P1b `8ee0370`,
+  P1c `761c9a8`, P3 (este); dois PDFs compilam limpos.
+- **Decisões/desvios:** "pre-registered"→"pre-specified" aplicado também aos
+  caps. 1/6 e abstracts (coerência); refusal de overwrite aplica-se a
+  qualquer ficheiro raw, não só a diretórios selados (write-once); timeboxes
+  da ordem respeitados.
+- **Próximos passos:** P4 (estudante): enviar email G0 + PDF standalone;
+  WSL2; VM ARM64; bundle para fora do Nextcloud/remote; queries
+  institucionais. Nenhum gate ou claim declarado aceite.

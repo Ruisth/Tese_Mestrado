@@ -1,4 +1,4 @@
-# G0 — Âmbito e questões de investigação (fechado)
+# G0 — Âmbito e questões de investigação (proposto — aguarda validação dos orientadores)
 
 > Derivado do plano integrado (`../../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`,
 > v1.0 — 07/08/2026, NORMATIVO), secções 4 e 12. Este documento fixa o âmbito para o
