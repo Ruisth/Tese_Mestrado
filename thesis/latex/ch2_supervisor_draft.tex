@@ -29,21 +29,44 @@
   ]{biblatex}
 \addbibresource{../refs/references.bib}
 %
-% Cross-references to other chapters (Chapters 1 and 3-6) resolve to the
-% numbering of the full dissertation draft, imported from main.aux:
+% ---------------------------------------------- cross-chapter cross-references
+% Cross-references to other chapters (Chapters 1, 3 and 5) resolve to the
+% numbering of the full dissertation draft, imported from main.aux with xr.
+%
+% Design note (why the import is PREFIXED). An unprefixed \externaldocument{main}
+% imports *every* label of the full draft, including the 22 labels that
+% Chapter 2 itself defines. Those 22 are then defined twice -- once from
+% main.aux at preamble time, once from this document's own .aux at
+% \begin{document} -- which LaTeX reports as 22 "multiply defined" warnings
+% plus a closing summary warning (23 in total). Prefixing the import puts
+% every label from main.aux under the name "main-<label>", so nothing imported
+% can collide with a label defined here.
+%
+% Chapter 2 is frozen and is not edited for this extract, so it still writes
+% \ref{ch:architecture} and so on. The seven labels it cites from other
+% chapters are therefore aliased back to their unprefixed names below; the
+% numbers printed are exactly the ones main.aux carries. Only these seven are
+% exposed, so no alias can shadow a Chapter 2 label. (This also removes the
+% need for the former workaround that unset the amsbook "tocindent-*" internal
+% labels: they now arrive as "main-tocindent-*" and are simply ignored, while
+% this document regenerates its own.)
 \usepackage{xr}
-\externaldocument{main}
-% amsbook records its TOC hanging-indent widths in internal labels named
-% tocindent-1..tocindent3; the copies imported from main.aux by xr are not
-% in the format amsbook expects and break the first LaTeX pass, so they are
-% dropped here (this document regenerates its own on the second pass):
+\externaldocument[main-]{main}
 \makeatletter
-\expandafter\let\csname r@tocindent-1\endcsname\@undefined
-\expandafter\let\csname r@tocindent0\endcsname\@undefined
-\expandafter\let\csname r@tocindent1\endcsname\@undefined
-\expandafter\let\csname r@tocindent2\endcsname\@undefined
-\expandafter\let\csname r@tocindent3\endcsname\@undefined
-\expandafter\let\csname r@tocindent4\endcsname\@undefined
+\newcommand*\EGWexternallabel[1]{%
+  \expandafter\ifx\csname r@main-#1\endcsname\relax
+    \@latex@warning@no@line{External label `#1' not found in main.aux;
+      recompile main.tex first}%
+  \else
+    \expandafter\let\csname r@#1\expandafter\endcsname\csname r@main-#1\endcsname
+  \fi}
+\EGWexternallabel{sec:intro-rqs}       % Chapter 1 -- research questions
+\EGWexternallabel{sec:intro-scope}     % Chapter 1 -- scope
+\EGWexternallabel{sec:method-review}   % Chapter 3 -- literature review protocol
+\EGWexternallabel{sec:method-protocol} % Chapter 3 -- experimental protocol
+\EGWexternallabel{ch:architecture}     % Chapter 4
+\EGWexternallabel{ch:evaluation}       % Chapter 5
+\EGWexternallabel{sec:eval-validity}   % Chapter 5 -- threats to validity
 \makeatother
 %
 % TODO marker (same definition as in main.tex). This supervisor draft must
@@ -67,6 +90,45 @@
 \usepackage{montserrat}
 \usepackage[T1]{fontenc}
 \renewcommand*\oldstylenums[1]{{\fontfamily{Montserrat-TOsF}\selectfont #1}}
+%
+% ------------------------------------------------------------- PDF metadata
+% hyperref is loaded LAST, after every package that redefines sectioning,
+% referencing or font commands, as the package requires.
+%
+% It is loaded with implicit=false: this document needs hyperref only for the
+% PDF information dictionary below, not for hyperlinking. With implicit=true
+% hyperref would also rewrite \ref, and the seven cross-chapter references
+% aliased above carry the anchor names of the *full* draft (chapter.4,
+% section.5.8, ...), which do not exist in this 16-page extract; each would
+% then emit a "pdfTeX warning (dest): ... referenced but does not exist".
+% implicit=false keeps the typeset output what it was before the metadata was
+% added, which is what a frozen review extract wants. hidelinks is needed as
+% well: the acronym package calls \hyperlink/\hypertarget itself as soon as
+% hyperref is present, and the default red link borders would otherwise box
+% every acronym in the list and in the body text.
+%
+% The author field is deliberately institutional: no personal data exists in
+% this repository and none may be invented (see main.tex, the cover keeps the
+% neutral "MSc dissertation draft" line).
+\usepackage[implicit=false,hidelinks]{hyperref}
+\hypersetup{
+  pdftitle={Background and Related Work - Preliminary draft for supervisor
+            feedback},
+  pdfauthor={MSc dissertation draft - Iscte, Instituto Universitario de Lisboa
+             (ISCTE-IUL)},
+  pdfsubject={Chapter 2 (Background and Related Work) of a MSc dissertation on
+              a reproducible Yocto-based ARM64 edge gateway for digital twins
+              of wearable devices (C2DTA project)},
+  pdfkeywords={edge computing; edge gateway; digital twin; C2DTA; Yocto
+               Project; ARM64; MQTT; Eclipse Ditto; wearable devices; Web of
+               Things; self-sovereign identity},
+  pdfcreator={pdfTeX},
+}
+% biblatex auto-detects hyperref and would then wrap every citation in
+% \hyper@natlinkstart, which hyperref does not define under implicit=false.
+% Citation hyperlinking is switched off explicitly, which is also the
+% behaviour of this extract before hyperref was added.
+\ExecuteBibliographyOptions{hyperref=false}
 %
 \pagestyle{plain}
 
