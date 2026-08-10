@@ -45,6 +45,25 @@
 header:
   version: 14
 
+env:
+  # WHY THIS EXISTS (observed 2026-08-10, first real build):
+  # kas runs BitBake with HOME pointed at a throwaway temporary directory
+  # (kas/libcmds.py: `self.tmpdirname = tempfile.mkdtemp()` followed by
+  # `ctx.environ['HOME'] = self.tmpdirname`). A local.conf line such as
+  # `DL_DIR ?= "${HOME}/yocto-cache/downloads"` therefore resolves to
+  # /tmp/tmpXXXXXXXX/... — a directory that is removed when the run ends.
+  # Symptom: every run silently starts with an EMPTY download and sstate
+  # cache, and a re-run fails at do_unpack because the stamps claim the
+  # source was already fetched while the tarball is gone:
+  #   NOTE: Unpacking /tmp/tmpudy01gb3/yocto-cache/downloads/libffi-3.4.6.tar.gz
+  #   tar (child): ...: Cannot open: No such file or directory
+  # Variables declared here are given to BitBake by kas and added to
+  # BB_ENV_PASSTHROUGH_ADDITIONS, so they survive that HOME substitution.
+  # scripts/build.sh exports EGW_CACHE_DIR=$HOME/yocto-cache (expanded by the
+  # SHELL, where HOME is the real one); the default below only applies when
+  # kas is invoked directly.
+  EGW_CACHE_DIR: "/var/tmp/egw-yocto-cache"
+
 machine: qemuarm64
 distro: poky
 target: egw-image
@@ -132,6 +151,8 @@ local_conf_header:
   40-shared-caches: |
     # Keep downloads and shared state OUTSIDE the repository checkout so a
     # re-clone or 'git clean' never deletes them and rebuilds stay fast.
-    # ${HOME} resolves inside WSL2 (ext4), e.g. /home/<user>/yocto-cache.
-    DL_DIR ?= "${HOME}/yocto-cache/downloads"
-    SSTATE_DIR ?= "${HOME}/yocto-cache/sstate-cache"
+    # EGW_CACHE_DIR comes from the 'env:' block above — NEVER use ${HOME}
+    # here: under kas it expands to a temporary directory (see the comment
+    # on 'env:' for the failure this caused).
+    DL_DIR ?= "${EGW_CACHE_DIR}/downloads"
+    SSTATE_DIR ?= "${EGW_CACHE_DIR}/sstate-cache"

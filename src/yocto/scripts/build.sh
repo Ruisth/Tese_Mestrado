@@ -34,6 +34,17 @@ cd "$YOCTO_DIR"
 KAS_WORK_DIR="$YOCTO_DIR"
 export KAS_WORK_DIR
 
+# Download and sstate caches. These MUST come from an explicit variable:
+# kas replaces HOME with a temporary directory before invoking BitBake, so
+# "${HOME}" inside local.conf would point at a directory that is deleted at
+# the end of the run (caches silently lost, and a re-run then fails at
+# do_unpack). $HOME below is expanded by THIS shell, where it is the real
+# home directory. See the 'env:' block in kas/egw-qemuarm64.yml.
+: "${EGW_CACHE_DIR:=$HOME/yocto-cache}"
+export EGW_CACHE_DIR
+mkdir -p "$EGW_CACHE_DIR/downloads" "$EGW_CACHE_DIR/sstate-cache"
+echo "Caches : $EGW_CACHE_DIR (downloads + sstate-cache)"
+
 # Refuse to build on Windows-backed filesystems: 9p/drvfs (WSL /mnt/*) and
 # NTFS breach both performance and correctness assumptions of BitBake
 # (pseudo, hardlinks, case sensitivity). Plan 5.1 requires ext4.
