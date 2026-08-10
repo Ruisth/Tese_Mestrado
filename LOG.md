@@ -140,6 +140,128 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
 
 ---
 
+## Entrada #C008 — Primeira execução real do Yocto (G1) e bloqueio da VM ARM64
+- **Data:** 2026-08-10 (noite) / 2026-08-11
+- **Fase:** P4 — ações externas; G1 iniciado
+- **Ação:** WSL2 instalado pelo estudante; ambiente preparado e **primeiro build
+  Yocto real** lançado. Tentativa de criar a VM ARM64 em três fornecedores.
+
+### Ambiente (evidência de G0/G1)
+- **Ubuntu 26.04 rejeitado antes de custar tempo:** `wsl --install -d Ubuntu`
+  instala hoje o 26.04, que traz **Python 3.14**; o BitBake do Scarthgap
+  (abril/2024) é anterior às remoções de stdlib do 3.13/3.14 e o 26.04 não
+  consta dos hosts validados. Substituído por **Ubuntu 24.04.4 LTS**
+  (Python 3.12.3). Registado em `docs/setup/wsl2_ubuntu_yocto.md` (commit
+  `8f2e4af`) com data e razão — é uma armadilha de reprodutibilidade típica:
+  o mesmo comando dá hosts diferentes ao longo do tempo.
+- Host de build: 16 cores, 31 GiB RAM, 955 GiB livres em **ext4**; repositório
+  clonado para `~/yocto/egw` (nunca `/mnt/*`), conforme plano §5.1.
+
+### Resultado do build
+- **Parse: 2888 receitas, 4830 targets, 0 erros.** Primeira confirmação de que
+  a layer `meta-egw`, o `LAYERSERIES_COMPAT` e as três receitas próprias
+  (`egw-image`, `egw-base-config`, `egw-container-smoke`) são válidas num
+  ambiente Yocto real — até aqui eram M1 (texto plausível nunca executado).
+- **Os três pins de layers resolveram todos**, incluindo o commit
+  `0d9fb7f` de `meta-virtualization`, que quando foi registado tinha **uma
+  única fonte online** (o cgit oficial recusava fetches automatizados). Fica
+  agora confirmado contra o repositório canónico.
+- Build em curso à data desta entrada (tarefa 4386/5715, 0 erros).
+
+### Dois defeitos reais encontrados no meu próprio trabalho Yocto
+1. **Corrida no make paralelo do perl** (commit `e83fb24`). Falha intermitente,
+   dependente do número de cores: o `ExtUtils::MakeMaker` regenera sub-Makefiles
+   a meio do `do_compile` e pede que o make seja relançado; sob `-j 16` os jobs
+   irmãos abortam. Corrigido com `PARALLEL_MAKE:pn-perl = "-j 1"` em vez de
+   repetir até calhar — um build que passa umas vezes e falha outras não
+   sustenta o claim C01.
+2. **`DL_DIR`/`SSTATE_DIR` efémeros** (commit `c0ebf7c`) — **o mais grave**. O
+   kas corre o BitBake com `HOME` substituído por uma pasta temporária
+   (`kas/libcmds.py`: `tempfile.mkdtemp()` → `ctx.environ['HOME']`), pelo que
+   `DL_DIR ?= "${HOME}/yocto-cache/downloads"` resolvia para `/tmp/tmpXXXX/...`.
+   **Todos os builds começavam com cache vazia e perdiam-na no fim**, e o
+   segundo falhou no `do_unpack` porque os stamps diziam "já descarregado"
+   enquanto o tarball tinha desaparecido com a pasta temporária. Corrigido com
+   a secção `env:` do kas (`EGW_CACHE_DIR`), que o kas passa ao BitBake via
+   `BB_ENV_PASSTHROUGH_ADDITIONS`. Verificado: a cache persiste agora em
+   `~/yocto-cache` (8,1 GiB à data desta entrada).
+
+   **Impacto no claim C01:** o build era, de facto, não reproduzível — e
+   nenhuma inspeção estática do manifesto o revelaria. Só aparece a quem o
+   executa duas vezes e repara que a segunda não é mais rápida. Material
+   direto para o capítulo de reprodutibilidade.
+
+### VM ARM64 — bloqueada em três fornecedores (risco materializado)
+| Fornecedor | Resultado |
+|---|---|
+| Oracle Cloud (Always Free, Ampere A1) | **Beco sem saída.** A *home region* é fixada no registo e não se muda; contas Always Free só podem usar essa região. Madrid sem capacidade A1 ⇒ conta estruturalmente bloqueada |
+| Hetzner Cloud (CAX, Ampere Altra) | Todas as instâncias ARM indisponíveis |
+| Azure for Students | Regiões limitadas a 5 (as restantes «não elegíveis»); quota **0 of 0** em todas as famílias ARM dedicadas (Dpsv5/v6, Dplsv5/v6). Só a **série B (burstable)** está disponível sem pedido de quota |
+
+**Decisão (a validar com os orientadores):** a série B é **inaceitável como
+plataforma de medição** — é *burstable* por créditos de CPU, pelo que o
+load-sweep a 250 msg/s e o critério de saturação (CPU > 90 % sustentada)
+mediriam o estrangulamento da faturação em vez do gateway, invalidando a RQ3.
+Passa a existir um **terceiro degrau de plataforma**, extensão natural do
+ADR 0001:
+
+| Papel | Plataforma | Números na dissertação |
+|---|---|---|
+| Funcional (SO) | QEMU/`qemuarm64` no WSL2 | Nunca (plano §5.1) |
+| Integração ARM64 | Azure `B4pls_v2` (burstable) | **Nunca** |
+| Medição (RQ3) | `D4pls_v5` (se a quota for aprovada) ou AWS `c6g.xlarge` | **Exclusivamente daqui** |
+
+Pedidos de quota submetidos para as famílias **DPLSv5** e **DPLSv6**
+(Germany West Central, 4 vCPU). Fallback com custo conhecido: AWS
+`c6g.xlarge` (4 vCPU Graviton2, 8 GiB, dedicado), ~7 EUR para a campanha
+completa. Instâncias *burstable* (`t4g`, `Bpsv2`) ficam excluídas por motivo
+metodológico, não de custo.
+
+- **Próximos passos:** email G0 + PDF do capítulo 2 (atrasado desde 09/08;
+  comunica também este risco, conforme plano §10); dois boots QEMU + smoke de
+  container para fechar G1; micro-piloto assim que existir ARM64.
+
+---
+
+## Entrada #C007 — Sprint P5.4 (seis defeitos da auditoria de verificação)
+- **Data:** 2026-08-10
+- **Fase:** P5.4, autorizado pelo relatório
+  `../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`
+- **Ação:** As seis acusações técnicas do relatório foram **verificadas uma a
+  uma contra o código antes de qualquer correção**; todas se confirmaram.
+  Corrigidas por TDD (teste a falhar primeiro).
+- **Resultado (commits `734d1ce`, `62b8b8b`):**
+  1. **`analyze --plan`** — a completude por identidade existia mas era
+     inalcançável pelo comando oficial (só por variável de ambiente não
+     documentada); o subcomando passa a aceitar e propagar `--plan`.
+  2. **Runs externos não selados** entravam nas estatísticas de duração; passam
+     a exigir selo verificado (`integrity_ok == INTEGRITY_OK`).
+  3. **C12** media apenas que o `GET /metrics` voltou a responder — renomeado
+     para *endpoint recovery* e acrescentado um critério **funcional
+     limitado no tempo**: primeira prova de que a ingestão retomou (primeiro
+     evento aceite pós-restart no domínio de relógio do controlador, ou
+     primeira amostra cujo contador ultrapassa a linha de base anterior).
+  4. **Validação numérica estrita** — NaN, infinito, negativos e contadores
+     fracionários eram aceites; `mem_bytes=inf` **rebentava a análise**
+     (`int(float('inf'))` lança `OverflowError`, não apanhado por
+     `except ValueError`). Um único `inf` no CPU fingia saturação; um `nan`
+     tornava o `max()` dependente da ordem das linhas e desligava todas as
+     comparações de limiar.
+  5. **Marcador de confirmação** era lido depois de juntar os samplers (que
+     podem bloquear ~25 s), alargando a janela efetiva para 60 + Δ s e
+     enviesando a taxa de entrega para cima; passa a ser lido imediatamente
+     após o fim da execução medida.
+  6. **`campaign --start-from`** já não dispensa evidência externa saltada: os
+     externos pendentes são contabilizados sobre o plano inteiro, a campanha
+     reporta `incomplete` e sai com código não-zero.
+  - Correção editorial: «registered» → «planned»/«specified» no capítulo 2
+    (podia sugerir um protocolo formalmente pré-registado).
+- **Evidência:** suite completa **618 testes** (593 → 618).
+- **Decisões:** nenhum limiar estatístico, percentil, método de IC ou a janela
+  de 60 s foi alterado; nenhum gate ou claim aceite.
+
+---
+
 ## Entrada #C006 (sprint P5 — pré-voo antes do P4)
 - **Data:** 2026-08-08
 - **Fase:** Sprint P5 autorizado pelo Senior PM

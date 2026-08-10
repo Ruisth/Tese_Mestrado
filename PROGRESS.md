@@ -48,11 +48,11 @@ dos claims e gates.
 | Entregável | Implementado | Verificado | Aceite no gate | M |
 |---|---|---|---|---|
 | Repositório Git inicializado | sim | estático — commits por entregável, working tree limpo; **continua sem remote e sem tags** (`.git/config` sem secção `[remote]`, `refs/tags` vazio); a 10/08 a árvore de trabalho e os bundles de `backups/` passaram a residir fora da pasta sincronizada Nextcloud (cópia privada local) | G0 — Pendente | M1 |
-| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte da suite selada de 593 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
+| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte da suite selada de 618 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
 | Âmbito, RQs e matriz claim→evidência (15 claims) | sim | estático — 15/15 claims `Pendente — sem evidência`; sem validação dos orientadores | G0 — Pendente | M1 |
 | Backlog e registo de riscos | sim | não (documentos de gestão) | G0 — Pendente | M1 |
 | Guia WSL2 Ubuntu 24.04 (ext4) | sim | não — instalação não executada | G0 — Pendente | M1 |
-| VM ARM64 (Hetzner CAX21 ou equivalente) | não | não | G0 — Bloqueado (conta/pagamento do estudante; prazo 10/08) | M0 |
+| VM ARM64 (plataforma de medição) | não | não | G0 — **Bloqueado: indisponibilidade de mercado** (Oracle: home region fixa sem capacidade; Hetzner: CAX esgotadas; Azure Students: quota 0 em todas as famílias ARM dedicadas). Prazo 10/08 ultrapassado; regra §8.1: comunicar o risco até 12/08. Quota pedida (DPLSv5/v6); fallback AWS `c6g.xlarge` ~7 EUR | M0 |
 | Email G0 aos orientadores + pedido das regras da extensão | sim (draft) | não — envio não efetuado | G0 — Bloqueado (envio é ação do estudante; prazo 09/08) | M1 |
 | Quarentena de resultados sem evidência na dissertação | sim | estático — cap. 5 com 16 `\todo{pending data-v1}` e zero números; sem claims Pi/SSI | G0 — Pendente | M1 |
 
@@ -60,9 +60,9 @@ dos claims e gates.
 
 | Entregável | Implementado | Verificado | Aceite no gate | M |
 |---|---|---|---|---|
-| Manifesto `kas` + layer `meta-egw` + receita `egw-image` | sim | estático — pins Scarthgap 5.0.19 documentados 07/08; zero builds, zero boots | G1 — Bloqueado (requer WSL2 ext4; gate 16/08, trigger 20/08) | M1 |
+| Manifesto `kas` + layer `meta-egw` + receita `egw-image` | sim | **integrado (parcial) — build real em curso desde 10/08**: parse de 2888 receitas / 4830 targets com **0 erros**, os 3 pins de layers resolvidos contra os repositórios canónicos; 2 defeitos encontrados e corrigidos (corrida do make do perl `e83fb24`; `DL_DIR`/`SSTATE_DIR` efémeros `c0ebf7c`). **Imagem ainda não produzida; zero boots** | G1 — Em curso (gate 16/08, trigger 20/08) | M2→M3 parcial |
 | Compose ARM64 mínimo (Mosquitto TLS, Ditto 3.9.4, MongoDB, controlador) | sim | estático — `docker compose config` (validação sintática, sem log persistido); digests arm64 verificados documentalmente 07/08; `.env`/certificados/passwords operacionais não existem | G2 — Bloqueado (requer VM ARM; gate 23/08, trigger 25/08) | M1 |
-| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte da suite selada de 593 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
+| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte da suite selada de 618 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
 | Simulador unificado (3 wearables, 6 cenários) | sim | unitário — determinismo verificado; `dropout-reconnect` induz desconexão MQTT real com buffering e redelivery ordenado (correção da auditoria §7.3 concluída 08/08; cobre C10 em unitário) | G2–G3 — Pendente | M2 |
 | Thing Descriptions WoT TD 1.1 | sim | unitário — `tests/test_things.py` cruza TD↔schema; integração real não demonstrada | G2–G3 — Pendente | M2 |
 | Harness experimental + análise | sim | unitário — lacunas da auditoria §9 corrigidas a 08/08 (blocos P1a–P1c: gating por validade, proveniência de host, aceitação com completude, DoD do soak, caps de cadência, saturação com suficiência de evidência, raw selado write-once, batch runner `campaign`); bloco P5 (08/08) acrescentou marcador de fim de execução no domínio de relógio do controlador, hooks do collector no `campaign`, verificação de `SHA256SUMS` antes de qualquer agregação, completude por **identidade** contra o plano, validação semântica das séries e evidência limitada de recuperação no C12; bloco P5.4 (10/08) trata defeitos de alcance pela CLI e de valores não finitos (código fora deste bloco documental — ver `docs/g0/riscos.md`, R28/R29); **nenhuma regra estatística, percentil, método de IC ou a janela de 60 s foi alterada**; prova live pendente de VM | G4 — Pendente | M2 |
@@ -116,6 +116,18 @@ orientadores e regista-se no Anexo C do plano e no [`LOG.md`](LOG.md).
 
 Regra de corte G0 (plano §8.1): sem VM a 10/08, mudar de fornecedor; sem VM a
 12/08, comunicar o risco aos orientadores.
+
+## Plataformas — três degraus (extensão do ADR 0001, a validar com orientadores)
+
+A indisponibilidade de ARM64 dedicado obrigou a distinguir uma plataforma de
+integração de uma de medição. Regra dura: **nenhum número da série B entra na
+dissertação.**
+
+| Papel | Plataforma | Estado | Números na tese |
+|---|---|---|---|
+| Funcional (SO/boot) | QEMU `qemuarm64` no WSL2 | build em curso | Nunca (plano §5.1) |
+| Integração ARM64 | Azure `B4pls_v2` (burstable, sem quota) | disponível, por usar | **Nunca** — créditos de CPU contaminariam o load-sweep e o critério de saturação |
+| Medição (RQ3) | `D4pls_v5` (quota pedida) ou AWS `c6g.xlarge` | **inexistente** | **Exclusivamente daqui** |
 
 ## Controlo de esforço — caminho crítico (auditoria §5.2)
 
