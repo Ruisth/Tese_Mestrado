@@ -66,9 +66,10 @@ dos claims e gates.
 | Thing Descriptions WoT TD 1.1 | sim | unitário — `tests/test_things.py` cruza TD↔schema; integração real não demonstrada | G2–G3 — Pendente | M2 |
 | Harness experimental + análise | sim | unitário — lacunas da auditoria §9 corrigidas a 08/08 (blocos P1a–P1c: gating por validade, proveniência de host, aceitação com completude, DoD do soak, caps de cadência, saturação com suficiência de evidência, raw selado write-once, batch runner `campaign`); prova live pendente de VM | G4 — Pendente | M2 |
 | Estrutura de evidência `experiments/results/` | sim | estático — diretórios `raw/processed/figures` criados; zero dados (evidência experimental M0) | G5 — Pendente | M1 |
-| Dissertação (esqueleto + cap. 2 substantivo) | sim | estático — latexmk compila: 57 pp., 0 referências por resolver, 25 refs verificadas; cap. 2 ~4 300 palavras; claims prematuros removidos dos caps. 1/3/4/6 e da Tabela 2.1 (bloco P2); caps. 3/5/6 continuam esqueleto | G6 — Pendente | M1–M2 |
-| PDF standalone do cap. 2 para o orientador | sim | estático — `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., sem TODOs/placeholders, revisão institucional declarada pendente); inspeção visual página a página | envio = ação do estudante | M2 |
-| Suite de testes unitários | sim | unitário — 515 testes a passar (Windows, Python 3.14, venv); evidência persistida em `docs/evidence/tests/` (JUnit + stdout + ambiente + commit); zero testes live/`integration`, sem execução Linux | G3 — Pendente | M2 |
+| Dissertação (esqueleto + cap. 2 substantivo) | sim | estático — latexmk compila: 57 pp., 0 referências por resolver; cap. 2 ~4 300 palavras; claims prematuros removidos dos caps. 1/3/4/6 e da Tabela 2.1 (bloco P2); caps. 3/5/6 continuam esqueleto | G6 — Pendente | M1–M2 |
+| Fontes da revisão (`thesis/research/study_selection.csv`) | sim | estático — 25 fontes registadas, com metadados verificados (Crossref/W3C/OASIS/páginas oficiais). **Profundidade de leitura: 7 avaliadas em full text (S001, S004–S009) e 18 apenas por título/resumo** (`stage=title_abstract`, inclusão provisória para o draft ao orientador; passagem full-text por executar). «Verificado» refere-se aos metadados da fonte, nunca à leitura integral; as queries institucionais continuam pendentes (ação do estudante, risco R17) | G6 — Pendente | M1 |
+| PDF standalone do cap. 2 para o orientador | sim | estático — `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., sem TODOs/placeholders, revisão institucional declarada pendente); inspeção visual página a página | não é item de gate — envio = ação do estudante (nenhum gate fecha com isto) | M2 |
+| Suite de testes unitários | sim | unitário — 515 testes a passar (Windows, Python 3.14.3, venv); evidência selada em `docs/evidence/tests/2026-08-08-head-ca445a3/` (JUnit + stdout + ambiente + commit + `SHA256SUMS`) sobre HEAD limpo `ca445a3`; **zero testes live/`integration` existem**, sem execução Linux nem ARM64 — criá-los é pré-requisito de G3 | G3 — Pendente | M2 |
 | Correções do harness pós-auditoria (fetch de eventos, 2 ambientes, collector na VM, janela medida, condições C10–C14, queue growth, CPU normalizada) | sim | unitário — testes incluídos nos 515; plano de campanha com 95 runs; aceitação exige completude e evidência; execução real pendente de VM | G3–G4 — Pendente | M2 |
 
 Nota: «Implementado = sim» significa apenas que o artefacto existe e, quando
@@ -93,6 +94,14 @@ Regra de corte G0 (plano §8.1): sem VM a 10/08, mudar de fornecedor; sem VM a
 Esqueleto de controlo diário (<10 min/dia). Valores `(est.)` são estimativas da
 auditoria §12.1; `actual_h`, `remaining_h` e `forecast` são preenchidos pelo
 estudante — não inventar horas. Células vazias = por estimar/preencher.
+
+> **Nota (08/08/2026):** as colunas `actual_h`, `remaining_h` e `forecast` estão
+> deliberadamente **vazias** e são de preenchimento exclusivo do estudante: são
+> esforço humano e nenhum agente as pode estimar ou inferir. As durações do
+> trabalho executado por agentes não entram nesta tabela — ficam registadas nas
+> entradas do [`LOG.md`](LOG.md). Enquanto estas três colunas estiverem vazias,
+> **não existe forecast de conclusão** e o risco RA15 mantém-se materializado
+> (ver [`docs/g0/riscos.md`](docs/g0/riscos.md)).
 
 | Item (caminho crítico) | owner | planned_h | actual_h | remaining_h | due | evidence | forecast | blocker |
 |---|---|---|---|---|---|---|---|---|

@@ -189,3 +189,49 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
 - **Próximos passos:** P4 (estudante): enviar email G0 + PDF standalone;
   WSL2; VM ARM64; bundle para fora do Nextcloud/remote; queries
   institucionais. Nenhum gate ou claim declarado aceite.
+
+---
+
+## Entrada #C006
+- **Data:** 2026-08-08
+- **Fase:** Adenda de rastreabilidade ao bloco P3 (sem trabalho técnico novo)
+- **Ação:** Registo dos identificadores exatos da evidência de P3, que a
+  entrada #C005 descrevia apenas por referência genérica
+  («ver `docs/evidence/tests/`»). A verificação externa de 08/08 assinalou
+  esta imprecisão; esta entrada fecha-a. Nada aqui altera o estado de
+  nenhum gate nem valida nenhum claim.
+- **Identificadores exatos:**
+  - **Caminho da evidência de P3:**
+    `docs/evidence/tests/2026-08-08-head-ca445a3/`
+    (contém `junit.xml`, `pytest-stdout.txt`, `environment.txt` e
+    `SHA256SUMS` dos três).
+  - **Commit testado (árvore exata sob teste):**
+    `ca445a31e5d146cf0c214b3cd4a23a95a48b5289` (abreviado `ca445a3`), com
+    **tree hash** `b767b229e295b9453cbc2efcbfd0122bf8409d38`;
+    `git status --porcelain` vazio no momento da execução. Ambos os valores
+    lidos de `environment.txt` do próprio diretório de evidência.
+  - **Resultado:** `515 passed` em 7,10 s (Windows 11 Pro, Python 3.14.3,
+    venv com `src/requirements.lock`), comando
+    `python -m pytest tests -q --junitxml=junit.xml` a partir de `Claude/src`.
+  - **Commit da evidência:** `9491090` — é o commit que **acrescenta** o
+    diretório de evidência e, por construção, é posterior a `ca445a3`; toca
+    apenas ficheiros sob `docs/evidence/tests/` e não altera código. A
+    distinção entre commit testado e commit da evidência é intencional e não
+    deve ser colapsada.
+  - **Bundle final de backup:** `backups/egw-20260808-final.bundle`
+    (991 862 bytes; SHA-256
+    `edf0c2409052498533667b78719c85468a8eba05d87b605b4ce0440fa35ba017`,
+    recalculado localmente em 08/08 e coincidente com o valor da verificação
+    externa; contém a história completa com `main`/HEAD em `9491090`).
+    Substitui `backups/egw-20260808.bundle`, anterior e mais curto.
+- **Limitações registadas:** a suite é unitária, com fakes, em Windows — nível
+  **M2**. Existem **zero** testes `integration`. O bundle continua dentro do
+  domínio Nextcloud, pelo que **não é ainda um backup independente** (risco
+  R25/RA13 permanece aberto, dependente de ação do estudante).
+- **Retificação a #C005:** a formulação «RA1–RA15 da reanálise mapeados» usada
+  na entrada #C005 era **demasiado ampla** e foi retirada de
+  [`docs/g0/riscos.md`](docs/g0/riscos.md). Vários RA estavam apenas implícitos
+  nas linhas R16–R27 e **RA15 (ausência de horas/forecast) está materializado**,
+  não mitigado. O ficheiro de riscos passa a seguir RA1–RA15 linha a linha, com
+  estado explícito e evidência ou dependência bloqueante por risco.
+- **Próximos passos:** inalterados face a #C005.

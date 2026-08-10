@@ -25,12 +25,22 @@ pip install -e .[dev,analysis]
 cd src && python -m pytest tests -q
 ```
 
-The suite is self-contained (fakes for MQTT/Ditto; schemas loaded from
-`schemas/`). Live integration tests are marked `integration` and deselected
-by default via `addopts` in `pyproject.toml`; run them against a live stack
-with `python -m pytest tests -m integration`. Unit results with fakes are
-level M2 evidence only — they never close a gate on their own (see
-`../docs/claim_evidence_matrix.md`).
+The suite is self-contained: every test runs against fakes for MQTT and Ditto,
+with schemas loaded from `schemas/`. No broker, no Ditto, no ARM64 host is
+required, and none is exercised.
+
+**Integration tests: the marker is configured, ZERO integration tests exist
+today.** The `integration` marker is registered and deselected by default via
+`addopts` in `pyproject.toml`, so `python -m pytest tests -m integration`
+currently collects nothing. Writing live integration/E2E tests against a real
+broker, a real Ditto instance and the ARM64 stack is **outstanding work and a
+prerequisite for gate G3** (risk R21); until they exist and have been run on
+the target environment, no integration-level claim may be made.
+
+Consequently the entire suite is level **M2** evidence (verified locally, unit
+level, with fakes, on Windows). M2 closes no gate and validates no claim on its
+own — see `../docs/claim_evidence_matrix.md`, where all 15 claims remain
+`Pendente — sem evidência`.
 
 ## Run the simulator (reference invocation, CONTRACTS §7)
 
