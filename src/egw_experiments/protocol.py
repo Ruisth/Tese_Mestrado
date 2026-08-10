@@ -151,6 +151,22 @@ SOAK_MAX_INTERRUPTION_GAP_S = 120.0
 METRICS_RECONCILIATION_TOLERANCE_FRAC = 0.01
 METRICS_RECONCILIATION_TOLERANCE_ABS = 1.0
 
+# Controller-restart recovery bound (claim C12, sprint P5). The C12
+# acceptance requires EVIDENCE of an actual recovery, computed from
+# controller_metrics.csv around the restart timestamps recorded in the run
+# manifest:
+# - downtime evidence: a controller-metrics sampling gap longer than
+#   MAX_SAMPLE_GAP_S straddling the restart (a failed poll writes no row, so
+#   holes ARE the unavailability evidence) OR a counter reset (the accepted
+#   counter after the restart lower than before it);
+# - recovery: the first controller-metrics sample after the restart finished
+#   lands within RESTART_RECOVERY_MAX_S of that instant;
+# - progress: the accepted counter grows after the restart.
+# PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the 120 s recovery bound must be
+# confirmed with the advisor before the protocol freeze (G4); it must not
+# change afterwards.
+RESTART_RECOVERY_MAX_S = 120.0
+
 
 @dataclass(frozen=True)
 class Condition:

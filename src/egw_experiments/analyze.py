@@ -1,8 +1,9 @@
 """Single reproducible analysis entrypoint (plan 5.8, 7.2, 7.3, 9.1).
 
-``analyze(base_dir)`` regenerates EVERYTHING under ``results/processed/`` and
-``results/figures/`` from ``results/raw/`` alone ("processados e figuras sao
-sempre regenerados por um unico script", plan 5.8). It never modifies
+``analyze(base_dir, plan_path=None)`` regenerates EVERYTHING under
+``results/processed/`` and ``results/figures/`` from ``results/raw/`` alone
+("processados e figuras sao sempre regenerados por um unico script", plan
+5.8). It never modifies
 ``results/raw/``. Since the 2026-08-08 audit (section 9.6, claim C15) this
 includes the EXTERNAL conditions (QEMU boots, cold starts, twin creations)
 ingested by ``run --external-timings``: no run type needs a second analysis
@@ -19,17 +20,28 @@ Metric definitions (plan 7.3 / CONTRACTS 9, applied verbatim)
                   values with an ``accepted`` controller event whose
                   ``ditto_ack_monotonic_ns`` falls within the confirmation
                   window. The window deadline lives in the CONTROLLER's
-                  clock domain: max ``received_monotonic_ns`` over the run's
-                  controller events plus ``confirmation_window_s`` from the
-                  run manifest (default 60 s). The manifest's
-                  ``confirmation_deadline_monotonic_ns`` was captured on the
-                  harness host, which runs OFF the ARM VM (plan 5.1), and
-                  monotonic clocks are not comparable across hosts; it is
-                  informational only (clock_domain ``harness-host``) and is
-                  used as a last-resort fallback only when the run has zero
-                  controller events. A plausibility check flags manifest
-                  deadlines outside [max(received), max(received) +
-                  2*window] with a loud warning. Repeated confirmations of
+                  clock domain and comes from the run manifest's
+                  ``confirmation_deadline_monotonic_ns`` whenever
+                  ``confirmation_deadline_clock_domain == "controller"``
+                  (sprint P5, report 5.2): the harness reads the
+                  controller's confirmation marker (``GET /metrics``
+                  ``monotonic_ns``, CONTRACTS 5) immediately after the
+                  measured simulator process exits and adds
+                  ``confirmation_window_s``, so the deadline is in the same
+                  clock domain as the events AND independent of them.
+                  Without that marker the deadline can only be derived from
+                  the events themselves (max ``received_monotonic_ns`` +
+                  window), which is CIRCULAR — a late message pushes its own
+                  deadline forward and can never be counted as lost. Such
+                  runs are still aggregated but every one of them gets a
+                  loud per-run warning naming the run as
+                  LEGACY/UNVERIFIABLE. The 60 s window value itself is
+                  identical on both paths (plan 7.3); only the end instant
+                  stops being inferred from the events. ``per_run.csv``
+                  records the path taken in ``confirmation_deadline_source``
+                  (``controller-marker``, ``event-derived-legacy``,
+                  ``manifest-other-domain-legacy`` or ``none``).
+                  Repeated confirmations of
                   the same ``message_id`` count once; every repeat past the
                   first is counted in ``double_accepted`` (a repeat means the
                   twin was patched more than once for the same message — the
@@ -172,15 +184,31 @@ covers from its timestamp until the next sample or for MAX_SAMPLE_GAP_S,
 whichever is shorter (the last sample covers up to the window end, same
 cap); time before the first sample is uncovered.
 
-Saturation evidence sufficiency (work order P1b): a load's verdict is
-decided ONLY when the planned number of valid runs exists at that load
-AND every run carries the required instrumentation (host-CPU criterion
-evaluable, resources coverage >= SATURATION_MIN_RESOURCE_COVERAGE_PCT,
-controller metrics present for the queue-growth criterion). Otherwise the
-load's ``verdict`` in ``saturation.json`` is ``"insufficient-evidence"``
-(with per-run detail) — never ``"not-saturated"``. The threshold-crossing
-logic itself is unchanged (stop-condition rule: no material change to the
-statistical criteria beyond completeness).
+HEAD GAP (report 5.4 "Soak ignora o gap inicial", sprint P5):
+``sampling_stats`` also reports ``head_gap_s`` — measured-window start to
+the FIRST valid in-window sample — exposed per run as
+``resources_head_gap_s`` / ``metrics_head_gap_s``. An interior
+``max_gap_s`` can never reveal a series that only started sampling hours
+into the window, so the head gap is now part of the criteria themselves,
+using the SAME documented constants: ``SOAK_MAX_SAMPLING_GAP_S`` for the
+soak coverage/cadence criteria and ``MAX_SAMPLE_GAP_S`` for the
+saturation sufficiency rule. No new threshold is introduced.
+
+Saturation evidence sufficiency (work order P1b; extended in sprint P5):
+a load's verdict is decided ONLY when the planned number of valid runs
+exists at that load AND every run carries the required instrumentation:
+host-CPU criterion evaluable; resources AND controller-metrics coverage
+each >= SATURATION_MIN_RESOURCE_COVERAGE_PCT (the same documented
+minimum, now also required of controller_metrics.csv — a load whose
+metrics coverage is insufficient is insufficient-evidence, never
+"not saturated"); resources and metrics head gaps <= MAX_SAMPLE_GAP_S;
+at least MIN_SERIES_DISTINCT_INSTANTS valid distinct sample instants in
+each series; controller metrics present for the queue-growth criterion.
+Otherwise the load's ``verdict`` in ``saturation.json`` is
+``"insufficient-evidence"`` (with per-run detail) — never
+``"not-saturated"``. The threshold-crossing logic itself is unchanged
+(stop-condition rule: no material change to the statistical criteria
+beyond completeness).
 
 Per-condition acceptance (audit 9.5, claims C10-C14; work order P1b)
 --------------------------------------------------------------------
@@ -197,6 +225,16 @@ CONDITIONS, not only over conditions found in raw/), over the INCLUDED
   detail shows 'n_valid/expected valid runs'); the substantive check
   applies only on top of completeness. A planned condition with zero
   runs therefore yields FAILED rows, never blanks.
+  IDENTITY-BASED completeness (report 5.4 "Completude por contagem",
+  sprint P5): when a campaign plan is supplied (``analyze(plan_path=...)``
+  or the ``EGW_CAMPAIGN_PLAN`` environment variable), ``runs_complete``
+  compares the exact SET of run identities — ``run_id`` plus
+  ``repetition``, ``seed`` and ``rate_msg_s`` — against the plan instead
+  of comparing counts; missing, unexpected, duplicated or mismatched
+  identities FAIL the criterion and are named in the detail. For
+  ``load_sweep`` the comparison is done per rate level. Without a plan
+  the legacy count check is kept and the detail states that identity
+  checking was NOT performed.
 - ``smoke_sequence`` (C14): zero lost valid messages across all runs.
 - ``invalid_payload`` (C11): every ``intended_invalid`` event rejected;
   zero ``intended_invalid`` accepted; the valid-message delivery rate is
@@ -212,13 +250,29 @@ CONDITIONS, not only over conditions found in raw/), over the INCLUDED
   restart-hook record with executed timestamps and exit code 0 (no error);
   delivery across the restart (zero lost valid messages within the
   window); zero double-accepted message_ids (dedupe state survives the
-  restart via the twin ingestion feature, CONTRACTS 4).
+  restart via the twin ingestion feature, CONTRACTS 4). RECOVERY EVIDENCE
+  (report 5.4 "C12 nao demonstra recuperacao", sprint P5): a hook that
+  exited 0 proves a command ran, not that the controller went down and
+  came back, so three further criteria are computed from
+  controller_metrics.csv around the manifest restart timestamps
+  (:func:`restart_recovery_evidence`): (a) downtime evidence — a
+  controller-metrics sampling gap > MAX_SAMPLE_GAP_S straddling the
+  restart (a failed poll writes no row, so holes ARE the unavailability
+  evidence) or an accepted-counter reset across it; (b) recovery —
+  the first sample after the restart finished lands within
+  ``RESTART_RECOVERY_MAX_S`` (protocol.py, PENDING ADVISOR SIGN-OFF);
+  (c) progress — the accepted counter grows after the restart. When the
+  series or the restart record is missing the criteria FAIL with
+  'insufficient instrumentation', never blank.
 - ``soak`` (C13) Definition of Done (thresholds in protocol.py, pending
   advisor sign-off): measured window >= 24 h; resources.csv AND
   controller_metrics.csv each cover >= 99% of the measured window with no
-  sampling gap > 60 s; no unrecovered interruption (no controller-metrics
-  gap > 120 s and last sample within 120 s of the window end); delivery
-  reported descriptively per plan 7.3 (no CI, as before).
+  sampling gap > 60 s AND no head gap > 60 s (sprint P5: a series that
+  only starts sampling well into the window is not continuous evidence)
+  and at least MIN_SERIES_DISTINCT_INSTANTS valid distinct instants; no
+  unrecovered interruption (no controller-metrics gap > 120 s and last
+  sample within 120 s of the window end); delivery reported descriptively
+  per plan 7.3 (no CI, as before).
 - Controller-metrics reconciliation (dropout_reconnect, load_sweep, soak —
   mandated instrumentation): per run, the accepted-counter delta over the
   measured window must match the events.jsonl accepted count within
@@ -242,6 +296,47 @@ manifest WITHOUT a validity key (legacy fixtures/raw runs) is treated as
 valid; a present non-'valid' value always excludes. Every run stays listed
 in ``per_run.csv`` with its validity flag, its ``resource_source`` and a
 warning listing any recorded protocol ``deviations``.
+
+Evidence integrity (report 5.4 "Integridade nao e verificada", sprint P5)
+-------------------------------------------------------------------------
+
+Before a run dir is used for anything, its ``SHA256SUMS`` is verified with
+the shared ``egw_experiments.checksums`` implementation (never
+re-implemented here). ``per_run.csv`` gains an ``integrity_ok`` column:
+
+- ``true``     : sealed and every listed file verifies;
+- ``false``    : sealed but the directory does NOT verify (digest
+  mismatch, a listed file missing, a malformed line, or a file on disk
+  the sums do not list) — an EVIDENCE INTEGRITY FAILURE. The run is
+  excluded from summaries, saturation, acceptance and figures with a loud
+  warning; it stays listed in ``per_run.csv``;
+- ``unsealed`` : no ``SHA256SUMS`` at all, so nothing can be verified.
+  Unsealed runs of TIMED conditions (protocol.py TIMED_CONDITION_IDS) are
+  likewise excluded from aggregation with a loud warning; unsealed runs
+  of other/unknown conditions are only flagged.
+
+External runs (``timings.json``) are verified the same way: an integrity
+failure removes them from the duration statistics.
+
+Semantic validation of sampled series (report 5.4 "Validacao superficial")
+--------------------------------------------------------------------------
+
+``resources.csv`` and ``controller_metrics.csv`` are read through
+:func:`read_resources_csv_validated` /
+:func:`read_controller_metrics_csv_validated`, which drop any row that is
+not a usable sample and COUNT the reason: ``missing_column``,
+``empty_field``, ``unparseable_ts``, ``non_numeric``, ``decreasing_ts``
+(time must be non-decreasing in file order) and, for the metrics series,
+``no_counters``. Drops surface per run in the ``warnings`` column and in
+``resources_rows_dropped`` / ``metrics_rows_dropped``. Coverage, cadence
+and every sustained-window computation see only the VALID rows, and are
+measured over DISTINCT sample instants INSIDE the measured window
+(``resources_distinct_instants`` / ``metrics_distinct_instants``): N rows
+sharing one timestamp across containers are one instant, not N samples.
+A criterion that needs a series with fewer than
+``MIN_SERIES_DISTINCT_INSTANTS`` valid instants, or with insufficient
+covered duration, FAILS — it never silently passes. (The ingest-time
+counterpart lives in ``egw_experiments.resources``.)
 
 Outputs
 -------
@@ -267,12 +362,14 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import statistics
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .checksums import SUMS_FILENAME, verify_sha256sums
 from .environment import read_sut_environment, sut_nproc
 from .protocol import (
     CONDITION_CLAIMS,
@@ -284,6 +381,7 @@ from .protocol import (
     METRICS_RECONCILIATION_TOLERANCE_ABS,
     METRICS_RECONCILIATION_TOLERANCE_FRAC,
     PROTOCOL_VERSION,
+    RESTART_RECOVERY_MAX_S,
     SATURATION_CPU_PCT,
     SATURATION_CPU_SUSTAIN_S,
     SATURATION_HOST_CPU_UTILIZATION,
@@ -296,8 +394,27 @@ from .protocol import (
     SOAK_MAX_SAMPLING_GAP_S,
     SOAK_MIN_COVERAGE_PCT,
     SOAK_MIN_WINDOW_S,
+    TIMED_CONDITION_IDS,
 )
 from .run import DEFAULT_RESULTS_BASE
+
+#: Environment variable consulted by ``analyze()`` when no ``plan_path``
+#: keyword argument is supplied (the CLI flag lives in cli.py, owned
+#: elsewhere; this fallback makes identity checking usable either way).
+CAMPAIGN_PLAN_ENV_VAR = "EGW_CAMPAIGN_PLAN"
+
+#: Values of the per-run ``integrity_ok`` column (per_run.csv).
+INTEGRITY_OK = "true"
+INTEGRITY_FAILED = "false"
+INTEGRITY_UNSEALED = "unsealed"
+
+#: Minimum number of VALID DISTINCT sample instants a series must contain
+#: before any coverage/cadence claim can be made about it (report 5.4
+#: "Validacao superficial"). This is the arithmetic minimum — two instants
+#: are needed to measure a single gap — not a tunable threshold, so it
+#: needs no advisor sign-off of its own; the substantive thresholds stay
+#: the documented protocol.py constants.
+MIN_SERIES_DISTINCT_INSTANTS = 2
 
 # ---------------------------------------------------------------------------
 # Statistics helpers (stdlib only; documented in the module docstring)
@@ -389,14 +506,53 @@ def _parse_ts(ts: str) -> datetime | None:
         return None
 
 
-def read_resources_csv(path: Path) -> dict[str, list[dict[str, Any]]]:
-    """Read resources.csv into ``{container: [sample, ...]}`` sorted by time.
+#: Semantic-validation report of one sampled series (report 5.4
+#: "Validacao superficial"). ``rows_total`` counts data rows read from the
+#: file, ``rows_dropped`` those rejected by the semantic rules,
+#: ``distinct_instants`` the number of DISTINCT timestamps among the kept
+#: rows (N rows sharing one instant across containers are one instant, not
+#: N samples), and ``reasons`` the per-reason drop counts.
+def _empty_series_report() -> dict[str, Any]:
+    return {
+        "rows_total": 0,
+        "rows_dropped": 0,
+        "distinct_instants": 0,
+        "reasons": {},
+    }
 
-    Each sample: ``{ts, cpu_pct, mem_bytes, mem_pct}`` (ts is a datetime;
-    unparseable fields become None). The current CSV schema
-    (``ts_utc,container,cpu_pct,mem_bytes,mem_pct,host``, work order P1) is
-    shared by the local dev sampler (resources.py) and the SUT-side
-    collector (``deployment/scripts/collect-resources.sh``).
+
+def _count_drop(report: dict[str, Any], reason: str) -> None:
+    report["rows_dropped"] += 1
+    report["reasons"][reason] = report["reasons"].get(reason, 0) + 1
+
+
+def series_report_summary(report: dict[str, Any]) -> str:
+    """Human-readable ``reason=count`` listing for the warnings column."""
+    return ", ".join(
+        f"{reason}={count}" for reason, count in sorted(report["reasons"].items())
+    )
+
+
+def read_resources_csv_validated(
+    path: Path,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    """Read resources.csv with SEMANTIC row validation (report 5.4).
+
+    Returns ``({container: [sample, ...]}, report)``. A row is kept only
+    when ALL of the following hold; otherwise it is dropped and counted in
+    ``report["reasons"]`` (never silently tolerated):
+
+    - ``missing_column``: every required column of the schema is present in
+      the row (short/truncated rows are rejected). Required:
+      ``ts_utc,container,cpu_pct,mem_bytes,mem_pct``; ``host`` is optional
+      (legacy 5-column header, see below).
+    - ``empty_field``: none of the required fields is empty.
+    - ``unparseable_ts``: ``ts_utc`` parses as RFC 3339.
+    - ``non_numeric``: ``cpu_pct``/``mem_pct`` parse as floats and
+      ``mem_bytes`` as an integer count.
+    - ``decreasing_ts``: within a container, time is non-decreasing in FILE
+      order — a row older than the previous kept row of the same container
+      cannot be a later sample.
 
     Header tolerance (documented, work order P1 fix 3): this READER accepts
     BOTH the new 6-column header and the legacy 5-column one WITHOUT
@@ -405,55 +561,147 @@ def read_resources_csv(path: Path) -> dict[str, list[dict[str, Any]]]:
     ingestion is the strict side: ``run/collect --resources-from`` accepts
     only the new header (``egw_experiments.resources.validate_resources_csv``).
     """
+    required = ("ts_utc", "container", "cpu_pct", "mem_bytes", "mem_pct")
     by_container: dict[str, list[dict[str, Any]]] = {}
+    report = _empty_series_report()
+    last_ts: dict[str, datetime] = {}
+    instants: set[datetime] = set()
     with open(path, "r", encoding="utf-8", newline="") as fh:
         for row in csv.DictReader(fh):
-            container = (row.get("container") or "").strip()
-            if not container:
+            report["rows_total"] += 1
+            if any(row.get(key) is None for key in required):
+                _count_drop(report, "missing_column")
                 continue
-
-            def _num(key: str, cast: Any) -> Any:
-                raw = (row.get(key) or "").strip()
-                if not raw:
-                    return None
-                try:
-                    return cast(float(raw)) if cast is int else cast(raw)
-                except ValueError:
-                    return None
-
+            values = {key: str(row[key]).strip() for key in required}
+            if any(not value for value in values.values()):
+                _count_drop(report, "empty_field")
+                continue
+            ts = _parse_ts(values["ts_utc"])
+            if ts is None:
+                _count_drop(report, "unparseable_ts")
+                continue
+            try:
+                cpu_pct = float(values["cpu_pct"])
+                mem_pct = float(values["mem_pct"])
+                mem_bytes = int(float(values["mem_bytes"]))
+            except ValueError:
+                _count_drop(report, "non_numeric")
+                continue
+            container = values["container"]
+            previous = last_ts.get(container)
+            if previous is not None and ts < previous:
+                _count_drop(report, "decreasing_ts")
+                continue
+            last_ts[container] = ts
+            instants.add(ts)
             by_container.setdefault(container, []).append(
                 {
-                    "ts": _parse_ts(row.get("ts_utc") or ""),
-                    "cpu_pct": _num("cpu_pct", float),
-                    "mem_bytes": _num("mem_bytes", int),
-                    "mem_pct": _num("mem_pct", float),
+                    "ts": ts,
+                    "cpu_pct": cpu_pct,
+                    "mem_bytes": mem_bytes,
+                    "mem_pct": mem_pct,
                 }
             )
     for samples in by_container.values():
-        # Unparseable timestamps sort first without ever comparing None.
         samples.sort(key=lambda s: s["ts"] or _EPOCH)
-    return by_container
+    report["distinct_instants"] = len(instants)
+    return by_container, report
+
+
+def read_resources_csv(path: Path) -> dict[str, list[dict[str, Any]]]:
+    """Read resources.csv into ``{container: [sample, ...]}`` sorted by time.
+
+    Thin wrapper over :func:`read_resources_csv_validated` for callers that
+    do not need the validation report; the semantic rules are identical.
+    """
+    series, _report = read_resources_csv_validated(path)
+    return series
+
+
+#: Counter columns of controller_metrics.csv (written by
+#: ``egw_experiments.controller_metrics.ControllerMetricsSampler``).
+CONTROLLER_METRIC_FIELDS = (
+    "accepted",
+    "rejected",
+    "duplicate",
+    "failed",
+    "dropped",
+    "queue_depth",
+)
+
+
+def read_controller_metrics_csv_validated(
+    path: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read controller_metrics.csv with SEMANTIC row validation (report 5.4).
+
+    Returns ``(samples, report)``; each sample is ``{ts, accepted,
+    rejected, duplicate, failed, dropped, queue_depth}``. A row is kept only
+    when every schema column is present in the row (``missing_column``),
+    ``ts_utc`` is non-empty (``empty_field``) and parses as RFC 3339
+    (``unparseable_ts``), time is non-decreasing in FILE order
+    (``decreasing_ts``), and every NON-EMPTY counter parses as a number
+    (``non_numeric``). An empty counter stays None: the sampler writes ""
+    for a field the controller did not report, which degrades that field
+    only. A row whose counters are ALL empty carries no measurement and is
+    dropped (``no_counters``).
+    """
+    samples: list[dict[str, Any]] = []
+    report = _empty_series_report()
+    previous: datetime | None = None
+    instants: set[datetime] = set()
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        for row in csv.DictReader(fh):
+            report["rows_total"] += 1
+            if row.get("ts_utc") is None or any(
+                row.get(key) is None for key in CONTROLLER_METRIC_FIELDS
+            ):
+                _count_drop(report, "missing_column")
+                continue
+            raw_ts = str(row["ts_utc"]).strip()
+            if not raw_ts:
+                _count_drop(report, "empty_field")
+                continue
+            ts = _parse_ts(raw_ts)
+            if ts is None:
+                _count_drop(report, "unparseable_ts")
+                continue
+            if previous is not None and ts < previous:
+                _count_drop(report, "decreasing_ts")
+                continue
+            sample: dict[str, Any] = {"ts": ts}
+            bad = False
+            for key in CONTROLLER_METRIC_FIELDS:
+                raw = str(row[key]).strip()
+                if not raw:
+                    sample[key] = None
+                    continue
+                try:
+                    sample[key] = float(raw)
+                except ValueError:
+                    bad = True
+                    break
+            if bad:
+                _count_drop(report, "non_numeric")
+                continue
+            if all(sample[key] is None for key in CONTROLLER_METRIC_FIELDS):
+                _count_drop(report, "no_counters")
+                continue
+            previous = ts
+            instants.add(ts)
+            samples.append(sample)
+    samples.sort(key=lambda s: s["ts"] or _EPOCH)
+    report["distinct_instants"] = len(instants)
+    return samples, report
 
 
 def read_controller_metrics_csv(path: Path) -> list[dict[str, Any]]:
     """Read controller_metrics.csv (1 Hz GET /metrics samples) sorted by time.
 
-    Each sample: ``{ts, accepted, rejected, duplicate, failed, dropped,
-    queue_depth}`` — numbers or None. Schema written by
-    ``egw_experiments.controller_metrics.ControllerMetricsSampler``.
+    Thin wrapper over :func:`read_controller_metrics_csv_validated` for
+    callers that do not need the validation report.
     """
-    samples: list[dict[str, Any]] = []
-    with open(path, "r", encoding="utf-8", newline="") as fh:
-        for row in csv.DictReader(fh):
-            sample: dict[str, Any] = {"ts": _parse_ts(row.get("ts_utc") or "")}
-            for key in ("accepted", "rejected", "duplicate", "failed", "dropped", "queue_depth"):
-                raw = (row.get(key) or "").strip()
-                try:
-                    sample[key] = float(raw) if raw else None
-                except ValueError:
-                    sample[key] = None
-            samples.append(sample)
-    samples.sort(key=lambda s: s["ts"] or _EPOCH)
+    samples, _report = read_controller_metrics_csv_validated(path)
     return samples
 
 
@@ -645,7 +893,7 @@ def sampling_stats(
 ) -> dict[str, float | None]:
     """Coverage and gap statistics of a sample series over the measured window.
 
-    Returns ``{"coverage_pct", "max_gap_s", "tail_gap_s"}``:
+    Returns ``{"coverage_pct", "max_gap_s", "head_gap_s", "tail_gap_s"}``:
 
     - ``coverage_pct``: percentage of the window covered, where each sample
       covers from its timestamp until the next sample or for ``max_gap_s``
@@ -654,15 +902,22 @@ def sampling_stats(
       With nominal 1 Hz sampling and no holes this is 100%.
     - ``max_gap_s``: largest distance between consecutive in-window samples
       (interior gaps only; head/tail truncation is captured by
-      ``coverage_pct`` and ``tail_gap_s``). 0.0 for a single sample.
+      ``head_gap_s``/``tail_gap_s``). 0.0 for a single sample.
+    - ``head_gap_s``: first in-window sample minus the window start (report
+      5.4 "Soak ignora o gap inicial"): a series that only starts sampling
+      hours into the window is not continuous evidence, and the interior
+      ``max_gap_s`` alone can never show it.
     - ``tail_gap_s``: window end minus the last in-window sample.
 
-    All three are None when ``window`` is None (no measured_window_utc) or
-    has zero span. An empty in-window series yields coverage 0.0 with gap
-    fields None.
+    All four are None when ``window`` is None (no measured_window_utc) or
+    has zero span. An empty in-window series yields coverage 0.0 with the
+    gap fields None (no sample exists to measure a gap from).
     """
     none_stats: dict[str, float | None] = {
-        "coverage_pct": None, "max_gap_s": None, "tail_gap_s": None
+        "coverage_pct": None,
+        "max_gap_s": None,
+        "head_gap_s": None,
+        "tail_gap_s": None,
     }
     if window is None:
         return none_stats
@@ -672,7 +927,12 @@ def sampling_stats(
         return none_stats
     ts = sorted({t for t in timestamps if t is not None and start <= t <= end})
     if not ts:
-        return {"coverage_pct": 0.0, "max_gap_s": None, "tail_gap_s": None}
+        return {
+            "coverage_pct": 0.0,
+            "max_gap_s": None,
+            "head_gap_s": None,
+            "tail_gap_s": None,
+        }
     covered = 0.0
     interior_max = 0.0
     for i, t in enumerate(ts):
@@ -684,6 +944,7 @@ def sampling_stats(
     return {
         "coverage_pct": min(100.0, 100.0 * covered / span),
         "max_gap_s": interior_max,
+        "head_gap_s": max(0.0, (ts[0] - start).total_seconds()),
         "tail_gap_s": max(0.0, (end - ts[-1]).total_seconds()),
     }
 
@@ -703,7 +964,9 @@ PER_RUN_COLUMNS = [
     "validity",
     "excluded",
     "exclusion_reason",
+    "integrity_ok",
     "resource_source",
+    "confirmation_deadline_source",
     "sent_total",
     "sent_valid",
     "intended_invalid_sent",
@@ -740,14 +1003,23 @@ PER_RUN_COLUMNS = [
     "measured_window_s",
     "resources_coverage_pct",
     "resources_max_gap_s",
+    "resources_head_gap_s",
+    "resources_rows_dropped",
+    "resources_distinct_instants",
     "metrics_coverage_pct",
     "metrics_max_gap_s",
+    "metrics_head_gap_s",
     "metrics_tail_gap_s",
+    "metrics_rows_dropped",
+    "metrics_distinct_instants",
     "events_accepted_total",
     "metrics_accepted_delta",
     "dropout_disconnects",
     "buffered_dropout",
     "restart_hook_ok",
+    "restart_downtime_evidence",
+    "restart_recovery_s",
+    "restart_accepted_progress",
     "warnings",
 ]
 
@@ -761,6 +1033,259 @@ RESOURCES_BY_RUN_COLUMNS = [
     "mem_bytes_max",
     "cpu_sustained_gt90_s",
 ]
+
+
+def check_run_integrity(run_dir: str | Path) -> tuple[str, list[str]]:
+    """Verify the run directory's ``SHA256SUMS`` (report 5.4).
+
+    Returns ``(integrity_ok, problems)`` where ``integrity_ok`` is one of:
+
+    - ``"true"``     : SHA256SUMS present and every listed file verifies;
+    - ``"false"``    : SHA256SUMS present but the directory does NOT verify
+      (digest mismatch, listed file missing, malformed line, or a file on
+      disk that the sums do not list) — evidence integrity failure;
+    - ``"unsealed"`` : no SHA256SUMS at all (never sealed by
+      ``run``/``collect``), so nothing can be verified.
+
+    The verification itself is the shared ``egw_experiments.checksums``
+    implementation (the same one ``verify-checksums`` uses); this analysis
+    never re-implements it.
+    """
+    run_dir = Path(run_dir)
+    if not (run_dir / SUMS_FILENAME).is_file():
+        return INTEGRITY_UNSEALED, []
+    problems = verify_sha256sums(run_dir)
+    return (INTEGRITY_FAILED if problems else INTEGRITY_OK), problems
+
+
+#: Fields that make up a run IDENTITY for the completeness check (report
+#: 5.4 "Completude por contagem"): counting runs cannot detect a repeated,
+#: re-seeded or mis-rated run, so the exact set is compared instead.
+RUN_IDENTITY_FIELDS = ("run_id", "repetition", "seed", "rate_msg_s")
+
+
+def _as_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return int(value)
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def run_identity(entry: dict[str, Any]) -> tuple[str, int | None, int | None, float | None]:
+    """Normalized ``(run_id, repetition, seed, rate_msg_s)`` identity tuple.
+
+    Works for both a campaign-plan entry and a per-run row: both carry the
+    same field names (plan_gen._run_entry / the run manifest).
+    """
+    return (
+        str(entry.get("run_id")),
+        _as_int(entry.get("repetition")),
+        _as_int(entry.get("seed")),
+        _as_float(entry.get("rate_msg_s")),
+    )
+
+
+def load_campaign_plan_for_analysis(
+    plan_path: str | Path | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Load the campaign plan used for identity-based completeness.
+
+    ``plan_path`` None falls back to the ``EGW_CAMPAIGN_PLAN`` environment
+    variable (``CAMPAIGN_PLAN_ENV_VAR``), so identity checking is usable
+    whether or not the CLI passes a flag. Returns ``(plan, problem)``: a
+    problem string (never an exception) when the path is set but the file
+    is missing, unreadable or has no ``runs`` list — analysis must degrade
+    to the legacy count check with a warning, never crash.
+    """
+    source = plan_path if plan_path is not None else os.environ.get(
+        CAMPAIGN_PLAN_ENV_VAR
+    )
+    if not source:
+        return None, None
+    path = Path(source)
+    try:
+        plan = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"campaign plan {path} could not be read: {exc}"
+    if not isinstance(plan, dict) or not isinstance(plan.get("runs"), list):
+        return None, f"campaign plan {path} has no 'runs' list"
+    return plan, None
+
+
+def plan_identities_by_condition(
+    plan: dict[str, Any] | None
+) -> dict[str, list[tuple[str, int | None, int | None, float | None]]]:
+    """Planned run identities per condition id (simulator runs only).
+
+    External conditions are operator-measured and are not evaluated by
+    :func:`evaluate_acceptance`, so they are skipped here too.
+    """
+    out: dict[str, list[tuple[str, int | None, int | None, float | None]]] = {}
+    if not plan:
+        return out
+    for entry in plan.get("runs", []):
+        if not isinstance(entry, dict):
+            continue
+        cid = entry.get("condition_id")
+        if not isinstance(cid, str):
+            continue
+        condition = CONDITIONS_BY_ID.get(cid)
+        if condition is not None and condition.runner != "simulator":
+            continue
+        out.setdefault(cid, []).append(run_identity(entry))
+    return out
+
+
+def compare_run_identities(
+    expected: list[tuple[str, int | None, int | None, float | None]],
+    observed: list[tuple[str, int | None, int | None, float | None]],
+) -> tuple[bool, str]:
+    """Compare the SET of run identities against the plan (report 5.4).
+
+    Returns ``(ok, detail)``. The comparison is exact: a run is accounted
+    for only when its ``run_id`` is planned AND its ``repetition``,
+    ``seed`` and ``rate_msg_s`` match the plan. Duplicated, missing,
+    unexpected and mismatched identities are all failures and every
+    offending id is named in ``detail`` (never just a count).
+    """
+    expected_by_id = {ident[0]: ident for ident in expected}
+    observed_by_id: dict[str, list[tuple[Any, ...]]] = {}
+    for ident in observed:
+        observed_by_id.setdefault(ident[0], []).append(ident)
+
+    duplicated = sorted(rid for rid, items in observed_by_id.items() if len(items) > 1)
+    missing = sorted(set(expected_by_id) - set(observed_by_id))
+    unexpected = sorted(set(observed_by_id) - set(expected_by_id))
+    mismatched: list[str] = []
+    for rid in sorted(set(expected_by_id) & set(observed_by_id)):
+        want = expected_by_id[rid]
+        got = observed_by_id[rid][0]
+        diffs = [
+            f"{field}={got[i]!r} (plan {want[i]!r})"
+            for i, field in enumerate(RUN_IDENTITY_FIELDS)
+            if i > 0 and got[i] != want[i]
+        ]
+        if diffs:
+            mismatched.append(f"{rid}: " + ", ".join(diffs))
+
+    problems: list[str] = []
+    if missing:
+        problems.append(f"missing {', '.join(missing)}")
+    if unexpected:
+        problems.append(f"unexpected {', '.join(unexpected)}")
+    if duplicated:
+        problems.append(f"duplicated {', '.join(duplicated)}")
+    if mismatched:
+        problems.append("mismatched " + "; ".join(mismatched))
+    if problems:
+        return False, "identity mismatch vs campaign plan: " + "; ".join(problems)
+    return True, f"{len(observed)}/{len(expected)} planned run identities matched"
+
+
+def compare_run_identities_per_rate(
+    expected: list[tuple[str, int | None, int | None, float | None]],
+    observed: list[tuple[str, int | None, int | None, float | None]],
+) -> tuple[bool, str]:
+    """Per-rate identity comparison, used for ``load_sweep`` (report 5.4).
+
+    The sweep's completeness is meaningful only per load level: ten runs
+    at 10 msg/s and none at 250 msg/s must never look complete.
+    """
+    rates = sorted(
+        {ident[3] for ident in expected} | {ident[3] for ident in observed},
+        key=lambda r: (r is None, r),
+    )
+    ok = True
+    details: list[str] = []
+    for rate in rates:
+        rate_expected = [i for i in expected if i[3] == rate]
+        rate_observed = [i for i in observed if i[3] == rate]
+        rate_ok, detail = compare_run_identities(rate_expected, rate_observed)
+        ok = ok and rate_ok
+        label = "rate n/a" if rate is None else f"rate {rate:g} msg/s"
+        details.append(f"{label}: {detail}")
+    return ok, " | ".join(details) if details else "no planned rates"
+
+
+def restart_recovery_evidence(
+    restart_record: Any,
+    metric_samples: list[dict[str, Any]],
+    max_gap_s: float = MAX_SAMPLE_GAP_S,
+) -> dict[str, Any]:
+    """Evidence that the controller really went down and came back (C12).
+
+    Report 5.4 ("C12 nao demonstra recuperacao"): a restart hook that
+    returned 0 proves a command ran, not that the controller was
+    interrupted and recovered. This computes, from the manifest restart
+    record (``started_utc``/``finished_utc``) and the controller_metrics.csv
+    samples the harness already produces:
+
+    - ``downtime_evidence``: True when the series shows either a sampling
+      gap longer than ``max_gap_s`` straddling the restart (a failed poll
+      writes NO row, so holes are the unavailability evidence,
+      controller_metrics.py) or a counter reset (the first ``accepted``
+      value after the restart is lower than the last one before it);
+    - ``recovery_s``: seconds from ``finished_utc`` to the first sample
+      after it (None when no sample follows the restart);
+    - ``accepted_progress``: ``accepted`` delta over the samples after the
+      restart (None when unmeasurable).
+
+    Every field is None when the restart record or the series is missing:
+    the C12 criterion then fails as 'insufficient instrumentation', never
+    blank.
+    """
+    unknown: dict[str, Any] = {
+        "downtime_evidence": None,
+        "recovery_s": None,
+        "accepted_progress": None,
+    }
+    if not isinstance(restart_record, dict):
+        return unknown
+    started = _parse_ts(str(restart_record.get("started_utc") or ""))
+    finished = _parse_ts(str(restart_record.get("finished_utc") or ""))
+    if started is None or finished is None:
+        return unknown
+    ordered = [s for s in metric_samples if s.get("ts") is not None]
+    if not ordered:
+        return unknown
+
+    before = [s for s in ordered if s["ts"] <= started]
+    after = [s for s in ordered if s["ts"] >= finished]
+
+    gap_evidence = False
+    for previous, current in zip(ordered, ordered[1:]):
+        # A pair straddling the restart interval: the earlier sample starts
+        # no later than the restart ended and the later one lands no
+        # earlier than the restart began.
+        if previous["ts"] <= finished and current["ts"] >= started:
+            if (current["ts"] - previous["ts"]).total_seconds() > max_gap_s:
+                gap_evidence = True
+                break
+
+    reset_evidence = False
+    before_accepted = [s["accepted"] for s in before if s.get("accepted") is not None]
+    after_accepted = [s["accepted"] for s in after if s.get("accepted") is not None]
+    if before_accepted and after_accepted:
+        reset_evidence = float(after_accepted[0]) < float(before_accepted[-1])
+
+    recovery_s: float | None = None
+    if after:
+        recovery_s = max(0.0, (after[0]["ts"] - finished).total_seconds())
+
+    accepted_progress: float | None = None
+    if len(after_accepted) >= 2:
+        accepted_progress = float(after_accepted[-1]) - float(after_accepted[0])
+
+    return {
+        "downtime_evidence": bool(gap_evidence or reset_evidence),
+        "recovery_s": recovery_s,
+        "accepted_progress": accepted_progress,
+    }
 
 
 def read_simulator_manifest(
@@ -815,6 +1340,24 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     run_dir = Path(run_dir)
     warnings: list[str] = []
 
+    # --- evidence integrity (report 5.4) ----------------------------------
+    # Verified BEFORE any file of the run is used. A failure does not stop
+    # the row from being computed (per_run.csv must keep listing the run),
+    # but analyze() removes such runs from every aggregate.
+    integrity_ok, integrity_problems = check_run_integrity(run_dir)
+    if integrity_ok == INTEGRITY_FAILED:
+        warnings.append(
+            "evidence integrity failure: "
+            f"{SUMS_FILENAME} does not verify ({'; '.join(integrity_problems)}); "
+            "the run is excluded from every aggregate (report 5.4)"
+        )
+    elif integrity_ok == INTEGRITY_UNSEALED:
+        warnings.append(
+            f"evidence integrity unverifiable: no {SUMS_FILENAME} in the run "
+            "directory (never sealed by run/collect), so nothing can be "
+            "checked (report 5.4)"
+        )
+
     manifest: dict[str, Any] = {}
     manifest_path = run_dir / "manifest.json"
     if manifest_path.is_file():
@@ -863,17 +1406,22 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         warnings.append("events.jsonl missing: no confirmations recorded")
 
     # --- confirmation deadline (controller clock domain; plan 5.1) --------
-    # The harness and simulator run OFF the ARM VM (plan 5.1), so the
-    # manifest's confirmation_deadline_monotonic_ns was captured on a
-    # different host than the controller's monotonic timestamps, and
-    # cross-host monotonic values are incomparable. The effective deadline
-    # is therefore derived in the CONTROLLER's clock domain: max
-    # received_monotonic_ns over the run's controller events plus the
-    # manifest's confirmation_window_s (default 60 s). The manifest
-    # deadline (clock_domain 'harness-host') is informational only and is
-    # used as a last-resort fallback when the run has zero controller
-    # events.
+    # AUTHORITATIVE PATH (report 5.2, sprint P5): when the manifest carries
+    # confirmation_deadline_clock_domain == 'controller', the deadline was
+    # anchored on the controller's own confirmation marker (GET /metrics
+    # monotonic_ns, read right after the measured simulator process exited
+    # and before the confirmation wait). That value is in the same clock
+    # domain as the events AND is independent of them, so it is used
+    # verbatim.
+    #
+    # LEGACY FALLBACK: without that marker the deadline can only be derived
+    # from the events themselves — max received_monotonic_ns plus
+    # confirmation_window_s — which is CIRCULAR: a message received late
+    # pushes its own deadline forward and can never be counted as lost. Such
+    # runs are aggregated but loudly flagged as legacy/unverifiable.
+    # The 60 s window itself is unchanged in both paths (plan 7.3).
     manifest_deadline_ns = manifest.get("confirmation_deadline_monotonic_ns")
+    clock_domain = manifest.get("confirmation_deadline_clock_domain")
     window_s = manifest.get("confirmation_window_s")
     if not isinstance(window_s, (int, float)) or window_s <= 0:
         window_s = CONFIRMATION_WINDOW_S
@@ -884,42 +1432,61 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         if isinstance(ev.get("received_monotonic_ns"), (int, float))
     ]
     deadline_ns: int | None = None
-    if received_values:
+    deadline_source = "none"
+    controller_deadline = (
+        clock_domain == "controller"
+        and isinstance(manifest_deadline_ns, (int, float))
+        and not isinstance(manifest_deadline_ns, bool)
+    )
+    if controller_deadline:
+        deadline_ns = int(manifest_deadline_ns)
+        deadline_source = "controller-marker"
+        # Plausibility guard (kept from v1.1, adapted): the marker is read
+        # AFTER the measured process exits, so deadline = marker + window
+        # can never precede the last event the controller received. If it
+        # does, the manifest is mislabelled (a foreign clock domain) — say
+        # so loudly instead of silently counting everything lost.
+        if received_values and deadline_ns < int(max(received_values)):
+            warnings.append(
+                f"IMPLAUSIBLE controller confirmation marker for run {run_id}: "
+                f"the manifest deadline ({deadline_ns}) precedes the last "
+                f"received_monotonic_ns ({int(max(received_values))}) although "
+                "it claims clock_domain 'controller'; the deadline is used as "
+                "recorded but the run's clock domain is suspect (report 5.2)"
+            )
+    elif received_values:
         max_received_ns = int(max(received_values))
         deadline_ns = max_received_ns + window_ns
-        if manifest_deadline_ns is None:
-            warnings.append(
-                "confirmation_deadline_monotonic_ns missing from manifest "
-                "(informational only; deadline derived from controller "
-                "events)"
-            )
-        elif not (
-            max_received_ns
-            <= manifest_deadline_ns
-            <= max_received_ns + 2 * window_ns
-        ):
-            warnings.append(
-                "IMPLAUSIBLE manifest confirmation_deadline_monotonic_ns "
-                f"({manifest_deadline_ns}): outside "
-                f"[{max_received_ns}, {max_received_ns + 2 * window_ns}] "
-                "(max received_monotonic_ns to max + 2x confirmation "
-                "window). The manifest deadline is captured on the harness "
-                "host, which runs off the ARM VM (plan 5.1), and monotonic "
-                "clocks are not comparable across hosts; using the "
-                "event-derived deadline in the controller's clock domain"
-            )
-    elif manifest_deadline_ns is not None:
-        deadline_ns = manifest_deadline_ns
+        deadline_source = "event-derived-legacy"
         warnings.append(
-            "no controller events with received_monotonic_ns; falling back "
-            "to the manifest confirmation_deadline_monotonic_ns "
-            "(clock_domain harness-host, informational only)"
+            f"LEGACY/UNVERIFIABLE confirmation deadline for run {run_id}: "
+            "the manifest has no controller-domain confirmation marker "
+            f"(confirmation_deadline_clock_domain={clock_domain!r}), so the "
+            "deadline was derived from the run's own events "
+            "(max received_monotonic_ns + confirmation window). That rule "
+            "is circular — a late message extends its own deadline and can "
+            "never be counted as lost; delivery for this run is not "
+            "verifiable evidence (report 5.2)"
+        )
+    elif isinstance(manifest_deadline_ns, (int, float)) and not isinstance(
+        manifest_deadline_ns, bool
+    ):
+        deadline_ns = int(manifest_deadline_ns)
+        deadline_source = "manifest-other-domain-legacy"
+        warnings.append(
+            f"LEGACY/UNVERIFIABLE confirmation deadline for run {run_id}: no "
+            "controller events with received_monotonic_ns; falling back to "
+            "the manifest confirmation_deadline_monotonic_ns whose "
+            f"clock_domain is {clock_domain!r}, not 'controller' (monotonic "
+            "clocks are not comparable across hosts, plan 5.1)"
         )
     else:
+        deadline_source = "none"
         warnings.append(
-            "no confirmation deadline available (no controller events and "
-            "no manifest deadline); all confirmations in events.jsonl "
-            "counted as in-window"
+            f"LEGACY/UNVERIFIABLE confirmation deadline for run {run_id}: no "
+            "confirmation deadline available (no controller marker, no "
+            "controller events and no manifest deadline); all confirmations "
+            "in events.jsonl counted as in-window"
         )
 
     confirmed_in_window: set[str] = set()
@@ -1025,29 +1592,44 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     # Sampling coverage of the measured window (work order P1b): exposed in
     # per_run.csv and consumed by the soak DoD and saturation sufficiency.
     res_stats: dict[str, float | None] = {
-        "coverage_pct": None, "max_gap_s": None, "tail_gap_s": None
+        "coverage_pct": None,
+        "max_gap_s": None,
+        "head_gap_s": None,
+        "tail_gap_s": None,
     }
-    metrics_stats: dict[str, float | None] = {
-        "coverage_pct": None, "max_gap_s": None, "tail_gap_s": None
-    }
+    metrics_stats: dict[str, float | None] = dict(res_stats)
+    # Semantic-validation reports of the two sampled series (report 5.4)
+    # and their count of VALID DISTINCT in-window sample instants.
+    res_report = _empty_series_report()
+    metrics_report = _empty_series_report()
+    resources_distinct_instants = 0
+    metrics_distinct_instants = 0
     resources_path = run_dir / "resources.csv"
     if resources_path.is_file():
-        by_container_all = read_resources_csv(resources_path)
+        by_container_all, res_report = read_resources_csv_validated(resources_path)
+        if res_report["rows_dropped"]:
+            warnings.append(
+                f"resources.csv: {res_report['rows_dropped']}/"
+                f"{res_report['rows_total']} row(s) dropped by semantic "
+                f"validation ({series_report_summary(res_report)})"
+            )
         by_container = {
             container: filter_samples_to_window(samples, window)
             for container, samples in by_container_all.items()
         }
-        res_stats = sampling_stats(
-            sorted(
-                {
-                    s["ts"]
-                    for samples in by_container.values()
-                    for s in samples
-                    if s.get("ts") is not None
-                }
-            ),
-            window,
+        # DISTINCT valid instants inside the measured window: N container
+        # rows sharing one timestamp are one sample instant, not N
+        # (report 5.4). Coverage and cadence are computed on this set.
+        res_instants = sorted(
+            {
+                s["ts"]
+                for samples in by_container.values()
+                for s in samples
+                if s.get("ts") is not None
+            }
         )
+        resources_distinct_instants = len(res_instants)
+        res_stats = sampling_stats(res_instants, window)
         for container in sorted(by_container):
             samples = by_container[container]
             cpus = [s["cpu_pct"] for s in samples if s["cpu_pct"] is not None]
@@ -1093,11 +1675,19 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     queue_depth_max: float | None = None
     queue_growth_sustained: float | None = None
     metrics_accepted_delta: float | None = None
+    metric_samples: list[dict[str, Any]] = []
     metrics_path = run_dir / "controller_metrics.csv"
     if metrics_path.is_file():
-        metric_samples = filter_samples_to_window(
-            read_controller_metrics_csv(metrics_path), window
+        all_metric_samples, metrics_report = read_controller_metrics_csv_validated(
+            metrics_path
         )
+        if metrics_report["rows_dropped"]:
+            warnings.append(
+                f"controller_metrics.csv: {metrics_report['rows_dropped']}/"
+                f"{metrics_report['rows_total']} row(s) dropped by semantic "
+                f"validation ({series_report_summary(metrics_report)})"
+            )
+        metric_samples = filter_samples_to_window(all_metric_samples, window)
         controller_metric_samples = len(metric_samples)
         depths = [
             s["queue_depth"] for s in metric_samples if s["queue_depth"] is not None
@@ -1105,10 +1695,11 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         if depths:
             queue_depth_max = max(depths)
         queue_growth_sustained = queue_growth_sustained_seconds(metric_samples)
-        metrics_stats = sampling_stats(
-            [s["ts"] for s in metric_samples if s.get("ts") is not None],
-            window,
+        metrics_instants = sorted(
+            {s["ts"] for s in metric_samples if s.get("ts") is not None}
         )
+        metrics_distinct_instants = len(metrics_instants)
+        metrics_stats = sampling_stats(metrics_instants, window)
         # Accepted-counter delta over the measured window (work order P1b):
         # the /metrics 'accepted' field is cumulative, so last - first is
         # the number of accepts the controller itself counted during the
@@ -1212,6 +1803,24 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             "(work order P1b)"
         )
 
+    # Recovery evidence (report 5.4, claim C12): computed from the
+    # controller_metrics.csv samples around the manifest restart timestamps.
+    # The same window-filtered, semantically validated series every other
+    # criterion uses — the restart is triggered inside the measured window
+    # (--restart-at-s), so the downtime hole and the resumption both fall
+    # inside it, and a hole is evidence precisely because no row exists.
+    recovery = restart_recovery_evidence(restart_record, metric_samples)
+    if (
+        manifest.get("condition_id") == "controller_restart"
+        and recovery["downtime_evidence"] is None
+    ):
+        warnings.append(
+            "controller_restart run without usable recovery evidence "
+            "(restart timestamps and/or controller_metrics.csv samples "
+            "missing): the C12 recovery criteria fail as 'insufficient "
+            "instrumentation' for this run (report 5.4)"
+        )
+
     return {
         "run_id": run_id,
         "condition_id": manifest.get("condition_id"),
@@ -1227,7 +1836,9 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             if isinstance(exclusion, (dict, list))
             else exclusion
         ),
+        "integrity_ok": integrity_ok,
         "resource_source": resource_source,
+        "confirmation_deadline_source": deadline_source,
         "sent_total": sent_total,
         "sent_valid": sent_valid,
         "intended_invalid_sent": len(intended_ids),
@@ -1264,14 +1875,23 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "measured_window_s": measured_window_s,
         "resources_coverage_pct": res_stats["coverage_pct"],
         "resources_max_gap_s": res_stats["max_gap_s"],
+        "resources_head_gap_s": res_stats["head_gap_s"],
+        "resources_rows_dropped": res_report["rows_dropped"],
+        "resources_distinct_instants": resources_distinct_instants,
         "metrics_coverage_pct": metrics_stats["coverage_pct"],
         "metrics_max_gap_s": metrics_stats["max_gap_s"],
+        "metrics_head_gap_s": metrics_stats["head_gap_s"],
         "metrics_tail_gap_s": metrics_stats["tail_gap_s"],
+        "metrics_rows_dropped": metrics_report["rows_dropped"],
+        "metrics_distinct_instants": metrics_distinct_instants,
         "events_accepted_total": events_accepted_total,
         "metrics_accepted_delta": metrics_accepted_delta,
         "dropout_disconnects": dropout_disconnects,
         "buffered_dropout": buffered_dropout,
         "restart_hook_ok": restart_hook_ok,
+        "restart_downtime_evidence": recovery["downtime_evidence"],
+        "restart_recovery_s": recovery["recovery_s"],
+        "restart_accepted_progress": recovery["accepted_progress"],
         "warnings": " | ".join(warnings),
         "_resources": resources_rows,
     }
@@ -1284,6 +1904,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
 EXTERNAL_RUNS_COLUMNS = [
     "run_id",
     "condition_id",
+    "integrity_ok",
     "sample_label",
     "started_utc",
     "ended_utc",
@@ -1300,10 +1921,15 @@ EXTERNAL_DURATION_CONDITIONS = ("cold_start", "twin_creation")
 def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
     """Read one external run (``timings.json`` ingested by the runner).
 
-    Returns ``{run_id, condition_id, excluded, sample_rows, duration_mean_s}``
-    or None when timings.json is absent/unreadable (notice on stderr).
-    ``duration_mean_s`` is the per-run value used as the unit of analysis
-    (mean of the run's samples; normally one sample per run).
+    Returns ``{run_id, condition_id, integrity_ok, excluded, sample_rows,
+    duration_mean_s}`` or None when timings.json is absent/unreadable
+    (notice on stderr). ``duration_mean_s`` is the per-run value used as
+    the unit of analysis (mean of the run's samples; normally one sample
+    per run).
+
+    ``integrity_ok`` is the SHA256SUMS verdict of the run directory
+    (report 5.4); a run whose evidence does not verify is dropped from the
+    duration statistics by :func:`summarize_external_durations`.
     """
     run_dir = Path(run_dir)
     timings_path = run_dir / "timings.json"
@@ -1328,6 +1954,14 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
 
     run_id = manifest.get("run_id") or timings.get("run_id") or run_dir.name
     condition_id = manifest.get("condition_id") or timings.get("condition")
+    integrity_ok, integrity_problems = check_run_integrity(run_dir)
+    if integrity_ok == INTEGRITY_FAILED:
+        print(
+            f"[analyze] evidence integrity failure in external run {run_id}: "
+            f"{'; '.join(integrity_problems)}; excluded from the duration "
+            "statistics (report 5.4)",
+            file=sys.stderr,
+        )
     samples = timings.get("samples")
     if not isinstance(samples, list):
         samples = []
@@ -1349,6 +1983,7 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
             {
                 "run_id": run_id,
                 "condition_id": condition_id,
+                "integrity_ok": integrity_ok,
                 "sample_label": sample.get("label"),
                 "started_utc": sample.get("started_utc"),
                 "ended_utc": sample.get("ended_utc"),
@@ -1360,6 +1995,7 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
     return {
         "run_id": run_id,
         "condition_id": condition_id,
+        "integrity_ok": integrity_ok,
         "excluded": manifest.get("exclusion") is not None,
         "sample_rows": sample_rows,
         "duration_mean_s": statistics.fmean(durations) if durations else None,
@@ -1374,7 +2010,8 @@ def summarize_external_durations(
     Unit of analysis = run (plan 7.3): one duration value per run
     (``duration_mean_s``). Output rows use the SUMMARY_COLUMNS schema with
     metric ``duration_s``. qemu_boots is deliberately excluded (plan 5.1:
-    no performance statistics from QEMU).
+    no performance statistics from QEMU). Runs whose SHA256SUMS does not
+    verify are excluded as well (report 5.4: evidence integrity failure).
     """
     out: list[dict[str, Any]] = []
     for condition_id in EXTERNAL_DURATION_CONDITIONS:
@@ -1383,6 +2020,7 @@ def summarize_external_durations(
             for r in external_rows
             if r.get("condition_id") == condition_id
             and not r.get("excluded")
+            and r.get("integrity_ok") != INTEGRITY_FAILED
             and r.get("duration_mean_s") is not None
         ]
         if not values:
@@ -1531,7 +2169,9 @@ def _metrics_reconciled(row: dict[str, Any]) -> bool:
     return abs(float(delta) - float(total)) <= tolerance
 
 
-def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def evaluate_acceptance(
+    rows: list[dict[str, Any]], plan: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """Acceptance evaluation for ALL planned simulator conditions.
 
     ``rows`` are the INCLUDED per-run rows (valid, non-excluded); a
@@ -1541,12 +2181,20 @@ def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows (work order P1b): ``passed`` is None ONLY for the explicitly
     informational/descriptive criteria.
 
-    Completeness gate: each condition gets a ``runs_complete`` row
-    (n_valid == planned repetitions; for load_sweep repetitions x number of
-    swept rates), and every substantive criterion is gated on it — passed
-    is False whenever n_valid == 0 or n_valid != expected, with the
-    'n_valid/expected valid runs' detail in the observed column.
+    Completeness gate: each condition gets a ``runs_complete`` row and
+    every substantive criterion is gated on it (passed False whenever the
+    condition is incomplete, with the detail in the observed column).
+
+    With ``plan`` (a loaded ``campaign_plan.json``) completeness is
+    IDENTITY-based (report 5.4): the exact set of ``run_id`` +
+    ``repetition`` + ``seed`` + ``rate_msg_s`` is compared against the
+    plan — per rate level for ``load_sweep`` — and missing, unexpected,
+    duplicated or mismatched identities fail the criterion, naming the
+    offending ids. Without a plan the legacy count check (n_valid ==
+    planned repetitions; repetitions x rates for the sweep) is kept and
+    the detail states that identity checking was not performed.
     """
+    plan_identities = plan_identities_by_condition(plan)
     by_condition: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         cid = row.get("condition_id")
@@ -1579,6 +2227,34 @@ def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         complete = n_valid == expected
         note = f"{n_valid}/{expected} valid runs"
 
+        # Identity-based completeness (report 5.4): the SET of run
+        # identities decides, not the count. A duplicated or re-seeded run
+        # keeps the count right while the campaign is wrong.
+        identity_detail = (
+            "identity checking NOT performed (no campaign plan supplied; pass "
+            f"analyze(plan_path=...) or set {CAMPAIGN_PLAN_ENV_VAR})"
+        )
+        if plan is not None:
+            planned = plan_identities.get(cid, [])
+            observed_identities = [run_identity(r) for r in valid]
+            if condition.rates_msg_s:
+                identity_ok, identity_detail = compare_run_identities_per_rate(
+                    planned, observed_identities
+                )
+            else:
+                identity_ok, identity_detail = compare_run_identities(
+                    planned, observed_identities
+                )
+            if len(planned) != expected:
+                identity_ok = False
+                identity_detail += (
+                    f"; the campaign plan lists {len(planned)} run(s) for this "
+                    f"condition, the frozen protocol plans {expected}"
+                )
+            complete = identity_ok
+            if not identity_ok:
+                note += "; run identities do not match the campaign plan"
+
         def add(criterion: str, observed: str, passed: bool | None) -> None:
             out.append(
                 {
@@ -1603,9 +2279,10 @@ def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         # Explicit per-condition completeness row (work order P1b): the
         # CSV shows completeness separately from the substantive criteria.
-        observed = note
+        observed = f"{n_valid}/{expected} valid runs"
         if not_counted:
             observed += f" ({not_counted} excluded/invalid run(s) not counted)"
+        observed += f"; {identity_detail}"
         add("runs_complete", observed, complete)
 
         if cid == "smoke_sequence":
@@ -1699,6 +2376,70 @@ def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             passed, observed = gate(double == 0, f"{double} double-accepted")
             add("zero_double_accepted", observed, passed)
 
+            # RECOVERY EVIDENCE (report 5.4): the hook exiting 0 proves a
+            # command ran, not that the controller went down and came
+            # back. All three criteria are computed from
+            # controller_metrics.csv around the manifest restart
+            # timestamps; a run without that instrumentation FAILS with
+            # 'insufficient instrumentation', never blank.
+            def _uninstrumented(key: str) -> int:
+                return count_ok(lambda r, k=key: r.get(k) is None)
+
+            downtime_ok = count_ok(
+                lambda r: r.get("restart_downtime_evidence") is True
+            )
+            missing = _uninstrumented("restart_downtime_evidence")
+            observed = (
+                f"{downtime_ok}/{n_valid} run(s) with controller downtime "
+                f"evidence (metrics gap > {MAX_SAMPLE_GAP_S:g} s straddling "
+                "the restart, or an accepted-counter reset across it)"
+            )
+            if missing:
+                observed += (
+                    f"; insufficient instrumentation in {missing} run(s) "
+                    "(restart timestamps and/or controller_metrics.csv "
+                    "missing)"
+                )
+            passed, observed = gate(downtime_ok == n_valid, observed)
+            add("restart_downtime_evidence_every_run", observed, passed)
+
+            recovered_ok = count_ok(
+                lambda r: r.get("restart_recovery_s") is not None
+                and float(r["restart_recovery_s"]) <= RESTART_RECOVERY_MAX_S
+            )
+            missing = _uninstrumented("restart_recovery_s")
+            observed = (
+                f"{recovered_ok}/{n_valid} run(s) with controller metrics "
+                f"resuming within {RESTART_RECOVERY_MAX_S:g} s of the restart "
+                "finishing (PENDING ADVISOR SIGN-OFF, protocol.py "
+                "RESTART_RECOVERY_MAX_S)"
+            )
+            if missing:
+                observed += (
+                    f"; insufficient instrumentation in {missing} run(s) "
+                    "(no controller-metrics sample after the restart)"
+                )
+            passed, observed = gate(recovered_ok == n_valid, observed)
+            add("restart_recovery_within_bound", observed, passed)
+
+            progress_ok = count_ok(
+                lambda r: r.get("restart_accepted_progress") is not None
+                and float(r["restart_accepted_progress"]) > 0
+            )
+            missing = _uninstrumented("restart_accepted_progress")
+            observed = (
+                f"{progress_ok}/{n_valid} run(s) with accepted-counter "
+                "progress after the restart"
+            )
+            if missing:
+                observed += (
+                    f"; insufficient instrumentation in {missing} run(s) "
+                    "(fewer than two controller-metrics samples carrying "
+                    "'accepted' after the restart)"
+                )
+            passed, observed = gate(progress_ok == n_valid, observed)
+            add("restart_accepted_progress_after", observed, passed)
+
         elif cid == "soak":
             # C13 Definition of Done (work order P1b; thresholds in
             # protocol.py, pending advisor sign-off before exp-v1).
@@ -1721,36 +2462,54 @@ def evaluate_acceptance(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             passed, observed = gate(win_ok == n_valid, observed)
             add("measured_window_ge_24h", observed, passed)
 
-            for cov_key, gap_key, criterion in (
+            # Coverage AND cadence AND head gap (report 5.4 "Soak ignora o
+            # gap inicial"): a series that only starts sampling well into
+            # the window is not continuous evidence, and the interior
+            # max_gap_s can never reveal it. The head gap uses the SAME
+            # documented soak constant as the interior gap. A series with
+            # fewer than MIN_SERIES_DISTINCT_INSTANTS valid distinct
+            # instants cannot support any cadence claim and fails.
+            for cov_key, gap_key, head_key, inst_key, criterion in (
                 (
                     "resources_coverage_pct",
                     "resources_max_gap_s",
+                    "resources_head_gap_s",
+                    "resources_distinct_instants",
                     "resources_coverage_and_cadence",
                 ),
                 (
                     "metrics_coverage_pct",
                     "metrics_max_gap_s",
+                    "metrics_head_gap_s",
+                    "metrics_distinct_instants",
                     "controller_metrics_coverage_and_cadence",
                 ),
             ):
                 ok = count_ok(
-                    lambda r, ck=cov_key, gk=gap_key: (
+                    lambda r, ck=cov_key, gk=gap_key, hk=head_key, ik=inst_key: (
                         r.get(ck) is not None
                         and float(r[ck]) >= SOAK_MIN_COVERAGE_PCT
                         and r.get(gk) is not None
                         and float(r[gk]) <= SOAK_MAX_SAMPLING_GAP_S
+                        and r.get(hk) is not None
+                        and float(r[hk]) <= SOAK_MAX_SAMPLING_GAP_S
+                        and int(r.get(ik) or 0) >= MIN_SERIES_DISTINCT_INSTANTS
                     )
                 )
                 details = ", ".join(
                     f"coverage {_fmt_val(r.get(cov_key), '%')} / max gap "
-                    f"{_fmt_val(r.get(gap_key), ' s')}"
+                    f"{_fmt_val(r.get(gap_key), ' s')} / head gap "
+                    f"{_fmt_val(r.get(head_key), ' s')} / "
+                    f"{int(r.get(inst_key) or 0)} valid distinct instant(s)"
                     for r in valid
                 )
                 observed = (
                     f"{ok}/{n_valid} run(s) with coverage >= "
-                    f"{SOAK_MIN_COVERAGE_PCT:g}% and no sampling gap > "
-                    f"{SOAK_MAX_SAMPLING_GAP_S:g} s (observed: "
-                    f"{details or 'none'})"
+                    f"{SOAK_MIN_COVERAGE_PCT:g}%, no sampling gap > "
+                    f"{SOAK_MAX_SAMPLING_GAP_S:g} s, head gap <= "
+                    f"{SOAK_MAX_SAMPLING_GAP_S:g} s and >= "
+                    f"{MIN_SERIES_DISTINCT_INSTANTS} valid distinct instants "
+                    f"(observed: {details or 'none'})"
                 )
                 passed, observed = gate(ok == n_valid, observed)
                 add(criterion, observed, passed)
@@ -1930,18 +2689,54 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     f"run {rid}: host CPU criterion not evaluable (missing "
                     "nproc or SUT resources)"
                 )
-            coverage = r.get("resources_coverage_pct")
-            if (
-                coverage is None
-                or float(coverage) < SATURATION_MIN_RESOURCE_COVERAGE_PCT
+            # Minimum sampling coverage — the SAME documented minimum for
+            # BOTH series (sprint P5): controller metrics that cover a
+            # fraction of the window can no more decide a load than sparse
+            # resources can.
+            for label, cov_key, head_key, inst_key in (
+                (
+                    "resources",
+                    "resources_coverage_pct",
+                    "resources_head_gap_s",
+                    "resources_distinct_instants",
+                ),
+                (
+                    "controller metrics",
+                    "metrics_coverage_pct",
+                    "metrics_head_gap_s",
+                    "metrics_distinct_instants",
+                ),
             ):
-                observed_cov = (
-                    "n/a" if coverage is None else f"{float(coverage):.1f}%"
-                )
-                insufficiency.append(
-                    f"run {rid}: resources coverage {observed_cov} below the "
-                    f"{SATURATION_MIN_RESOURCE_COVERAGE_PCT:g}% minimum"
-                )
+                coverage = r.get(cov_key)
+                if (
+                    coverage is None
+                    or float(coverage) < SATURATION_MIN_RESOURCE_COVERAGE_PCT
+                ):
+                    observed_cov = (
+                        "n/a" if coverage is None else f"{float(coverage):.1f}%"
+                    )
+                    insufficiency.append(
+                        f"run {rid}: {label} coverage {observed_cov} below the "
+                        f"{SATURATION_MIN_RESOURCE_COVERAGE_PCT:g}% minimum"
+                    )
+                head_gap = r.get(head_key)
+                if head_gap is None or float(head_gap) > MAX_SAMPLE_GAP_S:
+                    observed_head = (
+                        "n/a" if head_gap is None else f"{float(head_gap):.1f} s"
+                    )
+                    insufficiency.append(
+                        f"run {rid}: {label} head gap {observed_head} exceeds "
+                        f"the {MAX_SAMPLE_GAP_S:g} s sampling-cadence cap "
+                        "(sampling started late in the measured window)"
+                    )
+                instants = int(r.get(inst_key) or 0)
+                if instants < MIN_SERIES_DISTINCT_INSTANTS:
+                    insufficiency.append(
+                        f"run {rid}: {label} has {instants} valid distinct "
+                        f"sample instant(s), fewer than the "
+                        f"{MIN_SERIES_DISTINCT_INSTANTS} needed to measure "
+                        "cadence"
+                    )
             if r.get("queue_growth_sustained_s") is None:
                 insufficiency.append(
                     f"run {rid}: controller metrics missing (queue-growth "
@@ -1987,6 +2782,9 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "max_sample_gap_s": MAX_SAMPLE_GAP_S,
             "expected_runs_per_load": expected_per_load,
             "min_resource_coverage_pct": SATURATION_MIN_RESOURCE_COVERAGE_PCT,
+            "min_metrics_coverage_pct": SATURATION_MIN_RESOURCE_COVERAGE_PCT,
+            "max_head_gap_s": MAX_SAMPLE_GAP_S,
+            "min_series_distinct_instants": MIN_SERIES_DISTINCT_INSTANTS,
         },
         "decision_rule": (
             "Unit of analysis is the run (plan 7.3). A load is saturated "
@@ -2004,9 +2802,12 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "max_sample_gap_s (work order P1b). A load's verdict is "
             "decided ONLY when the planned number of valid runs exists and "
             "every run carries the required instrumentation (host-CPU "
-            "criterion evaluable, resources coverage >= "
-            "min_resource_coverage_pct, controller metrics present); "
-            "otherwise the verdict is 'insufficient-evidence', never "
+            "criterion evaluable; resources AND controller-metrics "
+            "coverage each >= min_resource_coverage_pct; neither series "
+            "starting later than max_head_gap_s into the measured window; "
+            "at least min_series_distinct_instants valid distinct sample "
+            "instants per series; controller metrics present); otherwise "
+            "the verdict is 'insufficient-evidence', never "
             "'not-saturated'. Saturation is the first (lowest) load with "
             "verdict 'saturated'."
         ),
@@ -2213,8 +3014,18 @@ def generate_figures(
 # ---------------------------------------------------------------------------
 
 
-def analyze(base_dir: str | Path | None = None) -> int:
+def analyze(
+    base_dir: str | Path | None = None, plan_path: str | Path | None = None
+) -> int:
     """Regenerate ``processed/`` and ``figures/`` from ``raw/``.
+
+    ``plan_path`` is an optional ``campaign_plan.json``. When supplied (or
+    when the ``EGW_CAMPAIGN_PLAN`` environment variable names one — the
+    documented fallback so identity checking works with or without a CLI
+    flag), the acceptance completeness criterion compares the exact SET of
+    run identities against the plan instead of counting runs (report 5.4).
+    An unreadable or malformed plan degrades to the legacy count check
+    with a loud warning; it never aborts the analysis.
 
     Returns 0 on success (including when matplotlib is absent and figures
     are skipped with a notice) and 2 when ``results/raw`` does not exist.
@@ -2227,6 +3038,17 @@ def analyze(base_dir: str | Path | None = None) -> int:
     if not raw_dir.is_dir():
         print(f"error: {raw_dir} does not exist", file=sys.stderr)
         return 2
+
+    plan, plan_problem = load_campaign_plan_for_analysis(plan_path)
+    if plan_problem:
+        print(f"[analyze] WARNING: {plan_problem}", file=sys.stderr)
+    if plan is None:
+        print(
+            "[analyze] WARNING: no campaign plan supplied; run completeness "
+            "is checked BY COUNT ONLY — duplicated, re-seeded, mis-rated or "
+            "swapped runs cannot be detected (report 5.4). Pass "
+            f"analyze(plan_path=...) or set {CAMPAIGN_PLAN_ENV_VAR}."
+        )
 
     _clean_dir(processed_dir)
     _clean_dir(figures_dir)
@@ -2267,9 +3089,32 @@ def analyze(base_dir: str | Path | None = None) -> int:
         validity = row.get("validity")
         return validity is not None and validity != "valid"
 
+    # Evidence-integrity gate (report 5.4): a run whose SHA256SUMS does not
+    # verify is not evidence at all; an UNSEALED timed run cannot be
+    # verified either, and timed runs are exactly the ones that carry the
+    # performance claims. Both stay listed in per_run.csv.
+    def _integrity_blocks(row: dict[str, Any]) -> bool:
+        integrity = row.get("integrity_ok")
+        if integrity == INTEGRITY_FAILED:
+            return True
+        return (
+            integrity == INTEGRITY_UNSEALED
+            and row.get("condition_id") in TIMED_CONDITION_IDS
+        )
+
     invalid_rows = [r for r in rows if _invalid_validity(r)]
+    tampered_rows = [r for r in rows if r.get("integrity_ok") == INTEGRITY_FAILED]
+    unsealed_rows = [
+        r
+        for r in rows
+        if r.get("integrity_ok") == INTEGRITY_UNSEALED and _integrity_blocks(r)
+    ]
     included = [
-        r for r in rows if not r["excluded"] and not _invalid_validity(r)
+        r
+        for r in rows
+        if not r["excluded"]
+        and not _invalid_validity(r)
+        and not _integrity_blocks(r)
     ]
     excluded_count = sum(1 for r in rows if r["excluded"])
     if excluded_count:
@@ -2284,6 +3129,23 @@ def analyze(base_dir: str | Path | None = None) -> int:
             f"[analyze] {len(invalid_rows)} run(s) with validity != 'valid' "
             "removed from summaries, saturation, acceptance and figures; "
             f"they remain listed in per_run.csv: {invalid_ids}"
+        )
+    if tampered_rows:
+        tampered_ids = ", ".join(str(r.get("run_id")) for r in tampered_rows)
+        print(
+            f"[analyze] EVIDENCE INTEGRITY FAILURE in {len(tampered_rows)} "
+            f"run(s): {tampered_ids}. {SUMS_FILENAME} does not verify "
+            "(mismatch, missing listed file or unlisted file); these runs are "
+            "removed from summaries, saturation, acceptance and figures and "
+            "must not support any claim (report 5.4)."
+        )
+    if unsealed_rows:
+        unsealed_ids = ", ".join(str(r.get("run_id")) for r in unsealed_rows)
+        print(
+            f"[analyze] EVIDENCE INTEGRITY UNVERIFIABLE in {len(unsealed_rows)} "
+            f"timed run(s): {unsealed_ids}. No {SUMS_FILENAME} in the run "
+            "directory, so nothing can be verified; these runs are removed "
+            "from summaries, saturation, acceptance and figures (report 5.4)."
         )
 
     _write_csv(processed_dir / "per_run.csv", PER_RUN_COLUMNS, rows)
@@ -2312,7 +3174,7 @@ def analyze(base_dir: str | Path | None = None) -> int:
     _write_csv(
         processed_dir / "acceptance_by_condition.csv",
         ACCEPTANCE_COLUMNS,
-        evaluate_acceptance(included),
+        evaluate_acceptance(included, plan),
     )
 
     (processed_dir / "saturation.json").write_text(
@@ -2325,7 +3187,8 @@ def analyze(base_dir: str | Path | None = None) -> int:
     print(
         f"[analyze] {len(rows)} message run(s) processed "
         f"({len(included)} included, {excluded_count} excluded, "
-        f"{len(invalid_rows)} invalid); "
+        f"{len(invalid_rows)} invalid, {len(tampered_rows)} integrity "
+        f"failure(s), {len(unsealed_rows)} unsealed timed run(s)); "
         f"{len(external_rows)} external run(s); "
         f"{len(figures)} figure(s) written to {figures_dir}"
     )

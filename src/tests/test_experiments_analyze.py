@@ -13,12 +13,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from egw_experiments import analyze
+from egw_experiments.checksums import write_sha256sums
+from egw_experiments.plan_gen import generate_campaign_plan
 
-# v1.1 clock-domain rule (CONTRACTS/plan 5.1): the confirmation deadline
-# lives in the CONTROLLER's clock domain — max(received_monotonic_ns) over
-# the run's controller events plus confirmation_window_s. Every default
-# fixture event uses MAX_RECEIVED_NS, so DEADLINE_NS is the event-derived
-# deadline of the standard fixture run.
+# Confirmation-deadline rule (CONTRACTS 5, sprint P5): the deadline lives
+# in the CONTROLLER's clock domain and is taken from the manifest whenever
+# confirmation_deadline_clock_domain == "controller" — the harness reads
+# the controller's confirmation marker (GET /metrics monotonic_ns) right
+# after the measured process exits and adds the window. Runs without that
+# marker fall back to the LEGACY event-derived deadline
+# (max received_monotonic_ns + window), which is circular. Every default
+# fixture event uses MAX_RECEIVED_NS, so DEADLINE_NS is both the standard
+# fixture's controller-domain deadline and its event-derived one.
 WINDOW_S = 60
 WINDOW_NS = WINDOW_S * 1_000_000_000
 MAX_RECEIVED_NS = 100
@@ -83,7 +89,15 @@ def make_run(
     controller_metrics_rows: list[list] | None = None,
     sut_env: dict | None = None,
     sim_totals: dict | None = None,
+    seal: bool = True,
 ) -> Path:
+    """Build one synthetic raw run directory.
+
+    ``seal`` writes SHA256SUMS over the finished directory, exactly as
+    ``run``/``collect`` do: since sprint P5 the analysis refuses to
+    aggregate unsealed TIMED runs (report 5.4), so a fixture that is not
+    sealed is a fixture of an unverifiable run.
+    """
     run_dir = base / "raw" / run_id
     run_dir.mkdir(parents=True)
     if sim_totals is not None:
@@ -104,10 +118,10 @@ def make_run(
         "seed": 1,
         "repetition": 1,
         "confirmation_window_s": WINDOW_S,
-        # Harness-host clock domain, informational only (v1.1); the fixture
-        # value is plausible against the events so no warning fires.
+        # Authoritative controller-domain marker (sprint P5): captured from
+        # GET /metrics right after the measured process exited.
         "confirmation_deadline_monotonic_ns": DEADLINE_NS,
-        "confirmation_deadline_clock_domain": "harness-host",
+        "confirmation_deadline_clock_domain": "controller",
         "exclusion": None,
     }
     if manifest_extra:
@@ -135,6 +149,8 @@ def make_run(
         (run_dir / "sut_environment.json").write_text(
             json.dumps(sut_env) + "\n", "utf-8"
         )
+    if seal:
+        write_sha256sums(run_dir)
     return run_dir
 
 
@@ -254,13 +270,109 @@ def test_valid_rejected_message_is_lost_and_counted_rejected(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Confirmation deadline in the controller's clock domain (v1.1, plan 5.1)
+# Confirmation deadline: controller marker vs legacy event-derived
+# (report 5.2 / CONTRACTS 5, sprint P5)
 # ---------------------------------------------------------------------------
 
 
-def test_deadline_derived_from_controller_events_in_window_vs_late(tmp_path) -> None:
-    """The deadline is max(received_monotonic_ns) + window, in the
-    controller's clock domain — no manifest deadline is needed."""
+def test_late_message_past_controller_deadline_is_lost_even_when_it_is_the_max_event(
+    tmp_path,
+) -> None:
+    """REGRESSION (report 5.2, deadline circularity).
+
+    The controller-domain deadline D comes from the manifest (the harness
+    read the controller's confirmation marker after the measured process
+    exited). A message whose ditto_ack lands AFTER D must count as LOST
+    even though its own received_monotonic_ns is the maximum over the
+    run's events. Under the old event-derived rule that same message
+    pushed the deadline forward by its own lateness and was counted as
+    delivered — the bug this test pins down.
+    """
+    marker_ns = 5_000_000_000  # end of the measured run, controller clock
+    deadline_ns = marker_ns + WINDOW_NS
+    events = [
+        # Ordinary in-window confirmation.
+        event_record(
+            "m0", "accepted", received_ns=1_000_000, ack_ns=marker_ns + 1_000
+        ),
+        # The straggler: received last (max received_monotonic_ns of the
+        # run) and confirmed 1 ns past the controller-domain deadline.
+        event_record(
+            "m1",
+            "accepted",
+            received_ns=deadline_ns - 1,
+            ack_ns=deadline_ns + 1,
+        ),
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "deadline-circularity",
+        sent=[sent_record("m0"), sent_record("m1", 1)],
+        events=events,
+        manifest_extra={
+            "controller_monotonic_at_run_end_ns": marker_ns,
+            "confirmation_deadline_monotonic_ns": deadline_ns,
+            "confirmation_deadline_clock_domain": "controller",
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+
+    assert row["confirmation_deadline_source"] == "controller-marker"
+    assert row["delivered_unique"] == 1
+    assert row["late_confirmations"] == 1
+    assert row["lost"] == 1
+    assert row["delivery_rate"] == 0.5
+    # The authoritative path is not legacy and raises no legacy warning.
+    assert "LEGACY/UNVERIFIABLE" not in row["warnings"]
+
+    # Control: the SAME evidence under the legacy event-derived rule
+    # rescues the straggler, because it extends its own deadline.
+    legacy_dir = make_run(
+        tmp_path,
+        "deadline-circularity-legacy",
+        sent=[sent_record("m0"), sent_record("m1", 1)],
+        events=events,
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": None,
+            "confirmation_deadline_clock_domain": None,
+        },
+    )
+    legacy = analyze.compute_run_metrics(legacy_dir)
+    assert legacy["confirmation_deadline_source"] == "event-derived-legacy"
+    assert legacy["delivered_unique"] == 2
+    assert legacy["lost"] == 0
+    assert "LEGACY/UNVERIFIABLE" in legacy["warnings"]
+    assert "circular" in legacy["warnings"]
+
+
+def test_controller_marker_deadline_boundary_is_inclusive(tmp_path) -> None:
+    """An ack exactly ON the controller-domain deadline is in-window; one
+    nanosecond later is late. The 60 s rule itself is unchanged."""
+    marker_ns = 9_000_000_000
+    deadline_ns = marker_ns + WINDOW_NS
+    events = [
+        event_record("m0", "accepted", received_ns=10, ack_ns=deadline_ns),
+        event_record("m1", "accepted", received_ns=20, ack_ns=deadline_ns + 1),
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "deadline-boundary",
+        sent=[sent_record("m0"), sent_record("m1", 1)],
+        events=events,
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": deadline_ns,
+            "confirmation_deadline_clock_domain": "controller",
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["delivered_unique"] == 1
+    assert row["late_confirmations"] == 1
+    assert row["lost"] == 1
+
+
+def test_legacy_event_derived_deadline_in_window_vs_late(tmp_path) -> None:
+    """Without a controller marker the deadline is max(received) + window
+    and the run is flagged LEGACY/UNVERIFIABLE."""
     mids = ["m0", "m1", "m2"]
     max_received = 2_000
     events = [
@@ -285,54 +397,87 @@ def test_deadline_derived_from_controller_events_in_window_vs_late(tmp_path) -> 
         "clock-domain",
         sent=[sent_record(m, i) for i, m in enumerate(mids)],
         events=events,
-        manifest_extra={"confirmation_deadline_monotonic_ns": None},
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": None,
+            "confirmation_deadline_clock_domain": "unavailable",
+        },
     )
     row = analyze.compute_run_metrics(run_dir)
     assert row["delivered_unique"] == 2
     assert row["late_confirmations"] == 1
     assert row["lost"] == 1
-    # The manifest deadline is informational only; its absence is noted.
-    assert "missing from manifest" in row["warnings"]
+    assert row["confirmation_deadline_source"] == "event-derived-legacy"
+    assert "LEGACY/UNVERIFIABLE" in row["warnings"]
+    assert "'unavailable'" in row["warnings"]
 
 
 def test_zero_events_fall_back_to_manifest_deadline(tmp_path) -> None:
-    """With zero controller events the manifest deadline (harness-host
-    clock domain) is the last-resort fallback."""
+    """With zero controller events and a non-controller clock domain, the
+    manifest deadline is the last-resort fallback and is flagged."""
     run_dir = make_run(
         tmp_path,
         "no-events",
         sent=[sent_record("m0"), sent_record("m1", 1)],
         events=[],
+        manifest_extra={"confirmation_deadline_clock_domain": "harness-host"},
     )
     row = analyze.compute_run_metrics(run_dir)
     assert row["delivered_unique"] == 0
     assert row["lost"] == 2
+    assert row["confirmation_deadline_source"] == "manifest-other-domain-legacy"
     assert "falling back" in row["warnings"]
     assert "harness-host" in row["warnings"]
 
 
-def test_implausible_manifest_deadline_warns_and_uses_event_derived(tmp_path) -> None:
-    """A manifest deadline captured on another host (plan 5.1: harness runs
-    off the ARM VM) can be arbitrarily far from the controller's monotonic
-    values; it must be flagged loudly and the event-derived deadline used."""
-    implausible = 999_000_000_000_000_000  # far outside [max(received), +2w]
+def test_harness_host_deadline_is_ignored_in_favour_of_event_derived(
+    tmp_path,
+) -> None:
+    """A deadline captured on the harness host (which runs OFF the ARM VM,
+    plan 5.1) is NOT in the controller's clock domain: it must never be
+    trusted, however plausible it looks."""
+    implausible = 999_000_000_000_000_000
     events = [
         event_record("m0", "accepted"),  # inside the event-derived window
         # Late per the event-derived deadline although far below the
-        # (implausible) manifest deadline.
+        # harness-host manifest value.
         event_record("m1", "accepted", ack_ns=DEADLINE_NS + 1),
     ]
     run_dir = make_run(
         tmp_path,
-        "implausible-deadline",
+        "harness-host-deadline",
         sent=[sent_record("m0"), sent_record("m1", 1)],
         events=events,
-        manifest_extra={"confirmation_deadline_monotonic_ns": implausible},
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": implausible,
+            "confirmation_deadline_clock_domain": "harness-host",
+        },
     )
     row = analyze.compute_run_metrics(run_dir)
-    assert "IMPLAUSIBLE" in row["warnings"]
+    assert row["confirmation_deadline_source"] == "event-derived-legacy"
+    assert "LEGACY/UNVERIFIABLE" in row["warnings"]
     assert row["late_confirmations"] == 1
     assert row["delivered_unique"] == 1
+    assert row["lost"] == 1
+
+
+def test_controller_marker_before_last_received_event_is_flagged(tmp_path) -> None:
+    """A 'controller' deadline that precedes the last received event is a
+    mislabelled clock domain: used as recorded, but loudly flagged."""
+    events = [event_record("m0", "accepted", received_ns=10**12, ack_ns=10**12 + 5)]
+    run_dir = make_run(
+        tmp_path,
+        "suspect-marker",
+        sent=[sent_record("m0")],
+        events=events,
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": 1_000,
+            "confirmation_deadline_clock_domain": "controller",
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["confirmation_deadline_source"] == "controller-marker"
+    assert "IMPLAUSIBLE controller confirmation marker" in row["warnings"]
+    assert row["late_confirmations"] == 1
     assert row["lost"] == 1
 
 
@@ -434,10 +579,38 @@ def test_manifest_without_deadline_warns(tmp_path) -> None:
         "no-deadline",
         sent=[sent_record("m0")],
         events=[event_record("m0", "accepted")],
-        manifest_extra={"confirmation_deadline_monotonic_ns": None},
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": None,
+            "confirmation_deadline_clock_domain": None,
+        },
     )
     row = analyze.compute_run_metrics(run_dir)
-    assert "missing from manifest" in row["warnings"]
+    assert row["confirmation_deadline_source"] == "event-derived-legacy"
+    assert "LEGACY/UNVERIFIABLE" in row["warnings"]
+
+
+def test_run_without_any_deadline_source_warns_and_counts_all_in_window(
+    tmp_path,
+) -> None:
+    """No controller marker, no events with received_monotonic_ns and no
+    manifest deadline: nothing can bound the window, which must be said
+    out loud rather than silently accepted."""
+    event = event_record("m0", "accepted")
+    event["received_monotonic_ns"] = None
+    run_dir = make_run(
+        tmp_path,
+        "no-deadline-at-all",
+        sent=[sent_record("m0")],
+        events=[event],
+        manifest_extra={
+            "confirmation_deadline_monotonic_ns": None,
+            "confirmation_deadline_clock_domain": None,
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["confirmation_deadline_source"] == "none"
+    assert "no confirmation deadline available" in row["warnings"]
+    assert row["delivered_unique"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -601,6 +774,14 @@ def _sweep_row(
         "host_cpu_sustained_gt090_s": host_sustained_s,
         "queue_growth_sustained_s": queue_sustained_s,
         "resources_coverage_pct": 100.0,
+        "resources_head_gap_s": 0.0,
+        "resources_distinct_instants": 301,
+        # Controller metrics are mandated instrumentation for the sweep:
+        # since sprint P5 their coverage/head gap/instant count must be
+        # sufficient too, otherwise the load is insufficient-evidence.
+        "metrics_coverage_pct": 100.0,
+        "metrics_head_gap_s": 0.0,
+        "metrics_distinct_instants": 301,
     }
     row.update(overrides)
     return row
@@ -1043,6 +1224,7 @@ def test_sampling_stats_coverage_and_gaps() -> None:
     stats = analyze.sampling_stats(full, window)
     assert stats["coverage_pct"] == 100.0
     assert stats["max_gap_s"] == 1.0
+    assert stats["head_gap_s"] == 0.0
     assert stats["tail_gap_s"] == 0.0
 
     # 100 s hole: coverage drops by (100 - 5) s; interior max gap 100 s.
@@ -1060,9 +1242,23 @@ def test_sampling_stats_coverage_and_gaps() -> None:
     assert math.isclose(stats["coverage_pct"], 100.0 * 545 / 600, abs_tol=1e-9)
     assert stats["tail_gap_s"] == 60.0
 
+    # HEAD GAP (report 5.4): a series that only starts sampling 300 s into
+    # the window is not continuous evidence, and the interior max gap
+    # cannot show it (here it stays 1 s).
+    late_start = [T0 + timedelta(seconds=i) for i in range(300, 601)]
+    stats = analyze.sampling_stats(late_start, window)
+    assert stats["head_gap_s"] == 300.0
+    assert stats["max_gap_s"] == 1.0
+    assert math.isclose(stats["coverage_pct"], 100.0 * 300 / 600, abs_tol=1e-9)
+
     # No usable window -> stats are None (cannot be computed).
     stats = analyze.sampling_stats(full, None)
-    assert stats == {"coverage_pct": None, "max_gap_s": None, "tail_gap_s": None}
+    assert stats == {
+        "coverage_pct": None,
+        "max_gap_s": None,
+        "head_gap_s": None,
+        "tail_gap_s": None,
+    }
 
     # Empty in-window series: 0% coverage, gaps not measurable.
     stats = analyze.sampling_stats([], window)
@@ -1701,8 +1897,19 @@ def _dropout_row(**overrides) -> dict:
 
 
 def _restart_row(**overrides) -> dict:
-    """A controller_restart run satisfying every C12 criterion."""
-    base = _acc_row("controller_restart", restart_hook_ok=True)
+    """A controller_restart run satisfying every C12 criterion.
+
+    Since sprint P5 that includes the recovery evidence (report 5.4):
+    downtime observed, metrics resuming inside RESTART_RECOVERY_MAX_S and
+    accepted-counter progress after the restart.
+    """
+    base = _acc_row(
+        "controller_restart",
+        restart_hook_ok=True,
+        restart_downtime_evidence=True,
+        restart_recovery_s=8.0,
+        restart_accepted_progress=1_200.0,
+    )
     base.update(overrides)
     return base
 
@@ -1714,8 +1921,12 @@ def _soak_row(**overrides) -> dict:
         measured_window_s=86_400.0,
         resources_coverage_pct=99.9,
         resources_max_gap_s=2.0,
+        resources_head_gap_s=1.0,
+        resources_distinct_instants=86_000,
         metrics_coverage_pct=99.9,
         metrics_max_gap_s=2.0,
+        metrics_head_gap_s=1.0,
+        metrics_distinct_instants=86_000,
         metrics_tail_gap_s=1.0,
         events_accepted_total=900_000,
         metrics_accepted_delta=900_100.0,  # within the +-1% tolerance
@@ -2136,6 +2347,7 @@ def make_external_run(
     condition: str,
     samples: list[dict],
     exclusion=None,
+    seal: bool = True,
 ) -> Path:
     run_dir = base / "raw" / run_id
     run_dir.mkdir(parents=True)
@@ -2154,6 +2366,8 @@ def make_external_run(
         "notes": None,
     }
     (run_dir / "timings.json").write_text(json.dumps(timings) + "\n", "utf-8")
+    if seal:
+        write_sha256sums(run_dir)
     return run_dir
 
 
@@ -2267,3 +2481,936 @@ def test_soak_summary_is_descriptive_without_ci(tmp_path) -> None:
         # Plan 7.3: soak is analyzed descriptively, no CI of its own.
         assert row["ci95_lo"] == "" and row["ci95_hi"] == "" and row["stdev"] == ""
         assert row["mean"] != "" and row["median"] != ""
+
+
+# ---------------------------------------------------------------------------
+# Evidence integrity (report 5.4 "Integridade nao e verificada", sprint P5)
+# ---------------------------------------------------------------------------
+
+
+def _tamper(run_dir: Path, filename: str = "events.jsonl") -> None:
+    """Rewrite a sealed file so its digest no longer matches SHA256SUMS."""
+    path = run_dir / filename
+    path.write_text(path.read_text("utf-8") + "\n", "utf-8")
+
+
+def test_check_run_integrity_verdicts(tmp_path) -> None:
+    sealed = make_run(
+        tmp_path / "a",
+        "sealed",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    assert analyze.check_run_integrity(sealed) == (analyze.INTEGRITY_OK, [])
+
+    unsealed = make_run(
+        tmp_path / "b",
+        "unsealed",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        seal=False,
+    )
+    verdict, problems = analyze.check_run_integrity(unsealed)
+    assert verdict == analyze.INTEGRITY_UNSEALED
+    assert problems == []
+
+    tampered = make_run(
+        tmp_path / "c",
+        "tampered",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    _tamper(tampered)
+    verdict, problems = analyze.check_run_integrity(tampered)
+    assert verdict == analyze.INTEGRITY_FAILED
+    assert any("mismatch: events.jsonl" in p for p in problems)
+
+    # A file listed in SHA256SUMS but deleted from disk is equally fatal.
+    missing = make_run(
+        tmp_path / "d",
+        "missing-file",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        resources_rows=[["2026-09-07T10:00:00.000Z", "c", 1.0, 10, 0.1]],
+    )
+    (missing / "resources.csv").unlink()
+    verdict, problems = analyze.check_run_integrity(missing)
+    assert verdict == analyze.INTEGRITY_FAILED
+    assert any("missing: resources.csv" in p for p in problems)
+
+
+def test_per_run_flags_integrity_failure_with_loud_warning(tmp_path) -> None:
+    run_dir = make_run(
+        tmp_path,
+        "tampered-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    _tamper(run_dir)
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["integrity_ok"] == analyze.INTEGRITY_FAILED
+    assert "evidence integrity failure" in row["warnings"]
+    assert "integrity_ok" in analyze.PER_RUN_COLUMNS
+
+
+def test_per_run_flags_unsealed_run(tmp_path) -> None:
+    run_dir = make_run(
+        tmp_path,
+        "unsealed-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        seal=False,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["integrity_ok"] == analyze.INTEGRITY_UNSEALED
+    assert "evidence integrity unverifiable" in row["warnings"]
+
+
+def test_analyze_excludes_tampered_run_from_aggregation(tmp_path, capsys) -> None:
+    """A run whose evidence does not verify is listed but never aggregated."""
+    base = tmp_path / "results"
+    for rep, latency in ((1, 10.0), (2, 20.0)):
+        make_run(
+            base,
+            f"nominal-r{rep:02d}",
+            sent=[sent_record("m0")],
+            events=[event_record("m0", "accepted", latency_ms=latency)],
+            manifest_extra={"repetition": rep},
+        )
+    _tamper(base / "raw" / "nominal-r02")
+
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "EVIDENCE INTEGRITY FAILURE" in out
+    assert "nominal-r02" in out
+
+    per_run = {r["run_id"]: r for r in _read_csv(base / "processed" / "per_run.csv")}
+    assert per_run["nominal-r01"]["integrity_ok"] == "true"
+    assert per_run["nominal-r02"]["integrity_ok"] == "false"
+
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    latency = next(
+        r
+        for r in summary
+        if r["condition_id"] == "nominal" and r["metric"] == "latency_ms_mean"
+    )
+    # Only the intact run survives: n=1 and the mean is its own latency.
+    assert latency["n_runs"] == "1"
+    assert float(latency["mean"]) == 10.0
+
+
+def test_analyze_excludes_unsealed_timed_run_from_aggregation(
+    tmp_path, capsys
+) -> None:
+    base = tmp_path / "results"
+    make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted", latency_ms=10.0)],
+    )
+    make_run(
+        base,
+        "nominal-r02",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted", latency_ms=90.0)],
+        manifest_extra={"repetition": 2},
+        seal=False,
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "EVIDENCE INTEGRITY UNVERIFIABLE" in out
+    assert "nominal-r02" in out
+
+    per_run = {r["run_id"]: r for r in _read_csv(base / "processed" / "per_run.csv")}
+    assert per_run["nominal-r02"]["integrity_ok"] == "unsealed"
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    latency = next(
+        r
+        for r in summary
+        if r["condition_id"] == "nominal" and r["metric"] == "latency_ms_mean"
+    )
+    assert latency["n_runs"] == "1"
+    assert float(latency["mean"]) == 10.0
+
+
+def test_analyze_excludes_tampered_external_run_from_duration_stats(
+    tmp_path, capsys
+) -> None:
+    base = tmp_path / "results"
+    for rep, duration in ((1, 30.0), (2, 90.0)):
+        make_external_run(
+            base,
+            f"cold_start-r{rep:02d}",
+            "cold_start",
+            [{"label": "boot", "duration_s": duration}],
+        )
+    _tamper(base / "raw" / "cold_start-r02", "timings.json")
+
+    assert analyze.analyze(base_dir=base) == 0
+    err = capsys.readouterr().err
+    assert "evidence integrity failure in external run cold_start-r02" in err
+
+    external = _read_csv(base / "processed" / "external_runs.csv")
+    verdicts = {r["run_id"]: r["integrity_ok"] for r in external}
+    assert verdicts == {"cold_start-r01": "true", "cold_start-r02": "false"}
+
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    row = next(r for r in summary if r["condition_id"] == "cold_start")
+    assert row["n_runs"] == "1"
+    assert float(row["mean"]) == 30.0
+
+
+# ---------------------------------------------------------------------------
+# Identity-based completeness (report 5.4 "Completude por contagem")
+# ---------------------------------------------------------------------------
+
+
+def _plan_rows(plan: dict, condition_id: str, **extra) -> list[dict]:
+    """Per-run acceptance rows built from the plan's own run identities."""
+    return [
+        _acc_row(
+            condition_id,
+            run_id=entry["run_id"],
+            repetition=entry["repetition"],
+            seed=entry["seed"],
+            rate_msg_s=entry["rate_msg_s"],
+            **extra,
+        )
+        for entry in plan["runs"]
+        if entry["condition_id"] == condition_id
+    ]
+
+
+def test_acceptance_identity_matches_plan() -> None:
+    plan = generate_campaign_plan(4242)
+    rows = _plan_rows(plan, "smoke_sequence")
+    complete = _acc(
+        analyze.evaluate_acceptance(rows, plan), "smoke_sequence", "runs_complete"
+    )
+    assert complete["passed"] is True
+    assert "10/10 planned run identities matched" in complete["observed"]
+
+
+def test_acceptance_identity_detects_duplicate_and_missing_run() -> None:
+    """The count can be right while the campaign is wrong: one run executed
+    twice and another never executed (report 5.4)."""
+    plan = generate_campaign_plan(4242)
+    rows = _plan_rows(plan, "smoke_sequence")
+    rows[-1] = dict(rows[0])  # a re-run of r01 replacing r10
+    result = analyze.evaluate_acceptance(rows, plan)
+    complete = _acc(result, "smoke_sequence", "runs_complete")
+    assert complete["n_runs"] == 10  # the COUNT still looks complete
+    assert complete["passed"] is False
+    assert "missing smoke_sequence-r10" in complete["observed"]
+    assert "duplicated smoke_sequence-r01" in complete["observed"]
+    # The substantive criterion is gated on completeness.
+    assert _acc(result, "smoke_sequence", "zero_lost")["passed"] is False
+
+
+def test_acceptance_identity_detects_wrong_seed() -> None:
+    plan = generate_campaign_plan(4242)
+    rows = _plan_rows(plan, "smoke_sequence")
+    rows[3]["seed"] = 999_999
+    complete = _acc(
+        analyze.evaluate_acceptance(rows, plan), "smoke_sequence", "runs_complete"
+    )
+    assert complete["passed"] is False
+    assert "mismatched smoke_sequence-r04" in complete["observed"]
+    assert "seed=999999" in complete["observed"]
+
+
+def test_acceptance_identity_detects_unplanned_run() -> None:
+    plan = generate_campaign_plan(4242)
+    rows = _plan_rows(plan, "smoke_sequence")
+    rows.append(_acc_row("smoke_sequence", run_id="smoke_sequence-rXX", seed=1))
+    complete = _acc(
+        analyze.evaluate_acceptance(rows, plan), "smoke_sequence", "runs_complete"
+    )
+    assert complete["passed"] is False
+    assert "unexpected smoke_sequence-rXX" in complete["observed"]
+
+
+def test_acceptance_identity_for_load_sweep_is_per_rate() -> None:
+    """40 sweep runs with the wrong mix of rates must fail: completeness is
+    per load level, not a global count."""
+    plan = generate_campaign_plan(4242)
+    rows = _plan_rows(plan, "load_sweep")
+    assert len(rows) == 40
+    # Every 250 msg/s run replaced by a duplicate of one 10 msg/s run.
+    ten = next(r for r in rows if r["rate_msg_s"] == 10.0)
+    rows = [dict(ten) if r["rate_msg_s"] == 250.0 else r for r in rows]
+    complete = _acc(
+        analyze.evaluate_acceptance(rows, plan), "load_sweep", "runs_complete"
+    )
+    assert complete["n_runs"] == 40  # count intact
+    assert complete["passed"] is False
+    observed = complete["observed"]
+    assert "rate 250 msg/s" in observed
+    assert "rate 10 msg/s" in observed
+    assert "duplicated" in observed
+
+
+def test_acceptance_without_plan_keeps_count_check_and_warns() -> None:
+    rows = [_acc_row("smoke_sequence") for _ in range(10)]
+    complete = _acc(
+        analyze.evaluate_acceptance(rows), "smoke_sequence", "runs_complete"
+    )
+    assert complete["passed"] is True
+    assert "identity checking NOT performed" in complete["observed"]
+    assert analyze.CAMPAIGN_PLAN_ENV_VAR in complete["observed"]
+
+
+def test_load_campaign_plan_for_analysis_env_fallback(tmp_path, monkeypatch) -> None:
+    plan = generate_campaign_plan(7)
+    path = tmp_path / "campaign_plan.json"
+    path.write_text(json.dumps(plan), "utf-8")
+    monkeypatch.setenv(analyze.CAMPAIGN_PLAN_ENV_VAR, str(path))
+    loaded, problem = analyze.load_campaign_plan_for_analysis(None)
+    assert problem is None
+    assert loaded["master_seed"] == 7
+    # An explicit argument always wins over the environment variable.
+    monkeypatch.setenv(analyze.CAMPAIGN_PLAN_ENV_VAR, str(tmp_path / "nope.json"))
+    loaded, problem = analyze.load_campaign_plan_for_analysis(path)
+    assert problem is None and loaded["master_seed"] == 7
+
+
+def test_load_campaign_plan_for_analysis_reports_problems(tmp_path) -> None:
+    plan, problem = analyze.load_campaign_plan_for_analysis(tmp_path / "absent.json")
+    assert plan is None and "could not be read" in problem
+
+    malformed = tmp_path / "malformed.json"
+    malformed.write_text("{not json", "utf-8")
+    plan, problem = analyze.load_campaign_plan_for_analysis(malformed)
+    assert plan is None and "could not be read" in problem
+
+    no_runs = tmp_path / "no_runs.json"
+    no_runs.write_text(json.dumps({"plan_version": "1.0"}), "utf-8")
+    plan, problem = analyze.load_campaign_plan_for_analysis(no_runs)
+    assert plan is None and "no 'runs' list" in problem
+
+
+def test_analyze_uses_plan_from_env_var(tmp_path, monkeypatch) -> None:
+    """End-to-end: the env-var fallback makes identity checking work even
+    without the (separately owned) CLI flag."""
+    base = tmp_path / "results"
+    plan = generate_campaign_plan(4242)
+    entry = next(e for e in plan["runs"] if e["run_id"] == "smoke_sequence-r01")
+    make_run(
+        base,
+        "smoke_sequence-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "smoke_sequence",
+            "scenario": "smoke",
+            "repetition": entry["repetition"],
+            "seed": entry["seed"],
+            "rate_msg_s": entry["rate_msg_s"],
+        },
+    )
+    plan_path = tmp_path / "campaign_plan.json"
+    plan_path.write_text(json.dumps(plan), "utf-8")
+    monkeypatch.setenv(analyze.CAMPAIGN_PLAN_ENV_VAR, str(plan_path))
+
+    assert analyze.analyze(base_dir=base) == 0
+    acceptance = _read_csv(base / "processed" / "acceptance_by_condition.csv")
+    complete = next(
+        r
+        for r in acceptance
+        if r["condition_id"] == "smoke_sequence"
+        and r["criterion"] == "runs_complete"
+    )
+    # One of ten planned runs executed: identity checking names the rest.
+    assert complete["passed"] == "false"
+    assert "missing smoke_sequence-r02" in complete["observed"]
+
+
+def test_analyze_without_plan_warns_identity_not_checked(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "checked BY COUNT ONLY" in out
+    assert analyze.CAMPAIGN_PLAN_ENV_VAR in out
+
+
+def test_analyze_with_unreadable_plan_degrades_with_warning(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    assert analyze.analyze(base_dir=base, plan_path=tmp_path / "absent.json") == 0
+    captured = capsys.readouterr()
+    assert "could not be read" in captured.err
+    assert "checked BY COUNT ONLY" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Head gap and minimum coverage (report 5.4 "Soak ignora o gap inicial",
+# "Controller metrics sem cobertura minima")
+# ---------------------------------------------------------------------------
+
+
+def test_per_run_head_gap_columns_from_csvs(tmp_path) -> None:
+    """The head gap (window start -> first sample) is measured and exposed;
+    an interior max_gap of 1 s cannot reveal a series that started late."""
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    resources = [
+        [_iso(start + timedelta(seconds=i)), "egw-controller", 10.0, 1024, 1.0]
+        for i in range(120, 601)  # sampling only starts 120 s into the window
+    ]
+    metrics = [
+        [_iso(start + timedelta(seconds=i)), i, 0, 0, 0, 0, 5]
+        for i in range(0, 601)
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "head-gap-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        resources_rows=resources,
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["resources_head_gap_s"] == 120.0
+    assert row["resources_max_gap_s"] == 1.0  # interior cadence is perfect
+    assert row["metrics_head_gap_s"] == 0.0
+    for column in ("resources_head_gap_s", "metrics_head_gap_s"):
+        assert column in analyze.PER_RUN_COLUMNS
+
+
+def test_acceptance_soak_head_gap_fails_coverage_criterion() -> None:
+    """C13: a soak whose resources sampling only starts hours into the
+    window fails the coverage/cadence criterion, not the others."""
+    rows = [_soak_row(resources_head_gap_s=3_600.0)]
+    result = analyze.evaluate_acceptance(rows)
+    assert _acc(result, "soak", "resources_coverage_and_cadence")["passed"] is False
+    assert (
+        _acc(result, "soak", "controller_metrics_coverage_and_cadence")["passed"]
+        is True
+    )
+    assert _acc(result, "soak", "measured_window_ge_24h")["passed"] is True
+    assert _acc(result, "soak", "no_unrecovered_interruption")["passed"] is True
+    observed = _acc(result, "soak", "resources_coverage_and_cadence")["observed"]
+    assert "head gap 3600.00 s" in observed
+
+
+def test_acceptance_soak_metrics_head_gap_fails_metrics_criterion() -> None:
+    rows = [_soak_row(metrics_head_gap_s=90.0)]  # > SOAK_MAX_SAMPLING_GAP_S
+    result = analyze.evaluate_acceptance(rows)
+    assert (
+        _acc(result, "soak", "controller_metrics_coverage_and_cadence")["passed"]
+        is False
+    )
+    assert _acc(result, "soak", "resources_coverage_and_cadence")["passed"] is True
+
+
+def test_acceptance_soak_missing_head_gap_fails_not_blank() -> None:
+    """A head gap that could not be measured (no window/no samples) must
+    fail the criterion, never silently pass."""
+    rows = [_soak_row(resources_head_gap_s=None, metrics_head_gap_s=None)]
+    result = analyze.evaluate_acceptance(rows)
+    for criterion in (
+        "resources_coverage_and_cadence",
+        "controller_metrics_coverage_and_cadence",
+    ):
+        row = _acc(result, "soak", criterion)
+        assert row["passed"] is False
+        assert "head gap n/a" in row["observed"]
+
+
+def test_saturation_metrics_coverage_below_minimum_is_insufficient_evidence() -> None:
+    """Controller metrics covering a fraction of the window can no more
+    decide a load than sparse resources can (report 5.4)."""
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=9)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=1, metrics_coverage_pct=40.0)
+    rows += _sweep_load(100.0, 0.0, 100.0)
+    rows += _sweep_load(250.0, 0.0, 100.0)
+    load = _load_at(analyze.detect_saturation(rows), 50.0)
+    assert load["verdict"] == "insufficient-evidence"
+    assert load["evidence_sufficient"] is False
+    assert any(
+        "controller metrics coverage 40.0% below the 90% minimum" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+    # The intact loads keep their decided verdict.
+    assert _load_at(analyze.detect_saturation(rows), 10.0)["verdict"] == "not-saturated"
+
+
+def test_saturation_head_gap_beyond_cap_is_insufficient_evidence() -> None:
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=9)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=1, resources_head_gap_s=42.0)
+    rows += _sweep_load(100.0, 0.0, 100.0)
+    rows += _sweep_load(250.0, 0.0, 100.0)
+    load = _load_at(analyze.detect_saturation(rows), 50.0)
+    assert load["verdict"] == "insufficient-evidence"
+    assert any(
+        "resources head gap 42.0 s exceeds the 5 s sampling-cadence cap" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+
+
+def test_saturation_insufficient_evidence_never_hides_a_crossing() -> None:
+    """A load that crosses a threshold but lacks instrumentation is
+    insufficient-evidence, and is NOT reported as the saturation point."""
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.05, 100.0, metrics_coverage_pct=10.0)  # 5% loss
+    result = analyze.detect_saturation(rows)
+    load = _load_at(result, 50.0)
+    assert load["saturated"] is True  # the raw crossing is still reported
+    assert load["verdict"] == "insufficient-evidence"
+    assert result["first_saturated_load_msg_s"] is None
+
+
+# ---------------------------------------------------------------------------
+# Semantic validation of the sampled series (report 5.4 "Validacao superficial")
+# ---------------------------------------------------------------------------
+
+
+def _write_csv_text(path: Path, lines: list[str]) -> Path:
+    path.write_text("\n".join(lines) + "\n", "utf-8")
+    return path
+
+
+def test_read_resources_csv_validated_counts_every_drop_reason(tmp_path) -> None:
+    path = _write_csv_text(
+        tmp_path / "resources.csv",
+        [
+            "ts_utc,container,cpu_pct,mem_bytes,mem_pct",
+            "2026-09-07T10:00:00.000Z,egw-controller,10.0,1024,1.0",
+            "not-a-timestamp,egw-controller,10.0,1024,1.0",
+            "2026-09-07T10:00:01.000Z,egw-controller,NaN%,1024,1.0",
+            "2026-09-07T10:00:02.000Z,,10.0,1024,1.0",
+            "2026-09-07T10:00:03.000Z,egw-controller",
+            "2026-09-07T09:59:00.000Z,egw-controller,10.0,1024,1.0",
+            "2026-09-07T10:00:04.000Z,egw-controller,20.0,2048,2.0",
+        ],
+    )
+    series, report = analyze.read_resources_csv_validated(path)
+    assert report["rows_total"] == 7
+    assert report["rows_dropped"] == 5
+    assert report["reasons"] == {
+        "unparseable_ts": 1,
+        "non_numeric": 1,
+        "empty_field": 1,
+        "missing_column": 1,
+        "decreasing_ts": 1,
+    }
+    # Only the two well-formed, non-decreasing rows survive.
+    assert [s["cpu_pct"] for s in series["egw-controller"]] == [10.0, 20.0]
+    assert report["distinct_instants"] == 2
+    assert "unparseable_ts=1" in analyze.series_report_summary(report)
+
+
+def test_read_controller_metrics_csv_validated_counts_every_drop_reason(
+    tmp_path,
+) -> None:
+    path = _write_csv_text(
+        tmp_path / "controller_metrics.csv",
+        [
+            "ts_utc,accepted,rejected,duplicate,failed,dropped,queue_depth",
+            "2026-09-07T10:00:00.000Z,1,0,0,0,0,5",
+            "nope,2,0,0,0,0,5",
+            ",3,0,0,0,0,5",
+            "2026-09-07T10:00:01.000Z,x,0,0,0,0,5",
+            "2026-09-07T10:00:02.000Z,,,,,,",
+            "2026-09-07T09:59:00.000Z,4,0,0,0,0,5",
+            "2026-09-07T10:00:03.000Z,5,0,0,0,0,9",
+        ],
+    )
+    samples, report = analyze.read_controller_metrics_csv_validated(path)
+    assert report["rows_total"] == 7
+    assert report["rows_dropped"] == 5
+    assert report["reasons"]["unparseable_ts"] == 1
+    assert report["reasons"]["empty_field"] == 1
+    assert report["reasons"]["non_numeric"] == 1
+    assert report["reasons"]["no_counters"] == 1
+    assert report["reasons"]["decreasing_ts"] == 1
+    assert [s["accepted"] for s in samples] == [1.0, 5.0]
+    assert report["distinct_instants"] == 2
+
+
+def test_per_run_counts_dropped_rows_and_distinct_instants(tmp_path) -> None:
+    """Three containers sampled at the same two instants are TWO sample
+    instants, not six; invalid rows are dropped and counted."""
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    resources = []
+    for i in (0, 1):
+        for container in ("egw-controller", "mosquitto", "ditto-gateway"):
+            resources.append(
+                [_iso(start + timedelta(seconds=i)), container, 10.0, 1024, 1.0]
+            )
+    resources.append(["not-a-timestamp", "egw-controller", 10.0, 1024, 1.0])
+    metrics = [
+        [_iso(start + timedelta(seconds=i)), i, 0, 0, 0, 0, 5] for i in (0, 1)
+    ]
+    metrics.append([_iso(start + timedelta(seconds=2)), "x", 0, 0, 0, 0, 5])
+    run_dir = make_run(
+        tmp_path,
+        "semantic-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        resources_rows=resources,
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["resource_samples"] == 6  # six container rows
+    assert row["resources_distinct_instants"] == 2  # two sample instants
+    assert row["resources_rows_dropped"] == 1
+    assert row["metrics_distinct_instants"] == 2
+    assert row["metrics_rows_dropped"] == 1
+    assert "resources.csv: 1/7 row(s) dropped" in row["warnings"]
+    assert "unparseable_ts=1" in row["warnings"]
+    assert "controller_metrics.csv: 1/3 row(s) dropped" in row["warnings"]
+    assert "non_numeric=1" in row["warnings"]
+
+
+def test_saturation_single_distinct_instant_is_insufficient_evidence() -> None:
+    """A series with one valid instant cannot support a cadence claim."""
+    rows = _sweep_load(10.0, 0.0, 100.0)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=9)
+    rows += _sweep_load(50.0, 0.0, 100.0, n=1, metrics_distinct_instants=1)
+    rows += _sweep_load(100.0, 0.0, 100.0)
+    rows += _sweep_load(250.0, 0.0, 100.0)
+    load = _load_at(analyze.detect_saturation(rows), 50.0)
+    assert load["verdict"] == "insufficient-evidence"
+    assert any(
+        "controller metrics has 1 valid distinct sample instant(s)" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+
+
+def test_acceptance_soak_insufficient_distinct_instants_fails() -> None:
+    rows = [_soak_row(metrics_distinct_instants=1)]
+    result = analyze.evaluate_acceptance(rows)
+    row = _acc(result, "soak", "controller_metrics_coverage_and_cadence")
+    assert row["passed"] is False
+    assert "1 valid distinct instant(s)" in row["observed"]
+
+
+# ---------------------------------------------------------------------------
+# C12 recovery evidence (report 5.4 "C12 nao demonstra recuperacao")
+# ---------------------------------------------------------------------------
+
+
+def _restart_record(started: datetime, finished: datetime) -> dict:
+    return {
+        "restart": {
+            "executed": True,
+            "started_utc": _iso(started),
+            "finished_utc": _iso(finished),
+            "returncode": 0,
+            "error": None,
+        }
+    }
+
+
+def _metric_series(pairs: list[tuple[int, float]]) -> list[dict]:
+    return [
+        {"ts": T0 + timedelta(seconds=offset), "accepted": accepted}
+        for offset, accepted in pairs
+    ]
+
+
+def test_restart_recovery_evidence_from_sampling_gap() -> None:
+    """A hole in controller_metrics.csv straddling the restart IS the
+    downtime evidence: a failed poll writes no row."""
+    samples = _metric_series(
+        [(i, float(i)) for i in range(0, 296)]
+        + [(i, float(i)) for i in range(320, 341)]
+    )
+    evidence = analyze.restart_recovery_evidence(
+        _restart_record(T0 + timedelta(seconds=300), T0 + timedelta(seconds=310))[
+            "restart"
+        ],
+        samples,
+    )
+    assert evidence["downtime_evidence"] is True
+    assert evidence["recovery_s"] == 10.0  # first sample after finished_utc
+    assert evidence["accepted_progress"] == 20.0
+
+
+def test_restart_recovery_evidence_from_counter_reset() -> None:
+    """A restarted controller starts its counters at zero: the reset is
+    downtime evidence even when sampling never missed a beat."""
+    samples = _metric_series(
+        [(i, float(i)) for i in range(0, 301)]
+        + [(i, float(i - 310)) for i in range(310, 341)]
+    )
+    evidence = analyze.restart_recovery_evidence(
+        _restart_record(T0 + timedelta(seconds=300), T0 + timedelta(seconds=310))[
+            "restart"
+        ],
+        samples,
+    )
+    assert evidence["downtime_evidence"] is True
+    assert evidence["recovery_s"] == 0.0
+    assert evidence["accepted_progress"] == 30.0
+
+
+def test_restart_recovery_evidence_absent_when_nothing_happened() -> None:
+    """A hook that ran while the controller never blinked leaves NO
+    downtime evidence: uninterrupted 1 Hz samples, no counter reset."""
+    samples = _metric_series([(i, float(i)) for i in range(0, 341)])
+    evidence = analyze.restart_recovery_evidence(
+        _restart_record(T0 + timedelta(seconds=300), T0 + timedelta(seconds=310))[
+            "restart"
+        ],
+        samples,
+    )
+    assert evidence["downtime_evidence"] is False
+    assert evidence["recovery_s"] == 0.0
+    assert evidence["accepted_progress"] == 30.0
+
+
+def test_restart_recovery_evidence_unknown_without_instrumentation() -> None:
+    record = _restart_record(
+        T0 + timedelta(seconds=300), T0 + timedelta(seconds=310)
+    )["restart"]
+    unknown = {
+        "downtime_evidence": None,
+        "recovery_s": None,
+        "accepted_progress": None,
+    }
+    assert analyze.restart_recovery_evidence(record, []) == unknown
+    assert analyze.restart_recovery_evidence(None, _metric_series([(0, 0.0)])) == unknown
+    assert (
+        analyze.restart_recovery_evidence(
+            {"executed": True, "returncode": 0}, _metric_series([(0, 0.0)])
+        )
+        == unknown
+    )
+
+
+def test_per_run_restart_recovery_columns_from_controller_metrics(tmp_path) -> None:
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    metrics = [
+        [_iso(start + timedelta(seconds=i)), i, 0, 0, 0, 0, 1]
+        for i in range(0, 296)
+    ]
+    metrics += [
+        [_iso(start + timedelta(seconds=i)), i - 320, 0, 0, 0, 0, 1]
+        for i in range(320, 601)
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "controller_restart-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "controller_restart",
+            "scenario": "nominal",
+            **_window_manifest(start, end),
+            **_restart_record(
+                start + timedelta(seconds=300), start + timedelta(seconds=310)
+            ),
+        },
+        controller_metrics_rows=metrics,
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["restart_hook_ok"] is True
+    assert row["restart_downtime_evidence"] is True
+    assert row["restart_recovery_s"] == 10.0
+    assert row["restart_accepted_progress"] == 280.0
+    for column in (
+        "restart_downtime_evidence",
+        "restart_recovery_s",
+        "restart_accepted_progress",
+    ):
+        assert column in analyze.PER_RUN_COLUMNS
+
+
+def test_per_run_restart_without_metrics_has_no_recovery_evidence(tmp_path) -> None:
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    run_dir = make_run(
+        tmp_path,
+        "controller_restart-r02",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "condition_id": "controller_restart",
+            "scenario": "nominal",
+            **_window_manifest(start, end),
+            **_restart_record(
+                start + timedelta(seconds=300), start + timedelta(seconds=310)
+            ),
+        },
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["restart_downtime_evidence"] is None
+    assert row["restart_recovery_s"] is None
+    assert row["restart_accepted_progress"] is None
+    assert "without usable recovery evidence" in row["warnings"]
+
+
+def test_acceptance_controller_restart_requires_downtime_evidence() -> None:
+    """A hook that exited 0 without the controller ever going down is not
+    C12 evidence (report 5.4)."""
+    rows = [_restart_row(restart_downtime_evidence=False) for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    assert _acc(result, "controller_restart", "restart_hook_executed_every_run")[
+        "passed"
+    ] is True
+    downtime = _acc(
+        result, "controller_restart", "restart_downtime_evidence_every_run"
+    )
+    assert downtime["passed"] is False
+    assert "0/3 run(s) with controller downtime evidence" in downtime["observed"]
+
+
+def test_acceptance_controller_restart_requires_recovery_within_bound() -> None:
+    rows = [_restart_row() for _ in range(3)]
+    rows[0]["restart_recovery_s"] = 600.0  # > RESTART_RECOVERY_MAX_S
+    result = analyze.evaluate_acceptance(rows)
+    recovery = _acc(result, "controller_restart", "restart_recovery_within_bound")
+    assert recovery["passed"] is False
+    assert "2/3 run(s)" in recovery["observed"]
+    assert "120 s" in recovery["observed"]
+
+
+def test_acceptance_controller_restart_requires_accepted_progress() -> None:
+    rows = [_restart_row() for _ in range(3)]
+    rows[2]["restart_accepted_progress"] = 0.0
+    result = analyze.evaluate_acceptance(rows)
+    progress = _acc(result, "controller_restart", "restart_accepted_progress_after")
+    assert progress["passed"] is False
+    assert "2/3 run(s) with accepted-counter progress" in progress["observed"]
+
+
+def test_acceptance_controller_restart_recovery_criteria_pass_when_demonstrated() -> None:
+    rows = [_restart_row() for _ in range(3)]
+    result = analyze.evaluate_acceptance(rows)
+    for criterion in (
+        "restart_downtime_evidence_every_run",
+        "restart_recovery_within_bound",
+        "restart_accepted_progress_after",
+    ):
+        assert _acc(result, "controller_restart", criterion)["passed"] is True
+
+
+def test_acceptance_controller_restart_without_instrumentation_fails_loudly() -> None:
+    """Missing series => the criteria FAIL as 'insufficient instrumentation',
+    never blank (report 5.4)."""
+    rows = [
+        _restart_row(
+            restart_downtime_evidence=None,
+            restart_recovery_s=None,
+            restart_accepted_progress=None,
+        )
+        for _ in range(3)
+    ]
+    result = analyze.evaluate_acceptance(rows)
+    for criterion in (
+        "restart_downtime_evidence_every_run",
+        "restart_recovery_within_bound",
+        "restart_accepted_progress_after",
+    ):
+        row = _acc(result, "controller_restart", criterion)
+        assert row["passed"] is False, criterion
+        assert "insufficient instrumentation in 3 run(s)" in row["observed"]
+
+
+def test_acceptance_end_to_end_controller_restart_recovery_from_files(
+    tmp_path,
+) -> None:
+    """The three C12 recovery criteria are computed end-to-end from the
+    files the harness already writes."""
+    base = tmp_path / "results"
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    metrics = [
+        [_iso(start + timedelta(seconds=i)), i, 0, 0, 0, 0, 1]
+        for i in range(0, 296)
+    ]
+    metrics += [
+        [_iso(start + timedelta(seconds=i)), i - 320, 0, 0, 0, 0, 1]
+        for i in range(320, 601)
+    ]
+    mids = [f"m{i}" for i in range(3)]
+    for rep in (1, 2, 3):
+        make_run(
+            base,
+            f"controller_restart-r{rep:02d}",
+            sent=[sent_record(m, i) for i, m in enumerate(mids)],
+            events=[event_record(m, "accepted") for m in mids],
+            manifest_extra={
+                "condition_id": "controller_restart",
+                "scenario": "nominal",
+                "repetition": rep,
+                **_window_manifest(start, end),
+                **_restart_record(
+                    start + timedelta(seconds=300),
+                    start + timedelta(seconds=310),
+                ),
+            },
+            controller_metrics_rows=metrics,
+        )
+    assert analyze.analyze(base_dir=base) == 0
+    acceptance = _read_csv(base / "processed" / "acceptance_by_condition.csv")
+    restart = {
+        r["criterion"]: r
+        for r in acceptance
+        if r["condition_id"] == "controller_restart"
+    }
+    for criterion in (
+        "runs_complete",
+        "restart_hook_executed_every_run",
+        "delivery_across_restart_zero_lost",
+        "zero_double_accepted",
+        "restart_downtime_evidence_every_run",
+        "restart_recovery_within_bound",
+        "restart_accepted_progress_after",
+    ):
+        assert restart[criterion]["passed"] == "true", criterion
+
+
+# ---------------------------------------------------------------------------
+# per_run.csv records which confirmation deadline was used (report 5.2)
+# ---------------------------------------------------------------------------
+
+
+def test_per_run_csv_records_confirmation_deadline_source(tmp_path) -> None:
+    base = tmp_path / "results"
+    make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+    )
+    make_run(
+        base,
+        "nominal-r02",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={
+            "repetition": 2,
+            "confirmation_deadline_monotonic_ns": None,
+            "confirmation_deadline_clock_domain": "unavailable",
+        },
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    per_run = {r["run_id"]: r for r in _read_csv(base / "processed" / "per_run.csv")}
+    assert per_run["nominal-r01"]["confirmation_deadline_source"] == "controller-marker"
+    assert (
+        per_run["nominal-r02"]["confirmation_deadline_source"]
+        == "event-derived-legacy"
+    )
+    assert "LEGACY/UNVERIFIABLE" in per_run["nominal-r02"]["warnings"]
+    assert "LEGACY/UNVERIFIABLE" not in per_run["nominal-r01"]["warnings"]
