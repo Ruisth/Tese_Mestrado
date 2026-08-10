@@ -7,6 +7,7 @@ broker, no docker, no network; time.sleep is recorded, never slept.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -166,6 +167,11 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         event_log_dir=event_log_dir,
         sut_env_from=sut_env,
         resources_from=(tmp_path / "resources-{run_id}.csv").as_posix(),
+        # No controller is reachable in a unit test, so the run end cannot
+        # be stamped in the controller's clock domain (sprint P5, report
+        # 5.2). The campaign tests are about batch behaviour, so the
+        # absence is authorized explicitly and recorded as a deviation.
+        allow_missing_controller_marker=True,
     )
     return SimpleNamespace(
         calls=calls, sleeps=sleeps, base=base, kwargs=kwargs, tmp_path=tmp_path
@@ -202,14 +208,17 @@ def test_campaign_executes_plan_in_frozen_order_and_logs(
     plan_path, fake_env, capsys
 ) -> None:
     rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
-    assert rc == 0
+    # Exit 1, not 0: every simulator run completed, but this FULL campaign
+    # still has an external condition without evidence (sprint P5, report
+    # 5.4 "Condições externas não impedem exit 0").
+    assert rc == 1
     # Frozen order preserved; the external run is never executed.
     assert _executed_run_ids(fake_env.calls) == SIM_RUN_IDS
     lines = _log_lines(fake_env.base)
     assert [line["run_id"] for line in lines] == PLAN_ORDER
     assert [line["outcome"] for line in lines] == [
         "completed",
-        "external",
+        "incomplete",
         "completed",
         "completed",
     ]
@@ -227,8 +236,12 @@ def test_campaign_executes_plan_in_frozen_order_and_logs(
     assert external["condition"] == "cold_start"
     assert external["validity"] is None
     assert "--external-timings" in external["note"]
-    out = capsys.readouterr().out
-    assert f"EXTERNAL {EXTERNAL_RUN_ID}" in out
+    captured = capsys.readouterr()
+    out = captured.out
+    assert f"INCOMPLETE {EXTERNAL_RUN_ID}" in out
+    # The final summary names every pending external run.
+    assert EXTERNAL_RUN_ID in captured.err
+    assert "INCOMPLETE" in out
     # Every executed run went through the full run wiring (valid + sealed).
     for rid in SIM_RUN_IDS:
         assert _manifest(fake_env.base, rid)["validity"] == "valid"
@@ -256,18 +269,19 @@ def test_campaign_dry_run_executes_nothing(plan_path, fake_env, capsys) -> None:
 def test_campaign_resume_skips_sealed_and_valid_runs(
     plan_path, fake_env, capsys
 ) -> None:
-    assert campaign_mod.run_campaign(plan_path, **fake_env.kwargs) == 0
+    # rc 1 on both passes: the external condition stays pending throughout.
+    assert campaign_mod.run_campaign(plan_path, **fake_env.kwargs) == 1
     first_round_calls = len(fake_env.calls)
     capsys.readouterr()
 
     rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
-    assert rc == 0
+    assert rc == 1
     # Nothing re-executed: every simulator run is sealed AND valid.
     assert len(fake_env.calls) == first_round_calls
     lines = _log_lines(fake_env.base)[-4:]
     assert [line["outcome"] for line in lines] == [
         "skipped",
-        "external",
+        "incomplete",
         "skipped",
         "skipped",
     ]
@@ -360,7 +374,7 @@ def test_campaign_continue_on_invalid_records_and_moves_on(
     lines = _log_lines(fake_env.base)
     assert [line["outcome"] for line in lines] == [
         "invalid",
-        "external",
+        "incomplete",
         "completed",
         "completed",
     ]
@@ -373,7 +387,7 @@ def test_campaign_continue_on_invalid_records_and_moves_on(
 
 def test_campaign_honors_plan_cooldown(plan_path, fake_env) -> None:
     rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
-    assert rc == 0
+    assert rc == 1  # every simulator run clean; the external one is pending
     # smoke-r01's 90 s cooldown, minus the 0 s post-run wait, was slept via
     # the run wiring; the cooldown-less runs added no sleep.
     assert 90.0 in fake_env.sleeps
@@ -388,7 +402,7 @@ def test_campaign_no_cooldown_skips_sleep_and_records_deviation_on_following_run
     plan_path, fake_env
 ) -> None:
     rc = campaign_mod.run_campaign(plan_path, no_cooldown=True, **fake_env.kwargs)
-    assert rc == 0
+    assert rc == 1  # every simulator run clean; the external one is pending
     assert 90.0 not in fake_env.sleeps
     # The deviation lands on the FOLLOWING executed run (smoke-r02; the
     # external entry in between is not executed), not on smoke-r03.
@@ -403,6 +417,230 @@ def test_campaign_no_cooldown_skips_sleep_and_records_deviation_on_following_run
     assert "cooldown_skipped_before_run" not in deviations["smoke-r03"]
     # The deviation is recorded but does not invalidate the run.
     assert _manifest(fake_env.base, "smoke-r02")["validity"] == "valid"
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 2 (report 5.3): the campaign drives the SUT collector itself
+# ---------------------------------------------------------------------------
+
+
+HOOK_SCRIPT = """\
+import sys
+from pathlib import Path
+
+record, label, run_id, duration_s, dest, mode, rc = sys.argv[1:8]
+with Path(record).open("a", encoding="utf-8") as fh:
+    fh.write(label + " " + run_id + " " + duration_s + "\\n")
+if mode == "write":
+    rows = ["ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"]
+    for i in range(40):
+        rows.append(
+            "2026-09-07T10:00:%02dZ,egw-controller,10.0,1024,1.0,sut-vm" % i
+        )
+    Path(dest).write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+sys.exit(int(rc))
+"""
+
+
+def _hook_templates(tmp_path: Path, *, fetch_rc: int = 0):
+    """(record_path, {collector_*_cmd kwargs}) for the three campaign hooks."""
+    script = tmp_path / "collector_hook.py"
+    script.write_text(HOOK_SCRIPT, encoding="utf-8")
+    record = tmp_path / "campaign-hooks.txt"
+    py = Path(sys.executable).as_posix()
+
+    def tpl(label: str, mode: str, rc: int) -> str:
+        return (
+            f'"{py}" "{script.as_posix()}" "{record.as_posix()}" {label} '
+            '{run_id} {duration_s} "{dest}" ' + f"{mode} {rc}"
+        )
+
+    return record, dict(
+        collector_start_cmd=tpl("start", "noop", 0),
+        collector_stop_cmd=tpl("stop", "noop", 0),
+        collector_fetch_cmd=tpl("fetch", "write", fetch_rc),
+    )
+
+
+def test_campaign_drives_the_collector_hooks_per_run(
+    plan_path, fake_env, tmp_path
+) -> None:
+    """A FRESH campaign produces its own resources.csv: the hooks are
+    executed per run, in order, and the fetched CSV goes through the normal
+    validated ingest (report 5.3 — a --resources-from template pointing at a
+    file that must already exist is not end-to-end)."""
+    record, hooks = _hook_templates(tmp_path)
+    kwargs = dict(fake_env.kwargs)
+    kwargs.pop("resources_from")  # nothing pre-fetched exists
+    rc = campaign_mod.run_campaign(
+        plan_path, only_conditions=["smoke_sequence"], **kwargs, **hooks
+    )
+    assert rc == 0
+    labels = [
+        line.split()
+        for line in record.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    # Three hooks per simulator run, in order, each seeing its own run_id.
+    assert [entry[0] for entry in labels] == ["start", "stop", "fetch"] * 3
+    assert [entry[1] for entry in labels[:3]] == ["smoke-r01"] * 3
+    for rid in SIM_RUN_IDS:
+        manifest = _manifest(fake_env.base, rid)
+        assert [h["hook"] for h in manifest["collector_hooks"]] == [
+            "start",
+            "stop",
+            "fetch",
+        ]
+        assert all(h["returncode"] == 0 for h in manifest["collector_hooks"])
+        assert manifest["resource_source"] == "sut-collector"
+        assert manifest["validity"] == "valid"
+        assert (fake_env.base / "raw" / rid / "resources.csv").is_file()
+
+
+def test_campaign_stops_when_a_collector_hook_fails(
+    plan_path, fake_env, tmp_path, capsys
+) -> None:
+    record, hooks = _hook_templates(tmp_path, fetch_rc=4)
+    kwargs = dict(fake_env.kwargs)
+    kwargs.pop("resources_from")
+    rc = campaign_mod.run_campaign(
+        plan_path, only_conditions=["smoke_sequence"], **kwargs, **hooks
+    )
+    assert rc == 1
+    assert _executed_run_ids(fake_env.calls) == ["smoke-r01"]
+    manifest = _manifest(fake_env.base, "smoke-r01")
+    assert manifest["validity"] == "invalid"
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "--collector-fetch-cmd" in reasons
+    assert "exit code 4" in reasons
+    assert "stopping at smoke-r01" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 4 (report 5.4): resume verifies integrity, never only presence
+# ---------------------------------------------------------------------------
+
+
+def test_campaign_resume_verifies_checksums_before_skipping(
+    plan_path, fake_env, capsys
+) -> None:
+    """A sealed+valid run whose evidence was altered after sealing must
+    never be silently skipped and then analysed."""
+    assert campaign_mod.run_campaign(plan_path, **fake_env.kwargs) == 1
+    calls_before = len(fake_env.calls)
+    tampered = fake_env.base / "raw" / "smoke-r02" / "events.jsonl"
+    tampered.write_text('{"outcome": "tampered"}\n', encoding="utf-8")
+    capsys.readouterr()
+
+    rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
+    assert rc == 2
+    # Aborted at the tampered run: nothing re-executed, nothing skipped past.
+    assert len(fake_env.calls) == calls_before
+    err = capsys.readouterr().err
+    assert "smoke-r02" in err
+    assert "SHA256SUMS" in err
+    assert "mismatch: events.jsonl" in err
+    entry = _log_lines(fake_env.base)[-1]
+    assert entry["run_id"] == "smoke-r02"
+    assert entry["outcome"] == "integrity-failed"
+
+
+def test_campaign_resume_integrity_failure_ignores_continue_on_invalid(
+    plan_path, fake_env, capsys
+) -> None:
+    assert campaign_mod.run_campaign(plan_path, **fake_env.kwargs) == 1
+    (fake_env.base / "raw" / "smoke-r01" / "resources.csv").write_text(
+        "tampered\n", encoding="utf-8"
+    )
+    capsys.readouterr()
+    rc = campaign_mod.run_campaign(
+        plan_path, continue_on_invalid=True, **fake_env.kwargs
+    )
+    assert rc == 2
+    assert "mismatch: resources.csv" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 6 (report 5.4): pending external runs make a full campaign
+# INCOMPLETE, never exit 0
+# ---------------------------------------------------------------------------
+
+
+def _ingest_external(plan_path: Path, fake_env, tmp_path: Path) -> None:
+    timings = tmp_path / f"timings-{EXTERNAL_RUN_ID}.json"
+    timings.write_text(
+        json.dumps(
+            {
+                "run_id": EXTERNAL_RUN_ID,
+                "condition": "cold_start",
+                "samples": [
+                    {
+                        "label": EXTERNAL_RUN_ID,
+                        "started_utc": "2026-09-07T10:00:00Z",
+                        "ended_utc": "2026-09-07T10:00:42Z",
+                        "duration_s": 42,
+                    }
+                ],
+                "method": "fixture",
+            }
+        )
+        + "\n",
+        "utf-8",
+    )
+    assert (
+        run_mod.execute_run(
+            plan_path,
+            EXTERNAL_RUN_ID,
+            base_dir=fake_env.base,
+            external_timings=timings,
+        )
+        == 0
+    )
+
+
+def test_full_campaign_with_pending_external_runs_exits_1(
+    plan_path, fake_env, capsys
+) -> None:
+    rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "1 external run(s) still pending" in captured.err
+    assert EXTERNAL_RUN_ID in captured.err
+    assert "--external-timings" in captured.err
+    assert "done: INCOMPLETE" in captured.out
+    # Every simulator run itself was clean: only the missing external
+    # evidence makes the campaign incomplete.
+    for rid in SIM_RUN_IDS:
+        assert _manifest(fake_env.base, rid)["validity"] == "valid"
+
+
+def test_filtered_campaign_may_exit_0_while_stating_what_remains(
+    plan_path, fake_env, capsys
+) -> None:
+    rc = campaign_mod.run_campaign(
+        plan_path, only_conditions=["smoke_sequence"], **fake_env.kwargs
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "done: clean" in out
+    # The external condition was filtered out, so it is not even visited.
+    assert EXTERNAL_RUN_ID not in [
+        line["run_id"] for line in _log_lines(fake_env.base)
+    ]
+
+
+def test_campaign_is_clean_once_the_external_evidence_is_ingested(
+    plan_path, fake_env, tmp_path, capsys
+) -> None:
+    assert campaign_mod.run_campaign(plan_path, **fake_env.kwargs) == 1
+    _ingest_external(plan_path, fake_env, tmp_path)
+    capsys.readouterr()
+
+    rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
+    assert rc == 0
+    outcomes = [line["outcome"] for line in _log_lines(fake_env.base)[-4:]]
+    assert outcomes == ["skipped", "skipped", "skipped", "skipped"]
+    assert "done: clean" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

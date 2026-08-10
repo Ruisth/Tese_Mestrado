@@ -12,14 +12,28 @@ Behaviour:
 
 - resumability: a run whose raw directory is already sealed (SHA256SUMS
   present) AND valid is skipped with a log line — re-running the campaign
-  after an interruption continues where it stopped;
+  after an interruption continues where it stopped. Before skipping, the
+  directory's SHA256SUMS is VERIFIED (sprint P5, report 5.4 "Integridade
+  não é verificada no resume"): evidence altered after sealing must never
+  be silently skipped and later analysed, so a mismatch ABORTS the
+  campaign (exit 2) naming the run and the offending file;
 - an existing run directory that is NOT sealed-and-valid blocks the
   campaign (outcome ``blocked``): an unsealed dir needs the ``collect``
   recovery, a sealed-but-invalid dir needs a NEW versioned run_id;
 - external conditions (qemu_boots, cold_start, twin_creation) are NOT
   executed: a checklist line tells the operator what to produce (an
   operator ``timings.json`` ingested via ``run --external-timings``) and
-  the campaign continues;
+  the campaign continues — but a FULL campaign (no ``--only-conditions``
+  filter) that ends with external evidence still missing is INCOMPLETE:
+  each pending run is logged with outcome ``incomplete`` and the campaign
+  exits 1 with a summary (sprint P5, report 5.4 "Condições externas não
+  impedem exit 0"). A filtered campaign may still exit 0 while stating
+  what remains;
+- SUT collector hooks: ``--collector-start-cmd`` (before the warm-up),
+  ``--collector-stop-cmd`` (after the measured run) and
+  ``--collector-fetch-cmd`` (after the confirmation window) are passed
+  through per run, so a fresh campaign produces its own resources.csv
+  instead of requiring a pre-fetched one (sprint P5, report 5.3);
 - cooldowns: the plan's ``cooldown_s`` is honored by the run wiring itself
   (``execute_run`` sleeps the remaining cooldown after the confirmation
   window). ``--no-cooldown`` suppresses it and records a protocol
@@ -35,8 +49,9 @@ Behaviour:
   without executing anything and without writing the campaign log.
 
 Exit codes: 0 = everything done and clean; 1 = stopped on (or, with
-``--continue-on-invalid``, finished with) an invalid/failed/blocked run;
-2 = usage or plan errors.
+``--continue-on-invalid``, finished with) an invalid/failed/blocked run,
+or a full campaign left incomplete by pending external runs; 2 = usage or
+plan errors, or a sealed run directory that fails integrity verification.
 
 A per-run resources file may be templated like the fetch command:
 ``--resources-from 'fetched/resources-{run_id}.csv'`` substitutes
@@ -50,6 +65,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .checksums import SUMS_FILENAME, verify_sha256sums
 from .environment import utc_now_iso
 from .plan_gen import load_campaign_plan
 from .run import (
@@ -99,16 +115,31 @@ def _external_checklist(run_id: str, condition: str) -> str:
 def _classify(entry: dict[str, Any], base: Path) -> tuple[str, str]:
     """Decide what the campaign does with one plan entry.
 
-    Returns (action, note) with action one of ``skip`` (sealed AND valid:
-    resume), ``blocked`` (directory exists but is not sealed-and-valid),
-    ``external`` (operator-measured condition) or ``run``.
+    Returns (action, note) with action one of ``skip`` (sealed, valid AND
+    integrity-verified: resume), ``integrity`` (sealed and valid but the
+    checksums no longer verify), ``blocked`` (directory exists but is not
+    sealed-and-valid), ``external`` (operator-measured condition) or
+    ``run``.
     """
     run_id = str(entry.get("run_id"))
     run_dir = base / "raw" / run_id
     sealed = run_dir_is_sealed(run_dir)
     validity = _read_manifest_validity(run_dir)
     if sealed and validity == "valid":
-        return "skip", "already sealed and valid; skipped (resume)"
+        # Resume integrity (sprint P5, report 5.4): presence of SHA256SUMS
+        # and validity 'valid' is not enough — a directory altered after
+        # sealing must never be silently skipped and then analysed.
+        problems = verify_sha256sums(run_dir)
+        if problems:
+            return (
+                "integrity",
+                f"sealed run directory {run_dir} FAILS {SUMS_FILENAME} "
+                "verification: " + "; ".join(problems),
+            )
+        return (
+            "skip",
+            "already sealed, valid and integrity-verified; skipped (resume)",
+        )
     if run_dir.exists():
         if sealed:
             return (
@@ -155,10 +186,14 @@ def run_campaign(
     controller_url: str | None = None,
     restart_cmd: str | None = None,
     restart_at_s: float | None = None,
+    collector_start_cmd: str | None = None,
+    collector_stop_cmd: str | None = None,
+    collector_fetch_cmd: str | None = None,
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
     allow_warmup_failure: bool = False,
     allow_protocol_deviation: bool = False,
+    allow_missing_controller_marker: bool = False,
 ) -> int:
     """Execute the frozen campaign plan in order. Returns an exit code."""
     plan_path = Path(plan_path)
@@ -236,6 +271,10 @@ def run_campaign(
 
     log_path = base / CAMPAIGN_LOG_FILENAME
     any_bad = False
+    # External conditions still missing their operator evidence. A FULL
+    # campaign that ends with any of these is INCOMPLETE, never clean
+    # (sprint P5, report 5.4).
+    pending_external: list[str] = []
     # Deviation owed to the NEXT executed run after a --no-cooldown skip
     # (the cooldown protects the run that FOLLOWS it).
     pending_deviation: list[dict[str, Any]] | None = None
@@ -263,9 +302,10 @@ def run_campaign(
             )
             continue
 
-        if action == "external":
+        if action == "integrity":
             print(
-                f"[campaign] EXTERNAL {run_id}: not executed - {note}",
+                f"[campaign] INTEGRITY FAILURE {run_id}: {note}",
+                file=sys.stderr,
                 flush=True,
             )
             now = utc_now_iso()
@@ -276,7 +316,39 @@ def run_campaign(
                     "condition": condition,
                     "started_utc": now,
                     "finished_utc": now,
-                    "outcome": "external",
+                    "outcome": "integrity-failed",
+                    "validity": _read_manifest_validity(run_dir),
+                    "note": note,
+                },
+            )
+            print(
+                f"[campaign] aborting at {run_id}: sealed raw evidence was "
+                "altered after sealing. The campaign never silently skips "
+                "or re-runs a tampered run directory; investigate it, "
+                "document the exclusion and repeat the run under a NEW "
+                "versioned run_id.",
+                file=sys.stderr,
+            )
+            return 2
+
+        if action == "external":
+            # Not executed here; still PENDING until its timings.json is
+            # ingested (then the directory is sealed and it is 'skipped').
+            pending_external.append(run_id)
+            print(
+                f"[campaign] INCOMPLETE {run_id}: external condition not "
+                f"executed - {note}",
+                flush=True,
+            )
+            now = utc_now_iso()
+            _append_log(
+                log_path,
+                {
+                    "run_id": run_id,
+                    "condition": condition,
+                    "started_utc": now,
+                    "finished_utc": now,
+                    "outcome": "incomplete",
                     "validity": None,
                     "note": note,
                 },
@@ -333,10 +405,14 @@ def run_campaign(
                 if resources_from
                 else None
             ),
+            collector_start_cmd=collector_start_cmd,
+            collector_stop_cmd=collector_stop_cmd,
+            collector_fetch_cmd=collector_fetch_cmd,
             allow_missing_sut_env=allow_missing_sut_env,
             allow_missing_resources=allow_missing_resources,
             allow_warmup_failure=allow_warmup_failure,
             allow_protocol_deviation=allow_protocol_deviation,
+            allow_missing_controller_marker=allow_missing_controller_marker,
             controller_url=controller_url,
             restart_cmd=(
                 restart_cmd if condition == RESTART_CONDITION_ID else None
@@ -407,10 +483,35 @@ def run_campaign(
                 )
                 return 1
 
-    print(
-        "[campaign] done: "
-        + ("clean" if not any_bad else "finished WITH invalid/failed runs")
-        + f"; log: {log_path}",
-        flush=True,
-    )
-    return 1 if any_bad else 0
+    # Pending external evidence (sprint P5, report 5.4). A FULL campaign
+    # cannot be "clean" while QEMU boots, cold starts or twin creations are
+    # still unmeasured; a FILTERED campaign (--only-conditions) legitimately
+    # covers a subset and only states what remains.
+    incomplete = bool(pending_external) and not only_conditions
+    if pending_external:
+        print(
+            f"[campaign] {len(pending_external)} external run(s) still "
+            "pending (evidence not ingested): "
+            + ", ".join(pending_external),
+            file=sys.stderr if incomplete else None,
+            flush=True,
+        )
+        print(
+            "[campaign] produce each timings.json with the deployment/"
+            "platform procedure and ingest it with: python -m "
+            "egw_experiments run --run-id <run_id> --external-timings "
+            "<timings.json>",
+            file=sys.stderr if incomplete else None,
+            flush=True,
+        )
+    status = "clean"
+    if any_bad:
+        status = "finished WITH invalid/failed runs"
+    if incomplete:
+        status = (
+            "INCOMPLETE"
+            if not any_bad
+            else "INCOMPLETE and finished WITH invalid/failed runs"
+        )
+    print(f"[campaign] done: {status}; log: {log_path}", flush=True)
+    return 1 if (any_bad or incomplete) else 0

@@ -116,12 +116,46 @@ rate.
 
 Clock-domain note (CONTRACTS v1.1): because the harness runs off the ARM
 VM, its ``time.monotonic_ns()`` values are NOT comparable with the
-controller's (monotonic clocks are per-host). The manifest's
-``confirmation_deadline_monotonic_ns`` is therefore informational only
-(``confirmation_deadline_clock_domain: "harness-host"``); the analysis
-derives the effective deadline in the controller's clock domain from the
-run's own events (max ``received_monotonic_ns`` plus
-``confirmation_window_s``).
+controller's (monotonic clocks are per-host). The confirmation deadline is
+therefore anchored on a CONTROLLER-side marker (sprint P5, report 5.2):
+immediately after the measured simulator process exits and BEFORE the
+confirmation window, the runner polls ``GET {controller_url}/metrics`` with
+a plain stdlib request and records
+
+- ``controller_monotonic_at_run_end_ns`` — the controller's own
+  ``monotonic_ns`` at that instant;
+- ``confirmation_deadline_monotonic_ns`` — that value plus the UNCHANGED
+  60 s window;
+- ``confirmation_deadline_clock_domain: "controller"``.
+
+Anchoring the deadline this way makes it independent of the events it
+judges (deriving it from ``max(received_monotonic_ns)`` is circular: a very
+late message becomes the new maximum and pushes its own deadline 60 s
+further out). The 60 s window value itself never changes. When the
+controller cannot be polled the two fields are null, the clock domain is
+``"unavailable"``, a ``confirmation_marker_unavailable`` deviation is
+recorded, and the timed run is INVALID unless
+``--allow-missing-controller-marker`` authorizes it.
+
+SUT collector hooks (sprint P5, report 5.3) make ``run`` — and hence the
+``campaign`` batch runner, which drives this same function — end-to-end:
+``--collector-start-cmd`` runs BEFORE the warm-up, ``--collector-stop-cmd``
+AFTER the measured run and before the confirmation window, and
+``--collector-fetch-cmd`` AFTER the confirmation window, producing the
+local CSV that then goes through the EXISTING validated ingest path. The
+templates accept ``{run_id}``, ``{duration_s}`` (warm-up + measured window
++ confirmation window + margin) and ``{dest}``. Every hook's command, exit
+code and start/end timestamps are recorded in the manifest
+(``collector_hooks``); a hook exiting non-zero makes the run INVALID with a
+reason naming the flag — never a silent warning.
+
+Mandatory artefacts (sprint P5, report 5.4): each condition kind declares
+the evidence a completed run MUST carry (simulator: manifest.json,
+sent_events.jsonl, events.jsonl, resources.csv, plus
+controller_metrics.csv where ``/metrics`` sampling is mandated
+instrumentation; external: manifest.json + timings.json). A missing
+mandatory artefact marks the run invalid AND withholds SHA256SUMS: an
+incomplete run must never look like sealed evidence.
 """
 
 from __future__ import annotations
@@ -135,6 +169,8 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -183,9 +219,65 @@ FETCH_TIMEOUT_S = 300.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.3 (sprint P5): adds 'collector_hooks', 'controller_marker',
+# 'controller_monotonic_at_run_end_ns', 'missing_mandatory_artifacts',
+# 'allow_missing_controller_marker'; 'confirmation_deadline_monotonic_ns'
+# moves to the CONTROLLER clock domain (or null when unavailable).
 # 1.2 (work order P1): adds 'deviations', 'sut_environment_missing_fields',
 # 'allow_warmup_failure', 'allow_protocol_deviation'; hardens validity.
-MANIFEST_VERSION = "1.2"
+MANIFEST_VERSION = "1.3"
+
+MANIFEST_FILENAME = "manifest.json"
+
+# Timeout of the confirmation-marker poll (sprint P5, report 5.2). Short by
+# design: it runs between the measured run and the confirmation window, and a
+# controller that does not answer within it is recorded as unavailable rather
+# than delaying the protocol timing.
+CONTROLLER_MARKER_TIMEOUT_S = 5.0
+
+#: Mandatory evidence per condition kind (sprint P5, report 5.4
+#: "sent_events.jsonl ausente pode produzir run selado"). A missing mandatory
+#: artefact makes the run INVALID and WITHHOLDS SHA256SUMS: an incomplete run
+#: directory must never look like sealed evidence. ``manifest.json`` is part
+#: of the declared set but is written unconditionally right after the check,
+#: so it is never probed on disk.
+SIMULATOR_MANDATORY_ARTIFACTS: tuple[str, ...] = (
+    MANIFEST_FILENAME,
+    "sent_events.jsonl",
+    "events.jsonl",
+    "resources.csv",
+)
+EXTERNAL_MANDATORY_ARTIFACTS: tuple[str, ...] = (MANIFEST_FILENAME, "timings.json")
+
+#: Conditions for which GET /metrics sampling is MANDATED instrumentation
+#: (protocol.py, "Controller-metrics reconciliation": dropout_reconnect,
+#: load_sweep and soak). For these, ``controller_metrics.csv`` joins the
+#: mandatory artefact set — the analysis fails their acceptance criteria
+#: without it, so a run lacking it is incomplete, not merely degraded.
+METRICS_MANDATORY_CONDITION_IDS: frozenset[str] = frozenset(
+    {"dropout_reconnect", "load_sweep", "soak"}
+)
+
+#: Collector hook labels in execution order, with the CLI flag that
+#: configures each (sprint P5, report 5.3).
+COLLECTOR_HOOK_FLAGS: dict[str, str] = {
+    "start": "--collector-start-cmd",
+    "stop": "--collector-stop-cmd",
+    "fetch": "--collector-fetch-cmd",
+}
+
+#: Extra seconds added to the {duration_s} placeholder handed to the collector
+#: hooks, on top of warm-up + measured run + confirmation window. The stop
+#: hook ends the collector anyway; the margin only prevents a self-terminating
+#: collector (``collect-resources.sh --duration``) from dying early because
+#: the harness lost a few seconds to subprocess start-up.
+COLLECTOR_DURATION_MARGIN_S = 60
+
+#: Sub-directory of the run's logs/ holding the raw artefact produced by the
+#: --collector-fetch-cmd hook, BEFORE it passes the ingest validation. Keeping
+#: it means a rejected collector file is still inspectable next to the run it
+#: belongs to (the validated copy lands at <run_dir>/resources.csv).
+COLLECTOR_FETCH_SUBDIR = "collector"
 
 #: Conditions on which --skip-warmup invalidates the run unless explicitly
 #: authorized with --allow-protocol-deviation (work order P1 fix 5). These
@@ -487,6 +579,234 @@ def collect_events(
 
 
 # ---------------------------------------------------------------------------
+# Confirmation marker in the CONTROLLER's clock domain (sprint P5, report 5.2)
+# ---------------------------------------------------------------------------
+
+
+def _http_get_json(url: str, timeout_s: float) -> Any:
+    """One plain stdlib HTTP GET returning the parsed JSON body.
+
+    Deliberately ``urllib`` only: the harness core is standard-library
+    only, and this single request must never pull an HTTP client into the
+    dependency set. Raises on any network/HTTP/JSON failure; callers record
+    the failure instead of propagating it.
+    """
+    with urllib.request.urlopen(url, timeout=timeout_s) as resp:
+        body = resp.read()
+    return json.loads(body.decode("utf-8"))
+
+
+def poll_controller_marker(
+    controller_url: str | None,
+    *,
+    timeout_s: float = CONTROLLER_MARKER_TIMEOUT_S,
+) -> dict[str, Any]:
+    """Read the controller's confirmation marker right after the run ends.
+
+    The controller's ``GET /metrics`` carries (CONTRACTS, sprint P5) an
+    additive ``monotonic_ns`` field — ``time.monotonic_ns()`` in the
+    CONTROLLER's clock domain at request handling — plus an RFC 3339
+    ``wall_utc``. Anchoring the 60 s confirmation deadline on that value
+    makes the deadline independent of the events themselves (report 5.2:
+    deriving it from ``max(received_monotonic_ns)`` is circular, because a
+    very late message becomes the new maximum and pushes its own deadline).
+
+    The 60 s window itself is NOT touched here; only the instrumentation
+    that fixes the END INSTANT is.
+
+    Returns ``{url, polled_utc, ok, monotonic_ns, wall_utc, error}``; never
+    raises — an unreachable or too-old controller is recorded, and the
+    caller applies the validity rules.
+    """
+    record: dict[str, Any] = {
+        "url": None,
+        "polled_utc": None,
+        "ok": False,
+        "monotonic_ns": None,
+        "wall_utc": None,
+        "error": None,
+    }
+    if not controller_url:
+        record["error"] = (
+            "no --controller-url configured: the confirmation deadline "
+            "cannot be anchored in the controller's clock domain"
+        )
+        return record
+    url = str(controller_url).rstrip("/") + "/metrics"
+    record["url"] = url
+    record["polled_utc"] = utc_now_iso()
+    try:
+        payload = _http_get_json(url, timeout_s)
+    except (OSError, ValueError) as exc:
+        record["error"] = f"GET {url} failed: {exc}"
+        return record
+    if not isinstance(payload, dict):
+        record["error"] = f"GET {url} did not return a JSON object"
+        return record
+    monotonic_ns = payload.get("monotonic_ns")
+    if isinstance(monotonic_ns, bool) or not isinstance(monotonic_ns, int):
+        record["error"] = (
+            f"GET {url} response carries no integer 'monotonic_ns' field: "
+            "this controller predates the confirmation-marker contract, so "
+            "the deadline cannot be anchored in its clock domain"
+        )
+        return record
+    wall_utc = payload.get("wall_utc")
+    record["monotonic_ns"] = monotonic_ns
+    record["wall_utc"] = wall_utc if isinstance(wall_utc, str) else None
+    record["ok"] = True
+    return record
+
+
+# ---------------------------------------------------------------------------
+# SUT collector hooks (sprint P5, report 5.3: 'campaign' must be end-to-end)
+# ---------------------------------------------------------------------------
+
+
+def format_collector_template(
+    template: str, run_id: str, *, duration_s: int, dest: str | Path
+) -> str:
+    """Substitute ``{run_id}``, ``{dest}`` and ``{duration_s}`` literally.
+
+    Same plain-replacement rule as :func:`format_cmd_template` (any other
+    brace construct in the operator's command survives untouched);
+    ``{dest}`` is always rendered with forward slashes so POSIX splitting
+    never eats Windows backslashes.
+    """
+    out = format_cmd_template(template, run_id, Path(dest).as_posix())
+    return out.replace("{duration_s}", str(duration_s))
+
+
+def execute_collector_hook(
+    hook: str,
+    template: str,
+    run_id: str,
+    *,
+    duration_s: int,
+    dest: str | Path,
+    timeout_s: float = FETCH_TIMEOUT_S,
+) -> dict[str, Any]:
+    """Execute one collector hook and return its manifest record.
+
+    The record is ``{hook, flag, template, command, started_utc,
+    finished_utc, returncode}`` (plus ``stderr_tail``/``error`` when
+    applicable). A non-zero (or absent) return code is NEVER a silent
+    warning: the caller turns it into a validity reason naming the hook.
+    """
+    cmd_str = format_collector_template(
+        template, run_id, duration_s=duration_s, dest=dest
+    )
+    record: dict[str, Any] = {
+        "hook": hook,
+        "flag": COLLECTOR_HOOK_FLAGS[hook],
+        "template": template,
+        "command": cmd_str,
+        "started_utc": utc_now_iso(),
+        "returncode": None,
+    }
+    try:
+        proc = subprocess.run(
+            shlex.split(cmd_str, posix=True),
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+        record["returncode"] = proc.returncode
+        stderr_tail = (proc.stderr or "").strip()
+        if stderr_tail:
+            record["stderr_tail"] = stderr_tail[-500:]
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        record["error"] = str(exc)
+    record["finished_utc"] = utc_now_iso()
+    return record
+
+
+def collector_hook_failures(
+    collector_hooks: list[dict[str, Any]] | None,
+) -> list[str]:
+    """Human-readable failure reasons for the hooks that did not exit 0."""
+    reasons: list[str] = []
+    for record in collector_hooks or []:
+        if record.get("returncode") == 0:
+            continue
+        flag = record.get("flag") or COLLECTOR_HOOK_FLAGS.get(
+            str(record.get("hook")), "collector hook"
+        )
+        detail = record.get("error")
+        reasons.append(
+            f"collector hook {flag} failed with exit code "
+            f"{record.get('returncode')}"
+            + (f" ({detail})" if detail else "")
+            + ": the SUT resource collector was not driven as the protocol "
+            "prescribes, so this run's CPU/RAM evidence cannot be trusted"
+        )
+    return reasons
+
+
+# ---------------------------------------------------------------------------
+# Mandatory artefacts per condition kind (sprint P5, report 5.4)
+# ---------------------------------------------------------------------------
+
+
+def mandatory_artifacts(
+    condition_id: str | None,
+    *,
+    runner: str = "simulator",
+    allow_missing_resources: bool = False,
+) -> list[str]:
+    """The evidence files a completed run of this kind MUST carry.
+
+    Simulator conditions: manifest.json, sent_events.jsonl, events.jsonl,
+    resources.csv — plus controller_metrics.csv on the conditions where
+    ``GET /metrics`` sampling is mandated instrumentation
+    (:data:`METRICS_MANDATORY_CONDITION_IDS`). External conditions:
+    manifest.json plus the ingested timings file.
+
+    ``--allow-missing-resources`` drops resources.csv from the set: an
+    absence explicitly authorized (and recorded as a deviation) is a
+    documented decision, not an incomplete run.
+    """
+    if runner != "simulator":
+        return list(EXTERNAL_MANDATORY_ARTIFACTS)
+    names = [
+        name
+        for name in SIMULATOR_MANDATORY_ARTIFACTS
+        if not (name == "resources.csv" and allow_missing_resources)
+    ]
+    if condition_id in METRICS_MANDATORY_CONDITION_IDS:
+        names.append("controller_metrics.csv")
+    return names
+
+
+def missing_mandatory_artifacts(
+    run_dir: str | Path,
+    condition_id: str | None,
+    *,
+    runner: str = "simulator",
+    allow_missing_resources: bool = False,
+) -> list[str]:
+    """Mandatory artefacts absent from ``run_dir`` (report 5.4).
+
+    ``manifest.json`` is skipped: it is written unconditionally by the
+    caller immediately after this check, so probing it here would always
+    report it missing.
+    """
+    run_dir = Path(run_dir)
+    missing: list[str] = []
+    for name in mandatory_artifacts(
+        condition_id,
+        runner=runner,
+        allow_missing_resources=allow_missing_resources,
+    ):
+        if name == MANIFEST_FILENAME:
+            continue
+        if not (run_dir / name).is_file():
+            missing.append(name)
+    return missing
+
+
+# ---------------------------------------------------------------------------
 # SUT environment / resources ingestion (audit 9.1/9.2)
 # ---------------------------------------------------------------------------
 
@@ -513,7 +833,11 @@ def ingest_sut_environment(
 
 
 def ingest_resources(
-    run_dir: Path, resources_from: str | Path | None, warnings: list[str]
+    run_dir: Path,
+    resources_from: str | Path | None,
+    warnings: list[str],
+    *,
+    expected_window_s: float | None = None,
 ) -> bool:
     """Validate and copy the fetched SUT resources.csv into the run dir.
 
@@ -522,9 +846,14 @@ def ingest_resources(
     exact 6-column header including ``host`` provenance, at least
     MIN_RESOURCE_SAMPLES data rows, and — when the run dir already holds a
     sut_environment.json with a node/hostname — every distinct ``host``
-    value must equal it. Any problem rejects the ingest with a clear
-    warning and the run's resources are treated as missing (the validity
-    rules then apply). Returns True only on a successful, validated copy.
+    value must equal it. Sprint P5 (report 5.4) adds the SEMANTIC checks:
+    parseable RFC 3339 timestamps, non-decreasing time, numeric cpu/mem
+    fields, per-row column completeness, a minimum number of DISTINCT
+    sample instants and — when ``expected_window_s`` is given (the run's
+    measured window) — a span consistent with it. Any problem rejects the
+    ingest with a clear warning and the run's resources are treated as
+    missing (the validity rules then apply). Returns True only on a
+    successful, validated copy.
     An existing ``resources.csv`` is never overwritten with different
     content (raises :class:`SealedRunError`); an identical re-copy is a
     no-op (work order P1 item 11).
@@ -536,7 +865,9 @@ def ingest_resources(
         warnings.append(f"--resources-from file not found: {src}")
         return False
     expected_host = sut_env_node(read_sut_environment(run_dir))
-    problems = validate_resources_csv(src, expected_host=expected_host)
+    problems = validate_resources_csv(
+        src, expected_host=expected_host, expected_window_s=expected_window_s
+    )
     if problems:
         warnings.append(
             f"--resources-from {src} REJECTED (SUT resources treated as "
@@ -568,6 +899,10 @@ def compute_validity(
     skip_warmup: bool = False,
     condition_id: str | None = None,
     allow_protocol_deviation: bool = False,
+    confirmation_marker_ok: bool = True,
+    allow_missing_controller_marker: bool = False,
+    collector_hooks: list[dict[str, Any]] | None = None,
+    missing_artifacts: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -590,6 +925,17 @@ def compute_validity(
       --allow-warmup-failure (recorded as a deviation);
     - --skip-warmup on the SKIP_WARMUP_STRICT_CONDITIONS invalidates the
       run unless --allow-protocol-deviation (recorded as a deviation).
+
+    Sprint P5 hardening:
+
+    - the confirmation deadline must be anchored in the CONTROLLER's clock
+      domain (``confirmation_marker_ok``, report 5.2): without the marker
+      the 60 s window cannot be verified, so the run is invalid unless
+      --allow-missing-controller-marker (recorded as a deviation);
+    - every configured collector hook must exit 0 (report 5.3): a failed
+      start/stop/fetch hook is never a silent warning;
+    - the mandatory artefacts of the condition kind must be present
+      (report 5.4): a run missing one is INVALID and is not sealed.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -662,6 +1008,27 @@ def compute_validity(
                 "warm-up/cooldown structure; override only with "
                 "--allow-protocol-deviation (records a protocol deviation)"
             )
+        if not confirmation_marker_ok and not allow_missing_controller_marker:
+            reasons.append(
+                "no controller confirmation marker: the run end was not "
+                "stamped in the controller's clock domain (GET /metrics "
+                "'monotonic_ns' via --controller-url), so the "
+                f"{CONFIRMATION_WINDOW_S} s confirmation deadline cannot be "
+                "verified independently of the events themselves (report "
+                "5.2); override only with --allow-missing-controller-marker "
+                "(records a protocol deviation and leaves the analysis on "
+                "the legacy event-derived deadline)"
+            )
+        reasons.extend(collector_hook_failures(collector_hooks))
+    if missing_artifacts:
+        reasons.append(
+            "mandatory artefact(s) missing from the run directory: "
+            + ", ".join(missing_artifacts)
+            + " — the run is incomplete for its condition kind, so it is "
+            "marked invalid and NOT sealed (no SHA256SUMS); recover the "
+            "missing evidence with 'collect' or repeat the run under a new "
+            "run identity"
+        )
     return ("valid" if not reasons else "invalid"), reasons
 
 
@@ -943,6 +1310,23 @@ def execute_external_run(
     if not image_digests:
         warnings.append(f"images.lock.env missing or empty at {IMAGES_LOCK_PATH}")
 
+    # Mandatory artefacts of an external run (sprint P5, report 5.4):
+    # manifest.json plus the ingested timings file. Both are produced above
+    # by construction; the check guards against a failed copy leaving a
+    # directory that would otherwise be sealed as if it were complete.
+    missing_artifacts = missing_mandatory_artifacts(
+        run_dir, condition_id, runner="external"
+    )
+    external_reasons = (
+        [
+            "mandatory artefact(s) missing from the run directory: "
+            + ", ".join(missing_artifacts)
+            + " — an incomplete external run is never sealed"
+        ]
+        if missing_artifacts
+        else []
+    )
+
     manifest: dict[str, Any] = {
         "manifest_version": MANIFEST_VERSION,
         "protocol_version": PROTOCOL_VERSION,
@@ -967,16 +1351,29 @@ def execute_external_run(
         # External runs are operator-measured; the timed-run SUT
         # env/resource requirements do not apply (audit 9.6). The SUT
         # environment is still recommended for cold_start/twin_creation.
-        "validity": "valid",
-        "validity_reasons": [],
+        "validity": "invalid" if external_reasons else "valid",
+        "validity_reasons": external_reasons,
+        "missing_mandatory_artifacts": missing_artifacts,
         "exclusion": None,
         "warnings": warnings,
     }
-    (run_dir / "manifest.json").write_text(
+    (run_dir / MANIFEST_FILENAME).write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    # Collection succeeded by construction (the timings file is the
-    # evidence), so SHA256SUMS is written now.
+    if missing_artifacts:
+        for reason in external_reasons:
+            print(f"[harness] INVALID: {reason}", file=sys.stderr, flush=True)
+        update_plan_status(
+            plan_path,
+            run_id,
+            "failed",
+            result_dir=str(run_dir),
+            finished_utc=manifest["ingested_utc"],
+            validity="invalid",
+        )
+        return 1
+    # Collection succeeded (the timings file is the evidence), so
+    # SHA256SUMS is written now.
     write_sha256sums(run_dir)
     update_plan_status(
         plan_path,
@@ -1020,9 +1417,13 @@ def execute_run(
     allow_missing_resources: bool = False,
     allow_warmup_failure: bool = False,
     allow_protocol_deviation: bool = False,
+    allow_missing_controller_marker: bool = False,
     controller_url: str | None = None,
     restart_cmd: str | None = None,
     restart_at_s: float | None = None,
+    collector_start_cmd: str | None = None,
+    collector_stop_cmd: str | None = None,
+    collector_fetch_cmd: str | None = None,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
@@ -1035,6 +1436,15 @@ def execute_run(
     this run — in this run's manifest; entries are {kind, detail,
     authorized_by_flag} and are deduplicated by kind like every other
     deviation.
+
+    The optional collector hooks (sprint P5, report 5.3) make a single run
+    — and therefore the campaign batch runner, which uses this same code
+    path — end-to-end: ``collector_start_cmd`` runs BEFORE the warm-up,
+    ``collector_stop_cmd`` AFTER the measured run and before the
+    confirmation window, ``collector_fetch_cmd`` AFTER the confirmation
+    window, producing the local resources.csv that then goes through the
+    EXISTING validated ingest path. Each template accepts the ``{run_id}``,
+    ``{duration_s}`` and ``{dest}`` placeholders.
     """
     plan_path = Path(plan_path)
     try:
@@ -1085,9 +1495,18 @@ def execute_run(
             file=sys.stderr,
         )
         return 2
-    if resources_from is not None and local_resources:
+    resource_inputs = [
+        flag
+        for flag, configured in (
+            ("--resources-from", resources_from is not None),
+            ("--collector-fetch-cmd", collector_fetch_cmd is not None),
+            ("--local-resources", local_resources),
+        )
+        if configured
+    ]
+    if len(resource_inputs) > 1:
         print(
-            "error: --resources-from and --local-resources are mutually "
+            "error: " + " and ".join(resource_inputs) + " are mutually "
             "exclusive (the manifest records exactly one resource_source).",
             file=sys.stderr,
         )
@@ -1184,8 +1603,8 @@ def execute_run(
         }
 
     # Resource sampling: SUT collector output is ingested AFTER the run
-    # (--resources-from); the local sampler measures THIS host and is a
-    # dev-only opt-in (audit 9.1).
+    # (--resources-from or the --collector-fetch-cmd hook); the local
+    # sampler measures THIS host and is a dev-only opt-in (audit 9.1).
     local_sampler = (
         ResourceSampler(run_dir / "resources.csv") if local_resources else None
     )
@@ -1194,6 +1613,49 @@ def execute_run(
         if controller_url
         else None
     )
+
+    # SUT collector hooks (sprint P5, report 5.3). The collector must cover
+    # the whole protocol structure of this run: warm-up + measured window +
+    # confirmation window (plus a start-up margin), which is what the
+    # {duration_s} placeholder carries to a self-terminating collector.
+    collector_hooks: list[dict[str, Any]] = []
+    collector_window_s = (
+        (0 if skip_warmup else warmup_s)
+        + duration_s
+        + int(post_run_wait_s)
+        + COLLECTOR_DURATION_MARGIN_S
+    )
+    collector_dest = (
+        logs_dir / COLLECTOR_FETCH_SUBDIR / f"resources-{run_id}.csv"
+    )
+
+    def _run_collector_hook(hook: str, template: str | None) -> None:
+        if not template:
+            return
+        print(
+            f"[harness] collector hook {COLLECTOR_HOOK_FLAGS[hook]}",
+            flush=True,
+        )
+        record = execute_collector_hook(
+            hook,
+            template,
+            run_id,
+            duration_s=collector_window_s,
+            dest=collector_dest,
+        )
+        collector_hooks.append(record)
+        if record.get("returncode") != 0:
+            print(
+                f"[harness] collector hook {COLLECTOR_HOOK_FLAGS[hook]} "
+                f"FAILED (exit {record.get('returncode')})",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    if collector_start_cmd or collector_fetch_cmd:
+        collector_dest.parent.mkdir(parents=True, exist_ok=True)
+    # Started BEFORE the warm-up so the collector covers the whole run.
+    _run_collector_hook("start", collector_start_cmd)
 
     try:
         if local_sampler is not None:
@@ -1287,6 +1749,32 @@ def execute_run(
     if sim_returncode != 0:
         warnings.append(f"simulator exited with code {sim_returncode}")
 
+    # Confirmation marker (sprint P5, report 5.2): stamp the run end in the
+    # CONTROLLER's clock domain, IMMEDIATELY after the measured simulator
+    # process exits and BEFORE the confirmation window, so the 60 s deadline
+    # is anchored on an event-INDEPENDENT instant. The 60 s value itself is
+    # unchanged; only the instrumentation fixing the end instant is new.
+    controller_marker = poll_controller_marker(controller_url)
+    if controller_marker["ok"]:
+        controller_monotonic_at_run_end_ns = int(controller_marker["monotonic_ns"])
+        confirmation_deadline_monotonic_ns: int | None = (
+            controller_monotonic_at_run_end_ns
+            + CONFIRMATION_WINDOW_S * 1_000_000_000
+        )
+        confirmation_deadline_clock_domain = "controller"
+    else:
+        controller_monotonic_at_run_end_ns = None
+        confirmation_deadline_monotonic_ns = None
+        confirmation_deadline_clock_domain = "unavailable"
+        warnings.append(
+            "controller confirmation marker unavailable: "
+            f"{controller_marker['error']}"
+        )
+
+    # Collector stop hook: AFTER the measured run, BEFORE the confirmation
+    # window (the collector must not keep sampling the idle system).
+    _run_collector_hook("stop", collector_stop_cmd)
+
     # Confirmation window (plan 7.3): confirmations arriving up to 60 s after
     # the end of the run still count; wait before collecting the event log.
     if post_run_wait_s > 0:
@@ -1295,6 +1783,18 @@ def execute_run(
             flush=True,
         )
         time.sleep(post_run_wait_s)
+
+    # Collector fetch hook: AFTER the confirmation window, producing the
+    # local CSV that goes through the EXISTING validated ingest path below.
+    _run_collector_hook("fetch", collector_fetch_cmd)
+    resources_ingest_from: str | Path | None = resources_from
+    if collector_fetch_cmd:
+        if collector_dest.is_file():
+            resources_ingest_from = collector_dest
+        else:
+            warnings.append(
+                f"--collector-fetch-cmd produced no file at {collector_dest}"
+            )
 
     # Simulator outputs: sent_events.jsonl to the run root (the analysis
     # joins on it); the simulator's own manifest stays where the simulator
@@ -1327,8 +1827,17 @@ def execute_run(
             flush=True,
         )
 
-    # SUT resources ingestion (audit 9.1).
-    if ingest_resources(run_dir, resources_from, warnings):
+    # SUT resources ingestion (audit 9.1), content- AND semantically
+    # validated against this run's measured window (sprint P5, report 5.4).
+    measured_window_s = max(
+        0.0, (finished_monotonic_ns - measured_started_monotonic_ns) / 1e9
+    )
+    if ingest_resources(
+        run_dir,
+        resources_ingest_from,
+        warnings,
+        expected_window_s=measured_window_s,
+    ):
         resource_source = "sut-collector"
     elif local_resources:
         resource_source = "local-dev"
@@ -1406,6 +1915,28 @@ def execute_run(
             f"(resource_source: {resource_source})",
             "--allow-missing-resources",
         )
+    if timed and not controller_marker["ok"]:
+        _append_deviation(
+            deviations,
+            "confirmation_marker_unavailable",
+            "the run end was not stamped in the controller's clock domain "
+            f"({controller_marker['error']}); the analysis must fall back to "
+            "the legacy event-derived confirmation deadline",
+            (
+                "--allow-missing-controller-marker"
+                if allow_missing_controller_marker
+                else None
+            ),
+        )
+
+    # Mandatory artefacts per condition kind (sprint P5, report 5.4): an
+    # incomplete run is INVALID and is never sealed.
+    missing_artifacts = missing_mandatory_artifacts(
+        run_dir,
+        condition_id,
+        runner="simulator",
+        allow_missing_resources=allow_missing_resources,
+    )
 
     validity, validity_reasons = compute_validity(
         timed=timed,
@@ -1422,6 +1953,10 @@ def execute_run(
         skip_warmup=skip_warmup,
         condition_id=condition_id,
         allow_protocol_deviation=allow_protocol_deviation,
+        confirmation_marker_ok=bool(controller_marker["ok"]),
+        allow_missing_controller_marker=allow_missing_controller_marker,
+        collector_hooks=collector_hooks,
+        missing_artifacts=missing_artifacts,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -1458,9 +1993,16 @@ def execute_run(
         "allow_missing_resources": allow_missing_resources,
         "allow_warmup_failure": allow_warmup_failure,
         "allow_protocol_deviation": allow_protocol_deviation,
+        "allow_missing_controller_marker": allow_missing_controller_marker,
         # Protocol deviations (work order P1 fix 5): {kind, detail,
         # authorized_by_flag} entries; the analysis lists them per run.
         "deviations": deviations,
+        # SUT collector hooks (sprint P5, report 5.3): every hook's command,
+        # exit code and start/end timestamps, in execution order.
+        "collector_hooks": collector_hooks,
+        # Mandatory evidence of this condition kind that is absent (report
+        # 5.4). Non-empty => validity 'invalid' AND no SHA256SUMS.
+        "missing_mandatory_artifacts": missing_artifacts,
         "controller_metrics": (
             {
                 "url": controller_url,
@@ -1496,9 +2038,15 @@ def execute_run(
                 "allow_missing_resources": allow_missing_resources,
                 "allow_warmup_failure": allow_warmup_failure,
                 "allow_protocol_deviation": allow_protocol_deviation,
+                "allow_missing_controller_marker": (
+                    allow_missing_controller_marker
+                ),
                 "controller_url": controller_url,
                 "restart_cmd": restart_cmd,
                 "restart_at_s": restart_at_s,
+                "collector_start_cmd": collector_start_cmd,
+                "collector_stop_cmd": collector_stop_cmd,
+                "collector_fetch_cmd": collector_fetch_cmd,
             },
         },
         "started_utc": started_utc,
@@ -1517,14 +2065,17 @@ def execute_run(
         "measured_started_monotonic_ns": measured_started_monotonic_ns,
         "measured_window_clock": MEASURED_WINDOW_CLOCK_NOTE,
         "confirmation_window_s": CONFIRMATION_WINDOW_S,
-        # Informational only (CONTRACTS v1.1): captured on the harness host,
-        # which runs off the ARM VM (plan 5.1), so this value is not
-        # comparable with the controller's monotonic timestamps. The
-        # analysis derives the effective deadline in the controller's clock
-        # domain from the run's own events.
-        "confirmation_deadline_monotonic_ns": finished_monotonic_ns
-        + CONFIRMATION_WINDOW_S * 1_000_000_000,
-        "confirmation_deadline_clock_domain": "harness-host",
+        # Confirmation deadline (sprint P5, report 5.2). Anchored on the
+        # controller's own monotonic clock, read from GET /metrics
+        # immediately after the measured run ended and BEFORE the
+        # confirmation window — so the deadline is independent of the late
+        # events it judges. Null (clock domain 'unavailable') when the
+        # controller could not be polled; the analysis then falls back to
+        # the legacy event-derived deadline and says so loudly.
+        "controller_marker": controller_marker,
+        "controller_monotonic_at_run_end_ns": controller_monotonic_at_run_end_ns,
+        "confirmation_deadline_monotonic_ns": confirmation_deadline_monotonic_ns,
+        "confirmation_deadline_clock_domain": confirmation_deadline_clock_domain,
         "simulator_returncode": sim_returncode,
         "warmup_returncode": warmup_returncode,
         "events_source": events_source,
@@ -1544,16 +2095,27 @@ def execute_run(
         "exclusion": None,
         "warnings": warnings,
     }
-    (run_dir / "manifest.json").write_text(
+    (run_dir / MANIFEST_FILENAME).write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
     # SHA256SUMS is written last so it covers every file in the run dir —
-    # and ONLY after successful events collection (audit 9.3): an
-    # incomplete run directory must not look like sealed evidence. The
-    # 'collect' subcommand re-attempts collection and writes it then.
-    if events_source is not None:
+    # and ONLY when the run is COMPLETE (audit 9.3, hardened in sprint P5 /
+    # report 5.4): an incomplete run directory must never look like sealed
+    # evidence, so any missing mandatory artefact (events.jsonl among them)
+    # withholds the seal. The 'collect' subcommand re-attempts collection
+    # and writes it then.
+    if not missing_artifacts:
         write_sha256sums(run_dir)
+    else:
+        print(
+            f"[harness] error: run {run_id!r} is missing mandatory "
+            "artefact(s) " + ", ".join(missing_artifacts) + "; SHA256SUMS "
+            "is withheld. Recover with: python -m egw_experiments collect "
+            f"--run-id {run_id} ...",
+            file=sys.stderr,
+            flush=True,
+        )
 
     update_plan_status(
         plan_path,
@@ -1591,6 +2153,7 @@ def collect_run(
     resources_from: str | Path | None = None,
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
+    allow_missing_controller_marker: bool = False,
 ) -> int:
     """Re-attempt evidence collection for an EXISTING run directory.
 
@@ -1742,10 +2305,23 @@ def collect_run(
         refs["sut"] = SUT_ENVIRONMENT_FILENAME if sut_env_present else None
 
     # Resources: ingest the SUT collector output when provided (identical
-    # re-ingest is a no-op; differing content is refused, P1 item 11).
+    # re-ingest is a no-op; differing content is refused, P1 item 11). The
+    # semantic window check reuses the measured window recorded by 'run'.
+    measured_started_ns = manifest.get("measured_started_monotonic_ns")
+    finished_ns = manifest.get("finished_monotonic_ns")
+    expected_window_s = (
+        max(0.0, (finished_ns - measured_started_ns) / 1e9)
+        if isinstance(measured_started_ns, int) and isinstance(finished_ns, int)
+        else None
+    )
     if resources_from is not None:
         try:
-            if ingest_resources(run_dir, resources_from, warnings):
+            if ingest_resources(
+                run_dir,
+                resources_from,
+                warnings,
+                expected_window_s=expected_window_s,
+            ):
                 manifest["resource_source"] = "sut-collector"
                 actions.append("ingested resources.csv (sut-collector)")
         except SealedRunError as exc:
@@ -1762,8 +2338,12 @@ def collect_run(
     allow_missing_resources = allow_missing_resources or bool(
         manifest.get("allow_missing_resources")
     )
+    allow_missing_controller_marker = allow_missing_controller_marker or bool(
+        manifest.get("allow_missing_controller_marker")
+    )
     manifest["allow_missing_sut_env"] = allow_missing_sut_env
     manifest["allow_missing_resources"] = allow_missing_resources
+    manifest["allow_missing_controller_marker"] = allow_missing_controller_marker
 
     # SUT environment quality (work order P1 fix 4): re-validate the file
     # currently in the run dir against REQUIRED_SUT_FIELDS.
@@ -1780,6 +2360,21 @@ def collect_run(
     allow_warmup_failure = bool(manifest.get("allow_warmup_failure"))
     allow_protocol_deviation = bool(manifest.get("allow_protocol_deviation"))
     skip_warmup = bool(cli_echo.get("skip_warmup"))
+    # The confirmation marker is a RUN-TIME measurement: 'collect' can never
+    # recover it after the fact, it can only re-apply the authorization.
+    confirmation_marker_ok = (
+        manifest.get("confirmation_deadline_clock_domain") == "controller"
+    )
+    collector_hooks = manifest.get("collector_hooks")
+    if not isinstance(collector_hooks, list):
+        collector_hooks = []
+    missing_artifacts = missing_mandatory_artifacts(
+        run_dir,
+        manifest.get("condition_id"),
+        runner="simulator" if timed else "external",
+        allow_missing_resources=allow_missing_resources,
+    )
+    manifest["missing_mandatory_artifacts"] = missing_artifacts
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -1796,6 +2391,10 @@ def collect_run(
         skip_warmup=skip_warmup,
         condition_id=manifest.get("condition_id"),
         allow_protocol_deviation=allow_protocol_deviation,
+        confirmation_marker_ok=confirmation_marker_ok,
+        allow_missing_controller_marker=allow_missing_controller_marker,
+        collector_hooks=collector_hooks,
+        missing_artifacts=missing_artifacts,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons
@@ -1829,6 +2428,19 @@ def collect_run(
             "timed run without SUT-collector resources accepted "
             f"(resource_source: {resource_source})",
             "--allow-missing-resources",
+        )
+    if timed and not confirmation_marker_ok:
+        _append_deviation(
+            deviations,
+            "confirmation_marker_unavailable",
+            "the run end was not stamped in the controller's clock domain; "
+            "the analysis must fall back to the legacy event-derived "
+            "confirmation deadline",
+            (
+                "--allow-missing-controller-marker"
+                if allow_missing_controller_marker
+                else None
+            ),
         )
     manifest["deviations"] = deviations
     if warnings:
@@ -1872,6 +2484,17 @@ def collect_run(
         for reason in validity_reasons:
             print(f"[collect] INVALID: {reason}", file=sys.stderr, flush=True)
 
+    def _keep_existing_seal_consistent() -> None:
+        """Refresh SHA256SUMS of an ALREADY sealed directory.
+
+        This pass rewrote manifest.json, so a directory that was sealed
+        BEFORE the collect attempt would otherwise fail its own checksum
+        verification. It never creates a new seal for an incomplete run —
+        that happens only on the success path below.
+        """
+        if sealed:
+            write_sha256sums(run_dir)
+
     if not collected:
         print(
             f"[collect] run {run_id}: events.jsonl still missing; "
@@ -1879,6 +2502,18 @@ def collect_run(
             file=sys.stderr,
             flush=True,
         )
+        _keep_existing_seal_consistent()
+        return 1
+    # An incomplete run directory must never look sealed (report 5.4).
+    if missing_artifacts:
+        print(
+            f"[collect] run {run_id}: mandatory artefact(s) still missing: "
+            + ", ".join(missing_artifacts)
+            + "; SHA256SUMS withheld",
+            file=sys.stderr,
+            flush=True,
+        )
+        _keep_existing_seal_consistent()
         return 1
 
     # Collection succeeded: (re)write SHA256SUMS covering the final state.

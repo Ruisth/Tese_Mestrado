@@ -27,7 +27,17 @@ event-log directory (dev only). External conditions (QEMU boots, cold
 starts, twin creations) are ingested with ``--external-timings``.
 ``collect`` is the recovery path: it re-attempts events/resources/SUT
 environment collection for an EXISTING run directory and (re)writes
-SHA256SUMS only after successful collection. ``analyze`` regenerates
+SHA256SUMS only after successful collection.
+
+Sprint P5 additions (report 5.3/5.4): ``run`` and ``campaign`` accept the
+SUT collector hooks ``--collector-start-cmd`` / ``--collector-stop-cmd`` /
+``--collector-fetch-cmd`` (executed before the warm-up, after the measured
+run and after the confirmation window respectively), so a fresh campaign
+produces its own ``resources.csv`` instead of requiring a pre-fetched one;
+``--allow-missing-controller-marker`` authorizes a timed run whose end was
+not stamped in the controller's clock domain; ``campaign`` verifies the
+SHA256SUMS of every sealed run before skipping it on resume and exits 1
+when a full campaign still has external runs pending. ``analyze`` regenerates
 everything under ``results/processed`` and ``results/figures`` from
 ``results/raw``; ``verify-checksums`` re-verifies the SHA256SUMS of raw
 run directories (evidence integrity, plan 5.8).
@@ -114,6 +124,56 @@ def _add_collection_arguments(
         action="store_true",
         help="deliberately accept a timed run without SUT resources; the "
         "decision is recorded in the manifest (audit 9.1)",
+    )
+    parser.add_argument(
+        "--allow-missing-controller-marker",
+        action="store_true",
+        help="deliberately accept a timed run whose end instant was NOT "
+        "stamped in the controller's clock domain (no --controller-url, or "
+        "the controller could not be polled / predates the "
+        "confirmation-marker contract). Without it such a run is marked "
+        "validity 'invalid': the 60 s confirmation deadline would otherwise "
+        "be derived from the events it judges (report 5.2). The decision is "
+        "recorded as a protocol deviation and leaves the analysis on the "
+        "legacy event-derived deadline",
+    )
+
+
+def _add_collector_hook_arguments(parser: argparse.ArgumentParser) -> None:
+    """SUT collector hooks shared by ``run`` and ``campaign`` (sprint P5,
+    report 5.3: a fresh campaign must produce its own resources.csv instead
+    of requiring one that already exists).
+
+    Every template accepts the ``{run_id}``, ``{duration_s}`` (warm-up +
+    measured window + confirmation window + margin) and ``{dest}``
+    placeholders; each hook's command, exit code and start/end timestamps
+    are recorded in the manifest (``collector_hooks``) and a non-zero exit
+    marks the run validity 'invalid' naming the hook.
+    """
+    parser.add_argument(
+        "--collector-start-cmd",
+        default=None,
+        help="command template started BEFORE the warm-up to launch the "
+        "SUT-side resource collector, e.g. \"ssh vm 'systemd-run --unit "
+        "egw-resources-{run_id} --collect sh "
+        "/opt/egw/src/deployment/scripts/collect-resources.sh "
+        "/tmp/resources-{run_id}.csv --duration {duration_s}'\"",
+    )
+    parser.add_argument(
+        "--collector-stop-cmd",
+        default=None,
+        help="command template executed AFTER the measured run and BEFORE "
+        "the confirmation window to stop the collector, e.g. "
+        "\"ssh vm 'systemctl stop egw-resources-{run_id}'\"",
+    )
+    parser.add_argument(
+        "--collector-fetch-cmd",
+        default=None,
+        help="command template executed AFTER the confirmation window that "
+        "must write the collector's resources.csv to {dest}, e.g. "
+        "'scp vm:/tmp/resources-{run_id}.csv {dest}'. The fetched file goes "
+        "through the same validated ingest as --resources-from (mutually "
+        "exclusive with it)",
     )
 
 
@@ -256,6 +316,7 @@ def build_parser() -> argparse.ArgumentParser:
         "when the condition prescribes one)",
     )
     _add_collection_arguments(p_run)
+    _add_collector_hook_arguments(p_run)
     p_run.add_argument(
         "--local-resources",
         action="store_true",
@@ -337,6 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_run_level_arguments(p_camp)
     _add_collection_arguments(p_camp, resources_template=True)
+    _add_collector_hook_arguments(p_camp)
 
     # collect (recovery, audit 9.3) ------------------------------------------
     p_col = sub.add_parser(
@@ -432,9 +494,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
         allow_protocol_deviation=args.allow_protocol_deviation,
+        allow_missing_controller_marker=args.allow_missing_controller_marker,
         controller_url=args.controller_url,
         restart_cmd=args.restart_cmd,
         restart_at_s=args.restart_at_s,
+        collector_start_cmd=args.collector_start_cmd,
+        collector_stop_cmd=args.collector_stop_cmd,
+        collector_fetch_cmd=args.collector_fetch_cmd,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
     )
@@ -476,10 +542,14 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         controller_url=args.controller_url,
         restart_cmd=args.restart_cmd,
         restart_at_s=args.restart_at_s,
+        collector_start_cmd=args.collector_start_cmd,
+        collector_stop_cmd=args.collector_stop_cmd,
+        collector_fetch_cmd=args.collector_fetch_cmd,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
         allow_protocol_deviation=args.allow_protocol_deviation,
+        allow_missing_controller_marker=args.allow_missing_controller_marker,
     )
 
 
@@ -494,6 +564,7 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         resources_from=args.resources_from,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
+        allow_missing_controller_marker=args.allow_missing_controller_marker,
     )
 
 

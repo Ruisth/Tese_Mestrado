@@ -33,6 +33,14 @@ Notes:
 - Degrades gracefully: when docker is absent or the daemon is unreachable,
   the sampler records a clear error message, writes only the CSV header and
   never raises out of the context manager.
+- :func:`validate_resources_csv` is the run-time ingest gate for the SUT
+  collector's output. Since sprint P5 (report 5.4) it validates the CONTENT
+  semantically, not just the row count: parseable RFC 3339 timestamps,
+  non-decreasing time, numeric cpu/mem fields, per-row column completeness,
+  a minimum number of DISTINCT sample instants (one docker-stats sample
+  writes one row per container, so 30 rows can be five seconds of six
+  containers) and, when the caller knows it, a span consistent with the
+  run's measured window.
 """
 
 from __future__ import annotations
@@ -68,6 +76,25 @@ LEGACY_CSV_HEADER = ["ts_utc", "container", "cpu_pct", "mem_bytes", "mem_pct"]
 #: with fewer rows is header-only noise or a collector that died early and
 #: cannot support the RQ3 CPU/RAM aggregates.
 MIN_RESOURCE_SAMPLES = 30
+
+#: Minimum number of DISTINCT sample instants (sprint P5, report 5.4
+#: "Validação superficial de resources.csv"). Counting rows alone is not
+#: evidence of a sampled run: one ``docker stats`` sample writes ONE ROW PER
+#: CONTAINER, so 30 rows can be five seconds of six containers. The collector
+#: samples at 1 Hz and the shortest timed condition lasts 30 s, so a usable
+#: file carries at least this many distinct ``ts_utc`` values.
+MIN_DISTINCT_SAMPLE_INSTANTS = 30
+
+#: Minimum fraction of the run's MEASURED window that the sampled instants
+#: must span when the caller supplies ``expected_window_s`` (sprint P5,
+#: report 5.4). The slack absorbs the collector's start/stop edges around
+#: the measured simulator invocation (the hooks start it before the warm-up
+#: and stop it after the confirmation window, but the first/last sample
+#: still land inside the second).
+#: PENDING ADVISOR SIGN-OFF BEFORE exp-v1: the 90% minimum span must be
+#: confirmed with the advisor before the protocol freeze (G4); it must not
+#: change afterwards.
+RESOURCE_WINDOW_COVERAGE_MIN_FRAC = 0.90
 
 DOCKER_STATS_CMD = ["docker", "stats", "--no-stream", "--format", "{{json .}}"]
 
@@ -179,31 +206,90 @@ def sample_docker_stats(timeout_s: float = 20.0) -> list[dict[str, Any]]:
     return rows
 
 
+def parse_csv_timestamp(value: str) -> datetime | None:
+    """Parse a ``ts_utc`` cell (RFC 3339 / ISO 8601), or return None.
+
+    Accepts the trailing ``Z`` written by both producers as well as an
+    explicit UTC offset; a naive timestamp is assumed to be UTC. Anything
+    else is unparseable and rejects the file at ingest time.
+    """
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _is_number(value: str) -> bool:
+    try:
+        float(str(value).strip())
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def validate_resources_csv(
     path: str | Path,
     *,
     expected_host: str | None = None,
     min_samples: int = MIN_RESOURCE_SAMPLES,
+    min_distinct_instants: int = MIN_DISTINCT_SAMPLE_INSTANTS,
+    expected_window_s: float | None = None,
 ) -> list[str]:
-    """Validate a resources.csv before RUN-TIME ingestion (work order P1).
+    """Validate a resources.csv before RUN-TIME ingestion (work order P1,
+    hardened semantically in sprint P5 — report 5.4).
 
     Returns a list of human-readable problems; an empty list means the file
-    is ingestible. Checks, in order:
+    is ingestible. Row COUNTING is not evidence of a sampled run: one
+    ``docker stats`` sample writes one row per container, so 30 rows can be
+    five seconds of six containers. Checks, in order:
 
     - the file exists and has a header line;
     - the header matches :data:`CSV_HEADER` EXACTLY (the 6-column schema
       with the ``host`` provenance column; the legacy 5-column schema is
       readable by the analysis for old fixtures but never ingestible for
       new runs);
-    - at least ``min_samples`` (:data:`MIN_RESOURCE_SAMPLES`) data rows;
+    - per-row column completeness: every data row has exactly the six
+      columns and a non-empty ``container``;
+    - parseable RFC 3339 ``ts_utc`` timestamps;
+    - numeric ``cpu_pct``, ``mem_bytes`` and ``mem_pct`` on every row;
+    - non-decreasing ``ts_utc`` (a collector never goes back in time; an
+      out-of-order file means concatenated/edited evidence);
+    - at least ``min_samples`` (:data:`MIN_RESOURCE_SAMPLES`) data rows AND
+      at least ``min_distinct_instants``
+      (:data:`MIN_DISTINCT_SAMPLE_INSTANTS`) DISTINCT sample instants;
     - every row carries a non-empty ``host`` value;
     - when ``expected_host`` is given (the SUT's node/hostname from
       sut_environment.json), every distinct ``host`` value equals it —
-      a mismatch means the CSV was collected on the wrong machine.
+      a mismatch means the CSV was collected on the wrong machine;
+    - when ``expected_window_s`` is given (the run's measured window), the
+      sampled instants span at least
+      :data:`RESOURCE_WINDOW_COVERAGE_MIN_FRAC` of it.
     """
     path = Path(path)
     if not path.is_file():
         return [f"resources file not found: {path}"]
+    data_rows = 0
+    empty_host_rows = 0
+    hosts: set[str] = set()
+    instants: set[datetime] = set()
+    bad_columns: list[str] = []
+    bad_container: list[str] = []
+    bad_timestamps: list[str] = []
+    bad_numeric: dict[str, list[str]] = {}
+    out_of_order: list[str] = []
+    first_instant: datetime | None = None
+    last_instant: datetime | None = None
+    previous: datetime | None = None
     try:
         with open(path, "r", encoding="utf-8", newline="") as fh:
             reader = csv.reader(fh)
@@ -219,22 +305,78 @@ def validate_resources_csv(
                     "legacy 5-column files are readable by the analysis but "
                     "not ingestible for new runs)"
                 ]
-            data_rows = 0
-            empty_host_rows = 0
-            hosts: set[str] = set()
-            for row in reader:
+            for lineno, row in enumerate(reader, start=2):
                 if not row or not any(cell.strip() for cell in row):
                     continue
                 data_rows += 1
-                host = row[5].strip() if len(row) > 5 else ""
+                if len(row) != len(CSV_HEADER):
+                    bad_columns.append(f"line {lineno} has {len(row)}")
+                    continue
+                ts_raw, container, cpu_pct, mem_bytes, mem_pct, host = row
+                if not container.strip():
+                    bad_container.append(f"line {lineno}")
+                for name, value in (
+                    ("cpu_pct", cpu_pct),
+                    ("mem_bytes", mem_bytes),
+                    ("mem_pct", mem_pct),
+                ):
+                    if not _is_number(value):
+                        bad_numeric.setdefault(name, []).append(
+                            f"line {lineno}: {value!r}"
+                        )
+                host = host.strip()
                 if host:
                     hosts.add(host)
                 else:
                     empty_host_rows += 1
+                stamp = parse_csv_timestamp(ts_raw)
+                if stamp is None:
+                    bad_timestamps.append(f"line {lineno}: {ts_raw!r}")
+                    continue
+                instants.add(stamp)
+                if first_instant is None or stamp < first_instant:
+                    first_instant = stamp
+                if last_instant is None or stamp > last_instant:
+                    last_instant = stamp
+                if previous is not None and stamp < previous:
+                    out_of_order.append(f"line {lineno}: {ts_raw.strip()}")
+                previous = stamp
     except OSError as exc:
         return [f"resources file unreadable: {exc}"]
 
+    def _head(items: list[str], limit: int = 3) -> str:
+        shown = "; ".join(items[:limit])
+        return shown + ("; ..." if len(items) > limit else "")
+
     problems: list[str] = []
+    if bad_columns:
+        problems.append(
+            f"{len(bad_columns)} row(s) with an incomplete column set "
+            f"(every sample needs the {len(CSV_HEADER)} columns "
+            f"{','.join(CSV_HEADER)}): {_head(bad_columns)}"
+        )
+    if bad_container:
+        problems.append(
+            f"{len(bad_container)} row(s) without a container name: "
+            + _head(bad_container)
+        )
+    if bad_timestamps:
+        problems.append(
+            f"{len(bad_timestamps)} row(s) with an unparseable RFC 3339 "
+            f"ts_utc timestamp: {_head(bad_timestamps)}"
+        )
+    for name in ("cpu_pct", "mem_bytes", "mem_pct"):
+        offenders = bad_numeric.get(name)
+        if offenders:
+            problems.append(
+                f"{len(offenders)} row(s) with a non-numeric {name} value: "
+                + _head(offenders)
+            )
+    if out_of_order:
+        problems.append(
+            f"ts_utc is not non-decreasing ({len(out_of_order)} row(s) go "
+            f"back in time): {_head(out_of_order)}"
+        )
     if data_rows == 0:
         problems.append("no data rows beyond the header")
     elif data_rows < min_samples:
@@ -242,6 +384,14 @@ def validate_resources_csv(
             f"only {data_rows} sample row(s); at least {min_samples} "
             "required (MIN_RESOURCE_SAMPLES: 1 Hz collector over the "
             "shortest 30 s timed run)"
+        )
+    if data_rows and len(instants) < min_distinct_instants:
+        problems.append(
+            f"only {len(instants)} distinct sample instant(s) across "
+            f"{data_rows} row(s); at least {min_distinct_instants} required "
+            "(MIN_DISTINCT_SAMPLE_INSTANTS: one docker-stats sample writes "
+            "one row per container, so row count alone is not evidence of a "
+            "sampled run)"
         )
     if empty_host_rows:
         problems.append(
@@ -254,6 +404,22 @@ def validate_resources_csv(
             f"node/hostname {expected_host!r} from sut_environment.json "
             "(the CSV was collected on the wrong machine)"
         )
+    if expected_window_s is not None and expected_window_s > 0:
+        span_s = (
+            (last_instant - first_instant).total_seconds()
+            if first_instant is not None and last_instant is not None
+            else 0.0
+        )
+        required_s = float(expected_window_s) * RESOURCE_WINDOW_COVERAGE_MIN_FRAC
+        if span_s < required_s:
+            problems.append(
+                f"the sampled instants span only {span_s:.1f} s, so less "
+                f"than {RESOURCE_WINDOW_COVERAGE_MIN_FRAC:.0%} of the run's "
+                f"measured window ({float(expected_window_s):.1f} s) is "
+                "covered by resource samples "
+                "(RESOURCE_WINDOW_COVERAGE_MIN_FRAC, pending advisor "
+                "sign-off)"
+            )
     return problems
 
 

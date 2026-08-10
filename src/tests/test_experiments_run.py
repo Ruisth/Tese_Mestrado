@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from egw_experiments import checksums, plan_gen
+from egw_experiments import resources as resources_mod
 from egw_experiments import run as run_mod
 
 PY = Path(sys.executable).as_posix()
@@ -279,6 +280,7 @@ def test_fetch_template_from_environment_variable(
         event_log_dir=tmp_path / "empty-event-log",
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -303,6 +305,7 @@ def test_timed_run_without_sut_env_and_resources_is_invalid(
         no_tls=True,
         post_run_wait_s=0.0,
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        allow_missing_controller_marker=True,
     )
     assert rc == 1  # events collected, but the run is INVALID, not a warning
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -312,8 +315,11 @@ def test_timed_run_without_sut_env_and_resources_is_invalid(
     assert "SUT resources" in reasons or "resources" in reasons
     assert manifest["resource_source"] == "none"
     assert manifest["environment_refs"]["sut"] is None
-    # Events WERE collected, so the evidence is sealed even though invalid.
-    assert (base / "raw" / "smoke_sequence-r01" / "SHA256SUMS").is_file()
+    # Events WERE collected, but resources.csv is a MANDATORY artefact of a
+    # simulator condition and was not authorized as missing, so the run is
+    # incomplete and must NOT look sealed (sprint P5, report 5.4).
+    assert manifest["missing_mandatory_artifacts"] == ["resources.csv"]
+    assert not (base / "raw" / "smoke_sequence-r01" / "SHA256SUMS").exists()
     # The plan tracks the failure.
     plan = plan_gen.load_campaign_plan(plan_path)
     entry = next(r for r in plan["runs"] if r["run_id"] == "smoke_sequence-r01")
@@ -334,6 +340,7 @@ def test_timed_run_with_ingested_sut_evidence_is_valid(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     run_dir = base / "raw" / "smoke_sequence-r01"
@@ -378,6 +385,7 @@ def test_allow_missing_flags_record_deliberate_decision(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         allow_missing_sut_env=True,
         allow_missing_resources=True,
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -571,6 +579,7 @@ def test_local_resources_with_override_is_valid_and_recorded(
         sut_env_from=_sut_env_file(tmp_path),
         local_resources=True,
         allow_missing_resources=True,
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -640,6 +649,7 @@ def test_sut_env_missing_fields_override_records_deviation(
         sut_env_from=_sut_env_file(tmp_path, node=None, nproc=None),
         resources_from=_resources_file(tmp_path),
         allow_missing_sut_env=True,
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -724,6 +734,7 @@ def test_warmup_failure_with_allow_flag_is_valid_with_deviation(
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
         allow_warmup_failure=True,
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "nominal-r01")
@@ -780,6 +791,7 @@ def test_skip_warmup_with_allow_protocol_deviation_is_valid(
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
         allow_protocol_deviation=True,
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "nominal-r01")
@@ -810,6 +822,7 @@ def test_skip_warmup_on_smoke_records_deviation_but_stays_valid(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -837,6 +850,7 @@ def test_collect_recovers_events_and_writes_sha256sums(
         event_log_dir=tmp_path / "empty-event-log",
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     run_dir = base / "raw" / run_id
     assert rc == 1
@@ -937,6 +951,7 @@ def test_restart_cmd_executed_once_and_recorded(
         resources_from=_resources_file(tmp_path),
         restart_cmd=f'"{PY}" "{script.as_posix()}" "{marker.as_posix()}" {{run_id}}',
         restart_at_s=0.05,
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     assert marker.read_text(encoding="utf-8") == "restarted controller_restart-r01"
@@ -1109,6 +1124,7 @@ def test_warmup_uses_distinct_run_id_and_same_seed(
         event_log_dir=_local_events(tmp_path, "nominal-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     assert len(fast_run.calls) == 2  # warm-up + measured
@@ -1149,6 +1165,7 @@ def test_sent_events_collected_from_real_simulator_layout(
         event_log_dir=_local_events(tmp_path, run_id),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     assert rc == 0
     run_dir = base / "raw" / run_id
@@ -1190,6 +1207,7 @@ def _sealed_valid_run(
         event_log_dir=_local_events(tmp_path, run_id),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
     )
     defaults.update(kwargs)
     assert run_mod.execute_run(plan_path, run_id, **defaults) == 0
@@ -1433,3 +1451,505 @@ def test_external_reingest_refused_mentions_sealed(
     err = capsys.readouterr().err
     assert "sealed" in err
     assert "NEW run identity" in err
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 2 (report 5.3): collector hooks make 'run' end-to-end
+# ---------------------------------------------------------------------------
+
+
+HOOK_SCRIPT = """\
+import sys
+from pathlib import Path
+
+record, label, run_id, duration_s, dest, mode, rc = sys.argv[1:8]
+with Path(record).open("a", encoding="utf-8") as fh:
+    fh.write(label + " " + run_id + " " + duration_s + "\\n")
+if mode == "write":
+    rows = ["ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"]
+    for i in range(40):
+        rows.append(
+            "2026-09-07T10:00:%02dZ,egw-controller,10.0,1024,1.0,sut-vm" % i
+        )
+    Path(dest).write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+sys.exit(int(rc))
+"""
+
+
+def _collector_hooks(tmp_path: Path, *, stop_rc: int = 0, fetch_rc: int = 0):
+    """(record_path, start_tpl, stop_tpl, fetch_tpl) for the three hooks.
+
+    Every hook appends '<label> <run_id> <duration_s>' to the record file, so
+    the ORDER and the placeholder substitution are both observable; the fetch
+    hook additionally writes an ingestible collector CSV to {dest}.
+    """
+    script = _write_script(tmp_path, "collector_hook.py", HOOK_SCRIPT)
+    record = tmp_path / "collector-hooks.txt"
+
+    def tpl(label: str, mode: str, rc: int) -> str:
+        return (
+            f'"{PY}" "{script.as_posix()}" "{record.as_posix()}" {label} '
+            '{run_id} {duration_s} "{dest}" ' + f"{mode} {rc}"
+        )
+
+    return (
+        record,
+        tpl("start", "noop", 0),
+        tpl("stop", "noop", stop_rc),
+        tpl("fetch", "write", fetch_rc),
+    )
+
+
+def _hook_labels(record: Path) -> list[str]:
+    return [
+        line.split()[0]
+        for line in record.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def test_collector_hooks_run_in_order_and_produce_ingested_resources(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The collector is started BEFORE the warm-up, stopped AFTER the
+    measured run and fetched AFTER the confirmation window; the fetched CSV
+    goes through the EXISTING validated ingest path (report 5.3)."""
+    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    assert _hook_labels(record) == ["start", "stop", "fetch"]
+    manifest = _manifest(base, "nominal-r01")
+    hooks = manifest["collector_hooks"]
+    assert [h["hook"] for h in hooks] == ["start", "stop", "fetch"]
+    for hook in hooks:
+        assert hook["returncode"] == 0
+        assert hook["started_utc"] and hook["finished_utc"]
+        assert "{run_id}" not in hook["command"]
+        assert "nominal-r01" in hook["command"]
+    # {duration_s} covers warm-up + measured window + confirmation window.
+    recorded = record.read_text(encoding="utf-8").splitlines()[0].split()
+    assert int(recorded[2]) >= 600 + 120
+    assert manifest["resource_source"] == "sut-collector"
+    assert manifest["validity"] == "valid"
+    assert (base / "raw" / "nominal-r01" / "resources.csv").is_file()
+
+
+def test_collector_hook_nonzero_exit_invalidates_run_naming_the_hook(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """A hook that fails is never a silent warning (report 5.3)."""
+    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path, stop_rc=3)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    manifest = _manifest(base, "nominal-r01")
+    assert manifest["validity"] == "invalid"
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "--collector-stop-cmd" in reasons
+    assert "exit code 3" in reasons
+    stop_record = next(
+        h for h in manifest["collector_hooks"] if h["hook"] == "stop"
+    )
+    assert stop_record["returncode"] == 3
+
+
+def test_collector_fetch_cmd_and_resources_from_are_mutually_exclusive(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    _record, _start, _stop, fetch_tpl = _collector_hooks(tmp_path)
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=tmp_path / "results",
+        no_tls=True,
+        resources_from=_resources_file(tmp_path),
+        collector_fetch_cmd=fetch_tpl,
+    )
+    assert rc == 2
+    assert "mutually exclusive" in capsys.readouterr().err
+    assert not (tmp_path / "results").exists()
+
+
+def test_no_collector_hooks_preserves_todays_behaviour(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """Without hooks a pre-fetched --resources-from still works and the
+    manifest records an empty hook list (backward compatibility)."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    assert _manifest(base, "smoke_sequence-r01")["collector_hooks"] == []
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 1 (report 5.2): confirmation marker in the controller's clock
+# domain - run-side half of the cross-agent contract
+# ---------------------------------------------------------------------------
+
+
+MARKER_MONOTONIC_NS = 987_654_321_000
+MARKER_WALL_UTC = "2026-09-07T10:05:00.000Z"
+
+
+def _fake_controller_marker(monkeypatch, payload=None):
+    """Replace the harness's stdlib HTTP GET with a recorded fake."""
+    calls: list[tuple[str, float]] = []
+    body = (
+        payload
+        if payload is not None
+        else {
+            "accepted": 5,
+            "queue_depth": 0,
+            "monotonic_ns": MARKER_MONOTONIC_NS,
+            "wall_utc": MARKER_WALL_UTC,
+        }
+    )
+
+    def fake_get(url, timeout_s):
+        calls.append((url, timeout_s))
+        return body
+
+    monkeypatch.setattr(run_mod, "_http_get_json", fake_get)
+    return calls
+
+
+def test_controller_marker_recorded_and_deadline_is_controller_domain(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    calls = _fake_controller_marker(monkeypatch)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        controller_url="http://127.0.0.1:8000",
+    )
+    assert rc == 0
+    assert calls and calls[0][0] == "http://127.0.0.1:8000/metrics"
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["controller_monotonic_at_run_end_ns"] == MARKER_MONOTONIC_NS
+    assert manifest["confirmation_deadline_clock_domain"] == "controller"
+    assert manifest["confirmation_deadline_monotonic_ns"] == (
+        MARKER_MONOTONIC_NS + manifest["confirmation_window_s"] * 1_000_000_000
+    )
+    # The 60 s window itself is untouched.
+    assert manifest["confirmation_window_s"] == 60
+    assert manifest["controller_marker"]["wall_utc"] == MARKER_WALL_UTC
+    assert manifest["validity"] == "valid"
+    assert not any(
+        d["kind"] == "confirmation_marker_unavailable"
+        for d in manifest["deviations"]
+    )
+
+
+def test_missing_controller_marker_invalidates_timed_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """No controller marker => the confirmation deadline is unverifiable, so
+    a timed run is INVALID (report 5.2)."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "invalid"
+    assert manifest["controller_monotonic_at_run_end_ns"] is None
+    assert manifest["confirmation_deadline_clock_domain"] == "unavailable"
+    assert manifest["confirmation_deadline_monotonic_ns"] is None
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "confirmation marker" in reasons
+    assert "--allow-missing-controller-marker" in reasons
+    deviation = next(
+        d
+        for d in manifest["deviations"]
+        if d["kind"] == "confirmation_marker_unavailable"
+    )
+    assert deviation["authorized_by_flag"] is None
+
+
+def test_allow_missing_controller_marker_records_the_deviation(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["confirmation_deadline_clock_domain"] == "unavailable"
+    deviation = next(
+        d
+        for d in manifest["deviations"]
+        if d["kind"] == "confirmation_marker_unavailable"
+    )
+    assert deviation["authorized_by_flag"] == "--allow-missing-controller-marker"
+
+
+def test_controller_marker_poll_failure_is_recorded_not_raised(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    def boom(url, timeout_s):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(run_mod, "_http_get_json", boom)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        controller_url="http://127.0.0.1:8000",
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["confirmation_deadline_clock_domain"] == "unavailable"
+    assert "connection refused" in manifest["controller_marker"]["error"]
+
+
+def test_poll_controller_marker_rejects_a_payload_without_monotonic_ns(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        run_mod, "_http_get_json", lambda url, timeout_s: {"accepted": 1}
+    )
+    marker = run_mod.poll_controller_marker("http://127.0.0.1:8000")
+    assert marker["ok"] is False
+    assert marker["monotonic_ns"] is None
+    assert "monotonic_ns" in marker["error"]
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 3 (report 5.4): mandatory artefacts per condition kind
+# ---------------------------------------------------------------------------
+
+
+def test_missing_sent_events_invalidates_and_withholds_the_seal(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A missing sent_events.jsonl used to be a warning; an incomplete run
+    must never look sealed (report 5.4)."""
+    real = run_mod._run_subprocess
+
+    def no_sent_events(cmd, log_path, timeout_s):
+        rc = real(cmd, log_path, timeout_s)
+        out_dir = Path(cmd[cmd.index("--output") + 1])
+        run_id = cmd[cmd.index("--run-id") + 1]
+        (out_dir / run_id / "sent_events.jsonl").unlink()
+        return rc
+
+    monkeypatch.setattr(run_mod, "_run_subprocess", no_sent_events)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "invalid"
+    assert "sent_events.jsonl" in manifest["missing_mandatory_artifacts"]
+    assert any(
+        "sent_events.jsonl" in reason for reason in manifest["validity_reasons"]
+    )
+    assert not (run_dir / checksums.SUMS_FILENAME).exists()
+
+
+def test_controller_metrics_are_mandatory_where_the_protocol_mandates_them(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = tmp_path / "results"
+    run_id = "load_sweep-010mps-r01"
+    rc = run_mod.execute_run(
+        plan_path,
+        run_id,
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        # load_sweep prescribes a 120 s cooldown; skipping it keeps this
+        # unit test instantaneous (the deviation is recorded, and this test
+        # asserts nothing about cooldowns).
+        skip_cooldown=True,
+        event_log_dir=_local_events(tmp_path, run_id),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    manifest = _manifest(base, run_id)
+    assert "controller_metrics.csv" in manifest["missing_mandatory_artifacts"]
+    assert not (base / "raw" / run_id / checksums.SUMS_FILENAME).exists()
+
+
+def test_mandatory_artifacts_respect_the_allow_missing_resources_override(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """An explicitly authorized absence is not a missing mandatory artefact:
+    the run stays sealed (and the deviation is recorded)."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        allow_missing_resources=True,
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["missing_mandatory_artifacts"] == []
+    assert (base / "raw" / "smoke_sequence-r01" / checksums.SUMS_FILENAME).is_file()
+
+
+# ---------------------------------------------------------------------------
+# P5.1 item 8 (report 5.4): semantic validation of resources.csv
+# ---------------------------------------------------------------------------
+
+
+def _csv(tmp_path: Path, name: str, rows: list[str]) -> Path:
+    path = tmp_path / name
+    path.write_text(
+        "\n".join([RESOURCES_HEADER] + rows) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+def test_validate_resources_csv_requires_parseable_timestamps(tmp_path) -> None:
+    bad = _csv(
+        tmp_path,
+        "bad-ts.csv",
+        [f"not-a-timestamp,egw-controller,10.0,1024,1.0,{SUT_NODE}"] * 40,
+    )
+    problems = " ".join(resources_mod.validate_resources_csv(bad))
+    assert "timestamp" in problems
+
+
+def test_validate_resources_csv_requires_distinct_sample_instants(tmp_path) -> None:
+    """Thirty rows may be six containers at five instants (report 5.4)."""
+    rows = [
+        f"2026-09-07T10:00:{i:02d}Z,egw-{c},10.0,1024,1.0,{SUT_NODE}"
+        for i in range(5)
+        for c in range(8)
+    ]
+    path = _csv(tmp_path, "few-instants.csv", rows)
+    problems = " ".join(resources_mod.validate_resources_csv(path))
+    assert "distinct sample instant" in problems
+
+
+def test_validate_resources_csv_requires_non_decreasing_timestamps(tmp_path) -> None:
+    rows = [
+        f"2026-09-07T10:00:{i:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        for i in range(40)
+    ]
+    rows[20] = f"2026-09-07T09:59:00Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+    path = _csv(tmp_path, "unordered.csv", rows)
+    problems = " ".join(resources_mod.validate_resources_csv(path))
+    assert "non-decreasing" in problems
+
+
+def test_validate_resources_csv_requires_numeric_cpu_and_memory(tmp_path) -> None:
+    rows = [
+        f"2026-09-07T10:00:{i:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        for i in range(40)
+    ]
+    rows[3] = f"2026-09-07T10:00:03Z,egw-controller,n/a,1024,1.0,{SUT_NODE}"
+    rows[4] = f"2026-09-07T10:00:04Z,egw-controller,10.0,,1.0,{SUT_NODE}"
+    path = _csv(tmp_path, "non-numeric.csv", rows)
+    problems = " ".join(resources_mod.validate_resources_csv(path))
+    assert "cpu_pct" in problems
+    assert "mem_bytes" in problems
+
+
+def test_validate_resources_csv_requires_complete_columns(tmp_path) -> None:
+    rows = [
+        f"2026-09-07T10:00:{i:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        for i in range(40)
+    ]
+    rows[7] = "2026-09-07T10:00:07Z,egw-controller,10.0"
+    path = _csv(tmp_path, "short-row.csv", rows)
+    problems = " ".join(resources_mod.validate_resources_csv(path))
+    assert "column" in problems
+
+
+def test_validate_resources_csv_checks_coverage_of_the_measured_window(
+    tmp_path,
+) -> None:
+    """Thirty rows can be five seconds of six containers (report 5.4)."""
+    path = _resources_file(tmp_path, name="short-window.csv")  # spans 39 s
+    assert resources_mod.validate_resources_csv(path, expected_window_s=40.0) == []
+    problems = " ".join(
+        resources_mod.validate_resources_csv(path, expected_window_s=300.0)
+    )
+    assert "covered" in problems
+    assert "measured window" in problems

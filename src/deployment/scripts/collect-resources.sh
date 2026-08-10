@@ -12,11 +12,24 @@
 #
 # host (work order P1): the hostname of the machine every sample was taken
 # on — provenance the harness VERIFIES at ingestion. `run/collect
-# --resources-from` rejects the file (and treats SUT resources as missing,
-# invalidating the timed run) unless:
+# --resources-from` (and the harness's --collector-fetch-cmd hook) rejects
+# the file — treating SUT resources as missing and invalidating the timed
+# run — unless ALL of the following hold
+# (egw_experiments.resources.validate_resources_csv):
 #   - the header is exactly the 6 columns above,
-#   - it carries at least 30 data rows (MIN_RESOURCE_SAMPLES,
-#     egw_experiments/resources.py),
+#   - every data row carries all 6 columns and a non-empty container name,
+#   - ts_utc parses as RFC 3339 and never goes back in time,
+#   - cpu_pct, mem_bytes and mem_pct are numeric on every row,
+#   - it carries at least 30 data rows (MIN_RESOURCE_SAMPLES) AND at least
+#     30 DISTINCT ts_utc instants (MIN_DISTINCT_SAMPLE_INSTANTS): one
+#     `docker stats` sample writes ONE ROW PER CONTAINER, so 30 rows can be
+#     five seconds of six containers — row count alone is not evidence of a
+#     sampled run (sprint P5, report 5.4). At the 1 Hz cadence below that
+#     means at least ~30 s of continuous collection,
+#   - the sampled instants span at least 90% of the run's measured window
+#     (RESOURCE_WINDOW_COVERAGE_MIN_FRAC, pending advisor sign-off), which
+#     is why the collector must be STARTED BEFORE the warm-up and stopped
+#     only AFTER the confirmation window,
 #   - every host value equals the node/hostname recorded in
 #     sut_environment.json (when that file provides one).
 # So this script MUST run on the SUT VM itself; a CSV produced anywhere
@@ -32,9 +45,22 @@
 # Usage (ON the VM):
 #   sh collect-resources.sh <output.csv> [--duration SECONDS]
 #
-# Typical remote orchestration from the harness host, around one timed run
-# (start before the warm-up, stop after the confirmation window, fetch,
-# then ingest with `run/collect --resources-from`):
+# Preferred orchestration (sprint P5): let the harness drive this script
+# per run through its collector hooks — `run` and `campaign` start it
+# BEFORE the warm-up, stop it AFTER the measured run and fetch its output
+# AFTER the confirmation window, recording every hook's exit code in the
+# run manifest:
+#
+#   python -m egw_experiments campaign ... \
+#     --collector-start-cmd "ssh vm 'systemd-run --unit egw-resources-{run_id} \
+#         --collect sh /opt/egw/src/deployment/scripts/collect-resources.sh \
+#         /tmp/resources-{run_id}.csv --duration {duration_s}'" \
+#     --collector-stop-cmd  "ssh vm 'systemctl stop egw-resources-{run_id}'" \
+#     --collector-fetch-cmd 'scp vm:/tmp/resources-{run_id}.csv {dest}'
+#
+# Manual equivalent, around one timed run (start before the warm-up, stop
+# after the confirmation window, fetch, then ingest with
+# `run/collect --resources-from`):
 #
 #   # start (backgrounded on the VM; survives the ssh session):
 #   ssh vm 'nohup sh /opt/egw/scripts/collect-resources.sh \

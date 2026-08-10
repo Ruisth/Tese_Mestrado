@@ -142,6 +142,76 @@ def test_run_parser_deviation_flags_default_false() -> None:
 
 
 # ---------------------------------------------------------------------------
+# run/campaign: sprint P5 flags (collector hooks, confirmation marker)
+# ---------------------------------------------------------------------------
+
+
+COLLECTOR_START = (
+    "ssh vm 'systemd-run --unit egw-resources-{run_id} --collect sh "
+    "/opt/egw/src/deployment/scripts/collect-resources.sh "
+    "/tmp/resources-{run_id}.csv --duration {duration_s}'"
+)
+COLLECTOR_STOP = "ssh vm 'systemctl stop egw-resources-{run_id}'"
+COLLECTOR_FETCH = "scp vm:/tmp/resources-{run_id}.csv {dest}"
+
+
+def test_run_parser_accepts_collector_hooks_and_marker_override() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "run",
+            "--run-id",
+            "nominal-r01",
+            "--collector-start-cmd",
+            COLLECTOR_START,
+            "--collector-stop-cmd",
+            COLLECTOR_STOP,
+            "--collector-fetch-cmd",
+            COLLECTOR_FETCH,
+            "--allow-missing-controller-marker",
+        ]
+    )
+    assert "{duration_s}" in args.collector_start_cmd
+    assert "{run_id}" in args.collector_stop_cmd
+    assert args.collector_fetch_cmd.endswith("{dest}")
+    assert args.allow_missing_controller_marker is True
+
+
+def test_campaign_parser_accepts_collector_hooks_and_marker_override() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "campaign",
+            "--collector-start-cmd",
+            COLLECTOR_START,
+            "--collector-stop-cmd",
+            COLLECTOR_STOP,
+            "--collector-fetch-cmd",
+            COLLECTOR_FETCH,
+            "--allow-missing-controller-marker",
+        ]
+    )
+    assert "{duration_s}" in args.collector_start_cmd
+    assert args.collector_fetch_cmd.endswith("{dest}")
+    assert args.allow_missing_controller_marker is True
+
+
+def test_p5_flags_default_to_off() -> None:
+    parser = cli.build_parser()
+    run_args = parser.parse_args(["run", "--run-id", "nominal-r01"])
+    assert run_args.collector_start_cmd is None
+    assert run_args.collector_stop_cmd is None
+    assert run_args.collector_fetch_cmd is None
+    assert run_args.allow_missing_controller_marker is False
+    camp_args = parser.parse_args(["campaign"])
+    assert camp_args.collector_fetch_cmd is None
+    assert camp_args.allow_missing_controller_marker is False
+    # 'collect' can re-apply the authorization but never re-measures the
+    # marker, so it takes the flag without the hooks.
+    col_args = parser.parse_args(["collect", "--run-id", "nominal-r01"])
+    assert col_args.allow_missing_controller_marker is False
+    assert not hasattr(col_args, "collector_start_cmd")
+
+
+# ---------------------------------------------------------------------------
 # collect (recovery path, audit 9.3)
 # ---------------------------------------------------------------------------
 
