@@ -140,6 +140,65 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
 
 ---
 
+## Entrada #C006 (sprint P5 — pré-voo antes do P4)
+- **Data:** 2026-08-08
+- **Fase:** Sprint P5 autorizado pelo Senior PM
+  (`../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`)
+- **Ação:** Dois bloqueadores críticos confirmados no código antes de agir, e
+  corrigidos com teste de regressão a falhar primeiro.
+- **Resultado:**
+  - **Bloqueador 1 — prazo de confirmação circular** (regressão minha da ronda
+    anterior): o prazo derivava de `max(received_monotonic_ns)+60 s`, pelo que
+    a mensagem mais tardia empurrava o seu próprio prazo e nunca podia ser
+    contada como perdida. Corrigido com um **marcador no domínio de relógio do
+    controlador**: `GET /metrics` expõe `monotonic_ns`/`wall_utc` (aditivo), o
+    harness lê-o ao fim da execução medida e grava
+    `confirmation_deadline_clock_domain: "controller"`; a análise só confia no
+    manifesto nesse caso. **A regra dos 60 s e a métrica de latência não
+    mudaram** (CONTRACTS §5, secção nova). Regressão verificada empiricamente:
+    com o ramo desligado a mensagem tardia conta como entregue; com o ramo
+    ativo conta como perdida.
+  - **Bloqueador 2 — `campaign` não era end-to-end**: só expandia um template
+    para um CSV que tinha de existir; numa campanha nova a primeira execução
+    cronometrada ficaria inválida pelas regras do P1a. Corrigido com hooks
+    parametrizáveis start/stop/fetch do collector, executados pela ordem certa
+    e registados no manifesto com exit codes (hook falhado ⇒ run inválido).
+  - **Integridade e completude:** SHA256SUMS verificados antes de qualquer
+    agregação (runs adulterados ou não selados excluídos e assinalados);
+    completude por **identidade** contra o plano (run_id, repetição, seed,
+    taxa), por nível de carga no sweep; artefactos obrigatórios por condição —
+    em falta ⇒ inválido **e sem selagem**; resume verifica checksums;
+    campanha completa com condições externas pendentes já não termina limpa.
+  - **Qualidade das séries:** validação semântica de `resources.csv` e
+    `controller_metrics.csv` (timestamps, instantes distintos, monotonia,
+    numéricos, colunas), head gap medido, cobertura mínima também exigida às
+    métricas do controlador; C12 passa a exigir evidência de recuperação real.
+  - **P5.0:** PDF standalone do cap. 2 sem os 23 avisos de labels duplicadas,
+    com metadata (título/assunto/keywords; sem dados pessoais inventados).
+  - **P5.2:** ensaio seco arquivado em
+    `docs/evidence/rehearsal/2026-08-08-dry-rehearsal.md` — plano determinista
+    (SHA-256 idêntico com a mesma seed), 95 runs (25 externos + 70 do
+    simulador), sweep com 10 runs por carga em ordem congelada, `--dry-run`
+    sem criar artefactos, e **piso logístico de 33,17 h** só para os runs do
+    simulador (soak 24 h incluído), excluindo externos, setup, transferências,
+    análise e repetições.
+  - **P5.3:** varrimento documental (drift de `run_id` na matriz, tabela
+    RA1–RA15 com RA15 materializado, 7 full-text vs 18 título/resumo).
+  - **Nota de método:** a tentativa interrompida do agente de análise tinha
+    deixado grande parte do código **morto** (helpers e colunas declarados mas
+    nunca chamados por `compute_run_metrics`). Só os testes o revelaram — o
+    que confirma a regra de não aceitar implementação sem teste que a exercite.
+- **Evidência:** **593 testes** (515 → 593); commits `33d004c`, `d3e25ca`,
+  `e2d5113`, `c025d8d`, `03ee5c9`.
+- **Decisões/desvios:** nenhuma regra estatística, percentil, método de IC ou
+  janela de 60 s foi alterada (condição de paragem respeitada); constantes
+  novas marcadas "pending advisor sign-off"; nenhum gate ou claim aceite.
+- **Próximos passos:** P4 (estudante). Ao primeiro sinal de VM/WSL2, parar o
+  trabalho de secretária e ir para o micro-piloto (smoke → nominal curto →
+  dropout → restart) antes de qualquer campanha oficial.
+
+---
+
 ## Entrada #C005
 - **Data:** 2026-08-08
 - **Fase:** Execução da ordem de trabalhos do Senior PM (P2 → P1 → P3);
