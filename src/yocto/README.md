@@ -79,13 +79,13 @@ The authoritative manifest path is `src/yocto/kas/egw-qemuarm64.yml`
 (wherever that guide refers to the kas manifest generically).
 
 Hard rule (plan 5.1): builds run on the WSL2 **ext4** filesystem, never on
-`/mnt/*` and never inside the Nextcloud-synced workspace. `scripts/build.sh`
+`/mnt/*` (the workspace itself lives on NTFS). `scripts/build.sh`
 refuses Windows-backed filesystems.
 
 ```sh
 # 1. Inside WSL2: clone the repository onto ext4
 mkdir -p ~/yocto && cd ~/yocto
-git clone /mnt/d/Nextcloud/'Edge Gateway'/Claude egw
+git clone "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/Claude" egw
 cd egw/src/yocto
 
 # 2. Build (checkout of pinned layers + bitbake, fully logged)

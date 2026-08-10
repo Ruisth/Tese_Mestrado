@@ -5,13 +5,28 @@ Step-by-step guide to prepare the Yocto build environment required for gate G1
 Project 5.0.x "Scarthgap" using a `kas` manifest, and boot it in QEMU.
 
 **Hard rule (plan 5.1):** the Yocto build directory MUST live on the WSL2 Linux
-ext4 filesystem (e.g. under `~/`), never on `/mnt/c` or `/mnt/d`, and never
-inside the Nextcloud-synced workspace. NTFS-backed paths (`/mnt/*`) are slow and
-break the build; Nextcloud sync corrupts intermediate artifacts.
+ext4 filesystem (e.g. under `~/`) and never on `/mnt/*`. NTFS-backed paths are
+slow and break the build. The workspace previously lived in a Nextcloud-synced
+folder (sync corrupts intermediate artifacts); since 10/08/2026 it lives at
+`C:\Users\ruimf\Documents\Projeto Mestrado`, reachable from WSL as
+`/mnt/c/Users/ruimf/Documents/Projeto Mestrado`.
 
 ---
 
 ## 1. Install Ubuntu 24.04 LTS on WSL2
+
+> **The release matters — do not substitute a newer Ubuntu.** Yocto 5.0
+> "Scarthgap" (April 2024) validates a fixed list of host distributions, and
+> 24.04 LTS is the newest Ubuntu on it. Observed on this machine (10/08/2026):
+> `wsl --install -d Ubuntu` installs **Ubuntu 26.04 LTS**, which ships
+> **Python 3.14**; Scarthgap's BitBake predates the standard-library removals
+> of Python 3.13/3.14, so the toolchain is outside its tested envelope and any
+> failure would surface hours into a build. Ubuntu 24.04.4 LTS ships Python
+> 3.12.3, which is inside it. Install the release **by name**
+> (`-d Ubuntu-24.04`), never the unversioned `Ubuntu` alias.
+>
+> To replace a wrong distribution: `wsl --unregister <name>` (irreversible —
+> it deletes that distribution's filesystem) and then install by name.
 
 From an elevated PowerShell on the Windows host:
 
@@ -146,8 +161,8 @@ entirely in the Linux home directory:
 mkdir -p ~/yocto
 cd ~/yocto
 # Copy ONLY the kas manifest + meta-egw layer from the workspace (read via /mnt),
-# or clone the project repo natively into ext4 — never build under /mnt/d:
-git clone /mnt/d/Nextcloud/"Edge Gateway"/Claude egw   # local clone onto ext4
+# or clone the project repo natively into ext4 — never build under /mnt/*:
+git clone "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/Claude" egw
 cd egw/src/yocto
 ```
 
