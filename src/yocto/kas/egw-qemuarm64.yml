@@ -114,6 +114,21 @@ local_conf_header:
     # Rule of thumb: never set them above the vCPUs assigned to WSL2
     # (.wslconfig) and lower them when RAM per job is scarce.
 
+  35-perl-parallel-make: |
+    # perl's ExtUtils::MakeMaker regenerates sub-Makefiles during do_compile
+    # and then asks make to be rerun ("==> Your Makefile has been rebuilt.
+    # <== ==> Please rerun the make command. <==" followed by 'false'). Under
+    # a parallel make the sibling jobs abort instead, which fails do_compile:
+    #     make[2]: *** [Makefile:738: Makefile] Error 1
+    #     make[1]: *** [Makefile:230: cpan/Pod-Escapes/pm_to_blib] Error 2
+    # Observed here on 2026-08-10 (16-core host, default PARALLEL_MAKE).
+    # The race is intermittent, which is precisely why it must not be left to
+    # chance: claim C01 asserts a REPRODUCIBLE build from a clean checkout.
+    # Serialising make for this one recipe removes the nondeterminism; every
+    # other recipe keeps full parallelism. PARALLEL_MAKE is excluded from
+    # sstate signatures, so this does not invalidate cached artefacts.
+    PARALLEL_MAKE:pn-perl = "-j 1"
+
   40-shared-caches: |
     # Keep downloads and shared state OUTSIDE the repository checkout so a
     # re-clone or 'git clean' never deletes them and rebuilds stay fast.
