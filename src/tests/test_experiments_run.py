@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from egw_experiments import checksums, plan_gen
+from egw_experiments import controller_metrics as metrics_mod
 from egw_experiments import resources as resources_mod
 from egw_experiments import run as run_mod
 
@@ -1781,6 +1782,120 @@ def test_poll_controller_marker_rejects_a_payload_without_monotonic_ns(
 
 
 # ---------------------------------------------------------------------------
+# P5.4 defect 5: the marker must be polled at the TRUE end of the measured
+# window - before the samplers are joined and before any hook
+# ---------------------------------------------------------------------------
+
+
+def test_controller_marker_is_polled_before_the_samplers_are_joined(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Joining the samplers first can cost up to a full docker-stats /
+    fetch_metrics timeout, and every second spent there silently widens the
+    confirmation window to 60 + delta s."""
+    order: list[str] = []
+
+    def recording_get(url, timeout_s):
+        order.append("marker")
+        return {
+            "monotonic_ns": MARKER_MONOTONIC_NS,
+            "wall_utc": MARKER_WALL_UTC,
+        }
+
+    real_exit = run_mod.ControllerMetricsSampler.__exit__
+
+    def recording_exit(self, exc_type, exc, tb):
+        order.append("metrics-sampler-join")
+        return real_exit(self, exc_type, exc, tb)
+
+    monkeypatch.setattr(run_mod, "_http_get_json", recording_get)
+    monkeypatch.setattr(run_mod.ControllerMetricsSampler, "__exit__", recording_exit)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        controller_url="http://127.0.0.1:8000",
+    )
+    assert rc == 0
+    assert order[:2] == ["marker", "metrics-sampler-join"]
+
+
+def test_controller_marker_lag_is_recorded_in_the_manifest(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    _fake_controller_marker(monkeypatch)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        controller_url="http://127.0.0.1:8000",
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    marker = manifest["controller_marker"]
+    assert isinstance(marker["lag_s"], float)
+    assert 0.0 <= marker["lag_s"] <= run_mod.CONTROLLER_MARKER_LAG_TOLERANCE_S
+    assert marker["lag_tolerance_s"] == run_mod.CONTROLLER_MARKER_LAG_TOLERANCE_S
+    assert not any(
+        d["kind"] == "confirmation_marker_lag" for d in manifest["deviations"]
+    )
+    # The 60 s window value itself is untouched.
+    assert manifest["confirmation_window_s"] == 60
+
+
+def test_a_late_controller_marker_poll_is_warned_and_recorded_as_a_deviation(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """An anomalous marker must be visible to the analysis, not silent."""
+
+    def slow_get(url, timeout_s):
+        time.sleep(0.05)
+        return {
+            "monotonic_ns": MARKER_MONOTONIC_NS,
+            "wall_utc": MARKER_WALL_UTC,
+        }
+
+    monkeypatch.setattr(run_mod, "_http_get_json", slow_get)
+    monkeypatch.setattr(run_mod, "CONTROLLER_MARKER_LAG_TOLERANCE_S", 0.01)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        controller_url="http://127.0.0.1:8000",
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["controller_marker"]["lag_s"] > 0.01
+    deviation = next(
+        d for d in manifest["deviations"] if d["kind"] == "confirmation_marker_lag"
+    )
+    assert deviation["authorized_by_flag"] is None
+    assert any("confirmation marker" in w for w in manifest["warnings"])
+    # The deadline is still anchored on the controller's clock domain and the
+    # 60 s window value is untouched; only the anomaly is recorded.
+    assert manifest["confirmation_deadline_clock_domain"] == "controller"
+    assert manifest["confirmation_window_s"] == 60
+
+
+# ---------------------------------------------------------------------------
 # P5.1 item 3 (report 5.4): mandatory artefacts per condition kind
 # ---------------------------------------------------------------------------
 
@@ -1953,3 +2068,131 @@ def test_validate_resources_csv_checks_coverage_of_the_measured_window(
     )
     assert "covered" in problems
     assert "measured window" in problems
+
+
+# ---------------------------------------------------------------------------
+# P5.4 defect 4: strict numeric rule at ingest (finite and non-negative)
+# ---------------------------------------------------------------------------
+
+
+def _good_rows(count: int = 40) -> list[str]:
+    return [
+        f"2026-09-07T10:00:{i:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        for i in range(count)
+    ]
+
+
+def test_validate_resources_csv_rejects_non_finite_values(tmp_path) -> None:
+    """float('nan'/'inf') parse fine but are not measurements."""
+    rows = _good_rows()
+    rows[5] = f"2026-09-07T10:00:05Z,egw-controller,nan,1024,1.0,{SUT_NODE}"
+    rows[6] = f"2026-09-07T10:00:06Z,egw-controller,10.0,inf,1.0,{SUT_NODE}"
+    rows[7] = f"2026-09-07T10:00:07Z,egw-controller,10.0,1024,-Infinity,{SUT_NODE}"
+    path = _csv(tmp_path, "non-finite.csv", rows)
+    problems = " ".join(resources_mod.validate_resources_csv(path))
+    assert "non-finite" in problems
+    # The reason names the column AND the row.
+    assert "cpu_pct" in problems and "line 7" in problems
+    assert "mem_bytes" in problems and "line 8" in problems
+    assert "mem_pct" in problems and "line 9" in problems
+
+
+def test_validate_resources_csv_rejects_negative_values(tmp_path) -> None:
+    rows = _good_rows()
+    rows[9] = f"2026-09-07T10:00:09Z,egw-controller,-0.5,1024,1.0,{SUT_NODE}"
+    rows[10] = f"2026-09-07T10:00:10Z,egw-controller,10.0,-1,1.0,{SUT_NODE}"
+    path = _csv(tmp_path, "negative.csv", rows)
+    problems = " ".join(resources_mod.validate_resources_csv(path))
+    assert "negative" in problems
+    assert "cpu_pct" in problems and "line 11" in problems
+    assert "mem_bytes" in problems and "line 12" in problems
+
+
+def test_a_non_finite_resources_csv_is_not_ingestible(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """A rejected file is treated as MISSING resources: the timed run is
+    invalid, with the reason naming the defect."""
+    rows = _good_rows()
+    rows[5] = f"2026-09-07T10:00:05Z,egw-controller,Infinity,1024,1.0,{SUT_NODE}"
+    path = _csv(tmp_path, "wire-infinity.csv", rows)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=path,
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["resource_source"] == "none"
+    assert any("non-finite" in w for w in manifest["warnings"])
+
+
+# ---------------------------------------------------------------------------
+# P5.4 defect 4 (writer side): controller_metrics.csv never records
+# non-finite / negative / non-integer counters
+# ---------------------------------------------------------------------------
+
+
+def _metrics_rows(path: Path) -> list[list[str]]:
+    import csv
+
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        return [row for row in csv.reader(fh) if row]
+
+
+def test_fetch_metrics_rejects_the_json_non_finite_constants(monkeypatch) -> None:
+    """json.loads accepts the NaN/Infinity JSON constants by default; the
+    metrics snapshot must not."""
+
+    class _Resp:
+        def read(self):
+            return b'{"accepted": 1, "queue_depth": Infinity}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(
+        metrics_mod.urllib.request, "urlopen", lambda url, timeout=None: _Resp()
+    )
+    with pytest.raises(ValueError):
+        metrics_mod.fetch_metrics("http://127.0.0.1:8000")
+
+
+def test_metrics_sampler_writes_empty_for_non_finite_or_negative_counters(
+    tmp_path, monkeypatch
+) -> None:
+    snapshot = {
+        "accepted": 5,
+        "rejected": float("inf"),
+        "duplicate": float("nan"),
+        "failed": -1,
+        "dropped": 2.5,
+        "queue_depth": 3,
+    }
+    monkeypatch.setattr(
+        metrics_mod, "fetch_metrics", lambda url, *a, **k: dict(snapshot)
+    )
+    csv_path = tmp_path / "controller_metrics.csv"
+    with metrics_mod.ControllerMetricsSampler(
+        csv_path, "http://127.0.0.1:8000", interval_s=60.0
+    ) as sampler:
+        pass
+    rows = _metrics_rows(csv_path)
+    assert rows[0] == metrics_mod.CSV_HEADER
+    assert rows[1:]
+    for row in rows[1:]:
+        # inf/nan/negative/non-integer counters are written as EMPTY cells,
+        # never as 'inf'/'nan'/'-1'/'2.5'.
+        assert row[1:] == ["5", "", "", "", "", "3"]
+    assert sampler.invalid_values >= 4
+    assert "dropped" in (sampler.last_invalid or "")

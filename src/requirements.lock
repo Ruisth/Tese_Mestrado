@@ -1,10 +1,13 @@
 # requirements.lock — frozen dependency set for the EGW dev/test environment.
 # Generated 2026-08-08 with 'pip freeze' on the Windows dev venv (Python 3.14).
-# Purpose: pin the exact versions the current 515-test suite ran against
-# (audit R24). Suite size read from the sealed evidence record
-# docs/evidence/tests/2026-08-08-head-ca445a3/pytest-stdout.txt
-# ("515 passed"), commit ca445a3, Python 3.14.3, Windows. Update this number
-# in the same change that re-seals a new test-evidence directory.
+# Purpose: pin the exact versions the unit-test suite ran against (audit R24).
+# Suite size read from the LAST SEALED evidence record that exists in this
+# repository: docs/evidence/tests/2026-08-08-head-57228e1/pytest-stdout.txt
+# ("593 passed"), commit 57228e1, Python 3.14.3, Windows 11 Pro, run recorded
+# as 2026-08-10T21:22:25Z. (The previous record, "515 passed" over commit
+# ca445a3, is kept in docs/evidence/tests/2026-08-08-head-ca445a3/.) Update
+# this number in the SAME change that seals a new test-evidence directory --
+# this header has already drifted once behind the sealed evidence (risk RA14).
 # CAVEAT (unchanged): this is the DEV lock, without hashes. The authoritative
 # runtime lock for the ARM64 controller container must be regenerated during
 # the image build on the VM (pip freeze inside the container) and archived

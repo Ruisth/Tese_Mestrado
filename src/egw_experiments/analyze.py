@@ -253,17 +253,43 @@ CONDITIONS, not only over conditions found in raw/), over the INCLUDED
   restart via the twin ingestion feature, CONTRACTS 4). RECOVERY EVIDENCE
   (report 5.4 "C12 nao demonstra recuperacao", sprint P5): a hook that
   exited 0 proves a command ran, not that the controller went down and
-  came back, so three further criteria are computed from
-  controller_metrics.csv around the manifest restart timestamps
-  (:func:`restart_recovery_evidence`): (a) downtime evidence — a
+  came back, so further criteria are computed around the manifest restart
+  timestamps (:func:`restart_recovery_evidence`): (a) downtime evidence — a
   controller-metrics sampling gap > MAX_SAMPLE_GAP_S straddling the
   restart (a failed poll writes no row, so holes ARE the unavailability
-  evidence) or an accepted-counter reset across it; (b) recovery —
-  the first sample after the restart finished lands within
-  ``RESTART_RECOVERY_MAX_S`` (protocol.py, PENDING ADVISOR SIGN-OFF);
-  (c) progress — the accepted counter grows after the restart. When the
-  series or the restart record is missing the criteria FAIL with
-  'insufficient instrumentation', never blank.
+  evidence) or an accepted-counter reset across it; (b) ENDPOINT recovery —
+  the first controller-metrics sample after the restart finished lands
+  within ``RESTART_RECOVERY_MAX_S`` (protocol.py, PENDING ADVISOR
+  SIGN-OFF); (c) FUNCTIONAL recovery, the readiness criterion; (d) progress
+  — the accepted counter grows after the restart. When the series or the
+  restart record is missing the criteria FAIL with 'insufficient
+  instrumentation', never blank.
+
+  ENDPOINT vs FUNCTIONAL readiness (sprint P5.4). A controller_metrics.csv
+  row exists only when ``GET /metrics`` answered, so criterion (b) asserts
+  "the HTTP endpoint replied" and says nothing about MQTT/Ditto ingestion;
+  it is reported as ``restart_metrics_endpoint_recovery_within_bound`` and
+  the per-run column is ``restart_metrics_endpoint_recovery_s`` (named
+  ``restart_recovery_s`` before, which invited exactly that confusion).
+  Criterion (d) is last-minus-first over ALL post-restart samples and only
+  tests > 0, so an acceptance 400 s after the restart passed like one at
+  +3 s; it is kept, explicitly, as an UNBOUNDED liveness observation.
+  The BOUNDED functional criterion
+  ``restart_functional_recovery_within_bound`` is the readiness gate: the
+  FIRST evidence that ingestion actually resumed must fall within the same
+  ``RESTART_RECOVERY_MAX_S``. That evidence is, preferred when available,
+  the first ``accepted`` event of ``events.jsonl`` whose controller-domain
+  ``received_monotonic_ns`` follows the restart — the restart instant is
+  mapped into the controller's clock domain with the manifest's
+  ``controller_marker`` anchor pair (:func:`controller_monotonic_ns_at`) —
+  and otherwise the first post-restart controller_metrics sample whose
+  ``accepted`` counter exceeds the last pre-restart value (or, when the
+  counters reset across the restart, the first post-restart value). Two
+  failure modes are reported separately and neither is blank: instrumented
+  but NO post-restart evidence of resumed ingestion, and no instrumentation
+  at all ('insufficient instrumentation'). ``per_run.csv`` records
+  ``restart_functional_recovery_s`` and
+  ``restart_functional_recovery_source``.
 - ``soak`` (C13) Definition of Done (thresholds in protocol.py, pending
   advisor sign-off): measured window >= 24 h; resources.csv AND
   controller_metrics.csv each cover >= 99% of the measured window with no
@@ -315,8 +341,15 @@ re-implemented here). ``per_run.csv`` gains an ``integrity_ok`` column:
   likewise excluded from aggregation with a loud warning; unsealed runs
   of other/unknown conditions are only flagged.
 
-External runs (``timings.json``) are verified the same way: an integrity
-failure removes them from the duration statistics.
+External runs (``timings.json``) are verified with the same implementation,
+and since sprint P5.4 with the same STRICTNESS: only a run whose seal
+VERIFIES (``integrity_ok`` true) may contribute to the duration statistics
+(mean/stdev/CI95/median/min/max). An integrity FAILURE and an UNSEALED
+directory (no ``SHA256SUMS`` at all, so nothing can be checked) are both
+excluded and both get a loud warning; previously only failures were
+excluded, so an unsealed external cold_start/twin_creation run entered the
+statistics silently. Excluded external runs stay listed in
+``external_runs.csv`` with their ``integrity_ok`` flag.
 
 Semantic validation of sampled series (report 5.4 "Validacao superficial")
 --------------------------------------------------------------------------
@@ -327,7 +360,27 @@ Semantic validation of sampled series (report 5.4 "Validacao superficial")
 not a usable sample and COUNT the reason: ``missing_column``,
 ``empty_field``, ``unparseable_ts``, ``non_numeric``, ``decreasing_ts``
 (time must be non-decreasing in file order) and, for the metrics series,
-``no_counters``. Drops surface per run in the ``warnings`` column and in
+``no_counters``.
+
+NUMERIC STRICTNESS (sprint P5.4): every numeric field of both series goes
+through the shared :func:`parse_series_number`, which additionally rejects
+``non_finite`` (``inf``/``nan``) and ``negative`` values for ``cpu_pct``,
+``mem_pct``, ``mem_bytes`` and the six controller counters, and
+``non_integral`` values for the counters themselves
+(``accepted``/``rejected``/``duplicate``/``failed``/``dropped``/
+``queue_depth`` are counts of messages). The parse is guarded against
+``ValueError``, ``OverflowError`` and ``TypeError``: a ``mem_bytes`` of
+``inf`` previously raised an uncaught ``OverflowError`` in
+``int(float(...))`` and killed the whole analysis run, an ``inf`` cpu
+sample made ``host_cpu_utilization`` infinite and declared host-CPU
+saturation on its own, and a ``nan`` made ``max()`` order-dependent and
+every threshold comparison False, so saturation could silently never fire.
+Rejected values are counted in the SAME drop report as the structural
+reasons, so they surface as per-run warnings instead of vanishing. (The
+ingest-time counterpart lives in ``egw_experiments.resources`` and
+``egw_experiments.controller_metrics``; both sides apply the same rule.)
+
+Drops surface per run in the ``warnings`` column and in
 ``resources_rows_dropped`` / ``metrics_rows_dropped``. Coverage, cadence
 and every sustained-window computation see only the VALID rows, and are
 measured over DISTINCT sample instants INSIDE the measured window
@@ -399,8 +452,11 @@ from .protocol import (
 from .run import DEFAULT_RESULTS_BASE
 
 #: Environment variable consulted by ``analyze()`` when no ``plan_path``
-#: keyword argument is supplied (the CLI flag lives in cli.py, owned
-#: elsewhere; this fallback makes identity checking usable either way).
+#: keyword argument is supplied. Since sprint P5.4 the shipped
+#: ``analyze`` subcommand also carries ``--plan`` (defaulting to the frozen
+#: plan, cli.py), so identity checking is the default behaviour; this
+#: variable remains the documented fallback for a tree analyzed before the
+#: plan exists at the default path.
 CAMPAIGN_PLAN_ENV_VAR = "EGW_CAMPAIGN_PLAN"
 
 #: Values of the per-run ``integrity_ok`` column (per_run.csv).
@@ -533,6 +589,52 @@ def series_report_summary(report: dict[str, Any]) -> str:
     )
 
 
+#: Drop reasons produced by :func:`parse_series_number` (sprint P5.4). They
+#: feed the SAME per-run drop report as the structural reasons, so a
+#: rejected value surfaces as a warning instead of vanishing.
+NUMERIC_DROP_REASONS = ("non_numeric", "non_finite", "negative", "non_integral")
+
+
+def parse_series_number(
+    raw: Any, *, integral: bool = False
+) -> tuple[float | None, str | None]:
+    """Strict numeric parser shared by both sampled-series readers.
+
+    Returns ``(value, None)`` for a usable measurement or ``(None, reason)``
+    with one of :data:`NUMERIC_DROP_REASONS`. A value is usable only when it
+
+    - parses as a number at all (``non_numeric``; the conversion is guarded
+      against ``ValueError``, ``OverflowError`` AND ``TypeError`` — bare
+      ``float()``/``int()`` raise all three on the inputs a CSV can carry,
+      and an uncaught ``OverflowError`` used to abort the whole analysis);
+    - is FINITE (``non_finite``): ``inf``/``nan`` are not measurements.
+      ``inf`` propagates through ``fmean``/``max`` and would declare host-CPU
+      saturation on its own; ``nan`` makes every threshold comparison False
+      and ``max()`` order-dependent, so a saturated run could pass silently.
+      Both would also be written verbatim into the aggregate CSVs and read
+      back by the plotting path;
+    - is NON-NEGATIVE (``negative``): CPU/memory usage and monotonic
+      counters cannot be below zero;
+    - and, with ``integral`` (the controller counters), is a whole number
+      (``non_integral``): ``accepted``/``rejected``/``duplicate``/``failed``/
+      ``dropped``/``queue_depth`` are counts of messages, not rates.
+
+    The ingest-side counterpart lives in ``egw_experiments.resources`` /
+    ``egw_experiments.controller_metrics``; both sides apply the same rule.
+    """
+    try:
+        value = float(raw)
+    except (ValueError, OverflowError, TypeError):
+        return None, "non_numeric"
+    if not math.isfinite(value):
+        return None, "non_finite"
+    if value < 0:
+        return None, "negative"
+    if integral and value != int(value):
+        return None, "non_integral"
+    return value, None
+
+
 def read_resources_csv_validated(
     path: Path,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
@@ -548,8 +650,12 @@ def read_resources_csv_validated(
       (legacy 5-column header, see below).
     - ``empty_field``: none of the required fields is empty.
     - ``unparseable_ts``: ``ts_utc`` parses as RFC 3339.
-    - ``non_numeric``: ``cpu_pct``/``mem_pct`` parse as floats and
-      ``mem_bytes`` as an integer count.
+    - ``non_numeric`` / ``non_finite`` / ``negative``: ``cpu_pct``,
+      ``mem_pct`` and ``mem_bytes`` go through :func:`parse_series_number`,
+      so each must parse as a number AND be finite AND be non-negative
+      (sprint P5.4). ``mem_bytes`` is then truncated to an integer count —
+      previously ``int(float(...))`` on an ``inf`` raised an uncaught
+      ``OverflowError`` that aborted the whole analysis run.
     - ``decreasing_ts``: within a container, time is non-decreasing in FILE
       order — a row older than the previous kept row of the same container
       cannot be a later sample.
@@ -580,13 +686,21 @@ def read_resources_csv_validated(
             if ts is None:
                 _count_drop(report, "unparseable_ts")
                 continue
-            try:
-                cpu_pct = float(values["cpu_pct"])
-                mem_pct = float(values["mem_pct"])
-                mem_bytes = int(float(values["mem_bytes"]))
-            except ValueError:
-                _count_drop(report, "non_numeric")
+            numbers: dict[str, float] = {}
+            reason: str | None = None
+            for key in ("cpu_pct", "mem_pct", "mem_bytes"):
+                number, reason = parse_series_number(values[key])
+                if reason is not None:
+                    break
+                numbers[key] = number
+            if reason is not None:
+                _count_drop(report, reason)
                 continue
+            cpu_pct = numbers["cpu_pct"]
+            mem_pct = numbers["mem_pct"]
+            # Truncated only AFTER the value is known finite: int() on an
+            # inf raises OverflowError (sprint P5.4).
+            mem_bytes = int(numbers["mem_bytes"])
             container = values["container"]
             previous = last_ts.get(container)
             if previous is not None and ts < previous:
@@ -640,11 +754,16 @@ def read_controller_metrics_csv_validated(
     when every schema column is present in the row (``missing_column``),
     ``ts_utc`` is non-empty (``empty_field``) and parses as RFC 3339
     (``unparseable_ts``), time is non-decreasing in FILE order
-    (``decreasing_ts``), and every NON-EMPTY counter parses as a number
-    (``non_numeric``). An empty counter stays None: the sampler writes ""
-    for a field the controller did not report, which degrades that field
-    only. A row whose counters are ALL empty carries no measurement and is
-    dropped (``no_counters``).
+    (``decreasing_ts``), and every NON-EMPTY counter is a usable counter
+    value per :func:`parse_series_number` with ``integral=True``: it parses
+    as a number (``non_numeric``), is finite (``non_finite``), is
+    non-negative (``negative``) and is a whole number (``non_integral``).
+    These six fields are counts of messages (sprint P5.4): 1.5, -3, ``nan``
+    and ``inf`` used to be accepted with no check at all and then propagated
+    into the aggregates, the reconciliation and the written CSVs. An empty
+    counter stays None: the sampler writes "" for a field the controller did
+    not report, which degrades that field only. A row whose counters are ALL
+    empty carries no measurement and is dropped (``no_counters``).
     """
     samples: list[dict[str, Any]] = []
     report = _empty_series_report()
@@ -670,19 +789,18 @@ def read_controller_metrics_csv_validated(
                 _count_drop(report, "decreasing_ts")
                 continue
             sample: dict[str, Any] = {"ts": ts}
-            bad = False
+            bad_reason: str | None = None
             for key in CONTROLLER_METRIC_FIELDS:
                 raw = str(row[key]).strip()
                 if not raw:
                     sample[key] = None
                     continue
-                try:
-                    sample[key] = float(raw)
-                except ValueError:
-                    bad = True
+                value, bad_reason = parse_series_number(raw, integral=True)
+                if bad_reason is not None:
                     break
-            if bad:
-                _count_drop(report, "non_numeric")
+                sample[key] = value
+            if bad_reason is not None:
+                _count_drop(report, bad_reason)
                 continue
             if all(sample[key] is None for key in CONTROLLER_METRIC_FIELDS):
                 _count_drop(report, "no_counters")
@@ -1018,7 +1136,12 @@ PER_RUN_COLUMNS = [
     "buffered_dropout",
     "restart_hook_ok",
     "restart_downtime_evidence",
-    "restart_recovery_s",
+    # ENDPOINT observation (a controller_metrics row exists only when GET
+    # /metrics answered), deliberately NOT named 'recovery' on its own.
+    "restart_metrics_endpoint_recovery_s",
+    # BOUNDED functional readiness: when ingestion itself resumed.
+    "restart_functional_recovery_s",
+    "restart_functional_recovery_source",
     "restart_accepted_progress",
     "warnings",
 ]
@@ -1212,37 +1335,107 @@ def compare_run_identities_per_rate(
     return ok, " | ".join(details) if details else "no planned rates"
 
 
+def controller_monotonic_ns_at(
+    controller_marker: Any, wall: datetime
+) -> int | None:
+    """Map a harness wall-clock instant into the CONTROLLER's clock domain.
+
+    The manifest's ``controller_marker`` (run.py, sprint P5) is an anchor
+    PAIR read from a single ``GET /metrics``: the controller's own
+    ``monotonic_ns`` and its own ``wall_utc`` at that same instant. With it,
+    a wall-clock instant such as the restart's ``finished_utc`` can be
+    expressed in the controller's monotonic domain, which is the only domain
+    ``events.jsonl`` timestamps live in::
+
+        controller_ns(wall) = marker.monotonic_ns
+                              + (wall - marker.wall_utc) * 1e9
+
+    Returns None whenever the anchor is absent or unusable — the caller then
+    has no bridge and must fall back to the counter series.
+
+    Documented assumptions (same ones the confirmation-deadline marker
+    already makes, plan 5.1 / report 5.2): (1) the harness host and the SUT
+    are NTP-synchronized, which is the accepted precision for placing 1 Hz
+    samples and a wall-clock restart instant — never for latency; (2) the
+    controller's monotonic clock is boot-relative, so it survives a
+    container/process restart within the run.
+    """
+    if not isinstance(controller_marker, dict) or not controller_marker.get("ok"):
+        return None
+    monotonic_ns = controller_marker.get("monotonic_ns")
+    if isinstance(monotonic_ns, bool) or not isinstance(monotonic_ns, (int, float)):
+        return None
+    anchor = _parse_ts(str(controller_marker.get("wall_utc") or ""))
+    if anchor is None:
+        return None
+    return int(monotonic_ns + (wall - anchor).total_seconds() * 1_000_000_000)
+
+
 def restart_recovery_evidence(
     restart_record: Any,
     metric_samples: list[dict[str, Any]],
     max_gap_s: float = MAX_SAMPLE_GAP_S,
+    *,
+    events: list[dict[str, Any]] | None = None,
+    controller_marker: Any = None,
 ) -> dict[str, Any]:
     """Evidence that the controller really went down and came back (C12).
 
     Report 5.4 ("C12 nao demonstra recuperacao"): a restart hook that
     returned 0 proves a command ran, not that the controller was
     interrupted and recovered. This computes, from the manifest restart
-    record (``started_utc``/``finished_utc``) and the controller_metrics.csv
-    samples the harness already produces:
+    record (``started_utc``/``finished_utc``), the controller_metrics.csv
+    samples and the run's ``events.jsonl``:
 
     - ``downtime_evidence``: True when the series shows either a sampling
       gap longer than ``max_gap_s`` straddling the restart (a failed poll
       writes NO row, so holes are the unavailability evidence,
       controller_metrics.py) or a counter reset (the first ``accepted``
       value after the restart is lower than the last one before it);
-    - ``recovery_s``: seconds from ``finished_utc`` to the first sample
-      after it (None when no sample follows the restart);
-    - ``accepted_progress``: ``accepted`` delta over the samples after the
-      restart (None when unmeasurable).
+    - ``metrics_endpoint_recovery_s``: seconds from ``finished_utc`` to the
+      first controller_metrics sample after it. A row exists only when
+      ``GET /metrics`` answered, so this observes THE HTTP ENDPOINT coming
+      back — NOT functional readiness. It was called ``recovery_s`` until
+      sprint P5.4, which is exactly the confusion the rename removes: an
+      endpoint that replies says nothing about MQTT/Ditto ingestion;
+    - ``functional_recovery_s`` / ``functional_recovery_source``: the
+      BOUNDED functional criterion (sprint P5.4) — seconds from
+      ``finished_utc`` to the FIRST evidence that ingestion actually
+      resumed, and which instrumentation produced it:
 
-    Every field is None when the restart record or the series is missing:
-    the C12 criterion then fails as 'insufficient instrumentation', never
-    blank.
+      * ``"events-accepted-monotonic"`` (PREFERRED, used whenever
+        available): the first ``accepted`` event of ``events.jsonl`` whose
+        controller-domain ``received_monotonic_ns`` follows the restart. It
+        needs the manifest's ``controller_marker`` to place the restart in
+        the controller's clock domain (:func:`controller_monotonic_ns_at`);
+      * ``"metrics-accepted-counter"``: the first post-restart sample whose
+        ``accepted`` counter EXCEEDS the last pre-restart value. When the
+        counters reset across the restart (a restarted controller starts at
+        zero) the first post-restart value is the baseline instead, since
+        the pre-restart total is no longer comparable;
+      * ``None``: neither instrumentation existed — insufficient
+        instrumentation.
+
+      ``functional_recovery_s`` is None when the chosen source found NO
+      post-restart evidence of resumed ingestion. That is a FAILURE of the
+      criterion, distinct from (and reported apart from) missing
+      instrumentation; neither is ever blank;
+    - ``accepted_progress``: ``accepted`` delta over the samples after the
+      restart (None when unmeasurable). It is an UNBOUNDED liveness
+      observation only — an acceptance 400 s after the restart moves it just
+      like one at +3 s — which is why the bounded functional criterion above
+      exists.
+
+    Every field is None when the restart record is unusable, and every
+    metrics-derived field is None when the series is missing: the C12
+    criteria then fail as 'insufficient instrumentation', never blank.
     """
     unknown: dict[str, Any] = {
         "downtime_evidence": None,
-        "recovery_s": None,
+        "metrics_endpoint_recovery_s": None,
         "accepted_progress": None,
+        "functional_recovery_s": None,
+        "functional_recovery_source": None,
     }
     if not isinstance(restart_record, dict):
         return unknown
@@ -1250,9 +1443,15 @@ def restart_recovery_evidence(
     finished = _parse_ts(str(restart_record.get("finished_utc") or ""))
     if started is None or finished is None:
         return unknown
+
+    evidence = dict(unknown)
+    evidence.update(
+        _functional_recovery_from_events(events, controller_marker, finished)
+    )
+
     ordered = [s for s in metric_samples if s.get("ts") is not None]
     if not ordered:
-        return unknown
+        return evidence
 
     before = [s for s in ordered if s["ts"] <= started]
     after = [s for s in ordered if s["ts"] >= finished]
@@ -1273,18 +1472,70 @@ def restart_recovery_evidence(
     if before_accepted and after_accepted:
         reset_evidence = float(after_accepted[0]) < float(before_accepted[-1])
 
-    recovery_s: float | None = None
     if after:
-        recovery_s = max(0.0, (after[0]["ts"] - finished).total_seconds())
+        evidence["metrics_endpoint_recovery_s"] = max(
+            0.0, (after[0]["ts"] - finished).total_seconds()
+        )
 
-    accepted_progress: float | None = None
     if len(after_accepted) >= 2:
-        accepted_progress = float(after_accepted[-1]) - float(after_accepted[0])
+        evidence["accepted_progress"] = float(after_accepted[-1]) - float(
+            after_accepted[0]
+        )
 
+    evidence["downtime_evidence"] = bool(gap_evidence or reset_evidence)
+
+    if evidence["functional_recovery_source"] is None and after_accepted:
+        # Counter baseline: the last pre-restart total, unless the counters
+        # reset across the restart (then that total is not comparable and
+        # the controller's own restarted count is the baseline).
+        baseline = float(after_accepted[0])
+        if before_accepted and float(before_accepted[-1]) <= baseline:
+            baseline = float(before_accepted[-1])
+        evidence["functional_recovery_source"] = "metrics-accepted-counter"
+        for sample in after:
+            value = sample.get("accepted")
+            if value is not None and float(value) > baseline:
+                evidence["functional_recovery_s"] = max(
+                    0.0, (sample["ts"] - finished).total_seconds()
+                )
+                break
+
+    return evidence
+
+
+def _functional_recovery_from_events(
+    events: list[dict[str, Any]] | None,
+    controller_marker: Any,
+    finished: datetime,
+) -> dict[str, Any]:
+    """First accepted event after the restart, in the controller's domain.
+
+    The PREFERRED functional-recovery evidence (sprint P5.4): an ``accepted``
+    event proves a message went all the way through MQTT ingestion to a
+    Ditto patch, and its ``received_monotonic_ns`` is already in the
+    controller's clock domain. Returns ``{}`` when the bridge or the events
+    are missing, so the caller falls back to the counter series.
+    """
+    if not events:
+        return {}
+    finished_ns = controller_monotonic_ns_at(controller_marker, finished)
+    if finished_ns is None:
+        return {}
+    received = sorted(
+        int(ev["received_monotonic_ns"])
+        for ev in events
+        if ev.get("outcome") == "accepted"
+        and isinstance(ev.get("received_monotonic_ns"), (int, float))
+        and not isinstance(ev.get("received_monotonic_ns"), bool)
+    )
+    if not received:
+        return {}
+    after = [ns for ns in received if ns >= finished_ns]
     return {
-        "downtime_evidence": bool(gap_evidence or reset_evidence),
-        "recovery_s": recovery_s,
-        "accepted_progress": accepted_progress,
+        "functional_recovery_source": "events-accepted-monotonic",
+        "functional_recovery_s": (
+            max(0.0, (after[0] - finished_ns) / 1_000_000_000) if after else None
+        ),
     }
 
 
@@ -1809,7 +2060,15 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     # criterion uses — the restart is triggered inside the measured window
     # (--restart-at-s), so the downtime hole and the resumption both fall
     # inside it, and a hole is evidence precisely because no row exists.
-    recovery = restart_recovery_evidence(restart_record, metric_samples)
+    # Sprint P5.4: the run's events and the manifest's controller marker are
+    # passed in too, so functional readiness (when ingestion resumed) can be
+    # read from the controller's own clock domain when that anchor exists.
+    recovery = restart_recovery_evidence(
+        restart_record,
+        metric_samples,
+        events=events,
+        controller_marker=manifest.get("controller_marker"),
+    )
     if (
         manifest.get("condition_id") == "controller_restart"
         and recovery["downtime_evidence"] is None
@@ -1890,7 +2149,13 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "buffered_dropout": buffered_dropout,
         "restart_hook_ok": restart_hook_ok,
         "restart_downtime_evidence": recovery["downtime_evidence"],
-        "restart_recovery_s": recovery["recovery_s"],
+        "restart_metrics_endpoint_recovery_s": recovery[
+            "metrics_endpoint_recovery_s"
+        ],
+        "restart_functional_recovery_s": recovery["functional_recovery_s"],
+        "restart_functional_recovery_source": recovery[
+            "functional_recovery_source"
+        ],
         "restart_accepted_progress": recovery["accepted_progress"],
         "warnings": " | ".join(warnings),
         "_resources": resources_rows,
@@ -1928,8 +2193,11 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
     per run).
 
     ``integrity_ok`` is the SHA256SUMS verdict of the run directory
-    (report 5.4); a run whose evidence does not verify is dropped from the
-    duration statistics by :func:`summarize_external_durations`.
+    (report 5.4); only a run with a VERIFIED seal (``INTEGRITY_OK``) feeds
+    :func:`summarize_external_durations` — both an integrity FAILURE and an
+    UNSEALED directory get a loud stderr warning here and are dropped from
+    the duration statistics (sprint P5.4), while staying listed with their
+    flag in ``external_runs.csv``.
     """
     run_dir = Path(run_dir)
     timings_path = run_dir / "timings.json"
@@ -1959,6 +2227,18 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
         print(
             f"[analyze] evidence integrity failure in external run {run_id}: "
             f"{'; '.join(integrity_problems)}; excluded from the duration "
+            "statistics (report 5.4)",
+            file=sys.stderr,
+        )
+    elif integrity_ok == INTEGRITY_UNSEALED:
+        # Sprint P5.4: an unsealed external run was never sealed by
+        # run/collect, so NOTHING about it can be verified. It used to enter
+        # the duration statistics silently; it is now excluded and said so
+        # as loudly as an outright failure.
+        print(
+            f"[analyze] evidence integrity unverifiable in external run "
+            f"{run_id}: no {SUMS_FILENAME} in the run directory (never sealed "
+            "by run/collect), so its duration is excluded from the duration "
             "statistics (report 5.4)",
             file=sys.stderr,
         )
@@ -2010,8 +2290,16 @@ def summarize_external_durations(
     Unit of analysis = run (plan 7.3): one duration value per run
     (``duration_mean_s``). Output rows use the SUMMARY_COLUMNS schema with
     metric ``duration_s``. qemu_boots is deliberately excluded (plan 5.1:
-    no performance statistics from QEMU). Runs whose SHA256SUMS does not
-    verify are excluded as well (report 5.4: evidence integrity failure).
+    no performance statistics from QEMU).
+
+    Evidence integrity (report 5.4, tightened in sprint P5.4): contributing
+    to a mean/stdev/CI95 requires a VERIFIED seal — ``integrity_ok`` must be
+    ``INTEGRITY_OK``. A directory that does not verify (``INTEGRITY_FAILED``)
+    and one that was never sealed at all (``INTEGRITY_UNSEALED``, no
+    SHA256SUMS, so nothing can be checked) are BOTH excluded; the earlier
+    rule excluded only the former, letting an unverifiable external run set
+    the statistics. Excluded runs stay listed in ``external_runs.csv`` with
+    their flag.
     """
     out: list[dict[str, Any]] = []
     for condition_id in EXTERNAL_DURATION_CONDITIONS:
@@ -2020,7 +2308,7 @@ def summarize_external_durations(
             for r in external_rows
             if r.get("condition_id") == condition_id
             and not r.get("excluded")
-            and r.get("integrity_ok") != INTEGRITY_FAILED
+            and r.get("integrity_ok") == INTEGRITY_OK
             and r.get("duration_mean_s") is not None
         ]
         if not values:
@@ -2403,15 +2691,23 @@ def evaluate_acceptance(
             passed, observed = gate(downtime_ok == n_valid, observed)
             add("restart_downtime_evidence_every_run", observed, passed)
 
+            # ENDPOINT observation: a controller_metrics row exists only
+            # when GET /metrics answered, so this says the HTTP endpoint
+            # replied again — nothing about MQTT/Ditto ingestion. Kept
+            # (it is real evidence of the process being back up) but named
+            # so it can no longer be read as readiness (sprint P5.4).
             recovered_ok = count_ok(
-                lambda r: r.get("restart_recovery_s") is not None
-                and float(r["restart_recovery_s"]) <= RESTART_RECOVERY_MAX_S
+                lambda r: r.get("restart_metrics_endpoint_recovery_s") is not None
+                and float(r["restart_metrics_endpoint_recovery_s"])
+                <= RESTART_RECOVERY_MAX_S
             )
-            missing = _uninstrumented("restart_recovery_s")
+            missing = _uninstrumented("restart_metrics_endpoint_recovery_s")
             observed = (
-                f"{recovered_ok}/{n_valid} run(s) with controller metrics "
-                f"resuming within {RESTART_RECOVERY_MAX_S:g} s of the restart "
-                "finishing (PENDING ADVISOR SIGN-OFF, protocol.py "
+                f"{recovered_ok}/{n_valid} run(s) with the controller "
+                f"/metrics endpoint answering again within "
+                f"{RESTART_RECOVERY_MAX_S:g} s of the restart finishing "
+                "(endpoint availability only, NOT functional readiness; "
+                "PENDING ADVISOR SIGN-OFF, protocol.py "
                 "RESTART_RECOVERY_MAX_S)"
             )
             if missing:
@@ -2420,8 +2716,52 @@ def evaluate_acceptance(
                     "(no controller-metrics sample after the restart)"
                 )
             passed, observed = gate(recovered_ok == n_valid, observed)
-            add("restart_recovery_within_bound", observed, passed)
+            add("restart_metrics_endpoint_recovery_within_bound", observed, passed)
 
+            # BOUNDED FUNCTIONAL readiness (sprint P5.4): the first evidence
+            # that ingestion actually resumed — an accepted event in the
+            # controller's own clock domain when the manifest carries the
+            # marker, otherwise the first post-restart sample whose accepted
+            # counter exceeds the pre-restart baseline — must fall within
+            # the SAME documented bound. Two distinct failure modes are
+            # reported separately and neither is ever blank: no post-restart
+            # evidence at all, and no instrumentation to look at.
+            functional_ok = count_ok(
+                lambda r: r.get("restart_functional_recovery_s") is not None
+                and float(r["restart_functional_recovery_s"])
+                <= RESTART_RECOVERY_MAX_S
+            )
+            missing = _uninstrumented("restart_functional_recovery_source")
+            no_evidence = count_ok(
+                lambda r: r.get("restart_functional_recovery_source") is not None
+                and r.get("restart_functional_recovery_s") is None
+            )
+            observed = (
+                f"{functional_ok}/{n_valid} run(s) with ingestion shown to "
+                f"resume within {RESTART_RECOVERY_MAX_S:g} s of the restart "
+                "finishing (first accepted event in the controller clock "
+                "domain, or the first post-restart accepted-counter growth; "
+                "PENDING ADVISOR SIGN-OFF, protocol.py "
+                "RESTART_RECOVERY_MAX_S)"
+            )
+            if no_evidence:
+                observed += (
+                    f"; no post-restart evidence of resumed ingestion in "
+                    f"{no_evidence} run(s)"
+                )
+            if missing:
+                observed += (
+                    f"; insufficient instrumentation in {missing} run(s) "
+                    "(no accepted events with a controller-domain anchor and "
+                    "no post-restart accepted counter)"
+                )
+            passed, observed = gate(functional_ok == n_valid, observed)
+            add("restart_functional_recovery_within_bound", observed, passed)
+
+            # UNBOUNDED liveness observation: the counter moved at some
+            # point after the restart. Deliberately kept as a separate,
+            # weaker check — the bound lives in the functional criterion
+            # above (sprint P5.4).
             progress_ok = count_ok(
                 lambda r: r.get("restart_accepted_progress") is not None
                 and float(r["restart_accepted_progress"]) > 0
@@ -2429,7 +2769,8 @@ def evaluate_acceptance(
             missing = _uninstrumented("restart_accepted_progress")
             observed = (
                 f"{progress_ok}/{n_valid} run(s) with accepted-counter "
-                "progress after the restart"
+                "progress after the restart (unbounded in time; the bound is "
+                "restart_functional_recovery_within_bound)"
             )
             if missing:
                 observed += (

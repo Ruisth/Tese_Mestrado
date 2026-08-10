@@ -6,9 +6,14 @@ run ids), so no simulator subprocess is ever spawned.
 """
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
+import pytest
+
 from egw_experiments import checksums, cli, plan_gen
+from egw_experiments.analyze import CAMPAIGN_PLAN_ENV_VAR
+from egw_experiments.run import DEFAULT_PLAN_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +214,113 @@ def test_p5_flags_default_to_off() -> None:
     col_args = parser.parse_args(["collect", "--run-id", "nominal-r01"])
     assert col_args.allow_missing_controller_marker is False
     assert not hasattr(col_args, "collector_start_cmd")
+
+
+# ---------------------------------------------------------------------------
+# analyze: identity completeness needs the plan on the OFFICIAL command
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_parser_takes_plan_defaulting_to_the_frozen_plan() -> None:
+    """The shipped 'analyze' must be able to do identity completeness: the
+    subcommand carries --plan with the SAME default as run/campaign/collect,
+    so the frozen plan is used automatically when it exists (sprint P5.4)."""
+    args = cli.build_parser().parse_args(["analyze"])
+    assert args.plan == DEFAULT_PLAN_PATH
+    explicit = cli.build_parser().parse_args(["analyze", "--plan", "other.json"])
+    assert explicit.plan == Path("other.json")
+
+
+def test_analyze_usage_and_help_document_plan_and_env_fallback(capsys) -> None:
+    # The usage docstring is the shipped documentation of the subcommand.
+    assert "analyze [--base-dir PATH] [--plan PATH]" in (cli.__doc__ or "")
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["analyze", "--help"])
+    help_text = capsys.readouterr().out
+    assert "--plan" in help_text
+    # The environment-variable fallback of analyze() must be documented
+    # where the operator looks for it.
+    assert CAMPAIGN_PLAN_ENV_VAR in help_text
+    assert "IDENTITY-based" in help_text
+
+
+def _empty_results_tree(tmp_path: Path) -> Path:
+    base = tmp_path / "results"
+    (base / "raw").mkdir(parents=True)
+    return base
+
+
+def _acceptance_rows(base: Path) -> list[dict]:
+    text = (base / "processed" / "acceptance_by_condition.csv").read_text("utf-8")
+    return list(csv.DictReader(text.splitlines()))
+
+
+def test_analyze_cli_forwards_plan_to_identity_completeness(tmp_path, capsys) -> None:
+    base = _empty_results_tree(tmp_path)
+    plan_path = tmp_path / "campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+
+    assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+
+    out = capsys.readouterr().out
+    assert "BY COUNT ONLY" not in out
+    complete = next(
+        r
+        for r in _acceptance_rows(base)
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    # Identity checking really ran: the missing runs are named, not counted.
+    assert "identity mismatch vs campaign plan" in complete["observed"]
+    assert "identity checking NOT performed" not in complete["observed"]
+
+
+def test_analyze_cli_without_an_existing_plan_degrades_to_counts(
+    tmp_path, capsys
+) -> None:
+    """A missing plan file degrades to count-only completeness with the
+    existing warning; the analysis never fails because of it."""
+    base = _empty_results_tree(tmp_path)
+    missing = tmp_path / "campaign_plan.json"
+
+    assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(missing)]) == 0
+
+    captured = capsys.readouterr()
+    assert "could not be read" in captured.err
+    assert "BY COUNT ONLY" in captured.out
+    complete = next(
+        r
+        for r in _acceptance_rows(base)
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    assert "identity checking NOT performed" in complete["observed"]
+
+
+def test_analyze_cli_absent_default_plan_falls_back_to_env_var(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A results tree analyzed before the plan is frozen is not an operator
+    error: the absent DEFAULT plan degrades to counts quietly and the
+    documented EGW_CAMPAIGN_PLAN fallback stays reachable."""
+    base = _empty_results_tree(tmp_path)
+    plan_path = tmp_path / "env_campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+    monkeypatch.setattr(cli, "DEFAULT_PLAN_PATH", tmp_path / "absent_plan.json")
+
+    monkeypatch.delenv(CAMPAIGN_PLAN_ENV_VAR, raising=False)
+    assert cli.main(["analyze", "--base-dir", str(base)]) == 0
+    captured = capsys.readouterr()
+    assert "BY COUNT ONLY" in captured.out
+    assert "could not be read" not in captured.err
+
+    monkeypatch.setenv(CAMPAIGN_PLAN_ENV_VAR, str(plan_path))
+    assert cli.main(["analyze", "--base-dir", str(base)]) == 0
+    assert "BY COUNT ONLY" not in capsys.readouterr().out
+    complete = next(
+        r
+        for r in _acceptance_rows(base)
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    assert "identity mismatch vs campaign plan" in complete["observed"]
 
 
 # ---------------------------------------------------------------------------

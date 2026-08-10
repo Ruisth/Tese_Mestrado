@@ -14,7 +14,9 @@
 > **requer VM ARM** = VM ARM64 nativa tipo Hetzner CAX21 (checklist:
 > [`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md)).
 
-Atualizado: 2026-08-08.
+Atualizado: 2026-08-10 (bloco P5.4: retiradas as métricas e as afirmações de
+estado que deixaram de ser verdadeiras; este ficheiro não repete números —
+todos os números vivem no PROGRESS, com a evidência selada correspondente).
 
 ---
 
@@ -47,7 +49,7 @@ script externo. Sem imagem funcional em 20/08, discutir extensão/reformulação
 | Build de `egw-image` em WSL2 ext4 | — | Log completo do BitBake; `SHA256SUMS` dos artefactos | Requer WSL2 ext4; >=120 GB livres |
 | Dois boots QEMU com systemd, rede e runtime OCI | — | `boot1.log`, `boot2.log` (systemd running, ping, `podman/docker run` de container de teste) | Build concluído |
 | Verificar arquiteturas OCI das imagens da stack (`linux/arm64` por digest) | lock `images.lock.env` implementado — falta output de `manifest inspect` na VM (ver PROGRESS) | Output de `docker manifest inspect` por imagem, arquivado | Requer VM ARM |
-| Introdução/RQs da dissertação em revisão; protocolo da revisão executado e bibliografia auditada | protocolo redigido — revisão não executada: `search_log.csv` e `study_selection.csv` só têm cabeçalhos (ver PROGRESS e risco R17) | Capítulo 1 draft; queries e seleção registadas em `thesis/research/`; `references.bib` auditado | — |
+| Introdução/RQs da dissertação em revisão; protocolo da revisão executado e bibliografia auditada | protocolo redigido e registos preliminares preenchidos — falta executar as queries institucionais (IEEE Xplore, ACM DL, Scopus/WoS) e a passagem a full text das fontes ainda em título/resumo (ver PROGRESS e risco R17) | Capítulo 1 draft; queries institucionais e decisões de seleção registadas em `thesis/research/`; `references.bib` auditado | Acesso institucional (ação do estudante) |
 
 ## G2 — Vertical slice (23/08)
 
@@ -61,8 +63,8 @@ declarar risco sério para setembro.
 | Controlador MQTT→Ditto (validação por schema, idempotência, retry, logging, endpoints) | implementado — por verificar/aceitar (ver PROGRESS) | Ligação TLS a Mosquitto real; twin atualizado num Ditto real | Requer VM ARM |
 | Vertical slice smartwatch→MQTT→controlador→Ditto | — | Trace reproduzível: `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` com estado correto | Compose na VM ARM; controlador |
 | CLI do simulador com cenário `smoke` | implementado — por verificar/aceitar (ver PROGRESS) | `python -m egw_simulator run --scenario smoke ...` contra broker real, com manifesto de execução | Requer VM ARM |
-| Testes iniciais (unitários + integração local) | unitários implementados (515, Windows) — por verificar em Linux e com integração real (ver PROGRESS e risco R21) | `pytest` verde em Linux com relatório persistido; >=1 teste live de integração | Python 3.11+ em ambiente Linux |
-| Capítulos 1–2; metodologia iniciada; diagrama lógico | cap. 2 substantivo (draft de orientador pronto em `thesis/latex/ch2_supervisor_draft.pdf`); caps. 1/3 corrigidos quanto a claims; restantes capítulos em esqueleto (ver PROGRESS) | Ficheiros em `thesis/` e `diagrams/` com texto substancial | — |
+| Testes iniciais (unitários + integração local) | unitários implementados (Windows) — por verificar em Linux e por criar a integração real (ver PROGRESS e risco R21) | `pytest` verde em Linux com relatório persistido; >=1 teste live de integração | Python 3.11+ em ambiente Linux |
+| Capítulos 1–2; metodologia iniciada; diagrama lógico | draft de orientador do cap. 2 pronto; restantes capítulos por completar (ver PROGRESS) | Ficheiros em `thesis/` e `diagrams/` com texto substancial | — |
 
 ## G3 — Feature freeze P0 e decisão ACA-Py (30/08)
 
@@ -73,9 +75,9 @@ P0. Cortar ao fim de 12 h ou em 03/09, o que ocorrer primeiro.
 | Ação | Nota | Evidência esperada | Dependências |
 |---|---|---|---|
 | Três wearables concorrentes no simulador | implementado — por verificar em execução real (ver PROGRESS) | Execução com `--devices smartwatch,smart_ring,smart_clothing`; três twins atualizados | Requer VM ARM |
-| Todos os cenários (`smoke`, `nominal`, `load-sweep`, `dropout-reconnect`, `invalid-payload`, `soak`) | implementados no simulador — `dropout-reconnect` faz desconexão real com buffering desde 08/08 (unitário); demonstração live pendente (ver PROGRESS) | Execuções registadas com manifesto por cenário; desconexão real demonstrada em execução live | Requer VM ARM |
+| Todos os cenários (`smoke`, `nominal`, `load-sweep`, `dropout-reconnect`, `invalid-payload`, `soak`) | implementados no simulador — demonstração live por executar (ver PROGRESS) | Execuções registadas com manifesto por cenário; desconexão real demonstrada em execução live | Requer VM ARM |
 | Reconnect/backpressure no controlador e simulador | — | Teste de integração `dropout-reconnect` verde; contadores coerentes | Controlador + broker |
-| Métricas e harness experimental | lacunas da auditoria §9 corrigidas a 08/08 em M2 (blocos P1a–P1c; riscos R18/R19/R20/R22 mitigados); piloto live pendente (ver PROGRESS) | Recursos recolhidos na VM certa; `events.jsonl` recolhido automaticamente; warm-up excluído; condições C10–C14 no plano de campanha | — |
+| Métricas e harness experimental | correções do harness aplicadas em M2 (blocos P1a–P1c, P5 e P5.4) — piloto live por executar (ver PROGRESS) | Recursos recolhidos na VM certa; `events.jsonl` recolhido automaticamente; warm-up excluído; condições C10–C14 no plano de campanha; a análise exercida pelo caminho real da CLI entregue | — |
 | Suite de testes completa (unitários, integração, E2E) | unitários implementados — testes live/`integration` por criar (ver PROGRESS e risco R21) | `pytest` verde incluindo marca `integration` na VM, com relatório persistido | Requer VM ARM |
 | Soak piloto | — | Execução longa piloto sem crash; log e recursos | Requer VM ARM |
 | Capítulo 3 e primeira versão do 4; ADRs e diagramas | ADRs e diagramas implementados — por verificar/aceitar (ver PROGRESS); capítulos parciais | `thesis/`; [`../adr/`](../adr/README.md) sincronizados com CONTRACTS v1.1 | — |
@@ -93,7 +95,7 @@ ou critérios de exclusão.
 | Correções P0/P1 pós-freeze de features | — | Commits identificados; sem features novas | — |
 | ACA-Py mínimo (apenas se autorizado no G3; até 03/09) | fora do forecast base (auditoria §16) | Dois agentes locais, `did:peer`, convite OOB, mensagem DIDComm; digest ARM64 verificado | Autorização G3; timebox 12 h |
 | Piloto completo da campanha | — | Dados piloto em `experiments/results/raw/` com manifestos, sem intervenção ad hoc | Requer VM ARM; harness corrigido (R18–R22) |
-| Script de análise gera tabelas/figuras a partir de `raw/` | percurso de análise para runs externos implementado a 08/08 (`--external-timings`); produção dos timings na VM pendente (ver PROGRESS) | `processed/` e `figures/` regenerados por um único script, incluindo runs externos ou exceção formalmente documentada | Dados piloto |
+| Script de análise gera tabelas/figuras a partir de `raw/` | percurso de análise para runs externos implementado (`--external-timings`); produção dos timings na VM por executar (ver PROGRESS) | `processed/` e `figures/` regenerados por um único script invocado como é entregue (sem parâmetros só acessíveis por API), incluindo runs externos ou exceção formalmente documentada | Dados piloto |
 | Capítulos 1–4 completos; esqueleto integral da avaliação | — | `thesis/` compilável, sem números inventados | — |
 | Tag `exp-v1` | — | Tag no Git com protocolo congelado | Itens acima |
 

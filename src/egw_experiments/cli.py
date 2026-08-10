@@ -6,7 +6,7 @@ Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
     python -m egw_experiments campaign [--plan PATH] [--results-dir DIR] ...
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
     python -m egw_experiments collect --run-id nominal-r01 [...]
-    python -m egw_experiments analyze [--base-dir PATH]
+    python -m egw_experiments analyze [--base-dir PATH] [--plan PATH]
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan;
@@ -41,6 +41,18 @@ when a full campaign still has external runs pending. ``analyze`` regenerates
 everything under ``results/processed`` and ``results/figures`` from
 ``results/raw``; ``verify-checksums`` re-verifies the SHA256SUMS of raw
 run directories (evidence integrity, plan 5.8).
+
+Sprint P5.4: ``analyze`` takes ``--plan`` with the SAME default as
+``run``/``campaign``/``collect``, so the frozen campaign plan is used
+automatically whenever it exists. With a plan the acceptance completeness
+criterion compares the exact SET of run identities (``run_id`` +
+``repetition`` + ``seed`` + ``rate_msg_s``) against the plan instead of
+merely counting runs; without one it degrades — with a loud warning — to
+the count-only check, which cannot detect a duplicated, re-seeded,
+mis-rated or swapped run. A plan path that does not exist (or cannot be
+read) degrades the same way and never fails the analysis. The
+``EGW_CAMPAIGN_PLAN`` environment variable is the documented fallback used
+when ``--plan`` names nothing readable.
 """
 
 from __future__ import annotations
@@ -49,7 +61,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .analyze import analyze
+from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
 from .plan_gen import generate_campaign_plan, write_campaign_plan
@@ -433,6 +445,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"results base directory (default: {DEFAULT_RESULTS_BASE})",
     )
+    p_an.add_argument(
+        "--plan",
+        type=Path,
+        default=DEFAULT_PLAN_PATH,
+        help=f"campaign plan path (default: {DEFAULT_PLAN_PATH}), used for "
+        "IDENTITY-based run completeness: the acceptance criterion compares "
+        "the exact set of run identities (run_id + repetition + seed + "
+        "rate_msg_s) against the plan instead of only counting runs, so a "
+        "duplicated, re-seeded, mis-rated or swapped run is detected. When "
+        "this path does not exist (or cannot be read) the analysis degrades "
+        "to the count-only check with a loud warning and still succeeds; the "
+        f"{CAMPAIGN_PLAN_ENV_VAR} environment variable is the documented "
+        "fallback consulted when the default plan is absent",
+    )
 
     # verify-checksums ------------------------------------------------------
     p_ver = sub.add_parser(
@@ -568,6 +594,28 @@ def _cmd_collect(args: argparse.Namespace) -> int:
     )
 
 
+def _cmd_analyze(args: argparse.Namespace) -> int:
+    """Run the analysis with the campaign plan wired in (sprint P5.4).
+
+    ``--plan`` defaults to the frozen plan, so identity-based completeness
+    is the DEFAULT behaviour of the shipped command. An explicitly named
+    plan is forwarded verbatim — if it cannot be read, ``analyze()`` says so
+    loudly and degrades to the count-only check. The DEFAULT path merely
+    being absent (a tree analyzed before the plan is frozen) is not an
+    operator error: the plan is then left unset so ``analyze()`` applies its
+    documented ``EGW_CAMPAIGN_PLAN`` fallback and, failing that, warns that
+    completeness is checked BY COUNT ONLY.
+    """
+    plan_path: Path | None = args.plan
+    if (
+        plan_path is not None
+        and Path(plan_path) == Path(DEFAULT_PLAN_PATH)
+        and not Path(plan_path).exists()
+    ):
+        plan_path = None
+    return analyze(base_dir=args.base_dir, plan_path=plan_path)
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
     base = args.base_dir if args.base_dir is not None else DEFAULT_RESULTS_BASE
     raw_dir = Path(base) / "raw"
@@ -616,7 +664,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "collect":
         return _cmd_collect(args)
     if args.command == "analyze":
-        return analyze(base_dir=args.base_dir)
+        return _cmd_analyze(args)
     if args.command == "verify-checksums":
         return _cmd_verify(args)
     raise AssertionError(f"unhandled command {args.command!r}")

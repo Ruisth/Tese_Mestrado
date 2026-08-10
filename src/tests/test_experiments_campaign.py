@@ -297,7 +297,10 @@ def test_campaign_start_from_resumes_midway(plan_path, fake_env) -> None:
     rc = campaign_mod.run_campaign(
         plan_path, start_from="smoke-r02", **fake_env.kwargs
     )
-    assert rc == 0
+    # Exit 1: the selection resumes correctly, but the external run earlier
+    # in the frozen order was skipped and still owes its evidence (P5.4
+    # defect 6) - only the SELECTION is what this test asserts.
+    assert rc == 1
     assert _executed_run_ids(fake_env.calls) == ["smoke-r02", "smoke-r03"]
     assert [line["run_id"] for line in _log_lines(fake_env.base)] == [
         "smoke-r02",
@@ -627,6 +630,58 @@ def test_filtered_campaign_may_exit_0_while_stating_what_remains(
     assert EXTERNAL_RUN_ID not in [
         line["run_id"] for line in _log_lines(fake_env.base)
     ]
+
+
+# ---------------------------------------------------------------------------
+# P5.4 defect 6: --start-from must not silently discharge owed external
+# evidence - the accounting covers the WHOLE plan, not the selected slice
+# ---------------------------------------------------------------------------
+
+
+def test_start_from_does_not_discharge_the_external_runs_it_skips(
+    plan_path, fake_env, capsys
+) -> None:
+    """cold-r01 sits BEFORE smoke-r02 in the frozen order: resuming past it
+    leaves its evidence unproduced, so the campaign is INCOMPLETE."""
+    rc = campaign_mod.run_campaign(
+        plan_path, start_from="smoke-r02", **fake_env.kwargs
+    )
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "1 external run(s) still pending" in captured.err
+    assert EXTERNAL_RUN_ID in captured.err
+    assert "--start-from" in captured.err
+    assert "done: INCOMPLETE" in captured.out
+    # The skipped external run is NOT visited: it is accounted for, not
+    # re-classified or logged as if the campaign had reached it.
+    assert EXTERNAL_RUN_ID not in [
+        line["run_id"] for line in _log_lines(fake_env.base)
+    ]
+
+
+def test_start_from_is_clean_once_the_skipped_external_evidence_is_sealed(
+    plan_path, fake_env, tmp_path, capsys
+) -> None:
+    """Only runs that are NOT sealed-and-valid stay owed."""
+    _ingest_external(plan_path, fake_env, tmp_path)
+    capsys.readouterr()
+    rc = campaign_mod.run_campaign(
+        plan_path, start_from="smoke-r02", **fake_env.kwargs
+    )
+    assert rc == 0
+    assert "done: clean" in capsys.readouterr().out
+
+
+def test_blocked_run_guidance_does_not_imply_start_from_discharges_the_work(
+    plan_path, fake_env, capsys
+) -> None:
+    (fake_env.base / "raw" / "smoke-r01").mkdir(parents=True)
+    rc = campaign_mod.run_campaign(plan_path, **fake_env.kwargs)
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "stopping at smoke-r01" in err
+    assert "--start-from" in err
+    assert "still owe their evidence" in err
 
 
 def test_campaign_is_clean_once_the_external_evidence_is_ingested(

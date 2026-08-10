@@ -7,7 +7,8 @@
 > gate» abaixo espelha-o. Estrutura conforme a auditoria externa de 08/08/2026
 > (§5.1, §5.2, §14).
 
-Atualizado: 2026-08-08.
+Atualizado: 2026-08-10 (bloco P5.4: números de teste alinhados com a última
+evidência selada, estado dos gates no dia da decisão do G0).
 
 ## Modelo de estado — três campos independentes (auditoria §5.1)
 
@@ -23,8 +24,8 @@ Regras: nenhum «Concluído» sem evidência arquivada. «Implementado» e «ver
 unitariamente» nunca implicam aceitação no gate. Definition of Done por
 entregável (auditoria §14.1): artefacto existe + revisto + executado no ambiente
 aplicável + evidência arquivada + matriz claim→evidência atualizada + decisão de
-gate registada. Em 08/08/2026 nenhum gate está fechado: todos os campos «Aceite
-no gate» estão `Pendente` ou `Bloqueado`.
+gate registada. Em 10/08/2026 continua a não existir nenhum gate fechado: todos
+os campos «Aceite no gate» estão `Pendente` ou `Bloqueado`.
 
 ## Escala de maturidade M0–M5 (auditoria §2.3)
 
@@ -46,8 +47,8 @@ dos claims e gates.
 
 | Entregável | Implementado | Verificado | Aceite no gate | M |
 |---|---|---|---|---|
-| Repositório Git inicializado | sim | estático — commits por entregável (ordem de trabalhos 08/08), working tree limpo; sem remote nem tags | G0 — Pendente | M1 |
-| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte dos 515 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
+| Repositório Git inicializado | sim | estático — commits por entregável, working tree limpo; **continua sem remote e sem tags** (`.git/config` sem secção `[remote]`, `refs/tags` vazio); a 10/08 a árvore de trabalho e os bundles de `backups/` passaram a residir fora da pasta sincronizada Nextcloud (cópia privada local) | G0 — Pendente | M1 |
+| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte da suite selada de 593 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
 | Âmbito, RQs e matriz claim→evidência (15 claims) | sim | estático — 15/15 claims `Pendente — sem evidência`; sem validação dos orientadores | G0 — Pendente | M1 |
 | Backlog e registo de riscos | sim | não (documentos de gestão) | G0 — Pendente | M1 |
 | Guia WSL2 Ubuntu 24.04 (ext4) | sim | não — instalação não executada | G0 — Pendente | M1 |
@@ -61,21 +62,48 @@ dos claims e gates.
 |---|---|---|---|---|
 | Manifesto `kas` + layer `meta-egw` + receita `egw-image` | sim | estático — pins Scarthgap 5.0.19 documentados 07/08; zero builds, zero boots | G1 — Bloqueado (requer WSL2 ext4; gate 16/08, trigger 20/08) | M1 |
 | Compose ARM64 mínimo (Mosquitto TLS, Ditto 3.9.4, MongoDB, controlador) | sim | estático — `docker compose config` (validação sintática, sem log persistido); digests arm64 verificados documentalmente 07/08; `.env`/certificados/passwords operacionais não existem | G2 — Bloqueado (requer VM ARM; gate 23/08, trigger 25/08) | M1 |
-| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte dos 515 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
+| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte da suite selada de 593 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
 | Simulador unificado (3 wearables, 6 cenários) | sim | unitário — determinismo verificado; `dropout-reconnect` induz desconexão MQTT real com buffering e redelivery ordenado (correção da auditoria §7.3 concluída 08/08; cobre C10 em unitário) | G2–G3 — Pendente | M2 |
 | Thing Descriptions WoT TD 1.1 | sim | unitário — `tests/test_things.py` cruza TD↔schema; integração real não demonstrada | G2–G3 — Pendente | M2 |
-| Harness experimental + análise | sim | unitário — lacunas da auditoria §9 corrigidas a 08/08 (blocos P1a–P1c: gating por validade, proveniência de host, aceitação com completude, DoD do soak, caps de cadência, saturação com suficiência de evidência, raw selado write-once, batch runner `campaign`); prova live pendente de VM | G4 — Pendente | M2 |
+| Harness experimental + análise | sim | unitário — lacunas da auditoria §9 corrigidas a 08/08 (blocos P1a–P1c: gating por validade, proveniência de host, aceitação com completude, DoD do soak, caps de cadência, saturação com suficiência de evidência, raw selado write-once, batch runner `campaign`); bloco P5 (08/08) acrescentou marcador de fim de execução no domínio de relógio do controlador, hooks do collector no `campaign`, verificação de `SHA256SUMS` antes de qualquer agregação, completude por **identidade** contra o plano, validação semântica das séries e evidência limitada de recuperação no C12; bloco P5.4 (10/08) trata defeitos de alcance pela CLI e de valores não finitos (código fora deste bloco documental — ver `docs/g0/riscos.md`, R28/R29); **nenhuma regra estatística, percentil, método de IC ou a janela de 60 s foi alterada**; prova live pendente de VM | G4 — Pendente | M2 |
 | Estrutura de evidência `experiments/results/` | sim | estático — diretórios `raw/processed/figures` criados; zero dados (evidência experimental M0) | G5 — Pendente | M1 |
 | Dissertação (esqueleto + cap. 2 substantivo) | sim | estático — latexmk compila: 57 pp., 0 referências por resolver; cap. 2 ~4 300 palavras; claims prematuros removidos dos caps. 1/3/4/6 e da Tabela 2.1 (bloco P2); caps. 3/5/6 continuam esqueleto | G6 — Pendente | M1–M2 |
 | Fontes da revisão (`thesis/research/study_selection.csv`) | sim | estático — 25 fontes registadas, com metadados verificados (Crossref/W3C/OASIS/páginas oficiais). **Profundidade de leitura: 7 avaliadas em full text (S001, S004–S009) e 18 apenas por título/resumo** (`stage=title_abstract`, inclusão provisória para o draft ao orientador; passagem full-text por executar). «Verificado» refere-se aos metadados da fonte, nunca à leitura integral; as queries institucionais continuam pendentes (ação do estudante, risco R17) | G6 — Pendente | M1 |
 | PDF standalone do cap. 2 para o orientador | sim | estático — `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., sem TODOs/placeholders, revisão institucional declarada pendente); inspeção visual página a página | não é item de gate — envio = ação do estudante (nenhum gate fecha com isto) | M2 |
-| Suite de testes unitários | sim | unitário — 515 testes a passar (Windows, Python 3.14.3, venv); evidência selada em `docs/evidence/tests/2026-08-08-head-ca445a3/` (JUnit + stdout + ambiente + commit + `SHA256SUMS`) sobre HEAD limpo `ca445a3`; **zero testes live/`integration` existem**, sem execução Linux nem ARM64 — criá-los é pré-requisito de G3 | G3 — Pendente | M2 |
-| Correções do harness pós-auditoria (fetch de eventos, 2 ambientes, collector na VM, janela medida, condições C10–C14, queue growth, CPU normalizada) | sim | unitário — testes incluídos nos 515; plano de campanha com 95 runs; aceitação exige completude e evidência; execução real pendente de VM | G3–G4 — Pendente | M2 |
+| Suite de testes unitários | sim | unitário — **última evidência selada existente no repositório: `593 passed`** (Windows 11 Pro, Python 3.14.3, venv com `src/requirements.lock`) em `docs/evidence/tests/2026-08-08-head-57228e1/` (JUnit + stdout + ambiente + `SHA256SUMS` dos três) sobre HEAD limpo `57228e1` (`git status --porcelain` vazio); o `environment.txt` desse diretório data a execução de 2026-08-10T21:22:25Z — o prefixo `2026-08-08` do nome do diretório é o do bloco, não a data da execução. Evidência anterior: `515 passed` sobre `ca445a3` em `docs/evidence/tests/2026-08-08-head-ca445a3/`. **Está em curso hoje (10/08) a selagem de uma execução mais recente, após as correções do bloco P5.4; até essa selagem existir, `593` é o único número verificável neste repositório.** **Zero testes live/`integration` existem**, sem execução Linux nem ARM64 — criá-los é pré-requisito de G3 | G3 — Pendente | M2 |
+| Correções do harness pós-auditoria (fetch de eventos, 2 ambientes, collector na VM, janela medida, condições C10–C14, queue growth, CPU normalizada) | sim | unitário — testes incluídos na suite selada de 593; plano de campanha com 95 runs; a aceitação exige completude (por identidade contra o plano quando o plano é fornecido à análise) e evidência — incluindo evidência de recuperação real no C12; execução real pendente de VM | G3–G4 — Pendente | M2 |
 
 Nota: «Implementado = sim» significa apenas que o artefacto existe e, quando
 indicado, passou verificação unitária/estática neste repositório. Os gates
 G1–G5 só fecham com evidência de execução real (build/boot QEMU, deploy ARM,
 trace E2E, dados de campanha), que depende das ações externas abaixo.
+
+## Estado dos gates a 10/08
+
+Registo factual da situação na data de decisão do G0. **Nada aqui declara
+um gate fechado nem falhado**: a decisão de gate pertence ao estudante e aos
+orientadores e regista-se no Anexo C do plano e no [`LOG.md`](LOG.md).
+
+- **G0 (data de decisão: 10/08) — data atingida, três ações externas por
+  concluir.** Não existe no repositório evidência de nenhuma delas: (i) email G0
+  aos orientadores — o draft existe em
+  [`docs/g0/email_orientadores_G0.md`](docs/g0/email_orientadores_G0.md), sem
+  registo de envio no LOG; (ii) WSL2 com Ubuntu 24.04 em ext4 — sem `wsl -l -v`
+  nem `df -h` arquivados; (iii) VM ARM64 — sem `uname -a`/`lscpu`/`/etc/os-release`
+  e sem manifesto de ambiente. São ações do estudante; nenhuma alteração no
+  repositório as substitui.
+- **Regras de corte do próprio plano (§8.1), transcritas sem interpretação:**
+  sem VM a **10/08**, mudar de fornecedor; sem VM a **12/08**, comunicar o risco
+  aos orientadores. A aplicação de qualquer destas regras é ação do estudante e
+  fica registada no LOG quando ocorrer.
+- **G1 (16/08, trigger 20/08) e G2 (23/08, trigger 25/08)** — sem alteração:
+  zero builds Yocto, zero boots QEMU, zero deploys na VM. Dependem inteiramente
+  de (ii) e (iii); `experiments/results/raw/` continua vazio.
+- **G3–G7** — sem alteração; continuam a depender de evidência de execução real
+  (e G3 exige, além disso, testes live/`integration`, que não existem).
+- **O trabalho de repositório de 10/08 (blocos P5/P5.4) é correção de código e
+  de documentação em M2**: aumenta a qualidade da instrumentação e da verdade
+  documental e **não desbloqueia nem fecha gate nenhum**.
 
 ## Ações externas do estudante (com prazos)
 
@@ -95,7 +123,8 @@ Esqueleto de controlo diário (<10 min/dia). Valores `(est.)` são estimativas d
 auditoria §12.1; `actual_h`, `remaining_h` e `forecast` são preenchidos pelo
 estudante — não inventar horas. Células vazias = por estimar/preencher.
 
-> **Nota (08/08/2026):** as colunas `actual_h`, `remaining_h` e `forecast` estão
+> **Nota (08/08/2026, confirmada a 10/08/2026):** as colunas `actual_h`,
+> `remaining_h` e `forecast` estão
 > deliberadamente **vazias** e são de preenchimento exclusivo do estudante: são
 > esforço humano e nenhum agente as pode estimar ou inferir. As durações do
 > trabalho executado por agentes não entram nesta tabela — ficam registadas nas
@@ -108,7 +137,7 @@ estudante — não inventar horas. Células vazias = por estimar/preencher.
 | Email G0 + regras da extensão | Estudante | 0,5–1 (est.) | | | 09–10/08 | email + data no LOG | | |
 | WSL2 Ubuntu 24.04 em ext4 | Estudante | 2–4 (est.) | | | 09–10/08 | outputs de versão e filesystem | | |
 | VM ARM64 `aarch64` | Estudante | 1–2 (est.) | | | 10/08 | manifesto inicial arquivado | | conta/pagamento |
-| Backup Git independente | Ambos | 0,5–1 (est.) | | | 09/08 | bundle/clone verificado fora do Nextcloud | | |
+| Backup Git independente | Ambos | 0,5–1 (est.) | | | 09/08 | bundle/clone verificado fora do Nextcloud — repositório e bundles fora da pasta sincronizada desde 10/08; falta ainda o remote privado (opção mais forte) | | |
 | Sprint de enquadramento teórico | Ambos | 18–24 (est.) | | | 10–11/08 | draft 4 000–5 000 palavras + logs de pesquisa preenchidos | | |
 | Build Yocto + 2 boots QEMU | Estudante | | | | 16/08 (trigger 20/08) | log BitBake, `boot1/2.log`, `SHA256SUMS` | | WSL2 ext4 |
 | Vertical slice E2E na VM | Ambos | | | | 23/08 (trigger 25/08) | trace `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` | | VM ARM |

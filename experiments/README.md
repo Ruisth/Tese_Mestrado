@@ -137,7 +137,9 @@ Behaviour:
 
 - **Frozen order, never reshuffled.** `--only-conditions a,b` and
   `--start-from <run_id>` select a subset; the plan order among the
-  selected runs is preserved.
+  selected runs is preserved. `--start-from` moves the execution CURSOR —
+  it never settles the runs it jumps over (see the external accounting
+  below).
 - **SUT collector driven per run** (sprint P5, report 5.3). The three
   hooks run around each simulator run, in this order:
   `--collector-start-cmd` BEFORE the warm-up, `--collector-stop-cmd`
@@ -173,6 +175,18 @@ Behaviour:
   (`--only-conditions` on simulator conditions) may still exit 0 while
   stating what remains. Once a run's evidence is ingested its directory is
   sealed and the next campaign pass reports it as `skipped`.
+- **Owed external evidence is accounted over the WHOLE plan, not over the
+  executed slice** (sprint P5.4). An external run that `--start-from`
+  jumped over is never visited by the loop, but it still owes its evidence
+  until its raw directory is sealed AND `validity: "valid"`. Such runs are
+  counted with the visited ones, listed by run_id in the closing summary
+  (with an explicit line naming the ones skipped by
+  `--start-from`/`--only-conditions`) and keep a full campaign INCOMPLETE
+  (exit 1). Resuming past a blocked run therefore never converts unmeasured
+  QEMU boots, cold starts or twin creations into a `clean` exit 0; only
+  ingesting their `timings.json` does. `--only-conditions` keeps its
+  legitimate subset behaviour: a condition-filtered campaign may exit 0
+  while stating what remains.
 - **Cooldowns are honored** via the run wiring (the plan's `cooldown_s`,
   minus the confirmation window already waited). `--no-cooldown` skips
   them and records a protocol deviation (kind
@@ -231,9 +245,11 @@ What `run` does, in order: captures `loadgen_environment.json`; ingests
 `sut_environment.json`; executes `--collector-start-cmd`; runs the planned
 warm-up (same seed, run_id `<run_id>.warmup`); stamps the measured window;
 runs the measured simulator invocation (CONTRACTS 7) while sampling the
-controller's `GET /metrics` at 1 Hz into `controller_metrics.csv`; polls
-the controller's confirmation marker (below); executes
-`--collector-stop-cmd`; waits the 60 s confirmation window (plan 7.3);
+controller's `GET /metrics` at 1 Hz into `controller_metrics.csv`; stamps
+the run end and IMMEDIATELY polls the controller's confirmation marker
+(below) — before the samplers are stopped and before any hook; stops the
+samplers; executes `--collector-stop-cmd`; waits the 60 s confirmation
+window (plan 7.3);
 executes `--collector-fetch-cmd`; fetches `events.jsonl` via the
 `--fetch-events-cmd` template (`{run_id}`/`{dest}` placeholders, 3 attempts
 with exponential backoff; env fallback `EGW_FETCH_EVENTS_CMD`; without a
@@ -244,9 +260,20 @@ artefact of the condition kind is present.
 
 ### Confirmation marker: the deadline lives in the CONTROLLER's clock
 
-Immediately after the measured simulator process exits, and BEFORE the
-confirmation window, the harness polls `GET {controller-url}/metrics` with
-a plain stdlib request and records in the manifest:
+**When it is polled (marker-timing rule).** The marker is read at the TRUE
+end of the measured window: immediately after the run-end stamp
+(`finished_utc`), BEFORE the resource/metrics samplers are stopped and
+joined, before every hook and before the confirmation window. That order is
+the rule, not an implementation detail — the marker fixes the instant the
+60 s window is counted from, so anything done first is added to the window:
+joining the samplers alone can wait on an in-flight 20 s `docker stats`
+call or a 5 s `/metrics` fetch (each sampler joins with a 30 s timeout), and
+the analysis trusts the recorded deadline verbatim. A marker polled Δ s late
+gives an effective grace of 60 + Δ s, so confirmations the protocol counts
+as lost would be counted in-window and the delivery rate biased optimistically.
+
+The harness polls `GET {controller-url}/metrics` with a plain stdlib request
+and records in the manifest:
 
 - `controller_monotonic_at_run_end_ns` — the controller's own
   `monotonic_ns` at that instant (additive field of the metrics snapshot);
@@ -254,13 +281,23 @@ a plain stdlib request and records in the manifest:
   60 s window (`confirmation_window_s`);
 - `confirmation_deadline_clock_domain: "controller"`;
 - `controller_marker` — `{url, polled_utc, ok, monotonic_ns, wall_utc,
-  error}`.
+  error, lag_s, lag_tolerance_s}`.
 
-This makes the deadline INDEPENDENT of the events it judges: deriving it
-from `max(received_monotonic_ns)` is circular, because a message arriving
-minutes late becomes the new maximum and pushes its own deadline 60 s
-further out. The 60 s rule itself is untouched; only the instrumentation
-that fixes the END INSTANT changed.
+`lag_s` is the measured delay between the end of the measured window and the
+marker poll — the evidence that the rule above held for that run. It is
+judged against `CONTROLLER_MARKER_LAG_TOLERANCE_S` (`run.py`, 2 s: normal
+instrumentation jitter for one local HTTP request). Above the tolerance the
+run records a warning AND a `confirmation_marker_lag` deviation
+(`authorized_by_flag: null`), so an anomalous deadline is visible to the
+analysis instead of silently widening that run's window. The tolerance
+bounds only what counts as normal jitter; **the 60 s window value itself is
+never changed by it**.
+
+Anchoring on the controller's clock also makes the deadline INDEPENDENT of
+the events it judges: deriving it from `max(received_monotonic_ns)` is
+circular, because a message arriving minutes late becomes the new maximum
+and pushes its own deadline 60 s further out. The 60 s rule itself is
+untouched; only the instrumentation that fixes the END INSTANT changed.
 
 `--controller-url` is therefore required instrumentation for every timed
 run. Without it (or when the controller cannot be polled, or predates the
@@ -402,7 +439,8 @@ Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
     (the `host` column records the hostname the sample was taken on),
   - per-row column completeness (all six columns, non-empty `container`),
   - parseable RFC 3339 `ts_utc` timestamps, non-decreasing in time,
-  - numeric `cpu_pct`, `mem_bytes` and `mem_pct` on every row,
+  - STRICTLY numeric `cpu_pct`, `mem_bytes` and `mem_pct` on every row —
+    see "Strict numeric rule" below,
   - at least 30 data rows (`MIN_RESOURCE_SAMPLES`,
     `src/egw_experiments/resources.py`) **and** at least 30 DISTINCT
     sample instants (`MIN_DISTINCT_SAMPLE_INSTANTS`): one `docker stats`
@@ -447,6 +485,32 @@ records `resource_source`: `sut-collector` | `local-dev`
 (`--local-resources`, dev only — measures the load generator and makes a
 timed run INVALID without an override) | `none`.
 
+### Strict numeric rule (sprint P5.4)
+
+A cell that `float()` parses is not automatically a measurement: `float()`
+accepts `nan`, `inf`, `-inf` and `Infinity`, and `json.loads` parses the
+same constants out of a JSON body. A single `inf` propagates through means,
+percentiles and CI arithmetic and poisons an aggregate silently. The rule,
+applied identically at ingest and in the analysis:
+
+- **`resources.csv` at ingest** (`validate_resources_csv`): `cpu_pct`,
+  `mem_bytes` and `mem_pct` must parse as numbers, be FINITE
+  (`math.isfinite`) and be NON-NEGATIVE. Each rejection names the column and
+  the row (`non-numeric` / `non-finite` / `negative`), and — like every other
+  ingest defect — a rejected file is treated as MISSING resources, so the
+  timed run is invalid rather than aggregated from junk.
+- **`controller_metrics.csv` as it is written** (`controller_metrics.py`):
+  the six counters (`accepted`, `rejected`, `duplicate`, `failed`,
+  `dropped`, `queue_depth`) are counts, so a recorded value must be a
+  NON-NEGATIVE INTEGER. Two layers enforce it: `fetch_metrics` refuses a
+  snapshot carrying the `NaN`/`Infinity`/`-Infinity` JSON constants (the
+  whole poll fails and is counted, leaving a visible gap), and the writer
+  refuses any other non-conforming value, writing an EMPTY cell instead of
+  `inf`/`nan`/`-1`/`2.5`. Refusals are counted in the manifest
+  (`controller_metrics.invalid_values`, `last_invalid_value`) and reported
+  as a run warning — an empty cell is missing evidence, a fabricated one
+  would be worse.
+
 ### Protocol deviations (work order P1)
 
 The manifest carries a `deviations` list of
@@ -454,8 +518,9 @@ The manifest carries a `deviations` list of
 from the frozen protocol: `--skip-warmup`, skipped cooldowns, a post-run
 wait differing from the 60 s confirmation window, warm-up subprocess
 failures, an unavailable confirmation marker
-(`confirmation_marker_unavailable`), and every `--allow-*` override that
-took effect
+(`confirmation_marker_unavailable`), a confirmation marker polled later
+than the tolerance (`confirmation_marker_lag`), and every `--allow-*`
+override that took effect
 (`authorized_by_flag` names the flag; `null` means the deviation happened
 without explicit authorization and normally also produced a validity
 reason). The analysis appends a per-run warning listing the recorded

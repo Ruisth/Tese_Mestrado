@@ -5,7 +5,9 @@
 > deste repositório (R9–R15) + riscos da auditoria externa de 08/08/2026 §11
 > (R16–R27, adaptados à situação real do repositório) + riscos da reanálise
 > externa pós-correções de 08/08/2026 §11 (RA1–RA15, seguidos linha a linha na
-> secção própria). Colunas de controlo (Probabilidade, Impacto, Owner, Estado,
+> secção própria) + riscos da auditoria técnica de 10/08/2026 (R28–R29, classe
+> nova: correção que existe mas não é alcançada ou é contornada em silêncio).
+> Colunas de controlo (Probabilidade, Impacto, Owner, Estado,
 > Prazo de mitigação) acrescentadas a todos os riscos conforme a auditoria §5.4.
 > Rever a cada fecho de gate e sempre que um sinal antecipado for observado;
 > registar ativações no LOG.
@@ -13,15 +15,17 @@
 > Owner: `Estudante` (ações externas ao repositório), `Agente` (alterações no
 > repositório), `Ambos`. Estado: `Aberto`, `Em mitigação`, `Parcialmente
 > mitigado`, `Mitigado`, `Materializado`, `Fechado`. Probabilidade/Impacto de
-> R16–R27: valores da auditoria; de R1–R15: avaliação de 08/08 (a rever com os
-> orientadores).
+> R16–R27: valores da auditoria; de R1–R15: avaliação de 08/08 e de R28–R29:
+> avaliação de 10/08 (a rever com os orientadores).
 >
 > `Mitigado em M2` significa **apenas** que a correção existe no repositório e
 > está coberta por testes unitários com fakes em Windows. Não é prova live, não
 > fecha gate nenhum e não valida claim nenhum.
 
-Atualizado: 2026-08-10 (bloco P5.3: mapeamento explícito RA1–RA15; as tabelas
-R1–R27 mantêm-se como em 08/08/2026).
+Atualizado: 2026-08-10 (bloco P5.4: R9 e R25 revistos após a saída do workspace
+do domínio Nextcloud; R24 realinhado com a suite selada; RA5–RA8, RA11, RA13 e
+RA14 revistos à luz das correções P5/P5.4; RA15 mantém-se **materializado**;
+nova classe de risco R28–R29 da auditoria técnica de 10/08).
 
 ## Riscos do plano (§11)
 
@@ -40,7 +44,7 @@ R1–R27 mantêm-se como em 08/08/2026).
 
 | ID | Risco | Prob. | Impacto | Owner | Estado | Prazo mitigação | Sinal antecipado | Mitigação/decisão |
 |---|---|---|---|---|---|---|---|---|
-| R9 | Workspace em Nextcloud/NTFS: builds, ambientes virtuais ou repositórios Git corrompidos/lentos por sincronização e semântica de ficheiros NTFS | Média | Alto | Estudante | Em mitigação (regras documentadas; por aplicar nos builds) | contínuo (antes do 1.º build) | Conflitos de sincronização (`... (conflicted copy)`), locks de ficheiros, I/O lento, builds a falhar de forma não determinística | Nunca fazer builds Yocto nem correr a stack a partir de `/mnt/d`/Nextcloud (plano §5.1); builds e venvs em WSL2 ext4 ou na VM; copiar apenas resultados finais para o workspace; pausar a sincronização durante operações de I/O intensivo; `SHA256SUMS` para detetar corrupção |
+| R9 | Workspace em Nextcloud/NTFS: builds, ambientes virtuais ou repositórios Git corrompidos/lentos por sincronização e semântica de ficheiros NTFS | Média | Alto | Estudante | Parcialmente mitigado (10/08: o workspace saiu da pasta sincronizada Nextcloud, o que elimina a componente de sincronização; permanece em NTFS/Windows, pelo que a regra de nunca construir aqui mantém-se integralmente) | contínuo (antes do 1.º build) | Conflitos de sincronização (`... (conflicted copy)`), locks de ficheiros, I/O lento, builds a falhar de forma não determinística | Nunca fazer builds Yocto nem correr a stack a partir de `/mnt/d`/Nextcloud (plano §5.1); builds e venvs em WSL2 ext4 ou na VM; copiar apenas resultados finais para o workspace; pausar a sincronização durante operações de I/O intensivo; `SHA256SUMS` para detetar corrupção |
 | R10 | VM ARM64 não disponível a 10/08 (conta, pagamento, capacidade do fornecedor na região) | Média | Crítico | Estudante | Aberto | 10/08 (escalar 12/08) | Criação da VM ainda pendente em 09/08; região sem capacidade CAX | Aplicar a regra do G0 (§8.1): a 10/08 sem VM, mudar de fornecedor/região; a 12/08, comunicar risco aos orientadores; checklist pronta em [`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md) para minimizar o tempo de setup |
 | R11 | Divergência de versões de Python: host Windows com 3.14, containers/CI previstos com 3.12, `pyproject` exige >=3.11 | Média | Médio | Agente | Em mitigação | 16/08 (testes em Linux antes de G1) | Testes passam num ambiente e falham noutro; dependências sem wheels para a versão do host; warnings de depreciação diferentes | O ambiente de referência para testes e execução é Linux (WSL2/VM) com a versão do Python fixada no `Dockerfile`; não validar comportamento apenas no Python do host Windows; correr `pytest` no mesmo interpretador do container antes de declarar verde |
 | R12 | Espaço em disco/memória insuficiente no host para o build Yocto em WSL2 | Média | Alto | Estudante | Aberto | 09–10/08 (antes do 1.º build) | `df -h` abaixo de ~120 GB livres antes do build; pressão de memória/OOM no WSL durante o BitBake | Verificar espaço antes do primeiro build (guia §disk sizing); limpar `tmp/` entre builds se necessário mantendo `downloads/` e `sstate-cache`; configurar `.wslconfig` (memória/swap) antes do G1 |
@@ -50,11 +54,14 @@ R1–R27 mantêm-se como em 08/08/2026).
 
 ## Riscos da auditoria externa (08/08/2026, §11) — R16–R27
 
-Nota de 08/08 (atualizada apos os blocos P1a-P1c e P2 da ordem de trabalhos): R18, R19, R20 e R22 foram corrigidos em M2 (prova live pendente). Referências originais: R18, R19 e R22 (correções do harness), R21 (marker `integration`
-e política de evidência), R24 (lock de desenvolvimento) e R25 (bundle de backup
-e instruções de remote) estão a ser tratados em paralelo hoje; R26 teve a
-sincronização diagramas/cap. 4 concluída e checklist adicionada. Estes estados
-só passam a `Mitigado` com evidência arquivada.
+Nota de 08/08, atualizada a 10/08 (blocos P1a–P1c, P2, P5 e P5.4): R18, R19, R20
+e R22 foram corrigidos em M2 (prova live pendente); R21 continua em mitigação
+enquanto não existir um único teste `integration`; R24 mantém-se em mitigação
+(o lock de runtime ARM64 só nasce na VM); R25 passou a **mitigado** com a saída
+do repositório e dos bundles do domínio Nextcloud a 10/08; R26 teve a
+sincronização diagramas/cap. 4 concluída e checklist adicionada. Os estados
+`Mitigado em M2` só passam a `Mitigado` com evidência de execução real
+arquivada.
 
 | ID | Risco | Prob. | Impacto | Owner | Estado | Prazo mitigação | Sinal antecipado | Mitigação/decisão |
 |---|---|---|---|---|---|---|---|---|
@@ -67,9 +74,9 @@ só passam a `Mitigado` com evidência arquivada.
 | R22 | Warm-up contamina métricas de recursos (sampler abrange warm-up + execução; análise não filtra a janela medida) | Alta | Alto | Agente | Mitigado em M2 a 08/08 — janela medida no manifesto, filtro na análise e caps de cadência | antes de G4 (06/09) | `resources.csv` inclui período pré-medição | Registar `measured_started_utc` no manifesto e filtrar a janela medida na análise |
 | R23 | Critério de saturação muda depois do freeze (queue growth `TODO`; CPU sem normalização por nº de CPUs; regra «metade dos runs» não validada) | Média/Alta | Alto | Ambos | Aberto | antes de `exp-v1` (06/09) | Regra de queue growth/CPU sem decisão em G3 | Fechar métrica e regra com o orientador antes do freeze; instrumentar queue depth ou remover o critério por decisão formal registada |
 | R24 | Dependências Python mudam entre builds (`>=` em `pyproject.toml`, sem lockfile com hashes) | Média | Alto | Agente | Em mitigação — lock de desenvolvimento criado a 08/08; lock de runtime com hashes antes de `exp-v1` | 06/09 | Novo build resolve versões diferentes | Lockfile com versões/hashes antes de `exp-v1`; não afirmar «rebuild reproduzível» até lá |
-| R25 | Perda do repositório local (zero remotes, zero tags, workspace em Nextcloud) | Média | Crítico | Ambos | Em mitigação — bundle criado e verificado a 08/08, mas ainda no mesmo domínio Nextcloud; cópia externa/remote pendente (estudante) | 09/08 | Repositório existe apenas no disco local/Nextcloud | Remote privado ou bundle Git verificado fora do Nextcloud; tags reservadas para evidência real (`g1`, `g2`, `exp-v1`, `data-v1`, `rc1`), nunca antecipadas |
+| R25 | Perda do repositório local (zero remotes, zero tags, workspace em Nextcloud) | Média | Crítico | Ambos | **Mitigado** — a 10/08 o repositório e os bundles de `backups/` foram copiados para fora da pasta sincronizada Nextcloud, para uma localização privada; a condição «bundle no mesmo domínio de sincronização» deixou de se verificar. **Continua sem remote e sem tags** (`.git/config` sem `[remote]`, `refs/tags` vazio) e a cópia vive no mesmo disco físico do trabalho: o **remote privado continua a ser a opção mais forte** e o único que sobrevive a falha de disco | remote privado antes de `exp-v1` (06/09) | Repositório e bundle no mesmo suporte físico; ausência de remote | Remote privado (opção preferida) ou bundle Git verificado fora do Nextcloud (feito); tags reservadas para evidência real (`g1`, `g2`, `exp-v1`, `data-v1`, `rc1`), nunca antecipadas |
 | R26 | Documentação diverge do contrato (deriva pós-CONTRACTS v1.1: referências a v1.0, idempotência sem âmbito por `run_id`) | Alta | Médio/Alto | Agente | Em mitigação — sincronização diagramas/cap. 4 concluída a 08/08; checklist de impacto adicionada | contínuo (a cada alteração de contrato) | CONTRACTS muda sem atualização de tese/diagramas/READMEs | Checklist de impacto por ADR/alteração de contrato; verificação de drift duas vezes por semana (auditoria §14.2) |
-| R27 | Estado de gestão induz falsa confiança (PROGRESS/backlog/plano contraditórios; estados híbridos fora da taxonomia) | Alta | Alto | Agente | Em mitigação — PROGRESS reestruturado como fonte única a 08/08; backlog sem estado | 09/08 e revisão diária | Documentos de estado divergentes | Fonte única de estado em `PROGRESS.md` (modelo Implementado/Verificado/Aceite); backlog só com ações; controlo diário de esforço (<10 min) |
+| R27 | Estado de gestão induz falsa confiança (PROGRESS/backlog/plano contraditórios; estados híbridos fora da taxonomia) | Alta | Alto | Agente | Em mitigação — PROGRESS reestruturado como fonte única a 08/08; backlog sem estado; a 10/08 (P5.4) foi corrigida nova deriva: PROGRESS apontava para a evidência selada anterior (`515`/`ca445a3`) e o backlog repetia essa métrica e afirmava CSVs de pesquisa vazios que já não estavam vazios | revisão a cada bloco de trabalho e a cada gate | Documentos de estado divergentes | Fonte única de estado em `PROGRESS.md` (modelo Implementado/Verificado/Aceite); backlog só com ações; controlo diário de esforço (<10 min) |
 
 ## Riscos da reanálise externa pós-correções (08/08/2026, §11) — RA1–RA15
 
@@ -92,21 +99,54 @@ repositório fecha o risco.
 | RA2 | Claim académico de protocolo executado permanece no capítulo 1 | Agente | **Mitigado** (documental) | «pre-registered» substituído por «pre-specified, frozen before data collection» nos caps. 1/2/6 e nos abstracts (bloco P2); `grep -r "pre-registered" thesis/latex/` sem ocorrências em 10/08. O cap. 5 mantém-se sem números, com `\todo{pending data-v1}` |
 | RA3 | PDF completo enviado com placeholders e TODOs | Estudante | **Parcialmente mitigado** | Existe o extrato standalone `thesis/latex/ch2_supervisor_draft.tex` (+ PDF compilado), precisamente para evitar enviar o `main.pdf` com placeholders. Dependência bloqueante: o envio ao orientador é ação do estudante e ainda não ocorreu |
 | RA4 | «Verified sources» interpretado como leitura integral | Agente | **Mitigado** (documental) | [`../../PROGRESS.md`](../../PROGRESS.md) declara agora 7 fontes em full text (S001, S004–S009) e 18 só por título/resumo; contagem lida da coluna `stage` de `thesis/research/study_selection.csv` (7 `full_text`, 18 `title_abstract`). «Verificado» passou a referir-se apenas aos metadados da fonte. Não cobre R17 (queries institucionais), que continua com o estudante |
-| RA5 | Runs inválidos entram nos resultados | Agente | **Mitigado em M2** | `src/egw_experiments/analyze.py` exclui da agregação os runs cujo `validity` do manifesto exista e não seja `valid`; a exclusão exige causa comprovada (cloud/instrumentação/configuração) e nunca o resultado da execução. Prova live pendente de VM |
-| RA6 | Recursos locais tratados como recursos ARM | Agente | **Mitigado em M2** | Coluna de proveniência de host obrigatória em `resources.csv`; recolha do SUT por `src/deployment/scripts/collect-resources.sh` na VM ingerida por `run --resources-from`; o amostrador local é opt-in (`--local-resources`) e fica marcado com `resource_source`. Equivale a R18; prova live pendente |
-| RA7 | C10–C13 passam sem completude | Agente | **Mitigado em M2** | `processed/acceptance_by_condition.csv` avalia **todas** as condições planeadas com gate de completude explícito (`runs_complete`); uma condição planeada com zero runs válidos não passa. Prova live pendente |
-| RA8 | Queue/CPU com gaps geram falso sustained | Agente | **Mitigado em M2** | Os detetores de janela sustentada só contam intervalos entre amostras consecutivas dentro do gap máximo admitido, e cada run reporta `resources_coverage_pct`/`metrics_coverage_pct` em `per_run.csv`. Os limiares estatísticos e a janela de 60 s **não** foram alterados — mudou apenas a instrumentação |
+| RA5 | Runs inválidos entram nos resultados | Agente | **Mitigado em M2** | `src/egw_experiments/analyze.py` exclui da agregação os runs cujo `validity` do manifesto exista e não seja `valid`; a exclusão exige causa comprovada (cloud/instrumentação/configuração) e nunca o resultado da execução. Reforçado no bloco P5: o `SHA256SUMS` do diretório é verificado **antes** de qualquer agregação (coluna `integrity_ok` em `per_run.csv`) e tanto os runs com falha de integridade como os runs **não selados** de condições cronometradas ficam fora de sumários, saturação, aceitação e figuras, com aviso explícito. Limite conhecido tratado no bloco P5.4: este gate decide sobre o run, não sobre a sanidade numérica de cada amostra — ver R29. Prova live pendente de VM |
+| RA6 | Recursos locais tratados como recursos ARM | Agente | **Mitigado em M2** | Coluna de proveniência de host obrigatória em `resources.csv`; recolha do SUT por `src/deployment/scripts/collect-resources.sh` na VM ingerida por `run --resources-from`; o amostrador local é opt-in (`--local-resources`) e fica marcado com `resource_source` (`local-dev` invalida um run cronometrado). O bloco P5 acrescentou validação semântica das séries no momento da análise (linhas inutilizáveis descartadas e **contadas** por motivo: coluna em falta, campo vazio, timestamp ilegível, valor não numérico, tempo a recuar), visível em `resources_rows_dropped`/`metrics_rows_dropped`. Equivale a R18; prova live pendente |
+| RA7 | C10–C13 passam sem completude | Agente | **Mitigado em M2** | `processed/acceptance_by_condition.csv` avalia **todas** as condições planeadas com gate de completude explícito (`runs_complete`); uma condição planeada com zero runs válidos não passa. O bloco P5 substituiu a contagem por comparação do **conjunto de identidades** (`run_id` + repetição + seed + taxa, por nível de carga no sweep) contra o plano congelado, quando o plano é fornecido à análise. A alçada desta garantia depende de o plano chegar mesmo à análise pelo comando entregue — foi essa a lacuna encontrada a 10/08 e registada em R28. Prova live pendente |
+| RA8 | Queue/CPU com gaps geram falso sustained | Agente | **Mitigado em M2** | Os detetores de janela sustentada só contam intervalos entre amostras consecutivas dentro do gap máximo admitido; cada run reporta `resources_coverage_pct`/`metrics_coverage_pct` em `per_run.csv`; o bloco P5 acrescentou o *head gap* (série que só começa a amostrar já dentro da janela não é evidência contínua), a contagem de **instantes distintos** dentro da janela medida e um mínimo abaixo do qual o critério falha em vez de passar em silêncio. Os limiares estatísticos, os percentis, o método de IC e a janela de 60 s **não** foram alterados em nenhum destes blocos — mudou apenas a instrumentação. Dependência residual: séries com valores não finitos (R29) atacam exatamente estes cálculos |
 | RA9 | Raw resources sobrescritos | Agente | **Mitigado em M2** | Diretórios `raw/<run_id>/` são write-once: com `SHA256SUMS` presente o diretório fica selado e qualquer escrita com conteúdo diferente é recusada (`run.py`) |
 | RA10 | Campanha manual falha na ordem ou completude | Agente | **Mitigado em M2** | Subcomando `campaign` (`src/egw_experiments/campaign.py`): executa o plano congelado pela ordem, com resume, classificação `blocked` para diretórios não selados, cooldowns registados e `campaign_log.jsonl`. Prova live pendente |
-| RA11 | Evidência 452 não reproduzível por commit | Agente | **Mitigado** | Suite re-executada em HEAD limpo e re-selada em `docs/evidence/tests/2026-08-08-head-ca445a3/`: `515 passed`, commit testado `ca445a31e5d146cf0c214b3cd4a23a95a48b5289` (tree `b767b229e295b9453cbc2efcbfd0122bf8409d38`), `git status --porcelain` vazio, `SHA256SUMS` dos três ficheiros; commit da evidência `9491090`. Identificadores registados na entrada #C006 do [`../../LOG.md`](../../LOG.md) |
-| RA12 | Lock dev confundido com lock runtime | Ambos | **Parcialmente mitigado** | O cabeçalho de `src/requirements.lock` identifica-o como lock de **desenvolvimento**, sem hashes, gerado no venv Windows, e nomeia a suite de 515 testes contra a qual foi congelado. Dependência bloqueante: o lock de runtime ARM64 com hashes tem de ser gerado no build da imagem na VM e arquivado antes de `exp-v1`; até lá é proibido afirmar «rebuild reproduzível». Equivale a R24 |
-| RA13 | Bundle perdido no mesmo domínio Nextcloud | Estudante | **Aberto — ação do estudante** | `backups/egw-20260808-final.bundle` existe e foi verificado (SHA-256 recalculado localmente, coincidente com a verificação externa), mas continua **dentro** do domínio Nextcloud. Dependência bloqueante: cópia para suporte externo ou remote privado. Equivale a R25 |
-| RA14 | Documentos de estado voltam a divergir | Agente | **Parcialmente mitigado** | `PROGRESS.md` é fonte única de estado e o bloco P5.3 corrigiu a deriva detetada (run_id reais na matriz claim→evidência, `diagrams/README.md` em CONTRACTS v1.1, `src/README.md` sem sugerir testes live, cabeçalho do lock com 515, LOG #C006 com os identificadores exatos). Dependência bloqueante: a revisão transversal periódica ainda não é rotina com registo próprio. Equivale a R27 |
+| RA11 | Evidência 452 não reproduzível por commit | Agente | **Fechado** | O padrão está estabelecido e repetido: cada bloco re-executa a suite em HEAD limpo e sela a evidência num diretório próprio identificado pelo commit. Existem duas selagens verificáveis — `docs/evidence/tests/2026-08-08-head-ca445a3/` (`515 passed`, commit `ca445a31e5d146cf0c214b3cd4a23a95a48b5289`, tree `b767b229e295b9453cbc2efcbfd0122bf8409d38`) e `docs/evidence/tests/2026-08-08-head-57228e1/` (`593 passed`, commit `57228e178c784987492ca71a708740a5a85d0d95`, tree `e3e4fc84546662a7ecc650dbfd79596e48dab6a3`, execução datada de 2026-08-10T21:22:25Z) — ambas com `git status --porcelain` vazio e `SHA256SUMS` dos três ficheiros. Nota de higiene, sem impacto na reprodutibilidade: o prefixo `2026-08-08` do segundo diretório é o do bloco e não a data da execução |
+| RA12 | Lock dev confundido com lock runtime | Ambos | **Parcialmente mitigado** | O cabeçalho de `src/requirements.lock` identifica-o como lock de **desenvolvimento**, sem hashes, gerado no venv Windows, e nomeia a suite selada de 593 testes contra a qual foi verificado. Dependência bloqueante: o lock de runtime ARM64 com hashes tem de ser gerado no build da imagem na VM e arquivado antes de `exp-v1`; até lá é proibido afirmar «rebuild reproduzível». Equivale a R24 |
+| RA13 | Bundle perdido no mesmo domínio Nextcloud | Estudante | **Mitigado** | A 10/08 o estudante copiou o conjunto (repositório de trabalho e bundles de `backups/`, incluindo `egw-20260808-final.bundle` e `egw-20260808-p5.bundle`) para fora da pasta sincronizada Nextcloud, para uma localização privada: a condição do risco — evidência de backup dentro do mesmo domínio de sincronização — deixou de se verificar. **Continua a ser preferível um remote Git privado**: a cópia atual partilha o disco físico com o trabalho e não sobrevive a falha desse disco, e o repositório mantém-se sem remote e sem tags. Equivale a R25 |
+| RA14 | Documentos de estado voltam a divergir | Agente | **Parcialmente mitigado** | `PROGRESS.md` é fonte única de estado; o bloco P5.3 corrigiu a primeira deriva (run_id reais na matriz claim→evidência, `diagrams/README.md` em CONTRACTS v1.1, `src/README.md` sem sugerir testes live, LOG #C006 com os identificadores exatos) e o bloco P5.4 corrigiu a segunda, do mesmo tipo: PROGRESS e `src/requirements.lock` apontavam para a selagem anterior (`515`/`ca445a3`) depois de existir uma selagem mais recente, e o backlog afirmava que os CSVs de pesquisa só tinham cabeçalhos quando já continham 25 fontes e 3 pesquisas registadas. **O risco reincidiu duas vezes em três dias**, sempre a seguir a um bloco que produziu evidência nova. Dependência bloqueante: a revisão transversal ainda não é rotina com registo próprio — a regra operacional passa a ser «quem sela evidência nova atualiza, no mesmo bloco, PROGRESS, o cabeçalho do lock e a matriz». Equivale a R27 |
 | RA15 | Forecast irreal por ausência de horas | **Estudante** | **MATERIALIZADO** | O risco já ocorreu: `actual_h`, `remaining_h` e `forecast` estão vazios na tabela de controlo de esforço de [`../../PROGRESS.md`](../../PROGRESS.md), pelo que **não existe forecast de conclusão** e as datas de setembro não têm suporte quantitativo. São horas humanas: nenhum agente as pode estimar, inferir ou preencher — inventá-las seria fabricar dados. As durações do trabalho dos agentes ficam no `LOG.md` e **não** substituem estas colunas. Fecho exclusivo do estudante, no controlo diário de <10 min |
 
-Só o estudante pode alterar o estado de RA1, RA3, RA13 e RA15; RA12 exige a VM.
-Os estados `Mitigado em M2` (RA5–RA10) passam a `Mitigado` com prova live apenas
-depois de G3/G4, com evidência arquivada.
+Só o estudante pode alterar o estado de RA1, RA3 e RA15; RA12 exige a VM. RA13
+saiu desta lista a 10/08 por ação do próprio estudante. Os estados
+`Mitigado em M2` (RA5–RA10) passam a `Mitigado` com prova live apenas depois de
+G3/G4, com evidência arquivada.
+
+## Riscos da auditoria técnica (10/08/2026) — R28–R29
+
+A ronda de auditoria de 10/08 revelou uma **classe de risco nova**, distinta das
+anteriores: as anteriores eram sobre o que **falta**; estas são sobre correções
+que **existem no repositório e mesmo assim não produzem o efeito prometido** —
+porque o caminho realmente entregue ao operador não passa por elas, ou porque
+uma entrada patológica as contorna sem erro. Um risco desta classe é
+particularmente perigoso porque a documentação, os testes da função isolada e a
+leitura do código dizem todos que a proteção existe.
+
+Ambos os defeitos abaixo foram endereçados no bloco P5.4 (código do harness,
+fora do âmbito deste ficheiro). **Este registo não os declara fechados:** o
+estado de cada correção lê-se na evidência selada de 10/08 e na entrada P5.4 do
+[`../../LOG.md`](../../LOG.md), e o item de verificação permanente no fim desta
+secção mantém-se **aberto até `exp-v1`**.
+
+| ID | Risco | Prob. | Impacto | Owner | Estado | Prazo mitigação | Sinal antecipado | Mitigação/decisão |
+|---|---|---|---|---|---|---|---|---|
+| R28 | Implementação existe mas é inalcançável pela CLI entregue, ou degrada em silêncio (defeito `--plan`): a completude por **identidade** contra o plano congelado só era exercida quando o plano era passado programaticamente a `analyze(plan_path=...)` ou pela variável de ambiente; o subcomando `analyze` da CLI não expunha `--plan` e não o passava, pelo que o comando documentado como oficial degradava para a verificação **por contagem** sem erro nem falha visível | Alta | Crítico | Agente | Endereçado no bloco P5.4 (10/08) — verificação permanente ativa até `exp-v1` | antes de `exp-v1` (06/09) | Uma proteção descrita na documentação cujo teste exercita a função Python e nunca o comando entregue; opção que só existe como parâmetro de API ou variável de ambiente | Todo o caminho de garantia tem de ser alcançável pelo comando tal como é entregue e, quando a garantia não puder ser aplicada, o comando tem de o **dizer em voz alta** em vez de degradar em silêncio; os testes exercitam o `main()`/CLI, não apenas a função interna |
+| R29 | Valores não finitos ou não numéricos (NaN, ±Inf, campos de texto) nas séries e nos `timings.json` fazem a análise falhar ou — pior — enviesam-na sem falhar: um NaN contamina médias e percentis e desordena comparações, um campo não numérico levanta exceção a meio da agregação | Alta | Crítico | Agente | Endereçado no bloco P5.4 (10/08) — verificação permanente ativa até `exp-v1` | antes de `exp-v1` (06/09) | Estatística de campanha com resultado `nan`, ordenação de percentis inconsistente, ou exceção de conversão numérica durante a análise | Sanidade numérica no ingresso: valores não finitos e não convertíveis são recusados e **contados** como amostra descartada (com motivo), nunca aceites em silêncio, exatamente como as restantes validações semânticas das séries; regras estatísticas, percentis, método de IC e janela de 60 s permanecem inalterados |
+
+**Item de verificação permanente antes de `exp-v1` (não fecha com um commit).**
+Para cada proteção do harness que a documentação, o PROGRESS ou a matriz
+claim→evidência invoquem: (a) exercitá-la pelo **comando entregue**, com os
+argumentos por omissão, e não apenas pela função Python; (b) confirmar que, na
+ausência das condições necessárias, o comando **falha ou avisa de forma
+inequívoca** em vez de produzir um resultado silenciosamente mais fraco; (c)
+confirmar que entradas patológicas (vazias, não finitas, não numéricas,
+duplicadas, fora de ordem) resultam em recusa contada, nunca em resultado
+aceite. Enquanto este item estiver aberto, nenhuma proteção do harness pode ser
+descrita como garantida em execução real.
 
 ## Ligação aos ativadores de contingência (§10)
 

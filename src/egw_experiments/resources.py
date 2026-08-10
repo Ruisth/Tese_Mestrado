@@ -36,7 +36,8 @@ Notes:
 - :func:`validate_resources_csv` is the run-time ingest gate for the SUT
   collector's output. Since sprint P5 (report 5.4) it validates the CONTENT
   semantically, not just the row count: parseable RFC 3339 timestamps,
-  non-decreasing time, numeric cpu/mem fields, per-row column completeness,
+  non-decreasing time, STRICTLY numeric cpu/mem fields (finite and
+  non-negative — sprint P5.4 defect 4), per-row column completeness,
   a minimum number of DISTINCT sample instants (one docker-stats sample
   writes one row per container, so 30 rows can be five seconds of six
   containers) and, when the caller knows it, a span consistent with the
@@ -47,6 +48,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import platform
 import subprocess
 import threading
@@ -229,12 +231,33 @@ def parse_csv_timestamp(value: str) -> datetime | None:
     return parsed
 
 
-def _is_number(value: str) -> bool:
+#: Defect classes of the strict numeric ingest rule (sprint P5.4 defect 4),
+#: in the order they are reported. ``float()`` alone is not a numeric check:
+#: it happily parses ``nan``, ``inf``, ``-inf`` and ``Infinity``, and none of
+#: those is a measurement; a negative CPU percentage or memory figure is not
+#: one either. Both classes are named separately so the rejection reason says
+#: WHAT is wrong, not merely that the cell was refused.
+NUMERIC_DEFECTS: tuple[str, ...] = ("non-numeric", "non-finite", "negative")
+
+
+def _numeric_defect(value: str) -> str | None:
+    """Classify a numeric resources.csv cell; None means it is acceptable.
+
+    Strict rule (sprint P5.4 defect 4): a ``cpu_pct``/``mem_bytes``/
+    ``mem_pct`` cell must parse as a float, be FINITE
+    (:func:`math.isfinite` — ``nan``/``inf``/``-inf``/``Infinity`` are
+    rejected) and be NON-NEGATIVE. The analysis side applies the same
+    semantics.
+    """
     try:
-        float(str(value).strip())
+        number = float(str(value).strip())
     except (TypeError, ValueError):
-        return False
-    return True
+        return "non-numeric"
+    if not math.isfinite(number):
+        return "non-finite"
+    if number < 0:
+        return "negative"
+    return None
 
 
 def validate_resources_csv(
@@ -261,7 +284,11 @@ def validate_resources_csv(
     - per-row column completeness: every data row has exactly the six
       columns and a non-empty ``container``;
     - parseable RFC 3339 ``ts_utc`` timestamps;
-    - numeric ``cpu_pct``, ``mem_bytes`` and ``mem_pct`` on every row;
+    - STRICTLY numeric ``cpu_pct``, ``mem_bytes`` and ``mem_pct`` on every
+      row: parseable, FINITE and NON-NEGATIVE (sprint P5.4 defect 4 — a bare
+      ``float()`` accepts ``nan``/``inf``/``-inf``/``Infinity``, and a
+      negative CPU percentage or memory figure is not a measurement either).
+      Each rejection names the column and the row;
     - non-decreasing ``ts_utc`` (a collector never goes back in time; an
       out-of-order file means concatenated/edited evidence);
     - at least ``min_samples`` (:data:`MIN_RESOURCE_SAMPLES`) data rows AND
@@ -285,7 +312,8 @@ def validate_resources_csv(
     bad_columns: list[str] = []
     bad_container: list[str] = []
     bad_timestamps: list[str] = []
-    bad_numeric: dict[str, list[str]] = {}
+    # {defect kind: {column: ["line N: <cell>", ...]}} (sprint P5.4 defect 4).
+    bad_numeric: dict[str, dict[str, list[str]]] = {}
     out_of_order: list[str] = []
     first_instant: datetime | None = None
     last_instant: datetime | None = None
@@ -320,10 +348,11 @@ def validate_resources_csv(
                     ("mem_bytes", mem_bytes),
                     ("mem_pct", mem_pct),
                 ):
-                    if not _is_number(value):
-                        bad_numeric.setdefault(name, []).append(
-                            f"line {lineno}: {value!r}"
-                        )
+                    defect = _numeric_defect(value)
+                    if defect is not None:
+                        bad_numeric.setdefault(defect, {}).setdefault(
+                            name, []
+                        ).append(f"line {lineno}: {value!r}")
                 host = host.strip()
                 if host:
                     hosts.add(host)
@@ -365,11 +394,20 @@ def validate_resources_csv(
             f"{len(bad_timestamps)} row(s) with an unparseable RFC 3339 "
             f"ts_utc timestamp: {_head(bad_timestamps)}"
         )
-    for name in ("cpu_pct", "mem_bytes", "mem_pct"):
-        offenders = bad_numeric.get(name)
-        if offenders:
+    for defect in NUMERIC_DEFECTS:
+        by_column = bad_numeric.get(defect) or {}
+        for name in ("cpu_pct", "mem_bytes", "mem_pct"):
+            offenders = by_column.get(name)
+            if not offenders:
+                continue
             problems.append(
-                f"{len(offenders)} row(s) with a non-numeric {name} value: "
+                f"{len(offenders)} row(s) with a {defect} {name} value"
+                + (
+                    " (nan/inf are not measurements)"
+                    if defect == "non-finite"
+                    else ""
+                )
+                + ": "
                 + _head(offenders)
             )
     if out_of_order:

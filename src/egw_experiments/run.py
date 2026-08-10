@@ -219,6 +219,9 @@ FETCH_TIMEOUT_S = 300.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.3 (sprint P5.4, additive within the version — no reader change needed):
+# 'controller_marker' gains 'lag_s'/'lag_tolerance_s' and 'controller_metrics'
+# gains 'invalid_values'/'last_invalid_value'.
 # 1.3 (sprint P5): adds 'collector_hooks', 'controller_marker',
 # 'controller_monotonic_at_run_end_ns', 'missing_mandatory_artifacts',
 # 'allow_missing_controller_marker'; 'confirmation_deadline_monotonic_ns'
@@ -234,6 +237,21 @@ MANIFEST_FILENAME = "manifest.json"
 # controller that does not answer within it is recorded as unavailable rather
 # than delaying the protocol timing.
 CONTROLLER_MARKER_TIMEOUT_S = 5.0
+
+#: Tolerated delay between the end of the measured window (``finished_utc``)
+#: and the confirmation-marker poll (sprint P5.4 defect 5). The marker fixes
+#: the instant the CONFIRMATION_WINDOW_S window is counted from, so every
+#: second between the measured end and the poll is a second of EXTRA grace:
+#: the effective window becomes 60 + lag s and confirmations the protocol
+#: says are lost get counted in-window. The poll therefore happens
+#: immediately after the run-end stamp — before the samplers are joined and
+#: before any hook — and this tolerance only bounds what is considered
+#: normal instrumentation jitter (one local HTTP request against a
+#: CONTROLLER_MARKER_TIMEOUT_S budget). Above it the run records a warning
+#: AND a 'confirmation_marker_lag' deviation so the analysis can see that
+#: the deadline of that run is anomalous. The 60 s window value itself is
+#: NOT affected by this constant.
+CONTROLLER_MARKER_LAG_TOLERANCE_S = 2.0
 
 #: Mandatory evidence per condition kind (sprint P5, report 5.4
 #: "sent_events.jsonl ausente pode produzir run selado"). A missing mandatory
@@ -1727,6 +1745,19 @@ def execute_run(
         finished_monotonic_ns = time.monotonic_ns()
         finished_utc = utc_now_iso()
         measured_end_utc = finished_utc
+
+        # Confirmation marker (sprint P5, report 5.2; timing corrected in
+        # P5.4 defect 5): stamp the run end in the CONTROLLER's clock domain
+        # HERE — immediately after finished_utc, still inside the try, BEFORE
+        # the samplers are joined and before any hook. Anything done first
+        # would push the marker later and silently widen the confirmation
+        # window: joining the samplers alone can wait on an in-flight 20 s
+        # docker-stats call or a 5 s /metrics fetch (each __exit__ joins with
+        # a 30 s timeout), and the analysis trusts the resulting deadline
+        # verbatim. The 60 s value itself is unchanged; only the instant it
+        # is counted from is fixed correctly.
+        controller_marker = poll_controller_marker(controller_url)
+        controller_marker_polled_monotonic_ns = time.monotonic_ns()
     finally:
         if metrics_sampler is not None:
             metrics_sampler.__exit__(None, None, None)
@@ -1746,15 +1777,42 @@ def execute_run(
             f"controller metrics sampler had {metrics_sampler.poll_errors} "
             f"failed poll(s); last error: {metrics_sampler.last_error}"
         )
+    if metrics_sampler is not None and metrics_sampler.invalid_values:
+        # Strict numeric rule (P5.4 defect 4): refused counter values are
+        # empty cells in controller_metrics.csv, never 'inf'/'nan'/'-1'.
+        warnings.append(
+            f"controller metrics sampler refused "
+            f"{metrics_sampler.invalid_values} counter value(s) that are not "
+            f"non-negative integers; last: {metrics_sampler.last_invalid}"
+        )
     if sim_returncode != 0:
         warnings.append(f"simulator exited with code {sim_returncode}")
 
-    # Confirmation marker (sprint P5, report 5.2): stamp the run end in the
-    # CONTROLLER's clock domain, IMMEDIATELY after the measured simulator
-    # process exits and BEFORE the confirmation window, so the 60 s deadline
-    # is anchored on an event-INDEPENDENT instant. The 60 s value itself is
-    # unchanged; only the instrumentation fixing the end instant is new.
-    controller_marker = poll_controller_marker(controller_url)
+    # Marker lag (P5.4 defect 5): how long after the end of the measured
+    # window the marker was actually read. The window it anchors is
+    # effectively CONFIRMATION_WINDOW_S + lag, so the lag is recorded with
+    # the marker and an excess is reported as a warning AND a deviation.
+    # Measured on the harness monotonic clock (same domain as
+    # finished_monotonic_ns), which is the elapsed wall time between
+    # finished_utc and the marker poll without wall-clock step risk.
+    controller_marker_lag_s = max(
+        0.0,
+        (controller_marker_polled_monotonic_ns - finished_monotonic_ns) / 1e9,
+    )
+    controller_marker["lag_s"] = round(controller_marker_lag_s, 6)
+    controller_marker["lag_tolerance_s"] = CONTROLLER_MARKER_LAG_TOLERANCE_S
+    marker_lag_exceeded = (
+        controller_marker_lag_s > CONTROLLER_MARKER_LAG_TOLERANCE_S
+    )
+    if marker_lag_exceeded:
+        warnings.append(
+            f"the confirmation marker was polled {controller_marker_lag_s:.3f} "
+            f"s after the end of the measured window, above the "
+            f"{CONTROLLER_MARKER_LAG_TOLERANCE_S:.3f} s tolerance "
+            f"(CONTROLLER_MARKER_LAG_TOLERANCE_S): the {CONFIRMATION_WINDOW_S} "
+            "s confirmation window is anchored on that later instant, so its "
+            "effective grace was longer than the protocol prescribes"
+        )
     if controller_marker["ok"]:
         controller_monotonic_at_run_end_ns = int(controller_marker["monotonic_ns"])
         confirmation_deadline_monotonic_ns: int | None = (
@@ -1915,6 +1973,18 @@ def execute_run(
             f"(resource_source: {resource_source})",
             "--allow-missing-resources",
         )
+    if marker_lag_exceeded:
+        _append_deviation(
+            deviations,
+            "confirmation_marker_lag",
+            f"the confirmation marker was polled {controller_marker_lag_s:.3f} "
+            "s after the end of the measured window (tolerance "
+            f"{CONTROLLER_MARKER_LAG_TOLERANCE_S:.3f} s): the "
+            f"{CONFIRMATION_WINDOW_S} s confirmation window of this run was "
+            "counted from an instant later than the true run end, so late "
+            "confirmations may have been accepted in-window",
+            None,
+        )
     if timed and not controller_marker["ok"]:
         _append_deviation(
             deviations,
@@ -2009,6 +2079,10 @@ def execute_run(
                 "samples_written": metrics_sampler.samples_written,
                 "poll_errors": metrics_sampler.poll_errors,
                 "last_error": metrics_sampler.last_error,
+                # Strict numeric rule (P5.4 defect 4): counter values that
+                # are not non-negative integers are written as empty cells.
+                "invalid_values": metrics_sampler.invalid_values,
+                "last_invalid_value": metrics_sampler.last_invalid,
             }
             if metrics_sampler is not None
             else None
@@ -2067,11 +2141,14 @@ def execute_run(
         "confirmation_window_s": CONFIRMATION_WINDOW_S,
         # Confirmation deadline (sprint P5, report 5.2). Anchored on the
         # controller's own monotonic clock, read from GET /metrics
-        # immediately after the measured run ended and BEFORE the
-        # confirmation window — so the deadline is independent of the late
+        # immediately after the run-end stamp — before the samplers are
+        # joined and before any hook (P5.4 defect 5) — and BEFORE the
+        # confirmation window, so the deadline is independent of the late
         # events it judges. Null (clock domain 'unavailable') when the
         # controller could not be polled; the analysis then falls back to
-        # the legacy event-derived deadline and says so loudly.
+        # the legacy event-derived deadline and says so loudly. The record
+        # carries 'lag_s' (seconds between the end of the measured window
+        # and the poll) and the 'lag_tolerance_s' it is judged against.
         "controller_marker": controller_marker,
         "controller_monotonic_at_run_end_ns": controller_monotonic_at_run_end_ns,
         "confirmation_deadline_monotonic_ns": confirmation_deadline_monotonic_ns,

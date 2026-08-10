@@ -1900,14 +1900,18 @@ def _restart_row(**overrides) -> dict:
     """A controller_restart run satisfying every C12 criterion.
 
     Since sprint P5 that includes the recovery evidence (report 5.4):
-    downtime observed, metrics resuming inside RESTART_RECOVERY_MAX_S and
-    accepted-counter progress after the restart.
+    downtime observed, the /metrics ENDPOINT answering again inside
+    RESTART_RECOVERY_MAX_S and accepted-counter progress after the restart.
+    Sprint P5.4 adds the bounded FUNCTIONAL criterion: the first evidence
+    that ingestion itself resumed must also fall inside that bound.
     """
     base = _acc_row(
         "controller_restart",
         restart_hook_ok=True,
         restart_downtime_evidence=True,
-        restart_recovery_s=8.0,
+        restart_metrics_endpoint_recovery_s=8.0,
+        restart_functional_recovery_s=9.0,
+        restart_functional_recovery_source="metrics-accepted-counter",
         restart_accepted_progress=1_200.0,
     )
     base.update(overrides)
@@ -2661,6 +2665,40 @@ def test_analyze_excludes_tampered_external_run_from_duration_stats(
     assert float(row["mean"]) == 30.0
 
 
+def test_analyze_excludes_unsealed_external_run_from_duration_stats(
+    tmp_path, capsys
+) -> None:
+    """An external run with NO SHA256SUMS at all was never sealed, so its
+    duration is unverifiable evidence: a verified seal is required before a
+    run may contribute to mean/stdev/CI95/median/min/max (sprint P5.4).
+    The run stays listed in external_runs.csv with its flag."""
+    base = tmp_path / "results"
+    make_external_run(
+        base, "cold_start-r01", "cold_start", [{"label": "boot", "duration_s": 30.0}]
+    )
+    make_external_run(
+        base,
+        "cold_start-r02",
+        "cold_start",
+        [{"label": "boot", "duration_s": 900.0}],
+        seal=False,
+    )
+
+    assert analyze.analyze(base_dir=base) == 0
+    err = capsys.readouterr().err
+    assert "evidence integrity unverifiable in external run cold_start-r02" in err
+    assert "cold_start-r01" not in err
+
+    external = _read_csv(base / "processed" / "external_runs.csv")
+    verdicts = {r["run_id"]: r["integrity_ok"] for r in external}
+    assert verdicts == {"cold_start-r01": "true", "cold_start-r02": "unsealed"}
+
+    summary = _read_csv(base / "processed" / "summary_by_condition.csv")
+    row = next(r for r in summary if r["condition_id"] == "cold_start")
+    assert row["n_runs"] == "1"
+    assert float(row["mean"]) == 30.0
+
+
 # ---------------------------------------------------------------------------
 # Identity-based completeness (report 5.4 "Completude por contagem")
 # ---------------------------------------------------------------------------
@@ -3080,6 +3118,100 @@ def test_per_run_counts_dropped_rows_and_distinct_instants(tmp_path) -> None:
     assert "non_numeric=1" in row["warnings"]
 
 
+def test_read_resources_csv_rejects_non_finite_and_negative_values(tmp_path) -> None:
+    """inf/nan/negative are not usable measurements (sprint P5.4): a
+    mem_bytes of inf used to CRASH the analysis (int(float('inf')) raises
+    OverflowError, which the ValueError clause never caught) and an inf/nan
+    cpu_pct used to pass straight into the aggregates."""
+    path = _write_csv_text(
+        tmp_path / "resources.csv",
+        [
+            "ts_utc,container,cpu_pct,mem_bytes,mem_pct",
+            "2026-09-07T10:00:00.000Z,egw-controller,10.0,1024,1.0",
+            "2026-09-07T10:00:01.000Z,egw-controller,inf,1024,1.0",
+            "2026-09-07T10:00:02.000Z,egw-controller,nan,1024,1.0",
+            "2026-09-07T10:00:03.000Z,egw-controller,10.0,inf,1.0",
+            "2026-09-07T10:00:04.000Z,egw-controller,-3.0,1024,1.0",
+            "2026-09-07T10:00:05.000Z,egw-controller,10.0,1024,-1.0",
+            "2026-09-07T10:00:06.000Z,egw-controller,20.0,2048,2.0",
+        ],
+    )
+    series, report = analyze.read_resources_csv_validated(path)
+    assert report["rows_total"] == 7
+    assert report["reasons"] == {"non_finite": 3, "negative": 2}
+    assert report["rows_dropped"] == 5
+    assert [s["cpu_pct"] for s in series["egw-controller"]] == [10.0, 20.0]
+    assert "non_finite=3" in analyze.series_report_summary(report)
+
+
+def test_read_controller_metrics_csv_rejects_invalid_counters(tmp_path) -> None:
+    """Controller counters are non-negative finite INTEGER counts: 1.5, -3,
+    nan and inf are not counter values (sprint P5.4)."""
+    path = _write_csv_text(
+        tmp_path / "controller_metrics.csv",
+        [
+            "ts_utc,accepted,rejected,duplicate,failed,dropped,queue_depth",
+            "2026-09-07T10:00:00.000Z,1,0,0,0,0,5",
+            "2026-09-07T10:00:01.000Z,inf,0,0,0,0,5",
+            "2026-09-07T10:00:02.000Z,nan,0,0,0,0,5",
+            "2026-09-07T10:00:03.000Z,-3,0,0,0,0,5",
+            "2026-09-07T10:00:04.000Z,1.5,0,0,0,0,5",
+            "2026-09-07T10:00:05.000Z,7,0,0,0,0,-1",
+            "2026-09-07T10:00:06.000Z,9,0,0,0,0,5",
+        ],
+    )
+    samples, report = analyze.read_controller_metrics_csv_validated(path)
+    assert report["rows_total"] == 7
+    assert report["reasons"] == {"non_finite": 2, "negative": 2, "non_integral": 1}
+    assert report["rows_dropped"] == 5
+    assert [s["accepted"] for s in samples] == [1.0, 9.0]
+
+
+def test_non_finite_resource_sample_neither_crashes_nor_fakes_saturation(
+    tmp_path,
+) -> None:
+    """A single inf sample used to make host_cpu_utilization inf (declaring
+    saturation) or kill the whole run with an uncaught OverflowError."""
+    start = T0
+    end = T0 + timedelta(seconds=600)
+    resources = [
+        [_iso(start + timedelta(seconds=0)), "egw-controller", 10.0, 1024, 1.0],
+        [_iso(start + timedelta(seconds=1)), "egw-controller", "inf", 1024, 1.0],
+        [_iso(start + timedelta(seconds=2)), "egw-controller", 10.0, "inf", 1.0],
+        [_iso(start + timedelta(seconds=3)), "egw-controller", "nan", 1024, 1.0],
+        [_iso(start + timedelta(seconds=4)), "egw-controller", 20.0, 2048, 2.0],
+    ]
+    metrics = [
+        [_iso(start + timedelta(seconds=0)), 1, 0, 0, 0, 0, 5],
+        [_iso(start + timedelta(seconds=1)), "inf", 0, 0, 0, 0, 5],
+        [_iso(start + timedelta(seconds=2)), 3, 0, 0, 0, 0, 5],
+    ]
+    run_dir = make_run(
+        tmp_path,
+        "non-finite-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        resources_rows=resources,
+        controller_metrics_rows=metrics,
+        sut_env={"nproc": 4},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+
+    assert row["resource_samples"] == 2
+    assert row["cpu_pct_max"] == 20.0
+    assert row["mem_bytes_max"] == 2048
+    assert math.isfinite(float(row["host_cpu_utilization_max"]))
+    # 20/(100*4) = 0.05 is far below the 0.90 host-CPU threshold: no
+    # saturation may be declared from a discarded inf sample.
+    assert row["host_cpu_sustained_gt090_s"] == 0.0
+    assert row["resources_rows_dropped"] == 3
+    assert "non_finite=3" in row["warnings"]
+    assert row["metrics_rows_dropped"] == 1
+    assert row["metrics_accepted_delta"] == 2.0
+    assert "controller_metrics.csv" in row["warnings"]
+
+
 def test_saturation_single_distinct_instant_is_insufficient_evidence() -> None:
     """A series with one valid instant cannot support a cadence claim."""
     rows = _sweep_load(10.0, 0.0, 100.0)
@@ -3141,7 +3273,8 @@ def test_restart_recovery_evidence_from_sampling_gap() -> None:
         samples,
     )
     assert evidence["downtime_evidence"] is True
-    assert evidence["recovery_s"] == 10.0  # first sample after finished_utc
+    # First sample after finished_utc: the /metrics ENDPOINT answered again.
+    assert evidence["metrics_endpoint_recovery_s"] == 10.0
     assert evidence["accepted_progress"] == 20.0
 
 
@@ -3159,7 +3292,7 @@ def test_restart_recovery_evidence_from_counter_reset() -> None:
         samples,
     )
     assert evidence["downtime_evidence"] is True
-    assert evidence["recovery_s"] == 0.0
+    assert evidence["metrics_endpoint_recovery_s"] == 0.0
     assert evidence["accepted_progress"] == 30.0
 
 
@@ -3174,7 +3307,7 @@ def test_restart_recovery_evidence_absent_when_nothing_happened() -> None:
         samples,
     )
     assert evidence["downtime_evidence"] is False
-    assert evidence["recovery_s"] == 0.0
+    assert evidence["metrics_endpoint_recovery_s"] == 0.0
     assert evidence["accepted_progress"] == 30.0
 
 
@@ -3184,8 +3317,10 @@ def test_restart_recovery_evidence_unknown_without_instrumentation() -> None:
     )["restart"]
     unknown = {
         "downtime_evidence": None,
-        "recovery_s": None,
+        "metrics_endpoint_recovery_s": None,
         "accepted_progress": None,
+        "functional_recovery_s": None,
+        "functional_recovery_source": None,
     }
     assert analyze.restart_recovery_evidence(record, []) == unknown
     assert analyze.restart_recovery_evidence(None, _metric_series([(0, 0.0)])) == unknown
@@ -3195,6 +3330,70 @@ def test_restart_recovery_evidence_unknown_without_instrumentation() -> None:
         )
         == unknown
     )
+
+
+def test_restart_endpoint_reply_is_not_functional_readiness() -> None:
+    """The endpoint answering again only proves GET /metrics replied. The
+    BOUNDED functional criterion asks when MQTT/Ditto ingestion actually
+    resumed: here the counter stays flat for 400 s (sprint P5.4)."""
+    samples = _metric_series(
+        [(i, float(i)) for i in range(0, 296)]
+        + [(i, 295.0) for i in range(313, 713)]
+        + [(713, 296.0)]
+    )
+    evidence = analyze.restart_recovery_evidence(
+        _restart_record(T0 + timedelta(seconds=300), T0 + timedelta(seconds=310))[
+            "restart"
+        ],
+        samples,
+    )
+    assert evidence["downtime_evidence"] is True
+    assert evidence["metrics_endpoint_recovery_s"] == 3.0
+    # The legacy last-minus-first progress check passes on this run.
+    assert evidence["accepted_progress"] == 1.0
+    # The functional criterion does not: ingestion resumed 403 s later.
+    assert evidence["functional_recovery_source"] == "metrics-accepted-counter"
+    assert evidence["functional_recovery_s"] == 403.0
+    assert evidence["functional_recovery_s"] > analyze.RESTART_RECOVERY_MAX_S
+
+
+def test_restart_functional_recovery_prefers_controller_event_timestamps() -> None:
+    """When the manifest carries the controller's confirmation marker the
+    restart instant maps into the CONTROLLER's clock domain, so the first
+    accepted event after the restart is the preferred evidence."""
+    marker_ns = 1_000_000_000_000
+    marker = {"ok": True, "monotonic_ns": marker_ns, "wall_utc": _iso(T0)}
+    finished_ns = marker_ns + 310 * 1_000_000_000
+    events = [
+        event_record("m0", "accepted", received_ns=finished_ns - 200_000_000_000),
+        event_record("m1", "accepted", received_ns=finished_ns + 5_000_000_000),
+        event_record("m2", "accepted", received_ns=finished_ns + 60_000_000_000),
+    ]
+    # The counter series would answer 'never': it stays flat throughout.
+    samples = _metric_series([(i, 295.0) for i in range(313, 700)])
+    evidence = analyze.restart_recovery_evidence(
+        _restart_record(T0 + timedelta(seconds=300), T0 + timedelta(seconds=310))[
+            "restart"
+        ],
+        samples,
+        events=events,
+        controller_marker=marker,
+    )
+    assert evidence["metrics_endpoint_recovery_s"] == 3.0
+    assert evidence["functional_recovery_source"] == "events-accepted-monotonic"
+    assert evidence["functional_recovery_s"] == 5.0
+
+    # Without the marker there is no bridge between the harness wall clock
+    # and the controller's monotonic domain: the counter series decides.
+    fallback = analyze.restart_recovery_evidence(
+        _restart_record(T0 + timedelta(seconds=300), T0 + timedelta(seconds=310))[
+            "restart"
+        ],
+        samples,
+        events=events,
+    )
+    assert fallback["functional_recovery_source"] == "metrics-accepted-counter"
+    assert fallback["functional_recovery_s"] is None
 
 
 def test_per_run_restart_recovery_columns_from_controller_metrics(tmp_path) -> None:
@@ -3226,14 +3425,22 @@ def test_per_run_restart_recovery_columns_from_controller_metrics(tmp_path) -> N
     row = analyze.compute_run_metrics(run_dir)
     assert row["restart_hook_ok"] is True
     assert row["restart_downtime_evidence"] is True
-    assert row["restart_recovery_s"] == 10.0
+    assert row["restart_metrics_endpoint_recovery_s"] == 10.0
     assert row["restart_accepted_progress"] == 280.0
+    # The counter resets to 0 across the restart, so the first post-restart
+    # value is the baseline and ingestion is shown to resume one sample on.
+    assert row["restart_functional_recovery_s"] == 11.0
+    assert row["restart_functional_recovery_source"] == "metrics-accepted-counter"
     for column in (
         "restart_downtime_evidence",
-        "restart_recovery_s",
+        "restart_metrics_endpoint_recovery_s",
+        "restart_functional_recovery_s",
+        "restart_functional_recovery_source",
         "restart_accepted_progress",
     ):
         assert column in analyze.PER_RUN_COLUMNS
+    # The old, readiness-suggesting name is gone.
+    assert "restart_recovery_s" not in analyze.PER_RUN_COLUMNS
 
 
 def test_per_run_restart_without_metrics_has_no_recovery_evidence(tmp_path) -> None:
@@ -3255,8 +3462,10 @@ def test_per_run_restart_without_metrics_has_no_recovery_evidence(tmp_path) -> N
     )
     row = analyze.compute_run_metrics(run_dir)
     assert row["restart_downtime_evidence"] is None
-    assert row["restart_recovery_s"] is None
+    assert row["restart_metrics_endpoint_recovery_s"] is None
     assert row["restart_accepted_progress"] is None
+    assert row["restart_functional_recovery_s"] is None
+    assert row["restart_functional_recovery_source"] is None
     assert "without usable recovery evidence" in row["warnings"]
 
 
@@ -3275,14 +3484,53 @@ def test_acceptance_controller_restart_requires_downtime_evidence() -> None:
     assert "0/3 run(s) with controller downtime evidence" in downtime["observed"]
 
 
-def test_acceptance_controller_restart_requires_recovery_within_bound() -> None:
+def test_acceptance_controller_restart_requires_endpoint_recovery_within_bound() -> None:
     rows = [_restart_row() for _ in range(3)]
-    rows[0]["restart_recovery_s"] = 600.0  # > RESTART_RECOVERY_MAX_S
+    rows[0]["restart_metrics_endpoint_recovery_s"] = 600.0  # > RESTART_RECOVERY_MAX_S
     result = analyze.evaluate_acceptance(rows)
-    recovery = _acc(result, "controller_restart", "restart_recovery_within_bound")
+    recovery = _acc(
+        result, "controller_restart", "restart_metrics_endpoint_recovery_within_bound"
+    )
     assert recovery["passed"] is False
     assert "2/3 run(s)" in recovery["observed"]
     assert "120 s" in recovery["observed"]
+    # The criterion must not read as functional readiness.
+    assert "endpoint" in recovery["observed"]
+
+
+def test_acceptance_controller_restart_requires_bounded_functional_recovery() -> None:
+    rows = [_restart_row() for _ in range(3)]
+    rows[0]["restart_functional_recovery_s"] = 400.0  # > RESTART_RECOVERY_MAX_S
+    result = analyze.evaluate_acceptance(rows)
+    functional = _acc(
+        result, "controller_restart", "restart_functional_recovery_within_bound"
+    )
+    assert functional["passed"] is False
+    assert "2/3 run(s)" in functional["observed"]
+    assert "120 s" in functional["observed"]
+
+
+def test_acceptance_controller_restart_functional_recovery_is_never_blank() -> None:
+    """No post-restart evidence of resumed ingestion is a FAILURE, and it is
+    reported apart from missing instrumentation; neither is blank."""
+    rows = [
+        _restart_row(restart_functional_recovery_s=None),
+        _restart_row(restart_functional_recovery_s=None),
+        _restart_row(
+            restart_functional_recovery_s=None,
+            restart_functional_recovery_source=None,
+        ),
+    ]
+    result = analyze.evaluate_acceptance(rows)
+    functional = _acc(
+        result, "controller_restart", "restart_functional_recovery_within_bound"
+    )
+    assert functional["passed"] is False
+    assert "0/3 run(s)" in functional["observed"]
+    assert "no post-restart evidence of resumed ingestion in 2 run(s)" in (
+        functional["observed"]
+    )
+    assert "insufficient instrumentation in 1 run(s)" in functional["observed"]
 
 
 def test_acceptance_controller_restart_requires_accepted_progress() -> None:
@@ -3299,7 +3547,8 @@ def test_acceptance_controller_restart_recovery_criteria_pass_when_demonstrated(
     result = analyze.evaluate_acceptance(rows)
     for criterion in (
         "restart_downtime_evidence_every_run",
-        "restart_recovery_within_bound",
+        "restart_metrics_endpoint_recovery_within_bound",
+        "restart_functional_recovery_within_bound",
         "restart_accepted_progress_after",
     ):
         assert _acc(result, "controller_restart", criterion)["passed"] is True
@@ -3311,15 +3560,18 @@ def test_acceptance_controller_restart_without_instrumentation_fails_loudly() ->
     rows = [
         _restart_row(
             restart_downtime_evidence=None,
-            restart_recovery_s=None,
+            restart_metrics_endpoint_recovery_s=None,
             restart_accepted_progress=None,
+            restart_functional_recovery_s=None,
+            restart_functional_recovery_source=None,
         )
         for _ in range(3)
     ]
     result = analyze.evaluate_acceptance(rows)
     for criterion in (
         "restart_downtime_evidence_every_run",
-        "restart_recovery_within_bound",
+        "restart_metrics_endpoint_recovery_within_bound",
+        "restart_functional_recovery_within_bound",
         "restart_accepted_progress_after",
     ):
         row = _acc(result, "controller_restart", criterion)
@@ -3375,10 +3627,76 @@ def test_acceptance_end_to_end_controller_restart_recovery_from_files(
         "delivery_across_restart_zero_lost",
         "zero_double_accepted",
         "restart_downtime_evidence_every_run",
-        "restart_recovery_within_bound",
+        "restart_metrics_endpoint_recovery_within_bound",
+        "restart_functional_recovery_within_bound",
         "restart_accepted_progress_after",
     ):
         assert restart[criterion]["passed"] == "true", criterion
+
+
+def test_acceptance_end_to_end_endpoint_recovery_without_ingestion_fails(
+    tmp_path,
+) -> None:
+    """The C12 bound must be about functional readiness: an endpoint that
+    answers 10 s after the restart while ingestion only resumes 401 s later
+    passes the endpoint observation and FAILS the functional criterion
+    (sprint P5.4)."""
+    base = tmp_path / "results"
+    start = T0
+    end = T0 + timedelta(seconds=900)
+    metrics = [
+        [_iso(start + timedelta(seconds=i)), i, 0, 0, 0, 0, 1]
+        for i in range(0, 296)
+    ]
+    # GET /metrics answers again at +320 s, but the accepted counter is
+    # frozen: nothing is being ingested.
+    metrics += [
+        [_iso(start + timedelta(seconds=i)), 295, 0, 0, 0, 0, 1]
+        for i in range(320, 711)
+    ]
+    metrics += [
+        [_iso(start + timedelta(seconds=i)), 295 + (i - 710), 0, 0, 0, 0, 1]
+        for i in range(711, 901)
+    ]
+    mids = [f"m{i}" for i in range(3)]
+    for rep in (1, 2, 3):
+        make_run(
+            base,
+            f"controller_restart-r{rep:02d}",
+            sent=[sent_record(m, i) for i, m in enumerate(mids)],
+            events=[event_record(m, "accepted") for m in mids],
+            manifest_extra={
+                "condition_id": "controller_restart",
+                "scenario": "nominal",
+                "repetition": rep,
+                **_window_manifest(start, end),
+                **_restart_record(
+                    start + timedelta(seconds=300),
+                    start + timedelta(seconds=310),
+                ),
+            },
+            controller_metrics_rows=metrics,
+        )
+    assert analyze.analyze(base_dir=base) == 0
+
+    acceptance = _read_csv(base / "processed" / "acceptance_by_condition.csv")
+    restart = {
+        r["criterion"]: r
+        for r in acceptance
+        if r["condition_id"] == "controller_restart"
+    }
+    assert restart["restart_metrics_endpoint_recovery_within_bound"]["passed"] == "true"
+    # The legacy unbounded progress check also passes on this run.
+    assert restart["restart_accepted_progress_after"]["passed"] == "true"
+    functional = restart["restart_functional_recovery_within_bound"]
+    assert functional["passed"] == "false"
+    assert "0/3 run(s)" in functional["observed"]
+
+    per_run = {r["run_id"]: r for r in _read_csv(base / "processed" / "per_run.csv")}
+    row = per_run["controller_restart-r01"]
+    assert float(row["restart_metrics_endpoint_recovery_s"]) == 10.0
+    assert float(row["restart_functional_recovery_s"]) == 401.0
+    assert row["restart_functional_recovery_source"] == "metrics-accepted-counter"
 
 
 # ---------------------------------------------------------------------------

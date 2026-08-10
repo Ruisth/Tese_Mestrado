@@ -28,7 +28,12 @@ Behaviour:
   each pending run is logged with outcome ``incomplete`` and the campaign
   exits 1 with a summary (sprint P5, report 5.4 "Condições externas não
   impedem exit 0"). A filtered campaign may still exit 0 while stating
-  what remains;
+  what remains. The accounting covers the WHOLE plan, not only the
+  executed slice (sprint P5.4 defect 6): ``--start-from`` moves the
+  execution cursor, so the external runs it jumps over are never
+  classified by the loop — they nevertheless keep owing their evidence
+  until their run directory is sealed AND valid, and they are listed in
+  the same summary;
 - SUT collector hooks: ``--collector-start-cmd`` (before the warm-up),
   ``--collector-stop-cmd`` (after the measured run) and
   ``--collector-fetch-cmd`` (after the confirmation window) are passed
@@ -87,6 +92,18 @@ def _append_log(log_path: Path, record: dict[str, Any]) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def _is_sealed_and_valid(run_dir: Path) -> bool:
+    """Cheap sealed-and-valid probe used for runs the campaign never visits.
+
+    Deliberately WITHOUT the SHA256SUMS verification :func:`_classify` does:
+    this decides whether an unvisited run still OWES its evidence, and a
+    campaign must not silently verify (or fail on) directories outside the
+    slice it was asked to execute. A visited run always goes through
+    :func:`_classify` and its integrity check.
+    """
+    return run_dir_is_sealed(run_dir) and _read_manifest_validity(run_dir) == "valid"
 
 
 def _read_manifest_validity(run_dir: Path) -> str | None:
@@ -269,6 +286,22 @@ def run_campaign(
             )
         return 0
 
+    # External evidence owed by runs OUTSIDE the selected slice (sprint P5.4
+    # defect 6). --start-from only moves the execution cursor: an external
+    # run earlier in the frozen order is never classified by the loop below,
+    # so counting only the selected slice let a campaign that never produced
+    # a single QEMU boot / cold start / twin creation exit 0 as 'clean'.
+    # Owed evidence is a property of the WHOLE plan, so it is accounted for
+    # here; runs already sealed-and-valid owe nothing.
+    selected_ids = {str(entry.get("run_id")) for entry in selected}
+    skipped_external: list[str] = [
+        str(entry.get("run_id"))
+        for entry in entries
+        if str(entry.get("run_id")) not in selected_ids
+        and entry.get("runner") != "simulator"
+        and not _is_sealed_and_valid(base / "raw" / str(entry.get("run_id")))
+    ]
+
     log_path = base / CAMPAIGN_LOG_FILENAME
     any_bad = False
     # External conditions still missing their operator evidence. A FULL
@@ -374,8 +407,13 @@ def run_campaign(
             if not continue_on_invalid:
                 print(
                     f"[campaign] stopping at {run_id} (blocked); fix the "
-                    "run directory, or resume past it with --start-from, "
-                    "or use --continue-on-invalid",
+                    "run directory ('collect' when it is unsealed, a NEW "
+                    "versioned run_id when it is sealed-but-invalid), or "
+                    "record it and carry on with --continue-on-invalid. "
+                    "--start-from moves the execution cursor past a run, it "
+                    "does NOT settle it: the runs it jumps over still owe "
+                    "their evidence, and any external run left behind keeps "
+                    "the campaign INCOMPLETE (exit 1).",
                     file=sys.stderr,
                 )
                 return 1
@@ -483,19 +521,36 @@ def run_campaign(
                 )
                 return 1
 
-    # Pending external evidence (sprint P5, report 5.4). A FULL campaign
-    # cannot be "clean" while QEMU boots, cold starts or twin creations are
-    # still unmeasured; a FILTERED campaign (--only-conditions) legitimately
-    # covers a subset and only states what remains.
-    incomplete = bool(pending_external) and not only_conditions
-    if pending_external:
+    # Pending external evidence (sprint P5, report 5.4; whole-plan accounting
+    # since P5.4 defect 6). A FULL campaign cannot be "clean" while QEMU
+    # boots, cold starts or twin creations are still unmeasured — including
+    # the ones --start-from jumped over, which are owed exactly as much as the
+    # ones the loop visited. A FILTERED campaign (--only-conditions)
+    # legitimately covers a subset and only states what remains.
+    owed = set(pending_external) | set(skipped_external)
+    owed_external = [
+        str(entry.get("run_id"))
+        for entry in entries
+        if str(entry.get("run_id")) in owed
+    ]
+    incomplete = bool(owed_external) and not only_conditions
+    if owed_external:
         print(
-            f"[campaign] {len(pending_external)} external run(s) still "
+            f"[campaign] {len(owed_external)} external run(s) still "
             "pending (evidence not ingested): "
-            + ", ".join(pending_external),
+            + ", ".join(owed_external),
             file=sys.stderr if incomplete else None,
             flush=True,
         )
+        if skipped_external:
+            print(
+                f"[campaign] {len(skipped_external)} of them "
+                f"({', '.join(skipped_external)}) were NOT visited in this "
+                "pass because --start-from/--only-conditions skipped them; "
+                "skipping a run does not discharge the evidence it owes",
+                file=sys.stderr if incomplete else None,
+                flush=True,
+            )
         print(
             "[campaign] produce each timings.json with the deployment/"
             "platform procedure and ingest it with: python -m "
