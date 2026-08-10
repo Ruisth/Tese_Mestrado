@@ -4,7 +4,16 @@
 - ``GET /ready``             -> 200 only when MQTT is connected AND Ditto answers,
   503 otherwise;
 - ``GET /twins/{device_id}`` -> twin read, normalized by the controller;
-- ``GET /metrics``           -> outcome counters + uptime (JSON).
+- ``GET /metrics``           -> outcome counters + uptime + the confirmation
+  marker ``monotonic_ns``/``wall_utc`` (JSON).
+
+``GET /metrics`` carries, additively (existing fields unchanged), the
+CONFIRMATION MARKER: ``monotonic_ns`` (``time.monotonic_ns()`` read while
+the request is handled) and ``wall_utc`` (the same instant, RFC 3339 UTC).
+``monotonic_ns`` shares the clock domain of the ``events.jsonl`` stamps, so
+the harness can anchor the end-of-run confirmation deadline on the
+controller's clock instead of on the events being judged. It is not a
+latency measurement and never enters ``latency_ms`` (CONTRACTS 5).
 
 ``create_app`` takes injected dependencies (used directly by tests);
 ``create_app_from_env`` wires the full service + MQTT bridge from ``EGW_*``
@@ -101,6 +110,8 @@ def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
 
     @app.get("/metrics")
     async def metrics() -> dict[str, Any]:
+        # snapshot() reads the confirmation marker (monotonic_ns/wall_utc)
+        # here, at request handling time (CONTRACTS 5).
         return {**deps.metrics.snapshot(), "queue_depth": deps.queue_depth()}
 
     return app

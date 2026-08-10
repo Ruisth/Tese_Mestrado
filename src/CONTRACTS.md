@@ -98,7 +98,47 @@ as primeiras mensagens de cada execução medida, corrompendo a taxa de entrega.
   - `GET /health` → `{"status":"ok"}` (processo vivo);
   - `GET /ready` → 200 só com MQTT ligado e Ditto acessível; 503 caso contrário;
   - `GET /twins/{device_id}` → leitura do twin normalizada;
-  - `GET /metrics` → contadores + uptime (JSON).
+  - `GET /metrics` → contadores + uptime + marcador de confirmação (JSON):
+    `accepted`, `rejected`, `duplicate`, `failed`, `dropped`, `queue_depth`,
+    `started_at`, `uptime_s`, `monotonic_ns` (inteiro) e `wall_utc`
+    (RFC 3339 UTC). Os dois últimos são aditivos (v1.1 → P5) e não alteram
+    nenhum campo existente.
+
+### Marcador de confirmação em `GET /metrics` (aditivo, sprint P5)
+
+`monotonic_ns` = `time.monotonic_ns()` lido **no tratamento do pedido**;
+`wall_utc` = o mesmo instante no relógio de parede (RFC 3339 UTC, sufixo `Z`).
+
+- **O que é:** uma âncora temporal no **domínio de relógio do controlador** —
+  o mesmo processo, logo o mesmo relógio monotónico de
+  `received_monotonic_ns` / `ditto_ack_monotonic_ns` do `events.jsonl`. O
+  harness lê-o **imediatamente após o fim do processo simulador medido e
+  antes da espera de confirmação**, e regista no manifesto
+  `controller_monotonic_at_run_end_ns`,
+  `confirmation_deadline_monotonic_ns` (= marcador + `confirmation_window_s`
+  em ns) e `confirmation_deadline_clock_domain: "controller"`.
+- **Porque não é o relógio da latência:** a latência primária continua a ser
+  `latency_ms = (ditto_ack_monotonic_ns − received_monotonic_ns)/1e6`,
+  calculada no mesmo processo por mensagem (secção 9). O marcador nunca
+  entra no cálculo da latência, nem substitui nenhum dos dois carimbos; é
+  apenas o instante de **fim de execução** projetado no relógio do
+  controlador.
+- **Porque é necessário:** sem ele o prazo de confirmação teria de ser
+  derivado dos próprios eventos (p. ex. `max(received_monotonic_ns)` + janela),
+  o que é circular — uma mensagem recebida tarde deslocaria o seu próprio
+  prazo e nunca poderia ser contada como perdida.
+- **A regra dos 60 s não muda:** a janela de confirmação continua a ser
+  `confirmation_window_s` (default 60 s, secção 9 e plano §7.3); apenas o
+  **instante de fim** deixa de ser inferido dos eventos.
+- **Indisponibilidade:** se o controlador não puder ser consultado, o
+  manifesto regista `confirmation_deadline_monotonic_ns: null`,
+  `confirmation_deadline_clock_domain: "unavailable"` e um desvio
+  `confirmation_marker_unavailable`; nas condições temporizadas a execução
+  fica `invalid` a menos que seja passado
+  `--allow-missing-controller-marker` (que regista o desvio em vez de
+  invalidar). A análise recorre então ao prazo derivado dos eventos,
+  marcando a execução como legacy/não verificável com aviso explícito e
+  registando `confirmation_deadline_source` em `per_run.csv`.
 
 ### Registo de eventos (fonte primária de latência — plano §5.8/§7.3)
 

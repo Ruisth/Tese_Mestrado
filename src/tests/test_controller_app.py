@@ -6,7 +6,8 @@ The service layer is faked: readiness flags and twin reads come from
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator
 
 import httpx
@@ -219,7 +220,12 @@ async def test_metrics_counts_and_uptime(
     clock.value = 160.5  # constructed at 100.0
     response = await client.get("/metrics")
     assert response.status_code == 200
-    assert response.json() == {
+    body = response.json()
+    # The confirmation marker is additive (CONTRACTS 5, sprint P5): every
+    # pre-existing field keeps its exact value and meaning.
+    marker_ns = body.pop("monotonic_ns")
+    wall_utc = body.pop("wall_utc")
+    assert body == {
         "accepted": 2,
         "rejected": 1,
         "duplicate": 1,
@@ -229,6 +235,101 @@ async def test_metrics_counts_and_uptime(
         "started_at": "2026-08-07T12:00:00.000Z",
         "uptime_s": 60.5,
     }
+    assert isinstance(marker_ns, int)
+    # The fixture pins `now`; wall_utc is that instant in RFC 3339 UTC.
+    assert wall_utc == "2026-08-07T12:00:00.000Z"
+
+
+# ---------------------------------------------------------------------------
+# GET /metrics confirmation marker (CONTRACTS 5, sprint P5, report 5.2)
+# ---------------------------------------------------------------------------
+
+
+class FakeMonotonicNs:
+    """Injectable time.monotonic_ns() with an explicit call counter."""
+
+    def __init__(self, value: int = 1_000_000_000) -> None:
+        self.value = value
+        self.calls = 0
+
+    def __call__(self) -> int:
+        self.calls += 1
+        return self.value
+
+
+async def test_metrics_confirmation_marker_read_at_request_time(
+    ditto: FakeDittoClient,
+) -> None:
+    """``monotonic_ns`` is read WHILE the request is handled, not frozen at
+    construction: the harness needs the instant the measured run ended, and
+    it must advance between polls."""
+    monotonic_ns = FakeMonotonicNs(5_000_000_000)
+    metrics = MetricsCounters(
+        monotonic=FakeMonotonicClock(),
+        now=lambda: datetime(2026, 8, 7, 12, 0, 0, tzinfo=timezone.utc),
+        monotonic_ns=monotonic_ns,
+    )
+    assert monotonic_ns.calls == 0  # nothing read at construction
+    app = create_app(
+        AppDeps(metrics=metrics, ditto=ditto, mqtt_connected=lambda: True)
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as http:
+        first = (await http.get("/metrics")).json()
+        assert first["monotonic_ns"] == 5_000_000_000
+        monotonic_ns.value = 65_000_000_000  # 60 s later, in nanoseconds
+        second = (await http.get("/metrics")).json()
+    assert second["monotonic_ns"] == 65_000_000_000
+    assert second["monotonic_ns"] - first["monotonic_ns"] == 60 * 1_000_000_000
+    assert monotonic_ns.calls == 2
+
+
+async def test_metrics_marker_uses_the_process_monotonic_clock_by_default(
+    client: httpx.AsyncClient,
+) -> None:
+    """Without injection the marker is the real ``time.monotonic_ns()`` of
+    the controller process — the SAME clock domain as the events.jsonl
+    ``received_monotonic_ns`` / ``ditto_ack_monotonic_ns`` stamps, which is
+    the whole point of the marker (report 5.2)."""
+    before = time.monotonic_ns()
+    body = (await client.get("/metrics")).json()
+    after = time.monotonic_ns()
+    assert before <= body["monotonic_ns"] <= after
+
+
+async def test_metrics_marker_does_not_touch_latency_fields(
+    client: httpx.AsyncClient,
+) -> None:
+    """The marker is an end-of-run anchor, never a latency measurement:
+    /metrics exposes no latency field and the counters stay the contract
+    four plus the operational extras (CONTRACTS 5/9)."""
+    body = (await client.get("/metrics")).json()
+    assert set(body) == {
+        "accepted",
+        "rejected",
+        "duplicate",
+        "failed",
+        "dropped",
+        "queue_depth",
+        "started_at",
+        "uptime_s",
+        "monotonic_ns",
+        "wall_utc",
+    }
+    assert not [key for key in body if "latency" in key]
+
+
+async def test_metrics_wall_utc_is_rfc3339_zulu(client: httpx.AsyncClient) -> None:
+    """``wall_utc`` is the same instant on the wall clock, RFC 3339 UTC with
+    a Z suffix and millisecond resolution (CONTRACTS 5)."""
+    body = (await client.get("/metrics")).json()
+    wall_utc = body["wall_utc"]
+    assert wall_utc.endswith("Z")
+    parsed = datetime.fromisoformat(wall_utc.replace("Z", "+00:00"))
+    assert parsed.tzinfo is not None
+    assert parsed.utcoffset() == timedelta(0)
 
 
 async def test_metrics_reports_dropped_and_live_queue_depth(
