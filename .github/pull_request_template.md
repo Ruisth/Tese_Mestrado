@@ -1,131 +1,132 @@
-## Resultado
+## Outcome
 
-<!-- 2-4 frases: o resultado concreto entregue por este PR. -->
+<!-- Two to four sentences: the concrete outcome this pull request delivers. -->
 
-## Alinhamento com o plano
+## Alignment with the plan
 
-- Prioridade: P0 / P1
-- Gate ou milestone:
-- RQ afetada:
-- Claims afetados:
-- Riscos associados:
+- Priority: P0 / P1
+- Gate or milestone:
+- Research question affected:
+- Claims affected:
+- Associated risks:
 
-## Âmbito
+## Scope
 
-### Incluído
-
--
--
-
-### Explicitamente fora de âmbito
+### Included
 
 -
 -
 
-## Alterações principais
+### Explicitly out of scope
 
 -
 -
 
-## Estado do entregável
+## Main changes
 
-| Dimensão | Estado | Evidência |
+-
+-
+
+## Deliverable state
+
+| Dimension | State | Evidence |
 |---|---|---|
-| Implementado | Sim / Parcial / Não | |
-| Verificado | Sim / Parcial / Não | |
-| Aceite no gate | Pendente / Aceite | |
+| Implemented | Yes / Partial / No | |
+| Verified | Yes / Partial / No | |
+| Accepted at gate | Pending / Accepted | |
 
-Maturidade: M0 / M1 / M2 / M3 / M4 / M5
+Maturity: M0 / M1 / M2 / M3 / M4 / M5
 
-## Verificação
+## Verification
 
-| Verificação | Ambiente | Resultado | Evidência |
+| Check | Environment | Result | Evidence |
 |---|---|---|---|
-| Validação estática | | | |
-| Testes unitários | | | |
-| Testes de integração | | | |
-| Validação live | | | |
-| Compilação documental | | | |
+| Static validation | | | |
+| Unit tests | | | |
+| Integration tests | | | |
+| Live validation | | | |
+| Document build | | | |
 
-Comandos reproduzíveis:
+Reproducible commands:
 
 ```text
-<!-- comandos exatos utilizados -->
+<!-- the exact commands used -->
 ```
 
-## Evidência e reprodutibilidade
+## Evidence and reproducibility
 
 - Base commit:
-- Commit verificado:
-- Sistema operativo:
-- Arquitetura:
-- Versões e digests:
-- Configuração ou manifesto:
-- Diretório de evidência:
+- Verified commit:
+- Operating system:
+- Architecture:
+- Versions and digests:
+- Configuration or manifest:
+- Evidence directory:
 - Checksums:
-- Desvios conhecidos:
+- Known deviations:
 
-## Critérios de aceitação
+## Acceptance criteria
 
 - [ ]
 - [ ]
 - [ ]
 
-## Impacto na dissertação
+## Impact on the dissertation
 
-- Capítulos afetados:
-- Figuras ou tabelas afetadas:
-- Claims suportados:
-- Claims que continuam pendentes:
-- Impacto nas RQs:
+- Chapters affected:
+- Figures or tables affected:
+- Claims supported:
+- Claims still pending:
+- Impact on the research questions:
 
-## Riscos e limitações
+## Risks and limitations
 
-| Risco | Probabilidade | Impacto | Mitigação | Risco residual |
+| Risk | Probability | Impact | Mitigation | Residual risk |
 |---|---|---|---|---|
 | | | | | |
 
 ## Rollback
 
-1. Alterações que devem ser revertidas:
-2. Impacto em dados, contratos ou schemas:
-3. Procedimento de recuperação:
-4. Evidência invalidada pelo rollback:
+1. Changes to revert:
+2. Impact on data, contracts or schemas:
+3. Recovery procedure:
+4. Evidence invalidated by the rollback:
 
-## Dependências
+## Dependencies
 
-- Depende de:
-- Bloqueia:
-- Trabalho posterior:
+- Depends on:
+- Blocks:
+- Follow-up work:
 
-## Guia de revisão
+## Review guide
 
-Pontos principais a rever:
+Main points to review:
 
 1.
 2.
 3.
 
-Ficheiros que exigem atenção especial:
+Files needing particular attention:
 
 -
 
-## Checklist final
+## Final checklist
 
-- [ ] O PR tem um único objetivo coerente.
-- [ ] A branch foi criada a partir de `dev` atualizado.
-- [ ] O destino do PR é `dev`.
-- [ ] Todos os commits pertencem ao autor do repositório.
-- [ ] As mensagens e metadados cumprem a política do repositório.
-- [ ] Não existem trailers de coautoria ou atribuição externa.
-- [ ] Os testes aplicáveis passaram.
-- [ ] A evidência está persistida e é reproduzível.
-- [ ] Runs inválidos não são apresentados como bem-sucedidos.
-- [ ] Nenhum gate ou claim foi aceite sem evidência.
-- [ ] PROGRESS, LOG, backlog, riscos e matriz estão sincronizados.
-- [ ] Não existem secrets, certificados privados ou passwords tracked.
-- [ ] Binários e dados volumosos não foram adicionados ao Git.
-- [ ] O rollback está documentado.
-- [ ] A árvore estava limpa quando a evidência final foi produzida.
+- [ ] The pull request has a single coherent objective.
+- [ ] The branch was created from an up-to-date `dev`.
+- [ ] The pull request targets `dev`.
+- [ ] Every commit belongs to the repository owner.
+- [ ] Messages and metadata comply with the repository policy.
+- [ ] There are no co-authorship or external attribution trailers.
+- [ ] Content is written in British English (en-GB); dates are ISO 8601.
+- [ ] The applicable tests pass.
+- [ ] Evidence is persisted and reproducible.
+- [ ] Invalid runs are not presented as successful.
+- [ ] No gate or claim has been accepted without evidence.
+- [ ] PROGRESS, LOG, backlog, risks and the claim matrix are synchronised.
+- [ ] No secrets, private certificates or passwords are tracked.
+- [ ] No large binaries or bulk data were added to Git.
+- [ ] The rollback is documented.
+- [ ] The tree was clean when the final evidence was produced.
 
-<!-- Merge: usar "Create a merge commit". Nunca squash nem rebase. -->
+<!-- Merge with "Create a merge commit". Never squash, never rebase. -->

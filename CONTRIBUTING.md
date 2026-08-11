@@ -1,17 +1,25 @@
-# Convenções do repositório
+# Repository conventions
 
-## Modelo de branches
+## Working language
 
-| Branch | Papel |
+British English (en-GB) is the sole working language: code comments, tests,
+documentation, branch names, commit messages, pull requests and reviews. Dates
+use ISO 8601 (`YYYY-MM-DD`). The full policy, its exceptions and the list of
+things that are never translated are in
+[`docs/governance/language-policy.md`](docs/governance/language-policy.md).
+
+## Branch model
+
+| Branch | Role |
 |---|---|
-| `main` | Apenas versões estáveis, promovidas por pull request a partir de `dev` |
-| `dev` | Onde o trabalho aterra, sempre por pull request |
-| `<tipo>/g<gate>-<objetivo-curto>` | Ramo de trabalho, criado a partir de `dev` atualizado |
+| `main` | Stable versions only, promoted by pull request from `dev` |
+| `dev` | Where work lands, always by pull request |
+| `<type>/g<gate>-<short-objective>` | Working branch, created from an up-to-date `dev` |
 
-Nunca fazer commit diretamente em `dev` ou `main`. Um ruleset ativo obriga a
-pull request nas duas e proíbe force-push e eliminação.
+Never commit directly to `dev` or `main`. An active ruleset requires a pull
+request on both and forbids force-pushes and deletions.
 
-Exemplos de nomes de ramo:
+Example branch names:
 
 ```text
 docs/g0-closeout
@@ -21,15 +29,15 @@ test/g3-harness-pilot
 fix/controller-recovery-readiness
 ```
 
-## Mensagens de commit
+## Commit messages
 
 Conventional Commits:
 
 ```text
-<tipo>(<scope>): <resultado técnico>
+<type>(<scope>): <technical outcome>
 ```
 
-Exemplos:
+Examples:
 
 ```text
 build(yocto): validate two qemuarm64 boots
@@ -39,20 +47,20 @@ docs(thesis): complete research methodology
 fix(simulator): preserve sequence after reconnect
 ```
 
-## Política de autoria e metadados
+## Authorship and metadata policy
 
-- Todos os commits usam exclusivamente o autor e committer do repositório.
-- Não adicionar trailers de atribuição (`Co-authored-by`, `Generated-by`,
-  `Assisted-by` ou equivalentes).
-- Nomes de ferramentas de assistência não aparecem em títulos, descrições,
-  comentários, revisões, mensagens de commit ou metadados de pull request.
-  Podem existir livremente em nomes e conteúdos de ficheiros e pastas.
+- Every commit uses the repository owner as both author and committer.
+- No attribution trailers (`Co-authored-by`, `Generated-by`, `Assisted-by` or
+  equivalents).
+- Assistance-tool names do not appear in titles, descriptions, comments,
+  reviews, commit messages or pull-request metadata. They may appear freely in
+  file and directory names and in file contents.
 
-O workflow `.github/workflows/metadata-policy.yml` verifica isto em cada pull
-request. Falha a verificação e regista as ocorrências no log da execução; não
-publica comentários nem revisões automáticas.
+The `.github/workflows/metadata-policy.yml` workflow checks this on every pull
+request. It fails the check and records the findings in the run log; it never
+posts automatic comments or reviews.
 
-Antes de qualquer push:
+Before any push:
 
 ```powershell
 git config --local user.name
@@ -62,21 +70,22 @@ git var GIT_COMMITTER_IDENT
 git log origin/dev..HEAD --format="%h | %an <%ae> | %cn <%ce> | %s"
 ```
 
-## Âmbito de um pull request
+## Scope of a pull request
 
-Um PR corresponde a **um objetivo verificável**, tipicamente 1–3 dias de
-trabalho, e inclui a implementação, os testes, a documentação, o estado de
-gestão e a evidência desse objetivo. As datas pertencem aos milestones e ao
-cronograma, não ao conteúdo do PR.
+One pull request delivers **one verifiable objective**, typically one to three
+days of work, and includes the implementation, the tests, the documentation,
+the management state and the evidence for that objective. Dates belong to
+milestones and to the schedule, not to the content of a pull request.
 
-O template em `.github/pull_request_template.md` é preenchido em todos os PRs.
+The template in `.github/pull_request_template.md` is filled in on every pull
+request.
 
-**O merge de um pull request demonstra implementação e verificação; não fecha
-um gate.** A aceitação de um gate continua a exigir a evidência definida no
-plano e é registada em `PROGRESS.md` e no Anexo C do plano.
+**Merging a pull request demonstrates implementation and verification; it does
+not close a gate.** Accepting a gate still requires the evidence defined in the
+plan, and is recorded in `PROGRESS.md` and in Annex C of the plan.
 
-## Merge
+## Merging
 
-Usar **Create a merge commit**. Nunca squash nem rebase: o histórico de
-commits é referenciado pela evidência arquivada em `docs/evidence/`, e
-reescrevê-lo invalidaria essas referências.
+Use **Create a merge commit**. Never squash, never rebase: archived evidence
+under `docs/evidence/` references commit hashes, and rewriting them would
+invalidate those references.
