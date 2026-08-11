@@ -22,16 +22,28 @@ the serial console, logs in, runs a fixed list of checks and decides the
 outcome from the output. The full console session and the per-check verdicts
 are archived here.
 
-| Boot | Outcome | Clean power down | Checks |
-|---|---|---|---|
-| `boot1` | pass | yes | 9 of 9 |
-| `boot2` | pass | yes | 9 of 9 |
+| Boot | Outcome | Required assertions | Supplementary observations | Clean power down |
+|---|---|---|---|---|
+| `boot1` | pass | 6 of 6 passed | 3 of 3 recorded | confirmed |
+| `boot2` | pass | 6 of 6 passed | 3 of 3 recorded | confirmed |
 
-Checks, in order: architecture and release; systemd state after
-`is-system-running --wait`; target list showing `multi-user.target` active;
-failed units (none); networking with a slirp lease; gateway reachability;
-container runtime reporting a server version; the in-image container smoke
-test; and recorded smoke diagnostics.
+**Required assertions** are what was verified: architecture and release;
+systemd state after `is-system-running --wait`; the target list showing
+`multi-user.target` active; networking with a slirp lease; the container
+runtime reporting a server version; and the in-image container smoke test.
+
+**Supplementary observations** are recorded but assert nothing, and are
+deliberately not counted as verification: the failed-unit list (empty in both
+boots), gateway reachability, and the smoke diagnostics. An earlier version of
+this file said "9 of 9 checks", which counted the observations as if they were
+assertions; that overstated what had been verified.
+
+One observation is worth naming: the interpreter probe reports
+`INTERP=unavailable` because neither `strings` nor the `tr` fallback is usable
+in this image, which carries no binutils. It reports that plainly rather than a
+fabricated value. The dynamic loader is instead evidenced by the smoke test
+succeeding, which cannot happen unless the loader resolves inside the
+container.
 
 The container smoke test builds a single-layer OCI image from the target's own
 BusyBox, imports it, runs a command inside it and removes it — so the runtime
