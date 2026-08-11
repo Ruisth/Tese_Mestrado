@@ -16,10 +16,15 @@ documents. Enforce all of the following, without exception:
 
 ### Language and format
 
-- Dissertation body: **English** (plan header: "Idioma da dissertacao:
-  ingles"). The Resumo (with Palavras Chave) is in **Portuguese (pt-PT)**.
-- Documents addressed to the student/advisors (`docs/g0/`): Portuguese
-  (pt-PT). Technical READMEs, code and research-protocol documents: English.
+- **British English (en-GB) is the sole working language of this repository**
+  (`docs/governance/language-policy.md`, adopted 2026-08-11). That includes
+  every document under `docs/`, which earlier guidance wrongly exempted.
+- The only academic exception is Portuguese front matter the university makes
+  mandatory: the Resumo, with Palavras Chave. Drafts of external administrative
+  communication, such as supervisor emails, may also stay in Portuguese.
+- Existing Portuguese documents are translated when next modified, and by the
+  migration listed in the policy. Never translate published history, sealed
+  evidence, machine-readable values, interfaces or identifiers.
 - LaTeX: the ISCTE template structure in `thesis/latex/main.tex` (class,
   packages, front matter) is preserved; citation style is IEEE via
   `biblatex`/`biber`. Modular edits per chapter file
