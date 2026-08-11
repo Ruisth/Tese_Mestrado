@@ -223,6 +223,54 @@ metodológico, não de custo.
 
 ---
 
+## Entrada #C009 — Imagem EGW-OS construída; publicação do repositório
+- **Data:** 2026-08-11
+- **Fase:** G1 (build) e G0 (preservação)
+
+### Build concluído
+`kas build` terminou com **5715 tarefas, todas com sucesso** (5161 servidas pela
+sstate cache — confirmação de que a correção do `DL_DIR`/`SSTATE_DIR` funciona).
+Artefactos em `build/tmp/deploy/images/qemuarm64/`:
+
+| Artefacto | Dimensão |
+|---|---|
+| `egw-image-qemuarm64.rootfs.ext4` | 382 MiB |
+| `Image` (linux-yocto 6.6.142) | 23 MiB |
+| `rootfs.manifest` | 639 pacotes |
+| SBOM SPDX | incluído |
+
+O manifesto confirma os componentes exigidos pelo âmbito P0: `docker-moby
+25.0.9`, `containerd 2.0.10`, `runc 1.1.14` e `systemd`.
+
+**G1 continua ABERTO.** A imagem existir não fecha o gate: faltam os **dois
+boots QEMU registados** e o **smoke de container dentro do guest**, que são a
+evidência exigida pelos claims C01 e C02. Zero boots executados até à data.
+
+### Quarto defeito encontrado pela execução real
+Ao terceiro insucesso do `perl do_compile` — em três módulos diferentes
+(`Pod-Escapes`, `JSON-PP`, `Time-Local`) e já com `-j 1` — ficou claro que o
+diagnóstico inicial de corrida no make paralelo estava **errado**: era uma
+hipótese que encaixava no primeiro sintoma. A causa real é instabilidade do
+relógio do WSL2, medida contra o relógio do Windows (−0,45 s → +0,35 s →
++1,33 s em 40 s sob carga), que faz o `make` ver `Makefile.PL` com data no
+futuro e disparar o protocolo «rerun make» do MakeMaker. Resolvido em
+`4720327` fixando a data dos `Makefile.PL` antes do compile, o que torna o
+build independente do relógio do host — mais reproduzível, não menos.
+
+### Publicação
+Repositório privado `Ruisth/Tese_Mestrado` criado e ligado, com ruleset a
+exigir pull request em `main` e `dev` e a proibir force-push e eliminação.
+Modelo de trabalho: ramo `<tipo>/g<gate>-<objetivo>` → PR para `dev`;
+`dev` → PR para `main` apenas em versões estáveis. O histórico foi limpo de
+trailers de coautoria antes da publicação; todos os commits têm autoria única
+do estudante. Risco R25/RA13 (perda do repositório) passa a mitigado: o
+histórico existe agora num domínio de falha independente do disco local.
+
+- **Evidência:** `docs/evidence/tests/2026-08-11-head-19d74ff/` (618 testes,
+  HEAD limpo `19d74ff`).
+
+---
+
 ## Entrada #C007 — Sprint P5.4 (seis defeitos da auditoria de verificação)
 - **Data:** 2026-08-10
 - **Fase:** P5.4, autorizado pelo relatório
