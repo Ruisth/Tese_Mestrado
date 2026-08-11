@@ -8,7 +8,7 @@ Implementação e dissertação do Edge Gateway ARM64 reproduzível (Yocto/Scart
 serviços contentorizados) que recebe telemetria sintética de três wearables,
 valida os eventos e materializa-os como gémeos digitais no Eclipse Ditto.
 
-**Fonte normativa:** [`../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`](../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md)
+**Normative source:** `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` (held in the workspace OUTSIDE this repository, so it is deliberately not a link; it is converted to `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` by the language migration)
 (plano integrado, v1.0 — 07/08/2026). Este repositório segue o âmbito P0 desse
 plano; ver [PROGRESS.md](PROGRESS.md) para o estado por gate.
 

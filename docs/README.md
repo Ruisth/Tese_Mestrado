@@ -1,7 +1,7 @@
 # docs/ — índice
 
 Documentação do projeto EGW. Fonte normativa de âmbito, cronograma e gates:
-[`../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`](../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md);
+`PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` (held in the workspace OUTSIDE this repository, so it is deliberately not a link; it is converted to `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` by the language migration);
 contratos técnicos internos: [`../src/CONTRACTS.md`](../src/CONTRACTS.md).
 
 ## G0 — âmbito e arranque (pt-PT)

@@ -1,0 +1,114 @@
+2026-08-11 22:08:53 - INFO     - kas 5.4 started on Ubuntu noble
+2026-08-11 22:08:53 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-08-11 22:08:53 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-08-11 22:08:53 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-08-11 22:08:53 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-08-11 22:08:53 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-08-11 22:08:53 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+2026-08-11 22:08:55 - INFO     - Loading cache...done.
+2026-08-11 22:08:57 - INFO     - Loaded 4830 entries from dependency cache.
+2026-08-11 22:08:57 - INFO     - NOTE: Resolving any missing task queue dependencies
+2026-08-11 22:08:58 - INFO     - 
+2026-08-11 22:08:58 - INFO     - Build Configuration:
+2026-08-11 22:08:58 - INFO     - BB_VERSION           = "2.8.1"
+2026-08-11 22:08:58 - INFO     - BUILD_SYS            = "x86_64-linux"
+2026-08-11 22:08:58 - INFO     - NATIVELSBSTRING      = "universal"
+2026-08-11 22:08:58 - INFO     - TARGET_SYS           = "aarch64-poky-linux"
+2026-08-11 22:08:58 - INFO     - MACHINE              = "qemuarm64"
+2026-08-11 22:08:58 - INFO     - DISTRO               = "poky"
+2026-08-11 22:08:58 - INFO     - DISTRO_VERSION       = "5.0.19"
+2026-08-11 22:08:58 - INFO     - TUNE_FEATURES        = "aarch64 crc cortexa57"
+2026-08-11 22:08:58 - INFO     - TARGET_FPU           = ""
+2026-08-11 22:08:58 - INFO     - meta-egw             = "feat/egw-p0-baseline:5770c0ad4f4e1a5205845afcb9aa9eb797e76df0"
+2026-08-11 22:08:58 - INFO     - meta-filesystems
+2026-08-11 22:08:58 - INFO     - meta-networking
+2026-08-11 22:08:58 - INFO     - meta-oe
+2026-08-11 22:08:58 - INFO     - meta-python          = "scarthgap:ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f"
+2026-08-11 22:08:58 - INFO     - meta-virtualization  = "scarthgap:0d9fb7fef86c5cbc177045c7b86bc71948f8657d"
+2026-08-11 22:08:58 - INFO     - meta
+2026-08-11 22:08:58 - INFO     - meta-poky            = "scarthgap:bb98354685781296e3b3737e7762412100f359c2"
+2026-08-11 22:08:58 - INFO     - 
+2026-08-11 22:09:00 - INFO     - Initialising tasks...Sstate summary: Wanted 99 Local 87 Mirrors 0 Missed 12 Current 2615 (87% match, 99% complete)
+2026-08-11 22:09:00 - INFO     - Removing 4 stale sstate objects for arch qemuarm64...done.
+2026-08-11 22:09:01 - INFO     - Removing 7 stale sstate objects for arch cortexa57...done.
+2026-08-11 22:09:01 - INFO     - NOTE: Executing Tasks
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 2987 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_fetch)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_fetch: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_fetch: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 3246 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_unpack)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_unpack: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_unpack: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 3439 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_patch)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_patch: Started
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 3730 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_prepare_recipe_sysroot)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_patch: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 3740 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_deploy_source_date_epoch)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_prepare_recipe_sysroot: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_deploy_source_date_epoch: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_prepare_recipe_sysroot: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_deploy_source_date_epoch: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 4012 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_configure)
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 4042 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_collect_spdx_deps)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_configure: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_collect_spdx_deps: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_collect_spdx_deps: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 4600 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_populate_lic)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_configure: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 4724 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_compile)
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_populate_lic: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_populate_lic: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_compile: Started
+2026-08-11 22:09:02 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_compile: Succeeded
+2026-08-11 22:09:02 - INFO     - NOTE: Running task 4880 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_install)
+2026-08-11 22:09:03 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_install: Started
+2026-08-11 22:09:03 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_install: Succeeded
+2026-08-11 22:09:03 - INFO     - NOTE: Running task 5389 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_package)
+2026-08-11 22:09:03 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_package: Started
+2026-08-11 22:09:03 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_package: Succeeded
+2026-08-11 22:09:03 - INFO     - NOTE: Running task 5700 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_packagedata)
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_packagedata: Started
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_packagedata: Succeeded
+2026-08-11 22:09:04 - INFO     - NOTE: Running task 5701 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_create_spdx)
+2026-08-11 22:09:04 - INFO     - NOTE: Running task 5702 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_package_write_rpm)
+2026-08-11 22:09:04 - INFO     - NOTE: Running task 5703 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_package_qa)
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_create_spdx: Started
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_package_write_rpm: Started
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_package_qa: Started
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_create_spdx: Succeeded
+2026-08-11 22:09:04 - INFO     - NOTE: Running task 5704 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_create_runtime_spdx)
+2026-08-11 22:09:04 - INFO     - NOTE: Running task 5705 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/egw-container-smoke/egw-container-smoke.bb:do_create_runtime_spdx)
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_package_qa: Succeeded
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_create_runtime_spdx: Started
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_create_runtime_spdx: Started
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_create_runtime_spdx: Succeeded
+2026-08-11 22:09:04 - INFO     - NOTE: recipe egw-container-smoke-1.0-r0: task do_package_write_rpm: Succeeded
+2026-08-11 22:09:05 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_create_runtime_spdx: Succeeded
+2026-08-11 22:09:05 - INFO     - NOTE: Running task 5706 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_rootfs)
+2026-08-11 22:09:05 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_rootfs: Started
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_rootfs: Succeeded
+2026-08-11 22:09:58 - INFO     - NOTE: Running task 5707 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_flush_pseudodb)
+2026-08-11 22:09:58 - INFO     - NOTE: Running task 5708 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_write_qemuboot_conf)
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_flush_pseudodb: Started
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_flush_pseudodb: Succeeded
+2026-08-11 22:09:58 - INFO     - NOTE: Running task 5709 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_image_qa)
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_write_qemuboot_conf: Started
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_write_qemuboot_conf: Succeeded
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_qa: Started
+2026-08-11 22:09:58 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_qa: Succeeded
+2026-08-11 22:09:59 - INFO     - NOTE: Running task 5710 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_image)
+2026-08-11 22:09:59 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image: Started
+2026-08-11 22:09:59 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image: Succeeded
+2026-08-11 22:09:59 - INFO     - NOTE: Running task 5711 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_image_ext4)
+2026-08-11 22:09:59 - INFO     - NOTE: Running task 5712 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_image_tar)
+2026-08-11 22:09:59 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_ext4: Started
+2026-08-11 22:09:59 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_tar: Started
+2026-08-11 22:10:03 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_tar: Succeeded
+2026-08-11 22:10:03 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_ext4: Succeeded
+2026-08-11 22:10:03 - INFO     - NOTE: Running task 5713 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_image_complete)
+2026-08-11 22:10:04 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_complete: Started
+2026-08-11 22:10:04 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_image_complete: Succeeded
+2026-08-11 22:10:04 - INFO     - NOTE: Running task 5714 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_populate_lic_deploy)
+2026-08-11 22:10:05 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_populate_lic_deploy: Started
+2026-08-11 22:10:05 - INFO     - NOTE: recipe egw-image-1.0-r0: task do_populate_lic_deploy: Succeeded
+2026-08-11 22:10:05 - INFO     - NOTE: Running noexec task 5715 of 5715 (/home/ruisth/yocto/egw/src/yocto/build/../meta-egw/recipes-core/images/egw-image.bb:do_build)
+2026-08-11 22:10:06 - INFO     - NOTE: Tasks Summary: Attempted 5715 tasks of which 5688 didn't need to be rerun and all succeeded.

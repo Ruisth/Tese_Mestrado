@@ -37,6 +37,9 @@ experiments/results/raw/*
 *.fls
 *.lof
 *.log
+# Archived evidence is the exception: SHA256SUMS in docs/evidence/ covers
+# console and build logs, so 'sha256sum -c' must succeed from a clean clone.
+!docs/evidence/**/*.log
 *.lot
 *.out
 *.synctex.gz

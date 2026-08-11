@@ -1,0 +1,7 @@
+2026-08-11 22:08:53 - INFO     - kas 5.4 started on Ubuntu noble
+2026-08-11 22:08:53 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-08-11 22:08:53 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-08-11 22:08:53 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-08-11 22:08:53 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-08-11 22:08:53 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-08-11 22:08:53 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d

@@ -1,0 +1,15 @@
+Test evidence record (sealed run over clean HEAD)
+=================================================
+Date (UTC): 2026-08-11T21:39:02Z
+Command: python -m pytest tests -q --junitxml=junit.xml  (cwd: <repo>/src)
+Branch: build/g1-yocto-qemu (created from origin/dev after the PR #2 and #3 merges)
+Git commit (exact tree tested): 05166eb74e3b9e5c1f1efbdb50be3bbaed6b41be
+Git tree hash: 7de3132b7332973591dbdc9d9f25cadc9e3770af
+git status --porcelain at execution: CLEAN (empty)
+Python: Python 3.14.3
+OS: Windows 11 Pro
+Venv lock: src/requirements.lock (DEV lock; the ARM64 runtime lock is produced on the VM before exp-v1)
+Markers: 'integration' deselected by default via addopts; ZERO integration tests exist.
+Scope: unit tests with fakes only - M2 evidence. Closes no gate, validates no claim.
+Reason: the previously sealed run predated the functional changes merged into dev,
+so the integrated tree had no sealed evidence of its own.

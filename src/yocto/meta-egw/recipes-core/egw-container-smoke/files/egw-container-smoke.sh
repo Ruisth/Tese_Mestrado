@@ -83,6 +83,48 @@ cp "$BUSYBOX_BIN" "$WORK_DIR/rootfs/bin/busybox" || fail "copying busybox failed
 ln -s busybox "$WORK_DIR/rootfs/bin/sh" || fail "symlink sh failed"
 ln -s busybox "$WORK_DIR/rootfs/bin/echo" 2>/dev/null || true
 
+# The BusyBox shipped by poky is DYNAMICALLY linked. A rootfs holding only the
+# binary makes the kernel fail the exec with ENOENT - reported as
+# "exec /bin/sh: no such file or directory", which reads like a missing file
+# but is really the missing dynamic loader. Observed on 2026-08-11.
+#
+# Ask the loader itself which objects the binary needs, so the list is derived
+# rather than guessed, and copy each one preserving its path. A statically
+# linked BusyBox makes '--list' fail, which is harmless: nothing to copy.
+LOADER=""
+for candidate in /lib/ld-linux-aarch64.so.1 /lib64/ld-linux-aarch64.so.1 /lib/ld-linux-armhf.so.3; do
+    [ -x "$candidate" ] && { LOADER="$candidate"; break; }
+done
+if [ -n "$LOADER" ] && "$LOADER" --list "$BUSYBOX_BIN" >/dev/null 2>&1; then
+    DEPS="$("$LOADER" --list "$BUSYBOX_BIN" 2>/dev/null \
+        | tr ' ' '\n' | grep '^/' | sort -u)"
+    # This image is usrmerge'd (INIT_MANAGER=systemd pulls it in), so /lib is a
+    # symlink to /usr/lib on the running system and the two spellings are the
+    # same file. Inside a fresh container rootfs they are NOT: whichever one
+    # the binary's PT_INTERP names must exist literally, and copying to only
+    # one side left the exec failing with ENOENT even though the loader was
+    # present under the other name. Observed on 2026-08-11: a direct
+    # 'docker run IMAGE /bin/busybox' failed identically, which ruled out the
+    # /bin/sh symlink and pointed here.
+    #
+    # Placing every object under both /lib and /usr/lib removes the ambiguity
+    # for a few megabytes, instead of trying to predict which spelling the
+    # toolchain baked in.
+    COUNT=0
+    for lib in $DEPS $LOADER; do
+        [ -e "$lib" ] || continue
+        BASE="$(basename "$lib")"
+        for dest in lib usr/lib; do
+            mkdir -p "$WORK_DIR/rootfs/$dest" || fail "mkdir $dest failed"
+            cp "$lib" "$WORK_DIR/rootfs/$dest/$BASE" || fail "copying $lib failed"
+        done
+        COUNT=$((COUNT + 1))
+    done
+    log INFO "bundled $COUNT object(s) under both /lib and /usr/lib"
+else
+    log INFO "busybox appears statically linked; no shared objects bundled"
+fi
+
 ( cd "$WORK_DIR/rootfs" && tar -cf "$WORK_DIR/rootfs.tar" . ) \
     || fail "creating rootfs tarball failed"
 
