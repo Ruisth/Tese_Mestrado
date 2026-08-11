@@ -1,0 +1,15 @@
+Test evidence record (sealed run over clean HEAD)
+=================================================
+Date (UTC): 2026-08-11T22:27:16Z
+Command: python -m pytest tests -q --junitxml=junit.xml  (cwd: <repo>/src)
+Branch: build/g1-yocto-qemu
+Git commit (exact tree tested): 4e67717581a15afa81b639b70acbac6160c56ac2
+Git tree hash: 189b52170a5cff8cc9c60dab64cbdea51bc451dc
+git status --porcelain at execution: CLEAN (empty)
+Interpreter: C:\Users\ruimf\AppData\Local\Temp\claude\D--Nextcloud-Edge-Gateway\33349621-a450-463c-bc2f-f2b4fc86005c\scratchpad\venv\Scripts\python.exe
+pytest version: pytest 9.1.1
+SHA-256 of src/requirements.lock: 9B3436DCC66D4D97E973B77E5EF7A0C568089A994FE441914B9E13FE3C890A98
+Companion files: python-version.txt (python -VV), pip-freeze.txt, pip-check.txt
+OS: Windows 11 Pro
+Markers: 'integration' deselected by default via addopts; ZERO integration tests exist.
+Scope: unit tests with fakes only - M2 evidence. Closes no gate, validates no claim.
