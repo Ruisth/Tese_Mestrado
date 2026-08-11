@@ -101,7 +101,12 @@ documents. Enforce all of the following, without exception:
 1. Did any number, superlative or achievement claim enter without a
    claim-evidence row?
 2. Are all new citations verified entries in `references.bib`?
-3. Is the language split respected (EN body, PT-PT Resumo and docs/g0)?
+3. Is the language policy respected — British English everywhere, including
+   every document under `docs/` (`docs/g0` included), with only the mandatory
+   Portuguese front matter (the Resumo, with Palavras Chave) and drafts of
+   external administrative communication, such as supervisor emails, left in
+   Portuguese? Legacy Portuguese documents awaiting their migration batch are
+   not evidence of a split: they are translated when next modified.
 4. Do RQs, scenario names, field names and twin IDs match the contracts
    verbatim?
 5. Does the document still compile with zero new warnings attributable to

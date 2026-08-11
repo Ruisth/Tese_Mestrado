@@ -45,16 +45,25 @@ Notation: `(egw_id)` and `(device_uuid)` stand for the `{egw_id}` and
 `{device_uuid}` placeholders of the CONTRACTS topic and thingId templates
 (parentheses avoid Mermaid brace parsing).
 
-## 2. Deployment diagram — two platforms (plan 5.1, CONTRACTS 8)
+## 2. Deployment diagram — three platform tiers (plan 5.1, ADR 0001, CONTRACTS 8)
 
 The functional platform (WSL2 + QEMU) validates build, boot, systemd, network
-and the OCI runtime only; no performance conclusions come from it. All
-measurements run on the ARM64 cloud VM, with the simulator executing off-VM so
-the external link is excluded from the controller-side latency measurement.
+and the OCI runtime only; no performance conclusions come from it, and a QEMU
+result never supports a performance or security statement. Every measurement
+must be taken on a dedicated native-ARM64 instance, with the simulator running
+off-instance so the external link is excluded from the controller-side latency
+measurement.
+
+**Provisioning state, read this with the diagram.** Only the functional tier
+exists. The dashed subgraphs are **planned and not provisioned**: the
+measurement instance **does not exist** (Oracle, Hetzner and Azure for Students
+all failed to supply a dedicated ARM64 machine — risk R28), and the burstable
+integration instance is available but unused. They are drawn because they are
+contracted by the plan, not because they are deployed; nothing in them has run.
 
 ```mermaid
 flowchart TB
-    subgraph FUNC["Functional platform - build/boot validation only, no performance claims (plan 5.1)"]
+    subgraph FUNC["Functional platform - PROVISIONED - build/boot validation only, no performance claims (plan 5.1)"]
         subgraph WSL["Windows 11 host / WSL2 Ubuntu 24.04 LTS (build tree on ext4)"]
             KAS["kas manifest (qemuarm64)<br/>BitBake build of egw-image"]
             QEMU["QEMU aarch64 boot<br/>systemd, network, OCI runtime<br/>functional checks"]
@@ -62,20 +71,30 @@ flowchart TB
         KAS --> QEMU
     end
 
-    subgraph PERF["Performance platform - all benchmark runs (plan 5.1)"]
-        subgraph VM["Hetzner cloud VM, native ARM64 (CAX21-class: 4 vCPU, 8 GiB RAM, >= 80 GB disk; shared-CPU limitation documented)"]
+    subgraph INTEG["ARM64 integration tier - PLANNED, NOT PROVISIONED - functional integration only, NEVER numbers"]
+        BURST["Burstable ARM64 instance (Azure B4pls_v2 class)<br/>available, not yet used<br/>CPU-credit throttling bars it from measurement"]
+    end
+
+    subgraph PERF["Measurement platform - PLANNED, NOT PROVISIONED - the ONLY source of numbers (plan 5.1)"]
+        subgraph VM["Dedicated native-ARM64 instance, DOES NOT EXIST YET<br/>candidates: Azure D4pls_v5 (quota requested) or AWS c6g.xlarge<br/>4 vCPU, 8 GiB RAM, >= 80 GB disk; non-burstable; any shared-vCPU limitation is provider-dependent and recorded"]
             CSTACK["docker compose (linux/arm64):<br/>Mosquitto :8883 exposed<br/>Ditto gateway :8080 localhost-only<br/>Ditto policies / things + MongoDB internal<br/>controller :8000 localhost-only"]
         end
-        OPS["Operator machine (off-VM, plan 5.1)<br/>egw_simulator + experiment harness<br/>collects results/raw/(run_id)/"]
+        OPS["Operator machine (off-instance, plan 5.1)<br/>egw_simulator + experiment harness<br/>collects results/raw/(run_id)/"]
         OPS -- "mqtts :8883<br/>TLS + username/password" --> CSTACK
         OPS -. "ssh: harness control,<br/>resources.csv, logs" .-> VM
     end
 
-    FUNC -. "same source tree and contracts;<br/>no measurements transferred" .- PERF
+    FUNC -. "same source tree and contracts;<br/>no measurements transferred" .- INTEG
+    INTEG -. "same source tree and contracts;<br/>no measurements transferred" .- PERF
+
+    classDef planned stroke-dasharray: 5 5
+    class INTEG,PERF,VM planned
 ```
 
-Primary latency is measured inside the controller process on the VM, between
-MQTT receive and the Ditto 2xx acknowledgement (plan 5.1 and 5.8; CONTRACTS 5).
+Primary latency is measured inside the controller process on the measurement
+instance, between MQTT receive and the Ditto 2xx acknowledgement (plan 5.1 and
+5.8; CONTRACTS 5). Until that instance exists, no such measurement has been
+taken.
 
 ## 3. Sequence diagram — one telemetry event (accepted, duplicate and invalid branches)
 

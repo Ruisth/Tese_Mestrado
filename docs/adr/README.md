@@ -18,9 +18,10 @@ Conventions:
 
 | ADR | Title | Status |
 |---|---|---|
-| [0001](0001-qemu-functional-vs-arm64-vm-performance.md) | Separate functional platform (QEMU) from performance platform (native ARM64 VM) | Accepted |
+| [0001](0001-qemu-functional-vs-arm64-vm-performance.md) | Separate functional platform (QEMU) from performance platform (native ARM64 VM) | Accepted — extended by 0007 |
 | [0002](0002-ssi-acapy-conditional-p1.md) | SSI/ACA-Py is strictly conditional P1 behind gate G3 and outside all RQs | Accepted |
 | [0003](0003-flat-measurements-common-envelope-uuidv5.md) | Flat measurement fields with common envelope v1 and UUIDv5 message_id | Accepted |
 | [0004](0004-minimal-ditto-preauth.md) | Minimal Ditto deployment (policies/things/gateway) with pre-authentication for the controller | Accepted |
 | [0005](0005-latency-measured-in-controller-monotonic.md) | Primary latency measured inside the controller with a monotonic clock | Accepted |
 | [0006](0006-duplicate-state-in-twin-ingestion-feature.md) | Duplicate-detection state persisted in the twin `ingestion` feature | Accepted |
+| [0007](0007-three-tier-platform-model.md) | Three-tier platform model: only a dedicated ARM64 instance may produce numbers for RQ3 | Proposed |
