@@ -1,0 +1,208 @@
+% =============================================================================
+% ch2_supervisor_draft.tex — Standalone extract of Chapter 2 (Background and
+% Related Work) for supervisor feedback, 8 August 2026.
+%
+% Compile (from thesis/latex/), AFTER main.tex has been compiled at least
+% once — cross-references to other chapters are imported from main.aux (xr):
+%   latexmk -pdf -interaction=nonstopmode ch2_supervisor_draft.tex
+%
+% This document reuses the document class and the subset of the main.tex
+% preamble that Chapter 2 needs. It contains no front-matter placeholders,
+% no dedication or acknowledgments and no other chapters; only references
+% actually cited in Chapter 2 are printed.
+% =============================================================================
+\documentclass[12pt,reqno,oneside]{amsbook}
+\usepackage[onehalfspacing]{setspace}
+\usepackage[a4paper, margin=2.5cm]{geometry}
+\usepackage[english]{babel}
+\usepackage{etoolbox}
+\usepackage{csquotes}
+\usepackage[printonlyused]{acronym}
+\usepackage{xcolor}   % used only by the \todo marker (none may appear here)
+\usepackage{booktabs} % Table 2.1
+\usepackage{array}    % >{...} column specifiers in Table 2.1
+\usepackage{ragged2e} % \RaggedRight (hyphenation-friendly) in narrow columns
+%
+\usepackage[
+    backend=biber,
+    style=ieee,
+  ]{biblatex}
+\addbibresource{../refs/references.bib}
+%
+% ---------------------------------------------- cross-chapter cross-references
+% Cross-references to other chapters (Chapters 1, 3 and 5) resolve to the
+% numbering of the full dissertation draft, imported from main.aux with xr.
+%
+% Design note (why the import is PREFIXED). An unprefixed \externaldocument{main}
+% imports *every* label of the full draft, including the 22 labels that
+% Chapter 2 itself defines. Those 22 are then defined twice -- once from
+% main.aux at preamble time, once from this document's own .aux at
+% \begin{document} -- which LaTeX reports as 22 "multiply defined" warnings
+% plus a closing summary warning (23 in total). Prefixing the import puts
+% every label from main.aux under the name "main-<label>", so nothing imported
+% can collide with a label defined here.
+%
+% Chapter 2 is frozen and is not edited for this extract, so it still writes
+% \ref{ch:architecture} and so on. The seven labels it cites from other
+% chapters are therefore aliased back to their unprefixed names below; the
+% numbers printed are exactly the ones main.aux carries. Only these seven are
+% exposed, so no alias can shadow a Chapter 2 label. (This also removes the
+% need for the former workaround that unset the amsbook "tocindent-*" internal
+% labels: they now arrive as "main-tocindent-*" and are simply ignored, while
+% this document regenerates its own.)
+\usepackage{xr}
+\externaldocument[main-]{main}
+\makeatletter
+\newcommand*\EGWexternallabel[1]{%
+  \expandafter\ifx\csname r@main-#1\endcsname\relax
+    \@latex@warning@no@line{External label `#1' not found in main.aux;
+      recompile main.tex first}%
+  \else
+    \expandafter\let\csname r@#1\expandafter\endcsname\csname r@main-#1\endcsname
+  \fi}
+\EGWexternallabel{sec:intro-rqs}       % Chapter 1 -- research questions
+\EGWexternallabel{sec:intro-scope}     % Chapter 1 -- scope
+\EGWexternallabel{sec:method-review}   % Chapter 3 -- literature review protocol
+\EGWexternallabel{sec:method-protocol} % Chapter 3 -- experimental protocol
+\EGWexternallabel{ch:architecture}     % Chapter 4
+\EGWexternallabel{ch:evaluation}       % Chapter 5
+\EGWexternallabel{sec:eval-validity}   % Chapter 5 -- threats to validity
+\makeatother
+%
+% TODO marker (same definition as in main.tex). This supervisor draft must
+% contain zero \todo occurrences; the macro is defined only so the chapter
+% source compiles identically in both documents.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+%
+\makeatletter
+    \def\section{\@startsection{section}{1}%
+      \z@{.5\linespacing\@plus.7\linespacing}{.25\linespacing}%
+      {\normalfont\bfseries\flushleft}}
+    \def\subsection{\@startsection{subsection}{2}%
+      \z@{.5\linespacing\@plus.7\linespacing}{.25\linespacing}%
+      {\normalfont\bfseries\flushleft}}
+\makeatother
+%
+\numberwithin{section}{chapter}
+\numberwithin{table}{chapter}
+\numberwithin{figure}{chapter}
+%
+\usepackage{montserrat}
+\usepackage[T1]{fontenc}
+\renewcommand*\oldstylenums[1]{{\fontfamily{Montserrat-TOsF}\selectfont #1}}
+%
+% ------------------------------------------------------------- PDF metadata
+% hyperref is loaded LAST, after every package that redefines sectioning,
+% referencing or font commands, as the package requires.
+%
+% It is loaded with implicit=false: this document needs hyperref only for the
+% PDF information dictionary below, not for hyperlinking. With implicit=true
+% hyperref would also rewrite \ref, and the seven cross-chapter references
+% aliased above carry the anchor names of the *full* draft (chapter.4,
+% section.5.8, ...), which do not exist in this 16-page extract; each would
+% then emit a "pdfTeX warning (dest): ... referenced but does not exist".
+% implicit=false keeps the typeset output what it was before the metadata was
+% added, which is what a frozen review extract wants. hidelinks is needed as
+% well: the acronym package calls \hyperlink/\hypertarget itself as soon as
+% hyperref is present, and the default red link borders would otherwise box
+% every acronym in the list and in the body text.
+%
+% The author field is deliberately institutional: no personal data exists in
+% this repository and none may be invented (see main.tex, the cover keeps the
+% neutral "MSc dissertation draft" line).
+\usepackage[implicit=false,hidelinks]{hyperref}
+\hypersetup{
+  pdftitle={Background and Related Work - Preliminary draft for supervisor
+            feedback},
+  pdfauthor={MSc dissertation draft - Iscte, Instituto Universitario de Lisboa
+             (ISCTE-IUL)},
+  pdfsubject={Chapter 2 (Background and Related Work) of a MSc dissertation on
+              a reproducible Yocto-based ARM64 edge gateway for digital twins
+              of wearable devices (C2DTA project)},
+  pdfkeywords={edge computing; edge gateway; digital twin; C2DTA; Yocto
+               Project; ARM64; MQTT; Eclipse Ditto; wearable devices; Web of
+               Things; self-sovereign identity},
+  pdfcreator={pdfTeX},
+}
+% biblatex auto-detects hyperref and would then wrap every citation in
+% \hyper@natlinkstart, which hyperref does not define under implicit=false.
+% Citation hyperlinking is switched off explicitly, which is also the
+% behaviour of this extract before hyperref was added.
+\ExecuteBibliographyOptions{hyperref=false}
+%
+\pagestyle{plain}
+
+\begin{document}
+
+% --------------------------------------------------------------- title block
+\thispagestyle{empty}
+\begin{center}
+  \sffamily
+  \vspace*{2.2cm}
+  {\small MSc dissertation draft --- Iscte, Instituto Universit\'ario de
+   Lisboa (ISCTE-IUL)\par}
+  \vspace{1.8cm}
+  {\large\bfseries A Reproducible Yocto-Based ARM64 Edge Gateway for Digital
+   Twins of Wearable Devices\par}
+  \vspace{2mm}
+  {\small (working title of the dissertation)\par}
+  \vspace{2.0cm}
+  {\Large\bfseries Background and Related Work\par}
+  \vspace{6mm}
+  {\normalsize Preliminary draft for supervisor feedback --- 8 August 2026\par}
+  \vspace{2.0cm}
+  \begin{minipage}{0.86\textwidth}
+    \normalsize\rmfamily
+    This document is Chapter~2 of the dissertation draft, extracted as a
+    standalone document for review; chapter, section and table numbers, and
+    cross-references to other chapters, follow the numbering of the full
+    draft. The literature underlying this chapter is a preliminary corpus
+    --- seed references from the project context, standards and official
+    documentation, snowballing, and preliminary non-institutional searches.
+    The institutional database queries prescribed by the review protocol
+    (IEEE Xplore, ACM Digital Library, Scopus/Web of Science) have not yet
+    been executed, and every statement about the absence of related work in
+    this chapter is bounded accordingly.
+  \end{minipage}
+  \vfill
+\end{center}
+\clearpage
+
+% -------------------------------------------------------------- acronym list
+\chapter*{List of Acronyms}
+\begin{acronym}
+ \acro{ACL}{Access Control List}
+ \acro{API}{Application Programming Interface}
+ \acro{CI}{Continuous Integration}
+ \acro{CLI}{Command-Line Interface}
+ \acro{CPU}{Central Processing Unit}
+ \acro{DSR}{Design Science Research}
+ \acro{DT}{Digital Twin}
+ \acro{E2E}{End-to-End}
+ \acro{EGW}{Edge Gateway}
+ \acro{HTTP}{Hypertext Transfer Protocol}
+ \acro{IoT}{Internet of Things}
+ \acro{JSON}{JavaScript Object Notation}
+ \acro{LTS}{Long-Term Support}
+ \acro{MQTT}{Message Queuing Telemetry Transport}
+ \acro{OCI}{Open Container Initiative}
+ \acro{OS}{Operating System}
+ \acro{QoS}{Quality of Service}
+ \acro{RAM}{Random-Access Memory}
+ \acro{RQ}{Research Question}
+ \acro{SSI}{Self-Sovereign Identity}
+ \acro{TD}{Thing Description}
+ \acro{TLS}{Transport Layer Security}
+ \acro{UUID}{Universally Unique Identifier}
+ \acro{VM}{Virtual Machine}
+ \acro{WoT}{Web of Things}
+\end{acronym}
+\clearpage
+
+% ---------------------------------------------------------------- Chapter 2
+\setcounter{chapter}{1}% the extracted chapter is numbered 2, as in the full draft
+\input{chapters/02_background}
+
+\printbibliography[title={References}]
+
+\end{document}

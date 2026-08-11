@@ -1,0 +1,277 @@
+% Chapter 4 — Architecture and Implementation
+% Plan mapping: PLANO §6.1 (row 4). Content mirrors the repository's normative
+% contracts (src/CONTRACTS.md v1.1, 2026-08-08: run-scoped idempotency,
+% last_run_id in the ingestion feature, device_type in sent_events.jsonl,
+% best-effort PUBACK capture) and JSON Schemas (src/schemas/). Describe
+% ONLY what the repository actually contains; no operational or performance
+% claims here. Indicative target: 5,000–6,000 words.
+
+\chapter{Architecture and Implementation}
+\label{ch:architecture}
+
+\noindent This chapter describes the gateway as it is realised in the project
+repository. The design is \emph{contract-first}: a normative interface
+document (\texttt{src/CONTRACTS.md}, version 1.1 at the time of writing) and
+versioned \ac{JSON} Schemas
+(\texttt{src/schemas/}) bind the simulator, the controller, the deployment and
+the tests; every component described below implements those contracts. All
+statements in this chapter are design and implementation facts traceable to
+the repository; operational behaviour is left to the evaluation of
+Chapter~\ref{ch:evaluation}.
+
+\section{Overview}
+\label{sec:arch-overview}
+
+\noindent The system comprises two environments and five runtime components.
+The \emph{platform layer} is \texttt{egw-image}, a minimal Linux image
+defined with the Yocto Project (Scarthgap \ac{LTS} line) from a pinned
+\texttt{kas} manifest; its functional validation --- boot to systemd with
+networking and an \ac{OCI} container runtime on \texttt{qemuarm64} --- is
+prescribed by the experimental protocol
+(Section~\ref{sec:method-protocol}) and is to be reported in
+Chapter~\ref{ch:evaluation}. The \emph{service layer} is a containerised
+digital-twin stack designed for deployment on a native ARM64 environment:
+Mosquitto (\ac{MQTT} broker with \ac{TLS}), a purpose-built ingestion
+controller, Eclipse Ditto 3.9.4 (gateway, policies and things services) and
+MongoDB. A deterministic \ac{CLI} simulator generates the wearable telemetry.
+
+\todo{Insert final component-and-dataflow diagram from diagrams/ (logical
+architecture: simulator to broker to controller to Ditto to MongoDB, with the
+evidence log path).}
+
+Telemetry flows as follows: the simulator publishes device events over
+\ac{MQTT} with \ac{QoS}~1 to a per-device topic; the controller subscribes,
+validates each event against its schema, enforces idempotency, converts the
+event to a merge patch and updates the corresponding Ditto twin over
+\ac{HTTP}; every processed message is appended to a structured event log that
+is the primary measurement source of the evaluation.
+
+\section{Normative Interfaces}
+\label{sec:arch-contracts}
+
+\subsection{MQTT Transport}
+\label{sec:arch-mqtt}
+
+\noindent The broker exposes port 8883 with \ac{TLS} and mandatory
+username/password authentication; anonymous access is prohibited. Telemetry is
+published with \ac{QoS}~1 to the normative topic
+\texttt{c2dt/\{egw\_id\}/\{device\_uuid\}/telemetry}; the controller
+subscribes with the filter \texttt{c2dt/+/+/telemetry}. Access control is
+least-privilege: the simulator account may only publish under the telemetry
+namespace, and the controller account may only subscribe. A
+\texttt{-{}-no-tls} profile exists for local development only and is never
+used in benchmarks.
+
+\subsection{Common Event Envelope}
+\label{sec:arch-envelope}
+
+\noindent Every telemetry payload carries a common envelope
+(\texttt{schema\_version} 1.0.0) alongside the device-specific measurements:
+
+\begin{table}[htb]
+  \caption[Common event envelope.]{Common event envelope (from \texttt{src/schemas/telemetry-envelope-v1.schema.json}).}
+  \label{tab:envelope}
+  \centering
+  \small
+  \begin{tabular}{p{0.28\textwidth} p{0.62\textwidth}}
+    \toprule
+    \textbf{Field} & \textbf{Type / rule} \\
+    \midrule
+    \texttt{schema\_version} & semantic version string, \texttt{1.0.0} \\
+    \texttt{run\_id} & string, immutable per experimental run \\
+    \texttt{message\_id} & \ac{UUID} v5 derived from \texttt{run\_id}, \texttt{device\_uuid} and \texttt{seq} under a fixed project namespace \\
+    \texttt{seq} & integer $\geq 0$, monotonically increasing per device \\
+    \texttt{ts} & RFC~3339 UTC timestamp with \texttt{Z} suffix, millisecond resolution \\
+    \texttt{egw\_id} & gateway identifier string \\
+    \texttt{device\_uuid} & stable \ac{UUID} v4 of the device \\
+    \texttt{device\_type} & one of \texttt{smartwatch}, \texttt{smart\_ring}, \texttt{smart\_clothing} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Deriving \texttt{message\_id} deterministically from the run, device and
+sequence number makes duplicate detection exact and makes the entire workload
+reproducible from the manifest alone.
+
+\subsection{Device Measurement Schemas}
+\label{sec:arch-schemas}
+
+\noindent Each device type adds its measurement fields at the top level of the
+payload, validated by a dedicated \ac{JSON} Schema (draft 2020-12, with
+\texttt{unevaluatedProperties: false} so that unknown fields are rejected):
+the smartwatch reports heart rate and geographic position; the smart ring
+reports skin temperature and blood-oxygen saturation; the smart clothing
+reports three-axis acceleration and breathing rate. Nominal emission rates are
+in the fixed proportion 1\,:\,0.2\,:\,10 (smartwatch\,:\,ring\,:\,clothing),
+and the simulator's aggregate rate parameter is split across devices in that
+proportion. Each device type also has a \ac{WoT} \ac{TD}~1.1 document aligned
+with its schema (\texttt{src/things/}).
+
+\section{Platform Layer: EGW-OS}
+\label{sec:arch-yocto}
+
+\noindent The platform image is defined by a custom Yocto layer
+(\texttt{meta-egw}) and targets the \texttt{qemuarm64} machine, described by
+a \texttt{kas} manifest that pins every layer to an exact revision of the
+Scarthgap (5.0) \ac{LTS} line, rather than tracking moving branches. The
+image is specified to provide systemd, networking and an \ac{OCI} container
+runtime --- the minimum required to host the service layer. Its validation
+procedure, fixed in the experimental protocol, is functional only and
+consists of booting the built image under QEMU and executing a test
+container; that validation is to be performed as part of the campaign and
+reported in Chapter~\ref{ch:evaluation}. Emulation is reserved exclusively
+for build and functional validation; no performance conclusions are to be
+drawn from it.
+\todo{Record the exact pinned revisions and image recipe contents from
+src/yocto/ once frozen at the platform gate.}
+
+\section{Service Layer: Digital-Twin Stack}
+\label{sec:arch-stack}
+
+\begin{sloppypar}
+\noindent The stack is intentionally minimal. The composition includes only
+three Ditto services --- \texttt{gateway}, \texttt{policies} and
+\texttt{things} --- with MongoDB as persistence; Ditto's \texttt{search},
+\texttt{connectivity} and user-interface services are excluded because no
+research question requires them. All third-party container images are pinned
+by digest in a lock file (\texttt{images.lock.env}), and the deployment
+procedure requires each image to be native \texttt{linux/arm64}, a property
+checked when the lock file is populated; the controller image is built
+locally for \texttt{linux/arm64}. Externally, only the broker's
+\ac{TLS} port is exposed; the Ditto gateway (port 8080) and the controller
+\ac{API} (port 8000) bind to the internal network or localhost.
+\end{sloppypar}
+
+\section{Ingestion Controller}
+\label{sec:arch-controller}
+
+\noindent The controller is the bridge between \ac{MQTT} and Ditto. Its
+processing pipeline, per message, is: asynchronous \ac{MQTT} receive
+(\ac{QoS}~1); schema validation \emph{before} any Ditto interaction;
+idempotency check; conversion to a \ac{JSON} merge patch; twin update via
+\texttt{PATCH} to the Ditto things \ac{API}; structured event logging.
+
+\subsection{Idempotency}
+\label{sec:arch-idempotency}
+
+\noindent Because \ac{QoS}~1 delivery is at-least-once, duplicates are
+expected. Deduplication is \emph{run-scoped} (contract version 1.1) and uses
+two complementary guards. The first guard is replay detection: the
+controller rejects any \texttt{message\_id} it has already processed (a
+bounded per-device history), and this rejection applies unconditionally ---
+since \texttt{message\_id} is a \ac{UUID}~v5 of
+\texttt{run\_id}, \texttt{device\_uuid} and \texttt{seq}, a replayed message
+is recognised regardless of which run it belongs to. The second guard is a
+sequence floor: an event whose \texttt{seq} is not greater than the last
+accepted sequence for that device is rejected as a duplicate, but this floor
+holds \emph{only within the same} \texttt{run\_id}. When an event arrives
+whose \texttt{run\_id} differs from the device's recorded
+\texttt{last\_run\_id}, the sequence floor is reset, because each new
+execution legitimately restarts \texttt{seq} at zero --- as happens in the
+ten consecutive \texttt{smoke} executions and in the warm-up phase that
+precedes every measured run. Without the run scoping, a warm-up run using
+the same seed (and therefore the same device identifiers) would raise the
+sequence floor and cause the first messages of the subsequent measured run
+to be wrongly rejected as duplicates, corrupting the delivery-rate metric.
+The deduplication state (last accepted \texttt{message\_id}, \texttt{seq},
+\texttt{run\_id} and timestamp, plus an accepted-events counter)
+is stored \emph{in the twin itself}, under a dedicated \texttt{ingestion}
+feature, so that it survives controller restarts; after a restart the local
+cache is rebuilt by reading the twin on the first event of each device.
+
+\subsection{Failure Handling and Observability}
+\label{sec:arch-failures}
+
+\noindent Ditto updates are retried a bounded number of times (default three
+attempts with exponential backoff) and only for transient errors (timeouts,
+connection failures, server-side 5xx responses); client-side 4xx responses are
+not retried. The controller logs structured \ac{JSON} and maintains counters
+for accepted, rejected, duplicate and failed events. Its \ac{HTTP} \ac{API}
+exposes: \texttt{GET /health} (process liveness); \texttt{GET /ready}
+(returns success only when both the broker and Ditto are reachable);
+\texttt{GET /twins/\{device\_id\}} (normalised twin read-back); and
+\texttt{GET /metrics} (counters and uptime, as \ac{JSON}).
+
+\subsection{Evidence Log}
+\label{sec:arch-evidence-log}
+
+\noindent For every processed message the controller appends one record to a
+per-run \texttt{events.jsonl} file containing the run and message identifiers,
+device information, two monotonic-clock readings (at \ac{MQTT} receive and
+after the Ditto acknowledgement), the derived latency in milliseconds, the
+outcome (\texttt{accepted}, \texttt{rejected}, \texttt{duplicate} or
+\texttt{failed}), the number of attempts and the error, if any. This file is
+the primary source for the latency and reliability metrics of
+Chapter~\ref{ch:evaluation}; rejected, duplicate and failed events carry no
+latency value.
+
+\section{Twin Model}
+\label{sec:arch-twins}
+
+\noindent Each device maps to one Ditto thing with identifier
+\texttt{org.c2dta:\{device\_uuid\}} and a dedicated policy of the same name,
+created on the first event of that device. Twin attributes record the device
+type, gateway identifier and schema version. Measurements are organised into
+features per device type: the smartwatch twin has \texttt{vitals} and
+\texttt{location}; the smart ring has \texttt{thermo} and \texttt{oximetry};
+the smart clothing has \texttt{motion} and \texttt{respiration}; and all twins
+share the \texttt{ingestion} bookkeeping feature described above, whose
+properties are \texttt{last\_message\_id}, \texttt{last\_seq},
+\texttt{last\_run\_id}, \texttt{last\_ts} and \texttt{accepted\_count} ---
+\texttt{last\_run\_id} being the property that anchors the run-scoped
+sequence floor of Section~\ref{sec:arch-idempotency}. The
+controller authenticates to Ditto as a pre-authenticated subject with
+read/write permission on the thing and policy resources.
+
+\section{Simulator}
+\label{sec:arch-simulator}
+
+\begin{sloppypar}
+\noindent The workload generator is a single \ac{CLI} package
+(\texttt{egw\_simulator}) covering the three device types and six scenarios:
+\texttt{smoke}, \texttt{nominal}, \texttt{load-sweep},
+\texttt{dropout-reconnect}, \texttt{invalid-payload} and \texttt{soak}. All
+experimental parameters --- scenario, seed, broker, duration, aggregate rate,
+device set, credentials, \ac{QoS} --- are explicit \ac{CLI} arguments, and
+all except the credentials are recorded in a per-run manifest (secrets are
+never written to evidence files). Generation is deterministic: the same seed yields the
+same per-device payload sequence. Every payload is validated locally against
+its schema before publication; the \texttt{invalid-payload} scenario
+deliberately injects invalid events and marks them as intended-invalid in the
+simulator's own send log (never in the payload), so that correct rejections
+can be distinguished from losses. The simulator writes its own evidence file
+per run (\texttt{sent\_events.jsonl}) with one record per message, carrying
+the message identifiers, the device type (added in contract version 1.1 so
+that per-type analyses need no join with the manifest), the publish
+monotonic timestamp and, when observed in time, the broker-acknowledgement
+monotonic timestamp; acknowledgement capture is best-effort --- the wait for
+the \ac{MQTT} acknowledgement is bounded by the time available before the
+next scheduled event, the field is null when not observed, and no primary
+metric depends on it.
+\end{sloppypar}
+
+\section{Security Considerations}
+\label{sec:arch-security}
+
+\noindent The security baseline is deliberate and modest: \ac{TLS} with
+server authentication on the external \ac{MQTT} listener, mandatory client
+credentials, per-account topic \ac{ACL}s, internal-only exposure of Ditto and
+the controller \ac{API}, and no secrets in version control (an
+\texttt{.env.example} documents required variables). No claims are made about
+security properties beyond this configuration baseline; a security evaluation
+is out of scope (Section~\ref{sec:intro-scope}).
+
+\section{Reproducibility and Evidence Structure}
+\label{sec:arch-repro}
+
+\begin{sloppypar}
+\noindent Every experimental run produces an immutable directory of raw
+evidence, \texttt{results/raw/\{run\_id\}/}, containing the controller event log, the
+per-second resource samples, service logs, a manifest (scenario, seed, commit,
+image digests, environment, configuration, timestamps, protocol version) and
+SHA-256 checksums. Raw data becomes immutable at the data freeze; processed
+tables and figures are regenerated exclusively by a single analysis script, so
+that every number in Chapter~\ref{ch:evaluation} has a recorded provenance
+chain from raw file to figure. \todo{Reference the final harness and analysis
+script paths in src/egw\_experiments/ once frozen.}
+\end{sloppypar}

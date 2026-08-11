@@ -1,0 +1,19 @@
+# Yocto build outputs — never commit build state (plan 5.1: builds live on
+# the WSL2 ext4 clone; caches live outside the checkout entirely).
+/build/
+/downloads/
+/sstate-cache/
+
+# Layer checkouts cloned into KAS_WORK_DIR (= this directory) by
+# 'kas checkout' / scripts/build.sh. Their exact revisions are pinned in
+# kas/egw-qemuarm64.yml + egw-qemuarm64.lock.yml, so the trees themselves
+# are disposable.
+/poky/
+/meta-openembedded/
+/meta-virtualization/
+
+# kas local state (e.g. 'kas menu' output)
+/.config.yaml
+
+# Stray logs — evidence logs belong in the experiments evidence area, not here.
+*.log
