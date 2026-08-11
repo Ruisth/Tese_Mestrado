@@ -1,4 +1,8 @@
-# EGW — Digital Twin Edge Gateway (Tema 1, C2DTA)
+# Tese_Mestrado — EGW: Digital Twin Edge Gateway (Tema 1, C2DTA)
+
+> Consumer-Controlled Digital Twin Architecture — dissertação de mestrado, ISCTE-IUL.
+> Fluxo de trabalho: commits e pull requests em `dev`; `main` recebe apenas
+> versões estáveis, por PR.
 
 Implementação e dissertação do Edge Gateway ARM64 reproduzível (Yocto/Scarthgap +
 serviços contentorizados) que recebe telemetria sintética de três wearables,
