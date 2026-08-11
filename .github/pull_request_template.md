@@ -118,7 +118,11 @@ Files needing particular attention:
 - [ ] Every commit belongs to the repository owner.
 - [ ] Messages and metadata comply with the repository policy.
 - [ ] There are no co-authorship or external attribution trailers.
-- [ ] Content is written in British English (en-GB); dates are ISO 8601.
+- [ ] Content **created or modified by this pull request** is written in British
+      English (en-GB); dates are ISO 8601. This does not assert that the whole
+      repository is migrated: legacy Portuguese documents are converted by the
+      separate translation pull requests listed in
+      `docs/governance/language-policy.md`.
 - [ ] The applicable tests pass.
 - [ ] Evidence is persisted and reproducible.
 - [ ] Invalid runs are not presented as successful.

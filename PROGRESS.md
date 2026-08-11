@@ -7,8 +7,14 @@
 > gate» abaixo espelha-o. Estrutura conforme a auditoria externa de 08/08/2026
 > (§5.1, §5.2, §14).
 
-Atualizado: 2026-08-10 (bloco P5.4: números de teste alinhados com a última
-evidência selada, estado dos gates no dia da decisão do G0).
+Atualizado: 2026-08-11 (WSL2 operacional; imagem `egw-image` construída e dois
+boots QEMU de bring-up registados; números de teste alinhados com a evidência
+selada de 701 testes).
+
+**Estado dos claims: 0 de 15 aceites.** C01 tem evidência parcial (falta a
+reprodução a partir de checkout independente, que pertence ao G4); C02 tem a
+evidência dos dois boots de bring-up, com os 5 boots da campanha por executar;
+os restantes **13 continuam sem evidência**. Nenhum gate foi aceite.
 
 ## Modelo de estado — três campos independentes (auditoria §5.1)
 
@@ -70,7 +76,7 @@ dos claims e gates.
 | Dissertação (esqueleto + cap. 2 substantivo) | sim | estático — latexmk compila: 57 pp., 0 referências por resolver; cap. 2 ~4 300 palavras; claims prematuros removidos dos caps. 1/3/4/6 e da Tabela 2.1 (bloco P2); caps. 3/5/6 continuam esqueleto | G6 — Pendente | M1–M2 |
 | Fontes da revisão (`thesis/research/study_selection.csv`) | sim | estático — 25 fontes registadas, com metadados verificados (Crossref/W3C/OASIS/páginas oficiais). **Profundidade de leitura: 7 avaliadas em full text (S001, S004–S009) e 18 apenas por título/resumo** (`stage=title_abstract`, inclusão provisória para o draft ao orientador; passagem full-text por executar). «Verificado» refere-se aos metadados da fonte, nunca à leitura integral; as queries institucionais continuam pendentes (ação do estudante, risco R17) | G6 — Pendente | M1 |
 | PDF standalone do cap. 2 para o orientador | sim | estático — `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., sem TODOs/placeholders, revisão institucional declarada pendente); inspeção visual página a página | não é item de gate — envio = ação do estudante (nenhum gate fecha com isto) | M2 |
-| Suite de testes unitários | sim | unitário — **evidência selada: `701 passed`** sobre HEAD limpo `4e67717` em `docs/evidence/tests/2026-08-11-head-4e67717/`, com JUnit, stdout, ambiente, intérprete, `pip freeze`, `pip check`, versão do pytest, SHA-256 do lock e `SHA256SUMS`. Selagens anteriores mantidas para rasto (`683`, `618`, `593`, `515`). **Zero testes live/`integration` existem** — criá-los é pré-requisito de G3 | G3 — Pendente | M2 |
+| Suite de testes unitários | sim | unitário — **evidência selada: `701 passed`** sobre HEAD limpo `4e67717` em `docs/evidence/tests/2026-08-11-head-4e67717/`, com JUnit, stdout, ambiente, intérprete, `pip freeze`, `pip check`, versão do pytest, SHA-256 do lock e `SHA256SUMS`. Selagem atual: `701`. Selagens anteriores mantidas para rasto (`683`, `618`, `593`, `515`), todas com o commit que testaram. **Zero testes live/`integration` existem** — criá-los é pré-requisito de G3 | G3 — Pendente | M2 |
 | Correções do harness pós-auditoria (fetch de eventos, 2 ambientes, collector na VM, janela medida, condições C10–C14, queue growth, CPU normalizada) | sim | unitário — testes incluídos na suite selada de 593; plano de campanha com 95 runs; a aceitação exige completude (por identidade contra o plano quando o plano é fornecido à análise) e evidência — incluindo evidência de recuperação real no C12; execução real pendente de VM | G3–G4 — Pendente | M2 |
 
 Nota: «Implementado = sim» significa apenas que o artefacto existe e, quando
@@ -96,9 +102,15 @@ orientadores e regista-se no Anexo C do plano e no [`LOG.md`](LOG.md).
   sem VM a **10/08**, mudar de fornecedor; sem VM a **12/08**, comunicar o risco
   aos orientadores. A aplicação de qualquer destas regras é ação do estudante e
   fica registada no LOG quando ocorrer.
-- **G1 (16/08, trigger 20/08) e G2 (23/08, trigger 25/08)** — sem alteração:
-  zero builds Yocto, zero boots QEMU, zero deploys na VM. Dependem inteiramente
-  de (ii) e (iii); `experiments/results/raw/` continua vazio.
+- **G1 (16/08, trigger 20/08)** — a plataforma deixou de estar por demonstrar:
+  o WSL2 está operacional, a imagem `egw-image` foi construída a partir do
+  manifesto com revisões fixadas (5715 tarefas, todas com sucesso) e **dois boots
+  QEMU de bring-up** foram registados, cada um com 6 de 6 asserções obrigatórias
+  aprovadas, 3 observações suplementares registadas e poweroff limpo. Evidência
+  selada em `docs/evidence/g1-yocto-qemu/`. **A aceitação do gate continua
+  pendente** e a reprodução desde checkout independente pertence ao G4.
+- **G2 (23/08, trigger 25/08)** — sem alteração: zero deploys na VM ARM64, que
+  não existe; `experiments/results/raw/` continua vazio.
 - **G3–G7** — sem alteração; continuam a depender de evidência de execução real
   (e G3 exige, além disso, testes live/`integration`, que não existem).
 - **O trabalho de repositório de 10/08 (blocos P5/P5.4) é correção de código e

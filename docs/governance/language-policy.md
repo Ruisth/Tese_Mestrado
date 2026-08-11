@@ -96,6 +96,21 @@ exactly, be compared semantically against the original, be approved explicitly
 as the normative source, and mark the Portuguese version historical — so that
 two competing normative sources never coexist.
 
+## Status of the migration, stated plainly
+
+The policy is in force for all new and modified content from 2026-08-11. The
+repository is **not** yet fully migrated: `README.md`, `LOG.md`, `PROGRESS.md`,
+the G0 documents and `src/CONTRACTS.md` remain in Portuguese, and the six
+migration pull requests above have not been opened.
+
+No pull-request checklist should be read as asserting otherwise. The template's
+language item covers only the content that pull request creates or modifies,
+precisely so that ticking it stays truthful while the legacy documents wait
+their turn.
+
+Order of work: the translation must not delay gate G1, and everything is
+normalised before the `exp-v1` freeze.
+
 ## Definition of done for a translation pull request
 
 - The diff contains linguistic and structural changes only.
