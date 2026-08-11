@@ -1,0 +1,119 @@
+{
+  "@context": [
+    "https://www.w3.org/2022/wot/td/v1.1",
+    {
+      "mqv": "https://www.w3.org/2022/wot/mqtt/v1"
+    }
+  ],
+  "@type": "Thing",
+  "title": "C2DTA Smartwatch (simulated wearable)",
+  "description": "Simulated smartwatch publishing heart rate and geolocation telemetry at 1.0 msg/s nominal over MQTT with TLS (QoS 1). Payloads conform to the JSON Schema https://c2dta.org/egw/schemas/smartwatch-v1.schema.json (envelope + measurement fields, CONTRACTS.md sections 2-3). The placeholder {{EGW_HOST}} is substituted at deployment time with the broker host (env EGW_MQTT_HOST); {egw_id} and {device_uuid} are URI variables declared in uriVariables. The Ditto twin of a device instance is org.c2dta:{device_uuid} (CONTRACTS.md section 4).",
+  "version": {
+    "instance": "1.0.0"
+  },
+  "securityDefinitions": {
+    "basic_sc": {
+      "scheme": "basic",
+      "description": "MQTT username/password over TLS (Mosquitto password_file; anonymous access forbidden; CONTRACTS.md section 1)."
+    }
+  },
+  "security": [
+    "basic_sc"
+  ],
+  "uriVariables": {
+    "egw_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$",
+      "description": "Edge gateway identifier (env EGW_ID, default egw-01; CONTRACTS.md section 2)."
+    },
+    "device_uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "Stable UUID v4 of the simulated device instance (CONTRACTS.md section 2)."
+    }
+  },
+  "links": [
+    {
+      "rel": "schema",
+      "href": "https://c2dta.org/egw/schemas/smartwatch-v1.schema.json",
+      "type": "application/schema+json"
+    }
+  ],
+  "properties": {
+    "heart_rate_bpm": {
+      "title": "Heart rate",
+      "description": "Instantaneous heart rate in beats per minute.",
+      "type": "integer",
+      "unit": "beats/min",
+      "minimum": 25,
+      "maximum": 250,
+      "readOnly": true,
+      "observable": true,
+      "forms": [
+        {
+          "op": "observeproperty",
+          "href": "mqtts://{{EGW_HOST}}:8883/c2dt/{egw_id}/{device_uuid}/telemetry",
+          "contentType": "application/json",
+          "mqv:controlPacket": "subscribe"
+        }
+      ]
+    },
+    "lat": {
+      "title": "Latitude",
+      "description": "WGS 84 latitude in decimal degrees.",
+      "type": "number",
+      "unit": "deg",
+      "minimum": -90,
+      "maximum": 90,
+      "readOnly": true,
+      "observable": true,
+      "forms": [
+        {
+          "op": "observeproperty",
+          "href": "mqtts://{{EGW_HOST}}:8883/c2dt/{egw_id}/{device_uuid}/telemetry",
+          "contentType": "application/json",
+          "mqv:controlPacket": "subscribe"
+        }
+      ]
+    },
+    "lon": {
+      "title": "Longitude",
+      "description": "WGS 84 longitude in decimal degrees.",
+      "type": "number",
+      "unit": "deg",
+      "minimum": -180,
+      "maximum": 180,
+      "readOnly": true,
+      "observable": true,
+      "forms": [
+        {
+          "op": "observeproperty",
+          "href": "mqtts://{{EGW_HOST}}:8883/c2dt/{egw_id}/{device_uuid}/telemetry",
+          "contentType": "application/json",
+          "mqv:controlPacket": "subscribe"
+        }
+      ]
+    }
+  },
+  "events": {
+    "telemetry": {
+      "title": "Telemetry event",
+      "description": "Complete telemetry payload (common envelope + heart_rate_bpm, lat, lon) published by the device with MQTT QoS 1 on topic c2dt/{egw_id}/{device_uuid}/telemetry. Validated by the controller against the JSON Schema referenced in links (rel schema) before any Ditto update.",
+      "data": {
+        "type": "object",
+        "description": "JSON object conforming to https://c2dta.org/egw/schemas/smartwatch-v1.schema.json (draft 2020-12, unevaluatedProperties false)."
+      },
+      "forms": [
+        {
+          "op": [
+            "subscribeevent",
+            "unsubscribeevent"
+          ],
+          "href": "mqtts://{{EGW_HOST}}:8883/c2dt/{egw_id}/{device_uuid}/telemetry",
+          "contentType": "application/json",
+          "mqv:controlPacket": "publish"
+        }
+      ]
+    }
+  }
+}

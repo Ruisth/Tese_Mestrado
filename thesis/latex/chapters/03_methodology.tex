@@ -1,0 +1,190 @@
+% Chapter 3 — Research Methodology
+% Plan mapping: PLANO §6.1 (row 3): DSR, review protocol, requirements,
+% RQ->method->metric matrix (§4.2 + §7.2), experimental protocol (§7).
+% Indicative target: 4,000–5,000 words.
+
+\chapter{Research Methodology}
+\label{ch:methodology}
+
+\section{Design Science Research Framing}
+\label{sec:method-dsr}
+
+\noindent This dissertation follows the \ac{DSR} paradigm: knowledge is
+produced by building an innovative artefact for a relevant problem and by
+rigorously evaluating it \cite{hevner2004design}. The process is organised
+according to the methodology of Peffers et al.: problem identification and
+motivation (Chapter~\ref{ch:introduction}), definition of solution
+objectives (Section~\ref{sec:intro-objectives}), design and development
+(Chapter~\ref{ch:architecture}), demonstration and evaluation
+(Chapter~\ref{ch:evaluation}), and communication through this document and
+the accompanying reproducibility package \cite{peffers2007design}.
+
+The build--evaluate cycle is iterated: functional gates (working image boot,
+end-to-end vertical slice, feature freeze, protocol freeze, data freeze)
+punctuate development, and the evaluation protocol is frozen \emph{before} the
+measurement campaign, so that results cannot retroactively shape metrics,
+conditions or exclusion criteria. The artefact comprises the platform image
+recipe, the deployed digital-twin stack, the ingestion controller, the
+simulator, and the experiment harness; the evaluation treats the composed
+system as the unit of study.
+
+\section{Literature Review Protocol}
+\label{sec:method-review}
+
+\noindent The literature study is a \emph{structured scoping/narrative
+review}, explicitly not a full systematic literature review: it uses
+systematic elements --- logged search strings, dated queries, explicit
+inclusion/exclusion criteria, deduplication and snowballing --- without
+claiming the exhaustiveness or dual-screening rigour of an SLR. The full
+protocol, including the search-log and study-selection table specifications,
+is versioned in the project repository
+(\texttt{thesis/research/literature\_review\_protocol.md}); this section
+summarises it.
+
+The protocol prescribes searches on IEEE Xplore, the ACM Digital Library,
+and Scopus or Web of Science, complemented by primary sources for standards
+and official documentation. Every query is to be recorded with its date,
+database, exact string, filters and result counts. Candidate studies pass
+title/abstract screening and then full-text screening against explicit
+criteria, with every decision logged with the criterion applied.
+Bibliographic metadata of every retained source is verified against its
+primary record (publisher page, Crossref, or standards-body page) before it
+enters the bibliography. Claims of absence (``no study was identified'') are
+always bounded by the searches performed to date and never stated
+absolutely. The review targets at least 30 verified sources, privileging
+primary studies, standards and official documentation.
+
+At the time of writing, the institutional database queries prescribed above
+have \emph{not yet been executed}: they require institutional access and are
+scheduled for the search-execution window of the project plan. Only
+preliminary non-institutional searches (Crossref queries and open-web
+checks) have been performed, and only those are logged in the protocol's
+search log (\texttt{search\_log.csv}); the current corpus additionally
+comprises seed references from the project context, standards and official
+documentation, and sources identified by snowballing. Every
+results-dependent statement in this document --- in particular the
+research-gap claim of Section~\ref{sec:intro-gap} and the absence statements
+of Chapter~\ref{ch:background} --- is bounded to this preliminary corpus and
+will be re-stated once the institutional searches are complete.
+
+\section{Requirements}
+\label{sec:method-requirements}
+
+\noindent The solution objectives translate into the following requirement
+groups, which the architecture chapter traces to design decisions:
+
+\begin{itemize}
+  \item \textbf{Reproducibility.} The platform image is built from pinned
+        revisions; container images are digest-pinned and verified for
+        \texttt{linux/arm64}; experiments are described by machine-readable
+        manifests; analysis regenerates all tables and figures from raw data.
+  \item \textbf{Correctness.} Every telemetry event is validated against a
+        versioned \ac{JSON} Schema before touching the twin; twin updates are
+        idempotent under at-least-once delivery.
+  \item \textbf{Reliability.} The ingestion path tolerates broker disconnects,
+        controller restarts and invalid payloads, with bounded retries and
+        explicit accounting of every message outcome.
+  \item \textbf{Observability.} The controller exposes health, readiness and
+        metrics endpoints and writes a per-run structured event log that is
+        the primary measurement source.
+  \item \textbf{Security (baseline).} \ac{TLS} on the external \ac{MQTT}
+        listener, authenticated access only, least-privilege topic \ac{ACL}s,
+        and no secrets in version control.
+\end{itemize}
+
+\section{From Research Questions to Methods and Metrics}
+\label{sec:method-matrix}
+
+\noindent Table~\ref{tab:rq-matrix} fixes the mapping from each research
+question to the method that answers it and the metrics that constitute the
+answer. The metrics follow the project plan's experimental protocol (\S7.2 of
+the plan) and are defined precisely in Section~\ref{sec:method-stats}.
+
+\begin{table}[htb]
+  \caption{Research questions mapped to methods and metrics.}
+  \label{tab:rq-matrix}
+  \centering
+  \small
+  \begin{tabular}{p{0.16\textwidth} p{0.36\textwidth} p{0.38\textwidth}}
+    \toprule
+    \textbf{RQ} & \textbf{Method} & \textbf{Metrics / evidence} \\
+    \midrule
+    RQ1 (design of a reproducible Yocto-based ARM64 gateway) &
+    \ac{DSR} build of image recipe and stack; functional validation: clean-checkout rebuild, repeated QEMU boots, container-runtime smoke test; architecture documentation &
+    Successful pinned-manifest build; boot to systemd with networking on \texttt{qemuarm64} (five boots in the final campaign); \ac{OCI} container executed on the image; stack time-to-readiness (ten cold starts); ten independent twin creations \\
+    \midrule
+    RQ2 (correct and reliable ingestion of concurrent telemetry) &
+    Controlled experiments with the deterministic simulator: \texttt{smoke}, \texttt{nominal}, \texttt{dropout-reconnect}, \texttt{invalid-payload} scenarios; unit, integration and \ac{E2E} tests; final twin-state verification &
+    Counts of accepted, rejected, duplicate and lost events; delivery rate (unique Ditto confirmations / valid messages sent); correct rejection of invalid payloads; recovery after restart/reconnect; correctness of final state of the three twins \\
+    \midrule
+    RQ3 (latency, throughput and resource trade-offs on ARM64) &
+    Measurement campaign on a native ARM64 \ac{VM}: ten nominal runs, \texttt{load-sweep} at four load levels with randomised order, 24-hour \texttt{soak}; per-second resource sampling &
+    Latency \ac{MQTT}-receive to Ditto-acknowledgement (p50, p95, p99); sustainable throughput and operational saturation point; \ac{CPU} and \ac{RAM} per container; soak stability (descriptive) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Experimental Protocol}
+\label{sec:method-protocol}
+
+\noindent The protocol is fixed before the campaign (gate ``protocol freeze'')
+and versioned with the repository. Its conditions are:
+
+\begin{itemize}
+  \item \textbf{Platform (functional only).} Five QEMU boots of the built
+        image for functional consistency; no performance inference is made
+        from emulation.
+  \item \textbf{Stack readiness.} Ten cold starts of the ARM64 stack,
+        measuring time until all services report ready.
+  \item \textbf{Twin lifecycle.} Ten independent twin creations.
+  \item \textbf{Nominal load.} Ten runs of ten minutes at the nominal
+        aggregate rate, each preceded by a two-minute warm-up excluded from
+        analysis.
+  \item \textbf{Load sweep.} Aggregate rates of 10, 50, 100 and 250 messages
+        per second; ten runs of five minutes per level; randomised execution
+        order; two minutes of cool-down between runs.
+  \item \textbf{Soak.} One 24-hour run at nominal load, analysed
+        descriptively.
+  \item \textbf{Resource sampling.} \ac{CPU} and \ac{RAM} collected every
+        second, per container, in all timed executions.
+\end{itemize}
+
+The simulator runs outside the system under test during benchmarks, so that
+workload generation does not compete for gateway resources, and the primary
+latency metric is measured entirely inside the controller process
+(Section~\ref{sec:method-stats}), excluding the external network leg from the
+gateway-processing measurement. The nominal aggregate rate corresponds to the
+sum of the three devices' nominal frequencies and is treated as a scenario
+definition, not as a previously demonstrated capacity.
+
+\section{Metrics, Statistics and Validity Rules}
+\label{sec:method-stats}
+
+\noindent Message outcomes are defined as follows: \emph{sent} --- a valid
+message delivered to the \ac{MQTT} publish call; \emph{received} --- the
+controller observed the message callback; \emph{duplicate} --- a
+\texttt{message\_id} already processed; \emph{rejected} --- a validation
+failure (deliberate or real); \emph{confirmed} --- the Ditto update returned
+success; \emph{lost} --- a valid sent message with no unique confirmation
+until 60 seconds after the end of the run. The delivery rate is the ratio of
+unique Ditto confirmations to valid messages sent; deliberately invalid
+payloads that are correctly rejected do not count as losses.
+
+The primary latency is computed inside the controller as the difference
+between two monotonic-clock readings in the same process --- at the \ac{MQTT}
+receive callback and after the Ditto acknowledgement --- converted to
+milliseconds; the simulator's wall-clock timestamp is not used for latency.
+
+The statistical unit is the \emph{run}, never the individual message. For each
+condition we report mean, standard deviation and 95\% confidence interval
+across runs, adding median and percentiles for skewed distributions. The soak
+run is analysed descriptively and receives no confidence interval.
+\emph{Operational saturation} is defined as the first load level at which at
+least one of the following holds: loss above 1\%, persistent queue growth,
+p95 latency above one second, or sustained \ac{CPU} above 90\% for 60
+seconds. Runs may be excluded only for demonstrated cloud, instrumentation or
+configuration failures, never merely for slow results; after the data freeze,
+raw data is immutable and corrections produce a new identified version.
+
+Threats to validity and their mitigations are discussed with the results in
+Section~\ref{sec:eval-validity}.

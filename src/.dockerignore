@@ -1,0 +1,38 @@
+# .dockerignore — keep the controller build context minimal and free of
+# secrets. The build context is src/ (deployment/compose.yaml: context: ..).
+
+# Never ship deployment material: it contains .env, the Mosquitto password
+# file and the TLS private keys (plan 9.2: secrets stay out of images and
+# version control).
+deployment/
+
+# Not needed inside the controller image
+tests/
+things/
+yocto/
+CONTRACTS.md
+**/README.md
+Dockerfile
+.dockerignore
+
+# Python build/runtime litter
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+**/*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+.venv/
+venv/
+
+# VCS / editor / OS
+.git/
+.gitignore
+.gitattributes
+.DS_Store
+Thumbs.db

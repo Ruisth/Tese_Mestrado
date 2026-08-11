@@ -1,0 +1,330 @@
+% =============================================================================
+% main.tex — Dissertation skeleton (adapted from the official ISCTE LaTeX
+% template, Template_LaTeX/main.tex). Class, packages and front-matter
+% structure are preserved from the template.
+%
+% Compile (from thesis/latex/):
+%   latexmk -pdf main.tex
+% or manually: pdflatex main && biber main && pdflatex main && pdflatex main
+%
+% RULES (normative, see ../../thesis/README.md):
+% - No quantitative result may appear in this document without raw data,
+%   manifest, analysis script and an entry in docs/claim_evidence_matrix.md.
+% - All \todo{pending data-v1} markers are filled only after the data freeze.
+% - Placeholders in « » are administrative fields; never invent personal data.
+% =============================================================================
+\documentclass[12pt,reqno, twoside]{amsbook}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{eurosym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage[onehalfspacing]{setspace}
+\usepackage{chngcntr}
+\usepackage{graphicx}
+\usepackage[a4paper, margin=2.5cm]{geometry}
+\usepackage[english]{babel}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage{csquotes}
+\usepackage[printonlyused]{acronym}
+\usepackage{xcolor}   % standard TeX Live; used only for the \todo marker
+\usepackage{booktabs} % standard TeX Live; used for the RQ->method->metric table
+\usepackage{array}    % standard TeX Live; >{...} column specifiers in tables
+\usepackage{ragged2e} % standard TeX Live; \RaggedRight (hyphenation-friendly) in narrow table columns
+%
+% you may need to uncomment the command below if you use eps format for figures
+%\usepackage{epstopdf}
+%
+\usepackage[
+    backend=biber,
+    style=ieee,
+  ]{biblatex}
+\addbibresource{../refs/references.bib}
+%
+% TODO marker: every pending-evidence slot is explicit and red. The final PDF
+% must contain zero \todo occurrences (checked before submission).
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+%
+\makeatletter
+    \def\section{\@startsection{section}{1}%
+      \z@{.5\linespacing\@plus.7\linespacing}{.25\linespacing}%
+      {\normalfont\bfseries\flushleft}}
+    \def\subsection{\@startsection{subsection}{2}%
+      \z@{.5\linespacing\@plus.7\linespacing}{.25\linespacing}%
+      {\normalfont\bfseries\flushleft}}
+%
+\makeatother
+\setcounter{MaxMatrixCols}{10}
+%
+\providecommand{\U}[1]{\protect\rule{.1in}{.1in}}
+\theoremstyle{plain}
+\newtheorem{acknowledgement}{Acknowledgement}
+\newtheorem{algorithm}{Algorithm}[chapter]
+\newtheorem{axiom}{Axiom}[chapter]
+\newtheorem{case}{Case}[chapter]
+\newtheorem{claim}{Claim}[chapter]
+\newtheorem{conclusion}{Conclusion}[chapter]
+\newtheorem{condition}{Condition}[chapter]
+\newtheorem{conjecture}{Conjecture}[chapter]
+\newtheorem{corollary}{Corollary}[chapter]
+\newtheorem{criterion}{Criterion}[chapter]
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+\newtheorem{exercise}{Exercise}[chapter]
+\newtheorem{lemma}{Lemma}[chapter]
+\newtheorem{notation}{Notation}[chapter]
+\newtheorem{problem}{Problem}[chapter]
+\newtheorem{proposition}{Proposition}[chapter]
+\newtheorem{remark}{Remark}[chapter]
+\newtheorem{solution}{Solution}[chapter]
+\newtheorem{summary}{Summary}[chapter]
+\newtheorem{theorem}{Theorem}[chapter]
+\numberwithin{equation}{chapter}
+%
+\makeatletter
+\newcommand\frontFont{\@setfontsize\frontFont{14.4}{14.4}}
+\makeatother
+%
+% Please write the references according to your school
+%
+\newenvironment{dedication}
+  {%\clearpage           % we want a new page
+   \thispagestyle{empty}% no header and footer
+   \vspace*{\stretch{1}}% some space at the top
+   \itshape             % the text is in italics
+   \raggedleft          % flush to the right margin
+  }
+  {\par % end the paragraph
+   \vspace{\stretch{3}} % space at bottom is three times that at the top
+   %\clearpage           % finish off the page
+  }
+  \numberwithin{section}{chapter}
+\fancyhead{}
+\fancyfoot{}
+\pagestyle{fancy}
+\fancyfoot[LE,RO]{\thepage}
+%
+\makeatletter
+\def\ps@plain{\ps@empty
+ \def\@evenfoot{%
+   \normalfont\scriptsize
+   \rlap{\thepage}\hfil
+   }%
+ \def\@oddfoot{%
+   \normalfont\scriptsize \hfil
+   \llap{\thepage}}%
+}
+\makeatother
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+%
+\usepackage{montserrat}
+\usepackage[T1]{fontenc}
+\renewcommand*\oldstylenums[1]{{\fontfamily{Montserrat-TOsF}\selectfont #1}}
+%
+\numberwithin{table}{chapter}
+\numberwithin{figure}{chapter}
+%
+\begin{document} %%%%%%%%%%%%%%%%%%%%% BEGIN %%%
+
+\sffamily
+\frontFont
+\begin{flushleft}
+\includegraphics[width=6.03cm]{imagens/iscte}\\[3.3mm]
+
+\hrulefill
+~\\
+~\\
+~\\
+\textbf{A Reproducible Yocto-Based ARM64 Edge Gateway for Digital Twins of Wearable Devices}\\
+~\\
+~\\
+~\\
+~\\
+\textit{«STUDENT NAME»}\\
+\textit{«STUDENT NUMBER»}\\
+~\\
+~\\
+~\\
+Master in Computer Engineering\\
+~\\
+~\\
+~\\
+Supervisor:\\
+Doctor \textit{«SUPERVISOR NAME»}, \textit{«CATEGORY»} Professor,\\
+Iscte -- Instituto Universitário de Lisboa\\
+~\\
+~\\
+~\\
+Co-Supervisor:\\
+Doctor \textit{«CO-SUPERVISOR NAME»}, \textit{«CATEGORY»} Professor,\\
+\textit{«INSTITUTION»}\\
+~\\
+~\\
+~\\
+~\\
+September, 2026
+\end{flushleft}
+\thispagestyle{empty}
+\cleardoublepage
+\begin{flushleft}
+  \includegraphics[width=6.03cm]{imagens/ista}\\[7mm]
+\hrulefill
+~\\
+~\\
+~\\
+Department of Information Science and Technology\\
+~\\
+~\\
+\textbf{A Reproducible Yocto-Based ARM64 Edge Gateway for Digital Twins of Wearable Devices}\\
+~\\
+~\\
+~\\
+~\\
+\textit{«STUDENT NAME»}\\
+\textit{«STUDENT NUMBER»}\\
+~\\
+~\\
+~\\
+Master in Computer Engineering\\
+~\\
+~\\
+~\\
+Supervisor:\\
+Doctor \textit{«SUPERVISOR NAME»}, \textit{«CATEGORY»} Professor,\\
+Iscte -- Instituto Universitário de Lisboa\\
+~\\
+~\\
+~\\
+Co-Supervisor:\\
+Doctor \textit{«CO-SUPERVISOR NAME»}, \textit{«CATEGORY»} Professor,\\
+\textit{«INSTITUTION»}\\
+~\\
+~\\
+~\\
+~\\
+September, 2026
+  \end{flushleft}
+  \thispagestyle{empty}
+\rmfamily
+\normalsize
+\frontmatter
+%\addtocontents{toc}{\setcounter{tocdepth}{2}}
+\thispagestyle{empty}
+
+\frontmatter
+\addtocontents{toc}{\setcounter{tocdepth}{2}}
+\thispagestyle{empty}
+
+\begin{dedication}%
+
+\begin{flushright}
+\textit{«DEDICATION — optional, written by the student»}
+\end{flushright}%
+\end{dedication}
+
+\setcounter{page}{1}
+\pagenumbering{roman} %
+\chapter*{Acknowledgment}
+
+«ACKNOWLEDGMENTS — written by the student; include grants, if any»
+
+\chapter*{Resumo}
+
+[Provisional --- rewritten after data freeze]
+Os gémeos digitais de dispositivos de consumo dependem, com frequência, de
+plataformas cloud centralizadas, o que levanta questões de latência, de
+disponibilidade e de controlo dos dados por parte do consumidor. Esta
+dissertação concebe e implementa um \emph{edge gateway} ARM64
+reproduzível, construído com o Yocto Project (linha LTS Scarthgap) e composto
+por serviços contentorizados --- broker MQTT com TLS, controlador de ingestão
+e Eclipse Ditto com MongoDB --- concebido para receber telemetria sintética
+concorrente de três tipos de wearables (smartwatch, smart ring e smart
+clothing), validar os eventos contra esquemas JSON versionados e
+materializá-los como gémeos digitais. A avaliação segue um protocolo
+experimental pré-especificado, congelado antes da recolha de dados e a
+executar num ambiente ARM64 nativo, medindo
+latência, débito, consumo de recursos e estabilidade. Todos os resultados
+quantitativos serão introduzidos apenas após o \emph{data freeze}, a partir de
+dados brutos com manifesto e análise reproduzível.
+
+\vspace{3ex}
+\textsc{Palavras Chave:} \textit{edge computing}, \textit{gémeos digitais},
+\textit{Yocto Project}, \textit{ARM64}, \textit{MQTT}, \textit{wearables}
+
+\chapter*{Abstract}
+
+[Provisional --- rewritten after data freeze]
+Digital twins of consumer devices frequently depend on centralised cloud
+platforms, raising latency, availability and data-control concerns. This
+dissertation designs and implements a reproducible ARM64 edge
+gateway, built with the Yocto Project (Scarthgap LTS line) and composed of
+containerised services --- an MQTT broker with TLS, an ingestion controller,
+and Eclipse Ditto backed by MongoDB --- designed to receive concurrent
+synthetic telemetry from three wearable-device types (smartwatch, smart ring
+and smart clothing), validate events against versioned JSON Schemas, and
+materialise them as digital twins. The evaluation follows a pre-specified
+experimental protocol, frozen before data collection and to be executed on a
+native ARM64 environment, measuring
+latency, throughput, resource consumption and stability. All quantitative
+results are introduced only after the data freeze, from raw data with
+manifests and a reproducible analysis pipeline.
+
+\vspace{3ex}
+\textsc{Keywords:} \textit{edge computing}, \textit{digital twins},
+\textit{Yocto Project}, \textit{ARM64}, \textit{MQTT}, \textit{wearable devices}
+
+\tableofcontents
+\listoffigures
+\listoftables
+\cleardoublepage
+%\printglossary[type=\acronymtype, nonumberlist, nogroupskip]
+\chapter*{List of Acronyms}
+\begin{acronym}
+ \acro{ACL}{Access Control List}
+ \acro{API}{Application Programming Interface}
+ \acro{CI}{Continuous Integration}
+ \acro{CLI}{Command-Line Interface}
+ \acro{CPU}{Central Processing Unit}
+ \acro{DSR}{Design Science Research}
+ \acro{DT}{Digital Twin}
+ \acro{E2E}{End-to-End}
+ \acro{EGW}{Edge Gateway}
+ \acro{HTTP}{Hypertext Transfer Protocol}
+ \acro{IoT}{Internet of Things}
+ \acro{JSON}{JavaScript Object Notation}
+ \acro{LTS}{Long-Term Support}
+ \acro{MQTT}{Message Queuing Telemetry Transport}
+ \acro{OCI}{Open Container Initiative}
+ \acro{OS}{Operating System}
+ \acro{QoS}{Quality of Service}
+ \acro{RAM}{Random-Access Memory}
+ \acro{RQ}{Research Question}
+ \acro{SSI}{Self-Sovereign Identity}
+ \acro{TD}{Thing Description}
+ \acro{TLS}{Transport Layer Security}
+ \acro{UUID}{Universally Unique Identifier}
+ \acro{VM}{Virtual Machine}
+ \acro{WoT}{Web of Things}
+\end{acronym}
+
+\mainmatter
+
+\hyphenation{wri-te he-re pro-per hy-phe-ni-za-tion
+}%
+
+\setcounter{page}{1} \pagenumbering{arabic}
+
+\input{chapters/01_introduction}
+\input{chapters/02_background}
+\input{chapters/03_methodology}
+\input{chapters/04_architecture}
+\input{chapters/05_evaluation}
+\input{chapters/06_conclusions}
+
+\printbibliography[title={References}]
+
+\end{document}
