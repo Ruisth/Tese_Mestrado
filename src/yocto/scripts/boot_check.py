@@ -50,6 +50,7 @@ POWEROFF_TIMEOUT_S = 120.0
 #: Marker echoed after each command so completion can be detected without
 #: guessing at the shell prompt, which the image is free to restyle.
 DONE = "EGW_CHECK_DONE_{}"
+BEGIN = "EGW_CHECK_BEGIN_{}"
 
 #: (identifier, command, predicate over the captured output, required)
 CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
@@ -61,8 +62,12 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
     ),
     (
         "systemd_state",
-        "systemctl is-system-running || true; systemctl --failed --no-pager --no-legend || true",
-        lambda out: ("running" in out or "degraded" in out),
+        # --wait blocks until startup finishes. Without it the checks race the
+        # boot: the serial autologin hands over a shell before systemd has
+        # reached its default target, so the target below reads as still
+        # starting. 'echo STATE=' isolates the answer from the command text.
+        "echo STATE=$(systemctl is-system-running --wait 2>&1)",
+        lambda out: re.search(r"STATE=(running|degraded)", out) is not None,
         True,
     ),
     (
@@ -182,13 +187,28 @@ class Console:
         self.log.flush()
 
     def run_check(self, index: int, command: str, timeout: float) -> str:
-        marker = DONE.format(index)
+        """Run one check and return ONLY its output, never the echoed command.
+
+        The terminal echoes what is typed, so a predicate evaluated over the
+        raw buffer can match the command text instead of the result. That is
+        not hypothetical: the systemd check matched the word 'running' inside
+        its own 'systemctl is-system-running' invocation and reported a pass
+        while the system was still starting (observed 2026-08-11).
+
+        Both markers are written as split literals, so the echoed line carries
+        the quotes and the OUTPUT carries the bare token. Slicing between the
+        bare tokens therefore excludes the echo.
+        """
+        begin, done = BEGIN.format(index), DONE.format(index)
         self.buffer = ""
-        # The marker is echoed with a split literal so that sending the command
-        # does not itself put the finished marker into the buffer.
-        self.send(f"{command}; echo 'EGW_CHECK''_DONE_{index}'")
-        self.read_until(re.escape(marker), timeout)
-        return self.buffer
+        self.send(f"echo 'EGW_CHECK''_BEGIN_{index}'; {command}; echo 'EGW_CHECK''_DONE_{index}'")
+        self.read_until(re.escape(done), timeout)
+        text = self.buffer
+        start = text.rfind(begin)
+        end = text.rfind(done)
+        if start != -1 and end != -1 and end > start:
+            return text[start + len(begin):end]
+        return text
 
     def close(self) -> None:
         try:
