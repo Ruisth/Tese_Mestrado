@@ -1,0 +1,58 @@
+title: "A Reproducible Yocto-Based ARM64 Edge Gateway for Digital Twins of Wearable Devices"
+authors: ["Rui Duarte"]
+institution: "Iscte, Instituto Universitário de Lisboa (ISCTE-IUL)"
+degree: "MSc dissertation"
+style: "ISCTE-IUL institutional template"
+figs_dir: figs
+bibfile: refs/references.bib
+
+# HOW THIS DIRECTORY WORKS
+#
+# The dissertation is authored in LaTeX (thesis/latex/) because the institution
+# requires its template and the LaTeX build is what gets submitted. The
+# Markdown files listed under `order` are a GENERATED MIRROR of that source,
+# produced by `python thesis/tools/generate_sections.py` (requires pandoc).
+#
+# Edit LaTeX. Never edit sections/*.md - they are overwritten on every run.
+source_of_truth: latex/main.tex
+generated_by: tools/generate_sections.py
+generated_are_read_only: true
+
+order:
+  - sections/01_cover.md
+  - sections/02_acknowledgements.md
+  - sections/03_abstract.md
+  - sections/04_intro.md
+  - sections/05_background.md
+  - sections/06_architecture.md
+  - sections/07_implementation.md
+  - sections/08_experiments.md
+  - sections/09_results.md
+  - sections/10_conclusion.md
+  - sections/11_references.md
+
+# The repository template expects 11 sections; the plan's chapter structure has
+# six chapters plus front matter. This is the explicit mapping.
+mapping:
+  sections/01_cover.md: latex/main.tex (title block)
+  sections/02_acknowledgements.md: latex/main.tex (dedication + acknowledgment)
+  sections/03_abstract.md: latex/main.tex (Resumo + Abstract)
+  sections/04_intro.md: latex/chapters/01_introduction.tex
+  sections/05_background.md: latex/chapters/02_background.tex
+  sections/06_architecture.md: latex/chapters/04_architecture.tex (Overview, Normative Interfaces, Twin Model, Security Considerations)
+  sections/07_implementation.md: latex/chapters/04_architecture.tex (Platform Layer, Service Layer, Ingestion Controller, Simulator, Reproducibility and Evidence Structure)
+  sections/08_experiments.md: latex/chapters/03_methodology.tex
+  sections/09_results.md: latex/chapters/05_evaluation.tex
+  sections/10_conclusion.md: latex/chapters/06_conclusions.tex
+  sections/11_references.md: refs/references.bib
+
+deviations:
+  - "Chapter 4 of the dissertation covers architecture AND implementation in one chapter, as the plan's chapter structure requires; the mirror splits it by section to fill the two slots the repository template expects."
+  - "The template has no methodology slot. Chapter 3 (Design Science Research framing, review protocol, requirements, experimental protocol, metrics and validity rules) is mirrored into 08_experiments.md in full."
+  - "Figures are produced by the LaTeX build and by the analysis pipeline; figs/ holds the exported copies referenced from the mirror, not the originals."
+
+constraints:
+  - "No quantitative result enters any section without raw data, the command that produced it and a path to reproduce it (plan section 6.3)."
+  - "Absence-of-related-work statements are bounded to the corpus actually examined; the institutional database queries are not yet executed."
+  - "Cite peer-reviewed records verified against their primary source."
+  - "Body language is English; the Resumo is in Portuguese, as the template requires."
