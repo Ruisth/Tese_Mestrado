@@ -75,8 +75,15 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 run_logged() {
     _log="$1"
     shift
+    # 'set -e' must be OFF around the group: with errexit active the shell
+    # aborts at the failing command and never reaches 'echo $?', so the status
+    # file is missing precisely when the command FAILED - the one case this
+    # function exists for. (Observed 2026-08-11: a failed 'kas build' produced
+    # "cat: ...log.status: No such file or directory" and lost the exit code.)
+    set +e
     { "$@" 2>&1; echo $? >"$_log.status"; } | tee "$_log"
-    _rc=$(cat "$_log.status")
+    set -e
+    _rc=$(cat "$_log.status" 2>/dev/null || echo 1)
     rm -f "$_log.status"
     return "$_rc"
 }
