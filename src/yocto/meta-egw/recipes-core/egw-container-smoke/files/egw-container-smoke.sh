@@ -98,12 +98,29 @@ done
 if [ -n "$LOADER" ] && "$LOADER" --list "$BUSYBOX_BIN" >/dev/null 2>&1; then
     DEPS="$("$LOADER" --list "$BUSYBOX_BIN" 2>/dev/null \
         | tr ' ' '\n' | grep '^/' | sort -u)"
+    # This image is usrmerge'd (INIT_MANAGER=systemd pulls it in), so /lib is a
+    # symlink to /usr/lib on the running system and the two spellings are the
+    # same file. Inside a fresh container rootfs they are NOT: whichever one
+    # the binary's PT_INTERP names must exist literally, and copying to only
+    # one side left the exec failing with ENOENT even though the loader was
+    # present under the other name. Observed on 2026-08-11: a direct
+    # 'docker run IMAGE /bin/busybox' failed identically, which ruled out the
+    # /bin/sh symlink and pointed here.
+    #
+    # Placing every object under both /lib and /usr/lib removes the ambiguity
+    # for a few megabytes, instead of trying to predict which spelling the
+    # toolchain baked in.
+    COUNT=0
     for lib in $DEPS $LOADER; do
         [ -e "$lib" ] || continue
-        mkdir -p "$WORK_DIR/rootfs$(dirname "$lib")" || fail "mkdir for $lib failed"
-        cp "$lib" "$WORK_DIR/rootfs$lib" || fail "copying $lib failed"
+        BASE="$(basename "$lib")"
+        for dest in lib usr/lib; do
+            mkdir -p "$WORK_DIR/rootfs/$dest" || fail "mkdir $dest failed"
+            cp "$lib" "$WORK_DIR/rootfs/$dest/$BASE" || fail "copying $lib failed"
+        done
+        COUNT=$((COUNT + 1))
     done
-    log INFO "bundled the dynamic loader and $(echo "$DEPS" | wc -l) shared object(s)"
+    log INFO "bundled $COUNT object(s) under both /lib and /usr/lib"
 else
     log INFO "busybox appears statically linked; no shared objects bundled"
 fi
