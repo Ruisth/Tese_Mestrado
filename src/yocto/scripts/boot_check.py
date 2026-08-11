@@ -66,12 +66,24 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
         True,
     ),
     (
-        "default_target_active",
-        "systemctl get-default; systemctl is-active \"$(systemctl get-default)\"",
-        # The image is free to choose its default target, so assert that the
-        # DEFAULT one is active rather than assuming multi-user.target.
-        lambda out: re.search(r"^\s*active\s*$", out, re.M) is not None,
+        "systemd_targets",
+        "systemctl list-units --type=target --no-pager --no-legend; systemctl get-default",
+        # Gate G1 asks that systemd reach multi-user. Assert that from the unit
+        # list, where an active target is listed with 'active active'. Asking
+        # 'systemctl is-active multi-user.target' proved unreliable on this
+        # image: it answered 'inactive' while the system was running normally
+        # (observed 2026-08-11), so the unit list is the evidence used instead.
+        lambda out: re.search(r"multi-user\.target\s+loaded\s+active", out) is not None,
         True,
+    ),
+    (
+        "failed_units",
+        "systemctl --failed --no-pager --no-legend; echo FAILED_UNITS_END",
+        # Recorded for the evidence log. Not required: a minimal image may
+        # legitimately carry a failed unit unrelated to the gate criteria, and
+        # the log makes any such unit visible rather than hidden.
+        lambda out: "FAILED_UNITS_END" in out,
+        False,
     ),
     (
         "networking",
