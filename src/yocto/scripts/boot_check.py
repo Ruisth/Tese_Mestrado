@@ -109,6 +109,17 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
         lambda out: "SMOKE_EXIT=0" in out,
         True,
     ),
+    (
+        "smoke_diagnostics",
+        # Recorded unconditionally so a smoke failure arrives with the facts
+        # needed to diagnose it, instead of costing another boot.
+        "echo INTERP=$(head -c 200 /bin/busybox | strings 2>/dev/null | grep -m1 ld-linux || echo unknown); "
+        "ls -l /lib/ld-linux-aarch64.so.1 /lib/libc.so.6 2>&1 | head -n 4; "
+        "docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -n 3; "
+        "docker run --rm egw-smoke:local /bin/busybox echo BUSYBOX_DIRECT_OK 2>&1 | tail -n 2",
+        lambda out: True,
+        False,
+    ),
 ]
 
 #: Checks that legitimately take longer than CMD_TIMEOUT_S: importing and
