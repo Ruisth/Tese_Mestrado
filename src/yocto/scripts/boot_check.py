@@ -67,7 +67,7 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
         # reached its default target, so the target below reads as still
         # starting. 'echo STATE=' isolates the answer from the command text.
         "echo STATE=$(systemctl is-system-running --wait 2>&1)",
-        lambda out: re.search(r"STATE=(running|degraded)", out) is not None,
+        lambda out: re.search(r"STATE=(running|degraded)", out) is not None,
         True,
     ),
     (
