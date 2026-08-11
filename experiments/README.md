@@ -392,9 +392,24 @@ deployment/platform procedures, which produce an operator `timings.json`:
 ```
 
 `src/deployment/scripts/measure-cold-start.sh` produces exactly this for
-one cold start (C04). QEMU boot samples additionally carry a functional
-`"outcome": "pass" | "fail"` per sample. Ingestion produces the standard
-manifest + SHA256SUMS:
+one cold start (C04).
+
+Every sample is validated before anything is written; a rejected file
+leaves no run directory and nothing is sealed:
+
+- `duration_s` must be a real, finite, non-negative number. A boolean is
+  not a number (in Python `True` is an `int`) and `NaN`/`Infinity` — which
+  a hand-written JSON file may carry and the parser does read — are not
+  measurements: they would propagate into the means, percentiles and
+  confidence intervals of the analysis.
+- QEMU boot samples must carry a functional `"outcome": "pass" | "fail"`,
+  the exact vocabulary the analysis reads (anything else it lists as
+  `unspecified`). `qemu_boots` is functional-only (plan 5.1), so the boot
+  result IS the measurement: a sample without a recognised outcome
+  discharges no evidence and the run is refused. The timed external
+  conditions (`cold_start`, `twin_creation`) carry no outcome.
+
+Ingestion produces the standard manifest + SHA256SUMS:
 
 ```bash
 python -m egw_experiments run --run-id cold_start-r01 \

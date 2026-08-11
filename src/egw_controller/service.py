@@ -3,7 +3,9 @@
 Outcome semantics (CONTRACTS.md sections 5 and 9):
 
 - ``accepted``  - validated, fresh and confirmed by a Ditto 2xx;
-- ``rejected``  - failed topic/JSON/schema/consistency validation (no Ditto call);
+- ``rejected``  - failed topic/JSON/schema/consistency validation (no Ditto
+  call). Consistency covers the topic-versus-payload identity fields and the
+  ``message_id`` derivation of CONTRACTS.md section 2;
 - ``duplicate`` - repeated ``message_id``, or non-increasing ``seq`` within
   the same ``run_id`` (CONTRACTS.md section 4, v1.1 run scoping);
 - ``failed``    - valid and fresh, but the Ditto update (or first-contact
@@ -21,8 +23,9 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, Mapping, NoReturn, Protocol
 
 from .dedupe import DedupeCache
 from .ditto import DittoError, build_merge_patch
@@ -36,6 +39,43 @@ logger = logging.getLogger("egw_controller.service")
 DEFAULT_QUEUE_MAXSIZE = 10000
 
 _IDENTITY_STR_FIELDS = ("run_id", "message_id", "device_uuid", "device_type")
+
+#: Project-wide UUID v5 namespace (CONTRACTS.md section 2). Deliberately
+#: restated here rather than imported from ``egw_simulator.envelope``: the
+#: simulator is a separate deliverable and only the controller ships in the
+#: deployment image, so the controller must not depend on it at runtime. The
+#: controller test suite asserts the two constants are identical, which is
+#: what stops them drifting apart silently.
+EGW_UUID_NAMESPACE = uuid.UUID("6b1a3f52-8c1e-5e2b-9f0d-c2d7a1e4b8a0")
+
+
+class NonStandardJSONConstantError(ValueError):
+    """Raised for the ``NaN``/``Infinity``/``-Infinity`` literals in a payload."""
+
+
+def _reject_json_constant(constant: str) -> NoReturn:
+    """``json.loads`` hook refusing the non-standard numeric constants.
+
+    Python's decoder accepts ``NaN``, ``Infinity`` and ``-Infinity`` by
+    default even though RFC 8259 has no such literals. A resulting ``nan``
+    then evades every schema bound, because each comparison against it is
+    false, and would be written to the twin as non-finite data (or fail the
+    Ditto update). Refusing them during decoding yields the contracted
+    ``rejected`` outcome, with no Ditto call at all, exactly as for any other
+    malformed payload.
+    """
+    raise NonStandardJSONConstantError(
+        f"non-standard JSON constant {constant!r} is not permitted"
+    )
+
+
+def derive_message_id(run_id: str, device_uuid: str, seq: int) -> str:
+    """Return the contracted ``message_id`` for one envelope.
+
+    UUID v5 over :data:`EGW_UUID_NAMESPACE` with the name
+    ``"{run_id}:{device_uuid}:{seq}"`` (CONTRACTS.md section 2).
+    """
+    return str(uuid.uuid5(EGW_UUID_NAMESPACE, f"{run_id}:{device_uuid}:{seq}"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,8 +189,15 @@ class ControllerService:
         received = message.received_monotonic_ns
 
         try:
-            decoded: Any = json.loads(message.payload.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            decoded: Any = json.loads(
+                message.payload.decode("utf-8"),
+                parse_constant=_reject_json_constant,
+            )
+        except (
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            NonStandardJSONConstantError,
+        ) as exc:
             self._emit(
                 identity=_extract_identity(None),
                 received=received,
@@ -198,6 +245,23 @@ class ControllerService:
             return
 
         device_uuid: str = payload["device_uuid"]
+
+        # The schema only proves message_id has the shape of a UUID v5; the
+        # contract requires it to BE the UUID v5 of run_id:device_uuid:seq
+        # (CONTRACTS.md section 2). Recompute it before the dedupe cache is
+        # consulted and before any twin is seeded or patched: replay detection
+        # assumes message_id is a pure function of those three fields, so an
+        # arbitrary valid-looking id would defeat it.
+        forgery = self._message_id_mismatch(payload)
+        if forgery is not None:
+            self._emit(
+                identity=identity,
+                received=received,
+                outcome="rejected",
+                attempts=0,
+                error=forgery,
+            )
+            return
 
         # First event for this device since startup: rebuild the dedupe state
         # from the twin's ingestion feature (CONTRACTS.md section 4), creating
@@ -270,6 +334,20 @@ class ControllerService:
             return (
                 f"egw_id mismatch: topic {topic_egw_id!r} vs "
                 f"payload {payload['egw_id']!r}"
+            )
+        return None
+
+    @staticmethod
+    def _message_id_mismatch(payload: Mapping[str, Any]) -> str | None:
+        """Return a rejection reason when ``message_id`` is not the derived one."""
+        expected = derive_message_id(
+            payload["run_id"], payload["device_uuid"], payload["seq"]
+        )
+        if payload["message_id"] != expected:
+            return (
+                f"message_id mismatch: {payload['message_id']!r} is not the "
+                f"UUID v5 derived from run_id:device_uuid:seq "
+                f"(expected {expected!r})"
             )
         return None
 

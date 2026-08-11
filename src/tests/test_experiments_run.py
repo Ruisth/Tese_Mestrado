@@ -15,6 +15,7 @@ import sys
 import textwrap
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -996,22 +997,41 @@ def test_controller_restart_run_without_fired_restart_is_invalid(
 # External conditions ingestion (audit 9.6, claim C15)
 # ---------------------------------------------------------------------------
 
+#: Sentinel for "this key is absent from the sample" in the fixture below
+#: (None is itself a value an operator file can carry).
+_ABSENT = object()
 
-def _timings_file(tmp_path: Path, run_id: str, condition: str) -> Path:
+
+def _timings_file(
+    tmp_path: Path,
+    run_id: str,
+    condition: str,
+    *,
+    outcome: Any = _ABSENT,
+    duration_s: Any = 42,
+) -> Path:
+    """An operator timings.json fixture.
+
+    ``outcome`` is omitted from the sample unless given: the functional
+    external conditions (qemu_boots) require it, the timed ones
+    (cold_start, twin_creation) do not carry it at all.
+    """
+    sample: dict[str, Any] = {
+        "label": run_id,
+        "started_utc": "2026-09-07T10:00:00Z",
+        "ended_utc": "2026-09-07T10:00:42Z",
+    }
+    if duration_s is not _ABSENT:
+        sample["duration_s"] = duration_s
+    if outcome is not _ABSENT:
+        sample["outcome"] = outcome
     path = tmp_path / f"timings-{run_id}.json"
     path.write_text(
         json.dumps(
             {
                 "run_id": run_id,
                 "condition": condition,
-                "samples": [
-                    {
-                        "label": run_id,
-                        "started_utc": "2026-09-07T10:00:00Z",
-                        "ended_utc": "2026-09-07T10:00:42Z",
-                        "duration_s": 42,
-                    }
-                ],
+                "samples": [sample],
                 "method": "deployment/scripts/measure-cold-start.sh",
                 "notes": "fixture",
             }
@@ -1070,7 +1090,9 @@ def test_qemu_boot_run_accepts_singular_condition_prefix(
         plan_path,
         "qemu_boot-r01",
         base_dir=tmp_path / "results",
-        external_timings=_timings_file(tmp_path, "qemu_boot-r01", "qemu_boot"),
+        external_timings=_timings_file(
+            tmp_path, "qemu_boot-r01", "qemu_boot", outcome="pass"
+        ),
     )
     assert rc == 0
 
@@ -1105,6 +1127,206 @@ def test_load_external_timings_validates_structure(tmp_path) -> None:
     )
     with pytest.raises(ValueError, match="duration_s"):
         run_mod.load_external_timings(bad)
+
+
+# ---------------------------------------------------------------------------
+# External timings: duration_s must be a REAL, FINITE, non-negative number
+# (P2 finding 4 — the same defect class sprint P5.4 fixed in the analysis
+# readers and in the resources ingest, which never covered this third path)
+# ---------------------------------------------------------------------------
+
+
+def _write_timings(path: Path, samples: list[dict[str, Any]], condition: str) -> Path:
+    """Write an operator timings.json verbatim (NaN/Infinity included).
+
+    ``json.dumps`` emits the bare ``NaN``/``Infinity`` tokens and
+    ``json.loads`` reads them back as floats, so such a file really does
+    reach the sample loop — it is not a hypothetical input.
+    """
+    path.write_text(
+        json.dumps(
+            {
+                "run_id": "cold_start-r01",
+                "condition": condition,
+                "samples": samples,
+                "method": "fixture",
+            }
+        )
+        + "\n",
+        "utf-8",
+    )
+    return path
+
+
+@pytest.mark.parametrize(
+    "duration, value_in_message",
+    [
+        (True, "True"),  # bool is a subclass of int: isinstance() lets it in
+        (float("nan"), "nan"),  # nan < 0 is False, so the comparison lets it in
+        (float("inf"), "inf"),  # inf < 0 is False likewise
+        (float("-inf"), "-inf"),
+    ],
+)
+def test_load_external_timings_rejects_bool_and_non_finite_duration(
+    tmp_path, duration, value_in_message
+) -> None:
+    """Only a real, finite, non-negative duration_s may be sealed.
+
+    An accepted sample seals the external run, after which the analysis
+    converts these values to floats and emits nan/inf means, percentiles
+    and confidence intervals from them.
+    """
+    path = _write_timings(
+        tmp_path / "bad.json",
+        [
+            {"label": "good", "duration_s": 1.0},
+            {"label": "bad", "duration_s": duration},
+        ],
+        "cold_start",
+    )
+    with pytest.raises(ValueError) as excinfo:
+        run_mod.load_external_timings(path)
+    message = str(excinfo.value)
+    assert "duration_s" in message
+    assert "sample 1" in message, "the reason must name the offending index"
+    assert value_in_message in message, "the reason must name the offending value"
+
+
+def test_load_external_timings_rejects_duration_too_large_for_a_float(
+    tmp_path,
+) -> None:
+    """JSON integers are unbounded; float() on one raises OverflowError.
+
+    Left unguarded that exception would escape the validator instead of
+    rejecting the sample.
+    """
+    path = _write_timings(
+        tmp_path / "huge.json", [{"label": "a", "duration_s": 10**400}], "cold_start"
+    )
+    with pytest.raises(ValueError, match="duration_s"):
+        run_mod.load_external_timings(path)
+
+
+def test_external_run_with_non_finite_duration_is_never_sealed(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    """The rejection happens before any evidence directory is created."""
+    base = tmp_path / "results"
+    timings = _write_timings(
+        tmp_path / "bad.json",
+        [{"label": "cold_start-r01", "duration_s": float("inf")}],
+        "cold_start",
+    )
+    rc = run_mod.execute_run(
+        plan_path, "cold_start-r01", base_dir=base, external_timings=timings
+    )
+    assert rc == 2
+    assert "duration_s" in capsys.readouterr().err
+    assert not (base / "raw" / "cold_start-r01").exists()
+    plan = plan_gen.load_campaign_plan(plan_path)
+    entry = next(r for r in plan["runs"] if r["run_id"] == "cold_start-r01")
+    assert entry["status"] == "planned"
+
+
+# ---------------------------------------------------------------------------
+# External timings: functional conditions need a pass/fail outcome per sample
+# (P2 finding 5 — gate G1 is evidenced by the QEMU boots and plan 5.1 makes
+# QEMU functional-only, so pass/fail IS the measurement)
+# ---------------------------------------------------------------------------
+
+
+def _qemu_run_dir(base: Path, run_id: str = "qemu_boot-r01") -> Path:
+    return base / "raw" / run_id
+
+
+def test_qemu_boot_sample_without_outcome_is_rejected(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    """A QEMU boot without a boot result discharges no evidence at all."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "qemu_boot-r01",
+        base_dir=base,
+        external_timings=_timings_file(tmp_path, "qemu_boot-r01", "qemu_boot"),
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "outcome" in err
+    assert "sample 0" in err, "the reason must name the offending sample"
+    assert not _qemu_run_dir(base).exists()
+    plan = plan_gen.load_campaign_plan(plan_path)
+    entry = next(r for r in plan["runs"] if r["run_id"] == "qemu_boot-r01")
+    assert entry["status"] == "planned"
+
+
+@pytest.mark.parametrize("outcome", [None, "", "ok", "PASS", "passed", True, 1])
+def test_qemu_boot_sample_with_unrecognised_outcome_is_rejected(
+    tmp_path, plan_path, fast_run, capsys, outcome
+) -> None:
+    """Only the vocabulary the analysis recognises counts as a result.
+
+    Anything else is listed by the analysis as ``unspecified``, i.e. as no
+    boot result at all, so it must never seal the run.
+    """
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "qemu_boot-r01",
+        base_dir=base,
+        external_timings=_timings_file(
+            tmp_path, "qemu_boot-r01", "qemu_boot", outcome=outcome
+        ),
+    )
+    assert rc == 2
+    assert "outcome" in capsys.readouterr().err
+    assert not _qemu_run_dir(base).exists()
+
+
+def test_qemu_boot_outcomes_accepted_are_exactly_those_the_analysis_reads(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """Every outcome the runner seals must survive the analysis verbatim.
+
+    The analysis lists an unrecognised outcome as ``unspecified``; this
+    pins the runner's vocabulary to the analyser's without touching it.
+    """
+    from egw_experiments.analyze import compute_external_run
+
+    base = tmp_path / "results"
+    for index, outcome in enumerate(run_mod.EXTERNAL_FUNCTIONAL_OUTCOMES, start=1):
+        run_id = f"qemu_boot-r{index:02d}"
+        rc = run_mod.execute_run(
+            plan_path,
+            run_id,
+            base_dir=base,
+            external_timings=_timings_file(
+                tmp_path, run_id, "qemu_boot", outcome=outcome
+            ),
+        )
+        assert rc == 0
+        run_dir = _qemu_run_dir(base, run_id)
+        assert (run_dir / "SHA256SUMS").is_file()
+        analysed = compute_external_run(run_dir)
+        assert analysed is not None
+        assert [row["outcome"] for row in analysed["sample_rows"]] == [outcome]
+
+
+def test_timed_external_conditions_keep_their_existing_requirements(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """cold_start/twin_creation are timed, not functional: no outcome needed."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "twin_creation-r01",
+        base_dir=base,
+        external_timings=_timings_file(
+            tmp_path, "twin_creation-r01", "twin_creation"
+        ),
+    )
+    assert rc == 0
+    assert (base / "raw" / "twin_creation-r01" / "SHA256SUMS").is_file()
 
 
 # ---------------------------------------------------------------------------

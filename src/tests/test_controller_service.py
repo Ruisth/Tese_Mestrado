@@ -7,11 +7,16 @@ semantics (ack and latency null unless accepted) and the metrics counters.
 
 from __future__ import annotations
 
+import json
+import re
+import uuid
 from pathlib import Path
 from typing import Iterator
 
 import pytest
 
+from egw_controller import schema as schema_module
+from egw_controller import service as service_module
 from egw_controller.dedupe import DedupeCache
 from egw_controller.ditto import DittoUnavailableError
 from egw_controller.events import EVENT_FIELDS, EventLogger
@@ -20,6 +25,7 @@ from egw_controller.schema import SchemaRepository
 from egw_controller.service import ControllerService, InboundMessage
 from test_controller_helpers import (
     DEVICE_UUIDS,
+    EGW_UUID_NAMESPACE,
     RUN_ID,
     SCHEMA_DIR,
     FakeClock,
@@ -197,16 +203,16 @@ async def test_warmup_then_measured_run_first_seq_accepted(
 
     # Measured run restarts seq at 0: accepted, NOT duplicate (v1.1).
     await service.process(make_inbound(make_payload("smartwatch", seq=0)))
-    await service.process(make_inbound(make_payload("smartwatch", seq=1)))
+    await service.process(make_inbound(make_payload("smartwatch", seq=3)))
     measured_records = read_events(tmp_path)
     assert [record["outcome"] for record in measured_records] == [
         "accepted",
         "accepted",
     ]
-    # Monotonicity binds within the measured run: seq 0 again is duplicate.
-    stale = make_payload(
-        "smartwatch", seq=0, message_id=make_message_id(RUN_ID, WATCH, 900)
-    )
+    # Monotonicity binds within the measured run: a never-seen seq below the
+    # floor is duplicate. Its message_id is the contract-derived one, so the
+    # LRU cannot be what catches it - the run-scoped seq floor is.
+    stale = make_payload("smartwatch", seq=1)
     await service.process(make_inbound(stale))
     assert read_events(tmp_path)[-1]["outcome"] == "duplicate"
     assert metrics.snapshot()["accepted"] == 5
@@ -350,6 +356,193 @@ async def test_rejected_topic_payload_egw_mismatch(
 
 
 # ---------------------------------------------------------------------------
+# rejected: non-standard JSON numeric constants
+# ---------------------------------------------------------------------------
+
+
+def _payload_with_raw_lat(literal: str) -> bytes:
+    """Encode a valid smartwatch payload with ``lat`` replaced by a raw literal.
+
+    ``json.dumps`` cannot emit these constants for us without also accepting
+    them back, so the substitution is done on the encoded text.
+    """
+    payload = make_payload("smartwatch", seq=0)
+    encoded = json.dumps(payload)
+    marker = f'"lat": {payload["lat"]}'
+    assert marker in encoded, "test builder no longer matches the encoded payload"
+    return encoded.replace(marker, f'"lat": {literal}').encode("utf-8")
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+async def test_rejected_non_standard_json_constant(
+    service: ControllerService,
+    ditto: FakeDittoClient,
+    tmp_path: Path,
+    metrics: MetricsCounters,
+    literal: str,
+) -> None:
+    """NaN/Infinity are not JSON and must never reach Ditto.
+
+    Python's decoder accepts them by default, and a non-finite float then
+    slips past every schema bound because all comparisons with NaN are false.
+    The contracted outcome is ``rejected`` with no Ditto call at all.
+    """
+    topic = f"c2dt/egw-01/{WATCH}/telemetry"
+    await service.process(
+        make_inbound(
+            _payload_with_raw_lat(literal), topic=topic, received_monotonic_ns=42
+        )
+    )
+
+    (record,) = read_events(tmp_path, "unknown")
+    assert record["outcome"] == "rejected"
+    assert record["received_monotonic_ns"] == 42
+    assert record["ditto_ack_monotonic_ns"] is None
+    assert record["latency_ms"] is None
+    assert record["attempts"] == 0
+    assert "invalid JSON" in record["error"]
+    assert ditto.get_calls == []
+    assert ditto.ensure_calls == []
+    assert ditto.patch_calls == []
+    assert metrics.snapshot()["rejected"] == 1
+
+
+async def test_non_standard_json_constant_never_reaches_the_twin(
+    service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
+) -> None:
+    """A NaN event must not be persisted, and must not seed the device either."""
+    topic = f"c2dt/egw-01/{WATCH}/telemetry"
+    await service.process(make_inbound(_payload_with_raw_lat("NaN"), topic=topic))
+    # A well-formed follow-up is still the device's first contact.
+    await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    assert len(ditto.ensure_calls) == 1
+    assert [record["outcome"] for record in read_events(tmp_path)] == ["accepted"]
+    (_, patch) = ditto.patch_calls[0]
+    assert patch["features"]["location"]["properties"]["lat"] == 38.7369
+
+
+# ---------------------------------------------------------------------------
+# rejected: message_id not derived from run_id:device_uuid:seq (CONTRACTS 2)
+# ---------------------------------------------------------------------------
+
+
+def test_namespace_matches_the_simulator_constant() -> None:
+    """The controller mirrors the namespace; the two must never drift apart.
+
+    The controller must not import ``egw_simulator`` at runtime (separate
+    deliverables; only the controller ships in the deployment image), so the
+    constant is duplicated and pinned by this test instead.
+    """
+    from egw_simulator.envelope import EGW_UUID_NAMESPACE as simulator_namespace
+
+    assert service_module.EGW_UUID_NAMESPACE == simulator_namespace
+    assert service_module.EGW_UUID_NAMESPACE == EGW_UUID_NAMESPACE
+    # The normative literal from CONTRACTS.md section 2.
+    assert service_module.EGW_UUID_NAMESPACE == uuid.UUID(
+        "6b1a3f52-8c1e-5e2b-9f0d-c2d7a1e4b8a0"
+    )
+
+
+def test_controller_does_not_import_the_simulator_at_runtime() -> None:
+    """Guard the deliverable boundary that forces the duplicated namespace."""
+    for module in (service_module, schema_module):
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        assert not re.search(
+            r"^\s*(from|import)\s+egw_simulator\b", source, re.MULTILINE
+        ), f"{module.__name__} imports egw_simulator"
+
+
+def test_derived_message_id_matches_the_simulator_derivation() -> None:
+    assert service_module.derive_message_id(RUN_ID, WATCH, 7) == make_message_id(
+        RUN_ID, WATCH, 7
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "forged"),
+    [
+        # Shape-valid UUID v5 for a different seq in the same run.
+        ("other_seq", make_message_id(RUN_ID, WATCH, 900)),
+        # Shape-valid UUID v5 for a different run.
+        ("other_run", make_message_id("some-other-run", WATCH, 0)),
+        # Shape-valid UUID v5 for a different device.
+        ("other_device", make_message_id(RUN_ID, DEVICE_UUIDS["smart_ring"], 0)),
+        # Shape-valid UUID v5 from an entirely foreign namespace.
+        ("foreign_namespace", str(uuid.uuid5(uuid.NAMESPACE_DNS, "forged"))),
+    ],
+)
+async def test_rejected_message_id_not_derived_from_envelope(
+    service: ControllerService,
+    ditto: FakeDittoClient,
+    tmp_path: Path,
+    metrics: MetricsCounters,
+    label: str,
+    forged: str,
+) -> None:
+    """Schema validation only proves the shape; the value must be recomputed.
+
+    ``message_id`` is contractually ``uuid5(namespace, "run:device:seq")``
+    (CONTRACTS.md section 2) and the dedupe cache relies on that determinism,
+    so an arbitrary valid-looking UUID v5 must be rejected before any twin is
+    seeded or patched.
+    """
+    payload = make_payload("smartwatch", seq=0, message_id=forged)
+    await service.process(make_inbound(payload, received_monotonic_ns=42))
+
+    (record,) = read_events(tmp_path)
+    assert record["outcome"] == "rejected", label
+    assert record["message_id"] == forged  # identity still logged as received
+    assert record["received_monotonic_ns"] == 42
+    assert record["ditto_ack_monotonic_ns"] is None
+    assert record["latency_ms"] is None
+    assert record["attempts"] == 0
+    assert "message_id" in record["error"]
+    assert ditto.get_calls == []
+    assert ditto.ensure_calls == []
+    assert ditto.patch_calls == []
+    assert metrics.snapshot()["rejected"] == 1
+
+
+async def test_forged_message_id_rejected_before_dedupe_and_seeding(
+    service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
+) -> None:
+    """The check precedes the dedupe cache, so a forgery cannot poison it.
+
+    An existing twin makes seeding observable: a rejected event must leave the
+    device unknown, so the next genuine event still performs first contact.
+    """
+    ditto.twins[WATCH] = make_raw_twin(
+        WATCH, last_message_id=make_message_id(RUN_ID, WATCH, 3), last_seq=3,
+        last_run_id=RUN_ID, accepted_count=4,
+    )
+    forged = make_payload(
+        "smartwatch", seq=4, message_id=make_message_id(RUN_ID, WATCH, 900)
+    )
+    await service.process(make_inbound(forged))
+    assert ditto.get_calls == []  # never seeded
+
+    await service.process(make_inbound(make_payload("smartwatch", seq=4)))
+    assert ditto.get_calls == [WATCH]
+    assert [record["outcome"] for record in read_events(tmp_path)] == [
+        "rejected",
+        "accepted",
+    ]
+
+
+async def test_genuine_message_id_still_accepted_for_every_device_type(
+    service: ControllerService, tmp_path: Path
+) -> None:
+    """Regression guard: the new check must not reject contract-conformant ids."""
+    for device_type in ("smartwatch", "smart_ring", "smart_clothing"):
+        for seq in range(2):
+            await service.process(
+                make_inbound(make_payload(device_type, seq=seq))
+            )
+    outcomes = [record["outcome"] for record in read_events(tmp_path)]
+    assert outcomes == ["accepted"] * 6
+
+
+# ---------------------------------------------------------------------------
 # duplicate
 # ---------------------------------------------------------------------------
 
@@ -379,10 +572,8 @@ async def test_duplicate_seq_regression(
     service: ControllerService, ditto: FakeDittoClient, tmp_path: Path
 ) -> None:
     await service.process(make_inbound(make_payload("smartwatch", seq=5)))
-    # fresh message_id but non-increasing seq
-    stale = make_payload(
-        "smartwatch", seq=4, message_id=make_message_id(RUN_ID, WATCH, 400)
-    )
+    # Never-seen message_id (seq 4 was skipped) but non-increasing seq.
+    stale = make_payload("smartwatch", seq=4)
     await service.process(make_inbound(stale))
     records = read_events(tmp_path)
     assert [record["outcome"] for record in records] == ["accepted", "duplicate"]

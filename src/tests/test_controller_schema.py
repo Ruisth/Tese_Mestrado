@@ -123,6 +123,87 @@ def test_bad_schema_version_rejected(repository: SchemaRepository) -> None:
         repository.validate(payload)
 
 
+# ---------------------------------------------------------------------------
+# ts: RFC 3339 UTC (CONTRACTS.md section 2)
+# ---------------------------------------------------------------------------
+
+
+def test_date_time_format_is_asserted_not_merely_annotated(
+    repository: SchemaRepository,
+) -> None:
+    """Every validator must carry a format checker that knows ``date-time``.
+
+    Without one, ``"format": "date-time"`` is a bare annotation. Note that
+    ``jsonschema``'s stock ``FormatChecker`` does not register ``date-time``
+    unless the optional ``rfc3339-validator`` package is installed, which we
+    must not depend on, so the repository supplies its own checker.
+    """
+    for device_type in DEVICE_TYPES:
+        checker = repository.validator_for(device_type).format_checker
+        assert checker is not None, f"{device_type} validator has no format checker"
+        assert "date-time" in checker.checkers
+
+
+@pytest.mark.parametrize(
+    "ts",
+    [
+        "2026-08-07T12:00:00Z",  # no fractional seconds
+        "2026-08-07T12:00:00.7Z",  # tenths
+        "2026-08-07T12:00:00.789Z",  # milliseconds, the simulator's resolution
+        "2026-08-07T12:00:00.123456Z",  # microseconds, the pattern's maximum
+        "2024-02-29T23:59:59.999Z",  # leap day in a leap year
+        "2026-12-31T00:00:00Z",
+    ],
+)
+@pytest.mark.parametrize("device_type", DEVICE_TYPES)
+def test_valid_rfc3339_timestamp_accepted(
+    repository: SchemaRepository, device_type: str, ts: str
+) -> None:
+    repository.validate(make_payload(device_type, ts=ts))
+
+
+@pytest.mark.parametrize(
+    "ts",
+    [
+        "2026-99-40T25:61:61Z",  # impossible month, day, hour, minute, second
+        "2026-13-01T00:00:00Z",  # month 13
+        "2026-00-10T00:00:00Z",  # month 0
+        "2026-02-30T12:00:00Z",  # 30 February never exists
+        "2025-02-29T12:00:00Z",  # 2025 is not a leap year
+        "2026-04-31T12:00:00Z",  # April has 30 days
+        "2026-08-00T12:00:00Z",  # day 0
+        "2026-08-07T24:00:00Z",  # hour 24
+        "2026-08-07T12:60:00Z",  # minute 60
+        "2026-08-07T12:00:61Z",  # second 61
+    ],
+)
+def test_impossible_calendar_or_clock_timestamp_rejected(
+    repository: SchemaRepository, ts: str
+) -> None:
+    """These all satisfy the envelope's digit pattern but are not real instants."""
+    with pytest.raises(SchemaValidationError):
+        repository.validate(make_payload("smartwatch", ts=ts))
+
+
+@pytest.mark.parametrize(
+    "ts",
+    [
+        "2026-08-07T12:00:00",  # no zone designator
+        "2026-08-07T12:00:00+01:00",  # non-UTC offset
+        "2026-08-07T12:00:00z",  # lowercase suffix
+        "2026-08-07 12:00:00Z",  # space instead of 'T'
+        "2026-08-07T12:00:00.Z",  # empty fraction
+        "2026-08-07T12:00:00.1234567Z",  # more than six fractional digits
+        "not-a-timestamp",
+    ],
+)
+def test_non_rfc3339_utc_timestamp_rejected(
+    repository: SchemaRepository, ts: str
+) -> None:
+    with pytest.raises(SchemaValidationError):
+        repository.validate(make_payload("smartwatch", ts=ts))
+
+
 def test_error_carries_json_paths(repository: SchemaRepository) -> None:
     payload = make_payload("smartwatch")
     payload["heart_rate_bpm"] = 24

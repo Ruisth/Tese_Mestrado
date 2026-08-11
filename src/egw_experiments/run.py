@@ -80,7 +80,13 @@ External conditions (audit 9.6): ``cold_start``, ``twin_creation`` and
 (operator-produced: ``{run_id, condition, samples:[{label, started_utc,
 ended_utc, duration_s}], method, notes}``) plus optional ``--external-logs
 <dir>``, producing the standard manifest + SHA256SUMS so the single
-analysis script covers them (claim C15).
+analysis script covers them (claim C15). The samples are validated before
+anything is written: each ``duration_s`` must be a real, finite,
+non-negative number (a bool is not a number and ``nan``/``inf`` are not
+measurements), and each sample of a FUNCTIONAL external condition
+(``qemu_boots``, which plan 5.1 keeps functional-only) must carry an
+``outcome`` of ``"pass"``/``"fail"`` — the boot result IS the measurement,
+so a sample without one seals no evidence.
 
 Controller restart hook (audit 9.5, claim C12): ``--restart-cmd`` is a
 command template (``{run_id}`` placeholder) executed exactly once,
@@ -161,6 +167,7 @@ incomplete run must never look like sealed evidence.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shlex
 import shutil
@@ -192,6 +199,7 @@ from .environment import (
 )
 from .plan_gen import load_campaign_plan, plan_to_json
 from .protocol import (
+    CONDITIONS,
     CONFIRMATION_WINDOW_S,
     PROTOCOL_VERSION,
     TIMED_CONDITION_IDS,
@@ -266,6 +274,25 @@ SIMULATOR_MANDATORY_ARTIFACTS: tuple[str, ...] = (
     "resources.csv",
 )
 EXTERNAL_MANDATORY_ARTIFACTS: tuple[str, ...] = (MANIFEST_FILENAME, "timings.json")
+
+#: Functional outcome vocabulary of an external sample, spelled EXACTLY as
+#: ``egw_experiments.analyze`` reads it: that module lists ``outcome``
+#: verbatim in ``external_runs.csv`` and turns anything it does not
+#: recognise into ``"unspecified"``. A value outside this tuple is therefore
+#: no boot result at all, and the runner must not seal it.
+EXTERNAL_FUNCTIONAL_OUTCOMES: tuple[str, ...] = ("pass", "fail")
+
+#: External conditions whose evidence is FUNCTIONAL rather than timed, i.e.
+#: whose measurement IS the pass/fail outcome. Derived from the frozen
+#: protocol so it cannot drift from it: an external condition that may not
+#: support performance claims (plan 5.1 — ``qemu_boots``) is measured by its
+#: outcome, and a sample without one discharges nothing. Gate G1 is
+#: evidenced by exactly these runs.
+FUNCTIONAL_EXTERNAL_CONDITION_IDS: frozenset[str] = frozenset(
+    c.id
+    for c in CONDITIONS
+    if c.runner == "external" and not c.performance_claims_allowed
+)
 
 #: Conditions for which GET /metrics sampling is MANDATED instrumentation
 #: (protocol.py, "Controller-metrics reconciliation": dropout_reconnect,
@@ -1203,8 +1230,50 @@ def _execute_restart_cmd(template: str, run_id: str, record: dict[str, Any]) -> 
 # ---------------------------------------------------------------------------
 
 
-def load_external_timings(path: str | Path) -> dict[str, Any]:
-    """Load and structurally validate an operator-produced timings.json.
+def _duration_defect(value: Any) -> str | None:
+    """Classify a ``duration_s`` value; None means it is acceptable.
+
+    Strict rule (sprint P5.4 defect 4, extended to this third path): a
+    duration must be a REAL number — ``bool`` is a subclass of ``int``, so
+    ``isinstance(value, (int, float))`` alone accepts ``True``/``False`` —
+    that is FINITE (``json.loads`` reads the bare ``NaN``/``Infinity``
+    tokens a hand-written file may carry, and neither ``nan < 0`` nor
+    ``inf < 0`` is True, so a bare comparison lets both through) and
+    NON-NEGATIVE. The analysis readers and the resources ingest already
+    apply exactly these semantics.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "not a number"
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        # JSON integers are unbounded; one too large for a float is not a
+        # duration either (and float() on it raises rather than returning inf).
+        return "not finite (too large)"
+    if not math.isfinite(number):
+        return "not finite"
+    if number < 0:
+        return "negative"
+    return None
+
+
+def _is_functional_external_condition(condition: Any) -> bool:
+    """True when ``condition`` names a functional (outcome-measured) one.
+
+    Accepts the plan condition_id and its run-id prefix alike (the operator
+    files say ``qemu_boot``, the plan says ``qemu_boots``), reusing the same
+    tolerance as the condition match itself.
+    """
+    return any(
+        _condition_matches(condition, functional_id)
+        for functional_id in FUNCTIONAL_EXTERNAL_CONDITION_IDS
+    )
+
+
+def load_external_timings(
+    path: str | Path, *, condition_id: str | None = None
+) -> dict[str, Any]:
+    """Load and validate an operator-produced timings.json.
 
     Expected shape (documented in the experiments README)::
 
@@ -1213,7 +1282,18 @@ def load_external_timings(path: str | Path) -> dict[str, Any]:
                       "ended_utc": "...", "duration_s": 12.3}, ...],
          "method": "...", "notes": "..."}
 
-    Raises ValueError with a human-readable message on any problem.
+    Every sample needs a real, finite, non-negative ``duration_s``
+    (:func:`_duration_defect`). Samples of a FUNCTIONAL external condition
+    (:data:`FUNCTIONAL_EXTERNAL_CONDITION_IDS` — QEMU boots, which plan 5.1
+    keeps functional-only, so pass/fail IS the measurement) additionally
+    need an ``outcome`` from :data:`EXTERNAL_FUNCTIONAL_OUTCOMES`; without
+    one the run carries no boot result and must never be sealed as evidence
+    of a boot. ``condition_id`` is the PLAN's condition for this run and
+    takes precedence over the file's own ``condition`` field; when it is
+    omitted (direct calls) the file's field decides.
+
+    Raises ValueError with a human-readable message on any problem: the
+    message names the offending sample and value.
     """
     path = Path(path)
     try:
@@ -1230,14 +1310,30 @@ def load_external_timings(path: str | Path) -> dict[str, Any]:
     samples = obj["samples"]
     if not isinstance(samples, list) or not samples:
         raise ValueError("timings.json 'samples' must be a non-empty list")
+    condition = condition_id if condition_id is not None else obj["condition"]
+    functional = _is_functional_external_condition(condition)
     for i, sample in enumerate(samples):
         if not isinstance(sample, dict):
             raise ValueError(f"timings.json sample {i} is not an object")
         duration = sample.get("duration_s")
-        if not isinstance(duration, (int, float)) or duration < 0:
+        defect = _duration_defect(duration)
+        if defect is not None:
             raise ValueError(
-                f"timings.json sample {i} needs a numeric duration_s >= 0"
+                f"timings.json sample {i} needs a numeric duration_s >= 0: "
+                f"{duration!r} is {defect}"
             )
+        if functional:
+            outcome = sample.get("outcome")
+            if outcome not in EXTERNAL_FUNCTIONAL_OUTCOMES:
+                raise ValueError(
+                    f"timings.json sample {i} "
+                    f"(label {sample.get('label')!r}) of functional condition "
+                    f"{condition!r} needs an 'outcome' of "
+                    + "/".join(repr(o) for o in EXTERNAL_FUNCTIONAL_OUTCOMES)
+                    + f", got {outcome!r}: the boot result IS the measurement "
+                    "(plan 5.1), and any other value is read by the analysis "
+                    "as 'unspecified', i.e. as no result at all"
+                )
     return obj
 
 
@@ -1267,8 +1363,15 @@ def execute_external_run(
     standard manifest and SHA256SUMS, and marks the plan entry completed.
     """
     run_id = entry["run_id"]
+    condition_id = entry.get("condition_id")
     try:
-        timings = load_external_timings(external_timings)
+        # The PLAN's condition decides which rules apply to the samples: a
+        # functional condition (QEMU boots) needs a pass/fail outcome per
+        # sample, a timed one (cold_start, twin_creation) does not.
+        timings = load_external_timings(
+            external_timings,
+            condition_id=condition_id if isinstance(condition_id, str) else None,
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -1279,7 +1382,6 @@ def execute_external_run(
             file=sys.stderr,
         )
         return 2
-    condition_id = entry.get("condition_id")
     if not _condition_matches(timings["condition"], str(condition_id)):
         print(
             f"error: timings.json condition {timings['condition']!r} does "

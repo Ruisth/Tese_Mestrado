@@ -36,6 +36,10 @@ Todos os payloads de telemetria incluem (ver `schemas/telemetry-envelope-v1.sche
 
 **Namespace UUID v5:** `6b1a3f52-8c1e-5e2b-9f0d-c2d7a1e4b8a0` (constante do projeto,
 `egw_simulator.envelope.EGW_UUID_NAMESPACE`). Nome: `"{run_id}:{device_uuid}:{seq}"`.
+O controlador repete a mesma constante em `egw_controller.service.EGW_UUID_NAMESPACE`:
+simulador e controlador são deliverables separados e só o controlador entra na imagem
+de deployment, pelo que o controlador nunca importa o simulador em execução. Os testes
+do controlador afirmam a igualdade das duas constantes, impedindo divergência silenciosa.
 
 ## 3. Medições por dispositivo (campos no nível de topo, junto ao envelope)
 
@@ -90,6 +94,14 @@ as primeiras mensagens de cada execução medida, corrompendo a taxa de entrega.
   chamada ao Ditto; conversão para merge-patch e `PATCH /api/2/things/{thingId}`
   (`content-type: application/merge-patch+json`); criação de policy+thing no
   primeiro evento de um `device_uuid`.
+- **Verificação do `message_id`** (secção 2), depois da validação de schema e
+  **antes** de consultar a cache de idempotência e de semear ou aplicar patch a
+  qualquer twin: o controlador recalcula o UUID v5 de
+  `run_id:device_uuid:seq` e rejeita a divergência (`outcome: rejected`, sem
+  qualquer chamada ao Ditto). O schema só prova a *forma* de um UUID v5; sem
+  esta verificação qualquer produtor poderia submeter um identificador
+  arbitrário mas bem formado e anular a deteção de repetições da secção 4, que
+  assume `message_id` como função pura daqueles três campos.
 - Retry limitado (default 3 tentativas, backoff exponencial 200 ms base) apenas
   para erros transitórios (timeout, 5xx, ligação); 4xx não é retryable.
 - Logging estruturado JSON em stderr; contadores: `accepted`, `rejected`,
