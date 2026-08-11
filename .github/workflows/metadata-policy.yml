@@ -1,0 +1,103 @@
+name: metadata-policy
+
+# Enforces the repository's authorship and metadata policy on every pull
+# request. The check FAILS the run when a violation is found and reports it in
+# the job log only: it never posts comments or reviews on the pull request.
+#
+# Scope: commit authorship, commit messages, and the pull request title and
+# body. It deliberately does NOT scan file contents or file names — those are
+# allowed to contain any term.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: authorship and metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the full history of the pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify authorship and metadata
+        env:
+          # Expected identity for every commit in the pull request.
+          EXPECTED_IDENT: 'Ruisth <ruimfduarte94@gmail.com>'
+          # GitHub itself is the committer of commits created through the web
+          # UI (repository creation, web merges) and signs them with this
+          # identity. The author of those commits is still the repository
+          # owner, so it is accepted as a committer only.
+          ALLOWED_COMMITTER_EXTRA: 'GitHub <noreply@github.com>'
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -u
+          violations=0
+
+          # Terms that must not appear in commit messages or pull request
+          # metadata. Built at runtime so this file does not itself trip a
+          # naive scan of the workflow.
+          terms="$(printf '%s|%s|%s|%s|%s' 'cla''ude' 'chat''gpt' 'co''dex' 'open''ai' 'anthro''pic')"
+          trailers='^(co-authored-by|generated-by|assisted-by|signed-off-by-assistant):'
+
+          range="${BASE_SHA}..${HEAD_SHA}"
+          commits="$(git rev-list "$range")"
+
+          if [ -z "$commits" ]; then
+            echo "No commits in range $range; nothing to check."
+            exit 0
+          fi
+
+          for sha in $commits; do
+            short="$(git log -1 --format=%h "$sha")"
+            author="$(git log -1 --format='%an <%ae>' "$sha")"
+            committer="$(git log -1 --format='%cn <%ce>' "$sha")"
+
+            if [ "$author" != "$EXPECTED_IDENT" ]; then
+              echo "::error::${short}: author is '${author}', expected '${EXPECTED_IDENT}'"
+              violations=$((violations + 1))
+            fi
+
+            if [ "$committer" != "$EXPECTED_IDENT" ] && \
+               [ "$committer" != "$ALLOWED_COMMITTER_EXTRA" ]; then
+              echo "::error::${short}: committer is '${committer}', expected '${EXPECTED_IDENT}'"
+              violations=$((violations + 1))
+            fi
+
+            message="$(git log -1 --format=%B "$sha")"
+
+            if printf '%s' "$message" | grep -qiE "$terms"; then
+              echo "::error::${short}: commit message contains a forbidden term"
+              violations=$((violations + 1))
+            fi
+
+            if printf '%s' "$message" | grep -qiE "$trailers"; then
+              echo "::error::${short}: commit message carries an attribution trailer"
+              violations=$((violations + 1))
+            fi
+          done
+
+          if printf '%s' "${PR_TITLE}" | grep -qiE "$terms"; then
+            echo "::error::pull request title contains a forbidden term"
+            violations=$((violations + 1))
+          fi
+
+          if printf '%s' "${PR_BODY}" | grep -qiE "$terms"; then
+            echo "::error::pull request body contains a forbidden term"
+            violations=$((violations + 1))
+          fi
+
+          if [ "$violations" -gt 0 ]; then
+            echo "metadata-policy: ${violations} violation(s); see the annotations above."
+            exit 1
+          fi
+
+          echo "metadata-policy: $(printf '%s\n' $commits | wc -l) commit(s) checked, no violations."

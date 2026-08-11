@@ -1,0 +1,23 @@
+title: "Edge-anchored personal digital twins on a reproducible ARM64 gateway"
+authors: ["Rui Duarte"]
+venue: "to be decided"
+word_limit: 3500
+status: deferred        # plan section 4.5: extracted from the dissertation AFTER submission
+figs_dir: figs
+bibfile: refs/references.bib
+style: "IEEE"
+
+order:
+  - sections/01_abstract.md
+  - sections/02_intro.md
+  - sections/03_related-work.md
+  - sections/04_method.md
+  - sections/05_results.md
+  - sections/06_discussion.md
+  - sections/07_conclusion.md
+
+constraints:
+  - "Deferred until the dissertation is submitted; no drafting on the critical path."
+  - "Cite peer-reviewed records verified against their primary source; DOIs where they exist."
+  - "No result appears here that is not already backed by archived evidence in the dissertation."
+  - "Terminology question recorded in refs/venue-policy.md, to be settled with the supervisor."

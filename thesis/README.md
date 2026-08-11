@@ -6,6 +6,29 @@ is written in English; the Resumo is in Portuguese (integrated plan, header +
 §4.3). The normative plan for structure and content is
 `../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` §6.
 
+## Two representations of the same dissertation
+
+The repository template asks for a Markdown-first `thesis/sections/` tree; the
+institution requires the LaTeX template and that is what is submitted. Both
+exist here, with one rule that keeps them from drifting:
+
+| Tree | Role |
+|---|---|
+| `latex/` | **The single edited source.** Everything is written here. |
+| `sections/` | **Generated mirror.** Overwritten on every generation run. |
+
+```bash
+python thesis/tools/generate_sections.py     # requires pandoc
+```
+
+Every generated file carries a `GENERATED FILE - DO NOT EDIT` banner naming its
+source. The section-by-section mapping, and the three places where the
+dissertation's six chapters do not line up with the template's eleven sections,
+are documented in `manifest.yaml`.
+
+Regenerate the mirror whenever the LaTeX changes, in the same commit — a stale
+mirror is worse than no mirror, because it looks current.
+
 ## Layout
 
 ```
