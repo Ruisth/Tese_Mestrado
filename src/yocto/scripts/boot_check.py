@@ -55,7 +55,7 @@ DONE = "EGW_CHECK_DONE_{}"
 CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
     (
         "kernel_and_release",
-        "uname -a; cat /etc/os-release | head -3",
+        "uname -a; head -n 3 /etc/os-release",
         lambda out: "aarch64" in out,
         True,
     ),
@@ -66,8 +66,10 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
         True,
     ),
     (
-        "multi_user_target",
-        "systemctl is-active multi-user.target",
+        "default_target_active",
+        "systemctl get-default; systemctl is-active \"$(systemctl get-default)\"",
+        # The image is free to choose its default target, so assert that the
+        # DEFAULT one is active rather than assuming multi-user.target.
         lambda out: re.search(r"^\s*active\s*$", out, re.M) is not None,
         True,
     ),
@@ -85,7 +87,7 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
     ),
     (
         "container_runtime",
-        "systemctl start docker || true; sleep 5; docker info 2>&1 | head -20",
+        "systemctl start docker || true; sleep 5; docker info 2>&1 | head -n 20",
         lambda out: "Server Version" in out,
         True,
     ),
@@ -96,6 +98,10 @@ CHECKS: list[tuple[str, str, "callable[[str], bool]", bool]] = [
         True,
     ),
 ]
+
+#: Checks that legitimately take longer than CMD_TIMEOUT_S: importing and
+#: running a container image under full ARM64 emulation is not quick.
+SLOW_CHECKS = {"container_smoke": 600.0, "container_runtime": 420.0}
 
 
 def utc_now() -> str:
@@ -214,12 +220,21 @@ def main() -> int:
                     record["error"] = "the image asked for a password; debug-tweaks not in effect"
                     raise SystemExit(1)
 
+            # Kernel messages go to this same console. Container operations
+            # produce a burst of them (bridge, veth, netfilter), which drowns
+            # the command output the checks are matched against. Raise the
+            # console log level so only genuine emergencies interrupt.
+            console.send("dmesg -n 1")
+            # A narrow terminal wraps long command lines, which corrupts both
+            # the echoed command and the completion marker.
+            console.send("stty cols 1000 rows 1000 2>/dev/null || true")
             console.send("export PS1='EGW# '")
             console.read_until(r"EGW# ", 30)
 
             for index, (identifier, command, predicate, required) in enumerate(CHECKS):
                 print(f"[driver] check {index + 1}/{len(CHECKS)}: {identifier}")
-                out = console.run_check(index, command, CMD_TIMEOUT_S)
+                timeout = SLOW_CHECKS.get(identifier, CMD_TIMEOUT_S)
+                out = console.run_check(index, command, timeout)
                 passed = bool(predicate(out))
                 record["checks"].append(
                     {
