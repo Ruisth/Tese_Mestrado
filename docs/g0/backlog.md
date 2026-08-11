@@ -1,147 +1,156 @@
-# Backlog acionável por gate (G0→G7)
+# Actionable backlog by gate (G0→G7)
 
-> **Este ficheiro contém apenas ações**: o que falta fazer, a evidência esperada,
-> as dependências e as regras de corte de cada gate (plano §8/§8.1). **O estado de
-> cada entregável vive exclusivamente em [`../../PROGRESS.md`](../../PROGRESS.md)**
-> (fonte única de estado — auditoria externa de 08/08/2026, §5.1); este ficheiro
-> não usa a taxonomia de estados do plano. Itens cujo artefacto já existe no
-> repositório estão marcados «implementado — por verificar/aceitar (ver
-> PROGRESS)»; isso significa apenas que o código/documento existe, nunca que o
-> gate está fechado.
+> **This file contains actions only**: what is left to do, the expected evidence,
+> the dependencies and the cutting rules of each gate (plan §8/§8.1). **The state
+> of every deliverable lives exclusively in [`../../PROGRESS.md`](../../PROGRESS.md)**
+> (single source of state — external audit of 2026-08-08, §5.1); this file does
+> not use the plan's state taxonomy. Items whose artefact already exists in the
+> repository are marked "implemented — verification/acceptance pending (see
+> PROGRESS)"; that means only that the code/document exists, never that the gate
+> is closed. Items already executed are marked "done" with the path of their
+> sealed evidence — that too says nothing about gate acceptance.
 >
-> Dependências externas recorrentes: **requer WSL2 ext4** = Ubuntu 24.04 no WSL2
-> com build em filesystem Linux (guia: [`../setup/wsl2_ubuntu_yocto.md`](../setup/wsl2_ubuntu_yocto.md));
-> **requer VM ARM** = VM ARM64 nativa tipo Hetzner CAX21 (checklist:
-> [`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md)).
+> Recurring external dependencies: **requires WSL2 ext4** = Ubuntu 24.04 on WSL2
+> with the build on a Linux filesystem (guide: [`../setup/wsl2_ubuntu_yocto.md`](../setup/wsl2_ubuntu_yocto.md));
+> **requires ARM VM** = a native ARM64 VM on a dedicated family (`Dplsv5`, `c6g`,
+> `m6g`); the checklist ([`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md))
+> remains the setup reference, but the Hetzner CAX line it describes is sold out
+> — see R28 (real-execution round) in [`risks.md`](risks.md).
 
-Atualizado: 2026-08-10 (bloco P5.4: retiradas as métricas e as afirmações de
-estado que deixaram de ser verdadeiras; este ficheiro não repete números —
-todos os números vivem no PROGRESS, com a evidência selada correspondente).
+Updated: 2026-08-11 (translated into British English; the WSL2 installation, the
+`egw-image` build and the two QEMU bring-up boots are recorded as done with
+their evidence path, so the backlog stops asking for work that has been
+executed; this file still carries no figures and no state — both live in
+PROGRESS, with the corresponding sealed evidence).
 
 ---
 
-## G0 — Âmbito e ambiente (10/08)
+## G0 — Scope and environment (2026-08-10)
 
-Regra de corte (§8.1): VM criada e acesso `aarch64` validado a 10/08. Sem VM nesse
-dia, mudar de fornecedor; sem VM em 12/08, comunicar risco aos orientadores.
+Cutting rule (§8.1): VM created and `aarch64` access validated on 2026-08-10. With
+no VM that day, change provider; with no VM on 2026-08-12, report the risk to the
+supervisors.
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Fechar âmbito, RQs e premissas em documento | implementado — por verificar/aceitar (ver PROGRESS) | [`ambito_e_rqs.md`](ambito_e_rqs.md) validado pelos orientadores | Resposta dos orientadores |
-| Enviar email de âmbito aos orientadores e pedir regras administrativas da extensão (prazo 09/08; regras até 10/08) | draft implementado — envio por executar (ver PROGRESS) | Email enviado (cópia e data no LOG); draft em [`email_orientadores_G0.md`](email_orientadores_G0.md) | Ação do estudante |
-| Reunião de âmbito com os orientadores (proposta: 10/08) | — | Ata/registo da decisão no LOG | Resposta dos orientadores |
-| Instalar Ubuntu 24.04 LTS no WSL2 com build dir em ext4 (prazo 09–10/08) | — | `wsl -l -v`; `df -h` do diretório de build; log da instalação | Ação do estudante; guia em `docs/setup/` |
-| Criar VM ARM64 (Hetzner CAX21 ou equivalente) e validar `uname -m` = `aarch64` (prazo 10/08) | — | Output de `uname -a`, `lscpu`, `/etc/os-release` gravado no manifesto de ambiente | Conta/pagamento do estudante; checklist em `docs/setup/` |
-| Semear matriz claim→evidência | implementado — por verificar/aceitar (ver PROGRESS) | [`../claim_evidence_matrix.csv`](../claim_evidence_matrix.csv) com claims `Pendente — sem evidência` | — |
-| Backlog e registo de riscos criados | implementado — por verificar/aceitar (ver PROGRESS) | Este ficheiro + [`riscos.md`](riscos.md) mantidos a cada gate | — |
-| Quarentenar/remover resultados sem evidência da dissertação ativa | implementado — por verificar/aceitar (ver PROGRESS) | Cap. 5 sem números não suportados; nota no LOG | — |
+| Close the scope, RQs and premises in a document | implemented — verification/acceptance pending (see PROGRESS) | [`scope_and_rqs.md`](scope_and_rqs.md) validated by the supervisors | Supervisors' reply |
+| Send the scope email to the supervisors and ask for the administrative rules of the extension (deadline 2026-08-09, **elapsed**; the draft now asks for the rules by 2026-08-21) | draft implemented and, on 2026-08-12, extended to carry the plan §8.1 escalation of the missing ARM64 VM — **sending still to be executed** (see PROGRESS) | Email sent (copy and date in the LOG); draft in [`supervisor_email_g0.md`](supervisor_email_g0.md) | Student action |
+| Scope meeting with the supervisors (proposed: 2026-08-10) | — | Minutes/record of the decision in the LOG | Supervisors' reply |
+| Install Ubuntu 24.04 LTS on WSL2 with the build directory on ext4 (deadline 2026-08-09/2026-08-10) | **done** — WSL2 with Ubuntu 24.04.4 LTS operational on ext4; it is the host that built the image. Install by name (`-d Ubuntu-24.04`): the plain `-d Ubuntu` now yields Ubuntu 26.04, outside the tested envelope (R30) | `wsl -l -v`; `df -h` of the build directory; build logs in `docs/evidence/g1-yocto-qemu/` | Student action; guide in `docs/setup/` |
+| Create the ARM64 VM (Hetzner CAX21 or equivalent) and validate `uname -m` = `aarch64` (deadline 2026-08-10) | **blocked — dedicated ARM64 market unavailability** (R28, materialised): Oracle, Hetzner and Azure for Students all failed; quota requested and AWS `c6g.xlarge` kept as fallback. Rule §8.1 applies | Output of `uname -a`, `lscpu`, `/etc/os-release` recorded in the environment manifest | Student's account/payment; checklist in `docs/setup/` |
+| Seed the claim→evidence matrix | implemented — verification/acceptance pending (see PROGRESS) | [`../claim_evidence_matrix.csv`](../claim_evidence_matrix.csv) with every claim carrying its real evidence state | — |
+| Backlog and risk register created | implemented — verification/acceptance pending (see PROGRESS) | This file + [`risks.md`](risks.md) maintained at every gate | — |
+| Quarantine/remove results without evidence from the active dissertation | implemented — verification/acceptance pending (see PROGRESS) | Ch. 5 with no unsupported numbers; note in the LOG | — |
 
-## G1 — Yocto/QEMU funcional (16/08)
+## G1 — Functional Yocto/QEMU (2026-08-16)
 
-Regra de corte (§8.1): imagem própria arranca duas vezes e executa um container.
-Se falhar, reduzir a imagem ao sistema mínimo com runtime e mover o deploy para
-script externo. Sem imagem funcional em 20/08, discutir extensão/reformulação.
+Cutting rule (§8.1): the image boots twice and runs a container. If it fails, reduce
+the image to a minimal system with a runtime and move the deployment to an external
+script. With no functional image on 2026-08-20, discuss extension/reformulation.
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Congelar VM ARM (specs registadas, acesso estável) | — | Manifesto de ambiente (fornecedor, região, CPU, kernel, SO, limitação vCPU partilhado) | Requer VM ARM (G0) |
-| Manifesto `kas` para `qemuarm64` com tags/commits exatos (Scarthgap 5.0.19) | implementado — por verificar/aceitar (ver PROGRESS) | `kas dump` reproduzível a partir de checkout limpo | — |
-| Build de `egw-image` em WSL2 ext4 | — | Log completo do BitBake; `SHA256SUMS` dos artefactos | Requer WSL2 ext4; >=120 GB livres |
-| Dois boots QEMU com systemd, rede e runtime OCI | — | `boot1.log`, `boot2.log` (systemd running, ping, `podman/docker run` de container de teste) | Build concluído |
-| Verificar arquiteturas OCI das imagens da stack (`linux/arm64` por digest) | lock `images.lock.env` implementado — falta output de `manifest inspect` na VM (ver PROGRESS) | Output de `docker manifest inspect` por imagem, arquivado | Requer VM ARM |
-| Introdução/RQs da dissertação em revisão; protocolo da revisão executado e bibliografia auditada | protocolo redigido e registos preliminares preenchidos — falta executar as queries institucionais (IEEE Xplore, ACM DL, Scopus/WoS) e a passagem a full text das fontes ainda em título/resumo (ver PROGRESS e risco R17) | Capítulo 1 draft; queries institucionais e decisões de seleção registadas em `thesis/research/`; `references.bib` auditado | Acesso institucional (ação do estudante) |
+| Freeze the ARM VM (specs recorded, stable access) | blocked by R28 — the measurement VM does not exist | Environment manifest (provider, region, CPU, kernel, OS, shared-vCPU limitation) | Requires ARM VM (G0) |
+| `kas` manifest for `qemuarm64` with exact tags/commits (Scarthgap 5.0.19) | implemented and exercised by the real build — verification/acceptance pending (see PROGRESS) | `kas dump` reproducible from a clean checkout | — |
+| Build `egw-image` on WSL2 ext4 | **done (2026-08-11)** — 5715 BitBake tasks, all successful | Sealed in `docs/evidence/g1-yocto-qemu/`: `kas-checkout.log`, `kas-build.log`, `image-packages.manifest` and `SHA256SUMS` | Requires WSL2 ext4; >=120 GB free |
+| Two QEMU boots with systemd, networking and OCI runtime | **done (2026-08-11)** — two bring-up boots driven by the automated driver `src/yocto/scripts/boot_check.py`, each with 6 of 6 required assertions passed, 3 of 3 supplementary observations recorded and a clean power-down confirmed; the observations assert nothing and are not counted as verification. Gate acceptance remains a separate decision (see PROGRESS) | Sealed in `docs/evidence/g1-yocto-qemu/`: `boot1.log`, `boot1.result.json`, `boot2.log`, `boot2.result.json`, `SHA256SUMS` | Build completed |
+| Check the OCI architectures of the stack images (`linux/arm64` by digest) | `images.lock.env` lock implemented — the `manifest inspect` output on the VM is still missing (see PROGRESS) | Output of `docker manifest inspect` per image, archived | Requires ARM VM |
+| Dissertation introduction/RQs under revision; review protocol executed and bibliography audited | protocol written and preliminary records filled in — the institutional queries (IEEE Xplore, ACM DL, Scopus/WoS) and the move to full text of the sources still at title/abstract are outstanding (see PROGRESS and risk R17) | Chapter 1 draft; institutional queries and selection decisions recorded in `thesis/research/`; `references.bib` audited | Institutional access (student action) |
 
-## G2 — Vertical slice (23/08)
+## G2 — Vertical slice (2026-08-23)
 
-Regra de corte (§8.1): um payload percorre MQTT→controlador→Ditto e é recuperado
-pela API. Se falhar, cortar APIs auxiliares e toda a identidade. Sem E2E em 25/08,
-declarar risco sério para setembro.
+Cutting rule (§8.1): a payload travels MQTT→controller→Ditto and is retrieved through
+the API. If it fails, cut the auxiliary APIs and the whole of identity. With no E2E on
+2026-08-25, declare a serious risk for September.
 
-| Ação | Nota | Evidência esperada | Dependências |
+**Single blocking dependency: the ARM64 VM does not exist (R28, materialised).**
+Every action below waits on it.
+
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Compose ARM64 mínimo (Mosquitto TLS 8883, Ditto 3.9.4 gateway/policies/things, MongoDB, controlador) | implementado — por verificar/aceitar (ver PROGRESS); `.env`, password file e certificados operacionais por criar | `docker compose up` limpo na VM; health/readiness reais | Requer VM ARM |
-| Controlador MQTT→Ditto (validação por schema, idempotência, retry, logging, endpoints) | implementado — por verificar/aceitar (ver PROGRESS) | Ligação TLS a Mosquitto real; twin atualizado num Ditto real | Requer VM ARM |
-| Vertical slice smartwatch→MQTT→controlador→Ditto | — | Trace reproduzível: `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` com estado correto | Compose na VM ARM; controlador |
-| CLI do simulador com cenário `smoke` | implementado — por verificar/aceitar (ver PROGRESS) | `python -m egw_simulator run --scenario smoke ...` contra broker real, com manifesto de execução | Requer VM ARM |
-| Testes iniciais (unitários + integração local) | unitários implementados (Windows) — por verificar em Linux e por criar a integração real (ver PROGRESS e risco R21) | `pytest` verde em Linux com relatório persistido; >=1 teste live de integração | Python 3.11+ em ambiente Linux |
-| Capítulos 1–2; metodologia iniciada; diagrama lógico | draft de orientador do cap. 2 pronto; restantes capítulos por completar (ver PROGRESS) | Ficheiros em `thesis/` e `diagrams/` com texto substancial | — |
+| Minimal ARM64 compose (Mosquitto TLS 8883, Ditto 3.9.4 gateway/policies/things, MongoDB, controller) | implemented — verification/acceptance pending (see PROGRESS); `.env`, password file and operational certificates still to be created | Clean `docker compose up` on the VM; real health/readiness | Requires ARM VM |
+| MQTT→Ditto controller (schema validation, idempotency, retry, logging, endpoints) | implemented — verification/acceptance pending (see PROGRESS) | TLS connection to a real Mosquitto; twin updated in a real Ditto | Requires ARM VM |
+| Vertical slice smartwatch→MQTT→controller→Ditto | — | Reproducible trace: `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` with the correct state | Compose on the ARM VM; controller |
+| Simulator CLI with the `smoke` scenario | implemented — verification/acceptance pending (see PROGRESS) | `python -m egw_simulator run --scenario smoke ...` against a real broker, with a run manifest | Requires ARM VM |
+| Initial tests (unit + local integration) | unit tests implemented (Windows) — still to be verified on Linux, and the real integration tests still to be created (see PROGRESS and risk R21) | `pytest` green on Linux with a persisted report; >=1 live integration test | Python 3.11+ in a Linux environment |
+| Chapters 1–2; methodology started; logical diagram | supervisor draft of ch. 2 ready; the remaining chapters still to be completed (see PROGRESS) | Files in `thesis/` and `diagrams/` with substantial text | — |
 
-## G3 — Feature freeze P0 e decisão ACA-Py (30/08)
+## G3 — P0 feature freeze and ACA-Py decision (2026-08-30)
 
-Regra de corte (§8.1): ACA-Py só avança se build/boot QEMU, deploy ARM limpo, três
-dispositivos, cenários, testes, métricas e soak estiverem completos e sem defeitos
-P0. Cortar ao fim de 12 h ou em 03/09, o que ocorrer primeiro.
+Cutting rule (§8.1): ACA-Py only proceeds if the QEMU build/boot, a clean ARM
+deployment, three devices, the scenarios, tests, metrics and soak are complete and free
+of P0 defects. Cut after 12 h or on 2026-09-03, whichever comes first.
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Três wearables concorrentes no simulador | implementado — por verificar em execução real (ver PROGRESS) | Execução com `--devices smartwatch,smart_ring,smart_clothing`; três twins atualizados | Requer VM ARM |
-| Todos os cenários (`smoke`, `nominal`, `load-sweep`, `dropout-reconnect`, `invalid-payload`, `soak`) | implementados no simulador — demonstração live por executar (ver PROGRESS) | Execuções registadas com manifesto por cenário; desconexão real demonstrada em execução live | Requer VM ARM |
-| Reconnect/backpressure no controlador e simulador | — | Teste de integração `dropout-reconnect` verde; contadores coerentes | Controlador + broker |
-| Métricas e harness experimental | correções do harness aplicadas em M2 (blocos P1a–P1c, P5 e P5.4) — piloto live por executar (ver PROGRESS) | Recursos recolhidos na VM certa; `events.jsonl` recolhido automaticamente; warm-up excluído; condições C10–C14 no plano de campanha; a análise exercida pelo caminho real da CLI entregue | — |
-| Suite de testes completa (unitários, integração, E2E) | unitários implementados — testes live/`integration` por criar (ver PROGRESS e risco R21) | `pytest` verde incluindo marca `integration` na VM, com relatório persistido | Requer VM ARM |
-| Soak piloto | — | Execução longa piloto sem crash; log e recursos | Requer VM ARM |
-| Capítulo 3 e primeira versão do 4; ADRs e diagramas | ADRs e diagramas implementados — por verificar/aceitar (ver PROGRESS); capítulos parciais | `thesis/`; [`../adr/`](../adr/README.md) sincronizados com CONTRACTS v1.1 | — |
-| Decisão ACA-Py registada no gate | tratar fora do forecast base (auditoria §16): só avança com margem comprovada por horas reais | Entrada no LOG + Anexo C do plano (autorizado/cortado) | Estado dos itens P0 acima |
+| Three concurrent wearables in the simulator | implemented — still to be verified in real execution (see PROGRESS) | Run with `--devices smartwatch,smart_ring,smart_clothing`; three twins updated | Requires ARM VM |
+| All scenarios (`smoke`, `nominal`, `load-sweep`, `dropout-reconnect`, `invalid-payload`, `soak`) | implemented in the simulator — live demonstration still to be executed (see PROGRESS) | Runs recorded with a manifest per scenario; real disconnection demonstrated in a live run | Requires ARM VM |
+| Reconnect/backpressure in the controller and the simulator | — | `dropout-reconnect` integration test green; consistent counters | Controller + broker |
+| Metrics and experimental harness | harness corrections applied at M2 (blocks P1a–P1c, P5 and P5.4) — live pilot still to be executed (see PROGRESS) | Resources collected on the right VM; `events.jsonl` collected automatically; warm-up excluded; conditions C10–C14 in the campaign plan; the analysis exercised through the real path of the delivered CLI | — |
+| Complete test suite (unit, integration, E2E) | unit tests implemented — live/`integration` tests still to be created (see PROGRESS and risk R21) | `pytest` green including the `integration` mark on the VM, with a persisted report | Requires ARM VM |
+| Pilot soak | — | A long pilot run without a crash; log and resources | Requires ARM VM |
+| Chapter 3 and a first version of chapter 4; ADRs and diagrams | ADRs and diagrams implemented — verification/acceptance pending (see PROGRESS); chapters partial | `thesis/`; [`../adr/`](../adr/README.md) synchronised with CONTRACTS v1.1 | — |
+| ACA-Py decision recorded at the gate | treat outside the base forecast (audit §16): it only proceeds with margin proven by real hours | Entry in the LOG + Annex C of the plan (authorised/cut) | State of the P0 items above |
 
-## G4 — Protocolo congelado, tag `exp-v1` (06/09)
+## G4 — Frozen protocol, tag `exp-v1` (2026-09-06)
 
-Regra de corte (§8.1): todos os pilotos produzem dados válidos e o script de
-análise gera tabelas/figuras. Depois deste gate não se alteram métricas, condições
-ou critérios de exclusão.
+Cutting rule (§8.1): every pilot produces valid data and the analysis script generates
+tables/figures. After this gate, metrics, conditions and exclusion criteria are not
+changed.
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Reprodução desde checkout limpo | — | Registo de um clone limpo a construir e executar o smoke E2E | WSL2 ext4 + VM ARM |
-| Correções P0/P1 pós-freeze de features | — | Commits identificados; sem features novas | — |
-| ACA-Py mínimo (apenas se autorizado no G3; até 03/09) | fora do forecast base (auditoria §16) | Dois agentes locais, `did:peer`, convite OOB, mensagem DIDComm; digest ARM64 verificado | Autorização G3; timebox 12 h |
-| Piloto completo da campanha | — | Dados piloto em `experiments/results/raw/` com manifestos, sem intervenção ad hoc | Requer VM ARM; harness corrigido (R18–R22) |
-| Script de análise gera tabelas/figuras a partir de `raw/` | percurso de análise para runs externos implementado (`--external-timings`); produção dos timings na VM por executar (ver PROGRESS) | `processed/` e `figures/` regenerados por um único script invocado como é entregue (sem parâmetros só acessíveis por API), incluindo runs externos ou exceção formalmente documentada | Dados piloto |
-| Capítulos 1–4 completos; esqueleto integral da avaliação | — | `thesis/` compilável, sem números inventados | — |
-| Tag `exp-v1` | — | Tag no Git com protocolo congelado | Itens acima |
+| Reproduction from a clean checkout | the outstanding part of C01: the build is evidenced, the rebuild from an independent clean checkout belongs to this gate | Record of a clean clone building and running the E2E smoke | WSL2 ext4 + ARM VM |
+| P0/P1 corrections after the feature freeze | — | Identified commits; no new features | — |
+| Minimal ACA-Py (only if authorised at G3; up to 2026-09-03) | outside the base forecast (audit §16) | Two local agents, `did:peer`, OOB invitation, DIDComm message; verified ARM64 digest | G3 authorisation; 12 h timebox |
+| Complete campaign pilot | — | Pilot data in `experiments/results/raw/` with manifests, no ad hoc intervention | Requires ARM VM; corrected harness (R18–R22) |
+| The analysis script generates tables/figures from `raw/` | the analysis route for external runs is implemented (`--external-timings`); producing the timings on the VM is still to be executed (see PROGRESS) | `processed/` and `figures/` regenerated by a single script invoked as it is delivered (no parameters reachable only through the API), including external runs or a formally documented exception | Pilot data |
+| Chapters 1–4 complete; full skeleton of the evaluation | — | `thesis/` compiling, with no invented numbers | — |
+| Tag `exp-v1` | — | Tag in Git with the frozen protocol | The items above |
 
-## G5 — Data freeze `data-v1` (13/09, 18:00)
+## G5 — Data freeze `data-v1` (2026-09-13, 18:00)
 
-Regra de corte (§8.1): todas as métricas essenciais às RQs têm dados completos.
-Pode remover-se uma condição opcional, declarando a limitação; nunca preencher a
-lacuna com uma conclusão sem evidência.
+Cutting rule (§8.1): every metric essential to the RQs has complete data. An optional
+condition may be removed by declaring the limitation; never fill the gap with a
+conclusion that has no evidence.
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Campanha ARM oficial (§7.1: 5 boots QEMU funcionais, 10 cold starts, 10 criações de twin, 10 execuções nominais, load-sweep 10/50/100/250 msg/s ×10, soak 24 h) | — | `experiments/results/raw/<run_id>/` completos com `SHA256SUMS` | Requer VM ARM; tag `exp-v1` |
-| Apenas correções que invalidem experiências; repetir condições afetadas | — | LOG com justificação de cada repetição | — |
-| Validar dados e gerar figuras | — | `processed/` + `figures/` regenerados; validação de proveniência (`run_id`/manifesto) | Campanha |
-| Redigir setup e limitações (capítulo 5, secções de contexto) | — | Texto em `thesis/` | — |
-| Tag `data-v1`; `raw/` imutável | — | Tag no Git; checksums verificados | Campanha completa |
+| Official ARM campaign (§7.1: 5 functional QEMU boots, 10 cold starts, 10 twin creations, 10 nominal runs, load-sweep 10/50/100/250 msg/s ×10, 24 h soak) | the 5 `qemu_boots` runs are a later set under the frozen protocol, distinct from and not interchangeable with the two G1 bring-up boots | `experiments/results/raw/<run_id>/` complete, with `SHA256SUMS` | Requires ARM VM; tag `exp-v1` |
+| Only corrections that invalidate experiments; repeat the affected conditions | — | LOG with a justification for each repetition | — |
+| Validate the data and generate the figures | — | `processed/` + `figures/` regenerated; provenance validation (`run_id`/manifest) | Campaign |
+| Write up the setup and limitations (chapter 5, context sections) | — | Text in `thesis/` | — |
+| Tag `data-v1`; `raw/` immutable | — | Tag in Git; checksums verified | Complete campaign |
 
-## G6 — Draft integral (18/09)
+## G6 — Full draft (2026-09-18)
 
-Regra de corte (§8.1): todos os capítulos, figuras e respostas às RQs existem.
-Uma reestruturação estimada acima de 20 h ativa a contingência (§10).
+Cutting rule (§8.1): every chapter, figure and answer to the RQs exists. A
+restructuring estimated above 20 h activates the contingency (§10).
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Capítulos 5–6, Abstract e Resumo com evidência real | — | `thesis/` completo; cada número rastreado na matriz claim→evidência | `data-v1` |
-| RQs respondidas apenas com evidência real | — | Matriz claim→evidência sem estados `Pendente` em claims usados no texto | `data-v1` |
-| Draft integral enviado aos orientadores em 18/09 | — | Email de envio registado no LOG | Compilação limpa |
-| Sem features; apenas reprodução e análise | — | Histórico Git sem commits de feature após G5 | — |
+| Chapters 5–6, Abstract and Resumo with real evidence | — | `thesis/` complete; every number traced in the claim→evidence matrix | `data-v1` |
+| RQs answered with real evidence only | — | Claim→evidence matrix with no pending states in the claims used in the text | `data-v1` |
+| Full draft sent to the supervisors on 2026-09-18 | — | Sending email recorded in the LOG | Clean compilation |
+| No features; reproduction and analysis only | — | Git history with no feature commits after G5 | — |
 
-## G7 — Release e aprovação (25/09; `rc1` em 27/09)
+## G7 — Release and approval (2026-09-25; `rc1` on 2026-09-27)
 
-Regra de corte (§8.1): PDF conforme, artefacto arquivado e feedback tratado. A
-falta de resposta dos orientadores não paralisa o trabalho; seguem-se as últimas
-decisões documentadas e registam-se as tentativas de contacto.
+Cutting rule (§8.1): compliant PDF, archived artefact and feedback handled. A lack of
+reply from the supervisors does not stop the work; the last documented decisions are
+followed and the contact attempts are recorded.
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| Smoke final e empacotamento do pacote de reprodutibilidade | — | Arquivo versionado com SHA-256 e localização registada | `data-v1` |
-| Tratamento do feedback (prazo solicitado: 23/09) | — | Lista de alterações + respostas registadas | Feedback dos orientadores |
-| Linguagem, referências, front matter, consistência e QA visual do PDF | — | Checklist editorial concluída; inspeção página a página | Draft integral |
-| Release candidate `rc1` em 27/09 | — | Tag `rc1` + PDF | Itens acima |
-| Submissão 29/09 17:00; recibo e tag `v1.0-thesis` | — | Recibo do portal; tag no Git | `rc1` |
+| Final smoke and packaging of the reproducibility package | — | Versioned archive with SHA-256 and its location recorded | `data-v1` |
+| Handling of the feedback (requested deadline: 2026-09-23) | — | List of changes + recorded replies | Supervisors' feedback |
+| Language, references, front matter, consistency and visual QA of the PDF | — | Editorial checklist completed; page-by-page inspection | Full draft |
+| Release candidate `rc1` on 2026-09-27 | — | Tag `rc1` + PDF | The items above |
+| Submission 2026-09-29 17:00; receipt and tag `v1.0-thesis` | — | Portal receipt; tag in Git | `rc1` |
 
-## Pós-gate — 28–30/09
+## Post-gate — 2026-09-28/2026-09-30
 
-| Ação | Nota | Evidência esperada | Dependências |
+| Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
-| 28–29/09: apenas correções bloqueantes; PDF final, metadados e portal | — | Submissão interna a 29/09 17:00 | `rc1` |
-| 30/09: reserva exclusivamente administrativa | — | Usar apenas se a submissão interna falhar | — |
+| 2026-09-28/2026-09-29: blocking corrections only; final PDF, metadata and portal | — | Internal submission on 2026-09-29 17:00 | `rc1` |
+| 2026-09-30: strictly administrative reserve | — | Use only if the internal submission fails | — |

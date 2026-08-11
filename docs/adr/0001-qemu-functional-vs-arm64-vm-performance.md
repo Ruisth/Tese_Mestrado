@@ -2,6 +2,13 @@
 
 **Status:** Accepted (2026-08-07) — fixed by integrated plan sections 5.1 and 12
 
+**Extended by:** [0007](0007-three-tier-platform-model.md) (Proposed,
+2026-08-12) — the dedicated ARM64 market proved unavailable, so the two-way
+split below is refined into three tiers: this ADR separates emulated from
+native, and 0007 adds that a *burstable* native instance is admissible for
+functional integration but never as a source of numbers. Nothing in this ADR is
+withdrawn or weakened by that extension.
+
 ## Context
 
 The thesis targets an ARM64 edge gateway, but no physical Raspberry Pi 5 is
@@ -42,3 +49,8 @@ link is excluded from the gateway processing measurement.
   never validated and never supports any claim (plan 5.1).
 - All evidence must state its platform; mixing QEMU-derived and VM-derived data
   in one analysis is prohibited.
+- "Native ARM64 VM" was written before the market forced the distinction between
+  a burstable and a dedicated instance. ADR 0007 supplies it: a burstable
+  instance is native, and is still barred from producing numbers, because CPU
+  credit throttling would corrupt the load sweep and the saturation criterion.
+  Read the two ADRs together when deciding where a number may come from.

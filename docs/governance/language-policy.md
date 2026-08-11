@@ -58,7 +58,7 @@ accompanied by an English summary; it is never edited in place.
 ## Identifiers that must survive translation unchanged
 
 Gate names (`G0`–`G7`), claim identifiers (`C01`–`C15`), risk identifiers
-(`R1`–`R31`, `RA1`–`RA15`), research questions (`RQ1`–`RQ3`), maturity levels
+(`R1`–`R33`, `RA1`–`RA15`), research questions (`RQ1`–`RQ3`), maturity levels
 (`M0`–`M5`), tags (`exp-v1`, `data-v1`, `rc1`), dates, thresholds, units,
 commands, paths.
 
@@ -83,10 +83,10 @@ Planned renames, each with every link and reference updated in the same pull
 request that performs it:
 
 ```text
-docs/g0/ambito_e_rqs.md          -> docs/g0/scope_and_rqs.md
-docs/g0/email_orientadores_G0.md -> docs/g0/supervisor_email_g0.md
-docs/g0/riscos.md                -> docs/g0/risks.md
-thesis/latex/imagens/            -> thesis/latex/images/
+docs/g0/ambito_e_rqs.md          -> docs/g0/scope_and_rqs.md        [done 2026-08-12]
+docs/g0/email_orientadores_G0.md -> docs/g0/supervisor_email_g0.md  [done 2026-08-12]
+docs/g0/riscos.md                -> docs/g0/risks.md                [done 2026-08-12]
+thesis/latex/imagens/            -> thesis/latex/images/            [pending]
 ```
 
 The Portuguese integrated plan, currently outside the repository, becomes
@@ -99,14 +99,29 @@ two competing normative sources never coexist.
 ## Status of the migration, stated plainly
 
 The policy is in force for all new and modified content from 2026-08-11. The
-repository is **not** yet fully migrated: `README.md`, `LOG.md`, `PROGRESS.md`,
-the G0 documents and `src/CONTRACTS.md` remain in Portuguese, and the six
-migration pull requests above have not been opened.
+repository is **not** yet fully migrated, and the migration is not following the
+six-branch order above literally. What has actually been translated, as of
+2026-08-12:
 
-No pull-request checklist should be read as asserting otherwise. The template's
-language item covers only the content that pull request creates or modifies,
-precisely so that ticking it stays truthful while the legacy documents wait
-their turn.
+| Document | State |
+|---|---|
+| `README.md` (repository root) | translated (batch 1 content, done early on request) |
+| `PROGRESS.md`, `docs/g0/`, both claim→evidence matrices, `docs/README.md` | translated (batch 3) |
+| `docs/setup/`, `src/README.md`, `src/yocto/README.md`, `diagrams/`, the ADRs | translated where modified for correctness (batch 2 content, absorbed) |
+| `LOG.md` | **mixed**: entries from 2026-08-11 onwards are in British English, the earlier Portuguese entries are untouched and are corrected only by dated notes (batch 4 outstanding) |
+| `src/CONTRACTS.md`, `CONTRIBUTING.md`, the thesis and research documents, code comments and docstrings | **outstanding** (batches 2, 5 and 6) |
+
+The deviation from the branch order is deliberate and worth stating: the audit
+of 2026-08-12 found documents whose *content* contradicted reality, and the
+policy's own rule is that a document is translated when it is next modified. So
+the files that had to be corrected were translated in the same change rather
+than left in Portuguese to await their batch. The batches that remain are the
+ones with no outstanding correctness defect.
+
+No pull-request checklist should be read as asserting more than this. The
+template's language item covers only the content that pull request creates or
+modifies, precisely so that ticking it stays truthful while the legacy documents
+wait their turn.
 
 Order of work: the translation must not delay gate G1, and everything is
 normalised before the `exp-v1` freeze.

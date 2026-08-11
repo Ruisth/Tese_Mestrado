@@ -38,9 +38,21 @@ prerequisite for gate G3** (risk R21); until they exist and have been run on
 the target environment, no integration-level claim may be made.
 
 Consequently the entire suite is level **M2** evidence (verified locally, unit
-level, with fakes, on Windows). M2 closes no gate and validates no claim on its
-own — see `../docs/claim_evidence_matrix.md`, where all 15 claims remain
-`Pendente — sem evidência`.
+level, with fakes, on Windows). The current sealed record is `701 passed` over
+clean HEAD `4e67717`, archived in
+[`../docs/evidence/tests/2026-08-11-head-4e67717/`](../docs/evidence/tests/2026-08-11-head-4e67717/);
+earlier figures are historical, each tied to the commit it tested.
+
+M2 closes no gate and validates no claim on its own. In
+`../docs/claim_evidence_matrix.md`, **0 of the 15 claims are accepted** and no
+gate has been accepted. Two rows moved on 2026-08-11, when gate G1 produced
+sealed evidence:
+
+| Claim | State |
+|---|---|
+| C01 | Partial — the build is evidenced; the rebuild from an independent clean checkout is pending and belongs to G4 |
+| C02 | Bring-up evidence produced — two QEMU boots driven by the automated driver; the campaign's five `qemu_boots` runs are still to be executed |
+| the other 13 | `Pending — no evidence` |
 
 ## Run the simulator (reference invocation, CONTRACTS §7)
 

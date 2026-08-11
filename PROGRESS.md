@@ -1,171 +1,189 @@
-# PROGRESS — fonte única de estado por entregável
+# PROGRESS — single source of state per deliverable
 
-> **Este ficheiro é a fonte única de estado do projeto.** O backlog
-> ([`docs/g0/backlog.md`](docs/g0/backlog.md)) contém apenas ações, evidência
-> esperada, dependências e regras de corte — não contém estado. O registo formal
-> das decisões de gate vive no Anexo C do plano integrado; a coluna «Aceite no
-> gate» abaixo espelha-o. Estrutura conforme a auditoria externa de 08/08/2026
+> **This file is the single source of state for the project.** The backlog
+> ([`docs/g0/backlog.md`](docs/g0/backlog.md)) holds only actions, expected
+> evidence, dependencies and cut rules — it holds no state. The formal record of
+> gate decisions lives in Annex C of the integrated plan; the "Accepted at gate"
+> column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
-Atualizado: 2026-08-11 (WSL2 operacional; imagem `egw-image` construída e dois
-boots QEMU de bring-up registados; números de teste alinhados com a evidência
-selada de 701 testes).
+Updated: 2026-08-11 (WSL2 operational; `egw-image` built and two QEMU bring-up
+boots recorded; test figures aligned with the sealed evidence of 701 tests).
 
-**Estado dos claims: 0 de 15 aceites.** C01 tem evidência parcial (falta a
-reprodução a partir de checkout independente, que pertence ao G4); C02 tem a
-evidência dos dois boots de bring-up, com os 5 boots da campanha por executar;
-os restantes **13 continuam sem evidência**. Nenhum gate foi aceite.
+**Claim status: 0 of 15 accepted.** C01 has partial evidence (the rebuild from an
+independent clean checkout is still missing, and belongs to G4); C02 has the
+evidence of the two bring-up boots, with the campaign's five boots still to be
+executed; the remaining **13 still have no evidence**. No gate has been accepted.
 
-## Modelo de estado — três campos independentes (auditoria §5.1)
+## State model — three independent fields (audit §5.1)
 
-Cada entregável tem uma única linha com três campos independentes:
+Each deliverable has a single row with three independent fields:
 
-| Campo | Valores |
+| Field | Values |
 |---|---|
-| **Implementado** | `sim` / `não` — o artefacto existe no repositório |
-| **Verificado** | nível + evidência: `unitário — …`, `estático — …`, `integrado — …`, `não` |
-| **Aceite no gate** | gate + estado da taxonomia do plano §1 (`Pendente`, `Em curso`, `Bloqueado`, `Concluído`, `Cortado`) + data/decisão quando ocorrer |
+| **Implemented** | `yes` / `no` — the artefact exists in the repository |
+| **Verified** | level + evidence: `unit — …`, `static — …`, `integration — …`, `no` |
+| **Accepted at gate** | gate + state from the taxonomy of plan §1 (`Pending`, `In progress`, `Blocked`, `Complete`, `Cut`) + date/decision once it occurs |
 
-Regras: nenhum «Concluído» sem evidência arquivada. «Implementado» e «verificado
-unitariamente» nunca implicam aceitação no gate. Definition of Done por
-entregável (auditoria §14.1): artefacto existe + revisto + executado no ambiente
-aplicável + evidência arquivada + matriz claim→evidência atualizada + decisão de
-gate registada. Em 10/08/2026 continua a não existir nenhum gate fechado: todos
-os campos «Aceite no gate» estão `Pendente` ou `Bloqueado`.
+Rules: no "Complete" without archived evidence. "Implemented" and "unit
+verified" never imply acceptance at a gate. Definition of Done per deliverable
+(audit §14.1): the artefact exists + reviewed + executed in the applicable
+environment + evidence archived + claim→evidence matrix updated + gate decision
+recorded. As at 2026-08-11 there is still no closed gate: every "Accepted at
+gate" field is `Pending`, `In progress` or `Blocked`.
 
-## Escala de maturidade M0–M5 (auditoria §2.3)
+## Maturity scale M0–M5 (audit §2.3)
 
-| Nível | Significado |
+| Level | Meaning |
 |---|---|
-| M0 | Ausente — sem artefacto nem evidência |
-| M1 | Preparado — documentação/configuração/código existem |
-| M2 | Verificado localmente — validação sintática ou unitária persistida |
-| M3 | Integrado — funciona com dependências reais no ambiente-alvo |
-| M4 | Avaliado — evidência experimental reprodutível |
-| M5 | Aceite — gate fechado e decisão registada |
+| M0 | Absent — no artefact and no evidence |
+| M1 | Prepared — documentation/configuration/code exist |
+| M2 | Verified locally — syntactic or unit validation persisted |
+| M3 | Integrated — works with real dependencies in the target environment |
+| M4 | Evaluated — reproducible experimental evidence |
+| M5 | Accepted — gate closed and decision recorded |
 
-O repositório está globalmente entre M1 e M2; o plano exige M3–M5 para a maioria
-dos claims e gates.
+The repository sits globally between M1 and M2, the Yocto/QEMU platform
+deliverable being the single exception at M3; the plan requires M3–M5 for most
+claims and gates.
 
-## Estado por entregável
+## State per deliverable
 
-### Bloco 07–09/08 (G0 — decisão a 10/08)
+### Block 2026-08-07 to 2026-08-09 (G0 — decision date 2026-08-10)
 
-| Entregável | Implementado | Verificado | Aceite no gate | M |
+| Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Repositório Git inicializado e publicado | sim | estático — commits por entregável, working tree limpo; **remote privado ativo a 11/08** (`Ruisth/Tese_Mestrado`, privado, ruleset a exigir PR em `main` e `dev` e a proibir force-push); `refs/tags` continua vazio (tags reservadas a evidência real); a 10/08 a árvore de trabalho e os bundles de `backups/` passaram a residir fora da pasta sincronizada Nextcloud | G0 — Pendente | M2 |
-| Contratos normativos (`src/CONTRACTS.md` v1.1) + schemas JSON | sim | unitário — `tests/test_schemas.py` (parte da suite selada de 618 testes); estático — 7 ficheiros JSON válidos; integração real não demonstrada | G2 — Pendente | M2 |
-| Âmbito, RQs e matriz claim→evidência (15 claims) | sim | estático — 15/15 claims `Pendente — sem evidência`; sem validação dos orientadores | G0 — Pendente | M1 |
-| Backlog e registo de riscos | sim | não (documentos de gestão) | G0 — Pendente | M1 |
-| Guia WSL2 Ubuntu 24.04 (ext4) | sim | não — instalação não executada | G0 — Pendente | M1 |
-| VM ARM64 (plataforma de medição) | não | não | G0 — **Bloqueado: indisponibilidade de mercado** (Oracle: home region fixa sem capacidade; Hetzner: CAX esgotadas; Azure Students: quota 0 em todas as famílias ARM dedicadas). Prazo 10/08 ultrapassado; regra §8.1: comunicar o risco até 12/08. Quota pedida (DPLSv5/v6); fallback AWS `c6g.xlarge` ~7 EUR | M0 |
-| Email G0 aos orientadores + pedido das regras da extensão | sim (draft) | não — envio não efetuado | G0 — Bloqueado (envio é ação do estudante; prazo 09/08) | M1 |
-| Quarentena de resultados sem evidência na dissertação | sim | estático — cap. 5 com 16 `\todo{pending data-v1}` e zero números; sem claims Pi/SSI | G0 — Pendente | M1 |
+| Git repository initialised and published | yes | static — commits per deliverable, clean working tree; **private remote active since 2026-08-11** (`Ruisth/Tese_Mestrado`, private, with a ruleset requiring pull requests on `main` and `dev` and forbidding force-push); `refs/tags` remains empty by choice (tags reserved for real evidence); on 2026-08-10 the working tree and the `backups/` bundles moved out of the Nextcloud-synchronised folder | G0 — Pending | M2 |
+| Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
+| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the build is evidenced; the rebuild from an independent clean checkout is pending and belongs to G4), C02 holds the bring-up evidence (the campaign's five QEMU boots are still to be executed) and the remaining **13 have no evidence**; no validation by the supervisors | G0 — Pending | M1 |
+| Backlog and risk register | yes | no (management documents) | G0 — Pending | M1 |
+| WSL2 Ubuntu 24.04 guide (ext4) | yes | **the installation was carried out**: WSL2 with Ubuntu 24.04.4 LTS is installed and operational, with the build directory on ext4, and it is the environment that produced the `egw-image` build archived in `docs/evidence/g1-yocto-qemu/` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap). Not yet archived as a G0 environment record: the `wsl -l -v` and `df -h` capture — hence the maturity level below stays where it was | G0 — Pending | M1 |
+| ARM64 VM (measurement platform) | no | no | G0 — **Blocked: market unavailability** (Oracle: home region fixed, no Ampere capacity; Hetzner: CAX sold out; Azure for Students: quota 0 on every dedicated ARM family). Deadline 2026-08-10 missed; rule §8.1: report the risk by 2026-08-12. Quota requested (DPLSv5/v6); AWS `c6g.xlarge` fallback ~7 EUR | M0 |
+| G0 email to the supervisors + request for the extension rules | yes (draft) | no — not sent | G0 — Blocked (sending is a student action; deadline 2026-08-09) | M1 |
+| Quarantine of results without evidence in the dissertation | yes | static — ch. 5 with 16 `\todo{pending data-v1}` and zero numbers; no Pi/SSI claims | G0 — Pending | M1 |
 
-### Blocos G1–G7 — desenvolvimento antecipado sem VM/WSL
+### Blocks G1–G7 — development brought forward without the ARM64 measurement VM
 
-| Entregável | Implementado | Verificado | Aceite no gate | M |
+WSL2 now exists and is operational; the platform that is still missing is the
+ARM64 measurement VM.
+
+| Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Manifesto `kas` + layer `meta-egw` + receita `egw-image` | sim | **integrado — imagem construida e DOIS boots QEMU registados a 11/08**: build de 5715 tarefas todas com sucesso; ambos os boots com 6 de 6 asserções obrigatórias e 3 observações registadas e poweroff limpo (systemd `running`, `multi-user.target` ativo, zero unidades falhadas, rede slirp, Docker 25.0.9, container importado e executado). Evidencia selada em `docs/evidence/g1-yocto-qemu/` com `SHA256SUMS`. 6 defeitos encontrados pela execucao real e corrigidos | **G1 — Em curso: evidencia produzida, aceitacao do gate PENDENTE** (decisao formal por registar; os 5 boots da campanha sao um conjunto posterior) | M3 |
-| Compose ARM64 mínimo (Mosquitto TLS, Ditto 3.9.4, MongoDB, controlador) | sim | estático — `docker compose config` (validação sintática, sem log persistido); digests arm64 verificados documentalmente 07/08; `.env`/certificados/passwords operacionais não existem | G2 — Bloqueado (requer VM ARM; gate 23/08, trigger 25/08) | M1 |
-| Controlador MQTT→Ditto | sim | unitário — testes com fakes (parte da suite selada de 618 testes); sem MQTT/Ditto reais, sem restart real, sem ARM64 | G2 — Pendente | M2 |
-| Simulador unificado (3 wearables, 6 cenários) | sim | unitário — determinismo verificado; `dropout-reconnect` induz desconexão MQTT real com buffering e redelivery ordenado (correção da auditoria §7.3 concluída 08/08; cobre C10 em unitário) | G2–G3 — Pendente | M2 |
-| Thing Descriptions WoT TD 1.1 | sim | unitário — `tests/test_things.py` cruza TD↔schema; integração real não demonstrada | G2–G3 — Pendente | M2 |
-| Harness experimental + análise | sim | unitário — lacunas da auditoria §9 corrigidas a 08/08 (blocos P1a–P1c: gating por validade, proveniência de host, aceitação com completude, DoD do soak, caps de cadência, saturação com suficiência de evidência, raw selado write-once, batch runner `campaign`); bloco P5 (08/08) acrescentou marcador de fim de execução no domínio de relógio do controlador, hooks do collector no `campaign`, verificação de `SHA256SUMS` antes de qualquer agregação, completude por **identidade** contra o plano, validação semântica das séries e evidência limitada de recuperação no C12; bloco P5.4 (10/08) trata defeitos de alcance pela CLI e de valores não finitos (código fora deste bloco documental — ver `docs/g0/riscos.md`, R28/R29); **nenhuma regra estatística, percentil, método de IC ou a janela de 60 s foi alterada**; prova live pendente de VM | G4 — Pendente | M2 |
-| Estrutura de evidência `experiments/results/` | sim | estático — diretórios `raw/processed/figures` criados; zero dados (evidência experimental M0) | G5 — Pendente | M1 |
-| Dissertação (esqueleto + cap. 2 substantivo) | sim | estático — latexmk compila: 57 pp., 0 referências por resolver; cap. 2 ~4 300 palavras; claims prematuros removidos dos caps. 1/3/4/6 e da Tabela 2.1 (bloco P2); caps. 3/5/6 continuam esqueleto | G6 — Pendente | M1–M2 |
-| Fontes da revisão (`thesis/research/study_selection.csv`) | sim | estático — 25 fontes registadas, com metadados verificados (Crossref/W3C/OASIS/páginas oficiais). **Profundidade de leitura: 7 avaliadas em full text (S001, S004–S009) e 18 apenas por título/resumo** (`stage=title_abstract`, inclusão provisória para o draft ao orientador; passagem full-text por executar). «Verificado» refere-se aos metadados da fonte, nunca à leitura integral; as queries institucionais continuam pendentes (ação do estudante, risco R17) | G6 — Pendente | M1 |
-| PDF standalone do cap. 2 para o orientador | sim | estático — `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., sem TODOs/placeholders, revisão institucional declarada pendente); inspeção visual página a página | não é item de gate — envio = ação do estudante (nenhum gate fecha com isto) | M2 |
-| Suite de testes unitários | sim | unitário — **evidência selada: `701 passed`** sobre HEAD limpo `4e67717` em `docs/evidence/tests/2026-08-11-head-4e67717/`, com JUnit, stdout, ambiente, intérprete, `pip freeze`, `pip check`, versão do pytest, SHA-256 do lock e `SHA256SUMS`. Selagem atual: `701`. Selagens anteriores mantidas para rasto (`683`, `618`, `593`, `515`), todas com o commit que testaram. **Zero testes live/`integration` existem** — criá-los é pré-requisito de G3 | G3 — Pendente | M2 |
-| Correções do harness pós-auditoria (fetch de eventos, 2 ambientes, collector na VM, janela medida, condições C10–C14, queue growth, CPU normalizada) | sim | unitário — testes incluídos na suite selada de 593; plano de campanha com 95 runs; a aceitação exige completude (por identidade contra o plano quando o plano é fornecido à análise) e evidência — incluindo evidência de recuperação real no C12; execução real pendente de VM | G3–G4 — Pendente | M2 |
+| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — image built and TWO QEMU boots recorded on 2026-08-11**: build of 5715 BitBake tasks, all successful, from the tree at commit `5770c0a`; rootfs 382 MiB, kernel 23 MiB, 639 packages including `docker-moby` 25.0.9, `containerd` 2.0.10, `runc` 1.1.14 and systemd. Both boots were driven by the automated driver `src/yocto/scripts/boot_check.py` at commit `32f6604` — they were **not** manual — and each passed 6 of 6 required assertions, recorded 3 of 3 supplementary observations and confirmed a clean power-down (systemd `running`, `multi-user.target` active, zero failed units, slirp networking, Docker 25.0.9, container imported and run). Observations assert nothing and are never counted as verification. Evidence sealed in `docs/evidence/g1-yocto-qemu/` with `SHA256SUMS` that verifies from a clean clone. 6 defects found by the real execution and fixed. Functional evidence only: nothing here supports a performance or security statement | **G1 — In progress: evidence produced, gate acceptance PENDING** (the formal decision is still to be recorded; the campaign's five boots are a later set) | M3 |
+| Minimal ARM64 compose (Mosquitto TLS, Ditto 3.9.4, MongoDB, controller) | yes | static — `docker compose config` (syntactic validation, no persisted log); arm64 digests verified documentally on 2026-08-07; operational `.env`/certificates/passwords do not exist | G2 — Blocked (requires the ARM VM; gate 2026-08-23, trigger 2026-08-25) | M1 |
+| MQTT→Ditto controller | yes | unit — tests with fakes (part of the current sealed suite of 701 tests); no real MQTT/Ditto, no real restart, no ARM64 | G2 — Pending | M2 |
+| Unified simulator (3 wearables, 6 scenarios) | yes | unit — determinism verified; `dropout-reconnect` induces a real MQTT disconnection with buffering and ordered redelivery (audit §7.3 correction completed on 2026-08-08; covers C10 at unit level) | G2–G3 — Pending | M2 |
+| WoT TD 1.1 Thing Descriptions | yes | unit — `tests/test_things.py` cross-checks TD↔schema; real integration not demonstrated | G2–G3 — Pending | M2 |
+| Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); block P5 (2026-08-08) added an end-of-run marker in the controller's clock domain, collector hooks in `campaign`, verification of `SHA256SUMS` before any aggregation, completeness by **identity** against the plan, semantic validation of the series and limited recovery evidence in C12; block P5.4 (2026-08-10) handles CLI range defects and non-finite values (code outside this documentation block — see `docs/g0/risks.md`, R32/R33); **no statistical rule, percentile, CI method or the 60 s window was altered**; live proof pending the VM | G4 — Pending | M2 |
+| `experiments/results/` evidence structure | yes | static — `raw/processed/figures` directories created; zero data (experimental evidence M0) | G5 — Pending | M1 |
+| Dissertation (skeleton + substantive ch. 2) | yes | static — latexmk compiles: 57 pp., 0 unresolved references; ch. 2 ~4,300 words; premature claims removed from chs. 1/3/4/6 and from Table 2.1 (block P2); chs. 3/5/6 remain a skeleton | G6 — Pending | M1–M2 |
+| Review sources (`thesis/research/study_selection.csv`) | yes | static — 25 sources recorded, with verified metadata (Crossref/W3C/OASIS/official pages). **Reading depth: 7 assessed in full text (S001, S004–S009) and 18 by title/abstract only** (`stage=title_abstract`, provisional inclusion for the supervisor draft; the full-text pass is still to be run). "Verified" refers to the source metadata, never to the full reading; the institutional queries remain pending (student action, risk R17) | G6 — Pending | M1 |
+| Standalone PDF of ch. 2 for the supervisor | yes | static — `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., no TODOs/placeholders, institutional review declared pending); page-by-page visual inspection | not a gate item — sending is a student action (no gate closes on this) | M2 |
+| Unit test suite | yes | unit — **sealed evidence: `701 passed`** over clean HEAD `4e67717` in `docs/evidence/tests/2026-08-11-head-4e67717/`, with JUnit, stdout, environment, interpreter, `pip freeze`, `pip check`, pytest version, SHA-256 of the lock file and `SHA256SUMS`. Current sealed figure: `701`. Earlier sealings are kept for traceability and are **historical only** (`683`, `618`, `593`, `515`), each tied to the commit it tested and never the current figure. **Zero live/`integration` tests exist** — creating them is a prerequisite for G3 | G3 — Pending | M2 |
+| Post-audit harness corrections (event fetch, 2 environments, collector on the VM, measured window, conditions C10–C14, queue growth, normalised CPU) | yes | unit — tests included in the current sealed suite of 701 (they were first sealed in the historical run of `593`); campaign plan with 95 runs; acceptance requires completeness (by identity against the plan when the plan is supplied to the analysis) and evidence — including evidence of real recovery in C12; real execution pending the VM | G3–G4 — Pending | M2 |
 
-Nota: «Implementado = sim» significa apenas que o artefacto existe e, quando
-indicado, passou verificação unitária/estática neste repositório. Os gates
-G1–G5 só fecham com evidência de execução real (build/boot QEMU, deploy ARM,
-trace E2E, dados de campanha), que depende das ações externas abaixo.
+Note: "Implemented = yes" means only that the artefact exists and, where stated,
+passed unit/static verification in this repository. Gates G1–G5 close only with
+evidence of real execution (QEMU build/boot — produced for G1 on 2026-08-11 —,
+ARM deployment, E2E trace, campaign data); what remains still depends on the
+external actions below.
 
-## Estado dos gates a 10/08
+## Gate status as at 2026-08-11
 
-Registo factual da situação na data de decisão do G0. **Nada aqui declara
-um gate fechado nem falhado**: a decisão de gate pertence ao estudante e aos
-orientadores e regista-se no Anexo C do plano e no [`LOG.md`](LOG.md).
+Factual record of the situation. **Nothing here declares a gate closed or
+failed**: the gate decision belongs to the student and the supervisors and is
+recorded in Annex C of the plan and in [`LOG.md`](LOG.md).
 
-- **G0 (data de decisão: 10/08) — data atingida, três ações externas por
-  concluir.** Não existe no repositório evidência de nenhuma delas: (i) email G0
-  aos orientadores — o draft existe em
-  [`docs/g0/email_orientadores_G0.md`](docs/g0/email_orientadores_G0.md), sem
-  registo de envio no LOG; (ii) WSL2 com Ubuntu 24.04 em ext4 — sem `wsl -l -v`
-  nem `df -h` arquivados; (iii) VM ARM64 — sem `uname -a`/`lscpu`/`/etc/os-release`
-  e sem manifesto de ambiente. São ações do estudante; nenhuma alteração no
-  repositório as substitui.
-- **Regras de corte do próprio plano (§8.1), transcritas sem interpretação:**
-  sem VM a **10/08**, mudar de fornecedor; sem VM a **12/08**, comunicar o risco
-  aos orientadores. A aplicação de qualquer destas regras é ação do estudante e
-  fica registada no LOG quando ocorrer.
-- **G1 (16/08, trigger 20/08)** — a plataforma deixou de estar por demonstrar:
-  o WSL2 está operacional, a imagem `egw-image` foi construída a partir do
-  manifesto com revisões fixadas (5715 tarefas, todas com sucesso) e **dois boots
-  QEMU de bring-up** foram registados, cada um com 6 de 6 asserções obrigatórias
-  aprovadas, 3 observações suplementares registadas e poweroff limpo. Evidência
-  selada em `docs/evidence/g1-yocto-qemu/`. **A aceitação do gate continua
-  pendente** e a reprodução desde checkout independente pertence ao G4.
-- **G2 (23/08, trigger 25/08)** — sem alteração: zero deploys na VM ARM64, que
-  não existe; `experiments/results/raw/` continua vazio.
-- **G3–G7** — sem alteração; continuam a depender de evidência de execução real
-  (e G3 exige, além disso, testes live/`integration`, que não existem).
-- **O trabalho de repositório de 10/08 (blocos P5/P5.4) é correção de código e
-  de documentação em M2**: aumenta a qualidade da instrumentação e da verdade
-  documental e **não desbloqueia nem fecha gate nenhum**.
+- **G0 (decision date: 2026-08-10) — date reached, two of the three external
+  actions still outstanding.** (i) G0 email to the supervisors — the draft
+  exists in
+  [`docs/g0/supervisor_email_g0.md`](docs/g0/supervisor_email_g0.md) and was
+  rewritten on 2026-08-12 so that it actually carries the §8.1 escalation of the
+  missing ARM64 measurement VM, which it had previously been credited with but
+  did not contain; there is still **no record of sending** in the LOG, and
+  drafting does not discharge §8.1 — sending does; (ii) WSL2 with Ubuntu 24.04.4 LTS on ext4 —
+  **done**: the environment is operational and produced the G1 build archived in
+  `docs/evidence/g1-yocto-qemu/`; what is still missing is the `wsl -l -v` and
+  `df -h` capture as an environment record; (iii) ARM64 VM — the VM does not
+  exist, so there is no `uname -a`/`lscpu`/`/etc/os-release` and no environment
+  manifest. (i) and (iii) are student actions; no change in the repository
+  substitutes for them.
+- **The plan's own cut rules (§8.1), transcribed without interpretation:**
+  no VM by **2026-08-10**, change provider; no VM by **2026-08-12**, report the
+  risk to the supervisors. Applying either rule is a student action and is
+  recorded in the LOG when it occurs. **State on 2026-08-12: both rules have
+  fired and neither is discharged.** The first was applied in substance —
+  providers were changed three times, Oracle to Hetzner to Azure, and all three
+  failed — but the change of provider produced no VM, so the condition it exists
+  to remove still holds. The second falls due today: the report to the
+  supervisors is written and is not sent. The repository can carry the draft no
+  further; only the student can close either rule.
+- **G1 (2026-08-16, trigger 2026-08-20)** — the platform is no longer
+  undemonstrated: WSL2 is operational, the `egw-image` image was built from the
+  manifest with pinned revisions (5715 tasks, all successful) and **two QEMU
+  bring-up boots** were recorded by the automated driver
+  `src/yocto/scripts/boot_check.py`, each passing 6 of 6 required assertions,
+  recording 3 of 3 supplementary observations and confirming a clean power-down.
+  Evidence sealed in `docs/evidence/g1-yocto-qemu/`. **Acceptance of the gate
+  remains pending**, the rebuild from an independent checkout belongs to G4, and
+  none of this evidence supports a performance or security statement.
+- **G2 (2026-08-23, trigger 2026-08-25)** — unchanged: zero deployments on the
+  ARM64 VM, which does not exist; `experiments/results/raw/` remains empty.
+- **G3–G7** — unchanged; they still depend on evidence of real execution (and G3
+  additionally requires live/`integration` tests, which do not exist).
+- **The repository work of 2026-08-10 (blocks P5/P5.4) is code and documentation
+  correction at M2**: it raises the quality of the instrumentation and of the
+  documentary truth and **neither unblocks nor closes any gate**.
 
-## Ações externas do estudante (com prazos)
+## External student actions (with deadlines)
 
-| Ação | Prazo | Evidência esperada |
+| Action | Deadline | Expected evidence |
 |---|---|---|
-| Enviar o email G0 aos orientadores (draft em `docs/g0/email_orientadores_G0.md`) | 09/08 | email enviado; cópia e data no LOG |
-| Pedir/confirmar regras administrativas da extensão (incluído no email G0) | 10/08 | pedido e resposta registados no LOG (plano §10) |
-| Instalar Ubuntu 24.04 no WSL2 com diretório de build em ext4 (guia em `docs/setup/wsl2_ubuntu_yocto.md`) | 09–10/08 | `wsl -l -v`, `df -h` do diretório de build, log da instalação |
-| Criar VM ARM64 e validar `uname -m` = `aarch64` (checklist em `docs/setup/vm_arm64_hetzner.md`) | 10/08 | `uname -a`, `lscpu`, `/etc/os-release` gravados no manifesto de ambiente |
+| Send the G0 email to the supervisors (draft in `docs/g0/supervisor_email_g0.md`, rewritten 2026-08-12 to carry the §8.1 escalation) | 2026-08-09 — **elapsed**; §8.1 makes 2026-08-12 the date by which the risk must be reported | email sent; copy and date in the LOG |
+| Request/confirm the administrative rules of the extension (included in the G0 email) | 2026-08-10 — **elapsed**; the draft now asks for a reply by 2026-08-21 | request and reply recorded in the LOG (plan §10) |
+| Install Ubuntu 24.04 on WSL2 with the build directory on ext4 (guide in `docs/setup/wsl2_ubuntu_yocto.md`) | 2026-08-09 to 2026-08-10 | **done on 2026-08-11**: Ubuntu 24.04.4 LTS operational on ext4 and used for the `egw-image` build (`docs/evidence/g1-yocto-qemu/`); the `wsl -l -v` and `df -h` outputs are still to be archived |
+| Create the ARM64 VM and validate `uname -m` = `aarch64` (checklist in `docs/setup/vm_arm64_hetzner.md`) | 2026-08-10 | `uname -a`, `lscpu`, `/etc/os-release` recorded in the environment manifest — **not done: the VM does not exist** |
 
-Regra de corte G0 (plano §8.1): sem VM a 10/08, mudar de fornecedor; sem VM a
-12/08, comunicar o risco aos orientadores.
+G0 cut rule (plan §8.1): no VM by 2026-08-10, change provider; no VM by
+2026-08-12, report the risk to the supervisors. Both dates have now passed with
+no VM; the report exists as a draft and is unsent.
 
-## Plataformas — três degraus (extensão do ADR 0001, a validar com orientadores)
+## Platforms — three tiers (extension of ADR 0001, to be validated with the supervisors)
 
-A indisponibilidade de ARM64 dedicado obrigou a distinguir uma plataforma de
-integração de uma de medição. Regra dura: **nenhum número da série B entra na
-dissertação.**
+The unavailability of dedicated ARM64 forced a distinction between an
+integration platform and a measurement platform. Hard rule: **no number from the
+B series enters the dissertation.**
 
-| Papel | Plataforma | Estado | Números na tese |
+| Role | Platform | State | Numbers in the thesis |
 |---|---|---|---|
-| Funcional (SO/boot) | QEMU `qemuarm64` no WSL2 | build em curso | Nunca (plano §5.1) |
-| Integração ARM64 | Azure `B4pls_v2` (burstable, sem quota) | disponível, por usar | **Nunca** — créditos de CPU contaminariam o load-sweep e o critério de saturação |
-| Medição (RQ3) | `D4pls_v5` (quota pedida) ou AWS `c6g.xlarge` | **inexistente** | **Exclusivamente daqui** |
+| Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | image built (5715 tasks) and two bring-up boots passed on 2026-08-11, each with 6 of 6 required assertions | Never (plan §5.1) — functional only; QEMU results never support a performance or security statement |
+| ARM64 integration | Azure `B4pls_v2` (burstable, available without a quota request) | available, not yet used | **Never** — CPU credits would corrupt the load sweep and the saturation criterion |
+| Measurement (RQ3) | `D4pls_v5` (quota requested) or AWS `c6g.xlarge` | **does not exist** | **Exclusively from here** |
 
-## Controlo de esforço — caminho crítico (auditoria §5.2)
+## Effort control — critical path (audit §5.2)
 
-Esqueleto de controlo diário (<10 min/dia). Valores `(est.)` são estimativas da
-auditoria §12.1; `actual_h`, `remaining_h` e `forecast` são preenchidos pelo
-estudante — não inventar horas. Células vazias = por estimar/preencher.
+Daily control skeleton (<10 min/day). Values marked `(est.)` are estimates from
+audit §12.1; `actual_h`, `remaining_h` and `forecast` are filled in by the
+student — do not invent hours. Empty cells = still to be estimated/filled in.
 
-> **Nota (08/08/2026, confirmada a 10/08/2026):** as colunas `actual_h`,
-> `remaining_h` e `forecast` estão
-> deliberadamente **vazias** e são de preenchimento exclusivo do estudante: são
-> esforço humano e nenhum agente as pode estimar ou inferir. As durações do
-> trabalho executado por agentes não entram nesta tabela — ficam registadas nas
-> entradas do [`LOG.md`](LOG.md). Enquanto estas três colunas estiverem vazias,
-> **não existe forecast de conclusão** e o risco RA15 mantém-se materializado
-> (ver [`docs/g0/riscos.md`](docs/g0/riscos.md)).
+> **Note (2026-08-08, confirmed on 2026-08-10):** the `actual_h`, `remaining_h`
+> and `forecast` columns are deliberately **empty** and are to be filled in by
+> the student alone: they are human effort and no agent may estimate or infer
+> them. The durations of work carried out by agents do not enter this table —
+> they are recorded in the entries of [`LOG.md`](LOG.md). While these three
+> columns remain empty, **there is no completion forecast** and risk RA15 stays
+> materialised (see [`docs/g0/risks.md`](docs/g0/risks.md)).
 
-| Item (caminho crítico) | owner | planned_h | actual_h | remaining_h | due | evidence | forecast | blocker |
+| Item (critical path) | owner | planned_h | actual_h | remaining_h | due | evidence | forecast | blocker |
 |---|---|---|---|---|---|---|---|---|
-| Email G0 + regras da extensão | Estudante | 0,5–1 (est.) | | | 09–10/08 | email + data no LOG | | |
-| WSL2 Ubuntu 24.04 em ext4 | Estudante | 2–4 (est.) | | | 09–10/08 | outputs de versão e filesystem | | |
-| VM ARM64 `aarch64` | Estudante | 1–2 (est.) | | | 10/08 | manifesto inicial arquivado | | conta/pagamento |
-| Backup Git independente | Ambos | 0,5–1 (est.) | | | 09/08 | bundle/clone verificado fora do Nextcloud — repositório e bundles fora da pasta sincronizada desde 10/08; falta ainda o remote privado (opção mais forte) | | |
-| Sprint de enquadramento teórico | Ambos | 18–24 (est.) | | | 10–11/08 | draft 4 000–5 000 palavras + logs de pesquisa preenchidos | | |
-| Build Yocto + 2 boots QEMU | Estudante | | | | 16/08 (trigger 20/08) | log BitBake, `boot1/2.log`, `SHA256SUMS` | | WSL2 ext4 |
-| Vertical slice E2E na VM | Ambos | | | | 23/08 (trigger 25/08) | trace `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` | | VM ARM |
-| Correções do harness (R18–R22) | Agente | | | | antes de 06/09 | piloto válido sem intervenção ad hoc | | |
-| Piloto completo + tag `exp-v1` | Ambos | | | | 06/09 | dados piloto em `raw/` com manifestos | | harness corrigido |
-| Campanha oficial + `data-v1` | Ambos | | | | 13/09 18:00 | `raw/<run_id>/` completos + `SHA256SUMS` | | `exp-v1` |
-| Draft integral aos orientadores | Ambos | | | | 18/09 | email de envio registado no LOG | | `data-v1` |
+| G0 email + extension rules | Student | 0.5–1 (est.) | | | 2026-08-09 to 2026-08-10 | email + date in the LOG | | |
+| WSL2 Ubuntu 24.04 on ext4 | Student | 2–4 (est.) | | | 2026-08-09 to 2026-08-10 | version and filesystem outputs — environment operational since 2026-08-11; capture still to be archived | | |
+| ARM64 VM `aarch64` | Student | 1–2 (est.) | | | 2026-08-10 | initial manifest archived | | account/payment |
+| Independent Git backup | Both | 0.5–1 (est.) | | | 2026-08-09 | verified bundle/clone outside Nextcloud — repository and bundles outside the synchronised folder since 2026-08-10; **private remote `Ruisth/Tese_Mestrado` active since 2026-08-11** (the stronger option), with a ruleset requiring pull requests on `main` and `dev` | | |
+| Theoretical framing sprint | Both | 18–24 (est.) | | | 2026-08-10 to 2026-08-11 | draft of 4,000–5,000 words + research logs filled in | | |
+| Yocto build + 2 QEMU boots | Student | | | | 2026-08-16 (trigger 2026-08-20) | BitBake log, `boot1/2.log`, `SHA256SUMS` — delivered on 2026-08-11 in `docs/evidence/g1-yocto-qemu/`; gate acceptance still pending | | cleared (WSL2 ext4 operational) |
+| E2E vertical slice on the VM | Both | | | | 2026-08-23 (trigger 2026-08-25) | trace `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` | | ARM VM |
+| Harness corrections (R18–R22) | Agent | | | | before 2026-09-06 | valid pilot with no ad hoc intervention | | |
+| Full pilot + tag `exp-v1` | Both | | | | 2026-09-06 | pilot data in `raw/` with manifests | | corrected harness |
+| Official campaign + `data-v1` | Both | | | | 2026-09-13 18:00 | complete `raw/<run_id>/` + `SHA256SUMS` | | `exp-v1` |
+| Full draft to the supervisors | Both | | | | 2026-09-18 | sending email recorded in the LOG | | `data-v1` |

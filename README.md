@@ -1,51 +1,63 @@
-# Tese_Mestrado — EGW: Digital Twin Edge Gateway (Tema 1, C2DTA)
+# Tese_Mestrado — EGW: Digital Twin Edge Gateway (Theme 1, C2DTA)
 
-> Consumer-Controlled Digital Twin Architecture — dissertação de mestrado, ISCTE-IUL.
-> Fluxo de trabalho: commits e pull requests em `dev`; `main` recebe apenas
-> versões estáveis, por PR.
+> Consumer-Controlled Digital Twin Architecture — master's dissertation, ISCTE-IUL.
+> Workflow: commits and pull requests on `dev`; `main` receives stable versions
+> only, by pull request.
 
-Implementação e dissertação do Edge Gateway ARM64 reproduzível (Yocto/Scarthgap +
-serviços contentorizados) que recebe telemetria sintética de três wearables,
-valida os eventos e materializa-os como gémeos digitais no Eclipse Ditto.
+Implementation and dissertation of a reproducible ARM64 Edge Gateway
+(Yocto/Scarthgap plus containerised services) that receives synthetic telemetry
+from three wearable device types, validates the events and materialises them as
+digital twins in Eclipse Ditto.
 
-**Normative source:** `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` (held in the workspace OUTSIDE this repository, so it is deliberately not a link; it is converted to `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` by the language migration)
-(plano integrado, v1.0 — 07/08/2026). Este repositório segue o âmbito P0 desse
-plano; ver [PROGRESS.md](PROGRESS.md) para o estado por gate.
+**Normative source:** `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`
+(integrated plan, v1.0 — 2026-08-07). It is held in the workspace OUTSIDE this
+repository, so it is deliberately not a link; the language migration converts it
+to `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`. This repository follows
+the P0 scope of that plan; see [PROGRESS.md](PROGRESS.md) for the state of each
+gate.
 
-## Estrutura (segue o C2DTA Student Repository Template)
+## Structure (follows the C2DTA Student Repository Template)
 
 ```
 Claude/
-├─ src/                  # implementação (simulador, controlador, deployment, Yocto, experiências)
-│  ├─ CONTRACTS.md       # interfaces normativas partilhadas (tópicos, envelope, twins, portas)
-│  ├─ schemas/           # JSON Schemas versionados (envelope + 3 wearables)
+├─ src/                  # implementation (simulator, controller, deployment, Yocto, experiments)
+│  ├─ CONTRACTS.md       # shared normative interfaces (topics, envelope, twins, ports)
+│  ├─ schemas/           # versioned JSON Schemas (envelope + 3 wearables)
 │  ├─ things/            # W3C WoT Thing Descriptions 1.1
-│  ├─ egw_simulator/     # simulador CLI unificado (3 wearables, 6 cenários)
-│  ├─ egw_controller/    # bridge MQTT→Ditto (FastAPI + validação + idempotência)
-│  ├─ egw_experiments/   # harness da campanha experimental + análise
-│  ├─ deployment/        # compose ARM64 (Mosquitto TLS, Ditto 3.9.4, MongoDB, controlador)
-│  ├─ yocto/             # manifesto kas + layer meta-egw (Scarthgap 5.0.x, qemuarm64)
-│  └─ tests/             # testes unitários e de integração
-├─ docs/                 # G0 (âmbito, riscos, backlog), ADRs, guias de setup, matriz claim→evidência
-├─ thesis/               # dissertação LaTeX (template ISCTE) + protocolo da revisão
-├─ experiments/results/  # raw/ (imutável pós-freeze), processed/, figures/
+│  ├─ egw_simulator/     # unified CLI simulator (3 wearables, 6 scenarios)
+│  ├─ egw_controller/    # MQTT→Ditto bridge (FastAPI + validation + idempotency)
+│  ├─ egw_experiments/   # experimental campaign harness + analysis
+│  ├─ deployment/        # ARM64 compose (Mosquitto TLS, Ditto 3.9.4, MongoDB, controller)
+│  ├─ yocto/             # kas manifest + meta-egw layer (Scarthgap 5.0.x, qemuarm64)
+│  └─ tests/             # unit tests (against fakes; there are no integration tests)
+├─ docs/                 # G0 (scope, risks, backlog), ADRs, setup guides, claim→evidence matrix
+├─ thesis/               # LaTeX dissertation (ISCTE template) + review protocol
+├─ experiments/results/  # raw/ (immutable after the freeze), processed/, figures/
 ├─ diagrams/             # PlantUML/Mermaid
-├─ paper/                # artigo IEEE — fora de âmbito antes da submissão da tese
+├─ paper/                # IEEE article — out of scope before the thesis is submitted
 ├─ ai/                   # prompt kits (coding/writing agents)
-├─ PROGRESS.md           # estado por item do plano, com evidência
-└─ LOG.md                # diário de trabalho (formato do LOG_Projeto.md)
+├─ PROGRESS.md           # state of each plan item, with evidence
+└─ LOG.md                # work diary (format of LOG_Projeto.md)
 ```
 
-## Como começar
+## Getting started
 
-- Implementação Python (simulador, controlador, harness): ver [src/README.md](src/README.md).
-- Deployment da stack DT em ARM64: ver [src/deployment/README.md](src/deployment/README.md).
-- Build Yocto/QEMU: ver [src/yocto/README.md](src/yocto/README.md).
-- Preparação do ambiente (WSL2, VM ARM): ver [docs/setup/](docs/setup/).
+- Python implementation (simulator, controller, harness): see [src/README.md](src/README.md).
+- Deploying the DT stack on ARM64: see [src/deployment/README.md](src/deployment/README.md).
+- Yocto/QEMU build: see [src/yocto/README.md](src/yocto/README.md).
+- Preparing the environment (WSL2, ARM VM): see [docs/setup/](docs/setup/).
+- Documentation index, including the risk register and the claim→evidence
+  matrix: see [docs/README.md](docs/README.md).
 
-## Regras deste repositório
+## Rules of this repository
 
-- Nada é declarado "Concluído" sem evidência verificável (commit, log, teste, dado).
-- `experiments/results/raw/` é imutável após o data freeze (`data-v1`).
-- Nenhum número quantitativo entra na dissertação sem dados brutos + manifesto + script.
-- Secrets nunca entram no Git; existe `src/deployment/.env.example`.
+- Nothing is declared "Done" without verifiable evidence (commit, log, test, data).
+- `experiments/results/raw/` is immutable after the data freeze (`data-v1`).
+- No quantitative figure enters the dissertation without raw data, a manifest
+  and an analysis script.
+- QEMU evidence is functional only: it never supports a performance statement.
+- Secrets never enter Git; `src/deployment/.env.example` exists for that purpose.
+- British English is the working language of the repository
+  ([docs/governance/language-policy.md](docs/governance/language-policy.md)); the
+  mandatory Portuguese Resumo and drafts of external administrative
+  communication are the exceptions.

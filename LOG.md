@@ -3,6 +3,16 @@
 Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Próximos passos**
 (igual ao `../LOG_Projeto.md`; este LOG cobre apenas o trabalho dentro de `Claude/`).
 
+> **Ordering, identifiers and language (note added 2026-08-12).** Entries are
+> listed by identifier, ascending. Identifiers are assigned when an entry is
+> written and are never reused, so a renumbered entry may carry an earlier
+> date than the entry before it — see `#C010`, published as a second `#C006`
+> and renumbered on 2026-08-12 to remove the collision, with its date and
+> content unchanged. Entries written from 2026-08-11 onwards are in British
+> English, per [`docs/governance/language-policy.md`](docs/governance/language-policy.md);
+> the earlier Portuguese entries are historical records and are corrected only
+> by dated notes, never rewritten.
+
 ---
 
 ## Entrada #C001
@@ -140,6 +150,143 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
 
 ---
 
+## Entrada #C005
+- **Data:** 2026-08-08
+- **Fase:** Execução da ordem de trabalhos do Senior PM (P2 → P1 → P3);
+  GO formal em `../ChatGPT/DECISAO_FINAL_E_ORDEM_DE_TRABALHOS_CLAUDE_2026-08-08.md`
+- **Ação e resultado por bloco:**
+  - **P2 (académico):** claims prematuros removidos — caps. 1 e 3 já não
+    afirmam protocolo/pesquisas executados; Tabela 2.1 com linha "This work"
+    em linguagem de design e "pre-specified" em vez de "pre-registered";
+    caps. 4/6 e abstracts sem tempos verbais de resultado; tabela reconstruída
+    (legível). **PDF standalone do cap. 2 criado**:
+    `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., zero TODOs/placeholders,
+    inspecionado página a página). Checkpoint cumprido: caminho comunicado ao
+    estudante para envio imediato.
+  - **P1a (validade base):** agregação bloqueada a runs `validity != valid`;
+    `resource_source` tem de ser `sut-collector` em runs cronometrados
+    (`local-dev` invalida); proveniência de host no CSV do collector com
+    cross-check ao `sut_environment.json`; qualidade mínima de amostras e de
+    campos SUT; exit codes do simulador/warm-up e overrides do protocolo
+    passam a invalidar ou a registar `deviations` no manifesto (v1.2).
+  - **P1b (aceitação/completude):** aceitação itera as condições PLANEADAS —
+    zero runs ou n≠esperado = failed, nunca em branco; C10 exige
+    `dropout_disconnects≥1` e `buffered_dropout≥1` + reconciliação com
+    `/metrics`; C12 exige registo do hook de restart; DoD do soak (≥24 h,
+    cobertura ≥99%, sem gaps >60 s, sem interrupção não recuperada); gaps
+    >5 s quebram janelas "sustained"; saturação com veredicto
+    `insufficient-evidence` quando falta evidência (regra estatística
+    inalterada). Constantes novas marcadas "pending advisor sign-off".
+  - **P1c (imutabilidade + batch):** raw write-once com diretórios selados
+    (SHA256SUMS) — `collect` verifica checksums, só adiciona ficheiros em
+    falta e regista `collection_history`; subcomando `campaign` executa o
+    plano congelado pela ordem, com resume, stop-on-invalid, cooldowns e
+    `campaign_log.jsonl`; **corrigido bug real de caminho** (o harness lia
+    `sent_events.jsonl` fora do layout `<output>/<run_id>/` que o simulador
+    escreve — o fake dos testes reproduzia o layout errado e escondia-o).
+  - **P3 (selagem):** +x nos 3 scripts novos; `capture-sut-environment.sh`
+    passou a emitir `node` (exigido pela validação); PROGRESS/backlog/
+    riscos/título do doc G0 sincronizados (R16–R22 atualizados; RA1–RA15 da
+    reanálise mapeados); re-execução da suite em HEAD limpo com evidência
+    re-selada (ver `docs/evidence/tests/`).
+- **Evidência:** suite completa **515 passed** (452 → 470 → 493 → 515);
+  commits por entregável: P2 `59efa3f`, P1a `8a927d1`, P1b `8ee0370`,
+  P1c `761c9a8`, P3 (este); dois PDFs compilam limpos.
+- **Decisões/desvios:** "pre-registered"→"pre-specified" aplicado também aos
+  caps. 1/6 e abstracts (coerência); refusal de overwrite aplica-se a
+  qualquer ficheiro raw, não só a diretórios selados (write-once); timeboxes
+  da ordem respeitados.
+- **Próximos passos:** P4 (estudante): enviar email G0 + PDF standalone;
+  WSL2; VM ARM64; bundle para fora do Nextcloud/remote; queries
+  institucionais. Nenhum gate ou claim declarado aceite.
+
+---
+
+## Entrada #C006
+- **Data:** 2026-08-08
+- **Fase:** Adenda de rastreabilidade ao bloco P3 (sem trabalho técnico novo)
+- **Ação:** Registo dos identificadores exatos da evidência de P3, que a
+  entrada #C005 descrevia apenas por referência genérica
+  («ver `docs/evidence/tests/`»). A verificação externa de 08/08 assinalou
+  esta imprecisão; esta entrada fecha-a. Nada aqui altera o estado de
+  nenhum gate nem valida nenhum claim.
+- **Identificadores exatos:**
+  - **Caminho da evidência de P3:**
+    `docs/evidence/tests/2026-08-08-head-ca445a3/`
+    (contém `junit.xml`, `pytest-stdout.txt`, `environment.txt` e
+    `SHA256SUMS` dos três).
+  - **Commit testado (árvore exata sob teste):**
+    `ca445a31e5d146cf0c214b3cd4a23a95a48b5289` (abreviado `ca445a3`), com
+    **tree hash** `b767b229e295b9453cbc2efcbfd0122bf8409d38`;
+    `git status --porcelain` vazio no momento da execução. Ambos os valores
+    lidos de `environment.txt` do próprio diretório de evidência.
+  - **Resultado:** `515 passed` em 7,10 s (Windows 11 Pro, Python 3.14.3,
+    venv com `src/requirements.lock`), comando
+    `python -m pytest tests -q --junitxml=junit.xml` a partir de `Claude/src`.
+  - **Commit da evidência:** `9491090` — é o commit que **acrescenta** o
+    diretório de evidência e, por construção, é posterior a `ca445a3`; toca
+    apenas ficheiros sob `docs/evidence/tests/` e não altera código. A
+    distinção entre commit testado e commit da evidência é intencional e não
+    deve ser colapsada.
+  - **Bundle final de backup:** `backups/egw-20260808-final.bundle`
+    (991 862 bytes; SHA-256
+    `edf0c2409052498533667b78719c85468a8eba05d87b605b4ce0440fa35ba017`,
+    recalculado localmente em 08/08 e coincidente com o valor da verificação
+    externa; contém a história completa com `main`/HEAD em `9491090`).
+    Substitui `backups/egw-20260808.bundle`, anterior e mais curto.
+- **Limitações registadas:** a suite é unitária, com fakes, em Windows — nível
+  **M2**. Existem **zero** testes `integration`. O bundle continua dentro do
+  domínio Nextcloud, pelo que **não é ainda um backup independente** (risco
+  R25/RA13 permanece aberto, dependente de ação do estudante).
+- **Retificação a #C005:** a formulação «RA1–RA15 da reanálise mapeados» usada
+  na entrada #C005 era **demasiado ampla** e foi retirada de
+  [`docs/g0/risks.md`](docs/g0/risks.md) (então `riscos.md`). Vários RA estavam apenas implícitos
+  nas linhas R16–R27 e **RA15 (ausência de horas/forecast) está materializado**,
+  não mitigado. O ficheiro de riscos passa a seguir RA1–RA15 linha a linha, com
+  estado explícito e evidência ou dependência bloqueante por risco.
+- **Próximos passos:** inalterados face a #C005.
+
+---
+
+## Entrada #C007 — Sprint P5.4 (seis defeitos da auditoria de verificação)
+- **Data:** 2026-08-10
+- **Fase:** P5.4, autorizado pelo relatório
+  `../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`
+- **Ação:** As seis acusações técnicas do relatório foram **verificadas uma a
+  uma contra o código antes de qualquer correção**; todas se confirmaram.
+  Corrigidas por TDD (teste a falhar primeiro).
+- **Resultado (commits `734d1ce`, `62b8b8b`):**
+  1. **`analyze --plan`** — a completude por identidade existia mas era
+     inalcançável pelo comando oficial (só por variável de ambiente não
+     documentada); o subcomando passa a aceitar e propagar `--plan`.
+  2. **Runs externos não selados** entravam nas estatísticas de duração; passam
+     a exigir selo verificado (`integrity_ok == INTEGRITY_OK`).
+  3. **C12** media apenas que o `GET /metrics` voltou a responder — renomeado
+     para *endpoint recovery* e acrescentado um critério **funcional
+     limitado no tempo**: primeira prova de que a ingestão retomou (primeiro
+     evento aceite pós-restart no domínio de relógio do controlador, ou
+     primeira amostra cujo contador ultrapassa a linha de base anterior).
+  4. **Validação numérica estrita** — NaN, infinito, negativos e contadores
+     fracionários eram aceites; `mem_bytes=inf` **rebentava a análise**
+     (`int(float('inf'))` lança `OverflowError`, não apanhado por
+     `except ValueError`). Um único `inf` no CPU fingia saturação; um `nan`
+     tornava o `max()` dependente da ordem das linhas e desligava todas as
+     comparações de limiar.
+  5. **Marcador de confirmação** era lido depois de juntar os samplers (que
+     podem bloquear ~25 s), alargando a janela efetiva para 60 + Δ s e
+     enviesando a taxa de entrega para cima; passa a ser lido imediatamente
+     após o fim da execução medida.
+  6. **`campaign --start-from`** já não dispensa evidência externa saltada: os
+     externos pendentes são contabilizados sobre o plano inteiro, a campanha
+     reporta `incomplete` e sai com código não-zero.
+  - Correção editorial: «registered» → «planned»/«specified» no capítulo 2
+    (podia sugerir um protocolo formalmente pré-registado).
+- **Evidência:** suite completa **618 testes** (593 → 618).
+- **Decisões:** nenhum limiar estatístico, percentil, método de IC ou a janela
+  de 60 s foi alterado; nenhum gate ou claim aceite.
+
+---
+
 ## Entrada #C008 — Primeira execução real do Yocto (G1) e bloqueio da VM ARM64
 - **Data:** 2026-08-10 (noite) / 2026-08-11
 - **Fase:** P4 — ações externas; G1 iniciado
@@ -246,6 +393,17 @@ O manifesto confirma os componentes exigidos pelo âmbito P0: `docker-moby
 boots QEMU registados** e o **smoke de container dentro do guest**, que são a
 evidência exigida pelos claims C01 e C02. Zero boots executados até à data.
 
+> **Correction added 2026-08-12 — superseded by #C011.** «Zero boots
+> executados até à data» was accurate when this entry was written and stopped
+> being accurate later the same day: two unattended QEMU bring-up boots were
+> driven by `src/yocto/scripts/boot_check.py` (commit `32f6604`) and both
+> passed — 6 of 6 required assertions passed, 3 of 3 supplementary
+> observations recorded, clean power-down confirmed — with the evidence
+> sealed in `docs/evidence/g1-yocto-qemu/`. The rest of the paragraph still
+> holds: gate G1 is **not** accepted — the evidence exists, the acceptance
+> decision does not. The original sentence is left exactly as written, as the
+> record of the state at that moment.
+
 ### Quarto defeito encontrado pela execução real
 Ao terceiro insucesso do `perl do_compile` — em três módulos diferentes
 (`Pod-Escapes`, `JSON-PP`, `Time-Local`) e já com `-j 1` — ficou claro que o
@@ -271,46 +429,15 @@ histórico existe agora num domínio de falha independente do disco local.
 
 ---
 
-## Entrada #C007 — Sprint P5.4 (seis defeitos da auditoria de verificação)
-- **Data:** 2026-08-10
-- **Fase:** P5.4, autorizado pelo relatório
-  `../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`
-- **Ação:** As seis acusações técnicas do relatório foram **verificadas uma a
-  uma contra o código antes de qualquer correção**; todas se confirmaram.
-  Corrigidas por TDD (teste a falhar primeiro).
-- **Resultado (commits `734d1ce`, `62b8b8b`):**
-  1. **`analyze --plan`** — a completude por identidade existia mas era
-     inalcançável pelo comando oficial (só por variável de ambiente não
-     documentada); o subcomando passa a aceitar e propagar `--plan`.
-  2. **Runs externos não selados** entravam nas estatísticas de duração; passam
-     a exigir selo verificado (`integrity_ok == INTEGRITY_OK`).
-  3. **C12** media apenas que o `GET /metrics` voltou a responder — renomeado
-     para *endpoint recovery* e acrescentado um critério **funcional
-     limitado no tempo**: primeira prova de que a ingestão retomou (primeiro
-     evento aceite pós-restart no domínio de relógio do controlador, ou
-     primeira amostra cujo contador ultrapassa a linha de base anterior).
-  4. **Validação numérica estrita** — NaN, infinito, negativos e contadores
-     fracionários eram aceites; `mem_bytes=inf` **rebentava a análise**
-     (`int(float('inf'))` lança `OverflowError`, não apanhado por
-     `except ValueError`). Um único `inf` no CPU fingia saturação; um `nan`
-     tornava o `max()` dependente da ordem das linhas e desligava todas as
-     comparações de limiar.
-  5. **Marcador de confirmação** era lido depois de juntar os samplers (que
-     podem bloquear ~25 s), alargando a janela efetiva para 60 + Δ s e
-     enviesando a taxa de entrega para cima; passa a ser lido imediatamente
-     após o fim da execução medida.
-  6. **`campaign --start-from`** já não dispensa evidência externa saltada: os
-     externos pendentes são contabilizados sobre o plano inteiro, a campanha
-     reporta `incomplete` e sai com código não-zero.
-  - Correção editorial: «registered» → «planned»/«specified» no capítulo 2
-    (podia sugerir um protocolo formalmente pré-registado).
-- **Evidência:** suite completa **618 testes** (593 → 618).
-- **Decisões:** nenhum limiar estatístico, percentil, método de IC ou a janela
-  de 60 s foi alterado; nenhum gate ou claim aceite.
+## Entrada #C010 (sprint P5 — pré-voo antes do P4)
 
----
+> **Renumbering note (2026-08-12).** This entry was published as a second
+> `#C006`; it is renumbered here to remove the collision. Its date, content and
+> evidence are unchanged. `#C006` keeps the traceability addendum to block P3,
+> which other documents already cite by that identifier. Identifiers are
+> assigned when an entry is written and are never reused, which is why `#C010`
+> carries an earlier date than `#C009`.
 
-## Entrada #C006 (sprint P5 — pré-voo antes do P4)
 - **Data:** 2026-08-08
 - **Fase:** Sprint P5 autorizado pelo Senior PM
   (`../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`)
@@ -369,98 +496,182 @@ histórico existe agora num domínio de falha independente do disco local.
 
 ---
 
-## Entrada #C005
-- **Data:** 2026-08-08
-- **Fase:** Execução da ordem de trabalhos do Senior PM (P2 → P1 → P3);
-  GO formal em `../ChatGPT/DECISAO_FINAL_E_ORDEM_DE_TRABALHOS_CLAUDE_2026-08-08.md`
-- **Ação e resultado por bloco:**
-  - **P2 (académico):** claims prematuros removidos — caps. 1 e 3 já não
-    afirmam protocolo/pesquisas executados; Tabela 2.1 com linha "This work"
-    em linguagem de design e "pre-specified" em vez de "pre-registered";
-    caps. 4/6 e abstracts sem tempos verbais de resultado; tabela reconstruída
-    (legível). **PDF standalone do cap. 2 criado**:
-    `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., zero TODOs/placeholders,
-    inspecionado página a página). Checkpoint cumprido: caminho comunicado ao
-    estudante para envio imediato.
-  - **P1a (validade base):** agregação bloqueada a runs `validity != valid`;
-    `resource_source` tem de ser `sut-collector` em runs cronometrados
-    (`local-dev` invalida); proveniência de host no CSV do collector com
-    cross-check ao `sut_environment.json`; qualidade mínima de amostras e de
-    campos SUT; exit codes do simulador/warm-up e overrides do protocolo
-    passam a invalidar ou a registar `deviations` no manifesto (v1.2).
-  - **P1b (aceitação/completude):** aceitação itera as condições PLANEADAS —
-    zero runs ou n≠esperado = failed, nunca em branco; C10 exige
-    `dropout_disconnects≥1` e `buffered_dropout≥1` + reconciliação com
-    `/metrics`; C12 exige registo do hook de restart; DoD do soak (≥24 h,
-    cobertura ≥99%, sem gaps >60 s, sem interrupção não recuperada); gaps
-    >5 s quebram janelas "sustained"; saturação com veredicto
-    `insufficient-evidence` quando falta evidência (regra estatística
-    inalterada). Constantes novas marcadas "pending advisor sign-off".
-  - **P1c (imutabilidade + batch):** raw write-once com diretórios selados
-    (SHA256SUMS) — `collect` verifica checksums, só adiciona ficheiros em
-    falta e regista `collection_history`; subcomando `campaign` executa o
-    plano congelado pela ordem, com resume, stop-on-invalid, cooldowns e
-    `campaign_log.jsonl`; **corrigido bug real de caminho** (o harness lia
-    `sent_events.jsonl` fora do layout `<output>/<run_id>/` que o simulador
-    escreve — o fake dos testes reproduzia o layout errado e escondia-o).
-  - **P3 (selagem):** +x nos 3 scripts novos; `capture-sut-environment.sh`
-    passou a emitir `node` (exigido pela validação); PROGRESS/backlog/
-    riscos/título do doc G0 sincronizados (R16–R22 atualizados; RA1–RA15 da
-    reanálise mapeados); re-execução da suite em HEAD limpo com evidência
-    re-selada (ver `docs/evidence/tests/`).
-- **Evidência:** suite completa **515 passed** (452 → 470 → 493 → 515);
-  commits por entregável: P2 `59efa3f`, P1a `8a927d1`, P1b `8ee0370`,
-  P1c `761c9a8`, P3 (este); dois PDFs compilam limpos.
-- **Decisões/desvios:** "pre-registered"→"pre-specified" aplicado também aos
-  caps. 1/6 e abstracts (coerência); refusal de overwrite aplica-se a
-  qualquer ficheiro raw, não só a diretórios selados (write-once); timeboxes
-  da ordem respeitados.
-- **Próximos passos:** P4 (estudante): enviar email G0 + PDF standalone;
-  WSL2; VM ARM64; bundle para fora do Nextcloud/remote; queries
-  institucionais. Nenhum gate ou claim declarado aceite.
+## Entry #C011 — Gate G1 evidence: two unattended QEMU boots, sealed archive, language policy, first merged pull requests
 
----
+- **Date:** 2026-08-11/2026-08-12
+- **Phase:** G1 (functional platform — bring-up of the built image) and G0
+  (governance and preservation)
+- **Language:** first entry written under
+  [`docs/governance/language-policy.md`](docs/governance/language-policy.md)
+  (British English, sole working language since 2026-08-11). The entries above
+  stay in Portuguese: published history is corrected by dated notes and never
+  rewritten.
+- **Action:** the `egw-image` recorded in #C009 was taken through **unattended**
+  QEMU bring-up, the evidence was sealed and verified from a clean clone, the
+  repository moved to a pull-request workflow, and the language policy was
+  adopted. Entry #C009 said "Zero boots executados até à data"; that stopped
+  being true later the same day and the correction is noted there.
 
-## Entrada #C006
-- **Data:** 2026-08-08
-- **Fase:** Adenda de rastreabilidade ao bloco P3 (sem trabalho técnico novo)
-- **Ação:** Registo dos identificadores exatos da evidência de P3, que a
-  entrada #C005 descrevia apenas por referência genérica
-  («ver `docs/evidence/tests/`»). A verificação externa de 08/08 assinalou
-  esta imprecisão; esta entrada fecha-a. Nada aqui altera o estado de
-  nenhum gate nem valida nenhum claim.
-- **Identificadores exatos:**
-  - **Caminho da evidência de P3:**
-    `docs/evidence/tests/2026-08-08-head-ca445a3/`
-    (contém `junit.xml`, `pytest-stdout.txt`, `environment.txt` e
-    `SHA256SUMS` dos três).
-  - **Commit testado (árvore exata sob teste):**
-    `ca445a31e5d146cf0c214b3cd4a23a95a48b5289` (abreviado `ca445a3`), com
-    **tree hash** `b767b229e295b9453cbc2efcbfd0122bf8409d38`;
-    `git status --porcelain` vazio no momento da execução. Ambos os valores
-    lidos de `environment.txt` do próprio diretório de evidência.
-  - **Resultado:** `515 passed` em 7,10 s (Windows 11 Pro, Python 3.14.3,
-    venv com `src/requirements.lock`), comando
-    `python -m pytest tests -q --junitxml=junit.xml` a partir de `Claude/src`.
-  - **Commit da evidência:** `9491090` — é o commit que **acrescenta** o
-    diretório de evidência e, por construção, é posterior a `ca445a3`; toca
-    apenas ficheiros sob `docs/evidence/tests/` e não altera código. A
-    distinção entre commit testado e commit da evidência é intencional e não
-    deve ser colapsada.
-  - **Bundle final de backup:** `backups/egw-20260808-final.bundle`
-    (991 862 bytes; SHA-256
-    `edf0c2409052498533667b78719c85468a8eba05d87b605b4ce0440fa35ba017`,
-    recalculado localmente em 08/08 e coincidente com o valor da verificação
-    externa; contém a história completa com `main`/HEAD em `9491090`).
-    Substitui `backups/egw-20260808.bundle`, anterior e mais curto.
-- **Limitações registadas:** a suite é unitária, com fakes, em Windows — nível
-  **M2**. Existem **zero** testes `integration`. O bundle continua dentro do
-  domínio Nextcloud, pelo que **não é ainda um backup independente** (risco
-  R25/RA13 permanece aberto, dependente de ação do estudante).
-- **Retificação a #C005:** a formulação «RA1–RA15 da reanálise mapeados» usada
-  na entrada #C005 era **demasiado ampla** e foi retirada de
-  [`docs/g0/riscos.md`](docs/g0/riscos.md). Vários RA estavam apenas implícitos
-  nas linhas R16–R27 e **RA15 (ausência de horas/forecast) está materializado**,
-  não mitigado. O ficheiro de riscos passa a seguir RA1–RA15 linha a linha, com
-  estado explícito e evidência ou dependência bloqueante por risco.
-- **Próximos passos:** inalterados face a #C005.
+### The boots were driven by a program, not typed by a person
+
+`src/yocto/scripts/boot_check.py` (added in `3a9900e`, final state at
+`32f6604`) attaches to the serial console over a pseudo-terminal, logs in, runs
+a fixed list of in-guest checks, records the whole session and decides the
+outcome from the output, exiting non-zero when a required check fails. It
+replaces the interactive `run-qemu.sh`, which produced a console log only if a
+human sat at the terminal and typed the checks — reproducible by nobody. Each
+run writes `<name>.log` (the full console session) and `<name>.result.json`
+(the per-check verdicts).
+
+### Six defects that only running the thing could expose
+
+None of them was visible by reading the code or the recipes. All were defects
+in **how the evidence was collected**, not in the image being evidenced.
+
+1. **BusyBox rejects the `head -N` shorthand** — two checks died on
+   `head: invalid option`. Now `-n N` (`024115e`).
+2. **`multi-user.target` was assumed to be the default target** — the driver
+   asserted that unit active; the image reported it inactive while the system
+   was running normally. The driver now reads the default target from the unit
+   list and asserts that *that* target is active (`024115e`, `799ee48`).
+3. **Kernel messages drown the console during container teardown** — the burst
+   produced by container networking swallowed the completion marker and the
+   smoke check timed out mid-teardown. The driver now raises the console log
+   level after login, widens the terminal so long command lines are not
+   wrapped, and gives the container checks their own longer timeouts
+   (`024115e`).
+4. **A dynamically linked BusyBox left without its loader** — the smoke image
+   carried the binary and not its interpreter, and the kernel reports the
+   missing **INTERPRETER** as "no such file or directory", which reads as if
+   the binary itself were absent. The loader is now bundled (`799ee48`).
+5. **usrmerge makes `/lib` and `/usr/lib` the same file on the host and two
+   distinct paths inside a container** — `INIT_MANAGER=systemd` pulls usrmerge
+   in, so on the running system the two spellings name one file; inside a
+   freshly imported container rootfs they are two directories, and only the
+   spelling recorded in the binary's `PT_INTERP` is consulted. Copying to one
+   side left the other missing. Every object now goes under both names
+   (`f53bb4b`).
+6. **A check passed by matching its own command echo** — the systemd check
+   searched for the word `running` and matched it inside its own
+   `systemctl is-system-running` invocation, reporting a pass **while the
+   system was still starting**. Checks are now bracketed by begin/end markers
+   written as split literals, so only the text between them is judged, and the
+   systemd check uses `is-system-running --wait` so every later check observes
+   a settled system (`38e48f4`).
+
+Two further faults of the same class were found while fixing these and are
+recorded for the same reason: a stray `0x08` byte inside the systemd pattern,
+invisible in a normal diff and only visible under `cat -A`, made that pattern
+unmatchable (`05166eb`); and the driver's own verdict was untrustworthy
+(`32f6604`) — a timed-out command could still be judged a pass because the
+read result was discarded, `clean_poweroff` was recorded but excluded from the
+decision, and three entries that assert nothing were being counted as
+verification, which is what produced the earlier "9 of 9 checks" headline.
+Entries now declare a kind, required assertions and supplementary observations
+are reported separately, and 18 tests bind this behaviour through a fake
+console, so no test starts a virtual machine.
+
+### The two boots, with the result shape exactly as recorded
+
+Both boots were driven by `boot_check.py` at commit `32f6604` — they were
+**not** manual.
+
+| Boot | Outcome | Required assertions | Supplementary observations | Clean power-down |
+|---|---|---|---|---|
+| `boot1` | pass | 6 of 6 passed | 3 of 3 recorded | confirmed |
+| `boot2` | pass | 6 of 6 passed | 3 of 3 recorded | confirmed |
+
+The six **required assertions** are what was verified: architecture and release
+(`aarch64`, kernel 6.6.142, Poky 5.0.19 scarthgap); systemd state after
+`is-system-running --wait`; the target list showing `multi-user.target` active;
+networking with a slirp lease; the container runtime reporting a server version
+(Docker 25.0.9, `overlay2`, systemd cgroup driver); and the in-image container
+smoke test, which builds a single-layer OCI image from the target's own
+BusyBox, imports it, runs a command inside it and removes it — the runtime
+exercised end to end with no registry access.
+
+The three **supplementary observations** (the failed-unit list, empty in both
+boots; gateway reachability; the smoke diagnostics) are recorded for diagnosis,
+**assert nothing and are never counted as verification**. One of them reports
+`INTERP=unavailable` because the image carries no binutils and neither
+`strings` nor the `tr` fallback is usable — it says so plainly instead of
+printing a fabricated value.
+
+Nothing timed in these runs is reportable. QEMU is the functional platform:
+**no QEMU result supports a performance or a security statement.**
+
+### Sealing, and two defects in the seal itself
+
+Evidence archived in `docs/evidence/g1-yocto-qemu/` (`d15ac8b`): both console
+sessions, both per-check result files, the build and checkout logs, the
+639-package image manifest, the image and kernel digests, and `SHA256SUMS`
+covering every file. The seal was wrong twice before it was right:
+
+- the four `*.log` files listed in `SHA256SUMS` were kept out of the tree by
+  `.gitignore`, so `sha256sum -c` could not succeed from a clean clone — the
+  seal covered files nobody else could obtain. The exception was added and the
+  files tracked (`32f6604`);
+- `SHA256SUMS` had been written from PowerShell, in CRLF, so verification
+  failed on every entry with "No such file or directory": it was looking for
+  filenames with a trailing carriage return. All sealed text is LF now and
+  every archive was re-sealed against the normalised bytes (`a6bcb27`).
+
+Unit-test evidence for the integrated tree: **`701 passed`** over clean HEAD
+`4e67717`, sealed in `docs/evidence/tests/2026-08-11-head-4e67717/` with the
+interpreter path, `python -VV`, `pip freeze`, `pip check`, the pytest version,
+the SHA-256 of `src/requirements.lock` and `SHA256SUMS` (sealed by `ddb9cbd`,
+which is necessarily later than the commit it tests). The earlier figures
+(`683`, `618`, `593`, `515`) are **historical**, each tied to the commit it
+tested, and none of them is the current figure.
+
+The evidence README and PROGRESS were corrected from "9 of 9 checks" to six
+required assertions passed and three supplementary observations recorded
+(`4e67717`, `ddb9cbd`, `df57d6c`), which is what the driver actually verified.
+
+### State, stated plainly
+
+- **Gate G1: evidence produced, acceptance PENDING.** Building, booting,
+  merging and archiving demonstrate implementation and verification; accepting
+  a gate is a separate decision, recorded in `PROGRESS.md` and in Annex C of
+  the plan. **No gate has been accepted.**
+- **Claims: 0 of 15 accepted.** C01 is partial — the rebuild from an
+  independent clean checkout is still missing and belongs to G4. C02 holds the
+  evidence of the **two bring-up boots**; the campaign's five `qemu_boots` runs
+  are a separate, later set produced under the frozen protocol. The remaining
+  13 claims have no evidence.
+- The **ARM64 measurement VM still does not exist**: risk R28 is materialised,
+  and R29 is why no
+  burstable instance may produce a number. The three-tier platform model, until
+  now recorded only in `PROGRESS.md` and in this LOG, is written up as
+  [ADR 0007](docs/adr/0007-three-tier-platform-model.md) (**Proposed**, awaiting
+  supervisor validation), which extends ADR 0001.
+
+### Governance: language policy and the pull-request workflow
+
+- **British English (en-GB) is the sole working language since 2026-08-11**
+  (`eaf0733`), for all new and modified content. The only academic exception is
+  the Portuguese Resumo and any front matter the university makes mandatory in
+  Portuguese; drafts of external administrative communication, such as the
+  supervisor emails, may also stay in Portuguese. Legacy Portuguese documents
+  migrate in tracked batches; sealed evidence, published history, identifiers
+  and machine-readable values are never translated.
+- The private remote `Ruisth/Tese_Mestrado` (HTTPS) carries a ruleset requiring
+  pull requests on `main` and `dev` and forbidding force-push and deletion.
+  `dev` is the integration branch; `main` receives stable versions by pull
+  request only. `refs/tags` stays empty, by choice.
+- **Four pull requests were opened; #1 was closed and superseded.** Merged into
+  `dev`: **#2** the P0 baseline (`e40b0a1`), **#3** repository governance
+  (`238474b`), **#4** the gate G1 evidence (`e8647cc`).
+
+### Decisions and next steps
+
+- **Decisions:** no gate accepted, no claim validated and no maturity level
+  raised by this work; the QEMU/measurement separation is unchanged and is now
+  three-tier under ADR 0007 (Proposed); the six defects were corrected before
+  the sealed run rather than worked around, and the driver was fixed *before*
+  being reused for the campaign's five boots.
+- **Next steps:** send the G0 email with the chapter 2 PDF and report the
+  ARM64 risk to the supervisors, as the plan's rule §8.1 requires from
+  2026-08-12 (student actions); obtain a dedicated ARM64 instance (approved
+  quota or the AWS `c6g.xlarge` fallback); run the campaign's five QEMU boots
+  under the frozen protocol; record the formal gate G1 decision.
