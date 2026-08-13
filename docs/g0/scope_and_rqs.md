@@ -1,10 +1,25 @@
-# G0 — Scope and research questions (proposed — awaiting supervisor validation)
+# G0 - Scope and research questions (two-layer proposal)
 
-> Derived from the integrated plan (`../../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`,
-> v1.0 — 2026-08-07, NORMATIVE), sections 4 and 12. This document fixes the scope for
-> gate **G0 (2026-08-10)**. Any change requires the plan to be updated and an entry in the LOG.
+> Working proposal under the versioned integrated plan
+> ([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
+> v1.1 - 2026-08-13). The archived v1.0 remains historical. This document
+> proposes the scientific scope for gate G0; it neither accepts the gate nor
+> records a supervisor decision. Any approved change requires a plan update and
+> an entry in the LOG.
 
-**State:** proposed, awaiting supervisor validation. The G0 email is drafted in
+**Version:** 1.1 (2026-08-13)
+
+**State:** **PROPOSED - NOT SENT**, awaiting explicit supervisor validation.
+
+**Change control:** this proposal does not change the title or RQs in the
+normative dissertation source. The rationale and proposed wording are recorded
+in [`two_layer_thesis_proposal.md`](two_layer_thesis_proposal.md), and the
+requested decisions and recommendations are D001-D008 in
+[`supervisor_decision_matrix.csv`](supervisor_decision_matrix.csv). That matrix
+contains no mutable status. The authoritative decision state is kept only in
+[`../governance/supervisor_decision_log.csv`](../governance/supervisor_decision_log.csv).
+
+The G0 email is drafted in
 [`supervisor_email_g0.md`](supervisor_email_g0.md) and has not yet been
 sent — sending it is a student action. **No gate has been accepted**, G0
 included; the state of every deliverable lives in
@@ -12,29 +27,40 @@ included; the state of every deliverable lives in
 
 ---
 
-## 1. Objective (plan §4.1)
+## 1. Proposed objective
 
-Design, implement and evaluate a reproducible ARM64 Edge Gateway, based on Yocto
-and containerised services, able to receive concurrent synthetic telemetry from
-three wearables, validate the events and materialise them as digital twins in
-Eclipse Ditto.
+Design and experimentally evaluate a versioned, two-layer ARM64 Edge Gateway
+prototype for the local digital-twin core of C2DTA. The first artefact layer is
+a Yocto/QEMU functional platform for build, boot, networking, systemd and an OCI
+runtime. The second is a separately deployed native-ARM64 container stack that
+receives concurrent synthetic telemetry from three wearable types, validates
+the events and materialises them as digital twins in Eclipse Ditto.
 
-## 2. Definitive research questions (plan §4.2)
+The two layers share repository provenance and contracts, but the proposal does
+not claim that Eclipse Ditto runs inside the Yocto image. QEMU produces no
+performance result. The word `reproducible` remains subject to D006 and is not a
+demonstrated property until an independent clean reproduction has succeeded.
 
-The RQs are fixed in English, exactly as they will appear in the dissertation:
+## 2. Proposed research questions
 
-1. **RQ1:** *How can a reproducible Yocto-based ARM64 edge gateway be designed to
-   host containerised digital-twin services?*
-2. **RQ2:** *To what extent can the gateway ingest and materialise concurrent
-   synthetic telemetry from three wearable-device types correctly and reliably?*
-3. **RQ3:** *What latency, throughput and resource-consumption trade-offs constrain
-   deployment of the proposed platform on an ARM64 edge-class environment?*
+The following wording is proposed for D001; it is not yet integrated into the
+normative dissertation source:
+
+1. **RQ1:** *How can a two-layer ARM64 Edge Gateway prototype be designed, built
+   and redeployed when its Yocto/QEMU functional platform and native-ARM64
+   containerised digital-twin stack are treated as separate artefact layers?*
+2. **RQ2:** *To what extent can the prototype ingest and materialise concurrent
+   synthetic telemetry from three wearable-device types correctly and reliably,
+   including under specified fault scenarios?*
+3. **RQ3:** *What latency, sustainable-throughput, saturation and per-container
+   resource trade-offs constrain the digital-twin stack on a non-burstable
+   native-ARM64 environment?*
 
 ACA-Py and SSI are **not required** to answer any RQ.
 
-## 3. Mandatory scope — P0 (plan §4.3)
+## 3. Mandatory scope — P0 (plan §3.3)
 
-- Reproducible Linux environment, version control and claim→evidence matrix
+- Versioned Linux build environment, version control and claim→evidence matrix
   ([`../claim_evidence_matrix.md`](../claim_evidence_matrix.md)).
 - Yocto Project **5.0.19/Scarthgap**, with exact tags and commits pinned in a
   `kas` manifest, without depending on the HEAD of moving branches (Scarthgap is
@@ -52,45 +78,33 @@ ACA-Py and SSI are **not required** to answer any RQ.
 - Unit, integration, E2E, recovery, load and 24-hour stability tests.
 - An experimental campaign on a temporary ARM64 VM (native, not emulated).
 - A complete dissertation in English, with a Resumo in Portuguese if required.
-- A reproducibility package with code, configurations, logs, data, checksums and
-  the analysis script.
+- A versioned evidence and reproduction package with code, configurations, logs,
+  data, checksums and the analysis script.
 
-## 4. Conditional scope — P1 (plan §4.4)
+## 4. Reference architecture and future work only (plan §3.4)
 
-ACA-Py may only proceed **after gate G3 (2026-08-30)**, with a maximum total timebox
-of **12 hours**, and under the cutting rules of plan §8.1:
+ACA-Py, DIDComm, SSI, verifiable-credential flows, Fabric, Indy and IPFS are
+not implementation scope in September or in any unapproved October
+contingency. They may appear only as C2DTA reference-architecture components,
+explicit interface boundaries and future work. This v1.1 decision supersedes
+the conditional P1 option in the archived v1.0; the historical ADR is retained
+for traceability and is not an active work authorisation.
 
-- it only proceeds if the QEMU build/boot, a clean ARM deployment, three devices,
-  the scenarios, tests, metrics and soak are complete and **free of P0 defects**;
-- use the image `ghcr.io/openwallet-foundation/acapy-agent:py3.13-1.6-lts`, pinned
-  by the digest verified for ARM64, and `askar-anoncreds` instead of the deprecated
-  `askar` wallet;
-- confirm ARM64 support **before** any implementation;
-- run two local agents, `did:peer`, an Out-of-Band invitation and a basic DIDComm
-  message;
-- do not use a public ledger, Indy, credential issuance or ownership logic;
-- cut immediately if there is no ARM64 image, if any P0 gate is red or if the
-  timebox ends; automatic cut after 12 h or on **2026-09-03**, whichever comes
-  first.
+## 5. Out of scope (plan §3.4)
 
-The thesis has to be defensible even with the whole of P1 cut; see
-[`../adr/0002-ssi-acapy-conditional-p1.md`](../adr/0002-ssi-acapy-conditional-p1.md).
-
-## 5. Out of scope (plan §4.5)
-
-- Hyperledger Indy, Fabric, IPFS as mandatory storage, marketplace, ownership
-  transfer, business verifiable credentials, AI/MAS, graphical interface,
-  dashboard, Bluetooth, OTA, LUKS, energy consumption and evaluation on a physical
-  Raspberry Pi.
+- ACA-Py, DIDComm, executable SSI, Hyperledger Indy, Fabric, IPFS as mandatory
+  storage, marketplace, ownership transfer, business verifiable credentials,
+  AI/MAS, graphical interface, dashboard, Bluetooth, OTA, LUKS, energy
+  consumption and evaluation on a physical Raspberry Pi.
 - More than three device types.
 - A scientific paper and detailed defence preparation before submission. If the
   thesis is delivered in September, October may be used for that work without
   reopening the submitted artefact.
 
-The contingency extension (plan §10) **never** reintroduces Indy, Fabric, IPFS,
-the marketplace, a UI or any other cut function.
+Any contingency (plan §3.4) **never** reintroduces Indy, Fabric, IPFS, the
+marketplace, a UI or any other cut function.
 
-## 6. Closed premises (plan §12)
+## 6. Closed project constraints (plan §§3–5)
 
 - Time baseline: 2026-08-07.
 - Availability: 35–45 h/week.
@@ -99,6 +113,7 @@ the marketplace, a UI or any other cut function.
 - Performance evaluation on an ARM64 VM; QEMU is functional only.
 - Dissertation in English; Resumo in Portuguese when required.
 - CLI simulator, no dashboard.
-- ACA-Py is strictly conditional and dispensable for every RQ.
-- The thesis has to be defensible even if the whole P1 scope is cut.
+- ACA-Py, DIDComm, SSI/blockchain and decentralised storage are contextual or
+  future work only and are not an implementation contingency.
+- The thesis must be defensible entirely from the two-layer P0 scope.
 - The word target is indicative, never a substitute for evidence or quality.
