@@ -1,0 +1,92 @@
+@startuml
+title C2DTA five-layer reference architecture and P0 boundary
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+skinparam ArrowColor #34495E
+skinparam packageBorderColor #34495E
+skinparam packageFontStyle bold
+
+legend right
+  |= Colour |= Meaning |
+  |<#D5F5E3> Green | Implemented or configured in P0 repository |
+  |<#FCF3CF> Yellow | P0 artefact exists; live ARM64 evidence pending |
+  |<#EAECEE> Grey | C2DTA paper reference; deferred from P0 |
+endlegend
+
+package "1. Business layer\nC2DTA PAPER - DEFERRED FROM P0" as BUSINESS #EAECEE {
+  component "Consortium\nmanager" as Consortium #EAECEE
+  component "Smart-device and\nEGW OEMs" as OEMs #EAECEE
+  component "Business users,\nagents and wallets" as BusinessAgents #EAECEE
+}
+
+package "2. Ecosystem layer\nC2DTA PAPER - DEFERRED FROM P0" as ECOSYSTEM #EAECEE {
+  component "Consortium\nmarketing site" as Marketing #EAECEE
+  component "Decentralised\nmarketplace" as Marketplace #EAECEE
+  component "Device lifecycle and\necosystem transactions" as Lifecycle #EAECEE
+}
+
+package "3. Peer-to-peer layer\nC2DTA PAPER - DEFERRED FROM P0" as P2P #EAECEE {
+  component "ACA-Py / Aries agents" as Acapy #EAECEE
+  component "Controllers and\ndigital wallets" as Wallets #EAECEE
+  component "DIDs, VCs, OOB and\nDIDComm protocols" as Didcomm #EAECEE
+}
+
+package "4. Records layer\nC2DTA PAPER - DEFERRED FROM P0" as RECORDS #EAECEE {
+  database "Hyperledger Fabric\necosystem ledger" as Fabric #EAECEE
+  database "Hyperledger Indy\nidentity ledger" as Indy #EAECEE
+  database "IPFS decentralised\nstorage" as Ipfs #EAECEE
+}
+
+package "5. Consumer edge layer" as CONSUMER #FFFFFF {
+  component "Synthetic smartwatch,\nsmart ring and smart clothing\nP0 IMPLEMENTED" as Devices #D5F5E3
+
+  package "Edge Gateway local digital-twin core\nP0 CONFIGURED - LIVE ARM64 EVIDENCE PENDING" as P0 #FCF3CF {
+    component "Eclipse Mosquitto\nMQTT/TLS" as Mosquitto #D5F5E3
+    component "MQTT-to-Ditto\ncontroller" as Controller #D5F5E3
+    component "Eclipse Ditto 3.9.4\ngateway, policies, things" as Ditto #D5F5E3
+    database "MongoDB 7.0.39\ntwin state" as Mongo #D5F5E3
+  }
+
+  component "Consumer and smart-device\nACA-Py agents\nDEFERRED" as ConsumerAgents #EAECEE
+  component "C2DTA ownership, onboarding,\ntwinning and untwinning\nDEFERRED" as Ownership #EAECEE
+  component "Historical dataset transfer\nDEFERRED" as DatasetTransfer #EAECEE
+}
+
+Consortium --> Marketing
+OEMs --> Marketplace
+BusinessAgents --> Acapy
+Marketing --> Lifecycle
+Marketplace --> Lifecycle
+Lifecycle --> Acapy
+
+Acapy --> Didcomm
+Wallets --> Didcomm
+Didcomm --> ConsumerAgents
+Acapy --> Fabric
+Acapy --> Indy
+
+Devices --> Mosquitto : MQTT/TLS telemetry\nP0 path, not DIDComm
+Mosquitto --> Controller
+Controller --> Ditto : validate and materialise
+Ditto --> Mongo
+
+ConsumerAgents --> Ownership
+Ownership --> Fabric : device status
+Ownership --> Indy : credentials
+DatasetTransfer --> Ipfs : historical data
+Ditto ..> DatasetTransfer : C2DTA paper function\nnot implemented in P0
+
+note bottom of P0
+  The repository contains the service configuration and code.
+  It does not yet contain a live native-ARM64 vertical-slice result.
+end note
+
+note bottom of CONSUMER
+  MQTT/TLS and Ditto pre-authentication are not substitutes
+  for DIDComm, SSI, DIDs or verifiable credentials.
+end note
+
+@enduml

@@ -70,8 +70,8 @@ concentrate the household's trust: it is the single component that sees all
 device telemetry, and the component whose software provenance and
 configuration must therefore be most defensible. This reading places two
 engineering requirements at the centre of the present work: the gateway's
-operating platform should be \emph{reproducible} --- buildable from a pinned,
-versioned description rather than assembled by hand --- and its services
+operating platform should be versioned and repeatably buildable from a pinned
+description rather than assembled by hand, and its services
 should run natively on the ARM64 architecture that dominates low-power edge
 hardware. Recent work has also begun to address the operational robustness of
 edge-hosted twin services themselves; Neagu et al., for example, propose a
@@ -216,7 +216,7 @@ line represented by Neagu et al.\ treats the edge twin itself as
 infrastructure to be hardened, contributing failover mechanisms and
 fault-injection evidence \cite{neagu2026odt}. Neither line, within the
 sources examined so far, addresses the platform question studied here: what
-it costs, on a reproducibly built ARM64 gateway, to ingest and materialise
+it costs, on a versioned ARM64 gateway prototype, to ingest and materialise
 concurrent multi-device wearable telemetry on an off-the-shelf twin platform.
 
 \section{Consumer Digital Twins and the C2DTA Line}
@@ -226,14 +226,22 @@ concurrent multi-device wearable telemetry on an off-the-shelf twin platform.
 asset and the data. Consumer digital twins invert the ownership question:
 the subject of the data is a private person, and the twin aggregates
 measurements that are sensitive individually and more sensitive in
-combination. The Consumer-Controlled Digital Twin Architecture (C2DTA) of
+combination. The \ac{C2DTA} of
 Pinto et al.\ addresses this setting directly: blockchain technology is used
 to give consumers control over their smart devices' digital twins and the
 data those twins accumulate \cite{pinto2026c2dta}. The architecture spans
 consumer-side gateways, twin services and distributed-ledger components for
-authorisation and auditability. Its published evaluation instantiates a
-single smartwatch profile at one message per second on an x86 virtual
-machine \cite{pinto2026c2dta}.
+authorisation and auditability. Its implementation uses Eclipse Ditto 3.0.0
+and Eclipse Mosquitto for the twin and telemetry path, integrated with
+ACA-Py agents, Hyperledger Fabric, Hyperledger Indy and IPFS. The paper
+defines eight lifecycle scenarios and evaluates the first seven across 88
+documented steps. Within that broader feasibility evaluation, a dedicated
+smartwatch simulator emits heart-rate, geolocation and timestamp data at
+1~Hz over MQTT/SSL. The deployment ran in Docker on a
+Proxmox/QEMU/KVM-based x86 virtual machine with 16~GB of RAM and 32 CPUs
+\cite{pinto2026c2dta}. These details characterise the predecessor system;
+they are not a causal performance baseline for the native-ARM64 experiments
+in this dissertation.
 
 Consumer control, as C2DTA construes it, has an often-implicit
 infrastructural precondition: control is only as strong as the custody of
@@ -317,8 +325,8 @@ access: as noted above, commercial wearables typically expose their data
 through vendor applications and clouds rather than through local interfaces
 a household gateway could subscribe to \cite{seneviratne2017wearables}, so a
 faithful live pipeline would measure a vendor integration more than the
-platform. Third, reproducibility: a seeded generator makes the workload a
-versioned artefact --- the same seed reproduces the same per-device payload
+platform. Third, repeatability: a seeded generator makes the workload a
+versioned artefact --- the same seed generates the same per-device payload
 sequence bit for bit --- which is the precondition for the repetition and
 comparison discipline that benchmarking methodology demands
 \cite{varghese2021survey}. Fourth, controllability: load sweeps, deliberately
@@ -369,11 +377,12 @@ properties of this model carry the weight of the choice made in this work.
 First, \emph{composability}: hardware support, upstream package sets and
 project-specific customisation live in separate layers, so the gateway image
 is expressed as a small custom layer (\texttt{meta-egw}) on top of unmodified
-upstream layers. Second, \emph{reproducibility}: every input layer can be
-pinned to an exact revision --- in this project through a \texttt{kas}
-manifest --- so that a documented checkout rebuilds the same system, which
-converts the platform itself into a verifiable artefact rather than an
-environmental assumption. Third, \emph{longevity}: the project maintains
+upstream layers. Second, \emph{versioned rebuildability}: every input layer
+can be pinned to an exact revision --- in this project through a \texttt{kas}
+manifest --- so that a rebuild attempt starts from identified inputs rather
+than an environmental assumption. Whether a clean checkout can reconstruct
+the system is evaluated separately and is not established by pinning alone.
+Third, \emph{longevity}: the project maintains
 designated long-term-support release lines; this work uses the Scarthgap
 (5.0) line, released in April 2024 and supported until April 2028
 \cite{yocto2024scarthgap}, so the platform's base remains maintained beyond
@@ -384,10 +393,11 @@ one of a small set of known, buildable images, whereas package-managed
 systems evolve in place, one package transaction at a time, into states that
 no one ever built or tested as a unit. For a gateway whose evaluation
 depends on knowing exactly what was running when a measurement was taken,
-the image-based model is the one that keeps the evidence chain intact. The cost is non-trivial build complexity and
-build time, accepted here because platform reproducibility is one of the
-claims under evaluation (RQ1, Section~\ref{sec:intro-rqs}), not an incidental
-property. It should be noted that much of the directly comparative
+the image-based model is the one that keeps the evidence chain intact. The
+cost is non-trivial build complexity and build time, accepted here because
+repeatable platform construction is evaluated under RQ1
+(Section~\ref{sec:intro-rqs}), not assumed as an incidental property. It
+should be noted that much of the directly comparative
 Yocto-versus-Buildroot material available is vendor-authored; under the
 review protocol it is treated as grey literature and engineering context
 only, and the comparison above is therefore argued from the projects' own
@@ -400,16 +410,16 @@ than from third-party benchmarks.
 \noindent The service layer of the gateway is packaged as \ac{OCI}
 containers: services are packaged with their dependencies into
 architecture-specific images that can be pinned by digest, which extends the
-reproducibility argument from the operating system to the deployed stack. Two
+provenance argument from the operating system to the deployed stack. Two
 properties of the \ac{OCI} distribution model do the work here. An image
 digest is a content hash, so a digest-pinned reference denotes immutable
 bytes --- unlike a tag, which can be re-pointed silently --- and a published
 image can carry per-architecture variants under one name, which makes
 ``native \texttt{linux/arm64}'' a verifiable property of each pinned image
-rather than an assumption. In the artefact, every service image is pinned by
-digest in a versioned lock file, so the deployed stack, like the operating
-system beneath it, is described entirely by content under version control
-(Chapter~\ref{ch:architecture}).
+rather than an assumption. In the artefact, third-party service images are
+pinned by digest in a versioned lock file. The locally built controller still
+requires the complete hash-locked ARM64 Python dependency set before the
+service stack can be described as fully locked (Chapter~\ref{ch:architecture}).
 The viability of this choice on small ARM devices is an empirical question
 with an established literature. Felter et al.\ compare virtual machines and
 Linux containers on server-class hardware and establish the baseline
@@ -508,8 +518,9 @@ platform neither implements nor depends on identity agents, ledgers or
 credentials, and no statement in this document should be read as an
 \ac{SSI} or blockchain result. The delimitation is deliberate: the research
 questions (Section~\ref{sec:intro-rqs}) are answerable without identity
-components, and the project plan classifies such components as strictly
-conditional, non-essential scope.
+components, and the versioned project plan excludes their implementation from
+P0 and any unapproved contingency. They remain reference-architecture context
+and future work only.
 
 \section{Synthesis and Research Gap}
 \label{sec:bg-synthesis}
@@ -523,7 +534,7 @@ platform \cite{eclipse2026ditto}, feasibility of twins
 \cite{morabito2017virtualization,felter2015updated,gamess2023docker} on
 constrained hardware, broker behaviour at the edge \cite{koziolek2020mqtt},
 standardised description of device capabilities \cite{w3c2023wottd},
-reproducible platform construction \cite{yocto2024scarthgap}, and the
+versioned platform construction \cite{yocto2024scarthgap}, and the
 consumer-control vision that frames the use case \cite{pinto2026c2dta}.
 Table~\ref{tab:related-work} summarises the works closest to this
 dissertation against the properties that define it.
@@ -558,9 +569,9 @@ dissertation against the properties that define it.
     C2DTA \cite{pinto2026c2dta} &
     Not addressed &
     x86 virtual machine &
-    Custom, ledger-centred &
-    One smartwatch profile &
-    Published evaluation; pre-specification not reported \\
+    Eclipse Ditto 3.0.0 and Mosquitto, integrated with identity, ledger and storage services &
+    Eight lifecycle scenarios; first seven evaluated in 88 steps; sensor path: one smartwatch at 1~Hz &
+    Published x86-VM feasibility evaluation; not a causal ARM64 baseline \\
     \addlinespace
     Edge DT architecture \cite{picone2023flexible} &
     Not addressed &
@@ -607,7 +618,7 @@ dissertation against the properties that define it.
 
 The comparison axes of Table~\ref{tab:related-work} are not arbitrary: each
 operationalises one link of the evidence chain this work aims to close. A
-reproducible operating-system build fixes the platform's provenance; a
+versioned operating-system build identifies the platform's provenance; a
 native ARM64 target keeps the deployment representative of edge-class
 hardware rather than of development machines; an off-the-shelf twin platform
 distinguishes reusable results from bespoke-engine results; multi-wearable
@@ -617,7 +628,7 @@ data collection and published with its artefacts, is what allows any of the
 resulting numbers to be checked. The
 pattern across the rows is consistent: each related system contributes one
 or two of the defining properties, and none of the examined works combines a
-reproducibly built operating platform, a native ARM64 target, an
+versioned, rebuild-tested operating platform, a native ARM64 target, an
 off-the-shelf twin platform and concurrent multi-wearable ingestion under a
 pre-specified evaluation protocol. In summary: component-level
 evidence exists for edge digital twins \cite{picone2023flexible}, broker
@@ -627,7 +638,7 @@ and the C2DTA line provides the architectural vision \cite{pinto2026c2dta};
 but, among the sources examined in this preliminary review --- assembled from
 seed references and snowballing, prior to execution of the search protocol
 specified in Chapter~3 --- no published study was identified that composes
-these elements into a reproducible, Yocto-built ARM64 gateway with a
+these elements into a versioned, Yocto-built ARM64 gateway with a
 pre-specified multi-scenario evaluation of wearable digital-twin ingestion.
 That composition is the subject of the remaining chapters, and the claim
 remains deliberately bounded: it is relative to the sources examined so far,

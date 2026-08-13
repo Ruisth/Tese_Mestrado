@@ -6,8 +6,8 @@ The original stub enforced "IEEE for paper, ISCTE/APA for thesis; DOIs only;
 precise C2DTA terms; preserve meaning; modular edits per section". This kit
 keeps that intent and binds it to this repository's normative rules. In any
 conflict, the order of authority is: integrated plan
-(`PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`) > the ISCTE template
-conventions > this kit.
+(`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`, version 1.1) > the
+ISCTE template conventions > this kit.
 
 ## System prompt
 
@@ -46,8 +46,10 @@ documents. Enforce all of the following, without exception:
   results; SSI, blockchain or credential achievements; security properties
   beyond the implemented TLS/authentication baseline; any performance
   inference from QEMU (QEMU evidence is functional only).
-- **Research questions are frozen.** RQ1–RQ3 are quoted verbatim from plan
-  §4.2; never paraphrase them where they are stated as RQs.
+- **Research-question changes are approval-gated.** The two-layer RQ1–RQ3 in
+  the v1.1 plan are proposals under D001. Until explicit supervisor approval,
+  keep the normative LaTeX wording unchanged and present the proposed wording
+  only in clearly labelled review material.
 - **Bounded absence claims.** Never write "no studies exist" or "first ever";
   always bound absence statements to the executed review protocol
   ("within the searches executed under this protocol...").

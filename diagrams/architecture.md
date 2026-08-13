@@ -1,12 +1,13 @@
 # EGW architecture diagrams
 
-Source of truth: `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` section 5
-(normative) and `src/CONTRACTS.md` v1.1. These diagrams show only contracted
+Sources of truth: the versioned
+[`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+(normative) and [`../src/CONTRACTS.md`](../src/CONTRACTS.md) v1.1. These diagrams show only contracted
 behaviour (topics, ports, endpoints, outcomes); they make no performance claims.
 
 ## 1. Logical component diagram
 
-Plan sections 5.2-5.5; CONTRACTS sections 1, 4, 5 and 8. The simulator is a load
+Plan section 3.3; CONTRACTS sections 1, 4, 5 and 8. The simulator is a load
 generator external to the gateway stack; the controller is the MQTT-to-Ditto
 bridge with mandatory JSON Schema validation and idempotent twin updates.
 
@@ -45,7 +46,7 @@ Notation: `(egw_id)` and `(device_uuid)` stand for the `{egw_id}` and
 `{device_uuid}` placeholders of the CONTRACTS topic and thingId templates
 (parentheses avoid Mermaid brace parsing).
 
-## 2. Deployment diagram — three platform tiers (plan 5.1, ADR 0001, CONTRACTS 8)
+## 2. Deployment diagram — three platform tiers (plan sections 3.1 and 5, ADR 0001, CONTRACTS 8)
 
 The functional platform (WSL2 + QEMU) validates build, boot, systemd, network
 and the OCI runtime only; no performance conclusions come from it, and a QEMU
@@ -58,12 +59,13 @@ measurement.
 exists. The dashed subgraphs are **planned and not provisioned**: the
 measurement instance **does not exist** (Oracle, Hetzner and Azure for Students
 all failed to supply a dedicated ARM64 machine — risk R28), and the burstable
-integration instance is available but unused. They are drawn because they are
+integration instance also **does not exist**; only an eligible burstable SKU
+has been identified. They are drawn because they are
 contracted by the plan, not because they are deployed; nothing in them has run.
 
 ```mermaid
 flowchart TB
-    subgraph FUNC["Functional platform - PROVISIONED - build/boot validation only, no performance claims (plan 5.1)"]
+    subgraph FUNC["Functional platform - PROVISIONED - build/boot validation only, no performance claims (plan 3.1)"]
         subgraph WSL["Windows 11 host / WSL2 Ubuntu 24.04 LTS (build tree on ext4)"]
             KAS["kas manifest (qemuarm64)<br/>BitBake build of egw-image"]
             QEMU["QEMU aarch64 boot<br/>systemd, network, OCI runtime<br/>functional checks"]
@@ -72,14 +74,14 @@ flowchart TB
     end
 
     subgraph INTEG["ARM64 integration tier - PLANNED, NOT PROVISIONED - functional integration only, NEVER numbers"]
-        BURST["Burstable ARM64 instance (Azure B4pls_v2 class)<br/>available, not yet used<br/>CPU-credit throttling bars it from measurement"]
+        BURST["Burstable ARM64 instance (Azure B4pls_v2 class)<br/>eligible SKU identified; no instance provisioned<br/>CPU-credit throttling bars it from measurement"]
     end
 
-    subgraph PERF["Measurement platform - PLANNED, NOT PROVISIONED - the ONLY source of numbers (plan 5.1)"]
+    subgraph PERF["Measurement platform - PLANNED, NOT PROVISIONED - the ONLY source of numbers (plan 3.1)"]
         subgraph VM["Dedicated native-ARM64 instance, DOES NOT EXIST YET<br/>candidates: Azure D4pls_v5 (quota requested) or AWS c6g.xlarge<br/>4 vCPU, 8 GiB RAM, >= 80 GB disk; non-burstable; any shared-vCPU limitation is provider-dependent and recorded"]
             CSTACK["docker compose (linux/arm64):<br/>Mosquitto :8883 exposed<br/>Ditto gateway :8080 localhost-only<br/>Ditto policies / things + MongoDB internal<br/>controller :8000 localhost-only"]
         end
-        OPS["Operator machine (off-instance, plan 5.1)<br/>egw_simulator + experiment harness<br/>collects results/raw/(run_id)/"]
+        OPS["Operator machine (off-instance, plan 3.1)<br/>egw_simulator + experiment harness<br/>collects results/raw/(run_id)/"]
         OPS -- "mqtts :8883<br/>TLS + username/password" --> CSTACK
         OPS -. "ssh: harness control,<br/>resources.csv, logs" .-> VM
     end
@@ -92,13 +94,14 @@ flowchart TB
 ```
 
 Primary latency is measured inside the controller process on the measurement
-instance, between MQTT receive and the Ditto 2xx acknowledgement (plan 5.1 and
-5.8; CONTRACTS 5). Until that instance exists, no such measurement has been
-taken.
+instance, between MQTT receive and the Ditto 2xx acknowledgement (plan §3.1;
+[`ADR 0005`](../docs/adr/0005-latency-measured-in-controller-monotonic.md);
+[`CONTRACTS` §5](../src/CONTRACTS.md)). Until that instance exists, no such
+measurement has been taken.
 
 ## 3. Sequence diagram — one telemetry event (accepted, duplicate and invalid branches)
 
-Plan sections 5.4-5.5; CONTRACTS sections 4-5.
+Plan section 3.3; CONTRACTS sections 4-5.
 
 ```mermaid
 sequenceDiagram
