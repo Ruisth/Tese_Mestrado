@@ -6,7 +6,7 @@
 # any Nextcloud-synced path — plan section 5.1). Full environment setup:
 # docs/setup/wsl2_ubuntu_yocto.md.
 #
-# Evidence capture (gate G1, plan section 8): every invocation writes the
+# Evidence capture (gate G1, plan v1.1 sections 4 and 7): every invocation writes the
 # complete kas/BitBake output to a timestamped log under $EGW_LOG_DIR
 # (default ~/yocto/logs). Unlogged runs do not count as evidence — copy the
 # logs into the experiments evidence area and reference them from the
@@ -105,4 +105,7 @@ echo "== build finished =="
 echo "Logs   : $LOG_DIR/kas-checkout-$STAMP.log"
 echo "         $LOG_DIR/kas-build-$STAMP.log"
 echo "Images : $YOCTO_DIR/build/tmp/deploy/images/qemuarm64/"
-echo "Next   : scripts/run-qemu.sh boot1   (then boot2 — G1 needs two boots)"
+echo "Next   : run five strict unattended boots with scripts/boot_check.py"
+echo '         egw_boot_rc=0; for run in 01 02 03 04 05; do'
+echo '             python3 scripts/boot_check.py "qemu-boot-${run}" || egw_boot_rc=$?'
+echo '         done; (exit "$egw_boot_rc")'

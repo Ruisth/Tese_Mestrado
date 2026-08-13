@@ -115,17 +115,23 @@ cd egw/src/yocto
 # 2. Build (checkout of pinned layers + bitbake, fully logged)
 ./scripts/build.sh
 
-# 3. Boot twice, unattended and recorded (gate G1 rule) — path of record
-python3 scripts/boot_check.py boot1
-python3 scripts/boot_check.py boot2
+# 3. Run the five strict unattended and recorded boots — path of record
+egw_boot_rc=0
+for run in 01 02 03 04 05; do
+    python3 scripts/boot_check.py "qemu-boot-${run}" || egw_boot_rc=$?
+done
+(exit "$egw_boot_rc")
 ```
 
-Step 3 is the **reproduction path of record**: the sealed evidence in
-`docs/evidence/g1-yocto-qemu/` was produced by exactly these two commands, and
-nothing else reproduces it. Each run writes `<name>.log` (the complete serial
-session) and `<name>.result.json` (per-check verdicts and the overall outcome)
-under `EGW_LOG_DIR`, default `~/yocto/logs`. The driver exits non-zero if any
-required assertion fails, so a caller can rely on its status.
+Step 3 is the **current acceptance path of record**. Each run writes
+`<name>.log` (the complete serial session) and `<name>.result.json`
+(per-check verdicts and the overall outcome) under `EGW_LOG_DIR`, default
+`~/yocto/logs`. The driver exits non-zero if any required assertion fails, so
+a caller can rely on its status. The preliminary sealed evidence in
+`docs/evidence/g1-yocto-qemu/` used the same driver for two bring-up boots;
+those historical boots are preserved but do not replace the five-run campaign.
+The accumulator lets every predefined boot identity leave its evidence and
+still returns non-zero after the loop when any one of the five boots failed.
 
 `./scripts/run-qemu.sh boot1` remains available as the **interactive
 alternative**: it boots the same image with the console tee'd to a log, and the
@@ -149,7 +155,7 @@ host CPU, RAM and disk. No specific duration is claimed here — record the
 actual duration from the timestamped build log as evidence. Subsequent builds
 reuse the shared sstate cache and are much faster.
 
-## Gate G1 acceptance checklist (2026-08-16)
+## Gate G1 acceptance checklist (plan v1.1, 13–18 August)
 
 Evidence rule: unlogged runs do not count. Every item below must be backed by
 a recorded log copied into the evidence area and referenced from the
@@ -196,15 +202,14 @@ commit `32f6604`.
       checkout is pending and belongs to G4) and the boots gave C02 bring-up
       evidence (the campaign's five `qemu_boots` runs remain).
 
-## Gate G1 fallback (plan 8.1)
+## Gate G1 cut rule (plan v1.1)
 
-Not invoked: a functional image exists and both bring-up boots passed. Retained
-because the gate decision is still open. If G1 fails on 2026-08-16: reduce
-`egw-image` to the minimal system plus the OCI runtime (drop
-`egw-container-smoke`, `openssh-sftp-server` and any non-essential package from
-`IMAGE_INSTALL`) and move deployment/smoke steps to an external script executed
-over the console or ssh. If no functional image exists by 2026-08-20, escalate
-per the plan (discuss extension or reformulation with the advisors).
+The preliminary image and two bring-up boots avoid an undemonstrated-platform
+fallback, but they do not accept G1. By 18 August, either archive a clean
+identified build plus five passing strict boots, or record the failure and
+reduce `egw-image` to the minimal system plus OCI runtime. Any reduction must
+preserve the failed evidence and pass through the normal review/CI path; it
+must not weaken the strict systemd, failed-unit or container assertions.
 
 ## Raspberry Pi 5 overlay (documented-only)
 
