@@ -24,14 +24,15 @@ it does not reimplement the complete SSI/blockchain C2DTA platform.
 
 ### Proposed research questions
 
-1. How can the two separately scoped layers of an ARM64 Edge Gateway—a Yocto
-   ARM64 container-host platform and a native ARM64 digital-twin service
-   deployment—be constructed and reconstructed from versioned artefacts?
-2. With what correctness and delivery reliability under the declared nominal
-   and recovery scenarios can the service layer ingest and materialise
-   concurrent telemetry from three synthetic wearable profiles?
-3. Which latency, throughput, CPU and memory limits constrain the stack on a
-   fixed 4-vCPU, 8-GiB ARM64 environment?
+1. How can a two-layer ARM64 Edge Gateway prototype be designed, built and
+   redeployed when its Yocto/QEMU functional platform and native-ARM64
+   containerised digital-twin stack are treated as separate artefact layers?
+2. To what extent can the prototype ingest and materialise concurrent synthetic
+   telemetry from three wearable-device types correctly and reliably,
+   including under specified fault scenarios?
+3. What latency, sustainable-throughput, saturation and per-container resource
+   trade-offs constrain the digital-twin stack on a non-burstable native-ARM64
+   environment?
 
 ### Explicit P0 exclusions
 
