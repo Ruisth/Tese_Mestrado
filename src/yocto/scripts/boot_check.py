@@ -122,7 +122,11 @@ CHECKS: list[Check] = [
         # reached its default target, so the target below reads as still
         # starting. 'echo STATE=' isolates the answer from the command text.
         "echo STATE=$(systemctl is-system-running --wait 2>&1)",
-        lambda out: re.search(r"(?m)^STATE=running\r?$", out) is not None,
+        # The PTY represented one guest newline as '\r\r\n' in the first
+        # strict 2026-08-13 attempt. Strip boundary whitespace only: the
+        # complete command output must still be this exact value, so warnings,
+        # echoed commands and 'degraded' cannot pass.
+        lambda out: out.strip() == "STATE=running",
         REQUIRED_ASSERTION,
     ),
     Check(

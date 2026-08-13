@@ -303,6 +303,20 @@ def test_degraded_systemd_state_fails_the_required_assertion() -> None:
     assert entry["passed"] is False
 
 
+def test_running_systemd_state_accepts_real_pty_double_carriage_return() -> None:
+    check = next(c for c in boot_check.CHECKS if c.id == "systemd_state")
+    real_output = "\r\r\nSTATE=running\r\r\n"
+    entry = boot_check.run_checks(
+        FakeConsole([transcript(0, check.command, real_output)]), [check]
+    )[0]
+
+    assert entry["completed"] is True
+    assert entry["passed"] is True
+    assert check.predicate("STATE=running extra") is False
+    assert check.predicate("echo STATE=running") is False
+    assert check.predicate("\r\r\nSTATE=running\r\r\nwarning") is False
+
+
 def test_any_failed_systemd_unit_fails_the_required_assertion() -> None:
     check = next(c for c in boot_check.CHECKS if c.id == "failed_units")
     output = (
