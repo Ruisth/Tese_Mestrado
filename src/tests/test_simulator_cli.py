@@ -313,6 +313,33 @@ def test_main_returns_nonzero_on_connect_failure(tmp_path, monkeypatch, capsys):
     assert not (tmp_path / "cli-noconnect").exists()
 
 
+def test_main_refuses_existing_run_id_before_connecting_or_changing_bytes(
+    tmp_path, monkeypatch, capsys
+):
+    run_dir = tmp_path / "cli-duplicate"
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_bytes(b"original-manifest\x00\xff")
+    (run_dir / "sent_events.jsonl").write_bytes(b"original-events\n")
+    before = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in run_dir.rglob("*")
+        if path.is_file()
+    }
+    fake_cls = install_fake_publisher(monkeypatch)
+
+    rc = main(main_argv(tmp_path, "cli-duplicate"))
+
+    after = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in run_dir.rglob("*")
+        if path.is_file()
+    }
+    assert rc == 2
+    assert fake_cls.instances == []
+    assert after == before
+    assert "write-once" in capsys.readouterr().err
+
+
 def test_main_keyboard_interrupt_exits_130_with_partial_outputs(
     tmp_path, monkeypatch
 ):

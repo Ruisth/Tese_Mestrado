@@ -53,7 +53,7 @@ case "$FS_TYPE" in
     v9fs|9p|drvfs|msdos|ntfs*|fuseblk)
         echo "ERROR: $YOCTO_DIR sits on '$FS_TYPE' (a Windows-backed mount)." >&2
         echo "Clone the repository onto the WSL2 ext4 filesystem first, e.g.:" >&2
-        echo "  git clone /mnt/d/Nextcloud/'Edge Gateway'/Claude ~/yocto/egw" >&2
+        echo "  git clone <repository-url-or-local-path> ~/yocto/egw" >&2
         echo "and run ~/yocto/egw/src/yocto/scripts/build.sh instead." >&2
         echo "(See docs/setup/wsl2_ubuntu_yocto.md.)" >&2
         exit 1

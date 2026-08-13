@@ -2,9 +2,12 @@
 #
 # Build context is src/ (deployment/compose.yaml sets build.context: ..,
 # dockerfile: Dockerfile). Built locally on the ARM64 VM, never pulled, so it
-# is not listed in deployment/images.lock.env; reproducibility comes from the
-# digest-pinned base image below plus the git commit recorded in each run
-# manifest.
+# is not listed in deployment/images.lock.env. The base image is pinned, but
+# Python dependencies are NOT reproducibly locked yet: G2/exp-v1 remains
+# blocked until deployment/scripts/generate-runtime-lock.sh is run on the
+# ARM64 VM, requirements-runtime.lock is reviewed/committed, and this install
+# is changed to `--require-hashes` followed by
+# `pip install --no-build-isolation --no-deps .`.
 #
 # Multi-arch friendly: the base image is pinned by its MULTI-ARCH
 # manifest-list digest, so the same reference resolves to the native child
@@ -36,6 +39,9 @@ COPY egw_controller/ egw_controller/
 COPY egw_experiments/ egw_experiments/
 COPY schemas/ schemas/
 
+# TEMPORARY, explicitly non-reproducible dependency resolution. Do not use an
+# image built by this line for exp-v1 or thesis measurements; see the blocker
+# and ARM64 procedure in deployment/README.md.
 RUN pip install .
 
 # Non-root runtime user (uid 1000). /data/events is the default event-log

@@ -883,6 +883,8 @@ def ingest_resources(
     warnings: list[str],
     *,
     expected_window_s: float | None = None,
+    expected_window_start_utc: str | None = None,
+    expected_window_end_utc: str | None = None,
 ) -> bool:
     """Validate and copy the fetched SUT resources.csv into the run dir.
 
@@ -894,11 +896,12 @@ def ingest_resources(
     value must equal it. Sprint P5 (report 5.4) adds the SEMANTIC checks:
     parseable RFC 3339 timestamps, non-decreasing time, numeric cpu/mem
     fields, per-row column completeness, a minimum number of DISTINCT
-    sample instants and — when ``expected_window_s`` is given (the run's
-    measured window) — a span consistent with it. Any problem rejects the
-    ingest with a clear warning and the run's resources are treated as
-    missing (the validity rules then apply). Returns True only on a
-    successful, validated copy.
+    sample instants and — when the real measured-window UTC bounds are given
+    — actual overlap, coverage and sampling continuity inside that window.
+    ``expected_window_s`` remains the fallback for historical manifests that
+    do not have those bounds. Any problem rejects the ingest with a clear
+    warning and the run's resources are treated as missing (the validity
+    rules then apply). Returns True only on a successful, validated copy.
     An existing ``resources.csv`` is never overwritten with different
     content (raises :class:`SealedRunError`); an identical re-copy is a
     no-op (work order P1 item 11).
@@ -911,7 +914,11 @@ def ingest_resources(
         return False
     expected_host = sut_env_node(read_sut_environment(run_dir))
     problems = validate_resources_csv(
-        src, expected_host=expected_host, expected_window_s=expected_window_s
+        src,
+        expected_host=expected_host,
+        expected_window_s=expected_window_s,
+        expected_window_start_utc=expected_window_start_utc,
+        expected_window_end_utc=expected_window_end_utc,
     )
     if problems:
         warnings.append(
@@ -1997,6 +2004,8 @@ def execute_run(
         resources_ingest_from,
         warnings,
         expected_window_s=measured_window_s,
+        expected_window_start_utc=measured_start_utc,
+        expected_window_end_utc=measured_end_utc,
     ):
         resource_source = "sut-collector"
     elif local_resources:
@@ -2493,6 +2502,13 @@ def collect_run(
         if isinstance(measured_started_ns, int) and isinstance(finished_ns, int)
         else None
     )
+    measured_window = manifest.get("measured_window_utc")
+    expected_window_start_utc = (
+        measured_window.get("start") if isinstance(measured_window, dict) else None
+    )
+    expected_window_end_utc = (
+        measured_window.get("end") if isinstance(measured_window, dict) else None
+    )
     if resources_from is not None:
         try:
             if ingest_resources(
@@ -2500,6 +2516,8 @@ def collect_run(
                 resources_from,
                 warnings,
                 expected_window_s=expected_window_s,
+                expected_window_start_utc=expected_window_start_utc,
+                expected_window_end_utc=expected_window_end_utc,
             ):
                 manifest["resource_source"] = "sut-collector"
                 actions.append("ingested resources.csv (sut-collector)")

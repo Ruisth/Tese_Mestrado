@@ -208,6 +208,18 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"unknown command {args.command!r}")
     config = config_from_args(args, parser)
 
+    # Refuse a duplicate identity before opening a network connection. The
+    # runner repeats the same check atomically with mkdir(exist_ok=False), so
+    # this friendly preflight does not weaken the race-safe write-once guard.
+    run_dir = Path(config.output_dir) / config.run_id
+    if os.path.lexists(run_dir):
+        print(
+            f"egw_simulator: run directory already exists: {run_dir}; "
+            "raw evidence is write-once, so repeat with a new --run-id",
+            file=sys.stderr,
+        )
+        return 2
+
     # Module-level PahoPublisher reference so tests can monkeypatch it with
     # a recording fake (paho-mqtt itself is imported lazily on instantiation).
     publisher = PahoPublisher(
@@ -235,6 +247,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         result = run(config, publisher)
+    except FileExistsError as exc:
+        # Another process may have claimed the run_id after the preflight.
+        # The runner has not opened or modified any evidence file in this
+        # case; report a controlled usage error rather than a traceback.
+        print(f"egw_simulator: {exc}", file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         print(
             "egw_simulator: interrupted; partial outputs written "

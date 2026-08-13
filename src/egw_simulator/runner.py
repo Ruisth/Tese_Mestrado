@@ -245,7 +245,18 @@ def run(
     )
 
     run_dir = Path(config.output_dir) / config.run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        # Raw simulator evidence is write-once. mkdir(exist_ok=False) is the
+        # atomic guard and deliberately runs before timestamps, writers or
+        # manifests are created. Repeating an experiment therefore requires
+        # a new run_id; an existing directory is never inspected, truncated
+        # or repaired in place.
+        run_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"simulator run directory already exists: {run_dir}; raw run "
+            "evidence is write-once, so repeat with a new run_id"
+        ) from exc
     manifest_path = run_dir / "manifest.json"
     sent_events_path = run_dir / "sent_events.jsonl"
 

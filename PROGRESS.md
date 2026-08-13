@@ -11,10 +11,11 @@ Updated: 2026-08-13 (plan v1.1 and provenance controls prepared; the protected
 G1 build tag is published; `egw-image` and two QEMU bring-up boots remain the
 latest platform evidence; the current sealed unit figure remains 701 tests).
 
-**Claim status: 0 of 15 accepted.** C01 has partial evidence (the rebuild from an
-independent clean checkout is still missing, and belongs to G4); C02 has the
-evidence of the two bring-up boots, with the campaign's five boots still to be
-executed; the remaining **13 still have no evidence**. No gate has been accepted.
+**Claim status: 0 of 15 accepted.** C01 has partial evidence (the existing build
+is identified, but the clean G1 rebuild and the separate D006 second-operator
+decision are still missing); C02 has the evidence of the two bring-up boots,
+with the campaign's five strict boots still to be executed; the remaining **13
+still have no evidence**. No gate has been accepted.
 
 ## State model — three independent fields (audit §5.1)
 
@@ -55,9 +56,9 @@ claims and gates.
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
 | Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. The exact G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`; five local bundles verify, including a complete pre-synchronisation bundle. An off-machine copy is still pending | G0 — In progress | M2 |
-| Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows exist in PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
+| Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
-| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the build is evidenced; the rebuild from an independent clean checkout is pending and belongs to G4), C02 holds the bring-up evidence (the campaign's five QEMU boots are still to be executed) and the remaining **13 have no evidence**; no validation by the supervisors | G0 — Pending | M1 |
+| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the build is evidenced; the clean G1 rebuild and the separate D006 second-operator decision are pending), C02 holds the bring-up evidence (the campaign's five strict QEMU boots are still to be executed) and the remaining **13 have no evidence**; no validation by the supervisors | G0 — Pending | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Pending | M1 |
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **the installation was carried out**: WSL2 with Ubuntu 24.04.4 LTS is installed and operational, with the build directory on ext4, and it is the environment that produced the `egw-image` build archived in `docs/evidence/g1-yocto-qemu/` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap). Not yet archived as a G0 environment record: the `wsl -l -v` and `df -h` capture — hence the maturity level below stays where it was | G0 — Pending | M1 |
 | ARM64 VM (measurement platform) | no | no | G0 — **Blocked: market unavailability** (Oracle: home region fixed, no Ampere capacity; Hetzner: CAX sold out; Azure for Students: quota 0 on every dedicated ARM family). Deadline 2026-08-10 missed; rule §8.1: report the risk by 2026-08-12. Quota requested (DPLSv5/v6); AWS `c6g.xlarge` fallback ~7 EUR | M0 |
@@ -76,7 +77,7 @@ ARM64 measurement VM.
 | MQTT→Ditto controller | yes | unit — tests with fakes (part of the current sealed suite of 701 tests); no real MQTT/Ditto, no real restart, no ARM64 | G2 — Pending | M2 |
 | Unified simulator (3 wearables, 6 scenarios) | yes | unit — determinism verified; `dropout-reconnect` induces a real MQTT disconnection with buffering and ordered redelivery (audit §7.3 correction completed on 2026-08-08; covers C10 at unit level) | G2–G3 — Pending | M2 |
 | WoT TD 1.1 Thing Descriptions | yes | unit — `tests/test_things.py` cross-checks TD↔schema; real integration not demonstrated | G2–G3 — Pending | M2 |
-| Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); block P5 (2026-08-08) added an end-of-run marker in the controller's clock domain, collector hooks in `campaign`, verification of `SHA256SUMS` before any aggregation, completeness by **identity** against the plan, semantic validation of the series and limited recovery evidence in C12; block P5.4 (2026-08-10) handles CLI range defects and non-finite values (code outside this documentation block — see `docs/g0/risks.md`, R32/R33); **no statistical rule, percentile, CI method or the 60 s window was altered**; live proof pending the VM | G4 — Pending | M2 |
+| Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); the 2026-08-13 integrity correction rejects resource samples from a different UTC window, enforces at least 90% coverage and the protocol gap cap per container, makes simulator run directories write-once, propagates QEMU pipeline failures and makes `systemd=running` plus zero failed units strict boot assertions. Local branch validation: `717 passed`; this is **not** a new evidence seal, so the canonical sealed figure remains 701. Live proof and the ARM64 runtime lock remain pending the VM | G1/G4 — In progress/Pending | M2 |
 | `experiments/results/` evidence structure | yes | static — `raw/processed/figures` directories created; zero data (experimental evidence M0) | G5 — Pending | M1 |
 | Dissertation (skeleton + substantive ch. 2) | yes | static — latexmk compiles: 57 pp., 0 unresolved references; ch. 2 ~4,300 words; premature claims removed from chs. 1/3/4/6 and from Table 2.1 (block P2); chs. 3/5/6 remain a skeleton | G6 — Pending | M1–M2 |
 | Review sources (`thesis/research/study_selection.csv`) | yes | static — 25 sources recorded, with verified metadata (Crossref/W3C/OASIS/official pages). **Reading depth: 7 assessed in full text (S001, S004–S009) and 18 by title/abstract only** (`stage=title_abstract`, provisional inclusion for the supervisor draft; the full-text pass is still to be run). "Verified" refers to the source metadata, never to the full reading; the institutional queries remain pending (student action, risk R17) | G6 — Pending | M1 |
@@ -127,8 +128,9 @@ recorded in Annex C of the plan and in [`LOG.md`](LOG.md).
   `src/yocto/scripts/boot_check.py`, each passing 6 of 6 required assertions,
   recording 3 of 3 supplementary observations and confirming a clean power-down.
   Evidence sealed in `docs/evidence/g1-yocto-qemu/`. **Acceptance of the gate
-  remains pending**, the rebuild from an independent checkout belongs to G4, and
-  none of this evidence supports a performance or security statement.
+  remains pending**: G1 still requires a clean identified rebuild and five new
+  strict boots. A second-operator reconstruction is the separate D006 decision;
+  none of the existing evidence supports a performance or security statement.
 - **G2 (2026-08-23, trigger 2026-08-25)** — unchanged: zero deployments on the
   ARM64 VM, which does not exist; `experiments/results/raw/` remains empty.
 - **G3–G7** — unchanged; they still depend on evidence of real execution (and G3
@@ -159,7 +161,7 @@ B series enters the dissertation.**
 | Role | Platform | State | Numbers in the thesis |
 |---|---|---|---|
 | Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | image built (5715 tasks) and two bring-up boots passed on 2026-08-11, each with 6 of 6 required assertions | Never (plan §5.1) — functional only; QEMU results never support a performance or security statement |
-| ARM64 integration | Azure `B4pls_v2` (burstable, available without a quota request) | available, not yet used | **Never** — CPU credits would corrupt the load sweep and the saturation criterion |
+| ARM64 integration | Azure `B4pls_v2` (burstable SKU identified) | no instance provisioned; eligibility/capacity still require confirmation | **Never** — CPU credits would corrupt the load sweep and the saturation criterion |
 | Measurement (RQ3) | `D4pls_v5` (quota requested) or AWS `c6g.xlarge` | **does not exist** | **Exclusively from here** |
 
 ## Effort control — critical path (audit §5.2)

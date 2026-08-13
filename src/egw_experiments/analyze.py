@@ -1124,6 +1124,7 @@ PER_RUN_COLUMNS = [
     "resources_head_gap_s",
     "resources_rows_dropped",
     "resources_distinct_instants",
+    "resources_per_container_sufficient",
     "metrics_coverage_pct",
     "metrics_max_gap_s",
     "metrics_head_gap_s",
@@ -1155,6 +1156,11 @@ RESOURCES_BY_RUN_COLUMNS = [
     "mem_bytes_mean",
     "mem_bytes_max",
     "cpu_sustained_gt90_s",
+    "coverage_pct",
+    "max_gap_s",
+    "head_gap_s",
+    "tail_gap_s",
+    "coverage_sufficient",
 ]
 
 
@@ -1854,6 +1860,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     res_report = _empty_series_report()
     metrics_report = _empty_series_report()
     resources_distinct_instants = 0
+    resources_per_container_sufficient: bool | None = None
     metrics_distinct_instants = 0
     resources_path = run_dir / "resources.csv"
     if resources_path.is_file():
@@ -1881,8 +1888,34 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         )
         resources_distinct_instants = len(res_instants)
         res_stats = sampling_stats(res_instants, window)
+        container_sufficiency: list[bool] = []
         for container in sorted(by_container):
             samples = by_container[container]
+            container_instants = sorted(
+                {s["ts"] for s in samples if s.get("ts") is not None}
+            )
+            container_stats = sampling_stats(container_instants, window)
+            container_coverage = container_stats["coverage_pct"]
+            container_gap = container_stats["max_gap_s"]
+            container_head_gap = container_stats["head_gap_s"]
+            container_tail_gap = container_stats["tail_gap_s"]
+            container_sufficient = (
+                window is not None
+                and container_coverage is not None
+                and container_coverage
+                >= SATURATION_MIN_RESOURCE_COVERAGE_PCT
+                and len(container_instants) >= MIN_SERIES_DISTINCT_INSTANTS
+                and (container_gap is None or container_gap <= MAX_SAMPLE_GAP_S)
+                and (
+                    container_head_gap is None
+                    or container_head_gap <= MAX_SAMPLE_GAP_S
+                )
+                and (
+                    container_tail_gap is None
+                    or container_tail_gap <= MAX_SAMPLE_GAP_S
+                )
+            )
+            container_sufficiency.append(container_sufficient)
             cpus = [s["cpu_pct"] for s in samples if s["cpu_pct"] is not None]
             mems = [s["mem_bytes"] for s in samples if s["mem_bytes"] is not None]
             sustained = sustained_cpu_seconds(samples)
@@ -1896,23 +1929,44 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
                     "mem_bytes_mean": statistics.fmean(mems) if mems else None,
                     "mem_bytes_max": max(mems) if mems else None,
                     "cpu_sustained_gt90_s": sustained,
+                    "coverage_pct": container_coverage,
+                    "max_gap_s": container_gap,
+                    "head_gap_s": container_head_gap,
+                    "tail_gap_s": container_tail_gap,
+                    "coverage_sufficient": container_sufficient,
                 }
             )
+            if not container_sufficient:
+                warnings.append(
+                    f"resources.csv container {container!r} has insufficient "
+                    "measured-window coverage/cadence; its per-container "
+                    "resource aggregates are not admissible evidence"
+                )
             resource_samples += len(samples)
             if cpus:
                 cpu_max_overall = max(cpu_max_overall or 0.0, max(cpus))
             if mems:
                 mem_max_overall = max(mem_max_overall or 0, max(mems))
             cpu_sustained_max = max(cpu_sustained_max, sustained)
+        resources_per_container_sufficient = bool(container_sufficiency) and all(
+            container_sufficiency
+        )
         # Host-level CPU normalization (audit 9.7): needs the SUT's nproc
-        # from sut_environment.json; without it the host-level values stay
-        # None and the saturation CPU criterion is not evaluable.
+        # from sut_environment.json. The values remain visible for audit even
+        # when a container series is sparse, but the propagated sufficiency
+        # flag prevents saturation/claims from consuming that run.
         if nproc:
             series = host_cpu_series(by_container, nproc)
             if series:
                 host_util_max = max(p["host_cpu_utilization"] for p in series)
                 host_sustained = host_cpu_sustained_seconds(series)
-        elif resource_samples:
+            if resources_per_container_sufficient is False:
+                warnings.append(
+                    "host-level CPU aggregates are audit-only because at "
+                    "least one container has insufficient measured-window "
+                    "sampling"
+                )
+        elif container_sufficiency:
             warnings.append(
                 "sut_environment.json nproc unavailable: host-level CPU "
                 "utilization not computed (audit 9.7); the saturation CPU "
@@ -2137,6 +2191,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "resources_head_gap_s": res_stats["head_gap_s"],
         "resources_rows_dropped": res_report["rows_dropped"],
         "resources_distinct_instants": resources_distinct_instants,
+        "resources_per_container_sufficient": resources_per_container_sufficient,
         "metrics_coverage_pct": metrics_stats["coverage_pct"],
         "metrics_max_gap_s": metrics_stats["max_gap_s"],
         "metrics_head_gap_s": metrics_stats["head_gap_s"],
@@ -3025,6 +3080,11 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             )
         for r in member_rows:
             rid = r.get("run_id") or "?"
+            if r.get("resources_per_container_sufficient") is not True:
+                insufficiency.append(
+                    f"run {rid}: at least one per-container resource series "
+                    "has insufficient measured-window coverage/cadence"
+                )
             if r.get("host_cpu_sustained_gt090_s") is None:
                 insufficiency.append(
                     f"run {rid}: host CPU criterion not evaluable (missing "
@@ -3232,6 +3292,21 @@ MATPLOTLIB_NOTICE = (
 )
 
 
+def admissible_resource_rows(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return only per-container aggregates admissible for scientific use.
+
+    ``resources_by_run.csv`` deliberately retains insufficient rows for audit,
+    but figures and claims must never consume them.  Requiring the value to be
+    exactly ``True`` also keeps historical rows without the new flag out of
+    scientific outputs until they are re-analysed from sealed raw evidence.
+    """
+    return [
+        resource
+        for resource in row.get("_resources", [])
+        if resource.get("coverage_sufficient") is True
+    ]
+
+
 def generate_figures(
     figures_dir: Path, rows: list[dict[str, Any]]
 ) -> list[Path]:
@@ -3321,7 +3396,7 @@ def generate_figures(
     containers: dict[str, dict[float, list[float]]] = {}
     for row in sweep:
         rate = float(row["rate_msg_s"])
-        for res in row.get("_resources", []):
+        for res in admissible_resource_rows(row):
             if res.get("cpu_pct_mean") is None:
                 continue
             containers.setdefault(res["container"], {}).setdefault(rate, []).append(
