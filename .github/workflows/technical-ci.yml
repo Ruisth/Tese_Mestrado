@@ -21,7 +21,7 @@ jobs:
       run:
         working-directory: src
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -39,7 +39,7 @@ jobs:
     name: contracts, evidence and links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -61,7 +61,7 @@ jobs:
     name: shell safety
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
       - name: Check tracked shell scripts for errors
@@ -72,7 +72,7 @@ jobs:
     name: thesis build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install the documented TeX toolchain
         run: |
           sudo apt-get update
@@ -84,7 +84,7 @@ jobs:
         run: |
           latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
           latexmk -pdf -interaction=nonstopmode -halt-on-error ch2_supervisor_draft.tex
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: thesis-pdfs
           path: |

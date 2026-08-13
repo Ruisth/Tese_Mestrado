@@ -17,7 +17,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, yocto]
     timeout-minutes: 720
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Refuse a non-ext4 worktree
@@ -33,7 +33,7 @@ jobs:
           for run in 01 02 03 04 05; do
             python3 src/yocto/scripts/boot_check.py "qemu-boot-${run}"
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.evidence_label }}
           path: ${{ runner.temp }}/${{ inputs.evidence_label }}
