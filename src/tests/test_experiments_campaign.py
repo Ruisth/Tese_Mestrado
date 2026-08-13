@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -121,6 +122,20 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
     )
     monkeypatch.setattr(run_mod, "read_git_commit", lambda *a, **k: "test-commit")
     monkeypatch.setattr(run_mod.time, "sleep", lambda s: sleeps.append(s))
+    # Align the real measured_window_utc bounds with the fixed resources CSVs.
+    # Every call advances so start/end are ordered while all three synthetic
+    # runs remain within the fixture's 40-second sample interval.
+    utc_tick = 0
+
+    def fake_utc_now_iso() -> str:
+        nonlocal utc_tick
+        stamp = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc) + timedelta(
+            milliseconds=100 * utc_tick
+        )
+        utc_tick += 1
+        return stamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+    monkeypatch.setattr(run_mod, "utc_now_iso", fake_utc_now_iso)
     monkeypatch.delenv(run_mod.FETCH_EVENTS_CMD_ENV, raising=False)
     monkeypatch.delenv(run_mod.SUT_ENV_FILE_ENV, raising=False)
 

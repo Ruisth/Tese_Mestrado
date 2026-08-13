@@ -182,6 +182,51 @@ and survives both forms; archive it with the run evidence (plan 5.8).
   in `src/Dockerfile`. Never deploy after a failed
   `scripts/resolve-image-lock.sh` run.
 
+### Runtime Python lock — blocking before `exp-v1`
+
+The digest-pinned Python base is not sufficient while `src/Dockerfile` still
+runs the broad `pip install .`: transitive dependencies can change without a
+repository change. Therefore a controller image built in the current state is
+acceptable for development only and **must not be used for thesis
+measurements**.
+
+Once the non-burstable campaign VM exists, generate the lock on that `aarch64`
+host (the helper refuses other architectures):
+
+```sh
+cd /opt/egw/src
+./deployment/scripts/generate-runtime-lock.sh
+git diff -- requirements-runtime.lock
+```
+
+The helper resolves runtime and PEP 517 build dependencies inside the exact
+digest-pinned Python 3.12 ARM64 base, writes
+`src/requirements-runtime.lock`, requires a SHA-256 hash for every resolved
+distribution, installs that lock with
+`--require-hashes --only-binary=:all:`, builds the project with isolation
+disabled, and runs `pip check` in the disposable container. It does not
+generate a placeholder on Windows/x86.
+
+Before `exp-v1`, review and commit that real lock, then change the Dockerfile
+to copy it and install in two explicit steps:
+
+```dockerfile
+COPY requirements-runtime.lock ./
+RUN pip install --require-hashes --only-binary=:all: \
+        -r requirements-runtime.lock \
+    && pip install --no-build-isolation --no-deps . \
+    && pip check
+```
+
+Build on ARM64, record the resulting controller image digest and archive the
+full `pip check`/build log with the run environment. The lock includes the
+`pyproject.toml` build-system requirements; disabling build isolation is
+mandatory so the build cannot download an unsealed `setuptools` or other
+backend dependency. Any change to `pyproject.toml`, the base-image digest or
+target Python version invalidates the lock and requires regeneration. Until
+this checklist is complete, the runtime-lock gate remains explicitly
+**blocked (ARM64 VM absent)**.
+
 ## SUT-side evidence collection (experiments harness)
 
 The experiments harness (`src/egw_experiments/`, see `experiments/README.md`)

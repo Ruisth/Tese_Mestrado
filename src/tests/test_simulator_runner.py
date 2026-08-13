@@ -213,6 +213,35 @@ def test_smoke_run_manifest_contents(tmp_path):
     assert manifest["note"] is None  # scope note is dropout-reconnect only
 
 
+def test_existing_run_directory_is_refused_without_changing_any_bytes(tmp_path):
+    """Reusing run_id must fail before either evidence file is opened."""
+    config = make_config(tmp_path)
+    run_dir = tmp_path / config.run_id
+    run_dir.mkdir()
+    (run_dir / "manifest.json").write_bytes(b"original-manifest\x00\xff")
+    (run_dir / "sent_events.jsonl").write_bytes(b"original-events\n")
+    nested = run_dir / "operator-notes"
+    nested.mkdir()
+    (nested / "note.bin").write_bytes(b"keep-me-byte-for-byte")
+    before = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in run_dir.rglob("*")
+        if path.is_file()
+    }
+    publisher = InMemoryPublisher()
+
+    with pytest.raises(FileExistsError, match="write-once"):
+        run(config, publisher, clock=FakeClock())
+
+    after = {
+        path.relative_to(run_dir): path.read_bytes()
+        for path in run_dir.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    assert publisher.records == []
+
+
 @pytest.mark.parametrize("scenario", ["nominal", "smoke"])
 def test_non_dropout_scenarios_never_touch_the_connection(tmp_path, scenario):
     """nominal/smoke are unaffected by the dropout machinery.

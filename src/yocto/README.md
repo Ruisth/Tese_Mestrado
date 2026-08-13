@@ -40,8 +40,12 @@ src/yocto/
 the serial console, logs in, runs a fixed list of checks, records the whole
 session and decides pass or fail from the command output, exiting non-zero if
 any required assertion fails. Its check list separates **required assertions**
-(6, which decide the outcome) from **supplementary observations** (3, recorded
-for diagnosis, which assert nothing and are never counted as verification).
+(currently 7, which decide the outcome) from **supplementary observations**
+(currently 2, recorded for diagnosis, which assert nothing and are never
+counted as verification). The sealed 2026-08-11 evidence used the earlier
+6/3 classification at commit `32f6604`; those immutable result files are not
+retroactively relabelled. The current driver promotes `failed_units` to a
+required zero-failures assertion.
 Its verdict logic has its own test file, `src/tests/test_yocto_boot_check.py`.
 
 ## What is in the image
@@ -169,9 +173,10 @@ commit `32f6604`.
       (required assertion `kernel_and_release`).
 - [x] systemd reaches multi-user: `systemctl is-system-running --wait` and the
       target list showing `multi-user.target` active (required assertions
-      `systemd_state` and `systemd_targets`; a `degraded` result would need a
-      written justification of the failed unit — the failed-unit listing is an
-      observation, empty in both boots).
+      `systemd_state` and `systemd_targets`). Both sealed boots reported
+      exactly `running` and an empty failed-unit listing. Current reruns are
+      stricter: `degraded` fails and `failed_units` is a required assertion
+      that accepts only zero failed units.
 - [x] Networking is up: the slirp NIC holds a `10.0.2.x` DHCP lease (required
       assertion `networking`). Host-gateway reachability (`ping -c 3 10.0.2.2`)
       is recorded as a **supplementary observation** and asserts nothing.

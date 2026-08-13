@@ -57,7 +57,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .protocol import RESOURCE_SAMPLE_INTERVAL_S
+from .protocol import MAX_SAMPLE_GAP_S, RESOURCE_SAMPLE_INTERVAL_S
 
 #: Canonical resources.csv schema (work order P1: host provenance column).
 #: Written by BOTH producers: this local dev sampler and the SUT-side
@@ -267,6 +267,9 @@ def validate_resources_csv(
     min_samples: int = MIN_RESOURCE_SAMPLES,
     min_distinct_instants: int = MIN_DISTINCT_SAMPLE_INSTANTS,
     expected_window_s: float | None = None,
+    expected_window_start_utc: str | datetime | None = None,
+    expected_window_end_utc: str | datetime | None = None,
+    max_sample_gap_s: float = MAX_SAMPLE_GAP_S,
 ) -> list[str]:
     """Validate a resources.csv before RUN-TIME ingestion (work order P1,
     hardened semantically in sprint P5 — report 5.4).
@@ -298,9 +301,21 @@ def validate_resources_csv(
     - when ``expected_host`` is given (the SUT's node/hostname from
       sut_environment.json), every distinct ``host`` value equals it —
       a mismatch means the CSV was collected on the wrong machine;
-    - when ``expected_window_s`` is given (the run's measured window), the
-      sampled instants span at least
-      :data:`RESOURCE_WINDOW_COVERAGE_MIN_FRAC` of it.
+    - when the real UTC bounds ``expected_window_start_utc`` and
+      ``expected_window_end_utc`` are given, the sampled interval must
+      overlap that exact measured window and cover at least
+      :data:`RESOURCE_WINDOW_COVERAGE_MIN_FRAC` of it for every recorded
+      container. The first/last sample and every consecutive pair in each
+      container series must also respect
+      :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S`;
+    - ``expected_window_s`` remains a backwards-compatible fallback for old
+      manifests/callers that do not carry the real UTC bounds. It checks the
+      sampled span, but cannot by itself prove that the CSV belongs to the
+      right run;
+    - irrespective of which window representation is available, consecutive
+      distinct sample instants may not exceed ``max_sample_gap_s`` (the
+      protocol's :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S` by
+      default).
     """
     path = Path(path)
     if not path.is_file():
@@ -309,6 +324,7 @@ def validate_resources_csv(
     empty_host_rows = 0
     hosts: set[str] = set()
     instants: set[datetime] = set()
+    container_instants: dict[str, set[datetime]] = {}
     bad_columns: list[str] = []
     bad_container: list[str] = []
     bad_timestamps: list[str] = []
@@ -341,7 +357,8 @@ def validate_resources_csv(
                     bad_columns.append(f"line {lineno} has {len(row)}")
                     continue
                 ts_raw, container, cpu_pct, mem_bytes, mem_pct, host = row
-                if not container.strip():
+                container_name = container.strip()
+                if not container_name:
                     bad_container.append(f"line {lineno}")
                 for name, value in (
                     ("cpu_pct", cpu_pct),
@@ -363,6 +380,8 @@ def validate_resources_csv(
                     bad_timestamps.append(f"line {lineno}: {ts_raw!r}")
                     continue
                 instants.add(stamp)
+                if container_name:
+                    container_instants.setdefault(container_name, set()).add(stamp)
                 if first_instant is None or stamp < first_instant:
                     first_instant = stamp
                 if last_instant is None or stamp > last_instant:
@@ -431,6 +450,15 @@ def validate_resources_csv(
             "one row per container, so row count alone is not evidence of a "
             "sampled run)"
         )
+    if len(container_instants) > 1:
+        for container_name, series_instants in sorted(container_instants.items()):
+            if len(series_instants) < min_distinct_instants:
+                problems.append(
+                    f"container {container_name!r} has only "
+                    f"{len(series_instants)} distinct sample instant(s); at "
+                    f"least {min_distinct_instants} are required per "
+                    "container"
+                )
     if empty_host_rows:
         problems.append(
             f"{empty_host_rows} row(s) without a host value (host "
@@ -442,7 +470,94 @@ def validate_resources_csv(
             f"node/hostname {expected_host!r} from sut_environment.json "
             "(the CSV was collected on the wrong machine)"
         )
-    if expected_window_s is not None and expected_window_s > 0:
+    def _window_bound(
+        value: str | datetime | None,
+    ) -> datetime | None:
+        if isinstance(value, datetime):
+            parsed = value
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        return parse_csv_timestamp(value) if isinstance(value, str) else None
+
+    window_start: datetime | None = None
+    window_end: datetime | None = None
+    bounds_given = (
+        expected_window_start_utc is not None
+        or expected_window_end_utc is not None
+    )
+    valid_window_bounds = False
+    if bounds_given:
+        if (
+            expected_window_start_utc is None
+            or expected_window_end_utc is None
+        ):
+            problems.append(
+                "both expected_window_start_utc and expected_window_end_utc "
+                "are required to validate the real measured window"
+            )
+        else:
+            window_start = _window_bound(expected_window_start_utc)
+            window_end = _window_bound(expected_window_end_utc)
+            if window_start is None or window_end is None:
+                problems.append(
+                    "the expected measured-window UTC bounds are not "
+                    "parseable RFC 3339 timestamps"
+                )
+            elif window_end <= window_start:
+                problems.append(
+                    "expected_window_end_utc must be later than "
+                    "expected_window_start_utc"
+                )
+            else:
+                valid_window_bounds = True
+
+    overlap_s: float | None = None
+    if valid_window_bounds:
+        assert window_start is not None and window_end is not None
+        window_s = (window_end - window_start).total_seconds()
+        if first_instant is None or last_instant is None:
+            overlap_s = 0.0
+        else:
+            overlap_start = max(first_instant, window_start)
+            overlap_end = min(last_instant, window_end)
+            overlap_s = max(0.0, (overlap_end - overlap_start).total_seconds())
+        if overlap_s <= 0:
+            problems.append(
+                "the sampled instants do not effectively overlap the run's "
+                "real measured_window_utc"
+            )
+        required_s = window_s * RESOURCE_WINDOW_COVERAGE_MIN_FRAC
+        if overlap_s < required_s:
+            problems.append(
+                f"resource samples cover only {overlap_s:.1f} s "
+                f"({overlap_s / window_s:.1%}) of the run's real measured "
+                f"window ({window_s:.1f} s), below the required "
+                f"{RESOURCE_WINDOW_COVERAGE_MIN_FRAC:.0%} "
+                "(RESOURCE_WINDOW_COVERAGE_MIN_FRAC, pending advisor "
+                "sign-off)"
+            )
+        if len(container_instants) > 1:
+            for container_name, series_instants in sorted(
+                container_instants.items()
+            ):
+                series_first = min(series_instants)
+                series_last = max(series_instants)
+                series_overlap_start = max(series_first, window_start)
+                series_overlap_end = min(series_last, window_end)
+                series_overlap_s = max(
+                    0.0,
+                    (series_overlap_end - series_overlap_start).total_seconds(),
+                )
+                if series_overlap_s < required_s:
+                    problems.append(
+                        f"container {container_name!r} resource samples cover "
+                        f"only {series_overlap_s:.1f} s "
+                        f"({series_overlap_s / window_s:.1%}) of the run's "
+                        f"real measured window, below the required "
+                        f"{RESOURCE_WINDOW_COVERAGE_MIN_FRAC:.0%}"
+                    )
+    elif not bounds_given and expected_window_s is not None and expected_window_s > 0:
         span_s = (
             (last_instant - first_instant).total_seconds()
             if first_instant is not None and last_instant is not None
@@ -457,6 +572,90 @@ def validate_resources_csv(
                 "covered by resource samples "
                 "(RESOURCE_WINDOW_COVERAGE_MIN_FRAC, pending advisor "
                 "sign-off)"
+            )
+        if len(container_instants) > 1:
+            for container_name, series_instants in sorted(
+                container_instants.items()
+            ):
+                series_span_s = (
+                    max(series_instants) - min(series_instants)
+                ).total_seconds()
+                if series_span_s < required_s:
+                    problems.append(
+                        f"container {container_name!r} sample instants span "
+                        f"only {series_span_s:.1f} s, below the required "
+                        f"{RESOURCE_WINDOW_COVERAGE_MIN_FRAC:.0%} of the "
+                        "measured window"
+                    )
+
+    if max_sample_gap_s <= 0:
+        problems.append("max_sample_gap_s must be positive")
+    else:
+        gaps: list[tuple[str, float]] = []
+        series_by_name = container_instants or {"all containers": instants}
+        for container_name, series_instants in sorted(series_by_name.items()):
+            ordered_instants = sorted(series_instants)
+            prefix = f"container {container_name!r}: "
+            if valid_window_bounds and ordered_instants:
+                assert window_start is not None and window_end is not None
+                series_first = ordered_instants[0]
+                series_last = ordered_instants[-1]
+                series_overlap_s = max(
+                    0.0,
+                    (
+                        min(series_last, window_end)
+                        - max(series_first, window_start)
+                    ).total_seconds(),
+                )
+                if series_overlap_s <= 0:
+                    continue
+                if series_first > window_start:
+                    gaps.append(
+                        (
+                            prefix + "measured-window start to first sample",
+                            (series_first - window_start).total_seconds(),
+                        )
+                    )
+                for left, right in zip(
+                    ordered_instants, ordered_instants[1:]
+                ):
+                    if right < window_start or left > window_end:
+                        continue
+                    gaps.append(
+                        (
+                            prefix
+                            + f"{left.isoformat()} to {right.isoformat()}",
+                            (right - left).total_seconds(),
+                        )
+                    )
+                if series_last < window_end:
+                    gaps.append(
+                        (
+                            prefix + "last sample to measured-window end",
+                            (window_end - series_last).total_seconds(),
+                        )
+                    )
+            elif not valid_window_bounds:
+                gaps.extend(
+                    (
+                        prefix + f"{left.isoformat()} to {right.isoformat()}",
+                        (right - left).total_seconds(),
+                    )
+                    for left, right in zip(
+                        ordered_instants, ordered_instants[1:]
+                    )
+                )
+        excessive = [(label, gap) for label, gap in gaps if gap > max_sample_gap_s]
+        if excessive:
+            shown = "; ".join(
+                f"{label} ({gap:.1f} s)" for label, gap in excessive[:3]
+            )
+            if len(excessive) > 3:
+                shown += "; ..."
+            problems.append(
+                f"{len(excessive)} sampling gap(s) exceed the protocol "
+                f"maximum of {max_sample_gap_s:g} s (MAX_SAMPLE_GAP_S): "
+                f"{shown}"
             )
     return problems
 

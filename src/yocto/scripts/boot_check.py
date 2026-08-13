@@ -3,10 +3,11 @@
 
 FUNCTIONAL VALIDATION ONLY. QEMU results support build, boot, systemd,
 networking and OCI-runtime claims. They never support a performance claim
-(plan section 5.1), so nothing here is timed for reporting.
+(plan section 3.1), so nothing here is timed for reporting.
 
-Gate G1 requires the image to boot twice, reach systemd multi-user, bring
-networking up and execute one container. Doing that by hand leaves evidence
+The current gate G1 acceptance campaign requires five boots, each reaching
+systemd multi-user with zero failed units, bringing networking up and
+executing one container. Doing that by hand leaves evidence
 nobody can reproduce, so this driver attaches to the serial console, logs in,
 runs a fixed list of checks, records the full session and decides pass or fail
 from the output.
@@ -24,8 +25,8 @@ the reporting, because the totals are quoted downstream as evidence:
 
     required assertion   a predicate over the command output that must hold
                          for the boot to count; it decides the outcome.
-    observation          material recorded for diagnosis (a failed-unit
-                         listing, a reachability probe, container facts). It
+    observation          material recorded for diagnosis (a reachability
+                         probe and container facts). It
                          is kept in the log and in the JSON, and it is NEVER
                          counted as something the driver verified.
 
@@ -121,7 +122,7 @@ CHECKS: list[Check] = [
         # reached its default target, so the target below reads as still
         # starting. 'echo STATE=' isolates the answer from the command text.
         "echo STATE=$(systemctl is-system-running --wait 2>&1)",
-        lambda out: re.search(r"STATE=(running|degraded)", out) is not None,
+        lambda out: re.search(r"(?m)^STATE=running\r?$", out) is not None,
         REQUIRED_ASSERTION,
     ),
     Check(
@@ -138,13 +139,11 @@ CHECKS: list[Check] = [
     Check(
         "failed_units",
         "systemctl --failed --no-pager --no-legend; echo FAILED_UNITS_END",
-        # An OBSERVATION, and honestly labelled as one: the predicate only
-        # confirms that the listing ran to its own end marker, so it asserts
-        # nothing about the units themselves. A minimal image may legitimately
-        # carry a failed unit unrelated to the gate criteria; the log makes any
-        # such unit visible rather than hidden, and a human reads it.
-        lambda out: "FAILED_UNITS_END" in out,
-        OBSERVATION,
+        # Gate G1 requires zero failed units. With --no-legend, an empty
+        # listing prints nothing; therefore the sentinel must be the ONLY
+        # non-whitespace output. Any unit row or systemctl error fails.
+        lambda out: out.strip() == "FAILED_UNITS_END",
+        REQUIRED_ASSERTION,
     ),
     Check(
         "networking",
@@ -371,10 +370,10 @@ def summarise(record: dict, checks: list[Check] = CHECKS) -> dict:
     """Fill in the counters, the reasons and the outcome; return the record.
 
     Required assertions and supplementary observations are counted apart on
-    purpose. Reporting "9 of 9 checks passed" credited three entries that
-    assert nothing (one only confirms its own end marker, one is a
-    reachability probe, one is a diagnostic whose predicate is True by
-    construction) and so overstated what the boot verified.
+    purpose. Reporting "9 of 9 checks passed" credits a reachability probe
+    and a diagnostic whose predicate is true by construction, and therefore
+    overstates what the boot verified. The failed-unit listing is now a
+    required zero-failures assertion rather than one of those observations.
     """
     entries = record.get("checks", [])
     required = [e for e in entries if e.get("kind") == REQUIRED_ASSERTION]

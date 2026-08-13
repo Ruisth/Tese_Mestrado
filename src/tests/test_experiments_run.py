@@ -14,6 +14,7 @@ import os
 import sys
 import textwrap
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +107,20 @@ def fast_run(monkeypatch, tmp_path: Path):
     )
     monkeypatch.setattr(run_mod, "read_git_commit", lambda *a, **k: "test-commit")
     monkeypatch.setattr(run_mod, "FETCH_BACKOFF_BASE_S", 0.0)
+    # Keep the real measured-window bounds deterministic and aligned with the
+    # resources.csv fixtures. A 100 ms tick gives every start/end pair a
+    # positive real UTC interval without consuming the fixture's 40 s span.
+    utc_tick = 0
+
+    def fake_utc_now_iso() -> str:
+        nonlocal utc_tick
+        stamp = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc) + timedelta(
+            milliseconds=100 * utc_tick
+        )
+        utc_tick += 1
+        return stamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+    monkeypatch.setattr(run_mod, "utc_now_iso", fake_utc_now_iso)
     # Keep env-based configuration out of the tests unless set explicitly.
     monkeypatch.delenv(run_mod.FETCH_EVENTS_CMD_ENV, raising=False)
     monkeypatch.delenv(run_mod.SUT_ENV_FILE_ENV, raising=False)
@@ -2290,6 +2305,111 @@ def test_validate_resources_csv_checks_coverage_of_the_measured_window(
     )
     assert "covered" in problems
     assert "measured window" in problems
+
+
+def test_validate_resources_csv_uses_the_real_utc_window_not_only_duration(
+    tmp_path,
+) -> None:
+    """A same-length CSV from a different hour is not this run's evidence."""
+    path = _resources_file(tmp_path, name="wrong-real-window.csv")
+    problems = " ".join(
+        resources_mod.validate_resources_csv(
+            path,
+            expected_window_s=40.0,
+            expected_window_start_utc="2026-09-07T11:00:00Z",
+            expected_window_end_utc="2026-09-07T11:00:40Z",
+        )
+    )
+    assert "do not effectively overlap" in problems
+    assert "real measured window" in problems
+
+
+def test_validate_resources_csv_requires_90_percent_real_window_coverage(
+    tmp_path,
+) -> None:
+    # 36 one-second instants span 35 s of a 40 s window: 87.5%.
+    path = _resources_file(tmp_path, rows=36, name="partial-real-window.csv")
+    problems = " ".join(
+        resources_mod.validate_resources_csv(
+            path,
+            expected_window_start_utc="2026-09-07T10:00:00Z",
+            expected_window_end_utc="2026-09-07T10:00:40Z",
+        )
+    )
+    assert "87.5%" in problems
+    assert "below the required 90%" in problems
+
+
+def test_validate_resources_csv_rejects_a_gap_above_the_protocol_cap(
+    tmp_path,
+) -> None:
+    rows = [
+        f"2026-09-07T10:00:{i:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        for i in [*range(20), *range(30, 50)]
+    ]
+    path = _csv(tmp_path, "resource-gap.csv", rows)
+    problems = " ".join(
+        resources_mod.validate_resources_csv(
+            path,
+            expected_window_start_utc="2026-09-07T10:00:00Z",
+            expected_window_end_utc="2026-09-07T10:00:49Z",
+        )
+    )
+    assert "sampling gap" in problems
+    assert "MAX_SAMPLE_GAP_S" in problems
+    assert "11.0 s" in problems
+
+
+def test_validate_resources_csv_requires_coverage_for_every_container(
+    tmp_path,
+) -> None:
+    rows: list[str] = []
+    for second in range(40):
+        stamp = f"2026-09-07T10:00:{second:02d}Z"
+        rows.append(
+            f"{stamp},egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        )
+        if second < 5:
+            rows.append(f"{stamp},ditto,8.0,2048,2.0,{SUT_NODE}")
+    path = _csv(tmp_path, "sparse-container.csv", rows)
+
+    problems = " ".join(
+        resources_mod.validate_resources_csv(
+            path,
+            expected_window_start_utc="2026-09-07T10:00:00Z",
+            expected_window_end_utc="2026-09-07T10:00:40Z",
+        )
+    )
+
+    assert "container 'ditto'" in problems
+    assert "below the required 90%" in problems
+    assert "sampling gap" in problems
+
+
+def test_execute_run_rejects_resources_from_a_different_real_window(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rows = [
+        f"2026-09-07T11:00:{i:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
+        for i in range(40)
+    ]
+    path = _csv(tmp_path, "wrong-run.csv", rows)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=path,
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["resource_source"] == "none"
+    assert any("do not effectively overlap" in w for w in manifest["warnings"])
 
 
 # ---------------------------------------------------------------------------

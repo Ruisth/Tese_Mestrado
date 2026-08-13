@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import shlex
+import shutil
+import subprocess
 from collections import deque
 from pathlib import Path
 
@@ -163,7 +166,7 @@ def test_a_timed_out_observation_is_not_counted_as_recorded() -> None:
     boot_check.summarise(record)
 
     summary = record["summary"]
-    assert summary["supplementary_observations_recorded"] == 2, "a partial observation was not recorded"
+    assert summary["supplementary_observations_recorded"] == 1, "a partial observation was not recorded"
     assert summary["checks_timed_out"] == ["smoke_diagnostics"]
     # An observation asserts nothing, so it does not decide the boot, but the
     # timeout stays visible in the summary above.
@@ -211,7 +214,7 @@ def test_an_incomplete_power_down_fails_the_boot_despite_every_assertion_passing
     boot_check.summarise(record)
 
     summary = record["summary"]
-    assert summary["required_assertions_passed"] == summary["required_assertions_total"] == 6
+    assert summary["required_assertions_passed"] == summary["required_assertions_total"] == 7
     assert record["outcome"] == "fail", "a guest that never powered down cleanly is not a pass"
     assert "did not power down cleanly" in " ".join(record["outcome_reasons"])
     assert "clean power-down NOT confirmed" in record["headline"]
@@ -235,7 +238,7 @@ def test_a_short_run_fails_because_not_every_check_ran() -> None:
 
     assert record["outcome"] == "fail"
     assert "only 4 of 9 checks ran" in record["outcome_reasons"]
-    assert "only 3 of 6 required assertions were recorded" in record["outcome_reasons"]
+    assert "only 4 of 7 required assertions were recorded" in record["outcome_reasons"]
 
 
 # --------------------------------------------------------------------------
@@ -248,16 +251,16 @@ def test_required_assertions_and_observations_are_counted_separately() -> None:
     boot_check.summarise(record)
 
     summary = record["summary"]
-    assert summary["required_assertions_total"] == 6
-    assert summary["required_assertions_passed"] == 6
-    assert summary["supplementary_observations_total"] == 3
-    assert summary["supplementary_observations_recorded"] == 3
+    assert summary["required_assertions_total"] == 7
+    assert summary["required_assertions_passed"] == 7
+    assert summary["supplementary_observations_total"] == 2
+    assert summary["supplementary_observations_recorded"] == 2
     assert summary["checks_run"] == summary["checks_expected"] == 9
     assert record["headline"] == (
-        "6 of 6 required assertions passed; 3 of 3 supplementary observations recorded; "
+        "7 of 7 required assertions passed; 2 of 2 supplementary observations recorded; "
         "clean power-down confirmed"
     )
-    assert "9 of 9" not in record["headline"], "nine checks were run but only six verified anything"
+    assert "9 of 9" not in record["headline"], "nine checks were run but only seven verified anything"
 
 
 def test_every_entry_declares_its_kind_in_the_result() -> None:
@@ -270,7 +273,7 @@ def test_every_entry_declares_its_kind_in_the_result() -> None:
         "kernel_and_release": boot_check.REQUIRED_ASSERTION,
         "systemd_state": boot_check.REQUIRED_ASSERTION,
         "systemd_targets": boot_check.REQUIRED_ASSERTION,
-        "failed_units": boot_check.OBSERVATION,
+        "failed_units": boot_check.REQUIRED_ASSERTION,
         "networking": boot_check.REQUIRED_ASSERTION,
         "gateway_reachable": boot_check.OBSERVATION,
         "container_runtime": boot_check.REQUIRED_ASSERTION,
@@ -280,14 +283,39 @@ def test_every_entry_declares_its_kind_in_the_result() -> None:
     assert all(entry["required"] == (entry["kind"] == boot_check.REQUIRED_ASSERTION) for entry in record["checks"])
 
 
-def test_the_entries_that_assert_nothing_are_declared_as_observations() -> None:
+def test_non_gate_diagnostics_remain_declared_as_observations() -> None:
     by_id = {check.id: check for check in boot_check.CHECKS}
 
-    # Its predicate only confirms that the listing reached its own end marker.
-    assert by_id["failed_units"].kind == boot_check.OBSERVATION
+    assert by_id["gateway_reachable"].kind == boot_check.OBSERVATION
     # Its predicate is True by construction.
     assert by_id["smoke_diagnostics"].predicate("anything at all") is True
     assert by_id["smoke_diagnostics"].kind == boot_check.OBSERVATION
+
+
+def test_degraded_systemd_state_fails_the_required_assertion() -> None:
+    check = next(c for c in boot_check.CHECKS if c.id == "systemd_state")
+    entry = boot_check.run_checks(
+        FakeConsole([transcript(0, check.command, "STATE=degraded")]), [check]
+    )[0]
+
+    assert check.kind == boot_check.REQUIRED_ASSERTION
+    assert entry["completed"] is True
+    assert entry["passed"] is False
+
+
+def test_any_failed_systemd_unit_fails_the_required_assertion() -> None:
+    check = next(c for c in boot_check.CHECKS if c.id == "failed_units")
+    output = (
+        "bad.service loaded failed failed Deliberately broken service\r\n"
+        "FAILED_UNITS_END"
+    )
+    entry = boot_check.run_checks(
+        FakeConsole([transcript(0, check.command, output)]), [check]
+    )[0]
+
+    assert check.kind == boot_check.REQUIRED_ASSERTION
+    assert entry["completed"] is True
+    assert entry["passed"] is False
 
 
 def test_an_observation_whose_output_does_not_match_does_not_fail_the_boot() -> None:
@@ -347,3 +375,46 @@ def test_the_interpreter_probe_reads_the_binary_and_reports_honestly() -> None:
     assert "tr -c '[:print:]'" in command, "with a BusyBox-safe fallback when 'strings' is absent"
     assert "unavailable" in command, "an unanswerable probe must say so rather than invent a value"
     assert "INTERP=unknown" not in command
+
+
+def _bash_visible_path(path: Path) -> str:
+    """Translate a Windows path for WSL's bash; POSIX paths pass through."""
+    raw = path.resolve().as_posix()
+    if re.match(r"^[A-Za-z]:/", raw):
+        return f"/mnt/{raw[0].lower()}{raw[2:]}"
+    return raw
+
+
+def test_run_qemu_pipeline_propagates_kas_failure_through_tee(tmp_path) -> None:
+    """Exercise the real pipeline function with a failing fake kas command."""
+    bash = shutil.which("bash")
+    if bash is None:
+        import pytest
+
+        pytest.skip("bash is required to exercise run-qemu.sh")
+    script = MODULE_PATH.with_name("run-qemu.sh")
+    script_text = script.read_text(encoding="utf-8")
+    assert script_text.startswith("#!/usr/bin/env bash\n")
+    assert "set -euo pipefail" in script_text
+
+    log_path = tmp_path / "qemu-pipeline.log"
+    shell_program = "\n".join(
+        [
+            f"source {shlex.quote(_bash_visible_path(script))}",
+            "kas() { printf 'simulated kas failure\\n'; return 23; }",
+            "KAS_FILE=ignored.yml",
+            f"LOG_FILE={shlex.quote(_bash_visible_path(log_path))}",
+            "set +e",
+            "run_qemu_logged",
+        ]
+    )
+    proc = subprocess.run(
+        [bash, "-c", shell_program],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 23
+    assert "simulated kas failure" in proc.stdout
+    assert log_path.read_text(encoding="utf-8") == "simulated kas failure\n"

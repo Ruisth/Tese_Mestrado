@@ -776,6 +776,7 @@ def _sweep_row(
         "resources_coverage_pct": 100.0,
         "resources_head_gap_s": 0.0,
         "resources_distinct_instants": 301,
+        "resources_per_container_sufficient": True,
         # Controller metrics are mandated instrumentation for the sweep:
         # since sprint P5 their coverage/head gap/instant count must be
         # sufficient too, otherwise the load is insufficient-evidence.
@@ -961,6 +962,26 @@ def test_saturation_run_below_resource_coverage_is_insufficient_evidence() -> No
     assert load["verdict"] == "insufficient-evidence"
     assert any(
         "resources coverage 50.0% below the 90% minimum" in detail
+        for detail in load["insufficient_evidence_detail"]
+    )
+
+
+def test_saturation_rejects_sparse_per_container_resource_evidence() -> None:
+    rows = _sweep_load(50.0, 0.0, 100.0, n=9)
+    rows += _sweep_load(
+        50.0,
+        0.0,
+        100.0,
+        n=1,
+        resources_per_container_sufficient=False,
+        host_sustained_s=None,
+    )
+
+    load = _load_at(analyze.detect_saturation(rows), 50.0)
+
+    assert load["verdict"] == "insufficient-evidence"
+    assert any(
+        "per-container resource series" in detail
         for detail in load["insufficient_evidence_detail"]
     )
 
@@ -1299,6 +1320,66 @@ def test_per_run_coverage_columns_computed_from_csvs(tmp_path) -> None:
     # The mandated columns are part of the per_run.csv schema.
     for column in ("resources_coverage_pct", "metrics_coverage_pct"):
         assert column in analyze.PER_RUN_COLUMNS
+
+
+def test_resources_by_run_marks_sparse_container_series_insufficient(
+    tmp_path,
+) -> None:
+    start = T0
+    end = T0 + timedelta(seconds=40)
+    resources = []
+    for i in range(41):
+        resources.append(
+            [_iso(start + timedelta(seconds=i)), "egw-controller", 10.0, 1024, 1.0]
+        )
+        if i < 5:
+            resources.append(
+                [_iso(start + timedelta(seconds=i)), "ditto", 8.0, 2048, 2.0]
+            )
+    run_dir = make_run(
+        tmp_path,
+        "sparse-container-run",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra=_window_manifest(start, end),
+        resources_rows=resources,
+        sut_env={"nproc": 4},
+    )
+
+    row = analyze.compute_run_metrics(run_dir)
+    by_container = {item["container"]: item for item in row["_resources"]}
+
+    assert by_container["egw-controller"]["coverage_sufficient"] is True
+    assert by_container["ditto"]["coverage_sufficient"] is False
+    assert row["resources_per_container_sufficient"] is False
+    assert by_container["ditto"]["coverage_pct"] < 90.0
+    assert "container 'ditto' has insufficient" in row["warnings"]
+    assert "host-level CPU aggregates are audit-only" in row["warnings"]
+
+
+def test_scientific_resource_consumers_exclude_insufficient_container_rows() -> None:
+    row = {
+        "_resources": [
+            {
+                "container": "egw-controller",
+                "cpu_pct_mean": 10.0,
+                "coverage_sufficient": True,
+            },
+            {
+                "container": "ditto",
+                "cpu_pct_mean": 99.0,
+                "coverage_sufficient": False,
+            },
+            {
+                "container": "legacy-without-admissibility-flag",
+                "cpu_pct_mean": 50.0,
+            },
+        ]
+    }
+
+    assert [
+        item["container"] for item in analyze.admissible_resource_rows(row)
+    ] == ["egw-controller"]
 
 
 def test_metrics_accepted_delta_and_events_accepted_total(tmp_path) -> None:
