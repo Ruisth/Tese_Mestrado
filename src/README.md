@@ -2,7 +2,7 @@
 
 All implementation code for the Digital Twin Edge Gateway (C2DTA Tema 1).
 Binding interfaces live in [CONTRACTS.md](CONTRACTS.md) (v1.1); the normative
-plan is `../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`.
+plan is [`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
 
 ## Layout
 

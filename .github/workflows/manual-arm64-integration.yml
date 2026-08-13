@@ -1,0 +1,46 @@
+name: manual-arm64-integration-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_label:
+        description: Unique evidence label, for example g2-vertical-slice-01
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-integration:
+    name: Native ARM64 live integration
+    runs-on: [self-hosted, linux, ARM64, egw-integration]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify native ARM64 host
+        run: test "$(uname -m)" = aarch64
+      - name: Capture the system under test
+        working-directory: src/deployment
+        run: scripts/capture-sut-environment.sh "${{ runner.temp }}/${{ inputs.evidence_label }}-sut_environment.json"
+      - name: Validate local secrets, pins and Compose configuration
+        working-directory: src/deployment
+        run: scripts/validate-config.sh
+      - name: Start the stack and wait for readiness
+        working-directory: src/deployment
+        run: |
+          docker compose --env-file .env --env-file images.lock.env up -d --build
+          timeout 600 sh -c 'until curl -fsS http://127.0.0.1:8000/ready >/dev/null; do sleep 5; done'
+      - name: Install integration-test dependencies
+        working-directory: src
+        run: python3 -m pip install -e '.[dev,analysis]'
+      - name: Run live integration tests
+        working-directory: src
+        run: python3 -m pytest tests -q -m integration
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.evidence_label }}
+          path: ${{ runner.temp }}/${{ inputs.evidence_label }}-sut_environment.json
+          if-no-files-found: error

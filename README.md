@@ -4,17 +4,16 @@
 > Workflow: commits and pull requests on `dev`; `main` receives stable versions
 > only, by pull request.
 
-Implementation and dissertation of a reproducible ARM64 Edge Gateway
-(Yocto/Scarthgap plus containerised services) that receives synthetic telemetry
-from three wearable device types, validates the events and materialises them as
-digital twins in Eclipse Ditto.
+Implementation and dissertation of a versioned two-layer ARM64 Edge Gateway
+prototype: a Yocto/Scarthgap functional platform plus a separately deployed
+native-ARM64 digital-twin service layer. The service layer receives synthetic
+telemetry from three wearable device types, validates the events and
+materialises them as digital twins in Eclipse Ditto.
 
-**Normative source:** `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`
-(integrated plan, v1.0 — 2026-08-07). It is held in the workspace OUTSIDE this
-repository, so it is deliberately not a link; the language migration converts it
-to `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`. This repository follows
-the P0 scope of that plan; see [PROGRESS.md](PROGRESS.md) for the state of each
-gate.
+**Normative source:**
+[the integrated plan v1.1](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+(baseline 2026-08-13). The unchanged Portuguese v1.0 is retained in its archive;
+[PROGRESS.md](PROGRESS.md) is the only source of current gate/deliverable state.
 
 ## Structure (follows the C2DTA Student Repository Template)
 
@@ -30,7 +29,7 @@ Claude/
 │  ├─ deployment/        # ARM64 compose (Mosquitto TLS, Ditto 3.9.4, MongoDB, controller)
 │  ├─ yocto/             # kas manifest + meta-egw layer (Scarthgap 5.0.x, qemuarm64)
 │  └─ tests/             # unit tests (against fakes; there are no integration tests)
-├─ docs/                 # G0 (scope, risks, backlog), ADRs, setup guides, claim→evidence matrix
+├─ docs/                 # G0, governance, ADRs, setup guides, claim→evidence matrix
 ├─ thesis/               # LaTeX dissertation (ISCTE template) + review protocol
 ├─ experiments/results/  # raw/ (immutable after the freeze), processed/, figures/
 ├─ diagrams/             # PlantUML/Mermaid

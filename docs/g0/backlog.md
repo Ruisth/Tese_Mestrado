@@ -1,7 +1,8 @@
 # Actionable backlog by gate (G0→G7)
 
-> **This file contains actions only**: what is left to do, the expected evidence,
-> the dependencies and the cutting rules of each gate (plan §8/§8.1). **The state
+> **This file owns actions only**: what is left to do, the expected evidence,
+> dependencies and gate cut rules. Context notes may report dated execution facts
+> and figures, but they are not authoritative state. **The state
 > of every deliverable lives exclusively in [`../../PROGRESS.md`](../../PROGRESS.md)**
 > (single source of state — external audit of 2026-08-08, §5.1); this file does
 > not use the plan's state taxonomy. Items whose artefact already exists in the
@@ -17,11 +18,10 @@
 > remains the setup reference, but the Hetzner CAX line it describes is sold out
 > — see R28 (real-execution round) in [`risks.md`](risks.md).
 
-Updated: 2026-08-11 (translated into British English; the WSL2 installation, the
-`egw-image` build and the two QEMU bring-up boots are recorded as done with
-their evidence path, so the backlog stops asking for work that has been
-executed; this file still carries no figures and no state — both live in
-PROGRESS, with the corresponding sealed evidence).
+Updated: 2026-08-13 (rebased against integrated plan v1.1; the two bring-up
+boots remain historical preliminary evidence, while the strict five-boot G1
+acceptance campaign remains an open action. Current state lives only in
+PROGRESS).
 
 ---
 
@@ -34,10 +34,10 @@ supervisors.
 | Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
 | Close the scope, RQs and premises in a document | implemented — verification/acceptance pending (see PROGRESS) | [`scope_and_rqs.md`](scope_and_rqs.md) validated by the supervisors | Supervisors' reply |
-| Send the scope email to the supervisors and ask for the administrative rules of the extension (deadline 2026-08-09, **elapsed**; the draft now asks for the rules by 2026-08-21) | draft implemented and, on 2026-08-12, extended to carry the plan §8.1 escalation of the missing ARM64 VM — **sending still to be executed** (see PROGRESS) | Email sent (copy and date in the LOG); draft in [`supervisor_email_g0.md`](supervisor_email_g0.md) | Student action |
+| Send the consolidated alignment email with Chapter 2 and D001–D008 | draft implemented and updated for the two-layer proposal; **sending still to be executed** (see PROGRESS) | Email sent; copy/date in LOG; `sent_at` recorded in both decision logs | Student action; [`supervisor_email_g0.md`](supervisor_email_g0.md) |
 | Scope meeting with the supervisors (proposed: 2026-08-10) | — | Minutes/record of the decision in the LOG | Supervisors' reply |
 | Install Ubuntu 24.04 LTS on WSL2 with the build directory on ext4 (deadline 2026-08-09/2026-08-10) | **done** — WSL2 with Ubuntu 24.04.4 LTS operational on ext4; it is the host that built the image. Install by name (`-d Ubuntu-24.04`): the plain `-d Ubuntu` now yields Ubuntu 26.04, outside the tested envelope (R30) | `wsl -l -v`; `df -h` of the build directory; build logs in `docs/evidence/g1-yocto-qemu/` | Student action; guide in `docs/setup/` |
-| Create the ARM64 VM (Hetzner CAX21 or equivalent) and validate `uname -m` = `aarch64` (deadline 2026-08-10) | **blocked — dedicated ARM64 market unavailability** (R28, materialised): Oracle, Hetzner and Azure for Students all failed; quota requested and AWS `c6g.xlarge` kept as fallback. Rule §8.1 applies | Output of `uname -a`, `lscpu`, `/etc/os-release` recorded in the environment manifest | Student's account/payment; checklist in `docs/setup/` |
+| Request a university ARM64 host; after 48 h without confirmation, activate the approved public fallback and validate `uname -m` = `aarch64` | no host exists. Required class: non-burstable native ARM64, 4 vCPU, 8 GiB, >=80 GB; AWS `c6g.xlarge` default; total ceiling EUR 30 | Request/reply in LOG; then `uname -a`, `lscpu`, `/etc/os-release`, provider/region/tenancy in environment manifest | Student account/payment; checklist in `docs/setup/` |
 | Seed the claim→evidence matrix | implemented — verification/acceptance pending (see PROGRESS) | [`../claim_evidence_matrix.csv`](../claim_evidence_matrix.csv) with every claim carrying its real evidence state | — |
 | Backlog and risk register created | implemented — verification/acceptance pending (see PROGRESS) | This file + [`risks.md`](risks.md) maintained at every gate | — |
 | Quarantine/remove results without evidence from the active dissertation | implemented — verification/acceptance pending (see PROGRESS) | Ch. 5 with no unsupported numbers; note in the LOG | — |
@@ -54,6 +54,7 @@ script. With no functional image on 2026-08-20, discuss extension/reformulation.
 | `kas` manifest for `qemuarm64` with exact tags/commits (Scarthgap 5.0.19) | implemented and exercised by the real build — verification/acceptance pending (see PROGRESS) | `kas dump` reproducible from a clean checkout | — |
 | Build `egw-image` on WSL2 ext4 | **done (2026-08-11)** — 5715 BitBake tasks, all successful | Sealed in `docs/evidence/g1-yocto-qemu/`: `kas-checkout.log`, `kas-build.log`, `image-packages.manifest` and `SHA256SUMS` | Requires WSL2 ext4; >=120 GB free |
 | Two QEMU boots with systemd, networking and OCI runtime | **done (2026-08-11)** — two bring-up boots driven by the automated driver `src/yocto/scripts/boot_check.py`, each with 6 of 6 required assertions passed, 3 of 3 supplementary observations recorded and a clean power-down confirmed; the observations assert nothing and are not counted as verification. Gate acceptance remains a separate decision (see PROGRESS) | Sealed in `docs/evidence/g1-yocto-qemu/`: `boot1.log`, `boot1.result.json`, `boot2.log`, `boot2.result.json`, `SHA256SUMS` | Build completed |
+| Strict G1 acceptance campaign: clean identified build plus five unattended boots | not executed; each boot must report `systemd=running`, zero failed units, required network/runtime checks and clean shutdown. Gateway ping remains an observation | Five distinct result/log pairs plus build record and verified `SHA256SUMS`; decision recorded in PROGRESS | WSL2 ext4; corrected strict driver |
 | Check the OCI architectures of the stack images (`linux/arm64` by digest) | `images.lock.env` lock implemented — the `manifest inspect` output on the VM is still missing (see PROGRESS) | Output of `docker manifest inspect` per image, archived | Requires ARM VM |
 | Dissertation introduction/RQs under revision; review protocol executed and bibliography audited | protocol written and preliminary records filled in — the institutional queries (IEEE Xplore, ACM DL, Scopus/WoS) and the move to full text of the sources still at title/abstract are outstanding (see PROGRESS and risk R17) | Chapter 1 draft; institutional queries and selection decisions recorded in `thesis/research/`; `references.bib` audited | Institutional access (student action) |
 
@@ -75,11 +76,11 @@ Every action below waits on it.
 | Initial tests (unit + local integration) | unit tests implemented (Windows) — still to be verified on Linux, and the real integration tests still to be created (see PROGRESS and risk R21) | `pytest` green on Linux with a persisted report; >=1 live integration test | Python 3.11+ in a Linux environment |
 | Chapters 1–2; methodology started; logical diagram | supervisor draft of ch. 2 ready; the remaining chapters still to be completed (see PROGRESS) | Files in `thesis/` and `diagrams/` with substantial text | — |
 
-## G3 — P0 feature freeze and ACA-Py decision (2026-08-30)
+## G3 — P0 feature freeze (2026-08-30)
 
-Cutting rule (§8.1): ACA-Py only proceeds if the QEMU build/boot, a clean ARM
-deployment, three devices, the scenarios, tests, metrics and soak are complete and free
-of P0 defects. Cut after 12 h or on 2026-09-03, whichever comes first.
+Cutting rule (plan v1.1): the P0 is frozen at the local digital-twin core.
+ACA-Py, DIDComm and every executable SSI/blockchain component are excluded from
+the September path and any October contingency.
 
 | Action | Note | Expected evidence | Dependencies |
 |---|---|---|---|
@@ -90,7 +91,6 @@ of P0 defects. Cut after 12 h or on 2026-09-03, whichever comes first.
 | Complete test suite (unit, integration, E2E) | unit tests implemented — live/`integration` tests still to be created (see PROGRESS and risk R21) | `pytest` green including the `integration` mark on the VM, with a persisted report | Requires ARM VM |
 | Pilot soak | — | A long pilot run without a crash; log and resources | Requires ARM VM |
 | Chapter 3 and a first version of chapter 4; ADRs and diagrams | ADRs and diagrams implemented — verification/acceptance pending (see PROGRESS); chapters partial | `thesis/`; [`../adr/`](../adr/README.md) synchronised with CONTRACTS v1.1 | — |
-| ACA-Py decision recorded at the gate | treat outside the base forecast (audit §16): it only proceeds with margin proven by real hours | Entry in the LOG + Annex C of the plan (authorised/cut) | State of the P0 items above |
 
 ## G4 — Frozen protocol, tag `exp-v1` (2026-09-06)
 
@@ -102,7 +102,6 @@ changed.
 |---|---|---|---|
 | Reproduction from a clean checkout | the outstanding part of C01: the build is evidenced, the rebuild from an independent clean checkout belongs to this gate | Record of a clean clone building and running the E2E smoke | WSL2 ext4 + ARM VM |
 | P0/P1 corrections after the feature freeze | — | Identified commits; no new features | — |
-| Minimal ACA-Py (only if authorised at G3; up to 2026-09-03) | outside the base forecast (audit §16) | Two local agents, `did:peer`, OOB invitation, DIDComm message; verified ARM64 digest | G3 authorisation; 12 h timebox |
 | Complete campaign pilot | — | Pilot data in `experiments/results/raw/` with manifests, no ad hoc intervention | Requires ARM VM; corrected harness (R18–R22) |
 | The analysis script generates tables/figures from `raw/` | the analysis route for external runs is implemented (`--external-timings`); producing the timings on the VM is still to be executed (see PROGRESS) | `processed/` and `figures/` regenerated by a single script invoked as it is delivered (no parameters reachable only through the API), including external runs or a formally documented exception | Pilot data |
 | Chapters 1–4 complete; full skeleton of the evaluation | — | `thesis/` compiling, with no invented numbers | — |
