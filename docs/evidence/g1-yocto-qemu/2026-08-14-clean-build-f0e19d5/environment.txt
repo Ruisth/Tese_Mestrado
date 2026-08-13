@@ -1,0 +1,37 @@
+Evidence capture date (Europe/Lisbon): 2026-08-14
+Purpose: G1 functional clean-build and strict five-boot campaign
+
+Host kernel:
+Linux Ruisth-Desktop 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+
+Operating system:
+Ubuntu 24.04.4 LTS (Noble Numbat)
+
+Tools:
+kas 5.4 (configuration format version 23, earliest compatible version 1)
+Python 3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]
+git version 2.43.0
+
+Filesystem at the clean checkout:
+type: ext2/ext3 (WSL ext4 filesystem reporting through statfs)
+device: /dev/sdd
+capacity at post-campaign capture: 1007G total, 139G used, 818G available, 15% used
+
+Clean checkout:
+/home/ruisth/yocto/egw-g1-20260813-f0e19d5
+
+Build source commit:
+f0e19d5a51b4ade1e0637e6bff135c737996b1ba
+Build source tree:
+ec0299e9d4b4f89828849e4c925bebad96f0c2d7
+
+Passing-campaign driver commit:
+9fe38ff4ed3c34915f506f1d3b91f3ba56b6df22
+Passing-campaign driver tree:
+f8155ee9cdaf6de2223935897e960165678c6e0c
+
+The tracked checkout was clean at the post-campaign capture. It was created
+new at the build commit, with no pre-existing layer or build directories. The
+external downloads and sstate directories under ~/yocto-cache were shared by
+design; see kas-build.log for the exact cache summary.
+
