@@ -20,9 +20,12 @@ prefer the tag and retain the commit SHA alongside it.
 | `backups/egw-20260808.bundle` | 547,224 | `101fc6654d0e73692aff1a8d0afb14d4c0e011a18e20864ec89bfbba9e45575f` | Earlier 8 August bundle. |
 | `backups/pre-rewrite-20260811-203811.bundle` | 1,129,824 | `d8e1efc3eededf2cead9ec98acb534862a3b533c13c90f03ed0ef7c7e640c1b4` | Pre-rewrite preservation. Do not publish until authorship, secrets and metadata are audited. |
 | `backups/egw-20260813-pre-sync.bundle` | 1,364,594 | `71a20cce98104006aa532818935e558d5e02c259acc64c798900b35cbddc189d` | Complete pre-synchronisation safety bundle. |
+| `backups/egw-20260813-post-implementation.bundle` | 1,633,967 | `45b01350262c8e96c7a547a7a85ac69b94d8167e52d24b392fd2cc69f8f219fb` | Complete post-implementation snapshot through operational-record commit `71f4792`; includes protected G1 evidence tag and draft proposal commit `bc82911`. |
 
-All five files and hashes were checked in the workspace on 2026-08-13. At
-least one current complete bundle must also be copied off this machine and
+All six files and hashes were checked in the workspace on 2026-08-13. The
+post-implementation bundle reports a complete history and preserves 22 refs;
+it was created before this inventory row to avoid a self-referential checksum.
+At least one current complete bundle must also be copied off this machine and
 verified there; multiple bundles on one disk are not an independent backup.
 
 ## Exact-tree lineage across the history rewrite
