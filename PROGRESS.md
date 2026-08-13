@@ -3,12 +3,13 @@
 > **This file is the single source of state for the project.** The backlog
 > ([`docs/g0/backlog.md`](docs/g0/backlog.md)) holds only actions, expected
 > evidence, dependencies and cut rules — it holds no state. The formal record of
-> gate decisions lives in Annex C of the integrated plan; the "Accepted at gate"
-> column below mirrors it. Structure as per the external audit of 2026-08-08
+> gate decisions lives in the decision records linked by the integrated plan;
+> the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
-Updated: 2026-08-11 (WSL2 operational; `egw-image` built and two QEMU bring-up
-boots recorded; test figures aligned with the sealed evidence of 701 tests).
+Updated: 2026-08-13 (plan v1.1 and provenance controls prepared; the protected
+G1 build tag is published; `egw-image` and two QEMU bring-up boots remain the
+latest platform evidence; the current sealed unit figure remains 701 tests).
 
 **Claim status: 0 of 15 accepted.** C01 has partial evidence (the rebuild from an
 independent clean checkout is still missing, and belongs to G4); C02 has the
@@ -29,7 +30,7 @@ Rules: no "Complete" without archived evidence. "Implemented" and "unit
 verified" never imply acceptance at a gate. Definition of Done per deliverable
 (audit §14.1): the artefact exists + reviewed + executed in the applicable
 environment + evidence archived + claim→evidence matrix updated + gate decision
-recorded. As at 2026-08-11 there is still no closed gate: every "Accepted at
+recorded. As at 2026-08-13 there is still no closed gate: every "Accepted at
 gate" field is `Pending`, `In progress` or `Blocked`.
 
 ## Maturity scale M0–M5 (audit §2.3)
@@ -53,7 +54,8 @@ claims and gates.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Git repository initialised and published | yes | static — commits per deliverable, clean working tree; **private remote active since 2026-08-11** (`Ruisth/Tese_Mestrado`, private, with a ruleset requiring pull requests on `main` and `dev` and forbidding force-push); `refs/tags` remains empty by choice (tags reserved for real evidence); on 2026-08-10 the working tree and the `backups/` bundles moved out of the Nextcloud-synchronised folder | G0 — Pending | M2 |
+| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. The exact G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`; five local bundles verify, including a complete pre-synchronisation bundle. An off-machine copy is still pending | G0 — In progress | M2 |
+| Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows exist in PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
 | Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the build is evidenced; the rebuild from an independent clean checkout is pending and belongs to G4), C02 holds the bring-up evidence (the campaign's five QEMU boots are still to be executed) and the remaining **13 have no evidence**; no validation by the supervisors | G0 — Pending | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Pending | M1 |
@@ -88,7 +90,7 @@ evidence of real execution (QEMU build/boot — produced for G1 on 2026-08-11 �
 ARM deployment, E2E trace, campaign data); what remains still depends on the
 external actions below.
 
-## Gate status as at 2026-08-11
+## Gate status as at 2026-08-13
 
 Factual record of the situation. **Nothing here declares a gate closed or
 failed**: the gate decision belongs to the student and the supervisors and is
@@ -139,10 +141,10 @@ recorded in Annex C of the plan and in [`LOG.md`](LOG.md).
 
 | Action | Deadline | Expected evidence |
 |---|---|---|
-| Send the G0 email to the supervisors (draft in `docs/g0/supervisor_email_g0.md`, rewritten 2026-08-12 to carry the §8.1 escalation) | 2026-08-09 — **elapsed**; §8.1 makes 2026-08-12 the date by which the risk must be reported | email sent; copy and date in the LOG |
+| Send the consolidated G0/alignment email to the supervisors with Chapter 2 and D001–D008 (drafts under `docs/g0/`) | 2026-08-13 — **immediate**; follow up 2026-08-18 and request a short meeting on 2026-08-20 if unanswered | email sent; copy/date in the LOG and decision-log `sent_at` fields |
 | Request/confirm the administrative rules of the extension (included in the G0 email) | 2026-08-10 — **elapsed**; the draft now asks for a reply by 2026-08-21 | request and reply recorded in the LOG (plan §10) |
 | Install Ubuntu 24.04 on WSL2 with the build directory on ext4 (guide in `docs/setup/wsl2_ubuntu_yocto.md`) | 2026-08-09 to 2026-08-10 | **done on 2026-08-11**: Ubuntu 24.04.4 LTS operational on ext4 and used for the `egw-image` build (`docs/evidence/g1-yocto-qemu/`); the `wsl -l -v` and `df -h` outputs are still to be archived |
-| Create the ARM64 VM and validate `uname -m` = `aarch64` (checklist in `docs/setup/vm_arm64_hetzner.md`) | 2026-08-10 | `uname -a`, `lscpu`, `/etc/os-release` recorded in the environment manifest — **not done: the VM does not exist** |
+| Request a university ARM64 host; if not confirmed within 48 hours, obtain/provision the approved public fallback (non-burstable, 4 vCPU, 8 GiB, >=80 GB, maximum total EUR 30) and validate `uname -m` = `aarch64` | request 2026-08-13; fallback trigger 48 h after recorded request | request/reply in LOG; then `uname -a`, `lscpu`, `/etc/os-release`, provider/region/tenancy and environment manifest — **not done: the VM does not exist** |
 
 G0 cut rule (plan §8.1): no VM by 2026-08-10, change provider; no VM by
 2026-08-12, report the risk to the supervisors. Both dates have now passed with

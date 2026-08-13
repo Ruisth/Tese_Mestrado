@@ -4,7 +4,7 @@ Dissertation skeleton for the EGW project (Tema 1, C2DTA), based on the
 official ISCTE LaTeX template (`../../Template_LaTeX/`). The dissertation body
 is written in English; the Resumo is in Portuguese (integrated plan, header +
 §4.3). The normative plan for structure and content is
-`../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md` §6.
+[`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) §6.
 
 ## Two representations of the same dissertation
 

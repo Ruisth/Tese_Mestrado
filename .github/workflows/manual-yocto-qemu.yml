@@ -1,0 +1,40 @@
+name: manual-yocto-qemu-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_label:
+        description: Unique evidence label, for example g1-clean-rebuild-01
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-boot:
+    name: Yocto clean build and QEMU boot campaign
+    runs-on: [self-hosted, linux, x64, yocto]
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Refuse a non-ext4 worktree
+        run: test "$(stat -f -c %T .)" = ext2/ext3 || test "$(stat -f -c %T .)" = ext2/ext3/ext4
+      - name: Build the pinned image
+        env:
+          EGW_LOG_DIR: ${{ runner.temp }}/${{ inputs.evidence_label }}
+        run: src/yocto/scripts/build.sh
+      - name: Run five strict unattended boots
+        env:
+          EGW_LOG_DIR: ${{ runner.temp }}/${{ inputs.evidence_label }}
+        run: |
+          for run in 01 02 03 04 05; do
+            python3 src/yocto/scripts/boot_check.py "qemu-boot-${run}"
+          done
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.evidence_label }}
+          path: ${{ runner.temp }}/${{ inputs.evidence_label }}
+          if-no-files-found: error

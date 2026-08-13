@@ -1,0 +1,9 @@
+decision_id,decision,owner,proposed_at,sent_at,response_at,status,evidence,notes
+D001,"Working title, objective, RQ wording and explicit two-layer evidence boundary",supervisors,2026-08-13,,,proposed_not_sent,,"Confirm separation of Yocto/QEMU functional evidence from native ARM64 service and performance evidence"
+D002,"P0 exclusion of executable SSI and blockchain components through September and any October contingency",supervisors,2026-08-13,,,proposed_not_sent,,"ACA-Py, DIDComm, Fabric, Indy, IPFS and wallets remain reference architecture or future work only"
+D003,"Use the label structured scoping/narrative review with mapping elements",supervisors,2026-08-13,,,proposed_not_sent,,"Do not call the review an SLR unless every required systematic-review step is actually executed and recorded"
+D004,"Official 2026 dissertation template, cover and author/supervisor/co-supervisor metadata",supervisors,2026-08-13,,,proposed_not_sent,,"The local template must be compared with the authenticated current institutional source"
+D005,"Weekly review cadence and final date for feedback on the complete draft",supervisors,2026-08-13,,,proposed_not_sent,,"Proposed follow-up on 2026-08-18 and short-meeting request on 2026-08-20 if unanswered"
+D006,"Independent second-operator clean reconstruction or downgraded final repeatability wording",supervisors,2026-08-13,,,proposed_not_sent,,"Use reproducible only if an independent clean reconstruction succeeds; otherwise use versioned and repeatable by the author"
+D007,"Freeze the experimental thresholds, exclusion rules and acceptance policy before exp-v1",supervisors,2026-08-13,,,proposed_not_sent,,"Blocks G4 protocol freeze; no post-freeze threshold changes are permitted"
+D008,"Platform roles: QEMU functional only, burstable ARM64 integration only, non-burstable ARM64 for RQ3 measurements",supervisors,2026-08-13,,,proposed_not_sent,,"No QEMU or burstable-host number is admissible in performance results"

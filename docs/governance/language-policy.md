@@ -89,12 +89,11 @@ docs/g0/riscos.md                -> docs/g0/risks.md                [done 2026-0
 thesis/latex/imagens/            -> thesis/latex/images/            [pending]
 ```
 
-The Portuguese integrated plan, currently outside the repository, becomes
-`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`. The English version must
-preserve every gate, date, hour figure, research question, claim and criterion
-exactly, be compared semantically against the original, be approved explicitly
-as the normative source, and mark the Portuguese version historical — so that
-two competing normative sources never coexist.
+The Portuguese integrated plan v1.0 is preserved byte-for-byte under
+`docs/governance/archive/`. The rebased English plan v1.1 at
+`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` is normative from
+2026-08-13 and records every intentional change; historical evidence is never
+rewritten to match it.
 
 ## Status of the migration, stated plainly
 
@@ -109,7 +108,8 @@ six-branch order above literally. What has actually been translated, as of
 | `PROGRESS.md`, `docs/g0/`, both claim→evidence matrices, `docs/README.md` | translated (batch 3) |
 | `docs/setup/`, `src/README.md`, `src/yocto/README.md`, `diagrams/`, the ADRs | translated where modified for correctness (batch 2 content, absorbed) |
 | `LOG.md` | **mixed**: entries from 2026-08-11 onwards are in British English, the earlier Portuguese entries are untouched and are corrected only by dated notes (batch 4 outstanding) |
-| `src/CONTRACTS.md`, `CONTRIBUTING.md`, the thesis and research documents, code comments and docstrings | **outstanding** (batches 2, 5 and 6) |
+| `CONTRIBUTING.md` | translated (batch 1) |
+| `src/CONTRACTS.md`, the thesis and research documents, code comments and docstrings | **outstanding** (batches 2, 5 and 6) |
 
 The deviation from the branch order is deliberate and worth stating: the audit
 of 2026-08-12 found documents whose *content* contradicted reality, and the

@@ -1,0 +1,93 @@
+name: technical-ci
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-unit:
+    name: python unit (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.14']
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: src/pyproject.toml
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,analysis]'
+          python -m pip check
+      - name: Run broker-free test suite
+        run: python -m pytest tests -q --junitxml=junit-${{ matrix.python }}.xml
+
+  repository-integrity:
+    name: contracts, evidence and links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Verify sealed evidence
+        run: python tools/ci/verify_evidence.py
+      - name: Verify repository-local Markdown links
+        run: python tools/ci/check_markdown_links.py
+      - name: Parse every tracked JSON document
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' document; do
+            python -m json.tool "$document" >/dev/null
+          done < <(git ls-files -z '*.json')
+
+  shell-safety:
+    name: shell safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Check tracked shell scripts for errors
+        shell: bash
+        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck --severity=error
+
+  thesis-build:
+    name: thesis build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the documented TeX toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            biber latexmk texlive-bibtex-extra texlive-fonts-extra \
+            texlive-lang-portuguese texlive-latex-extra texlive-science
+      - name: Build dissertation and supervisor draft
+        working-directory: thesis/latex
+        run: |
+          latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+          latexmk -pdf -interaction=nonstopmode -halt-on-error ch2_supervisor_draft.tex
+      - uses: actions/upload-artifact@v6
+        with:
+          name: thesis-pdfs
+          path: |
+            thesis/latex/main.pdf
+            thesis/latex/ch2_supervisor_draft.pdf
+          if-no-files-found: error
