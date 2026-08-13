@@ -64,20 +64,12 @@ commands, paths.
 
 ## How the conversion proceeds
 
-Active documentation is translated when it is next modified, plus the planned
-migration below. The migration is split so that no single pull request becomes
-unreviewable, and **it must not delay gate G1**: at most the governance batch
-runs before the QEMU boots, the rest follows once G1 is green, and everything
-is normalised before the `exp-v1` freeze.
-
-| Order | Branch | Content |
-|---:|---|---|
-| 1 | `docs/g0-english-governance` | PR template, CONTRIBUTING, this policy, main READMEs |
-| 2 | `docs/g1-english-technical-contracts` | CONTRACTS, ADRs, setup and technical documentation |
-| 3 | `docs/g1-english-project-controls` | PROGRESS, scope and RQs, backlog, risks, claim matrix |
-| 4 | `docs/g2-english-project-history` | LOG and the remaining historical narrative |
-| 5 | `chore/g2-english-codebase-text` | comments, docstrings, text inside tests |
-| 6 | `docs/g2-english-thesis-support` | thesis, research logs, manifests, residual documentation |
+Active documentation is translated when it is next modified. The original
+six-branch sequence is historical: correctness work crossed those batch
+boundaries, and the corresponding remote branches have been merged or removed.
+Do not recreate the sequence merely to match an obsolete branch plan. Complete
+the remaining active-language work in small reviewable pull requests before
+the `exp-v1` freeze, without delaying G1/G2 execution.
 
 Planned renames, each with every link and reference updated in the same pull
 request that performs it:
@@ -98,33 +90,31 @@ rewritten to match it.
 ## Status of the migration, stated plainly
 
 The policy is in force for all new and modified content from 2026-08-11. The
-repository is **not** yet fully migrated, and the migration is not following the
-six-branch order above literally. What has actually been translated, as of
-2026-08-12:
+repository is **not** yet fully migrated. What is true as of 2026-08-13:
 
 | Document | State |
 |---|---|
-| `README.md` (repository root) | translated (batch 1 content, done early on request) |
-| `PROGRESS.md`, `docs/g0/`, both claim→evidence matrices, `docs/README.md` | translated (batch 3) |
-| `docs/setup/`, `src/README.md`, `src/yocto/README.md`, `diagrams/`, the ADRs | translated where modified for correctness (batch 2 content, absorbed) |
-| `LOG.md` | **mixed**: entries from 2026-08-11 onwards are in British English, the earlier Portuguese entries are untouched and are corrected only by dated notes (batch 4 outstanding) |
-| `CONTRIBUTING.md` | translated (batch 1) |
-| `src/CONTRACTS.md`, the thesis and research documents, code comments and docstrings | **outstanding** (batches 2, 5 and 6) |
+| Repository governance, main READMEs, `PROGRESS.md`, active `docs/g0/` controls and claim→evidence matrices | English; historical Portuguese sources are preserved rather than rewritten |
+| `docs/setup/`, technical READMEs, active diagrams and ADR index | English where active; historical ADR text may retain original wording when changing it would distort the record |
+| Dissertation and research support | Main dissertation prose and the Chapter 2 review PDF are English; the Portuguese Resumo is an explicit exception. Research records are predominantly English, with source titles left in their published language |
+| `LOG.md` | **mixed by design**: entries from 2026-08-11 onwards use British English; earlier Portuguese entries are historical and remain untouched, with dated English corrections where needed |
+| `src/CONTRACTS.md` | **outstanding and active**: still largely Portuguese. Translate in one contract-preserving PR before `exp-v1`, with schemas, examples, links and tests checked but no interface change |
+| Code/test text | Predominantly English; isolated historical Portuguese comments remain in `src/egw_experiments/campaign.py`, `src/egw_experiments/resources.py` and `src/tests/test_experiments_campaign.py`. Remove them when those files are next changed or in a bounded text-only PR before `exp-v1` |
+| External communication and front matter | `docs/g0/supervisor_email_g0.md` and the Resumo remain Portuguese under the stated exceptions |
 
-The deviation from the branch order is deliberate and worth stating: the audit
-of 2026-08-12 found documents whose *content* contradicted reality, and the
-policy's own rule is that a document is translated when it is next modified. So
-the files that had to be corrected were translated in the same change rather
-than left in Portuguese to await their batch. The batches that remain are the
-ones with no outstanding correctness defect.
+The deviation from the former branch order was deliberate: the audit found
+documents whose *content* contradicted reality, and those files were translated
+while being corrected rather than left inaccurate to await a linguistic batch.
+The remaining contract/code text is explicitly visible above; no checklist may
+claim repository-wide completion while it remains.
 
 No pull-request checklist should be read as asserting more than this. The
 template's language item covers only the content that pull request creates or
 modifies, precisely so that ticking it stays truthful while the legacy documents
 wait their turn.
 
-Order of work: the translation must not delay gate G1, and everything is
-normalised before the `exp-v1` freeze.
+Order of work: translation must not delay gate execution; the active contract
+and residual code/test text are normalised before the `exp-v1` freeze.
 
 ## Definition of done for a translation pull request
 

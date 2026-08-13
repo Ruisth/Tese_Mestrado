@@ -1,155 +1,186 @@
 # Actionable backlog by gate (G0→G7)
 
-> **This file owns actions only**: what is left to do, the expected evidence,
-> dependencies and gate cut rules. Context notes may report dated execution facts
-> and figures, but they are not authoritative state. **The state
-> of every deliverable lives exclusively in [`../../PROGRESS.md`](../../PROGRESS.md)**
-> (single source of state — external audit of 2026-08-08, §5.1); this file does
-> not use the plan's state taxonomy. Items whose artefact already exists in the
-> repository are marked "implemented — verification/acceptance pending (see
-> PROGRESS)"; that means only that the code/document exists, never that the gate
-> is closed. Items already executed are marked "done" with the path of their
-> sealed evidence — that too says nothing about gate acceptance.
+> **This file owns actions only**: required work, expected evidence,
+> dependencies and cut rules. The versioned schedule and scope authority is
+> the [integrated development plan v1.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+> The current state of every deliverable and gate lives exclusively in
+> [`../../PROGRESS.md`](../../PROGRESS.md); do not record completion,
+> implementation status, execution results or evidence counts here.
 >
-> Recurring external dependencies: **requires WSL2 ext4** = Ubuntu 24.04 on WSL2
-> with the build on a Linux filesystem (guide: [`../setup/wsl2_ubuntu_yocto.md`](../setup/wsl2_ubuntu_yocto.md));
-> **requires ARM VM** = a native ARM64 VM on a dedicated family (`Dplsv5`, `c6g`,
-> `m6g`); the checklist ([`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md))
-> remains the setup reference, but the Hetzner CAX line it describes is sold out
-> — see R28 (real-execution round) in [`risks.md`](risks.md).
+> Recurring dependencies: **WSL2 ext4** means Ubuntu 24.04 on WSL2 with the
+> Yocto checkout and build directory on a Linux filesystem (see
+> [`../setup/wsl2_ubuntu_yocto.md`](../setup/wsl2_ubuntu_yocto.md)); **ARM64
+> measurement VM** means a native, non-burstable ARM64 environment with 4
+> vCPU, 8 GiB RAM and at least 80 GB. A burstable ARM64 host may support G2
+> integration only and may not produce dissertation measurements.
 
-Updated: 2026-08-13 (rebased against integrated plan v1.1; the two bring-up
-boots remain historical preliminary evidence, while the strict five-boot G1
-acceptance campaign remains an open action. Current state lives only in
-PROGRESS).
+## Rules that apply to every gate
 
----
+- Close a gate only through a dated decision linked from `PROGRESS.md`;
+  passing checks or producing an artefact does not close a gate by itself.
+- If the university does not confirm the measurement host within 48 hours of
+  the request, obtain a quotation for a public non-burstable ARM64 instance.
+  Use AWS `c6g.xlarge` as the default fallback and do not provision above the
+  authorised EUR 30 total ceiling.
+- If G2 has no valid vertical slice by 25 August, record a serious September
+  risk and reforecast without adding scope.
+- After G4, do not change metrics, thresholds, conditions or exclusion rules.
+  An evidence-invalidating defect requires a new protocol/data version and
+  reruns of the affected conditions under new run identities.
+- After G5, permit no feature work. Record missing evidence as a limitation;
+  never replace it with an inferred result.
+- Supervisor silence is not approval. D001 and D004 block the final academic
+  release; D007 blocks `exp-v1`.
+- Keep ACA-Py, DIDComm, Fabric, Indy, IPFS, wallets and executable
+  SSI/blockchain flows outside P0 and outside any September or unauthorised
+  October contingency.
+- Preserve every failed attempt and raw artefact write-once. A repetition
+  always receives a new predefined run identity.
 
-## G0 — Scope and environment (2026-08-10)
+## G0 — Authority and provenance (13–15 August)
 
-Cutting rule (§8.1): VM created and `aarch64` access validated on 2026-08-10. With
-no VM that day, change provider; with no VM on 2026-08-12, report the risk to the
-supervisors.
+**Cut rule:** obtain the supervisor decisions and initiate the ARM64 host
+request without treating silence as approval. Apply the 48-hour public-host
+fallback rule above. The required result is an alignment request covering
+D001–D008, versioned authority/provenance records and an initiated university
+ARM64 request.
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Close the scope, RQs and premises in a document | implemented — verification/acceptance pending (see PROGRESS) | [`scope_and_rqs.md`](scope_and_rqs.md) validated by the supervisors | Supervisors' reply |
-| Send the consolidated alignment email with Chapter 2 and D001–D008 | draft implemented and updated for the two-layer proposal; **sending still to be executed** (see PROGRESS) | Email sent; copy/date in LOG; `sent_at` recorded in both decision logs | Student action; [`supervisor_email_g0.md`](supervisor_email_g0.md) |
-| Scope meeting with the supervisors (proposed: 2026-08-10) | — | Minutes/record of the decision in the LOG | Supervisors' reply |
-| Install Ubuntu 24.04 LTS on WSL2 with the build directory on ext4 (deadline 2026-08-09/2026-08-10) | **done** — WSL2 with Ubuntu 24.04.4 LTS operational on ext4; it is the host that built the image. Install by name (`-d Ubuntu-24.04`): the plain `-d Ubuntu` now yields Ubuntu 26.04, outside the tested envelope (R30) | `wsl -l -v`; `df -h` of the build directory; build logs in `docs/evidence/g1-yocto-qemu/` | Student action; guide in `docs/setup/` |
-| Request a university ARM64 host; after 48 h without confirmation, activate the approved public fallback and validate `uname -m` = `aarch64` | no host exists. Required class: non-burstable native ARM64, 4 vCPU, 8 GiB, >=80 GB; AWS `c6g.xlarge` default; total ceiling EUR 30 | Request/reply in LOG; then `uname -a`, `lscpu`, `/etc/os-release`, provider/region/tenancy in environment manifest | Student account/payment; checklist in `docs/setup/` |
-| Seed the claim→evidence matrix | implemented — verification/acceptance pending (see PROGRESS) | [`../claim_evidence_matrix.csv`](../claim_evidence_matrix.csv) with every claim carrying its real evidence state | — |
-| Backlog and risk register created | implemented — verification/acceptance pending (see PROGRESS) | This file + [`risks.md`](risks.md) maintained at every gate | — |
-| Quarantine/remove results without evidence from the active dissertation | implemented — verification/acceptance pending (see PROGRESS) | Ch. 5 with no unsupported numbers; note in the LOG | — |
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Obtain explicit validation of scope, title, objective, RQs and two-layer architecture | Supervisor reply and dated D001 decision linked from `PROGRESS.md`; [`scope_and_rqs.md`](scope_and_rqs.md) aligned with the decision | Supervisors |
+| Send the consolidated alignment email with Chapter 2 and D001–D008 | Sent-message copy/date; `sent_at` and response references in the canonical decision log | Student action; [`supervisor_email_g0.md`](supervisor_email_g0.md); Chapter 2 attachment |
+| Hold a short alignment meeting when written decisions remain unresolved | Minutes recording each decision, owner and follow-up date | Supervisors' availability |
+| Maintain an Ubuntu 24.04 WSL2 ext4 Yocto environment | `wsl -l -v`, filesystem proof for the build directory and environment capture | Student machine; WSL2 ext4 guide |
+| Request a university ARM64 measurement host and apply the 48-hour fallback rule | Request/reply record; price quotation before provisioning; provider, region, CPU, tenancy/shared-vCPU, kernel, OS and clock provenance after provisioning | University contact or student cloud account; EUR 30 ceiling; [`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md) as a generic checklist only |
+| Maintain the claim→evidence matrix | [`../claim_evidence_matrix.csv`](../claim_evidence_matrix.csv) with every public claim mapped to admissible evidence or an explicit limitation | Scientific framing and evidence policy |
+| Maintain this action backlog and the risk register | Reviewed backlog plus [`risks.md`](risks.md), with operational state recorded only in `PROGRESS.md` | Gate reviews |
+| Exclude unsupported results from the active dissertation | Chapters 5–6 contain no number or conclusion without admitted evidence; exclusion rationale recorded | Claim→evidence review |
+| Preserve governance and repository provenance | Protected evidence tag, verified bundle/checksum inventory, source register and rewrite-equivalence record | Git/GitHub access; off-machine storage for the final bundle |
 
-## G1 — Functional Yocto/QEMU (2026-08-16)
+## G1 — Yocto/QEMU functional platform (13–18 August)
 
-Cutting rule (§8.1): the image boots twice and runs a container. If it fails, reduce
-the image to a minimal system with a runtime and move the deployment to an external
-script. With no functional image on 2026-08-20, discuss extension/reformulation.
+**Cut rule:** require a clean identified build and five strict unattended
+boots. Each accepted boot must report exactly `systemd=running`, zero failed
+units, the required network/runtime assertions and a clean shutdown. Reduce
+the image to a minimal runtime platform if the build or boot path cannot meet
+the gate; QEMU evidence never supports performance claims.
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Freeze the ARM VM (specs recorded, stable access) | blocked by R28 — the measurement VM does not exist | Environment manifest (provider, region, CPU, kernel, OS, shared-vCPU limitation) | Requires ARM VM (G0) |
-| `kas` manifest for `qemuarm64` with exact tags/commits (Scarthgap 5.0.19) | implemented and exercised by the real build — verification/acceptance pending (see PROGRESS) | `kas dump` reproducible from a clean checkout | — |
-| Build `egw-image` on WSL2 ext4 | **done (2026-08-11)** — 5715 BitBake tasks, all successful | Sealed in `docs/evidence/g1-yocto-qemu/`: `kas-checkout.log`, `kas-build.log`, `image-packages.manifest` and `SHA256SUMS` | Requires WSL2 ext4; >=120 GB free |
-| Two QEMU boots with systemd, networking and OCI runtime | **done (2026-08-11)** — two bring-up boots driven by the automated driver `src/yocto/scripts/boot_check.py`, each with 6 of 6 required assertions passed, 3 of 3 supplementary observations recorded and a clean power-down confirmed; the observations assert nothing and are not counted as verification. Gate acceptance remains a separate decision (see PROGRESS) | Sealed in `docs/evidence/g1-yocto-qemu/`: `boot1.log`, `boot1.result.json`, `boot2.log`, `boot2.result.json`, `SHA256SUMS` | Build completed |
-| Strict G1 acceptance campaign: clean identified build plus five unattended boots | not executed; each boot must report `systemd=running`, zero failed units, required network/runtime checks and clean shutdown. Gateway ping remains an observation | Five distinct result/log pairs plus build record and verified `SHA256SUMS`; decision recorded in PROGRESS | WSL2 ext4; corrected strict driver |
-| Check the OCI architectures of the stack images (`linux/arm64` by digest) | `images.lock.env` lock implemented — the `manifest inspect` output on the VM is still missing (see PROGRESS) | Output of `docker manifest inspect` per image, archived | Requires ARM VM |
-| Dissertation introduction/RQs under revision; review protocol executed and bibliography audited | protocol written and preliminary records filled in — the institutional queries (IEEE Xplore, ACM DL, Scopus/WoS) and the move to full text of the sources still at title/abstract are outstanding (see PROGRESS and risk R17) | Chapter 1 draft; institutional queries and selection decisions recorded in `thesis/research/`; `references.bib` audited | Institutional access (student action) |
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Freeze the ARM64 measurement environment specification | Environment manifest covering provider, region, CPU, kernel, OS, tenancy/shared-vCPU and clock | ARM64 measurement VM |
+| Maintain the Scarthgap 5.0.19 `qemuarm64` kas manifest with exact layer tags/commits | `kas dump` and source revisions reproducible from a clean checkout | WSL2 ext4 |
+| Produce a clean, identified `egw-image` build | Build record, package manifest, commit identity and verified checksums | WSL2 ext4; sufficient Linux-filesystem storage |
+| Run the five-boot strict G1 acceptance campaign | Five distinct console/result pairs, strict assertion summaries, clean-shutdown evidence and verified `SHA256SUMS` | Identified build; strict unattended boot driver |
+| Preserve preliminary bring-up evidence separately from the acceptance campaign | Immutable evidence inventory and provenance note that prevents preliminary artefacts from being substituted for the strict campaign | Evidence-integrity tooling |
+| Verify `linux/arm64` support for every deployment image by pinned digest | Archived `docker manifest inspect` output per image | Network access; image lock; ARM64 deployment review |
+| Complete institutional searches and full-text verification for claims used in Chapters 1–2 | Search exports, selection decisions and audited bibliography in `thesis/research/` | Institutional IEEE/ACM/Scopus or Web of Science access |
 
-## G2 — Vertical slice (2026-08-23)
+## G2 — Live vertical slice (15–23 August)
 
-Cutting rule (§8.1): a payload travels MQTT→controller→Ditto and is retrieved through
-the API. If it fails, cut the auxiliary APIs and the whole of identity. With no E2E on
-2026-08-25, declare a serious risk for September.
+**Cut rule:** require a native ARM64 deployment with TLS and an inspectable
+wearable→MQTT→controller→Ditto→API trace. If the slice cannot be obtained,
+cut auxiliary APIs rather than expand scope; apply the 25 August serious-risk
+rule above.
 
-**Single blocking dependency: the ARM64 VM does not exist (R28, materialised).**
-Every action below waits on it.
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Deploy the minimal ARM64 compose stack: Mosquitto TLS, Ditto, MongoDB and controller | Clean `docker compose up`; health/readiness output; pinned image digests; runtime lock and `pip check` record | ARM64 host; operational certificates and secrets |
+| Exercise the MQTT→Ditto controller against real services | TLS broker connection, accepted/rejected event records and a real Ditto twin update | Live compose stack |
+| Execute the wearable→MQTT→controller→Ditto vertical slice | `sent_events.jsonl`, `events.jsonl` and `GET /twins/{device_id}` showing the expected materialised state | Controller, broker, Ditto and simulator |
+| Run the simulator `smoke` scenario against the real broker | Simulator manifest and write-once raw output for a live run | Live compose stack |
+| Add and run live integration tests | Persisted Linux test report containing at least one real MQTT/Ditto integration path; fakes remain unit evidence only | ARM64 integration environment |
+| Advance Chapters 1–3 and the logical two-layer deployment diagram | Compiling thesis sources and editable diagrams with no unsupported result claims | Supervisor decisions D001–D004 |
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Minimal ARM64 compose (Mosquitto TLS 8883, Ditto 3.9.4 gateway/policies/things, MongoDB, controller) | implemented — verification/acceptance pending (see PROGRESS); `.env`, password file and operational certificates still to be created | Clean `docker compose up` on the VM; real health/readiness | Requires ARM VM |
-| MQTT→Ditto controller (schema validation, idempotency, retry, logging, endpoints) | implemented — verification/acceptance pending (see PROGRESS) | TLS connection to a real Mosquitto; twin updated in a real Ditto | Requires ARM VM |
-| Vertical slice smartwatch→MQTT→controller→Ditto | — | Reproducible trace: `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` with the correct state | Compose on the ARM VM; controller |
-| Simulator CLI with the `smoke` scenario | implemented — verification/acceptance pending (see PROGRESS) | `python -m egw_simulator run --scenario smoke ...` against a real broker, with a run manifest | Requires ARM VM |
-| Initial tests (unit + local integration) | unit tests implemented (Windows) — still to be verified on Linux, and the real integration tests still to be created (see PROGRESS and risk R21) | `pytest` green on Linux with a persisted report; >=1 live integration test | Python 3.11+ in a Linux environment |
-| Chapters 1–2; methodology started; logical diagram | supervisor draft of ch. 2 ready; the remaining chapters still to be completed (see PROGRESS) | Files in `thesis/` and `diagrams/` with substantial text | — |
+## G3 — P0 feature freeze (24–30 August)
 
-## G3 — P0 feature freeze (2026-08-30)
+**Cut rule:** freeze P0 at the local digital-twin core. Require three wearable
+types and the mandatory nominal, invalid, reconnect, restart and failure
+behaviours to run live with frozen CONTRACTS v1.1 and no open P0 defect.
 
-Cutting rule (plan v1.1): the P0 is frozen at the local digital-twin core.
-ACA-Py, DIDComm and every executable SSI/blockchain component are excluded from
-the September path and any October contingency.
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Run three concurrent synthetic wearable types | Live run manifest, events and three queryable twin states | G2 vertical slice |
+| Execute every mandatory scenario, including nominal, load, invalid payload, dropout/reconnect, restart and soak preparation | One write-once manifest/evidence set per scenario and a demonstrated real disconnection/recovery path | ARM64 live stack |
+| Validate reconnect, retry and backpressure behaviour | Live integration records, consistent counters and documented recovery outcome | Controller and broker |
+| Exercise the corrected metrics and experimental harness end to end | SUT-side resources, controller metrics, automatically collected events, valid measured windows and CLI-driven analysis | Live stack; corrected harness |
+| Run the complete unit, integration and E2E test suite | Persisted Linux report with unit and live `integration` results separated | ARM64 integration environment |
+| Execute a pilot soak | Pilot-only logs, resources and integrity report; no pilot number cited in the dissertation | Stable live stack |
+| Complete Chapter 3 and advance Chapter 4; synchronise ADRs and diagrams with CONTRACTS v1.1 | Compiling thesis, editable diagrams and ADR index with consistent scope/interfaces | Feature-frozen P0 |
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Three concurrent wearables in the simulator | implemented — still to be verified in real execution (see PROGRESS) | Run with `--devices smartwatch,smart_ring,smart_clothing`; three twins updated | Requires ARM VM |
-| All scenarios (`smoke`, `nominal`, `load-sweep`, `dropout-reconnect`, `invalid-payload`, `soak`) | implemented in the simulator — live demonstration still to be executed (see PROGRESS) | Runs recorded with a manifest per scenario; real disconnection demonstrated in a live run | Requires ARM VM |
-| Reconnect/backpressure in the controller and the simulator | — | `dropout-reconnect` integration test green; consistent counters | Controller + broker |
-| Metrics and experimental harness | harness corrections applied at M2 (blocks P1a–P1c, P5 and P5.4) — live pilot still to be executed (see PROGRESS) | Resources collected on the right VM; `events.jsonl` collected automatically; warm-up excluded; conditions C10–C14 in the campaign plan; the analysis exercised through the real path of the delivered CLI | — |
-| Complete test suite (unit, integration, E2E) | unit tests implemented — live/`integration` tests still to be created (see PROGRESS and risk R21) | `pytest` green including the `integration` mark on the VM, with a persisted report | Requires ARM VM |
-| Pilot soak | — | A long pilot run without a crash; log and resources | Requires ARM VM |
-| Chapter 3 and a first version of chapter 4; ADRs and diagrams | ADRs and diagrams implemented — verification/acceptance pending (see PROGRESS); chapters partial | `thesis/`; [`../adr/`](../adr/README.md) synchronised with CONTRACTS v1.1 | — |
+## G4 — Experimental freeze, tag `exp-v1` (31 August–6 September)
 
-## G4 — Frozen protocol, tag `exp-v1` (2026-09-06)
+**Cut rule:** require a complete non-citable micro-pilot and seal environment,
+protocol, predefined run identities, thresholds, exclusion rules and analysis.
+D007 must be decided before `exp-v1`. After the tag, apply the protocol-change
+rule above.
 
-Cutting rule (§8.1): every pilot produces valid data and the analysis script generates
-tables/figures. After this gate, metrics, conditions and exclusion criteria are not
-changed.
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Reproduce build and live smoke from a clean checkout | Clean-clone record covering dependency installation, build and E2E smoke | WSL2 ext4; ARM64 host |
+| Generate and enforce the integral ARM64 Python runtime lock | Committed hash lock including build dependencies; Docker install with `--require-hashes`, `--no-build-isolation` and `--no-deps`; image digest and archived `pip check` output | Native ARM64 host; pinned base image |
+| Apply correction-only changes after feature freeze | Identified commits linked to defects; no new feature scope | Frozen P0 |
+| Execute the complete micro-pilot | Pilot raw data, manifests, environment records and checksums for every condition; pilot data marked non-citable | ARM64 measurement VM; corrected harness |
+| Regenerate analysis from pilot raw data through the delivered CLI | `processed/` and `figures/` produced by one documented command, including external runs or a documented exclusion | Complete micro-pilot |
+| Complete Chapters 1–4 and the evaluation skeleton | Clean thesis build with methods, protocol and limitations but no invented results | D001, D003, D004 and D007 |
+| Freeze protocol and predefined run identities as `exp-v1` | Annotated tag and checksumed protocol/run-plan package | All G4 acceptance evidence |
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Reproduction from a clean checkout | the outstanding part of C01: the build is evidenced, the rebuild from an independent clean checkout belongs to this gate | Record of a clean clone building and running the E2E smoke | WSL2 ext4 + ARM VM |
-| P0/P1 corrections after the feature freeze | — | Identified commits; no new features | — |
-| Complete campaign pilot | — | Pilot data in `experiments/results/raw/` with manifests, no ad hoc intervention | Requires ARM VM; corrected harness (R18–R22) |
-| The analysis script generates tables/figures from `raw/` | the analysis route for external runs is implemented (`--external-timings`); producing the timings on the VM is still to be executed (see PROGRESS) | `processed/` and `figures/` regenerated by a single script invoked as it is delivered (no parameters reachable only through the API), including external runs or a formally documented exception | Pilot data |
-| Chapters 1–4 complete; full skeleton of the evaluation | — | `thesis/` compiling, with no invented numbers | — |
-| Tag `exp-v1` | — | Tag in Git with the frozen protocol | The items above |
+## G5 — Data freeze, tag `data-v1` (7–13 September)
 
-## G5 — Data freeze `data-v1` (2026-09-13, 18:00)
+**Cut rule:** require the complete predefined 95-run campaign, including
+soak, with write-once raw data, environment manifests and verified checksums.
+An optional condition may be cut only as a documented limitation; never fill
+an evidence gap with an unsupported conclusion.
 
-Cutting rule (§8.1): every metric essential to the RQs has complete data. An optional
-condition may be removed by declaring the limitation; never fill the gap with a
-conclusion that has no evidence.
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Execute the frozen 95-run campaign, covering functional, cold-start, twin-creation, nominal, fault/reconnect/restart, load/saturation and soak conditions | `experiments/results/raw/<run_id>/` for every predefined identity, each with manifest, environment, valid measurement window and verified `SHA256SUMS` | ARM64 measurement VM; `exp-v1` |
+| Preserve failures and rerun only evidence-invalidated conditions under new identities | Failure artefacts retained; dated deviation/exclusion record; replacement identity linked to the original attempt | Frozen protocol-change rule |
+| Validate all raw data and regenerate analysis outputs | Admission report plus regenerated `processed/` and `figures/`, with provenance and checksum validation | Complete campaign |
+| Write the experimental setup and limitations | Thesis text tracing environment, protocol deviations and limitations to evidence | Admitted campaign evidence |
+| Freeze admitted data as `data-v1` and keep `raw/` immutable | Annotated tag, verified checksums and data-freeze decision linked from `PROGRESS.md` | Complete validation |
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Official ARM campaign (§7.1: 5 functional QEMU boots, 10 cold starts, 10 twin creations, 10 nominal runs, load-sweep 10/50/100/250 msg/s ×10, 24 h soak) | the 5 `qemu_boots` runs are a later set under the frozen protocol, distinct from and not interchangeable with the two G1 bring-up boots | `experiments/results/raw/<run_id>/` complete, with `SHA256SUMS` | Requires ARM VM; tag `exp-v1` |
-| Only corrections that invalidate experiments; repeat the affected conditions | — | LOG with a justification for each repetition | — |
-| Validate the data and generate the figures | — | `processed/` + `figures/` regenerated; provenance validation (`run_id`/manifest) | Campaign |
-| Write up the setup and limitations (chapter 5, context sections) | — | Text in `thesis/` | — |
-| Tag `data-v1`; `raw/` immutable | — | Tag in Git; checksums verified | Complete campaign |
+## G6 — Analysis and full draft (14–18 September)
 
-## G6 — Full draft (2026-09-18)
+**Cut rule:** require every chapter, figure and RQ answer to exist and derive
+only from admitted `data-v1` raw evidence. Permit analysis and writing work,
+not features.
 
-Cutting rule (§8.1): every chapter, figure and answer to the RQs exists. A
-restructuring estimated above 20 h activates the contingency (§10).
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Reproduce analysis solely from admitted sealed raw data | Documented command, admission log, tables, figures and confidence intervals regenerated from `data-v1` | `data-v1` |
+| Complete Chapters 5–6, Abstract and Resumo using real evidence | Clean thesis build; every quantitative statement traced through the claim→evidence matrix | Reproduced analysis |
+| Answer each RQ explicitly | Claim→evidence matrix and conclusion text with no unresolved state for cited claims | Reproduced analysis |
+| Send the complete draft to the supervisors by 18 September | Sent-message copy/date and document checksum recorded | Clean full-draft build |
+| Restrict work to analysis, reproduction and writing | Commit/decision record showing no feature additions after G5 | G5 freeze |
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Chapters 5–6, Abstract and Resumo with real evidence | — | `thesis/` complete; every number traced in the claim→evidence matrix | `data-v1` |
-| RQs answered with real evidence only | — | Claim→evidence matrix with no pending states in the claims used in the text | `data-v1` |
-| Full draft sent to the supervisors on 2026-09-18 | — | Sending email recorded in the LOG | Clean compilation |
-| No features; reproduction and analysis only | — | Git history with no feature commits after G5 | — |
+## G7 — Release candidate (19–25 September)
 
-## G7 — Release and approval (2026-09-25; `rc1` on 2026-09-27)
+**Cut rule:** require a complete thesis with no placeholders, independent
+review, an inspected reproduction package and traceable accepted claims.
+Record contact attempts; supervisor silence does not waive D001 or D004.
 
-Cutting rule (§8.1): compliant PDF, archived artefact and feedback handled. A lack of
-reply from the supervisors does not stop the work; the last documented decisions are
-followed and the contact attempts are recorded.
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Run the final smoke and package the reproduction artefacts | Versioned archive, SHA-256, restore instructions and verified storage location | `data-v1`; stable code/document tree |
+| Incorporate and record supervisor and independent-review feedback | Change list, replies and unresolved-item rationale | Review feedback |
+| Perform language, references, front-matter, consistency and page-by-page visual QA | Completed editorial checklist; final PDF with correct metadata, diagrams and no TODOs/placeholders | Full draft; official template decision D004 |
+| Produce and inspect the release candidate | Annotated `rc1` tag, PDF checksum and independent build/review record | All G7 acceptance evidence |
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| Final smoke and packaging of the reproducibility package | — | Versioned archive with SHA-256 and its location recorded | `data-v1` |
-| Handling of the feedback (requested deadline: 2026-09-23) | — | List of changes + recorded replies | Supervisors' feedback |
-| Language, references, front matter, consistency and visual QA of the PDF | — | Editorial checklist completed; page-by-page inspection | Full draft |
-| Release candidate `rc1` on 2026-09-27 | — | Tag `rc1` + PDF | The items above |
-| Submission 2026-09-29 17:00; receipt and tag `v1.0-thesis` | — | Portal receipt; tag in Git | `rc1` |
+## Submission — blocking corrections only (26–29 September)
 
-## Post-gate — 2026-09-28/2026-09-30
+**Cut rule:** make only release-blocking corrections. Promote `dev` to `main`
+through the formal gate, create the final release and submit by **29 September
+at 17:00 Europe/Lisbon**.
 
-| Action | Note | Expected evidence | Dependencies |
-|---|---|---|---|
-| 2026-09-28/2026-09-29: blocking corrections only; final PDF, metadata and portal | — | Internal submission on 2026-09-29 17:00 | `rc1` |
-| 2026-09-30: strictly administrative reserve | — | Use only if the internal submission fails | — |
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Apply release-blocking corrections and rerun affected validation | Final validation report and linked corrections | `rc1` |
+| Promote `dev` to `main` and create `v1.0.0-thesis` | Merge commit, protected final tag and clean checkout verification | Successful required checks; final gate decision |
+| Create and verify an off-machine final repository bundle | Bundle verification, SHA-256 and storage location recorded | Off-machine storage |
+| Submit the final PDF and archive the receipt | Portal receipt, submitted PDF checksum and submission decision linked from `PROGRESS.md` | Final release and portal access |
+
+## Administrative reserve — 30 September
+
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Use the reserve only to recover from a failed administrative submission step; do not add scope or technical work | Corrected portal receipt or documented administrative incident | Submitted final release; institutional support if required |
