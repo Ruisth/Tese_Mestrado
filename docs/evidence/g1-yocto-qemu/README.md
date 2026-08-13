@@ -59,7 +59,8 @@ is exercised end to end without any registry access.
 
 - **It does not close gate G1.** Merging or archiving demonstrates
   implementation and verification; accepting a gate is a separate decision
-  recorded in `PROGRESS.md` and in the plan's Annex C.
+  recorded in `docs/governance/gate_decision_log.md` with a dated decision
+  record. `PROGRESS.md` mirrors the current operational state.
 - These are the historical **two bring-up boots**. A clean build plus five new
   strict boots was produced on 2026-08-14 and has a separate nested seal. The
   later `data-v1` experimental identities remain distinct unless a dated

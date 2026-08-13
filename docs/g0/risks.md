@@ -27,11 +27,11 @@
 > live proof, it closes no gate and it validates no claim.
 
 Updated: 2026-08-14 (R2/R12/R30 updated with the second clean-checkout Yocto
-build; R25 explicitly records that the newest bundle predates PRs #17/#18 and
-the strict G1 capsule; R27 reflects the renewed state synchronisation; R31
-records the PTY predicate defect and five fresh strict passes. The sealed unit
-figure remains `701 passed`; the absent native ARM64 measurement host remains
-the single blocking dependency from G2 onwards).
+build; R25 records the verified post-G1 bundle and remaining off-machine-copy
+blocker; R27 reflects the renewed state synchronisation; R31 records the PTY
+predicate defect and five fresh strict passes. The sealed unit figure remains
+`701 passed`; the absent native ARM64 measurement host remains the single
+blocking dependency from G2 onwards).
 
 **Identifier collision, resolved on 2026-08-12.** Two different rounds had
 issued risks under the same identifiers: R28 and R29 were first used on
@@ -110,7 +110,7 @@ execution.
 | R22 | Warm-up contaminates the resource metrics (the sampler covers warm-up + run; the analysis does not filter the measured window) | High | High | Agent | Mitigated at M2 on 2026-08-08 — measured window in the manifest, filter in the analysis and cadence caps | before G4 (2026-09-06) | `resources.csv` includes the pre-measurement period | Record `measured_started_utc` in the manifest and filter the measured window in the analysis |
 | R23 | The saturation criterion changes after the freeze (queue growth `TODO`; CPU not normalised by number of CPUs; the "half of the runs" rule not validated) | Medium/High | High | Both | Open | before `exp-v1` (2026-09-06) | The queue-growth/CPU rule still undecided at G3 | Close the metric and the rule with the supervisor before the freeze; instrument queue depth or remove the criterion by a formally recorded decision |
 | R24 | Python dependencies change between builds (`>=` in `pyproject.toml`, no lockfile with hashes) | Medium | High | Agent | Mitigating — development lock created on 2026-08-08; runtime lock with hashes before `exp-v1` | 2026-09-06 | A new build resolves different versions | Lockfile with versions/hashes before `exp-v1`; do not assert "reproducible rebuild" until then |
-| R25 | Loss of repository or evidence provenance | Medium | Critical | Both | **Mitigating** — the private remote exists; six local bundles verify; exact-tree rewrite mappings are recorded; protected tag `evidence/g1-yocto-build-5770c0a` preserves the exact preliminary build. The newest bundle covers only through `71f4792`, so it predates PRs #17/#18 and the new strict G1 evidence; no verified off-machine copy is recorded | create a post-G1 bundle before G1 acceptance, then copy it off-machine | All bundles remain on the same physical machine; current evidence is newer than the newest complete bundle | Create and verify a bundle containing the strict G1 evidence, then copy it off-machine and record its SHA-256/location without publishing restricted history |
+| R25 | Loss of repository or evidence provenance | Medium | Critical | Both | **Mitigating** — the private remote exists; seven local bundles verify; exact-tree rewrite mappings are recorded; protected tag `evidence/g1-yocto-build-5770c0a` preserves the exact preliminary build. `egw-20260814-g1-strict-evidence.bundle` is a complete-history snapshot through strict-evidence commit `d4bfa9d` (SHA-256 `5b2cf69f…`). No verified off-machine copy is recorded | off-machine copy before G1 acceptance | All bundles remain on the same physical machine | Copy the current bundle off-machine, verify it there and record its SHA-256/location without publishing restricted history |
 | R26 | Documentation diverges from the contract (drift after CONTRACTS v1.1: references to v1.0, idempotency without `run_id` scope) | High | Medium/High | Agent | Mitigating — diagrams/ch. 4 synchronisation completed on 2026-08-08; impact checklist added | continuous (at every contract change) | CONTRACTS changes without updating thesis/diagrams/READMEs | Impact checklist per ADR/contract change; drift check twice a week (audit §14.2) |
 | R27 | The management state induces false confidence (PROGRESS/backlog/plan contradicting one another; hybrid states outside the taxonomy) | High | High | Agent | Mitigating — PROGRESS is the single source and the backlog has no state. Drift materialised again when the clean build/five boots made the 2026-08-13 wording obsolete; PROGRESS, both claim matrices, the Yocto guide, LOG and this register were synchronised in the same evidence change while retaining 0/15 accepted and G1 pending | review at every work block and at every gate | Divergent state documents | Single source of state in `PROGRESS.md` (Implemented/Verified/Accepted model); backlog with actions only; update all dependent records in the same evidence PR |
 

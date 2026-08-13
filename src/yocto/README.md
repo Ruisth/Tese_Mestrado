@@ -1,9 +1,11 @@
 # src/yocto — EGW-OS (Yocto/kas) for gate G1
 
-Reproducible build of `egw-image`, the C2DTA Edge Gateway operating-system
-image, for the `qemuarm64` machine with Yocto Project 5.0.x "Scarthgap" (LTS)
-and the `kas` build tool. This directory is the platform deliverable of gate
-G1 (plan sections 4.3, 5.1, 8 and 9.1 "Plataforma").
+Versioned, repeatable same-operator build of `egw-image`, the C2DTA Edge
+Gateway operating-system image, for the `qemuarm64` machine with Yocto Project
+5.0.x "Scarthgap" (LTS) and the `kas` build tool. Independent-operator
+reconstruction remains decision D006, so this directory makes no stronger
+reproducibility claim. It is the platform deliverable of gate G1 (plan
+sections 4.3, 5.1, 8 and 9.1 "Plataforma").
 
 > **QEMU is functional-only, never performance.** QEMU runs here validate
 > build, boot, systemd, networking and the OCI runtime — nothing else. No
@@ -206,7 +208,9 @@ Each scope has its own `SHA256SUMS`, and both verify from a clean clone.
 
 - [ ] **G1 accepted.** Not ticked. Producing and sealing the evidence above
       demonstrates implementation and verification; accepting the gate is a
-      separate decision, recorded in `PROGRESS.md` and in Annex C of the plan.
+      separate decision, recorded in
+      `docs/governance/gate_decision_log.md` with a dated decision record;
+      `PROGRESS.md` mirrors the current operational state.
       No gate has been accepted, and none of the 15 claims is accepted. C01 now
       has a same-operator clean-checkout build but remains partial pending D006
       and formal admission. C02 has the strict five-boot G1 set, but the later

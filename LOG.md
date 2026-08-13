@@ -757,3 +757,19 @@ have not been sent, D001–D008 remain `proposed_not_sent`, the native
 non-burstable ARM64 measurement VM and runtime lock do not exist, and no
 off-machine bundle copy is recorded. G2 and all measurement gates therefore
 remain blocked or pending exactly as stated in `PROGRESS.md`.
+
+## Entry #C013 — Post-G1 local provenance bundle
+
+**Date:** 2026-08-14
+
+After evidence commit `d4bfa9d`, the complete-history bundle
+`backups/egw-20260814-g1-strict-evidence.bundle` was created and verified with
+`git bundle verify`. It is 1,819,509 bytes and has SHA-256
+`5b2cf69fcb7bdee7f2e2916bccfc04d852fe8b91077a2d38accd02a96a2bab12`.
+The bundle reports complete history and preserves 12 refs, including the
+strict-evidence branch, `dev`, the draft academic proposal and the protected
+preliminary G1 tag.
+
+This is a local recovery object, not an independent backup. No off-machine
+copy or remote destination has been recorded; risk R25 therefore remains
+mitigating and G1 acceptance remains pending.

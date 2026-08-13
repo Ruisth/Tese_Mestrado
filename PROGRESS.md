@@ -3,7 +3,7 @@
 > **This file is the single source of state for the project.** The backlog
 > ([`docs/g0/backlog.md`](docs/g0/backlog.md)) holds only actions, expected
 > evidence, dependencies and cut rules — it holds no state. The formal record of
-> gate decisions lives in the decision records linked by the integrated plan;
+> gate outcomes is [`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md);
 > the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
@@ -59,7 +59,7 @@ claims and gates.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#14 and #16–#18 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`; six local bundles verify, but the newest currently covers only through `71f4792` and therefore predates PRs #17/#18 and the new G1 capsule. An off-machine copy and a post-G1 bundle are still pending | G0 — In progress | M2 |
+| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#14 and #16–#18 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`. Seven local bundles verify; the latest, `egw-20260814-g1-strict-evidence.bundle` (SHA-256 `5b2cf69f…`), is a complete-history snapshot through strict-evidence commit `d4bfa9d`. A verified off-machine copy is still pending | G0 — In progress | M2 |
 | Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
 | Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and D001–D008 matrix exist only in draft PR #15; the canonical decision log remains `proposed_not_sent` for all eight decisions | G0 — Pending | M1 |
@@ -99,7 +99,9 @@ external actions below.
 
 Factual record of the situation. **Nothing here declares a gate closed or
 failed**: the gate decision belongs to the student and the supervisors and is
-recorded in Annex C of the plan and in [`LOG.md`](LOG.md).
+recorded only in the
+[`formal gate-decision log`](docs/governance/gate_decision_log.md), with its
+dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
 
 - **G0 (13–15 August) — In progress.** The versioned plan/provenance controls,
   source register and draft alignment package exist. The alignment email has

@@ -24,6 +24,7 @@ with SHA-256
 |---|---|---|
 | Scope, schedule, gates and cuts | This plan | A change requires a dated new version; history is never rewritten. |
 | Current deliverable and gate state | [`PROGRESS.md`](../../PROGRESS.md) | Only `Pending`, `In progress`, `Blocked`, `Complete` and `Cut` are permitted. |
+| Formal gate outcomes | [`gate_decision_log.md`](gate_decision_log.md) | Evidence or a merged change never implies acceptance; every outcome needs a dated decision record. |
 | Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
 | Claims and admissible evidence | [`claim_evidence_matrix.md`](../claim_evidence_matrix.md) | No claim is accepted without the evidence named in the matrix and a recorded gate decision. |
 | Supervisor decisions | [`supervisor_decision_log.csv`](supervisor_decision_log.csv) | A draft, sent request, silence or agent recommendation is not approval. |
