@@ -106,4 +106,6 @@ echo "Logs   : $LOG_DIR/kas-checkout-$STAMP.log"
 echo "         $LOG_DIR/kas-build-$STAMP.log"
 echo "Images : $YOCTO_DIR/build/tmp/deploy/images/qemuarm64/"
 echo "Next   : run five strict unattended boots with scripts/boot_check.py"
-echo '         for run in 01 02 03 04 05; do python3 scripts/boot_check.py "qemu-boot-${run}"; done'
+echo '         egw_boot_rc=0; for run in 01 02 03 04 05; do'
+echo '             python3 scripts/boot_check.py "qemu-boot-${run}" || egw_boot_rc=$?'
+echo '         done; (exit "$egw_boot_rc")'

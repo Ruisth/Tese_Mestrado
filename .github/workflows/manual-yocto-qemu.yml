@@ -30,10 +30,13 @@ jobs:
         env:
           EGW_LOG_DIR: ${{ runner.temp }}/${{ inputs.evidence_label }}
         run: |
+          boot_rc=0
           for run in 01 02 03 04 05; do
-            python3 src/yocto/scripts/boot_check.py "qemu-boot-${run}"
+            python3 src/yocto/scripts/boot_check.py "qemu-boot-${run}" || boot_rc=$?
           done
+          exit "$boot_rc"
       - uses: actions/upload-artifact@v6
+        if: always()
         with:
           name: ${{ inputs.evidence_label }}
           path: ${{ runner.temp }}/${{ inputs.evidence_label }}

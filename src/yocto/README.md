@@ -116,9 +116,11 @@ cd egw/src/yocto
 ./scripts/build.sh
 
 # 3. Run the five strict unattended and recorded boots — path of record
+egw_boot_rc=0
 for run in 01 02 03 04 05; do
-    python3 scripts/boot_check.py "qemu-boot-${run}"
+    python3 scripts/boot_check.py "qemu-boot-${run}" || egw_boot_rc=$?
 done
+(exit "$egw_boot_rc")
 ```
 
 Step 3 is the **current acceptance path of record**. Each run writes
@@ -128,6 +130,8 @@ Step 3 is the **current acceptance path of record**. Each run writes
 a caller can rely on its status. The preliminary sealed evidence in
 `docs/evidence/g1-yocto-qemu/` used the same driver for two bring-up boots;
 those historical boots are preserved but do not replace the five-run campaign.
+The accumulator lets every predefined boot identity leave its evidence and
+still returns non-zero after the loop when any one of the five boots failed.
 
 `./scripts/run-qemu.sh boot1` remains available as the **interactive
 alternative**: it boots the same image with the console tee'd to a log, and the
