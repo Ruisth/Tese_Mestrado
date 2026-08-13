@@ -1,6 +1,9 @@
 # 0002 — SSI/ACA-Py is strictly conditional P1 behind gate G3 and outside all RQs
 
-**Status:** Accepted (2026-08-07) — fixed by integrated plan sections 4.2, 4.4 and 8.1
+**Status:** Superseded (2026-08-13) by the integrated plan v1.1, sections 3.3
+and 3.4. The historical decision below is retained for traceability; it no
+longer authorises any SSI/ACA-Py implementation in September or in an
+unapproved October contingency.
 
 ## Context
 

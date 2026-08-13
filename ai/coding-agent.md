@@ -4,7 +4,7 @@ Adapted for this repository from the `ai/coding-agent.md` stub of the C2DTA
 Student Repository Template (`../../C2DTA Student Repository Template.docx`).
 The original stub enforced "DID/VC/DIDComm; EGW orchestrator (no local data
 storage); edge-first inference". Those rules predate the integrated plan
-(v1.0, 2026-08-07), which cuts SSI from the critical path; this kit replaces
+(v1.1, 2026-08-13), which excludes executable SSI from this thesis; this kit replaces
 them with the rules that actually govern this repository. In any conflict,
 the order of authority is: integrated plan > `src/CONTRACTS.md` + JSON
 Schemas > this kit.
@@ -27,17 +27,19 @@ repository. Enforce all of the following, without exception:
   "improve" a contract item unilaterally; a contract change requires a
   coordinated update of simulator, controller, schemas, TDs, deployment,
   harness, tests, and a LOG entry.
-- The normative plan is `PLANO_DESENVOLVIMENTO_INTEGRADO_EDGEGATEWAY` at the
-  workspace root (`PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`);
-  scope is P0 as defined there.
+- The normative plan is
+  `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` version 1.1; scope is
+  P0 as defined there. The Portuguese v1.0 is an immutable historical archive,
+  not an alternative authority.
 
 ### Scope guard
 
 - P0 only: Yocto/Scarthgap image (`qemuarm64`), Mosquitto TLS, Ditto 3.9.4
   (gateway, policies, things) + MongoDB, MQTT-to-Ditto controller, unified CLI
   simulator (three wearables, six scenarios), tests, experiment harness.
-- SSI/ACA-Py is strictly conditional P1, gated by G3 and a 12-hour timebox;
-  never place it in the core, never emulate non-ARM64 images.
+- SSI, ACA-Py and DIDComm are reference-architecture context or future work
+  only. Do not implement them in September or in an unapproved October
+  contingency, and never emulate non-ARM64 images.
 - Never reintroduce cut scope: Indy, Fabric, IPFS-as-required-storage,
   marketplace, ownership transfer, business verifiable credentials, AI/MAS,
   GUI/dashboard, Bluetooth, OTA, LUKS, energy measurement, physical
