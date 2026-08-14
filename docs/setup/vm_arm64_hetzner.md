@@ -45,12 +45,19 @@ resource envelope selected for feasibility, cost and experimental control**
 (it originates in the plan of 2026-08-07, sized around a Hetzner CAX21-class
 instance) — it is not a C2DTA requirement and does not claim to represent all
 edge hardware; the paper's own evaluation ran on an x86 VM with 16 GB/32
-CPUs and sizes no ARM64 host. A different profile is admissible provided it
-is native ARM64, non-burstable for RQ3 results, sufficient to avoid OOM or
-persistent swap, held constant through the whole campaign, recorded and
-frozen before `exp-v1`, and its virtualisation/shared-CPU limitations are
-declared. Do not call the instance "dedicated" without evidence of dedicated
-tenancy. Current candidates, in order:
+CPUs and sizes no ARM64 host. **The envelope is fixed, not
+operator-discretionary: the official campaign runs on 4 vCPU / 8 GiB /
+>= 80 GB as the normative plan specifies.** Adopting a different profile is a
+plan change — it requires a dated plan revision before provisioning (and the
+final envelope is in any case recorded and frozen at `exp-v1` under D007),
+never a substitution decided at the console because the preferred SKU is
+unavailable. Any such revision must still satisfy all of: native ARM64,
+non-burstable for RQ3 results, sufficient resources to avoid OOM or
+persistent swap, held constant through the whole campaign, and every
+virtualisation/shared-CPU limitation declared. CPU and memory size shape the
+RQ3 results directly, so a campaign executed on an unapproved profile is
+complete but protocol-inadmissible. Do not call the instance "dedicated"
+without evidence of dedicated tenancy. Current candidates, in order:
 
 | Candidate | Notes |
 |---|---|
