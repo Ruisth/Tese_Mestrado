@@ -773,3 +773,21 @@ preliminary G1 tag.
 This is a local recovery object, not an independent backup. No off-machine
 copy or remote destination has been recorded; risk R25 therefore remains
 mitigating and G1 acceptance remains pending.
+
+## Entry #C014 — PR #19 merge and post-merge recovery bundle
+
+**Date:** 2026-08-14
+
+PR #19 passed the six mandatory checks. A review found one stale claim summary
+in `src/README.md`; commit `6e3dc5b` synchronised it while retaining 701 as the
+last sealed test count, 718 as local-only, 0 of 15 accepted claims and the
+separation between the strict G1 set and later `data-v1` identities. The thread
+was answered and resolved. PR #19 was then merged into `dev` by merge commit
+`c6668a88f02be5d73bac078bd241a04600e8c0b8`, and its work branch was deleted.
+
+After that merge, `backups/egw-20260814-post-g1-merge.bundle` was created and
+verified. It is 1,831,301 bytes, reports complete history with 12 refs and has
+SHA-256
+`35b7808072c2f3cfd82cfd9bfc40ce6769b8931d1301794332ef2e66fbd4abcb`.
+The bundle remains on the same physical machine; the off-machine-copy blocker
+is unchanged.
