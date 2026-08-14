@@ -143,9 +143,11 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
   additionally requires live/`integration` tests, which do not exist).
 - **PRs #12–#22 are governance, technical, operational-record,
   G1-path and factual academic corrections.** They raise provenance,
-  instrumentation and documentary quality but **do not record a formal gate
-  decision**. Draft PR #15 has no normative effect before explicit supervisor
-  decisions.
+  instrumentation and documentary quality. **PR #21 is the single exception
+  that records a formal gate decision**: it merged the G1 acceptance row of
+  2026-08-14 into `docs/governance/gate_decision_log.md`. None of the others
+  records any gate decision, and the PR #15 proposal package, though merged,
+  has no normative effect before explicit supervisor decisions.
 
 ## External student actions (with deadlines)
 
