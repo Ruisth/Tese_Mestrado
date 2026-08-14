@@ -66,6 +66,13 @@ contingency.
 - D006: second-operator reconstruction or weaker repeatability wording.
 - D007: experimental thresholds and acceptance rules before `exp-v1`.
 - D008: QEMU, burstable ARM64 and non-burstable ARM64 platform roles.
+- D009: non-blocking confirmation that `telemetry` stays the contract term in
+  topics, schemas and CONTRACTS, with thesis prose preferring "wearable event
+  data" (the repository template asks to avoid the word).
+- D010: non-blocking confirmation that the EGW stack persists twin state and
+  sealed run evidence locally by design (the template's generic coding stub
+  says "no local data storage", but the paper assigns the EGW the data-steward
+  role).
 
 The companion evidence for review is the standalone Chapter 2 draft. A follow-up
 is planned for 2026-08-18 and, if no response is recorded, a short meeting will

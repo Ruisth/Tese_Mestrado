@@ -1,0 +1,82 @@
+@startuml
+title Proposed two-layer ARM64 experimental deployment
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+skinparam ArrowColor #34495E
+skinparam packageBorderColor #34495E
+skinparam packageFontStyle bold
+
+legend right
+  |= Colour |= Meaning |
+  |<#D5F5E3> Green | Built or executed evidence exists |
+  |<#FCF3CF> Yellow | Versioned artefact/configuration exists; live deployment pending |
+  |<#EAECEE> Grey | External or planned infrastructure |
+endlegend
+
+folder "Common versioned repository" as Repo #D5F5E3 {
+  artifact "kas manifest and\nYocto metadata" as Kas #D5F5E3
+  artifact "CONTRACTS v1.1, schemas\nand thing descriptions" as Contracts #D5F5E3
+  artifact "Compose, controller, simulator\nand experiment harness" as ServiceArtefacts #D5F5E3
+}
+
+package "Layer A - Yocto/QEMU functional platform\nPROVISIONED AND PRELIMINARILY EVIDENCED" as LAYERA #D5F5E3 {
+  node "WSL2 Ubuntu 24.04 build host" as BuildHost #D5F5E3 {
+    component "kas + BitBake" as Bitbake #D5F5E3
+    artifact "egw-image\nsystemd + network + OCI runtime" as Image #D5F5E3
+  }
+  node "QEMU qemuarm64" as Qemu #D5F5E3 {
+    component "Boot checks and\nOCI smoke container" as BootChecks #D5F5E3
+  }
+}
+
+package "Layer B - native-ARM64 digital-twin service stack\nPLANNED - MEASUREMENT HOST NOT PROVISIONED" as LAYERB #FCF3CF {
+  node "Non-burstable native-ARM64 VM\n4 vCPU, 8 GiB, at least 80 GB" as ArmVm #EAECEE {
+    component "Eclipse Mosquitto 2.0.22\nMQTT/TLS :8883" as Mosquitto #FCF3CF
+    component "MQTT-to-Ditto controller\nHTTP :8000 loopback" as Controller #FCF3CF
+    component "Eclipse Ditto 3.9.4\ngateway, policies, things" as Ditto #FCF3CF
+    database "MongoDB 7.0.39" as Mongo #FCF3CF
+  }
+}
+
+node "Operator/load-generator machine\noutside the measurement VM" as Operator #EAECEE {
+  component "egw_simulator\nthree synthetic wearable types" as Simulator #FCF3CF
+  component "egw_experiments harness\nraw evidence collection" as Harness #FCF3CF
+}
+
+Kas --> Bitbake : pinned inputs
+Bitbake --> Image
+Image --> Qemu
+Qemu --> BootChecks
+
+Contracts ..> BootChecks : functional assertions
+Contracts ..> Controller : message and twin contract
+ServiceArtefacts --> ArmVm : separate deployment
+
+Simulator --> Mosquitto : MQTT/TLS workload
+Mosquitto --> Controller
+Controller --> Ditto : Ditto HTTP API
+Ditto --> Mongo
+Harness ..> ArmVm : control and collect\nresource/log artefacts
+
+LAYERA -[hidden]-> LAYERB
+
+note bottom of LAYERA
+  Layer A demonstrates build and functional boot properties only.
+  It provides no latency, throughput, saturation or resource result.
+end note
+
+note bottom of LAYERB
+  Layer B is deployed separately; this diagram does not claim that
+  Mosquitto, Ditto, MongoDB or the controller run inside egw-image.
+  Only a non-burstable native-ARM64 host may support RQ3 results.
+end note
+
+note bottom of Operator
+  A burstable ARM64 host may support functional integration only.
+  QEMU and burstable results are excluded from performance inference.
+end note
+
+@enduml
