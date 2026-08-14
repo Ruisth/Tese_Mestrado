@@ -78,7 +78,7 @@ flowchart TB
     end
 
     subgraph PERF["Measurement platform - PLANNED, NOT PROVISIONED - the ONLY source of numbers (plan 3.1)"]
-        subgraph VM["Dedicated native-ARM64 instance, DOES NOT EXIST YET<br/>candidates: Azure D4pls_v5 (quota requested) or AWS c6g.xlarge<br/>4 vCPU, 8 GiB RAM, >= 80 GB disk; non-burstable; any shared-vCPU limitation is provider-dependent and recorded"]
+        subgraph VM["Non-burstable native-ARM64 instance, DOES NOT EXIST YET<br/>candidates: Azure D4pls_v5 (quota requested) or AWS c6g.xlarge<br/>4 vCPU, 8 GiB RAM, >= 80 GB disk; non-burstable; any shared-vCPU limitation is provider-dependent and recorded"]
             CSTACK["docker compose (linux/arm64):<br/>Mosquitto :8883 exposed<br/>Ditto gateway :8080 localhost-only<br/>Ditto policies / things + MongoDB internal<br/>controller :8000 localhost-only"]
         end
         OPS["Operator machine (off-instance, plan 3.1)<br/>egw_simulator + experiment harness<br/>collects results/raw/(run_id)/"]
