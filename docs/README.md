@@ -44,7 +44,7 @@ accepted.
 | [`claim_evidence_matrix.csv`](claim_evidence_matrix.csv) | claim→evidence matrix supporting the plan §7 acceptance contract |
 | [`claim_evidence_matrix.md`](claim_evidence_matrix.md) | Readable view of the matrix and its maintenance rules |
 | [`evidence/tests/`](evidence/tests/) | Sealed records of suite runs (JUnit + stdout + environment + `SHA256SUMS`). **M2** evidence: unit tests, with fakes, on Windows — it closes no gate and validates no claim. Only the newest directory is current; the earlier ones are historical, each tied to the commit it tested |
-| [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/) | Sealed G1 evidence: `egw-image` build and the two QEMU bring-up boots. **Functional only** — it supports no performance or security statement, and gate acceptance is pending |
+| [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/) | Sealed G1 evidence: the 2026-08-11 bring-up seal (`egw-image` build, two preliminary boots) and the 2026-08-14 strict capsule (`2026-08-14-clean-build-f0e19d5/`: clean identified checkout build, five strict boots with seven required assertions each, failed first attempt preserved). **Functional only** — it supports no performance or security statement; the gate outcome is recorded solely in [`governance/gate_decision_log.md`](governance/gate_decision_log.md) |
 
 ## Setup guides (executed by the student)
 
