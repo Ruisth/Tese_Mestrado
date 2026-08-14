@@ -90,7 +90,7 @@ rewritten to match it.
 ## Status of the migration, stated plainly
 
 The policy is in force for all new and modified content from 2026-08-11. The
-repository is **not** yet fully migrated. What is true as of 2026-08-13:
+repository is **not** yet fully migrated. What is true as of 2026-08-14:
 
 | Document | State |
 |---|---|
@@ -98,14 +98,14 @@ repository is **not** yet fully migrated. What is true as of 2026-08-13:
 | `docs/setup/`, technical READMEs, active diagrams and ADR index | English where active; historical ADR text may retain original wording when changing it would distort the record |
 | Dissertation and research support | Main dissertation prose and the Chapter 2 review PDF are English; the Portuguese Resumo is an explicit exception. Research records are predominantly English, with source titles left in their published language |
 | `LOG.md` | **mixed by design**: entries from 2026-08-11 onwards use British English; earlier Portuguese entries are historical and remain untouched, with dated English corrections where needed |
-| `src/CONTRACTS.md` | **outstanding and active**: still largely Portuguese. Translate in one contract-preserving PR before `exp-v1`, with schemas, examples, links and tests checked but no interface change |
+| `src/CONTRACTS.md` | **translated 2026-08-14**: British English throughout, in a contract-preserving change with no interface change; schemas, examples, links and every normative value left byte-identical to v1.1 |
 | Code/test text | Predominantly English; isolated historical Portuguese comments remain in `src/egw_experiments/campaign.py`, `src/egw_experiments/resources.py` and `src/tests/test_experiments_campaign.py`. Remove them when those files are next changed or in a bounded text-only PR before `exp-v1` |
 | External communication and front matter | `docs/g0/supervisor_email_g0.md` and the Resumo remain Portuguese under the stated exceptions |
 
 The deviation from the former branch order was deliberate: the audit found
 documents whose *content* contradicted reality, and those files were translated
 while being corrected rather than left inaccurate to await a linguistic batch.
-The remaining contract/code text is explicitly visible above; no checklist may
+The remaining code/test text is explicitly visible above; no checklist may
 claim repository-wide completion while it remains.
 
 No pull-request checklist should be read as asserting more than this. The
@@ -113,8 +113,9 @@ template's language item covers only the content that pull request creates or
 modifies, precisely so that ticking it stays truthful while the legacy documents
 wait their turn.
 
-Order of work: translation must not delay gate execution; the active contract
-and residual code/test text are normalised before the `exp-v1` freeze.
+Order of work: translation must not delay gate execution; the residual
+code/test text is normalised before the `exp-v1` freeze (the active contract
+was translated on 2026-08-14).
 
 ## Definition of done for a translation pull request
 
