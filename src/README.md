@@ -41,18 +41,20 @@ Consequently the entire suite is level **M2** evidence (verified locally, unit
 level, with fakes, on Windows). The current sealed record is `701 passed` over
 clean HEAD `4e67717`, archived in
 [`../docs/evidence/tests/2026-08-11-head-4e67717/`](../docs/evidence/tests/2026-08-11-head-4e67717/);
-earlier figures are historical, each tied to the commit it tested.
+earlier figures are historical, each tied to the commit it tested. The current
+G1 evidence branch passes 718 tests locally, but that is not a new test seal.
 
 M2 closes no gate and validates no claim on its own. In
 `../docs/claim_evidence_matrix.md`, **0 of the 15 claims are accepted** and no
-gate has been accepted. Two rows moved on 2026-08-11, when gate G1 produced
-sealed evidence:
+gate has been accepted. C01 and C02 now have the preliminary 2026-08-11 seal
+and the separate strict 2026-08-14 G1 capsule; neither evidence production nor
+merging records formal admission:
 
 | Claim | State |
 |---|---|
-| C01 | Partial — the build is evidenced; the rebuild from an independent clean checkout is pending and belongs to G4 |
-| C02 | Bring-up evidence produced — two QEMU boots driven by the automated driver; the campaign's five `qemu_boots` runs are still to be executed |
-| the other 13 | `Pending — no evidence` |
+| C01 | Partial — a clean identified same-operator checkout/build completed all 5,715 tasks and is sealed; D006/second-operator treatment and formal G1 admission remain pending |
+| C02 | Partial — the two preliminary boots remain sealed; one strict instrumentation failure is preserved and five fresh strict boots each passed 7/7 assertions. The later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set |
+| the other 13 | `Pending — no admissible experimental evidence` |
 
 ## Run the simulator (reference invocation, CONTRACTS §7)
 
