@@ -1,150 +1,147 @@
-# Draft de email aos orientadores — gate G0
+# Draft de email aos orientadores - gate G0 e proposta de duas camadas
 
-> **Instruções internas (não enviar esta secção):** este draft cumpre duas
-> obrigações do plano integrado ao mesmo tempo — fechar o âmbito e as questões de
-> investigação (§8 e §8.2) e comunicar formalmente aos orientadores o risco da
-> plataforma de medição, como §8.1 determina quando não existe máquina ARM64 a
-> 2026-08-10, e como §10 exige que conste deste email. Enviar a 2026-08-12.
-> Rever nomes e tratamentos antes de enviar. O envio é ação do estudante:
-> registar no LOG a data de envio e, mais tarde, a resposta recebida.
+**Versão do draft:** 1.2 (2026-08-14)
+
+**Estado:** **PROPOSED - NOT SENT**
+
+**Aprovação dos orientadores:** nenhuma registada
+
+> **Instruções internas - não enviar esta secção.** Rever nomes, tratamento,
+> anexos e custo da infraestrutura antes do envio. Anexar o PDF atual do
+> Capítulo 2, o memo [`two_layer_thesis_proposal.md`](two_layer_thesis_proposal.md)
+> e a matriz [`supervisor_decision_matrix.csv`](supervisor_decision_matrix.csv).
+> O envio é uma ação do estudante. Só depois do envio deve ser registada a data
+> no [`../governance/supervisor_decision_log.csv`](../governance/supervisor_decision_log.csv)
+> e no `LOG.md`; uma resposta deve ser registada separadamente e o silêncio
+> nunca deve ser tratado como aprovação.
 
 ---
 
 **Para:** Prof.ª Catarina Silva; Prof. Sérgio Moro
-**Assunto:** Dissertação Edge Gateway (C2DTA) — âmbito e questões de
-investigação, ponto de situação e um risco de infraestrutura a decidir; proposta
-de reunião a 2026-08-14
+
+**Assunto:** Dissertação Edge Gateway / C2DTA - proposta de duas camadas,
+Capítulo 2 e decisões necessárias
 
 Cara Professora Catarina Silva, caro Professor Sérgio Moro,
 
-Espero que se encontrem bem. Escrevo por três motivos: fechar convosco o âmbito e
-as questões de investigação da dissertação, dar-vos um ponto de situação honesto
-do que já está construído e comunicar-vos um problema de infraestrutura que
-condiciona a parte experimental e para o qual proponho uma solução. Peço a vossa
-validação (ou objeções) aos pontos seguintes, de forma a concentrar o trabalho
-até à entrega de 2026-09-30.
+Envio para vossa análise o draft atual do Capítulo 2 e uma proposta de
+reformulação que pretende eliminar uma ambiguidade importante do trabalho: a
+imagem Yocto validada em QEMU e a pilha de serviços de gémeos digitais para uma
+máquina ARM64 nativa são dois artefactos experimentais relacionados, mas
+separados. Neste momento não existe evidência de que a pilha Eclipse Ditto seja
+executada dentro da imagem Yocto, pelo que proponho que a tese não o sugira.
 
-**1. Objetivo e questões de investigação propostas**
+## 1. Enquadramento e título propostos
 
-O objetivo é conceber, implementar e avaliar um edge gateway ARM64 reproduzível,
-baseado em Yocto e serviços em contentores, que recebe telemetria sintética
-concorrente de três tipos de wearable (smartwatch, smart ring, smart clothing),
-valida os eventos e materializa-os como gémeos digitais no Eclipse Ditto. As
-questões de investigação, na formulação que proponho manter em inglês:
+**Título proposto:** *Design and Experimental Evaluation of a Two-Layer ARM64
+Edge Gateway Prototype for the Local Digital-Twin Core of C2DTA*
 
-- RQ1: How can a reproducible Yocto-based ARM64 edge gateway be designed to host
-  containerised digital-twin services?
-- RQ2: To what extent can the gateway ingest and materialise concurrent synthetic
-  telemetry from three wearable-device types correctly and reliably?
-- RQ3: What latency, throughput and resource-consumption trade-offs constrain
-  deployment of the proposed platform on an ARM64 edge-class environment?
+O objetivo proposto é conceber e avaliar um protótipo ARM64 de duas camadas para
+o núcleo local de gémeos digitais do C2DTA:
 
-**2. Ponto de situação: o que já está construído**
+1. uma camada funcional Yocto/QEMU para build, boot, systemd, rede e runtime
+   OCI, sem resultados de desempenho;
+2. uma pilha separada de serviços em contentores numa máquina ARM64 nativa,
+   formada por Mosquitto, Eclipse Ditto, MongoDB e o controlador MQTT-to-Ditto,
+   onde serão feitos os testes ponta a ponta e, numa instância non-burstable, as
+   medições.
 
-A imagem do sistema operativo do gateway já é construída de ponta a ponta a
-partir de revisões fixadas das camadas Yocto, num ambiente de construção Linux
-igualmente fixado (5715 tarefas de compilação, todas concluídas com sucesso). A
-imagem inclui o runtime de contentores necessário aos serviços. Foram executados
-dois arranques dessa imagem em emulação QEMU ARM64, conduzidos por um verificador
-automático e sem intervenção manual, ambos passando na totalidade das
-verificações obrigatórias e terminando com encerramento limpo; os registos e as
-respetivas somas de verificação ficaram arquivados no repositório, de modo a
-poderem ser reproduzidos a partir de uma cópia limpa.
+As questões de investigação propostas são:
 
-Duas ressalvas que faço questão de deixar explícitas. Primeiro, considero esta
-etapa documentada, não validada: a validação é vossa e está por fazer, e é um dos
-pontos que gostaria de levar à reunião. Segundo, nenhum destes resultados
-sustenta qualquer afirmação de desempenho — a emulação não representa o
-comportamento temporal do hardware e, por isso, não produzirá um único número
-para a dissertação.
+- **RQ1:** *How can a two-layer ARM64 Edge Gateway prototype be designed, built
+  and redeployed when its Yocto/QEMU functional platform and native-ARM64
+  containerised digital-twin stack are treated as separate artefact layers?*
+- **RQ2:** *To what extent can the prototype ingest and materialise concurrent
+  synthetic telemetry from three wearable-device types correctly and
+  reliably, including under specified fault scenarios?*
+- **RQ3:** *What latency, sustainable-throughput, saturation and per-container
+  resource trade-offs constrain the digital-twin stack on a non-burstable
+  native-ARM64 environment?*
 
-**3. Plataformas de avaliação: sem Raspberry Pi físico**
+Esta formulação é uma proposta. O título e as RQs atuais da tese não serão
+substituídos antes da vossa validação explícita.
 
-Não tenho acesso a um Raspberry Pi 5. Proponho, por isso, separar explicitamente
-três plataformas, com papéis que não se misturam:
+## 2. Ponto de situação verificável
 
-- **emulação QEMU ARM64** — validação funcional do sistema operativo construído
-  com Yocto (arranque, rede, execução de contentores). Não produz números;
-- **instância ARM64 *burstable* na cloud** — integração funcional dos serviços em
-  condições reais de rede e de sistema operativo. Também não produz números;
-- **instância ARM64 dedicada na cloud** — única origem admissível dos resultados
-  de latência, débito, consumo de recursos e estabilidade que respondem à RQ3.
+- A imagem `egw-image` foi construída duas vezes a partir das revisões Yocto
+  fixadas: primeiro no ambiente de desenvolvimento e, a 2026-08-14, a partir de
+  um *checkout* limpo e identificado do repositório (5715 tarefas concluídas,
+  com os registos e os *checksums* dos artefactos arquivados).
+- A campanha de cinco boots QEMU ARM64 foi executada a 2026-08-14 pelo
+  verificador automático, com critérios estritos: estado `systemd=running`
+  exato, zero unidades em estado `failed` e encerramento limpo. Os cinco boots
+  passaram as sete asserções obrigatórias. Uma primeira tentativa falhou por um
+  defeito do próprio verificador; ficou preservada como falha no arquivo, o
+  defeito foi corrigido com um teste de regressão, e só depois a campanha foi
+  executada de novo.
+- Com isto, a evidência funcional da plataforma Yocto/QEMU está completa e
+  selada. A validação académica é vossa; a reprodução por um segundo operador
+  independente é um requisito separado, dependente da decisão D006.
+- A pilha de serviços, o controlador, o simulador e o harness existem no
+  repositório e a suite selada contém 701 testes unitários com fakes. Ainda não
+  foi executado um teste live MQTT-to-controller-to-Ditto nem uma campanha de
+  medição ARM64.
+- Não existe qualquer resultado da campanha oficial e nenhum número de QEMU ou
+  de uma instância burstable será usado como resultado de desempenho.
 
-O compromisso associado é simples e assumo-o por escrito: nenhum valor medido em
-emulação ou numa instância *burstable* entrará na dissertação. A razão é que
-estas instâncias funcionam por créditos de CPU e, esgotados os créditos, o
-processador é estrangulado — o que falsearia qualquer medição de latência ou de
-saturação. Esta separação, e a ausência de hardware físico, serão declaradas como
-limitação na dissertação.
+## 3. Delimitação face ao paper C2DTA
 
-**4. Comunicação formal de risco: a máquina de medição ARM64 não existe**
+O paper implementa uma arquitetura C2DTA mais ampla: Eclipse Ditto 3.0.0 e
+Mosquitto, agentes ACA-Py/DIDComm, Hyperledger Fabric, Hyperledger Indy e IPFS.
+Define oito cenários de ciclo de vida e avalia os primeiros sete em 88 passos;
+o percurso de telemetria usa um simulador de smartwatch a 1 Hz. Essa avaliação
+correu numa VM x86 e não será usada como baseline causal para os resultados
+ARM64 desta dissertação.
 
-Este é o ponto que mais precisa da vossa atenção. A máquina virtual dedicada com
-CPU ARM64 nativa, prevista para 2026-08-10, não foi obtida. Tentei três
-fornecedores e todos falharam, por motivos distintos:
+O P0 proposto cobre apenas o núcleo local: telemetria MQTT/TLS, validação e
+materialização em Eclipse Ditto para três tipos de wearable. ACA-Py, DIDComm,
+Fabric, Indy, IPFS, marketplace, UI, Bluetooth e hardware físico ficam fora do
+caminho crítico e são representados apenas na arquitetura de referência,
+delimitação e trabalho futuro.
 
-- **Oracle Cloud** — a região de origem da conta é fixada no momento do registo e
-  não tem capacidade Ampere disponível; numa conta gratuita não é possível
-  subscrever outra região;
-- **Hetzner** — todas as instâncias ARM da linha CAX estão indisponíveis, em
-  todas as localizações;
-- **Azure for Students** — a subscrição está limitada a cinco regiões e a quota é
-  zero em todas as famílias ARM dedicadas (`Dpsv5`/`Dpsv6`, `Dplsv5`/`Dplsv6`).
-  Apenas a família *burstable* (série B) é obtida sem pedido de quota, e essa
-  está excluída da medição pela razão explicada no ponto anterior.
+## 4. Risco de infraestrutura
 
-A consequência é concreta: a implantação em ARM64, os ensaios ponta a ponta e a
-campanha de medição que responde à RQ3 dependem todos desta máquina e estão, por
-isso, parados. É neste momento a única dependência externa que bloqueia o
-progresso do trabalho experimental; a construção do sistema e o desenvolvimento
-dos serviços continuam a avançar em paralelo.
+A máquina ARM64 non-burstable de medição ainda não existe. Oracle, Hetzner e a
+quota ARM dedicada da Azure não forneceram a capacidade necessária. Proponho:
 
-O que já fiz e o que proponho: submeti um pedido de aumento de quota na Azure
-para as famílias `DPLSv5` e `DPLSv6`. Se a quota não for concedida em tempo útil,
-recorro a uma instância dedicada paga na AWS (`c6g.xlarge`), cujo custo estimado
-é de cerca de 7 EUR para a campanha completa, dado que a instância só está ativa
-durante os ensaios. Dou-vos este número para que fique claro que o problema é
-limitado e tem solução conhecida, e não uma incerteza em aberto. Do vosso lado
-peço apenas duas coisas: a vossa concordância com o modelo de três plataformas
-descrito no ponto 3 e a vossa autorização para avançar com a alternativa paga se
-a quota não chegar até 2026-08-21.
+1. aguardar 48 horas por uma solução institucional;
+2. sem confirmação, usar temporariamente uma instância pública ARM64
+   non-burstable com 4 vCPU, 8 GiB de RAM e pelo menos 80 GB;
+3. confirmar o preço antes de criar a instância e não ultrapassar o teto total
+   de 30 EUR sem nova autorização;
+4. usar uma instância burstable apenas para integração funcional, nunca para
+   resultados.
 
-**5. Cortes de âmbito propostos**
+## 5. Decisões solicitadas
 
-Para tornar setembro exequível, proponho: (a) a componente de identidade
-descentralizada (SSI/ACA-Py) fica estritamente condicional — só será tentada, num
-formato mínimo de demonstração, se todo o núcleo estiver completo e sem defeitos
-a 2026-08-30, e não é necessária para responder a nenhuma questão de
-investigação; (b) ficam fora de âmbito Hyperledger Indy, Fabric, IPFS,
-marketplace, credenciais verificáveis, interfaces gráficas e avaliação em
-hardware físico. A dissertação será defensável mesmo sem a componente de
-identidade.
+A matriz anexa organiza dez decisões, D001-D010. As mais urgentes são:
 
-**6. Regras administrativas da extensão até 2026-10-31**
+- validar ou corrigir o título, objetivo, RQs e separação em duas camadas;
+- confirmar a exclusão de SSI/blockchain do P0;
+- confirmar a designação da revisão de literatura e o template oficial de
+  2026;
+- decidir se a palavra *reproducible* exige uma reprodução por segundo
+  operador;
+- validar os thresholds antes do freeze `exp-v1`;
+- confirmar os papéis de QEMU, ARM burstable e ARM non-burstable.
 
-Por prudência, gostaria de confirmar até 2026-08-21 as regras administrativas de
-uma eventual extensão do prazo até 2026-10-31: procedimento, aprovações
-necessárias e data-limite institucional para submeter o pedido. O plano de
-trabalho continua a assumir a submissão a 2026-09-29, mas quero conhecer o
-processo antecipadamente para, se algum marco crítico falhar, ativar a
-contingência cedo e não no fim do mês.
+Acrescento duas confirmações não urgentes (D009 e D010), sobre desvios
+documentados face ao template de repositório do projeto: primeiro, o termo
+`telemetry` é o termo contratual dos tópicos MQTT e dos schemas versionados,
+embora o template peça terminologia *smart devices/wearables* — proponho manter
+o termo nos contratos e usar "wearable event data" na prosa da tese; segundo, o
+stub genérico do template refere "no local data storage" no EGW, mas o próprio
+paper atribui ao EGW o papel de guardião dos dados no *edge*, e o núcleo P0
+persiste o estado dos gémeos em MongoDB/Ditto por desenho. Nenhum destes pontos
+bloqueia o trabalho; peço apenas confirmação de que a delimitação está correta.
 
-**7. Reunião e calendário de acompanhamento**
-
-Proponho uma reunião breve (30 minutos, presencial ou online) na sexta-feira,
-2026-08-14, para validar o âmbito e decidir o ponto 4. Se essa data não for
-possível, fico igualmente disponível na segunda-feira, 2026-08-17. Proponho ainda
-o seguinte calendário de pontos de contacto:
-
-- 2026-08-17 — Introdução, lacuna de investigação, arquitetura e protocolo experimental (se a reunião do ponto anterior ficar nesta data, os dois assuntos podem ser tratados na mesma sessão);
-- 2026-08-31 — demonstração do núcleo funcional e decisão sobre a componente de identidade;
-- 2026-09-07 — validação do protocolo experimental congelado;
-- 2026-09-18 — envio do draft integral da dissertação;
-- 2026-09-23 — data solicitada para o vosso feedback final;
-- 2026-09-25 — fecho académico e administrativo, antes da submissão a 2026-09-29.
-
-Se preferirem outro dia ou formato para a reunião, tenho disponibilidade flexível.
+Se for possível, agradeço comentários iniciais até 2026-08-18. Sem resposta até
+2026-08-20, proponho uma reunião breve para fechar D001, D004 e D007. Até existir
+uma resposta explícita, estes pontos permanecem pendentes e não serão tratados
+como aprovados.
 
 Com os melhores cumprimentos,
+
 Rui Duarte
+
 ruimfduarte94@gmail.com
