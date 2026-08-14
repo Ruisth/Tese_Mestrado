@@ -7,7 +7,7 @@
 > the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
-Updated: 2026-08-14 (PRs #12–#14 and #16–#18 are merged; the two-layer
+Updated: 2026-08-14 (PRs #12–#14 and #16–#19 are merged; the two-layer
 title/RQ/abstract package remains isolated in draft PR #15 and is not approved;
 a clean-checkout image build plus five strict QEMU boots is sealed under
 `docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`; the current
@@ -59,7 +59,7 @@ claims and gates.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#14 and #16–#18 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`. Seven local bundles verify; the latest, `egw-20260814-g1-strict-evidence.bundle` (SHA-256 `5b2cf69f…`), is a complete-history snapshot through strict-evidence commit `d4bfa9d`. A verified off-machine copy is still pending | G0 — In progress | M2 |
+| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#14 and #16–#19 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`. Eight local bundles verify; the latest, `egw-20260814-post-g1-merge.bundle` (SHA-256 `35b78080…`), is a complete-history snapshot with `dev` at PR #19 merge commit `c6668a8`. A verified off-machine copy is still pending | G0 — In progress | M2 |
 | Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
 | Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and D001–D008 matrix exist only in draft PR #15; the canonical decision log remains `proposed_not_sent` for all eight decisions | G0 — Pending | M1 |
@@ -128,7 +128,7 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
   ARM64 VM, which does not exist; `experiments/results/raw/` remains empty.
 - **G3–G7** — unchanged; they still depend on evidence of real execution (and G3
   additionally requires live/`integration` tests, which do not exist).
-- **PRs #12–#14 and #16–#18 are governance, technical, operational-record,
+- **PRs #12–#14 and #16–#19 are governance, technical, operational-record,
   G1-path and factual academic corrections.** They raise provenance,
   instrumentation and documentary quality but **do not record a formal gate
   decision**. Draft PR #15 has no normative effect before explicit supervisor
