@@ -12,6 +12,14 @@ This directory now contains two deliberately separate diagram families:
 
 The PlantUML diagrams do not extend the P0 contract. Grey components reproduce
 the supplied paper's reference architecture only and are explicitly deferred.
+
+Two readings the two-layer deployment diagram must never be given: the
+native-ARM64 VM node is an **edge-class proxy** with a fixed resource
+envelope, not a consumer-controlled physical gateway; and the smartwatch
+workload is the paper-aligned profile while the smart-ring and smart-clothing
+profiles are extensions introduced by this dissertation (see
+[`../docs/academic/c2dta_p0_traceability.md`](../docs/academic/c2dta_p0_traceability.md),
+comparison rules 6–8).
 Green/yellow P0 components are further qualified as code/configuration,
 provisioned infrastructure or evidence; drawing a component never upgrades its
 evidence maturity.

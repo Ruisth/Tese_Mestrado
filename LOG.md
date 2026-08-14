@@ -881,3 +881,38 @@ is unchanged.
 - **Still outstanding (student action):** copy the newest bundle — and the
   four EXT-014..017 reports — off this machine and verify the hashes at the
   destination. A local bundle is a recovery object, not an independent backup.
+
+---
+
+## Entry #C017 — Management audit response: G1 record sync and terminology delimitation
+- **Date:** 2026-08-14
+- **Phase:** Documentation-only pull request, ordered by the external
+  management audit register of 2026-08-14 (EXT source, held outside the
+  repository).
+- **Action:** Verified every audit claim against the repository before acting.
+  Two named targets were already done and are recorded as such: the bundle
+  inventory already listed nine bundles (PR #22), and both claim matrices had
+  been synchronised with the G1 acceptance during the PR #21 review round.
+  What was genuinely outstanding and is fixed here:
+  - `src/README.md` still said "no gate has been accepted" (phrase split
+    across a line break, which the earlier sweep greps missed);
+  - `PROGRESS.md` still counted eight bundles with the superseded latest
+    bundle, and its PR ranges stopped at #20;
+  - the risk register: R25 rewritten for nine bundles, the two protected
+    tags, the new latest bundle and the honest observation that the
+    "off-machine copy before G1 acceptance" deadline was missed; R27 extended
+    with the post-acceptance drift recurrence; the real-execution narrative
+    updated with the acceptance.
+  - **Terminology delimitations** added as comparison rules 6–8 of
+    `docs/academic/c2dta_p0_traceability.md` and propagated to the claim
+    matrix, `experiments/results.md` and `diagrams/README.md`: the smartwatch
+    profile is the paper-aligned workload while smart ring/clothing are
+    dissertation extensions; `twin_creation` is first-contact technical
+    provisioning, never the C2DTA business twinning ceremony; the cloud VM is
+    an edge-class proxy, not a consumer-controlled physical gateway. Frozen
+    contract identifiers are unchanged — the delimitation lives in prose.
+- **Result:** every active record now reads G1 accepted (functional scope,
+  claims untouched) and the C2DTA delimitations are stated where numbers
+  would be interpreted.
+- **Next:** the CONTRACTS.md translation follows as its own pull request, per
+  the language policy's batch plan and the same audit's order.
