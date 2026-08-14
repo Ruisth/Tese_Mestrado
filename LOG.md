@@ -633,7 +633,9 @@ required assertions passed and three supplementary observations recorded
 - **Gate G1: evidence produced, acceptance PENDING.** Building, booting,
   merging and archiving demonstrate implementation and verification; accepting
   a gate is a separate decision, recorded in `PROGRESS.md` and in Annex C of
-  the plan. **No gate has been accepted.**
+  the plan. **No gate has been accepted.** *(Dated note, 2026-08-14, later the
+  same day: true when written; gate G1 was subsequently accepted — see #C015
+  and the gate decision log.)*
 - **Claims: 0 of 15 accepted.** C01 is partial — the rebuild from an
   independent clean checkout is still missing and belongs to G4. C02 holds the
   evidence of the **two bring-up boots**; the campaign's five `qemu_boots` runs
@@ -772,7 +774,9 @@ preliminary G1 tag.
 
 This is a local recovery object, not an independent backup. No off-machine
 copy or remote destination has been recorded; risk R25 therefore remains
-mitigating and G1 acceptance remains pending.
+mitigating and G1 acceptance remains pending. *(Dated note, 2026-08-14, later
+the same day: gate G1 was subsequently accepted — see #C015; the off-machine
+gap is unchanged.)*
 
 ## Entry #C014 — PR #19 merge and post-merge recovery bundle
 
@@ -791,3 +795,66 @@ SHA-256
 `35b7808072c2f3cfd82cfd9bfc40ce6769b8931d1301794332ef2e66fbd4abcb`.
 The bundle remains on the same physical machine; the off-machine-copy blocker
 is unchanged.
+
+---
+
+## Entry #C015 — Comparative audit, plan v1.2, gate G1 accepted, D009-D010
+- **Date:** 2026-08-14
+- **Phase:** Governance correction and proposal publication (pull requests #15 refresh and the truth-sweep PR)
+- **Action:** A full comparative audit crossed the workspace (legacy management
+  reports, university materials, the C2DTA paper, the supervisor template and
+  seven questions), the repository and the GitHub remote. Verdict: the plan
+  needed no new restructuring — v1.1 already is the restructuring — but it
+  needed governance repair and, above all, sending: nothing had ever been sent
+  to the supervisors. Actions taken in the repository:
+  - **PR #15 refreshed and republished as PROPOSED documents**: merged `dev`
+    (14 commits behind), replaced the stale status facts in the supervisor
+    email with the sealed 2026-08-14 evidence (clean identified checkout build
+    `f0e19d5`, five strict boots at 7 of 7 required assertions, the failed
+    first attempt preserved), and added decisions **D009** (telemetry stays
+    the contract term; thesis prose prefers "wearable event data") and
+    **D010** (local persistence of twin state and evidence is by design) to
+    the canonical log, the request matrix, the alignment memo and the email.
+    Both raise documented deviations from the repository template, which the
+    source register classifies as guidance, not an implementation contract.
+    LaTeX integration remains blocked on D001.
+  - **Plan bumped to v1.2**: the published v1.1 had been amended in place by
+    the PR #19 merge (`c6668a8` added the gate-outcomes authority row),
+    violating the plan's own rule that a change requires a dated new version.
+    v1.2 records that amendment retroactively, fixes v1.1's final state as the
+    file at `c6668a8`, changes no scope, schedule, gate or cut, and carries a
+    citation-equivalence clause so that dated documents citing v1.1 —
+    including sealed evidence — are never rewritten.
+  - **Gate G1 formally accepted** (2026-08-14, student authority) in
+    `docs/governance/gate_decision_log.md`, against the plan §4 criterion, on
+    the strict capsule evidence. Scope: functional platform layer only; it
+    validates no claim, supports no performance statement, and leaves D006
+    with the supervisors. First closed gate of the project.
+  - **Truth sweep**: the G1 criterion in the WSL2 guide (two boots by 16/08 →
+    five strict boots, window 13–18 August); the false "unchanged since its
+    adoption" sentence about the RQs in `01_introduction.tex` (they are
+    proposed pending D001); provisional-title comments above both cover pages
+    in `main.tex`; stale v1.0 gate dates in risk R2 marked as superseded;
+    ADR 0007's escalation rule updated to the v1.1/v1.2 university-first,
+    48-hour, EUR 30 procedure; ~25 citations of v1.0 section numbers across
+    ten files requalified as `archived plan v1.0 §x` or remapped to their
+    v1.1 equivalents (the archived §7 protocol has no v1.1 equivalent until
+    `exp-v1` freezes under D007); chapter-2 word figure corrected to the
+    texcount measurement (4,361 body words); `PROGRESS.md` synchronised
+    (PRs through #20, G1 Complete, D001–D010).
+  - **Provenance**: EXT-014..017 register the four 2026-08-08 external
+    management reports (single unbacked copies on this disk — now flagged for
+    every off-machine backup); the bundle gap after PR #20 is recorded; a new
+    protected tag `evidence/g1-bringup-driver-367c929` was created and pushed
+    at the tip of `feat/egw-p0-baseline` (annotated tag object `b21db3d`,
+    target `367c929`, verified on the remote with `git ls-remote`) so the
+    preliminary-evidence driver lineage survives independently of the branch.
+- **Result:** proposal package publishable and email ready to send; plan
+  governance self-consistent again; one gate closed with a dated decision.
+- **Still outstanding (student actions):** send the alignment email and record
+  `sent_at`; make the university ARM64 request and start the 48-hour clock;
+  uninstall the two review apps; copy the newest bundle and the four legacy
+  reports off-machine and verify the hashes there.
+- **Decisions:** G1 accepted (gate log is the authority); D009/D010 join the
+  request set; the PR #15 draft rule is narrowed to LaTeX integration only,
+  by the owner's explicit choice recorded in this session.

@@ -23,7 +23,7 @@ Within the preliminary corpus assembled so far for this work — seed references
 
 ## Research Questions
 
-The dissertation answers three research questions, fixed in the project plan and unchanged since its adoption:
+The dissertation answers three research questions. Their wording is proposed under the project plan and remains subject to supervisor decision D001; the wording below is the current working formulation:
 
 1.  *How can a reproducible Yocto-based ARM64 edge gateway be designed to host containerised digital-twin services?*
 

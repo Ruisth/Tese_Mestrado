@@ -204,14 +204,15 @@ Each scope has its own `SHA256SUMS`, and both verify from a clean clone.
       path by default, or `EGW_SMOKE_ONLINE=1` for `docker run hello-world`
       when the registry is reachable).
 
-**Gate decision — genuinely pending:**
+**Gate decision:**
 
-- [ ] **G1 accepted.** Not ticked. Producing and sealing the evidence above
-      demonstrates implementation and verification; accepting the gate is a
+- [x] **G1 accepted, 2026-08-14.** Producing and sealing the evidence above
+      demonstrates implementation and verification; accepting the gate was a
       separate decision, recorded in
       `docs/governance/gate_decision_log.md` with a dated decision record;
       `PROGRESS.md` mirrors the current operational state.
-      No gate has been accepted, and none of the 15 claims is accepted. C01 now
+      The acceptance covers the functional platform layer only and validated
+      no claim; none of the 15 claims is accepted. C01 now
       has a same-operator clean-checkout build but remains partial pending D006
       and formal admission. C02 has the strict five-boot G1 set, but the later
       predefined `data-v1` identities remain separate unless a dated protocol

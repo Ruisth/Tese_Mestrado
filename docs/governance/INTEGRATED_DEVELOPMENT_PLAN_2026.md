@@ -1,4 +1,4 @@
-# Integrated Edge Gateway Dissertation Plan — version 1.1
+# Integrated Edge Gateway Dissertation Plan — version 1.2
 
 > **Status: NORMATIVE FOR PROJECT EXECUTION.** This document controls scope,
 > evidence boundaries, gates, cut rules and delivery dates from 2026-08-13.
@@ -6,8 +6,8 @@
 > state. Exact public title and research-question wording remain proposed until
 > supervisor decision D001 is recorded.
 
-**Version:** 1.1 — 2026-08-13  
-**Supersedes:** version 1.0 — 2026-08-07  
+**Version:** 1.2 — 2026-08-14  
+**Supersedes:** version 1.1 — 2026-08-13 (which superseded version 1.0 — 2026-08-07)  
 **Official deadline:** 2026-09-30  
 **Internal submission cut-off:** 2026-09-29, 17:00 Europe/Lisbon  
 **Contingency:** 2026-10-31 only if formally available; no scope growth  
@@ -118,7 +118,7 @@ version after the thesis core is accepted; spare time alone is not authority.
 
 | Window | Gate | Required result | Baseline state on 2026-08-13 |
 |---|---|---|---|
-| 13–15 Aug | **G0 — authority and provenance** | Alignment email sent; D001–D008 requested; plan v1.1 and immutable provenance records versioned; university ARM64 request made. | **Blocked:** sending and measurement-host actions have no recorded evidence. |
+| 13–15 Aug | **G0 — authority and provenance** | Alignment email sent; D001–D010 requested; plan and immutable provenance records versioned; university ARM64 request made. | **Blocked:** sending and measurement-host actions have no recorded evidence. |
 | 13–18 Aug | **G1 — Yocto/QEMU functional platform** | Evidence-integrity blockers fixed; a clean identified build; five strict boots, each with `systemd=running`, zero failed units, required network/runtime checks and a clean shutdown; evidence checksums pass; decision recorded. | **In progress:** one build and two bring-up boots exist; the five-boot acceptance set and gate decision do not. |
 | 15–23 Aug | **G2 — live vertical slice** | Native ARM64 deployment with TLS and an inspectable wearable→MQTT→controller→Ditto→API trace; live integration tests pass. | **Blocked:** no measurement VM and no live trace. |
 | 24–30 Aug | **G3 — P0 feature freeze** | Three wearables and all mandatory nominal/failure/reconnect/restart behaviours run live; contracts frozen; no open P0 defect. | **Pending.** |
@@ -174,7 +174,9 @@ changed or unhashed runtime dependency.
 
 Send the standalone Chapter 2 draft with
 [`supervisor_alignment_memo.md`](supervisor_alignment_memo.md) and request the
-eight decisions in [`supervisor_decision_log.csv`](supervisor_decision_log.csv).
+ten decisions, D001–D010, in
+[`supervisor_decision_log.csv`](supervisor_decision_log.csv) (the D009/D010
+rows publish with the two-layer proposal package).
 Follow up on 18 August and request a short meeting on 20 August if no response is
 recorded.
 
@@ -231,3 +233,24 @@ Factual changes do not require supervisor permission:
   evidence boundary explicit, rebases gates on 13 August, and separates state,
   decision and scope authorities. It does not retrospectively alter any raw
   evidence or accepted decision.
+- **Version 1.2 (2026-08-14) is a governance correction with no substantive
+  change: it changes no scope, schedule, gate, cut rule or authority beyond
+  what is recorded here.** It exists because the published version 1.1 was
+  amended in place on 2026-08-14 (merge `c6668a8`, pull request #19), which
+  added the "Formal gate outcomes" row to the authority table in section 1 —
+  a change to gate governance that, under this plan's own maintenance rule,
+  required a dated new version at the time. Version 1.2 records that amendment
+  retroactively and regularises the version line. The final state of version
+  1.1 is the file as of merge `c6668a8`, recoverable from git history.
+  **Citation equivalence:** references to "plan v1.1" in documents dated
+  before 2026-08-14 — including sealed evidence, which is never edited —
+  refer to the v1.1/v1.2 line and remain valid; they are not rewritten.
+- Version 1.2 also registers two non-blocking supervisor confirmations added
+  to the decision set on 2026-08-14: D009 (the term `telemetry` stays the
+  versioned contract term in topics, schemas and CONTRACTS, while thesis prose
+  prefers "wearable event data") and D010 (the EGW stack persists twin state
+  and sealed run evidence locally by design, consistent with the C2DTA paper's
+  data-steward role for the EGW). Both concern documented deviations from the
+  repository template, which the external source register classifies as
+  guidance rather than an implementation contract. Section 6's alignment
+  package is read as requesting D001–D010.

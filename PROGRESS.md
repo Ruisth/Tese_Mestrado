@@ -7,11 +7,17 @@
 > the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
-Updated: 2026-08-14 (PRs #12–#14 and #16–#19 are merged; the two-layer
-title/RQ/abstract package remains isolated in draft PR #15 and is not approved;
-a clean-checkout image build plus five strict QEMU boots is sealed under
-`docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`; the current
-sealed unit figure remains 701 tests).
+Updated: 2026-08-14, second update (PRs #12–#14 and #16–#20 are merged; the
+two-layer proposal package of PR #15 was refreshed with the sealed strict-G1
+facts and the new decisions D009–D010, and publishes as PROPOSED documents with
+no normative effect — the LaTeX integration stays blocked on D001; a
+clean-checkout image build plus five strict QEMU boots is sealed under
+`docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`; **gate G1 was
+formally accepted on 2026-08-14** in
+[`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md),
+scope: functional platform layer only, D006 unaffected; the plan was bumped to
+v1.2 to regularise the in-place amendment of v1.1; the current sealed unit
+figure remains 701 tests).
 
 **Claim status: 0 of 15 accepted.** C01 has partial evidence: the identified
 same-operator clean-checkout build is now produced and sealed, while D006 still
@@ -19,7 +25,9 @@ has to decide whether a second operator is required before retaining a stronger
 reproducibility claim. C02 has the preliminary two-boot seal and the new strict
 five-boot G1 set; the predefined later `data-v1` identities and formal admission
 remain separate. The remaining **13 still have no admissible experimental
-evidence**. No gate has been accepted.
+evidence**. **Gate G1 is the only accepted gate** (2026-08-14, functional
+platform layer only — accepting the gate validated no claim); G0 and G2–G7
+remain undecided.
 
 ## State model — three independent fields (audit §5.1)
 
@@ -35,7 +43,8 @@ Rules: no "Complete" without archived evidence. "Implemented" and "unit
 verified" never imply acceptance at a gate. Definition of Done per deliverable
 (audit §14.1): the artefact exists + reviewed + executed in the applicable
 environment + evidence archived + claim→evidence matrix updated + gate decision
-recorded. As at 2026-08-14 there is still no closed gate: every "Accepted at
+recorded. As at 2026-08-14 exactly one gate is closed: G1 is `Complete`
+(accepted 2026-08-14, decision in the gate log); every other "Accepted at
 gate" field is `Pending`, `In progress` or `Blocked`.
 
 ## Maturity scale M0–M5 (audit §2.3)
@@ -49,9 +58,11 @@ gate" field is `Pending`, `In progress` or `Blocked`.
 | M4 | Evaluated — reproducible experimental evidence |
 | M5 | Accepted — gate closed and decision recorded |
 
-The repository sits globally between M1 and M2, the Yocto/QEMU platform
-deliverable being the single exception at M3; the plan requires M3–M5 for most
-claims and gates.
+The repository sits globally between M1 and M2. The Yocto/QEMU platform
+deliverable is the single exception: with gate G1 accepted on 2026-08-14 it
+reaches M5 for its functional scope (M4 does not apply — the gate is
+functional and involves no experimental evaluation). The plan requires M3–M5
+for most claims and gates.
 
 ## State per deliverable
 
@@ -59,14 +70,14 @@ claims and gates.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#14 and #16–#19 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`. Eight local bundles verify; the latest, `egw-20260814-post-g1-merge.bundle` (SHA-256 `35b78080…`), is a complete-history snapshot with `dev` at PR #19 merge commit `c6668a8`. A verified off-machine copy is still pending | G0 — In progress | M2 |
+| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#14 and #16–#20 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`. Eight local bundles verify; the latest, `egw-20260814-post-g1-merge.bundle` (SHA-256 `35b78080…`), is a complete-history snapshot with `dev` at PR #19 merge commit `c6668a8`. A verified off-machine copy is still pending | G0 — In progress | M2 |
 | Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
-| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and D001–D008 matrix exist only in draft PR #15; the canonical decision log remains `proposed_not_sent` for all eight decisions | G0 — Pending | M1 |
+| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package; the canonical decision log remains `proposed_not_sent` for all ten decisions | G0 — Pending | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Pending | M1 |
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **installed, exercised and captured**: WSL2 with Ubuntu 24.04.4 LTS is operational, with the build directory on ext4, and produced both Yocto evidence sets. The 2026-08-14 capsule records the kernel, OS, kas/Python/Git versions, filesystem type, capacity and the separate build/driver commits in `environment.txt` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap) | G0 — Pending | M2 |
 | ARM64 VM (measurement platform) | no | no — no university request/reply, public quotation, provisioned host or environment capture is recorded. Earlier Oracle/Hetzner/Azure attempts did not yield a non-burstable host. Plan v1.1 requires the university request first and a price check after 48 hours; AWS `c6g.xlarge` is the default fallback, subject to the EUR 30 ceiling | G0 — **Blocked: native non-burstable ARM64 host absent** | M0 |
-| G0 alignment email with Chapter 2 and D001–D008 | yes (draft in PR #15) | no — not sent; no `sent_at` or supervisor response is recorded | G0 — Blocked (sending is a student action; follow-up 2026-08-18 and meeting request 2026-08-20 if unanswered) | M1 |
+| G0 alignment email with Chapter 2 and D001–D010 | yes (draft in PR #15) | no — not sent; no `sent_at` or supervisor response is recorded | G0 — Blocked (sending is a student action; follow-up 2026-08-18 and meeting request 2026-08-20 if unanswered) | M1 |
 | Quarantine of results without evidence in the dissertation | yes | static — ch. 5 with 16 `\todo{pending data-v1}` and zero numbers; no Pi/SSI claims | G0 — Pending | M1 |
 
 ### Blocks G1–G7 — development brought forward without the ARM64 measurement VM
@@ -76,14 +87,14 @@ ARM64 measurement VM.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — preliminary and strict evidence sealed**: the 2026-08-11 seal preserves the first build and two automated bring-up boots. On 2026-08-14 a new checkout/build directory at `f0e19d5` completed all 5,715 BitBake tasks successfully while deliberately reusing the external downloads/sstate cache (2,261 tasks did not need rerun; not a cold-cache claim). Rootfs SHA-256 is `6c37fcc1…`, kernel SHA-256 is `4457ef38…`, and the manifest has 639 packages. The first strict attempt is preserved as `fail`: the guest returned exact `STATE=running`, zero failed units and clean power-down, but the pre-fix predicate rejected doubled PTY carriage returns. PR #18, merged as `9fe38ff`, fixed the predicate and added a regression; five new IDs then each passed 7 of 7 required assertions, recorded 2 of 2 observations, reached the console and powered down cleanly. Both seals verify independently. Functional evidence only: nothing here supports a performance or security statement | **G1 — In progress: technical evidence produced and sealed; formal gate acceptance PENDING.** D006 remains a separate second-operator decision, and the later predefined `data-v1` identities are not silently replaced | M3 |
+| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — preliminary and strict evidence sealed**: the 2026-08-11 seal preserves the first build and two automated bring-up boots. On 2026-08-14 a new checkout/build directory at `f0e19d5` completed all 5,715 BitBake tasks successfully while deliberately reusing the external downloads/sstate cache (2,261 tasks did not need rerun; not a cold-cache claim). Rootfs SHA-256 is `6c37fcc1…`, kernel SHA-256 is `4457ef38…`, and the manifest has 639 packages. The first strict attempt is preserved as `fail`: the guest returned exact `STATE=running`, zero failed units and clean power-down, but the pre-fix predicate rejected doubled PTY carriage returns. PR #18, merged as `9fe38ff`, fixed the predicate and added a regression; five new IDs then each passed 7 of 7 required assertions, recorded 2 of 2 observations, reached the console and powered down cleanly. Both seals verify independently. Functional evidence only: nothing here supports a performance or security statement | **G1 — Complete: accepted on 2026-08-14** (decision recorded in [`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md), authority: student; scope: functional platform layer only — it validates no claim and supports no performance statement). D006 remains a separate second-operator decision, and the later predefined `data-v1` identities are not silently replaced | M5 (functional scope) |
 | Minimal ARM64 compose (Mosquitto TLS, Ditto 3.9.4, MongoDB, controller) | yes | static — `docker compose config` (syntactic validation, no persisted log); arm64 digests verified documentally on 2026-08-07; operational `.env`/certificates/passwords do not exist | G2 — Blocked (requires the ARM VM; gate 2026-08-23, trigger 2026-08-25) | M1 |
 | MQTT→Ditto controller | yes | unit — tests with fakes (part of the current sealed suite of 701 tests); no real MQTT/Ditto, no real restart, no ARM64 | G2 — Pending | M2 |
 | Unified simulator (3 wearables, 6 scenarios) | yes | unit — determinism verified; `dropout-reconnect` induces a real MQTT disconnection with buffering and ordered redelivery (audit §7.3 correction completed on 2026-08-08; covers C10 at unit level) | G2–G3 — Pending | M2 |
 | WoT TD 1.1 Thing Descriptions | yes | unit — `tests/test_things.py` cross-checks TD↔schema; real integration not demonstrated | G2–G3 — Pending | M2 |
 | Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); PR #13 rejects resource samples from a different UTC window, enforces at least 90% coverage and the protocol gap cap per container, makes simulator run directories write-once, propagates QEMU pipeline failures and makes `systemd=running` plus zero failed units strict boot assertions. After the PR #17 campaign-path regression and PR #18 PTY regression, the current evidence branch passed `718` tests locally on 2026-08-14; this is **not** a new test-evidence seal, so the canonical sealed figure remains 701. Live proof and the ARM64 runtime lock remain pending the VM | G1/G4 — In progress/Pending | M2 |
 | `experiments/results/` evidence structure | yes | static — `raw/processed/figures` directories created; zero data (experimental evidence M0) | G5 — Pending | M1 |
-| Dissertation (skeleton + substantive ch. 2) | yes | static — latexmk compiles: 57 pp., 0 unresolved references; ch. 2 ~4,300 words; premature claims removed from chs. 1/3/4/6 and from Table 2.1 (block P2); chs. 3/5/6 remain a skeleton | G6 — Pending | M1–M2 |
+| Dissertation (skeleton + substantive ch. 2) | yes | static — latexmk compiles: 57 pp., 0 unresolved references; ch. 2 with 4,361 body words (texcount, 2026-08-14; plus 88 heading and 60 caption words); premature claims removed from chs. 1/3/4/6 and from Table 2.1 (block P2); chs. 3/5/6 remain a skeleton | G6 — Pending | M1–M2 |
 | Review sources (`thesis/research/study_selection.csv`) | yes | static — 25 sources recorded, with verified metadata (Crossref/W3C/OASIS/official pages). **Reading depth: 7 assessed in full text (S001, S004–S009) and 18 by title/abstract only** (`stage=title_abstract`, provisional inclusion for the supervisor draft; the full-text pass is still to be run). "Verified" refers to the source metadata, never to the full reading; the institutional queries remain pending (student action, risk R17) | G6 — Pending | M1 |
 | Standalone PDF of ch. 2 for the supervisor | yes | static — PR #14 rebuilt `thesis/latex/ch2_supervisor_draft.pdf`: 16 pp., neutral title pending D001, author `Rui Duarte`, no unresolved references/citations or layout overflow; all pages inspected. SHA-256 `dbb3e2d956775e3ea6cea738b8114b8fa2f7713ff0cadaaee73cf1032b09eb39` | not a gate item — sending is a student action (no gate closes on this) | M2 |
 | Unit test suite | yes | unit — **sealed evidence: `701 passed`** over clean HEAD `4e67717` in `docs/evidence/tests/2026-08-11-head-4e67717/`, with JUnit, stdout, environment, interpreter, `pip freeze`, `pip check`, pytest version, SHA-256 of the lock file and `SHA256SUMS`. Current sealed figure: `701`. Earlier sealings are kept for traceability and are **historical only** (`683`, `618`, `593`, `515`), each tied to the commit it tested and never the current figure. **Zero live/`integration` tests exist** — creating them is a prerequisite for G3 | G3 — Pending | M2 |
@@ -105,7 +116,7 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
 
 - **G0 (13–15 August) — In progress.** The versioned plan/provenance controls,
   source register and draft alignment package exist. The alignment email has
-  not been sent, D001–D008 remain `proposed_not_sent`, no university ARM64
+  not been sent, D001–D010 remain `proposed_not_sent`, no university ARM64
   request/reply is recorded and there is no off-machine bundle copy. WSL2 with
   Ubuntu 24.04.4 LTS on ext4 is operational; its kernel, OS, tool and filesystem
   capture is now archived with the 2026-08-14 G1 evidence. Repository changes
@@ -120,15 +131,18 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
   seal contains a clean-checkout build at `f0e19d5`, one preserved
   instrumentation-failure attempt, and five fresh boots driven at `9fe38ff`,
   each with 7 of 7 required assertions, 2 of 2 observations, zero failed units
-  and a clean power-down. **Acceptance of the gate remains pending:** producing
-  and sealing evidence does not record the formal decision. A second-operator
-  reconstruction is the separate D006 decision, and later `data-v1` identities
-  remain separate. No QEMU evidence supports a performance or security claim.
+  and a clean power-down. **The gate was formally accepted on 2026-08-14**
+  (student authority, decision recorded in the
+  [gate decision log](docs/governance/gate_decision_log.md)); the acceptance
+  covers the functional platform layer only and validates no claim. A
+  second-operator reconstruction is the separate D006 decision, and later
+  `data-v1` identities remain separate. No QEMU evidence supports a
+  performance or security claim.
 - **G2 (15–23 August; serious-risk trigger 25 August)** — unchanged: zero deployments on the
   ARM64 VM, which does not exist; `experiments/results/raw/` remains empty.
 - **G3–G7** — unchanged; they still depend on evidence of real execution (and G3
   additionally requires live/`integration` tests, which do not exist).
-- **PRs #12–#14 and #16–#19 are governance, technical, operational-record,
+- **PRs #12–#14 and #16–#20 are governance, technical, operational-record,
   G1-path and factual academic corrections.** They raise provenance,
   instrumentation and documentary quality but **do not record a formal gate
   decision**. Draft PR #15 has no normative effect before explicit supervisor
@@ -138,7 +152,7 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
 
 | Action | Deadline | Expected evidence |
 |---|---|---|
-| Send the consolidated G0/alignment email to the supervisors with Chapter 2 and D001–D008 (drafts under `docs/g0/`) | 2026-08-13 — **immediate**; follow up 2026-08-18 and request a short meeting on 2026-08-20 if unanswered | email sent; copy/date in the LOG and decision-log `sent_at` fields |
+| Send the consolidated G0/alignment email to the supervisors with Chapter 2 and D001–D010 (drafts under `docs/g0/`) | 2026-08-13 — **immediate**; follow up 2026-08-18 and request a short meeting on 2026-08-20 if unanswered | email sent; copy/date in the LOG and decision-log `sent_at` fields |
 | Confirm the official 2026 template, submission/front-matter requirements and any authorised contingency (D004 and the G0 email) | immediate; request an explicit reply with D001–D008 | request and reply recorded in the LOG and canonical decision log |
 | Install Ubuntu 24.04 on WSL2 with the build directory on ext4 (guide in `docs/setup/wsl2_ubuntu_yocto.md`) | 2026-08-09 to 2026-08-10 | **done and evidenced**: Ubuntu 24.04.4 LTS operational on ext4; the 2026-08-14 capsule records kernel, OS, tools, filesystem type/capacity and the clean build/driver identities |
 | Request a university ARM64 host; if not confirmed within 48 hours, obtain/provision the approved public fallback (non-burstable, 4 vCPU, 8 GiB, >=80 GB, maximum total EUR 30) and validate `uname -m` = `aarch64` | request 2026-08-13; fallback trigger 48 h after recorded request | request/reply in LOG; then `uname -a`, `lscpu`, `/etc/os-release`, provider/region/tenancy and environment manifest — **not done: the VM does not exist** |
@@ -151,7 +165,7 @@ B series enters the dissertation.**
 
 | Role | Platform | State | Numbers in the thesis |
 |---|---|---|---|
-| Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | preliminary two-boot seal preserved; 2026-08-14 same-operator clean-checkout build completed 5,715 tasks and five fresh strict boots each passed 7/7 assertions with zero failed units. One instrumentation false negative is preserved separately. Formal G1 decision pending | Never (plan §3.1) — functional only; QEMU results never support a performance or security statement |
+| Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | preliminary two-boot seal preserved; 2026-08-14 same-operator clean-checkout build completed 5,715 tasks and five fresh strict boots each passed 7/7 assertions with zero failed units. One instrumentation false negative is preserved separately. Gate G1 accepted 2026-08-14 (functional scope; decision in the gate log) | Never (plan §3.1) — functional only; QEMU results never support a performance or security statement |
 | ARM64 integration | Azure `B4pls_v2` (burstable SKU identified) | no instance provisioned; eligibility/capacity still require confirmation | **Never** — CPU credits would corrupt the load sweep and the saturation criterion |
 | Measurement (RQ3) | University host or public non-burstable native ARM64; AWS `c6g.xlarge` is the default public fallback | **does not exist; no current quotation recorded** | **Exclusively from here** |
 
@@ -171,7 +185,7 @@ student — do not invent hours. Empty cells = still to be estimated/filled in.
 
 | Item (critical path) | owner | planned_h | actual_h | remaining_h | due | evidence | forecast | blocker |
 |---|---|---|---|---|---|---|---|---|
-| G0 alignment email + D001–D008 | Student | 0.5–1 (est.) | | | immediate; follow-up 2026-08-18 | email + date in the LOG and decision log | | not sent |
+| G0 alignment email + D001–D010 | Student | 0.5–1 (est.) | | | immediate; follow-up 2026-08-18 | email + date in the LOG and decision log | | not sent |
 | WSL2 Ubuntu 24.04 on ext4 | Student | 2–4 (est.) | | | 2026-08-09 to 2026-08-10 | **produced:** version, tools, filesystem and capacity archived in the 2026-08-14 G1 capsule | | |
 | ARM64 VM `aarch64` | Student | 1–2 (est.) | | | request 2026-08-13; quotation after 48 h without confirmation | request/reply, price check, then initial manifest | | institutional response/account/payment |
 | Independent Git backup | Both | 0.5–1 (est.) | | | before further cleanup | private remote plus verified full bundle/checksum copied and verified off-machine | | off-machine destination not recorded |

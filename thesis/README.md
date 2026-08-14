@@ -82,17 +82,21 @@ The bibliography is loaded from `../refs/references.bib` (relative to
 1. **No number without evidence.** No quantitative result enters any chapter
    without raw data, a manifest, the analysis script, and a row in
    [`../docs/claim_evidence_matrix.md`](../docs/claim_evidence_matrix.md)
-   (plan §6.3). Chapter 5's result slots are `\todo{pending data-v1}` markers
+   (archived plan v1.0 §6.3, carried forward by plan v1.1 §7). Chapter 5's result slots are `\todo{pending data-v1}` markers
    and are filled only after the data freeze (`data-v1`, gate G5), exclusively
    from `experiments/results/raw/` via the single analysis pipeline.
 2. **Zero `\todo` at submission.** `main.tex` defines
    `\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}`; the final PDF must
    contain no `\todo` occurrence (grep the sources before release).
-3. **Forbidden claims** (plan §9.2): no invented numbers; no Raspberry Pi 5 /
+3. **Forbidden claims** (archived plan v1.0 §9.2; the evidence boundary is now plan v1.1 §3.1): no invented numbers; no Raspberry Pi 5 /
    physical-hardware results; no SSI, blockchain or security achievements
    beyond the implemented TLS/authentication baseline; no absolute
    "no studies exist" statements (bound them to the review protocol).
-4. **Verbatim RQs.** RQ1–RQ3 in Chapter 1 are quoted verbatim from plan §4.2
+4. **Verbatim RQs.** RQ1–RQ3 wording is **proposed, not fixed**: plan v1.1
+   §3.2 keeps the public framing open until supervisor decision D001 is
+   recorded. Chapter 1 keeps its current wording unchanged until the single
+   post-D001 integration change; whichever wording is normative is quoted
+   verbatim from the plan
    and must not drift.
 5. **Bibliography.** Only verified entries (each with a
    `% verified <date> via <source>` comment). The compass file is a leads
@@ -101,9 +105,9 @@ The bibliography is loaded from `../refs/references.bib` (relative to
 6. **Placeholders.** `«STUDENT NAME»`-style front-matter fields are
    administrative placeholders; fill them manually, never with invented data.
 
-## Chapter-to-plan mapping (plan §6.1; word targets are indicative only)
+## Chapter-to-plan mapping (archived plan v1.0 §6.1; word targets are indicative only)
 
-| File | Chapter | Mandatory content (plan §6.1) | Indicative target |
+| File | Chapter | Mandatory content (archived plan v1.0 §6.1) | Indicative target |
 |---|---|---|---:|
 | `chapters/01_introduction.tex` | 1 — Introduction | Problem, motivation, gap, RQs (verbatim §4.2), objectives, contributions-as-designed, delimitation | 2,500–3,000 words |
 | `chapters/02_background.tex` | 2 — Background and Related Work | Edge, digital twins, IoT/wearables, Yocto, containers, MQTT, WoT; SSI as context only | 6,000–7,000 |
@@ -113,7 +117,7 @@ The bibliography is loaded from `../refs/references.bib` (relative to
 | `chapters/06_conclusions.tex` | 6 — Conclusions and Future Work | Contributions demonstrated (evidence-backed only), limitations, future work | 1,500–2,000 |
 
 The global 25,000–30,000-word target is indicative and subordinate to the
-official rules and to evidence quality (plan §6.1).
+official rules and to evidence quality (archived plan v1.0 §6.1).
 
 ## Research protocol
 
