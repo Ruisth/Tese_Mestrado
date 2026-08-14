@@ -39,7 +39,7 @@ the command that produced it and the commit it ran on.
 |---|---:|---|
 | `qemu_boots` | 5 | functional pass/fail only — never timing (plan v1.1 §3.1) |
 | `cold_start` | 10 | time to stack readiness |
-| `twin_creation` | 10 | time to first materialised twin |
+| `twin_creation` | 10 | time to first materialised twin (first-contact technical provisioning — not the C2DTA business twinning ceremony; see `docs/academic/c2dta_p0_traceability.md`, comparison rule 7) |
 | `smoke_sequence` | 10 | completion and zero loss |
 | `nominal` | 10 | delivery rate, latency p50/p95/p99, CPU and memory |
 | `load_sweep` | 40 | the same, per load level, plus the saturation verdict |

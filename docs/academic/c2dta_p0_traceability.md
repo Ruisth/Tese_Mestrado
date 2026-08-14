@@ -67,3 +67,24 @@ dissertation must first be checked against the version of record.
    accepted scientific evidence separately.
 5. Do not describe MQTT/TLS or Ditto pre-authentication as substitutes for
    DIDComm, SSI or verifiable credentials.
+6. **Workload lineage.** The smartwatch profile is the workload aligned with
+   the paper's published evaluation (one simulated smartwatch at 1 Hz over
+   MQTT/SSL). The smart-ring and smart-clothing profiles are **extensions
+   introduced by this dissertation** and have no counterpart in the published
+   evaluation; never present the three-device concurrent workload as
+   something the paper already evaluated.
+7. **`twin_creation` is first-contact technical provisioning**, not the
+   C2DTA business twinning ceremony. The measured condition covers the
+   controller creating the Ditto policy/thing pair on the first valid event
+   of an unknown `device_uuid` and the twin becoming readable. The paper's
+   twinning scenario — Ownership Verifiable Credential matched against the
+   Genesis Verifiable Credential, with ledger participation — is not
+   implemented and is not what this condition measures. The scenario name is
+   a frozen contract identifier and stays as it is; the delimitation lives in
+   prose wherever a `twin_creation` number would be interpreted.
+8. **The cloud VM is an edge-class proxy.** The native-ARM64 measurement host
+   stands in for consumer-edge-class hardware with a fixed resource envelope
+   (4 vCPU, 8 GiB). It is not a consumer-controlled physical gateway: it
+   lives in a provider's datacentre, on virtualised infrastructure the
+   consumer does not control. State this as a limitation wherever deployment
+   conclusions are drawn.

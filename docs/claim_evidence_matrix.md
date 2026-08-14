@@ -92,6 +92,13 @@ produced evidence**.
 
 ### Operational note — `twin_creation` (proposed, to be confirmed with the supervisors)
 
+**Delimitation:** `twin_creation` measures **first-contact technical
+provisioning** — it is not the C2DTA business twinning ceremony (Ownership
+Verifiable Credential matched against the Genesis Verifiable Credential, with
+ledger participation), which is out of scope. The scenario name is a frozen
+contract identifier; this sentence is the interpretation boundary
+(`docs/academic/c2dta_p0_traceability.md`, comparison rule 7).
+
 `twin_creation` is a condition of archived plan v1.0 §7.1 (protocol details frozen only at `exp-v1` under D007) (10 independent runs) with no
 `claim_id` of its own; it feeds the context of C04 (stack start-up) and C05
 (vertical slice). **Proposed operational definition — `proposed — to be
