@@ -916,3 +916,31 @@ is unchanged.
   would be interpreted.
 - **Next:** the CONTRACTS.md translation follows as its own pull request, per
   the language policy's batch plan and the same audit's order.
+
+---
+
+## Entry #C018 — CONTRACTS.md translated into British English
+- **Date:** 2026-08-14
+- **Phase:** Language migration (the active contract), ordered by the external
+  management audit of 2026-08-14 and scheduled by the language policy.
+- **Action:** `src/CONTRACTS.md` translated in place from Portuguese to
+  British English, prose only. An independent adversarial verification
+  compared the translation token-by-token against the Portuguese original at
+  git HEAD: every port, topic string, JSON field, endpoint, status code,
+  environment variable, CLI flag, scenario name, image tag, threshold,
+  duration, regex, placeholder and the UUIDv5 namespace are byte-identical;
+  both fenced code blocks are byte-identical; the 12 headings and 7 tables
+  keep identical structure. Verdict: clean, zero blockers. Deliberate
+  differences, all recorded: the version-line date rendered as ISO 8601;
+  decimal commas normalised to points (values unchanged); six backticked
+  Portuguese metric terms in §9 translated after a repo-wide grep confirmed
+  they are prose, not code identifiers; a one-line translation notice added
+  under the title; the stale "integrated plan §5" citation qualified as
+  archived v1.0 with the v1.1/v1.2 authority stated. The contract version
+  remains v1.1 — translation is not a contract change. The language policy's
+  migration table now records the contract as translated, leaving only
+  isolated Portuguese comments in three code/test files for a bounded pass
+  before `exp-v1`.
+- **Result:** the last active Portuguese document in the repository is
+  migrated; the remaining Portuguese is historical (LOG entries, archive) or
+  exception-covered (supervisor email, Resumo).
