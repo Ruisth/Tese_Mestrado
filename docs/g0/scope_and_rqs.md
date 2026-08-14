@@ -14,7 +14,7 @@
 **Change control:** this proposal does not change the title or RQs in the
 normative dissertation source. The rationale and proposed wording are recorded
 in [`two_layer_thesis_proposal.md`](two_layer_thesis_proposal.md), and the
-requested decisions and recommendations are D001-D008 in
+requested decisions and recommendations are D001-D010 in
 [`supervisor_decision_matrix.csv`](supervisor_decision_matrix.csv). That matrix
 contains no mutable status. The authoritative decision state is kept only in
 [`../governance/supervisor_decision_log.csv`](../governance/supervisor_decision_log.csv).

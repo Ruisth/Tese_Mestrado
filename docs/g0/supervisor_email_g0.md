@@ -1,6 +1,6 @@
 # Draft de email aos orientadores - gate G0 e proposta de duas camadas
 
-**Versão do draft:** 1.1 (2026-08-13)
+**Versão do draft:** 1.2 (2026-08-14)
 
 **Estado:** **PROPOSED - NOT SENT**
 
@@ -63,14 +63,20 @@ substituídos antes da vossa validação explícita.
 
 ## 2. Ponto de situação verificável
 
-- A imagem `egw-image` foi construída a partir das revisões Yocto fixadas: o
-  registo arquivado contém 5715 tarefas concluídas e checksums dos artefactos.
-- Dois boots QEMU ARM64 foram executados pelo verificador automático; em ambos,
-  as seis asserções obrigatórias passaram e o encerramento foi limpo.
-- Estes resultados são evidência funcional preliminar. O gate G1 ainda não foi
-  aceite: falta um *clean rebuild* e uma nova campanha de cinco boots com
-  `systemd=running` e zero unidades em estado `failed`. A reprodução por um
-  segundo operador é um requisito separado, dependente da decisão D006.
+- A imagem `egw-image` foi construída duas vezes a partir das revisões Yocto
+  fixadas: primeiro no ambiente de desenvolvimento e, a 2026-08-14, a partir de
+  um *checkout* limpo e identificado do repositório (5715 tarefas concluídas,
+  com os registos e os *checksums* dos artefactos arquivados).
+- A campanha de cinco boots QEMU ARM64 foi executada a 2026-08-14 pelo
+  verificador automático, com critérios estritos: estado `systemd=running`
+  exato, zero unidades em estado `failed` e encerramento limpo. Os cinco boots
+  passaram as sete asserções obrigatórias. Uma primeira tentativa falhou por um
+  defeito do próprio verificador; ficou preservada como falha no arquivo, o
+  defeito foi corrigido com um teste de regressão, e só depois a campanha foi
+  executada de novo.
+- Com isto, a evidência funcional da plataforma Yocto/QEMU está completa e
+  selada. A validação académica é vossa; a reprodução por um segundo operador
+  independente é um requisito separado, dependente da decisão D006.
 - A pilha de serviços, o controlador, o simulador e o harness existem no
   repositório e a suite selada contém 701 testes unitários com fakes. Ainda não
   foi executado um teste live MQTT-to-controller-to-Ditto nem uma campanha de
@@ -108,7 +114,7 @@ quota ARM dedicada da Azure não forneceram a capacidade necessária. Proponho:
 
 ## 5. Decisões solicitadas
 
-A matriz anexa organiza oito decisões, D001-D008. As mais urgentes são:
+A matriz anexa organiza dez decisões, D001-D010. As mais urgentes são:
 
 - validar ou corrigir o título, objetivo, RQs e separação em duas camadas;
 - confirmar a exclusão de SSI/blockchain do P0;
@@ -118,6 +124,16 @@ A matriz anexa organiza oito decisões, D001-D008. As mais urgentes são:
   operador;
 - validar os thresholds antes do freeze `exp-v1`;
 - confirmar os papéis de QEMU, ARM burstable e ARM non-burstable.
+
+Acrescento duas confirmações não urgentes (D009 e D010), sobre desvios
+documentados face ao template de repositório do projeto: primeiro, o termo
+`telemetry` é o termo contratual dos tópicos MQTT e dos schemas versionados,
+embora o template peça terminologia *smart devices/wearables* — proponho manter
+o termo nos contratos e usar "wearable event data" na prosa da tese; segundo, o
+stub genérico do template refere "no local data storage" no EGW, mas o próprio
+paper atribui ao EGW o papel de guardião dos dados no *edge*, e o núcleo P0
+persiste o estado dos gémeos em MongoDB/Ditto por desenho. Nenhum destes pontos
+bloqueia o trabalho; peço apenas confirmação de que a delimitação está correta.
 
 Se for possível, agradeço comentários iniciais até 2026-08-18. Sem resposta até
 2026-08-20, proponho uma reunião breve para fechar D001, D004 e D007. Até existir
