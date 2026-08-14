@@ -45,8 +45,11 @@ earlier figures are historical, each tied to the commit it tested. The current
 G1 evidence branch passes 718 tests locally, but that is not a new test seal.
 
 M2 closes no gate and validates no claim on its own. In
-`../docs/claim_evidence_matrix.md`, **0 of the 15 claims are accepted** and no
-gate has been accepted. C01 and C02 now have the preliminary 2026-08-11 seal
+`../docs/claim_evidence_matrix.md`, **0 of the 15 claims are accepted**; gate
+G1 was accepted on 2026-08-14 for the functional platform layer only (the
+decision validated no claim — see
+`../docs/governance/gate_decision_log.md`), and every other gate remains
+undecided. C01 and C02 now have the preliminary 2026-08-11 seal
 and the separate strict 2026-08-14 G1 capsule; neither evidence production nor
 merging records formal admission:
 
