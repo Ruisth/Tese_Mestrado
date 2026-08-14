@@ -222,8 +222,10 @@ Each scope has its own `SHA256SUMS`, and both verify from a clean clone.
 
 The clean identified build and five passing strict boots were produced and
 sealed on 2026-08-14, inside the 18 August window. The absence-of-evidence cut
-condition therefore did not trigger. G1 nevertheless remains in progress until
-the formal decision is recorded; D006 is separate. Any future failure or scope
+condition therefore did not trigger, and the formal decision followed the same
+day: **G1 was accepted on 2026-08-14** (recorded in
+`docs/governance/gate_decision_log.md`, functional scope only); D006 is
+separate and still pending. Any future failure or scope
 reduction must preserve its evidence and pass through the normal review/CI path
 without weakening the strict systemd, failed-unit or container assertions.
 

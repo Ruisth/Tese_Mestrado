@@ -51,14 +51,14 @@ Notation: `(egw_id)` and `(device_uuid)` stand for the `{egw_id}` and
 The functional platform (WSL2 + QEMU) validates build, boot, systemd, network
 and the OCI runtime only; no performance conclusions come from it, and a QEMU
 result never supports a performance or security statement. Every measurement
-must be taken on a dedicated native-ARM64 instance, with the simulator running
+must be taken on a non-burstable native-ARM64 instance, with the simulator running
 off-instance so the external link is excluded from the controller-side latency
 measurement.
 
 **Provisioning state, read this with the diagram.** Only the functional tier
 exists. The dashed subgraphs are **planned and not provisioned**: the
 measurement instance **does not exist** (Oracle, Hetzner and Azure for Students
-all failed to supply a dedicated ARM64 machine — risk R28), and the burstable
+all failed to supply a non-burstable native ARM64 machine — risk R28), and the burstable
 integration instance also **does not exist**; only an eligible burstable SKU
 has been identified. They are drawn because they are
 contracted by the plan, not because they are deployed; nothing in them has run.

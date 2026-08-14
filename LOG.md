@@ -1009,3 +1009,36 @@ is unchanged.
   copy of the `95288fba…` bundle + EXT-014..017 + checksum record, with
   destination-side hash verification, `git bundle verify` and a restore
   drill.
+
+---
+
+## Entry #C020 — Post-PR-#25 residuals: the md/CSV matrix contradiction and six leftovers
+- **Date:** 2026-08-14
+- **Phase:** Minimal documentation repair ordered by the post-PR-#25 audit;
+  every finding verified against the repository first. All nine were real.
+- **Action:** The claim matrix's Markdown table rows C01/C02 still carried
+  "G1 acceptance remains pending" and "Formal G1 admission is pending" while
+  the CSV had been corrected — the two forms of the same matrix contradicted
+  each other; the Markdown rows now mirror the CSV wording (gate accepted
+  2026-08-14, functional scope, claim admission a separate pending step).
+  Also fixed: the Yocto README's G1-window paragraph ("remains in progress"
+  → accepted the same day, decision in the gate log); the PROGRESS effort row
+  still calling the gate decision pending; PROGRESS PR ranges through #25;
+  "dedicated" → "non-burstable native" at the two remaining operational sites
+  in `diagrams/architecture.md`; the simulator README's "three C2DTA
+  wearables" → the paper-aligned smartwatch and two dissertation extensions;
+  and `main.tex`'s comment no longer calls the template official (D004).
+- **Deliberately not fixed:** `egw-image.bb`'s DESCRIPTION still says "two
+  QEMU boots" — editing the recipe would change its checksum and force a
+  rebuild for a metadata string; per the management order it is corrected
+  only at the next functional rebuild.
+- **Bundle (unversioned, per the same order):**
+  `backups/egw-20260814-post-pr25-merge.bundle` created from `dev` at the
+  PR #25 merge `2dafae1` — 1,890,507 bytes, SHA-256 `53014902…`, complete
+  history, `git bundle verify` passing — handed to the student with its
+  `.sha256` file for the off-machine copy, deliberately NOT added to the
+  provenance inventory (no dedicated recording pull request). The `95288fba…`
+  post-PR-#24 bundle is preserved as an additional baseline.
+- **Result:** desk work ends here. Next development: the paper-aligned
+  smartwatch at 1 Hz on a non-burstable native ARM64 VM → MQTT/TLS →
+  controller → Ditto → API (gate G2), once the host exists.

@@ -1,7 +1,7 @@
 # egw_simulator — Unified wearable telemetry simulator
 
-Deterministic CLI simulator for the three C2DTA wearables (smartwatch,
-smart ring, smart clothing). It publishes JSON telemetry over MQTT
+Deterministic CLI simulator for three wearable profiles: the paper-aligned
+smartwatch and two dissertation extensions (smart ring, smart clothing). It publishes JSON telemetry over MQTT
 (QoS 1, TLS) to `c2dt/{egw_id}/{device_uuid}/telemetry` and writes per-run
 evidence outputs. Binding references: `src/CONTRACTS.md` sections 1-3 and 7;
 plan sections 4.3, 5.3, 5.6 and 7.1.

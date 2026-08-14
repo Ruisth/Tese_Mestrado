@@ -7,7 +7,7 @@
 > the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
-Updated: 2026-08-14, third update (**PRs #12–#22 are all merged**, #15
+Updated: 2026-08-14, third update (**PRs #12–#25 are all merged**, #15
 included: the two-layer proposal package publishes as PROPOSED documents with
 no normative effect and the LaTeX integration stays blocked on D001; a
 clean-checkout image build plus five strict QEMU boots is sealed under
@@ -69,7 +69,7 @@ for most claims and gates.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#22 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten local bundles verify; the latest, `egw-20260814-post-pr24-merge.bundle` (SHA-256 `95288fba…`), is a complete-history snapshot with `dev` at the PR #24 merge commit `e8bf965` and is the designated artefact for the off-machine copy. A verified off-machine copy is still pending | G0 — In progress | M2 |
+| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#25 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten local bundles verify; the latest, `egw-20260814-post-pr24-merge.bundle` (SHA-256 `95288fba…`), is a complete-history snapshot with `dev` at the PR #24 merge commit `e8bf965` and is the designated artefact for the off-machine copy. A verified off-machine copy is still pending | G0 — In progress | M2 |
 | Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
 | Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package; the canonical decision log remains `proposed_not_sent` for all ten decisions | G0 — Pending | M1 |
@@ -141,7 +141,7 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
   ARM64 VM, which does not exist; `experiments/results/raw/` remains empty.
 - **G3–G7** — unchanged; they still depend on evidence of real execution (and G3
   additionally requires live/`integration` tests, which do not exist).
-- **PRs #12–#22 are governance, technical, operational-record,
+- **PRs #12–#25 are governance, technical, operational-record,
   G1-path and factual academic corrections.** They raise provenance,
   instrumentation and documentary quality. **PR #21 is the single exception
   that records a formal gate decision**: it merged the G1 acceptance row of
@@ -191,7 +191,7 @@ student — do not invent hours. Empty cells = still to be estimated/filled in.
 | ARM64 VM `aarch64` | Student | 1–2 (est.) | | | request 2026-08-13; quotation after 48 h without confirmation | request/reply, price check, then initial manifest | | institutional response/account/payment |
 | Independent Git backup | Both | 0.5–1 (est.) | | | before further cleanup | private remote plus verified full bundle/checksum copied and verified off-machine | | off-machine destination not recorded |
 | Theoretical framing sprint | Both | 18–24 (est.) | | | 2026-08-10 to 2026-08-11 | draft of 4,000–5,000 words + research logs filled in | | |
-| Clean Yocto rebuild + five strict QEMU boots | Student | | | | 2026-08-18 | **produced and sealed 2026-08-14:** build at `f0e19d5`; five fresh result/log pairs driven at `9fe38ff`, each with `systemd=running`, zero failed units and clean shutdown; one earlier instrumentation failure preserved; nested `SHA256SUMS` verifies | | formal gate decision and D006 treatment pending |
+| Clean Yocto rebuild + five strict QEMU boots | Student | | | | 2026-08-18 | **produced and sealed 2026-08-14:** build at `f0e19d5`; five fresh result/log pairs driven at `9fe38ff`, each with `systemd=running`, zero failed units and clean shutdown; one earlier instrumentation failure preserved; nested `SHA256SUMS` verifies | | gate G1 accepted 2026-08-14 (gate log); D006 treatment still pending |
 | E2E vertical slice on the VM | Both | | | | 2026-08-23 (trigger 2026-08-25) | trace `sent_events.jsonl` + `events.jsonl` + `GET /twins/{device_id}` | | ARM VM |
 | Harness corrections (R18–R22) | Agent | | | | before 2026-09-06 | valid pilot with no ad hoc intervention | | |
 | Full pilot + tag `exp-v1` | Both | | | | 2026-09-06 | pilot data in `raw/` with manifests | | corrected harness |
