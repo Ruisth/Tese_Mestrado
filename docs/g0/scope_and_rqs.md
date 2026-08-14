@@ -21,8 +21,10 @@ contains no mutable status. The authoritative decision state is kept only in
 
 The G0 email is drafted in
 [`supervisor_email_g0.md`](supervisor_email_g0.md) and has not yet been
-sent — sending it is a student action. **No gate has been accepted**, G0
-included; the state of every deliverable lives in
+sent — sending it is a student action. Gate outcomes are recorded solely in
+[`../governance/gate_decision_log.md`](../governance/gate_decision_log.md)
+(as at 2026-08-14: G1 accepted for the functional platform layer only; G0 and
+G2–G7 not decided); the state of every deliverable lives in
 [`../../PROGRESS.md`](../../PROGRESS.md).
 
 ---
