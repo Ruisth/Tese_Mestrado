@@ -23,19 +23,20 @@ prefer the tag and retain the commit SHA alongside it.
 | `backups/egw-20260813-post-implementation.bundle` | 1,633,967 | `45b01350262c8e96c7a547a7a85ac69b94d8167e52d24b392fd2cc69f8f219fb` | Complete post-implementation snapshot through operational-record commit `71f4792`; includes protected G1 evidence tag and draft proposal commit `bc82911`. |
 | `backups/egw-20260814-g1-strict-evidence.bundle` | 1,819,509 | `5b2cf69fcb7bdee7f2e2916bccfc04d852fe8b91077a2d38accd02a96a2bab12` | Complete-history snapshot through strict G1 evidence commit `d4bfa9d`; preserves 12 refs, including `dev`, the draft proposal branch and the protected preliminary G1 tag. |
 | `backups/egw-20260814-post-g1-merge.bundle` | 1,831,301 | `35b7808072c2f3cfd82cfd9bfc40ce6769b8931d1301794332ef2e66fbd4abcb` | Complete-history snapshot after PR #19, with `dev` at merge commit `c6668a8`; preserves 12 refs, including the draft proposal branch and protected preliminary G1 tag. |
+| `backups/egw-20260814-post-pr21-merge.bundle` | 1,848,999 | `116d59eba74e1583c96c556f2c9c5cb6525816cc5166d3852c0a2ddb81f9d5a9` | Complete-history snapshot after the PR #15 and PR #21 merges, with `dev` at merge commit `f1ce8d9`; preserves 14 refs, including both protected evidence tags, `feat/egw-p0-baseline` and both merged PR branches. Closes the post-PR-#20 bundle gap recorded below. |
 
-All eight files and hashes were checked in the workspace. The latest 2026-08-14
-bundle reports a complete history and preserves 12 refs; it was created after
-the PR #19 merge and before this inventory row to avoid a self-referential
-checksum.
+All nine files and hashes were checked in the workspace. The latest 2026-08-14
+bundle reports a complete history and preserves 14 refs; each bundle is
+created before its own inventory row to avoid a self-referential checksum.
 At least one current complete bundle must also be copied off this machine and
 verified there; multiple bundles on one disk are not an independent backup.
 
-**Known bundle gap (2026-08-14).** The newest bundle stops at the PR #19 merge
-(`c6668a8`); the PR #20 merge (`54f8165`) and everything after it are not yet
-covered by any bundle. A fresh complete bundle is created once the truth-sweep
-and proposal pull requests of 2026-08-14 are merged, so that one bundle covers
-them all.
+**Bundle gap (2026-08-14) — closed the same day.** The post-PR-#19 bundle
+stopped at `c6668a8`, leaving the PR #20 merge uncovered. After the PR #15 and
+PR #21 merges, `egw-20260814-post-pr21-merge.bundle` was created and verified
+(`git bundle verify` passes; 14 refs), covering the entire history through
+`dev` at `f1ce8d9`. All nine bundles remain on the same physical machine: the
+off-machine-copy obligation is unchanged and applies to the newest bundle.
 
 **Branch preservation.** `feat/egw-p0-baseline` is load-bearing: it is the only
 branch containing the tagged G1 build-provenance commit `5770c0a` and the two

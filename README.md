@@ -11,9 +11,13 @@ telemetry from three wearable device types, validates the events and
 materialises them as digital twins in Eclipse Ditto.
 
 **Normative source:**
-[the integrated plan v1.1](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-(baseline 2026-08-13). The unchanged Portuguese v1.0 is retained in its archive;
-[PROGRESS.md](PROGRESS.md) is the only source of current gate/deliverable state.
+[the integrated plan v1.2](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+(v1.1/v1.2 line, baseline 2026-08-13; v1.2 of 2026-08-14 is a governance
+correction with no substantive change). The unchanged Portuguese v1.0 is
+retained in its archive;
+[PROGRESS.md](PROGRESS.md) is the only source of current gate/deliverable
+state, and formal gate outcomes live in
+[the gate decision log](docs/governance/gate_decision_log.md).
 
 ## Structure (follows the C2DTA Student Repository Template)
 
