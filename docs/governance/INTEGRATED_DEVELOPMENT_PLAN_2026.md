@@ -128,6 +128,12 @@ version after the thesis core is accepted; spare time alone is not authority.
 | 19–25 Sep | **G7 — release candidate** | Complete thesis with no placeholders; independent review and reproduction package; all accepted claims trace to evidence. | **Pending.** |
 | 26–29 Sep | **Submission** | Blocking corrections only; stable promotion, final release, off-machine bundle, final PDF and submission receipt by 29 Sep 17:00. | **Pending.** |
 
+The baseline-state column is a dated snapshot of 2026-08-13 and is not
+maintained afterwards. Gate outcomes after that date live solely in
+[`gate_decision_log.md`](gate_decision_log.md) — as of 2026-08-14, G1 is
+**Accepted** (functional platform layer only; the decision admitted no claim,
+and C01/C02 claim admission remains a separate pending step).
+
 ### Gate and cut rules
 
 - A gate closes only through a dated decision linked from `PROGRESS.md`; passing

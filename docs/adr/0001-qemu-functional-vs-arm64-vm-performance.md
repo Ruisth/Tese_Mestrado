@@ -50,7 +50,7 @@ link is excluded from the gateway processing measurement.
 - All evidence must state its platform; mixing QEMU-derived and VM-derived data
   in one analysis is prohibited.
 - "Native ARM64 VM" was written before the market forced the distinction between
-  a burstable and a dedicated instance. ADR 0007 supplies it: a burstable
+  a burstable and a non-burstable instance. ADR 0007 supplies it: a burstable
   instance is native, and is still barred from producing numbers, because CPU
   credit throttling would corrupt the load sweep and the saturation criterion.
   Read the two ADRs together when deciding where a number may come from.

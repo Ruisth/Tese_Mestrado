@@ -59,4 +59,4 @@ accepted.
 | File | Content |
 |---|---|
 | [`adr/README.md`](adr/README.md) | Index and conventions of the ADRs, including current status and supersession links; ADR 0002 is historical and superseded by plan v1.1 |
-| [`adr/0007-three-tier-platform-model.md`](adr/0007-three-tier-platform-model.md) | Three platform tiers: QEMU is functional-only, a burstable ARM64 instance may serve functional integration but never produce numbers, and only a dedicated ARM64 instance may produce numbers for RQ3. Extends ADR 0001. **Proposed** — awaiting supervisor validation |
+| [`adr/0007-three-tier-platform-model.md`](adr/0007-three-tier-platform-model.md) | Three platform tiers: QEMU is functional-only, a burstable ARM64 instance may serve functional integration but never produce numbers, and only a non-burstable native ARM64 instance may produce numbers for RQ3. Extends ADR 0001. **Proposed** — awaiting supervisor validation |

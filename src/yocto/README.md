@@ -11,7 +11,7 @@ sections 4.3, 5.1, 8 and 9.1 "Plataforma").
 > build, boot, systemd, networking and the OCI runtime — nothing else. No
 > latency, throughput or resource conclusion may ever be derived from QEMU, and
 > a QEMU result never supports a performance or security statement (plan
-> section 5.1). Measurement happens exclusively on a dedicated native-ARM64
+> section 5.1). Measurement happens exclusively on a non-burstable native-ARM64
 > instance, the third tier of the platform model — which **does not exist yet**
 > (see [`docs/setup/vm_arm64_hetzner.md`](../../docs/setup/vm_arm64_hetzner.md));
 > a burstable ARM64 instance is admitted for functional integration only and
@@ -214,7 +214,7 @@ Each scope has its own `SHA256SUMS`, and both verify from a clean clone.
       The acceptance covers the functional platform layer only and validated
       no claim; none of the 15 claims is accepted. C01 now
       has a same-operator clean-checkout build but remains partial pending D006
-      and formal admission. C02 has the strict five-boot G1 set, but the later
+      and formal claim admission (a separate decision from the gate). C02 has the strict five-boot G1 set, but the later
       predefined `data-v1` identities remain separate unless a dated protocol
       decision explicitly admits this set.
 

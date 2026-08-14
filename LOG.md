@@ -854,7 +854,12 @@ is unchanged.
 - **Still outstanding (student actions):** send the alignment email and record
   `sent_at`; make the university ARM64 request and start the 48-hour clock;
   uninstall the two review apps; copy the newest bundle and the four legacy
-  reports off-machine and verify the hashes there.
+  reports off-machine and verify the hashes there. *(Dated note, 2026-08-14,
+  later the same day: the uninstall obligation was lifted by the management
+  register — review applications may review, comment and suggest; they remain
+  forbidden as commit author/committer, co-author, attribution trailer or
+  credited metadata author, which `metadata-policy.yml` already enforces. The
+  other three actions stand.)*
 - **Decisions:** G1 accepted (gate log is the authority); D009/D010 join the
   request set; the PR #15 draft rule is narrowed to LaTeX integration only,
   by the owner's explicit choice recorded in this session.
@@ -944,3 +949,63 @@ is unchanged.
 - **Result:** the last active Portuguese document in the repository is
   migrated; the remaining Portuguese is historical (LOG entries, archive) or
   exception-covered (supervisor email, Resumo).
+
+---
+
+## Entry #C019 — Final documentation pass of the 2026-08-14 audit cycle
+- **Date:** 2026-08-14
+- **Phase:** Documentation-only pull request closing the residual list of the
+  external management register (post-PR-#24 audit). Every item verified
+  against the repository before acting.
+- **Action:**
+  - **Gate-vs-claim separation completed**: the conflating phrase "formal G1
+    admission" in `src/README.md` (split across a line break, which earlier
+    sweeps missed), plus ambiguous "formal admission" wording in
+    `src/yocto/README.md`, `PROGRESS.md` and the claim matrix, now read
+    "formal claim admission" with the gate decision explicitly admitting no
+    claim; the plan's dated gate-table snapshot gained a note deferring
+    post-baseline outcomes to the gate decision log.
+  - **Traceability and diagram updated**: the C2DTA traceability row that
+    still said "a Yocto build and two QEMU boots" now records both seals and
+    the accepted gate; the two-layer PlantUML dropped "PRELIMINARILY
+    EVIDENCED" for "GATE G1 ACCEPTED 2026-08-14 (FUNCTIONAL SCOPE ONLY)" and
+    its simulator label now reads "paper-aligned smartwatch profile + two
+    dissertation extensions"; the SVG was regenerated from source with
+    PlantUML under WSL2.
+  - **D006 request row** updated to the clean-checkout build and five strict
+    boots (second-operator reproduction still pending).
+  - **Bibliographic protocol v1.1**: normative basis repointed at the
+    in-repository plan v1.2; archived-v1.0 section citations qualified; no
+    method, query, criterion or target changed.
+  - **Template claim corrected**: the ISCTE LaTeX template is no longer
+    described as "official" — its 2026 status is exactly decision D004.
+  - **R31 cause corrected**: the first build's perl failure was misdiagnosed
+    as a parallel-make race; the demonstrated cause was WSL2 host-clock
+    drift, consistent with R2.
+  - **Platform terminology**: "dedicated" replaced by "non-burstable native
+    ARM64" in all active platform terminology (ADR 0007 title and body,
+    ADR 0001, both indexes, the VM guide, PROGRESS, the Yocto README) —
+    dedicated tenancy was never evidenced. "Dedicated ARM family" survives
+    only where it quotes Azure's own family classification or historical risk
+    narrative. The 4 vCPU / 8 GiB / 80 GB profile is now framed as a
+    pre-specified fixed resource envelope selected for feasibility, cost and
+    experimental control — it does not originate in the C2DTA paper (which
+    evaluated on an x86 VM with 16 GB/32 CPUs and sizes no ARM64 host) and
+    the admissibility conditions for a different profile are stated.
+  - **Bundle**: `backups/egw-20260814-post-pr24-merge.bundle` created from
+    `dev` at `e8bf965` before this entry (1,865,313 bytes, SHA-256
+    `95288fba…`, 21 refs, `git bundle verify` passing) — the designated
+    off-machine-copy artefact, inventoried as the tenth bundle.
+  - **Review-application policy change recorded** with a dated note at
+    #C015: the uninstall obligation is lifted; reviewing and commenting are
+    permitted; authorship, co-authorship, trailers and credited metadata
+    remain forbidden and machine-enforced.
+- **Result:** the residual documentation list of the audit cycle is closed.
+  Per the same order, desk work stops here: the next technical action is G2 on
+  a non-burstable native ARM64 host, starting with the paper-aligned
+  smartwatch profile at 1 Hz, as soon as the host exists.
+- **Still outstanding (student actions):** send the alignment email and
+  record `sent_at`; university ARM64 request (48-hour clock); off-machine
+  copy of the `95288fba…` bundle + EXT-014..017 + checksum record, with
+  destination-side hash verification, `git bundle verify` and a restore
+  drill.

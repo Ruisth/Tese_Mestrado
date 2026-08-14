@@ -37,7 +37,7 @@ been accepted.
 
 | Concern | Supplied C2DTA paper | Current P0 repository | Evidence boundary |
 |---|---|---|---|
-| Host platform | Docker on a Proxmox/QEMU/KVM-based x86 VM, reported as 16 GB RAM and 32 CPUs | Layer A: Yocto Scarthgap/`qemuarm64` functional image. Layer B: separate native-ARM64 VM target | G1 contains a Yocto build and two QEMU boots; no live Layer-B deployment exists |
+| Host platform | Docker on a Proxmox/QEMU/KVM-based x86 VM, reported as 16 GB RAM and 32 CPUs | Layer A: Yocto Scarthgap/`qemuarm64` functional image. Layer B: separate native-ARM64 VM target | Layer A is complete for its functional scope: the preliminary seal (build + two bring-up boots) plus the 2026-08-14 clean-checkout build and five strict boots; gate G1 accepted 2026-08-14, admitting no claim. No live Layer-B deployment exists |
 | Telemetry broker | Eclipse Mosquitto; MQTT over SSL for the smartwatch path | Eclipse Mosquitto 2.0.22, digest-pinned; MQTT/TLS on port 8883, QoS 1 | Configuration exists; live end-to-end evidence is pending |
 | Digital-twin platform | Eclipse Ditto 3.0.0 with gateway/routing, connectivity, things, policies, search and database services | Eclipse Ditto 3.9.4 minimal core: gateway, policies and things | Digest-pinned Compose configuration exists; no current live ARM64 evidence |
 | Persistence | Ditto database and encrypted-at-rest deployment; historical datasets transferred to decentralised storage | MongoDB 7.0.39 for Ditto state; local append-only experiment artefacts are a separate concern | MongoDB image is pinned; decentralised historical-data transfer is absent |
