@@ -131,10 +131,13 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
   seal contains a clean-checkout build at `f0e19d5`, one preserved
   instrumentation-failure attempt, and five fresh boots driven at `9fe38ff`,
   each with 7 of 7 required assertions, 2 of 2 observations, zero failed units
-  and a clean power-down. **Acceptance of the gate remains pending:** producing
-  and sealing evidence does not record the formal decision. A second-operator
-  reconstruction is the separate D006 decision, and later `data-v1` identities
-  remain separate. No QEMU evidence supports a performance or security claim.
+  and a clean power-down. **The gate was formally accepted on 2026-08-14**
+  (student authority, decision recorded in the
+  [gate decision log](docs/governance/gate_decision_log.md)); the acceptance
+  covers the functional platform layer only and validates no claim. A
+  second-operator reconstruction is the separate D006 decision, and later
+  `data-v1` identities remain separate. No QEMU evidence supports a
+  performance or security claim.
 - **G2 (15–23 August; serious-risk trigger 25 August)** — unchanged: zero deployments on the
   ARM64 VM, which does not exist; `experiments/results/raw/` remains empty.
 - **G3–G7** — unchanged; they still depend on evidence of real execution (and G3
@@ -162,7 +165,7 @@ B series enters the dissertation.**
 
 | Role | Platform | State | Numbers in the thesis |
 |---|---|---|---|
-| Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | preliminary two-boot seal preserved; 2026-08-14 same-operator clean-checkout build completed 5,715 tasks and five fresh strict boots each passed 7/7 assertions with zero failed units. One instrumentation false negative is preserved separately. Formal G1 decision pending | Never (plan §3.1) — functional only; QEMU results never support a performance or security statement |
+| Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | preliminary two-boot seal preserved; 2026-08-14 same-operator clean-checkout build completed 5,715 tasks and five fresh strict boots each passed 7/7 assertions with zero failed units. One instrumentation false negative is preserved separately. Gate G1 accepted 2026-08-14 (functional scope; decision in the gate log) | Never (plan §3.1) — functional only; QEMU results never support a performance or security statement |
 | ARM64 integration | Azure `B4pls_v2` (burstable SKU identified) | no instance provisioned; eligibility/capacity still require confirmation | **Never** — CPU credits would corrupt the load sweep and the saturation criterion |
 | Measurement (RQ3) | University host or public non-burstable native ARM64; AWS `c6g.xlarge` is the default public fallback | **does not exist; no current quotation recorded** | **Exclusively from here** |
 

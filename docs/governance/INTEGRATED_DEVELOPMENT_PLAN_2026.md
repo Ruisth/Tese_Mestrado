@@ -118,7 +118,7 @@ version after the thesis core is accepted; spare time alone is not authority.
 
 | Window | Gate | Required result | Baseline state on 2026-08-13 |
 |---|---|---|---|
-| 13–15 Aug | **G0 — authority and provenance** | Alignment email sent; D001–D008 requested; plan v1.1 and immutable provenance records versioned; university ARM64 request made. | **Blocked:** sending and measurement-host actions have no recorded evidence. |
+| 13–15 Aug | **G0 — authority and provenance** | Alignment email sent; D001–D010 requested; plan and immutable provenance records versioned; university ARM64 request made. | **Blocked:** sending and measurement-host actions have no recorded evidence. |
 | 13–18 Aug | **G1 — Yocto/QEMU functional platform** | Evidence-integrity blockers fixed; a clean identified build; five strict boots, each with `systemd=running`, zero failed units, required network/runtime checks and a clean shutdown; evidence checksums pass; decision recorded. | **In progress:** one build and two bring-up boots exist; the five-boot acceptance set and gate decision do not. |
 | 15–23 Aug | **G2 — live vertical slice** | Native ARM64 deployment with TLS and an inspectable wearable→MQTT→controller→Ditto→API trace; live integration tests pass. | **Blocked:** no measurement VM and no live trace. |
 | 24–30 Aug | **G3 — P0 feature freeze** | Three wearables and all mandatory nominal/failure/reconnect/restart behaviours run live; contracts frozen; no open P0 defect. | **Pending.** |
@@ -174,7 +174,9 @@ changed or unhashed runtime dependency.
 
 Send the standalone Chapter 2 draft with
 [`supervisor_alignment_memo.md`](supervisor_alignment_memo.md) and request the
-eight decisions in [`supervisor_decision_log.csv`](supervisor_decision_log.csv).
+ten decisions, D001–D010, in
+[`supervisor_decision_log.csv`](supervisor_decision_log.csv) (the D009/D010
+rows publish with the two-layer proposal package).
 Follow up on 18 August and request a short meeting on 20 August if no response is
 recorded.
 

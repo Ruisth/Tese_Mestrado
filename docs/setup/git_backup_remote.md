@@ -68,10 +68,15 @@ Rules (archived plan v1.0 §9.2; the evidence boundary is now plan v1.1 §3.1):
   otherwise.
 - Secrets never enter Git regardless (`.env`, `passwd`, certs are ignored) —
   verify with `git status --ignored` before pushing.
-- Tags are reserved for real evidence milestones only: `g1`, `g2`, `exp-v1`,
-  `data-v1`, `rc1`, `v1.0-thesis` (audit §5.3 — no anticipatory tags).
-  **No tag has been created so far, by choice:** no gate has been accepted, and
-  a tag would assert a milestone that has not been reached.
+- Milestone tags are reserved for real evidence milestones only: `g1`, `g2`,
+  `exp-v1`, `data-v1`, `rc1`, `v1.0-thesis` (audit §5.3 — no anticipatory
+  tags). None of these has been created yet. Two **provenance** tags exist
+  under `refs/tags/evidence/**`, protected against deletion by the tag
+  ruleset (`evidence/g1-yocto-build-5770c0a` and
+  `evidence/g1-bringup-driver-367c929`); they preserve exact commit
+  identities for sealed evidence and assert no milestone. Gate G1 was
+  accepted on 2026-08-14 (see `../governance/gate_decision_log.md`); the `g1`
+  milestone tag may follow once the acceptance is merged.
 - Push at least at every gate and every data freeze — by pull request, as above.
 
 ## 3. Windows <-> WSL2: synchronise through Git, never by copying

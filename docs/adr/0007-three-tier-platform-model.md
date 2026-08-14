@@ -36,8 +36,10 @@ emulation does.
 
 Meanwhile the functional platform is real: the `egw-image` was built and taken
 through two unattended QEMU bring-up boots on 2026-08-11, with the evidence
-sealed in `docs/evidence/g1-yocto-qemu/`. That evidence is functional only, and
-gate G1 acceptance remains pending.
+sealed in `docs/evidence/g1-yocto-qemu/`. That evidence is functional only.
+(Gate G1 was later accepted on 2026-08-14, on the strict five-boot capsule,
+for the functional platform layer only — decision in
+`../governance/gate_decision_log.md`.)
 
 ## Decision
 

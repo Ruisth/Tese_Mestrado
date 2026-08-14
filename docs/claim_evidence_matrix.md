@@ -79,8 +79,11 @@ admission. C02 remains partial because the strict G1 set is distinct from the
 predefined later `data-v1` identities unless a dated protocol decision admits
 it. The other **13 claims remain `Pending — no evidence`**.
 
-**0 of the 15 claims are accepted**, and **no gate has been accepted**: G1
-stays in progress — evidence produced, acceptance pending.
+**0 of the 15 claims are accepted.** Gate G1 was accepted on 2026-08-14
+(functional platform layer only, decision in
+[`governance/gate_decision_log.md`](governance/gate_decision_log.md));
+**accepting the gate validated no claim** — C01 and C02 stay partial pending
+their own admission, and every other gate remains undecided.
 `experiments/results/raw/` is still empty; the preliminary G1 evidence and the
 nested 2026-08-14 capsule live in `docs/evidence/g1-yocto-qemu/`, with separate
 `SHA256SUMS` scopes that verify from a clean clone. The revisions of 2026-08-08

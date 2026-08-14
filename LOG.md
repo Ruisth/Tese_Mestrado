@@ -633,7 +633,9 @@ required assertions passed and three supplementary observations recorded
 - **Gate G1: evidence produced, acceptance PENDING.** Building, booting,
   merging and archiving demonstrate implementation and verification; accepting
   a gate is a separate decision, recorded in `PROGRESS.md` and in Annex C of
-  the plan. **No gate has been accepted.**
+  the plan. **No gate has been accepted.** *(Dated note, 2026-08-14, later the
+  same day: true when written; gate G1 was subsequently accepted — see #C015
+  and the gate decision log.)*
 - **Claims: 0 of 15 accepted.** C01 is partial — the rebuild from an
   independent clean checkout is still missing and belongs to G4. C02 holds the
   evidence of the **two bring-up boots**; the campaign's five `qemu_boots` runs
@@ -772,7 +774,9 @@ preliminary G1 tag.
 
 This is a local recovery object, not an independent backup. No off-machine
 copy or remote destination has been recorded; risk R25 therefore remains
-mitigating and G1 acceptance remains pending.
+mitigating and G1 acceptance remains pending. *(Dated note, 2026-08-14, later
+the same day: gate G1 was subsequently accepted — see #C015; the off-machine
+gap is unchanged.)*
 
 ## Entry #C014 — PR #19 merge and post-merge recovery bundle
 
@@ -841,9 +845,10 @@ is unchanged.
   - **Provenance**: EXT-014..017 register the four 2026-08-08 external
     management reports (single unbacked copies on this disk — now flagged for
     every off-machine backup); the bundle gap after PR #20 is recorded; a new
-    protected tag `evidence/g1-bringup-driver-367c929` is planned at the tip
-    of `feat/egw-p0-baseline` so the preliminary-evidence driver lineage
-    survives independently of the branch.
+    protected tag `evidence/g1-bringup-driver-367c929` was created and pushed
+    at the tip of `feat/egw-p0-baseline` (annotated tag object `b21db3d`,
+    target `367c929`, verified on the remote with `git ls-remote`) so the
+    preliminary-evidence driver lineage survives independently of the branch.
 - **Result:** proposal package publishable and email ready to send; plan
   governance self-consistent again; one gate closed with a dated decision.
 - **Still outstanding (student actions):** send the alignment email and record
