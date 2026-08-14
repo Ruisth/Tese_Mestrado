@@ -2,7 +2,7 @@
 
 > **This file owns actions only**: required work, expected evidence,
 > dependencies and cut rules. The versioned schedule and scope authority is
-> the [integrated development plan v1.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+> the [integrated development plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
 > The current state of every deliverable and gate lives exclusively in
 > [`../../PROGRESS.md`](../../PROGRESS.md); do not record completion,
 > implementation status, execution results or evidence counts here.
@@ -73,6 +73,7 @@ the gate; QEMU evidence never supports performance claims.
 | Run the five-boot strict G1 acceptance campaign | Five distinct console/result pairs, strict assertion summaries, clean-shutdown evidence and verified `SHA256SUMS` | Identified build; strict unattended boot driver |
 | Preserve preliminary bring-up evidence separately from the acceptance campaign | Immutable evidence inventory and provenance note that prevents preliminary artefacts from being substituted for the strict campaign | Evidence-integrity tooling |
 | Verify `linux/arm64` support for every deployment image by pinned digest | Archived `docker manifest inspect` output per image | Network access; image lock; ARM64 deployment review |
+| Update the `egw-image.bb` DESCRIPTION metadata (it still says "two QEMU boots") **at the next Yocto functional rebuild — never as a standalone edit** (changing the recipe changes its checksum and forces a rebuild), and no later than the release candidate (G7) | Corrected DESCRIPTION in the rebuild's recipe; a note that the existing G1 evidence remains pinned to the original recipe and is not invalidated | Next functional Yocto rebuild |
 | Complete institutional searches and full-text verification for claims used in Chapters 1–2 | Search exports, selection decisions and audited bibliography in `thesis/research/` | Institutional IEEE/ACM/Scopus or Web of Science access |
 
 ## G2 — Live vertical slice (15–23 August)

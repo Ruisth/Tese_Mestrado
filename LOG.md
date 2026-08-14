@@ -1024,8 +1024,9 @@ is unchanged.
   Also fixed: the Yocto README's G1-window paragraph ("remains in progress"
   → accepted the same day, decision in the gate log); the PROGRESS effort row
   still calling the gate decision pending; PROGRESS PR ranges through #25;
-  "dedicated" → "non-burstable native" at the two remaining operational sites
-  in `diagrams/architecture.md`; the simulator README's "three C2DTA
+  "dedicated" → "non-burstable native" at the three remaining sites in
+  `diagrams/architecture.md` — two prose occurrences plus one Mermaid node
+  label (the node was caught by review after the prose fix); the simulator README's "three C2DTA
   wearables" → the paper-aligned smartwatch and two dissertation extensions;
   and `main.tex`'s comment no longer calls the template official (D004).
 - **Deliberately not fixed:** `egw-image.bb`'s DESCRIPTION still says "two
