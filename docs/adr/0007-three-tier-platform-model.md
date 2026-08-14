@@ -1,4 +1,4 @@
-# 0007 — Three-tier platform model: only a dedicated ARM64 instance may produce numbers for RQ3
+# 0007 — Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3
 
 **Status:** Proposed (2026-08-12) — extends [ADR 0001](0001-qemu-functional-vs-arm64-vm-performance.md);
 awaiting validation by the supervisors. Nothing here accepts a gate or
@@ -49,13 +49,13 @@ Three platform tiers, with a single rule about numbers:
 |---|---|---|---|
 | 1 | Functional (build, boot, systemd, networking, OCI runtime) | QEMU `qemuarm64` on WSL2/ext4 | **Never** (plan §5.1, ADR 0001) |
 | 2 | Functional integration on ARM64 (deployment, wiring, end-to-end trace, `aarch64` images and digests) | a **burstable** ARM64 instance, e.g. Azure `B4pls_v2` | **Never** |
-| 3 | Measurement (RQ3) | a **dedicated** ARM64 instance — `Dplsv5`/`Dplsv6` if the quota is approved, otherwise AWS `c6g.xlarge` | **Exclusively from here** |
+| 3 | Measurement (RQ3) | a **non-burstable native** ARM64 instance — `Dplsv5`/`Dplsv6` if the quota is approved, otherwise AWS `c6g.xlarge` | **Exclusively from here** |
 
 - A burstable ARM64 instance **may** be used for functional integration work,
   and its use must be recorded as such.
 - No latency, throughput or resource figure from tier 1 or tier 2 enters the
   dissertation, a chapter, an abstract or the claim→evidence matrix.
-- Timed runs of the campaign are executed on a dedicated family only
+- Timed runs of the campaign are executed on a non-burstable family only
   (`Dplsv5`, `c6g`, `m6g`); `Bpsv2` and `t4g` are excluded from the protocol.
   The early signal of a violation is a timed run whose `sut_environment.json`
   reports a burstable family. This ADR records the protocol rule; it claims no
@@ -79,14 +79,14 @@ Three platform tiers, with a single rule about numbers:
   instance that is available today, without putting a single contaminated
   number anywhere near RQ3; the separation established by ADR 0001 survives
   contact with the market instead of being quietly eroded by availability.
-- Positive: the exclusion is methodological, not financial — the dedicated
+- Positive: the exclusion is methodological, not financial — the non-burstable
   fallback costs roughly 7 EUR for the campaign, so "it was free" is never an
   argument for publishing a burstable number.
 - Negative: a third environment must be provisioned, described and recorded in
   the environment manifests; work done on tier 2 cannot be reused as pilot
   numbers, so parts of the pilot are executed twice.
-- **Residual risk, stated plainly: no dedicated ARM64 instance has been
-  obtained.** The measurement platform does not exist, which leaves RQ3 with no
+- **Residual risk, stated plainly: no non-burstable native ARM64 instance has
+  been obtained.** The measurement platform does not exist, which leaves RQ3 with no
   admissible data source, makes this the single blocking dependency from gate G2
   onwards, and means the campaign's logistical floor has to fit on an instance
   acquired late. The corresponding entries in the risk register are R28 and R29

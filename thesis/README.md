@@ -1,9 +1,12 @@
 # Thesis — Dissertation Sources and Research Protocol
 
 Dissertation skeleton for the EGW project (Tema 1, C2DTA), based on the
-official ISCTE LaTeX template (`../../Template_LaTeX/`). The dissertation body
-is written in English; the Resumo is in Portuguese (integrated plan, header +
-§4.3). The normative plan for structure and content is
+ISCTE LaTeX template supplied in the workspace (`../../Template_LaTeX/`);
+whether it is the current official 2026 template is **unconfirmed** and is
+exactly supervisor decision D004 — do not describe it as official until D004
+is recorded. The dissertation body
+is written in English; the Resumo is in Portuguese (integrated plan header; detailed
+rule in archived plan v1.0 §4.3). The normative plan for structure and content is
 [`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) §6.
 
 ## Two representations of the same dissertation

@@ -55,7 +55,7 @@ merging records formal admission:
 
 | Claim | State |
 |---|---|
-| C01 | Partial — a clean identified same-operator checkout/build completed all 5,715 tasks and is sealed; D006/second-operator treatment and formal G1 admission remain pending |
+| C01 | Partial — a clean identified same-operator checkout/build completed all 5,715 tasks and is sealed; gate G1 is accepted, but D006/second-operator treatment and the **formal claim admission** remain pending — accepting the gate admitted no claim |
 | C02 | Partial — the two preliminary boots remain sealed; one strict instrumentation failure is preserved and five fresh strict boots each passed 7/7 assertions. The later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set |
 | the other 13 | `Pending — no admissible experimental evidence` |
 

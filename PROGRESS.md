@@ -22,8 +22,8 @@ figure remains 701 tests).
 same-operator clean-checkout build is now produced and sealed, while D006 still
 has to decide whether a second operator is required before retaining a stronger
 reproducibility claim. C02 has the preliminary two-boot seal and the new strict
-five-boot G1 set; the predefined later `data-v1` identities and formal admission
-remain separate. The remaining **13 still have no admissible experimental
+five-boot G1 set; the predefined later `data-v1` identities and the formal
+claim admission remain separate — the gate decision admitted no claim. The remaining **13 still have no admissible experimental
 evidence**. **Gate G1 is the only accepted gate** (2026-08-14, functional
 platform layer only — accepting the gate validated no claim); G0 and G2–G7
 remain undecided.
@@ -69,7 +69,7 @@ for most claims and gates.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#22 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Nine local bundles verify; the latest, `egw-20260814-post-pr21-merge.bundle` (SHA-256 `116d59eb…`), is a complete-history snapshot with `dev` at the PR #21 merge commit `f1ce8d9` (the PR #22 merge is the documentation that records it). A verified off-machine copy is still pending | G0 — In progress | M2 |
+| Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#22 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten local bundles verify; the latest, `egw-20260814-post-pr24-merge.bundle` (SHA-256 `95288fba…`), is a complete-history snapshot with `dev` at the PR #24 merge commit `e8bf965` and is the designated artefact for the off-machine copy. A verified off-machine copy is still pending | G0 — In progress | M2 |
 | Plan v1.1, provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept G0 or G1 | G0–G1 — In progress | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
 | Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package; the canonical decision log remains `proposed_not_sent` for all ten decisions | G0 — Pending | M1 |
@@ -160,7 +160,7 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
 
 ## Platforms — three tiers (extension of ADR 0001, to be validated with the supervisors)
 
-The unavailability of dedicated ARM64 forced a distinction between an
+The unavailability of non-burstable ARM64 capacity forced a distinction between an
 integration platform and a measurement platform. Hard rule: **no number from the
 B series enters the dissertation.**
 

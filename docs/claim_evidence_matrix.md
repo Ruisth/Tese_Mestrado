@@ -74,8 +74,8 @@ All 15 claims were created with the state `Pending — no evidence` on
 **C01** and **C02** to partial. On 2026-08-14, a new clean checkout/build at
 `f0e19d5` and five fresh strict boots driven at `9fe38ff` were sealed without
 overwriting the preliminary evidence or the first failed instrumentation
-attempt. C01 remains partial pending D006/second-operator treatment and formal
-admission. C02 remains partial because the strict G1 set is distinct from the
+attempt. C01 remains partial pending D006/second-operator treatment and formal claim
+admission (distinct from the gate decision, which admitted no claim). C02 remains partial because the strict G1 set is distinct from the
 predefined later `data-v1` identities unless a dated protocol decision admits
 it. The other **13 claims remain `Pending — no evidence`**.
 

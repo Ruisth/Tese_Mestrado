@@ -24,9 +24,10 @@ prefer the tag and retain the commit SHA alongside it.
 | `backups/egw-20260814-g1-strict-evidence.bundle` | 1,819,509 | `5b2cf69fcb7bdee7f2e2916bccfc04d852fe8b91077a2d38accd02a96a2bab12` | Complete-history snapshot through strict G1 evidence commit `d4bfa9d`; preserves 12 refs, including `dev`, the draft proposal branch and the protected preliminary G1 tag. |
 | `backups/egw-20260814-post-g1-merge.bundle` | 1,831,301 | `35b7808072c2f3cfd82cfd9bfc40ce6769b8931d1301794332ef2e66fbd4abcb` | Complete-history snapshot after PR #19, with `dev` at merge commit `c6668a8`; preserves 12 refs, including the draft proposal branch and protected preliminary G1 tag. |
 | `backups/egw-20260814-post-pr21-merge.bundle` | 1,848,999 | `116d59eba74e1583c96c556f2c9c5cb6525816cc5166d3852c0a2ddb81f9d5a9` | Complete-history snapshot after the PR #15 and PR #21 merges, with `dev` at merge commit `f1ce8d9`; preserves 14 refs, including both protected evidence tags, `feat/egw-p0-baseline` and both merged PR branches. Closes the post-PR-#20 bundle gap recorded below. |
+| `backups/egw-20260814-post-pr24-merge.bundle` | 1,865,313 | `95288fba9b0fe4eac56f997283fe1b4fb8218241b0f51c057fc666ee8a50b61a` | Complete-history snapshot after the PR #23 and PR #24 merges, with `dev` at merge commit `e8bf965`; preserves 21 refs (local and remote-tracking), including both protected evidence tags and every merged PR branch. **This is the bundle designated for the off-machine copy**, together with the four EXT-014..017 reports and the checksum record; verify the SHA-256 at the destination and run `git bundle verify` plus a restore drill (`git clone <bundle>` + `git fsck --full`) there. |
 
-All nine files and hashes were checked in the workspace. The latest 2026-08-14
-bundle reports a complete history and preserves 14 refs; each bundle is
+All ten files and hashes were checked in the workspace. The latest 2026-08-14
+bundle reports a complete history and preserves 21 refs; each bundle is
 created before its own inventory row to avoid a self-referential checksum.
 At least one current complete bundle must also be copied off this machine and
 verified there; multiple bundles on one disk are not an independent backup.

@@ -22,7 +22,7 @@ folder "Common versioned repository" as Repo #D5F5E3 {
   artifact "Compose, controller, simulator\nand experiment harness" as ServiceArtefacts #D5F5E3
 }
 
-package "Layer A - Yocto/QEMU functional platform\nPROVISIONED AND PRELIMINARILY EVIDENCED" as LAYERA #D5F5E3 {
+package "Layer A - Yocto/QEMU functional platform\nPROVISIONED - GATE G1 ACCEPTED 2026-08-14 (FUNCTIONAL SCOPE ONLY)" as LAYERA #D5F5E3 {
   node "WSL2 Ubuntu 24.04 build host" as BuildHost #D5F5E3 {
     component "kas + BitBake" as Bitbake #D5F5E3
     artifact "egw-image\nsystemd + network + OCI runtime" as Image #D5F5E3
@@ -42,7 +42,7 @@ package "Layer B - native-ARM64 digital-twin service stack\nPLANNED - MEASUREMEN
 }
 
 node "Operator/load-generator machine\noutside the measurement VM" as Operator #EAECEE {
-  component "egw_simulator\nthree synthetic wearable types" as Simulator #FCF3CF
+  component "egw_simulator\npaper-aligned smartwatch profile\n+ two dissertation extensions" as Simulator #FCF3CF
   component "egw_experiments harness\nraw evidence collection" as Harness #FCF3CF
 }
 

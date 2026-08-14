@@ -21,7 +21,7 @@ creation, payment and any console actions are performed by the student.
 
 ## 0. Platform model — three tiers (extends ADR 0001)
 
-The unavailability of dedicated ARM64 forced a distinction between an
+The unavailability of non-burstable ARM64 capacity forced a distinction between an
 *integration* platform and a *measurement* platform. This document covers the
 third row only.
 
@@ -29,7 +29,7 @@ third row only.
 |---|---|---|
 | Functional (OS/boot) | QEMU `qemuarm64` on WSL2 | **Never** (plan 5.1) — a QEMU result never supports a performance or security statement |
 | ARM64 integration | A burstable ARM64 instance (Azure `B4pls_v2`) | **Never** — CPU-credit throttling would corrupt the load sweep and the saturation criterion (risk R29) |
-| Measurement (RQ3) | A **dedicated** ARM64 instance | **Exclusively from here** |
+| Measurement (RQ3) | A **non-burstable native** ARM64 instance | **Exclusively from here** |
 
 During benchmarks the simulator runs OUTSIDE the measurement instance; the
 primary latency metric is measured inside the controller (MQTT receive to Ditto
@@ -39,13 +39,30 @@ ack), so the external link is not part of the gateway processing measurement.
 
 ## 1. Instance selection
 
-Target: a **dedicated** (non-burstable) native-ARM64 instance of
-4 vCPU / 8 GiB RAM / >= 80 GB disk (plan 5.1). Current candidates, in order:
+Target: a **non-burstable native-ARM64** measurement VM of
+4 vCPU / 8 GiB RAM / >= 80 GB disk. This profile is **a pre-specified fixed
+resource envelope selected for feasibility, cost and experimental control**
+(it originates in the plan of 2026-08-07, sized around a Hetzner CAX21-class
+instance) — it is not a C2DTA requirement and does not claim to represent all
+edge hardware; the paper's own evaluation ran on an x86 VM with 16 GB/32
+CPUs and sizes no ARM64 host. **The envelope is fixed, not
+operator-discretionary: the official campaign runs on 4 vCPU / 8 GiB /
+>= 80 GB as the normative plan specifies.** Adopting a different profile is a
+plan change — it requires a dated plan revision before provisioning (and the
+final envelope is in any case recorded and frozen at `exp-v1` under D007),
+never a substitution decided at the console because the preferred SKU is
+unavailable. Any such revision must still satisfy all of: native ARM64,
+non-burstable for RQ3 results, sufficient resources to avoid OOM or
+persistent swap, held constant through the whole campaign, and every
+virtualisation/shared-CPU limitation declared. CPU and memory size shape the
+RQ3 results directly, so a campaign executed on an unapproved profile is
+complete but protocol-inadmissible. Do not call the instance "dedicated"
+without evidence of dedicated tenancy. Current candidates, in order:
 
 | Candidate | Notes |
 |---|---|
 | Azure `D4pls_v5` | Quota requested for the `DPLSv5` and `DPLSv6` families (Germany West Central, 4 vCPU). Usable only if the quota is granted |
-| AWS `c6g.xlarge` | Fallback: 4 vCPU Graviton2, 8 GiB, dedicated; roughly 7 EUR for the whole campaign |
+| AWS `c6g.xlarge` | Fallback: 4 vCPU Graviton2, 8 GiB, non-burstable (fixed performance); roughly 7 EUR for the whole campaign |
 
 Barred as measurement platforms: `Bpsv2` and `t4g` (burstable, credit-throttled)
 and anything emulated. Hetzner `CAX21` remains an acceptable specification if
@@ -54,7 +71,7 @@ capacity ever returns, but it is no longer the plan of record.
 Requirements, whichever provider is used:
 
 - [ ] CPU is native ARM64 (`aarch64`) — no emulation of any kind.
-- [ ] Instance family is **dedicated**, not burstable (no CPU credits).
+- [ ] Instance family is **non-burstable** (fixed performance, no CPU credits).
 - [ ] At least 4 vCPU and 8 GiB RAM (Ditto + MongoDB + Mosquitto + controller).
 - [ ] At least 80 GB disk.
 - [ ] OS image: **Ubuntu 24.04 LTS (arm64)**.
@@ -85,7 +102,7 @@ Record additionally (manually, in the same directory or in the run manifests):
 
 - [ ] Provider and instance type (e.g. Azure `D4pls_v5`, AWS `c6g.xlarge`).
 - [ ] Region/datacenter identifier as the provider names it.
-- [ ] Whether the family is dedicated or burstable — a burstable instance
+- [ ] Whether the family is non-burstable (fixed performance) or burstable — a burstable instance
       invalidates every timed run taken on it.
 - [ ] **Shared-vCPU caveat (provider-dependent):** some ARM instance types
       expose shared vCPUs, so performance can vary with neighbour load. Check
@@ -176,7 +193,7 @@ Pin the verified digests in `src/deployment/images.lock.env`.
 - [ ] Watch steal time (`top`, `%st`) — persistent high steal is the early
       signal of the shared-vCPU risk (risk R13 in the G0 risk register).
 - [ ] Confirm from `sut_environment.json` that the run really happened on the
-      dedicated family: a timed run recorded on a burstable instance is
+      non-burstable family: a timed run recorded on a burstable instance is
       excluded, not corrected (risk R29).
 - [ ] Copy raw results + `SHA256SUMS` off the instance after every session (the
       instance is disposable; the data is not).

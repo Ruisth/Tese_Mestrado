@@ -1,14 +1,20 @@
 # Literature Review Protocol — Structured Scoping/Narrative Review
 
-Version 1.0 — 2026-08-07.
-Normative basis: integrated plan (`../../../PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026.md`) §6.2;
+Version 1.1 — 2026-08-14 (v1.0 — 2026-08-07; this revision repoints the
+normative basis at the in-repository plan and changes no method, query,
+criterion or target).
+Normative basis: the integrated plan v1.2
+(`../../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`, section 6); the
+review method and the source target originate in archived plan v1.0 §6.2 and
+are carried forward unchanged;
 summarised in the dissertation, Chapter 3, Section "Literature Review Protocol".
 
 > **Status note — 2026-08-08.** The institutional database queries required by
 > Section 3 (IEEE Xplore, ACM Digital Library, Scopus/Web of Science) have
 > **not yet been executed**: they require institutional access and are a
 > pending student action, scheduled for the search-execution window of
-> 2026-08-10 to 2026-08-30 (plan §8). What exists as of this date is the
+> 2026-08-10 to 2026-08-30 (archived plan v1.0 §8; the writing window in the
+> current plan is section 4). What exists as of this date is the
 > preliminary corpus for the advisor draft of Chapter 2: 25 verified entries
 > in `thesis/refs/references.bib`, every one registered in
 > `study_selection.csv` with its honest provenance (`known-source` seeds,
@@ -37,7 +43,8 @@ documentation, with a transparent, reproducible search trail.
 
 ## 2. Review questions and topic axes
 
-The review supports the three thesis research questions (plan §4.2) through
+The review supports the three thesis research questions (proposed wording
+pending supervisor decision D001 — plan v1.2 §3.2) through
 these topic axes. Each retained study is tagged with at least one axis.
 
 | Axis | Topic | Feeds |
@@ -55,7 +62,7 @@ these topic axes. Each retained study is tagged with at least one axis.
 
 ## 3. Databases and sources
 
-Primary bibliographic databases (plan §6.2):
+Primary bibliographic databases (archived plan v1.0 §6.2):
 
 1. **IEEE Xplore** (https://ieeexplore.ieee.org)
 2. **ACM Digital Library** (https://dl.acm.org)
@@ -254,9 +261,9 @@ Field values never contain unescaped commas (use `;` inside fields).
 
 - Target: **at least 30 verified sources** in `thesis/refs/references.bib` by
   gate **G6 (2026-09-18)**, privileging primary studies, standards and
-  official documentation (plan §6.2). As of protocol v1.0 the bibliography
+  official documentation (archived plan v1.0 §6.2). As of protocol v1.0 the bibliography
   holds 15 verified core entries; growth happens exclusively through this
   protocol — never by padding or bulk import.
 - Search execution window: aligned with the writing of Chapters 1–3
-  (plan §8, weeks of 2026-08-10 to 2026-08-30); late additions (e.g. for the
+  (archived plan v1.0 §8, weeks of 2026-08-10 to 2026-08-30); late additions (e.g. for the
   discussion) remain possible until G6 and follow the same logging rules.
