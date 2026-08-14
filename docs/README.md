@@ -1,11 +1,14 @@
 # docs/ — index
 
 EGW project documentation. The normative source for scope, schedule and gates is
-[`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
-Internal technical contracts: [`../src/CONTRACTS.md`](../src/CONTRACTS.md).
-The single source of state for every deliverable is
-[`../PROGRESS.md`](../PROGRESS.md) — nothing in this folder declares a gate
-accepted.
+[`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+(**version 1.2**, 2026-08-14). Internal technical contracts:
+[`../src/CONTRACTS.md`](../src/CONTRACTS.md).
+The single source of operational state for every deliverable is
+[`../PROGRESS.md`](../PROGRESS.md); formal gate decisions are recorded solely
+in [`governance/gate_decision_log.md`](governance/gate_decision_log.md), which
+currently records **G1 as Accepted** (2026-08-14, functional platform layer
+only) and every other gate as Not decided.
 
 ## G0 — scope and start-up
 
@@ -24,7 +27,7 @@ accepted.
 | File | Content |
 |---|---|
 | [`governance/language-policy.md`](governance/language-policy.md) | British English as the working language, planned renames and migration order |
-| [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | Normative plan v1.1: two-layer scope, rebased gates, cuts and acceptance contract |
+| [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | Normative plan v1.2 (v1.1 line): two-layer scope, rebased gates, cuts and acceptance contract |
 | [`governance/supervisor_decision_log.csv`](governance/supervisor_decision_log.csv) | D001-D010 state; a draft or silence is never approval |
 | [`governance/external_source_register.md`](governance/external_source_register.md) | Checksummed identities and redistribution controls for sources held outside the repository |
 | [`governance/provenance-history-rewrite.md`](governance/provenance-history-rewrite.md) | Evidence tag, verified bundles and exact-tree mappings across the history rewrite |
