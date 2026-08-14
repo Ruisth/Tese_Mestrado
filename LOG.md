@@ -858,3 +858,26 @@ is unchanged.
 - **Decisions:** G1 accepted (gate log is the authority); D009/D010 join the
   request set; the PR #15 draft rule is narrowed to LaTeX integration only,
   by the owner's explicit choice recorded in this session.
+
+---
+
+## Entry #C016 — Post-merge recovery bundle covering PRs #15 and #21
+- **Date:** 2026-08-14
+- **Phase:** Provenance (after the PR #15 and PR #21 merges into `dev`)
+- **Action:** Created `backups/egw-20260814-post-pr21-merge.bundle` with every
+  local ref, immediately after `dev` reached the PR #21 merge commit
+  `f1ce8d9`. `git bundle verify` passes. It is 1,848,999 bytes, preserves 14
+  refs — `dev`, `main`, `feat/egw-p0-baseline`, both merged pull-request
+  branches and both protected evidence tags
+  (`evidence/g1-yocto-build-5770c0a`, `evidence/g1-bringup-driver-367c929`) —
+  and has SHA-256
+  `116d59eba74e1583c96c556f2c9c5cb6525816cc5166d3852c0a2ddb81f9d5a9`.
+  This closes the bundle gap recorded in #C015: the PR #20 merge and
+  everything after it are now covered by a single verified snapshot. The root
+  README's normative-source paragraph was aligned with plan v1.2 in the same
+  change.
+- **Result:** nine bundles inventoried in
+  `docs/governance/provenance-history-rewrite.md`, all on this machine.
+- **Still outstanding (student action):** copy the newest bundle — and the
+  four EXT-014..017 reports — off this machine and verify the hashes at the
+  destination. A local bundle is a recovery object, not an independent backup.
