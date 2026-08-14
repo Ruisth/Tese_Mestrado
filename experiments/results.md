@@ -37,7 +37,7 @@ the command that produced it and the commit it ran on.
 
 | Condition | Runs planned | Metric reported |
 |---|---:|---|
-| `qemu_boots` | 5 | functional pass/fail only — never timing (plan section 5.1) |
+| `qemu_boots` | 5 | functional pass/fail only — never timing (plan v1.1 §3.1) |
 | `cold_start` | 10 | time to stack readiness |
 | `twin_creation` | 10 | time to first materialised twin |
 | `smoke_sequence` | 10 | completion and zero loss |
@@ -53,6 +53,6 @@ the command that produced it and the commit it ran on.
 - A run marked `invalid` never contributes to a table or a figure.
 - Load levels without the full set of valid runs are reported as
   `insufficient-evidence`, never as "not saturated".
-- The statistical unit is the run, not the message (plan section 7.3).
+- The statistical unit is the run, not the message (archived plan v1.0 §7.3; frozen only at `exp-v1` under D007).
 - No value appears in the dissertation before it appears here, and none appears
   here before it exists in `results/raw/`.

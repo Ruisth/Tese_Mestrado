@@ -1,7 +1,7 @@
 # WSL2 + Ubuntu 24.04 + Yocto Scarthgap setup guide
 
 Step-by-step guide to prepare the Yocto build environment required for gate G1
-(plan sections 5.1 and 8). Target: build `egw-image` for `qemuarm64` with Yocto
+(archived plan v1.0 §§5.1/8; gate criteria now live in plan v1.1 §4). Target: build `egw-image` for `qemuarm64` with Yocto
 Project 5.0.x "Scarthgap" using a `kas` manifest, and boot it in QEMU.
 
 **Hard rule (plan 5.1):** the Yocto build directory MUST live on the WSL2 Linux
@@ -208,8 +208,13 @@ podman run --rm docker.io/library/hello-world || docker run --rm hello-world
 
 ## 8. Capturing evidence for gate G1
 
-G1 (16/08) requires: the image boots **twice** and executes a test container.
-Record everything; unlogged runs do not count as evidence (plan section 1).
+G1 (window 13–18 August, plan v1.1 §4) requires: **five strict boots**, each
+with exact `systemd=running`, zero units in the `failed` state, a working OCI
+runtime with the smoke container executed, and a clean shutdown — driven
+unattended by `src/yocto/scripts/boot_check.py`. (The earlier v1.0 criterion of
+two boots produced the preliminary 2026-08-11 seal; the strict criterion
+produced the 2026-08-14 capsule.)
+Record everything; unlogged runs do not count as evidence (plan v1.1 §1).
 
 ```bash
 mkdir -p ~/yocto/logs

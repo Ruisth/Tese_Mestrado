@@ -31,6 +31,23 @@ checksum.
 At least one current complete bundle must also be copied off this machine and
 verified there; multiple bundles on one disk are not an independent backup.
 
+**Known bundle gap (2026-08-14).** The newest bundle stops at the PR #19 merge
+(`c6668a8`); the PR #20 merge (`54f8165`) and everything after it are not yet
+covered by any bundle. A fresh complete bundle is created once the truth-sweep
+and proposal pull requests of 2026-08-14 are merged, so that one bundle covers
+them all.
+
+**Branch preservation.** `feat/egw-p0-baseline` is load-bearing: it is the only
+branch containing the tagged G1 build-provenance commit `5770c0a` and the two
+boot-checker fix commits above it (`d0f71f6`, `367c929`) — the driver lineage of
+the preliminary two-boot evidence. The commit ancestry is durably protected by
+the annotated tags under `refs/tags/evidence/**` (deletion and moves blocked by
+the tag ruleset): `evidence/g1-yocto-build-5770c0a` and, added on 2026-08-14,
+`evidence/g1-bringup-driver-367c929` at the branch tip. With both tags in
+place, deleting the branch would lose no objects — but it must still not be
+deleted casually, because the branch name is what the pull-request history and
+this register cite.
+
 ## Exact-tree lineage across the history rewrite
 
 The 2026-08-13 audit established the following old-commit to reachable-commit

@@ -39,10 +39,10 @@ documents. Enforce all of the following, without exception:
 
 - **No quantitative claim without evidence.** No number enters any chapter,
   the Abstract or the Resumo without raw data, manifest, analysis script and
-  a row in `docs/claim_evidence_matrix.md` (plan §6.3). Until the data freeze
+  a row in `docs/claim_evidence_matrix.md` (archived plan v1.0 §6.3, carried forward by plan v1.1 §7). Until the data freeze
   (`data-v1`), every result slot stays as `\todo{pending data-v1}`; the final
   PDF must contain zero `\todo` occurrences.
-- **Forbidden claims** (plan §9.2): Raspberry Pi 5 or any physical-hardware
+- **Forbidden claims** (archived plan v1.0 §9.2; the evidence boundary is now plan v1.1 §3.1): Raspberry Pi 5 or any physical-hardware
   results; SSI, blockchain or credential achievements; security properties
   beyond the implemented TLS/authentication baseline; any performance
   inference from QEMU (QEMU evidence is functional only).

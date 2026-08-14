@@ -92,6 +92,11 @@ Three platform tiers, with a single rule about numbers:
   measurement platform). This ADR bars the
   shortcut; it does not obtain the machine, and no reformulation of the platform
   model can substitute for that acquisition.
-- The plan's cut rule §8.1 applies unchanged: with no VM on 2026-08-12, the risk
-  is formally reported to the supervisors. That is a student action and is
-  recorded in `LOG.md` when it happens.
+- The escalation rule has since been superseded: archived plan v1.0 §8.1
+  required the risk to be reported with no VM on 2026-08-12; plan v1.1 §4
+  replaces it with the university-first procedure — no university host
+  confirmed within 48 hours of the request triggers a price quotation for a
+  non-burstable public ARM64 instance, never above the EUR 30 total ceiling,
+  with AWS `c6g.xlarge` as the default fallback. Both the request and any
+  provisioning are student actions and are recorded in `LOG.md` when they
+  happen.

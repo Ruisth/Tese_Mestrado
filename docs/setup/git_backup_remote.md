@@ -63,7 +63,7 @@ git push -u origin <type>/g<gate>-<short-objective>
 # then open the pull request into dev on GitHub
 ```
 
-Rules (plan §9.2):
+Rules (archived plan v1.0 §9.2; the evidence boundary is now plan v1.1 §3.1):
 - The repo is **private** and stays private until submission decisions say
   otherwise.
 - Secrets never enter Git regardless (`.env`, `passwd`, certs are ignored) —
@@ -77,7 +77,7 @@ Rules (plan §9.2):
 ## 3. Windows <-> WSL2: synchronise through Git, never by copying
 
 The Yocto build MUST run on the WSL2 ext4 filesystem, never on the Windows
-NTFS workspace (plan section 5.1). The WSL side is therefore a **git clone**,
+NTFS workspace (archived plan v1.0 §5.1; the WSL2/ext4 requirement is restated in plan v1.1 §2). The WSL side is therefore a **git clone**,
 not a copy:
 
 ```bash

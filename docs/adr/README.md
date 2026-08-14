@@ -13,7 +13,7 @@ Conventions:
 - Files are numbered `NNNN-short-title.md`; numbers are never reused.
 - Statuses: `Proposed`, `Accepted`, `Deprecated`, `Superseded by NNNN`.
 - New decisions taken during implementation (G1–G4) get new ADRs; ADRs are due
-  with the first version of thesis chapter 4 (plan section 8, week of 24–30/08).
+  with the first version of thesis chapter 4 (plan v1.1 §4, G3 window 24–30 August).
 
 ## Index
 
