@@ -1,6 +1,6 @@
 # Repository provenance and rewritten-history mapping
 
-> **Control record — 2026-08-13.** This document preserves evidence lineage. It
+> **Control record — updated 2026-08-14.** This document preserves evidence lineage. It
 > does not authorise publishing pre-rewrite history and does not itself change
 > any Git reference.
 
@@ -21,10 +21,12 @@ prefer the tag and retain the commit SHA alongside it.
 | `backups/pre-rewrite-20260811-203811.bundle` | 1,129,824 | `d8e1efc3eededf2cead9ec98acb534862a3b533c13c90f03ed0ef7c7e640c1b4` | Pre-rewrite preservation. Do not publish until authorship, secrets and metadata are audited. |
 | `backups/egw-20260813-pre-sync.bundle` | 1,364,594 | `71a20cce98104006aa532818935e558d5e02c259acc64c798900b35cbddc189d` | Complete pre-synchronisation safety bundle. |
 | `backups/egw-20260813-post-implementation.bundle` | 1,633,967 | `45b01350262c8e96c7a547a7a85ac69b94d8167e52d24b392fd2cc69f8f219fb` | Complete post-implementation snapshot through operational-record commit `71f4792`; includes protected G1 evidence tag and draft proposal commit `bc82911`. |
+| `backups/egw-20260814-g1-strict-evidence.bundle` | 1,819,509 | `5b2cf69fcb7bdee7f2e2916bccfc04d852fe8b91077a2d38accd02a96a2bab12` | Complete-history snapshot through strict G1 evidence commit `d4bfa9d`; preserves 12 refs, including `dev`, the draft proposal branch and the protected preliminary G1 tag. |
 
-All six files and hashes were checked in the workspace on 2026-08-13. The
-post-implementation bundle reports a complete history and preserves 22 refs;
-it was created before this inventory row to avoid a self-referential checksum.
+All seven files and hashes were checked in the workspace. The 2026-08-14 bundle
+reports a complete history and preserves 12 refs; it was created after the
+strict evidence commit and before this inventory row to avoid a
+self-referential checksum.
 At least one current complete bundle must also be copied off this machine and
 verified there; multiple bundles on one disk are not an independent backup.
 

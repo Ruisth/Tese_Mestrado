@@ -1,9 +1,15 @@
 # Gate G1 evidence — Yocto build and QEMU boots
 
-Produced 2026-08-11. **Functional validation only.** Everything here supports
-build, boot, systemd, networking and OCI-runtime statements. Nothing here
-supports a performance statement: the plan separates the QEMU platform from the
-measurement platform, and no timing in these files is reportable.
+The files immediately in this directory were produced on 2026-08-11 and are
+the sealed preliminary build/two-boot evidence described below. The later
+clean-checkout build and strict five-boot set are preserved under
+[`2026-08-14-clean-build-f0e19d5/`](2026-08-14-clean-build-f0e19d5/README.md),
+with their own provenance record and checksum scope.
+
+**Functional validation only.** Everything here supports build, boot, systemd,
+networking and OCI-runtime statements. Nothing here supports a performance
+statement: the plan separates the QEMU platform from the measurement platform,
+and no timing in these files is reportable.
 
 ## What was produced
 
@@ -53,13 +59,16 @@ is exercised end to end without any registry access.
 
 - **It does not close gate G1.** Merging or archiving demonstrates
   implementation and verification; accepting a gate is a separate decision
-  recorded in `PROGRESS.md` and in the plan's Annex C.
-- These are the **two bring-up boots** the gate asks for. The campaign's five
-  QEMU boots are a different, later set, produced under the frozen protocol.
+  recorded in `docs/governance/gate_decision_log.md` with a dated decision
+  record. `PROGRESS.md` mirrors the current operational state.
+- These are the historical **two bring-up boots**. A clean build plus five new
+  strict boots was produced on 2026-08-14 and has a separate nested seal. The
+  later `data-v1` experimental identities remain distinct unless a dated
+  protocol decision explicitly admits that set.
 - Nothing here says anything about latency, throughput or resource
   consumption.
 
-## Reproducing
+## Historical reproduction command
 
 ```bash
 cd src/yocto
@@ -69,12 +78,16 @@ python3 scripts/boot_check.py boot2
 ```
 
 Requires WSL2 Ubuntu 24.04 with the build tree on ext4; see
-`docs/setup/wsl2_ubuntu_yocto.md`. The driver exits non-zero if any required
-check fails, so it can be relied on by a caller.
+`docs/setup/wsl2_ubuntu_yocto.md`. The current five-boot acceptance command and
+strict seven-assertion driver are documented in `src/yocto/README.md`. The
+driver exits non-zero if any required check fails, so it can be relied on by a
+caller.
 
 ## Integrity
 
-`SHA256SUMS` covers every file in this directory. Verify with:
+The top-level `SHA256SUMS` covers the immediate 2026-08-11 evidence files. The
+2026-08-14 capsule has its own `SHA256SUMS`; neither seal silently absorbs the
+other. Verify each from its corresponding directory with:
 
 ```bash
 sha256sum -c SHA256SUMS

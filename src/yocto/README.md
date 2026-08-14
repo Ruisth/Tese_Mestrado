@@ -1,9 +1,11 @@
 # src/yocto — EGW-OS (Yocto/kas) for gate G1
 
-Reproducible build of `egw-image`, the C2DTA Edge Gateway operating-system
-image, for the `qemuarm64` machine with Yocto Project 5.0.x "Scarthgap" (LTS)
-and the `kas` build tool. This directory is the platform deliverable of gate
-G1 (plan sections 4.3, 5.1, 8 and 9.1 "Plataforma").
+Versioned, repeatable same-operator build of `egw-image`, the C2DTA Edge
+Gateway operating-system image, for the `qemuarm64` machine with Yocto Project
+5.0.x "Scarthgap" (LTS) and the `kas` build tool. Independent-operator
+reconstruction remains decision D006, so this directory makes no stronger
+reproducibility claim. It is the platform deliverable of gate G1 (plan
+sections 4.3, 5.1, 8 and 9.1 "Plataforma").
 
 > **QEMU is functional-only, never performance.** QEMU runs here validate
 > build, boot, systemd, networking and the OCI runtime — nothing else. No
@@ -115,10 +117,11 @@ cd egw/src/yocto
 # 2. Build (checkout of pinned layers + bitbake, fully logged)
 ./scripts/build.sh
 
-# 3. Run the five strict unattended and recorded boots — path of record
+# 3. Run five strict unattended boots with a fresh identity prefix
+g1_campaign="qemu-g1-$(date -u +%Y%m%dT%H%M%SZ)"
 egw_boot_rc=0
 for run in 01 02 03 04 05; do
-    python3 scripts/boot_check.py "qemu-boot-${run}" || egw_boot_rc=$?
+    python3 scripts/boot_check.py "${g1_campaign}-${run}" || egw_boot_rc=$?
 done
 (exit "$egw_boot_rc")
 ```
@@ -130,15 +133,18 @@ Step 3 is the **current acceptance path of record**. Each run writes
 a caller can rely on its status. The preliminary sealed evidence in
 `docs/evidence/g1-yocto-qemu/` used the same driver for two bring-up boots;
 those historical boots are preserved but do not replace the five-run campaign.
-The accumulator lets every predefined boot identity leave its evidence and
-still returns non-zero after the loop when any one of the five boots failed.
+The 2026-08-14 execution likewise preserves the failed `qemu-boot-01` attempt
+and uses five new `qemu-g1r2-01` to `qemu-g1r2-05` identities after the driver
+fix. Never reuse a prior identity. The accumulator lets every predefined boot
+identity leave its evidence and still returns non-zero after the loop when any
+one of the five boots failed.
 
 `./scripts/run-qemu.sh boot1` remains available as the **interactive
 alternative**: it boots the same image with the console tee'd to a log, and the
 in-guest checks are then typed by hand (exit with Ctrl+A, then x). Use it to
 explore the running image or to diagnose a failure. It is not the path to the
-G1 evidence — a hand-driven session is not reproducible by a reader, which is
-why the sealed boots were driven by `boot_check.py`.
+G1 evidence — a hand-driven session is not independently repeatable by a
+reader, which is why the sealed boots were driven by `boot_check.py`.
 
 Both paths validate build, boot, systemd, networking and the OCI runtime only.
 Neither produces a number that may appear in the thesis.
@@ -157,32 +163,38 @@ reuse the shared sstate cache and are much faster.
 
 ## Gate G1 acceptance checklist (plan v1.1, 13–18 August)
 
-Evidence rule: unlogged runs do not count. Every item below must be backed by
-a recorded log copied into the evidence area and referenced from the
-claim->evidence matrix. All evidence items were produced on 2026-08-11 and are
-sealed in [`docs/evidence/g1-yocto-qemu/`](../../docs/evidence/g1-yocto-qemu/)
-(`SHA256SUMS` verifies from a clean clone). The image was built from the tree
-at commit `5770c0a`; both boots were driven by `scripts/boot_check.py` at
-commit `32f6604`.
+Evidence rule: unlogged runs do not count. Every item below must be backed by a
+recorded log copied into the evidence area and referenced from the
+claim->evidence matrix. There are two immutable scopes:
+
+- the [2026-08-11 preliminary seal](../../docs/evidence/g1-yocto-qemu/README.md)
+  records the build at `5770c0a` and two bring-up boots driven at `32f6604`;
+- the [2026-08-14 strict seal](../../docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/README.md)
+  records the clean-checkout build at `f0e19d5`, the preserved failed
+  instrumentation attempt and five fresh passes driven at `9fe38ff`.
+
+Each scope has its own `SHA256SUMS`, and both verify from a clean clone.
 
 **Evidence — produced and sealed:**
 
-- [x] `egw-image` builds cleanly from the pinned manifest — 5715 BitBake tasks,
-      all successful; rootfs 382 MiB, kernel 23 MiB, 639 packages
-      (`kas-checkout.log`, `kas-build.log`, `image-packages.manifest`).
-- [x] The image boots **twice** in QEMU, both driven unattended by
-      `scripts/boot_check.py`, each with 6 of 6 required assertions passed,
-      3 of 3 supplementary observations recorded and a clean power-down
-      confirmed (`boot1.log`, `boot1.result.json`, `boot2.log`,
-      `boot2.result.json`).
+- [x] A new checkout, layer tree and build directory at `f0e19d5` completed all
+      5,715 BitBake tasks successfully. External downloads/sstate were shared
+      by design; 2,261 tasks did not need rerun, so this is not described as a
+      cold-cache build. The rootfs and kernel SHA-256 values, 639-package
+      manifest and full logs are in the strict seal.
+- [x] Five fresh QEMU boots (`qemu-g1r2-01` to `qemu-g1r2-05`) were driven
+      unattended at `9fe38ff`; each passed 7 of 7 required assertions, recorded
+      2 of 2 supplementary observations, reached the console and powered down
+      cleanly. The preceding `qemu-boot-01` remains an outcome `fail` and is not
+      counted: its guest output was correct, but the old predicate rejected the
+      PTY carriage returns. PR #18 fixed the predicate before the five reruns.
 - [x] Architecture and release are as pinned: the guest reports `aarch64`
       (required assertion `kernel_and_release`).
 - [x] systemd reaches multi-user: `systemctl is-system-running --wait` and the
       target list showing `multi-user.target` active (required assertions
-      `systemd_state` and `systemd_targets`). Both sealed boots reported
-      exactly `running` and an empty failed-unit listing. Current reruns are
-      stricter: `degraded` fails and `failed_units` is a required assertion
-      that accepts only zero failed units.
+      `systemd_state` and `systemd_targets`). All five strict boots reported
+      exactly `running`; `degraded` fails. `failed_units` is a seventh required
+      assertion and accepts only zero failed units.
 - [x] Networking is up: the slirp NIC holds a `10.0.2.x` DHCP lease (required
       assertion `networking`). Host-gateway reachability (`ping -c 3 10.0.2.2`)
       is recorded as a **supplementary observation** and asserts nothing.
@@ -196,20 +208,23 @@ commit `32f6604`.
 
 - [ ] **G1 accepted.** Not ticked. Producing and sealing the evidence above
       demonstrates implementation and verification; accepting the gate is a
-      separate decision, recorded in `PROGRESS.md` and in Annex C of the plan.
-      No gate has been accepted, and none of the 15 claims is accepted: the
-      build evidence moved C01 to partial (a rebuild from an independent clean
-      checkout is pending and belongs to G4) and the boots gave C02 bring-up
-      evidence (the campaign's five `qemu_boots` runs remain).
+      separate decision, recorded in
+      `docs/governance/gate_decision_log.md` with a dated decision record;
+      `PROGRESS.md` mirrors the current operational state.
+      No gate has been accepted, and none of the 15 claims is accepted. C01 now
+      has a same-operator clean-checkout build but remains partial pending D006
+      and formal admission. C02 has the strict five-boot G1 set, but the later
+      predefined `data-v1` identities remain separate unless a dated protocol
+      decision explicitly admits this set.
 
 ## Gate G1 cut rule (plan v1.1)
 
-The preliminary image and two bring-up boots avoid an undemonstrated-platform
-fallback, but they do not accept G1. By 18 August, either archive a clean
-identified build plus five passing strict boots, or record the failure and
-reduce `egw-image` to the minimal system plus OCI runtime. Any reduction must
-preserve the failed evidence and pass through the normal review/CI path; it
-must not weaken the strict systemd, failed-unit or container assertions.
+The clean identified build and five passing strict boots were produced and
+sealed on 2026-08-14, inside the 18 August window. The absence-of-evidence cut
+condition therefore did not trigger. G1 nevertheless remains in progress until
+the formal decision is recorded; D006 is separate. Any future failure or scope
+reduction must preserve its evidence and pass through the normal review/CI path
+without weakening the strict systemd, failed-unit or container assertions.
 
 ## Raspberry Pi 5 overlay (documented-only)
 
