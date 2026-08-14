@@ -675,3 +675,119 @@ required assertions passed and three supplementary observations recorded
   2026-08-12 (student actions); obtain a dedicated ARM64 instance (approved
   quota or the AWS `c6g.xlarge` fallback); run the campaign's five QEMU boots
   under the frozen protocol; record the formal gate G1 decision.
+
+## Entry #C012 — Plan v1.1 implementation and strict G1 campaign
+
+**Date:** 2026-08-14 (Europe/Lisbon; execution crossed midnight from
+2026-08-13)
+
+**Scope:** governance/provenance controls, technical integrity blockers,
+factual academic corrections, clean-checkout Yocto build and five strict QEMU
+boots
+
+**State decision:** G1 remains **In progress**; **0 of 15 claims accepted**
+
+The restructuring was implemented through normal pull requests against `dev`:
+PR #12 versioned plan v1.1, provenance and technical CI; PR #13 corrected the
+evidence-integrity blockers; PR #14 merged only factual academic corrections;
+the supervisor-dependent title/RQ/abstract package remains isolated in draft
+PR #15; PR #16 synchronised the operational records; PR #17 hardened the
+five-boot execution path; and PR #18 corrected the PTY state predicate. All
+merged pull requests passed the required checks and their review threads were
+resolved. The protected historical tag
+`evidence/g1-yocto-build-5770c0a` preserves the exact preliminary build.
+
+### Clean-checkout build
+
+A new ext4 checkout at
+`/home/ruisth/yocto/egw-g1-20260813-f0e19d5` was created at
+`f0e19d5a51b4ade1e0637e6bff135c737996b1ba`; it had no pre-existing layer or
+build directories. `kas checkout` resolved the three pinned layer commits and
+the build completed all 5,715 tasks successfully. The external downloads and
+sstate cache were shared by design: 2,261 tasks did not need to be rerun and
+the sstate match was 55%, so this is a clean-checkout build, **not** a
+cold-cache claim.
+
+The resulting package manifest has 639 entries. The source artefacts were
+hashed twice before sealing:
+
+- rootfs: 2,607,275,008 bytes, SHA-256
+  `6c37fcc10e31702e21ce5d9c73f7cb6aabd4fa512ef50680f8f1434d6a721da0`;
+- kernel: 24,150,528 bytes, SHA-256
+  `4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037`.
+
+### Preserved instrumentation failure and five fresh passes
+
+The first strict attempt, `qemu-boot-01`, reached the console, reported exact
+`STATE=running`, zero failed units, executed the offline container smoke test
+and powered down cleanly. The driver nevertheless returned `fail` because its
+pre-fix predicate rejected the doubled carriage returns emitted by the PTY.
+That result and its raw log are preserved without relabelling or overwrite.
+
+PR #18 changed the state predicate to accept only the stripped exact value
+`STATE=running`, added a regression for the doubled carriage returns and kept
+extra output/degraded state rejected. After the checkout was fast-forwarded to
+the merged driver commit `9fe38ff4ed3c34915f506f1d3b91f3ba56b6df22`, five
+fresh identities (`qemu-g1r2-01` to `qemu-g1r2-05`) were run. Every one:
+
+- passed 7 of 7 required assertions, including exact `systemd=running` and
+  zero failed units;
+- recorded 2 of 2 supplementary observations, with gateway ping remaining an
+  observation rather than a scientific gate;
+- reached the console, completed the local OCI container smoke test and
+  powered down cleanly;
+- produced its own console log and result JSON with no timeout.
+
+The build logs, environment, image metadata, invalid attempt and five counted
+runs are sealed under
+`docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`, independently of
+the preliminary 2026-08-11 seal. PTY carriage returns in the raw console logs
+are preserved as evidence bytes rather than normalised by Git.
+
+### Interpretation and remaining blockers
+
+This execution supplies the technical clean-build/five-boot artefacts requested
+for G1, but producing and sealing evidence is not the formal gate decision.
+C01 remains partial pending the D006 second-operator treatment; C02's strict G1
+set does not silently replace the later predefined `data-v1` identities. No
+QEMU output supports performance or security conclusions.
+
+External state is unchanged: the alignment email and university ARM64 request
+have not been sent, D001–D008 remain `proposed_not_sent`, the native
+non-burstable ARM64 measurement VM and runtime lock do not exist, and no
+off-machine bundle copy is recorded. G2 and all measurement gates therefore
+remain blocked or pending exactly as stated in `PROGRESS.md`.
+
+## Entry #C013 — Post-G1 local provenance bundle
+
+**Date:** 2026-08-14
+
+After evidence commit `d4bfa9d`, the complete-history bundle
+`backups/egw-20260814-g1-strict-evidence.bundle` was created and verified with
+`git bundle verify`. It is 1,819,509 bytes and has SHA-256
+`5b2cf69fcb7bdee7f2e2916bccfc04d852fe8b91077a2d38accd02a96a2bab12`.
+The bundle reports complete history and preserves 12 refs, including the
+strict-evidence branch, `dev`, the draft academic proposal and the protected
+preliminary G1 tag.
+
+This is a local recovery object, not an independent backup. No off-machine
+copy or remote destination has been recorded; risk R25 therefore remains
+mitigating and G1 acceptance remains pending.
+
+## Entry #C014 — PR #19 merge and post-merge recovery bundle
+
+**Date:** 2026-08-14
+
+PR #19 passed the six mandatory checks. A review found one stale claim summary
+in `src/README.md`; commit `6e3dc5b` synchronised it while retaining 701 as the
+last sealed test count, 718 as local-only, 0 of 15 accepted claims and the
+separation between the strict G1 set and later `data-v1` identities. The thread
+was answered and resolved. PR #19 was then merged into `dev` by merge commit
+`c6668a88f02be5d73bac078bd241a04600e8c0b8`, and its work branch was deleted.
+
+After that merge, `backups/egw-20260814-post-g1-merge.bundle` was created and
+verified. It is 1,831,301 bytes, reports complete history with 12 refs and has
+SHA-256
+`35b7808072c2f3cfd82cfd9bfc40ce6769b8931d1301794332ef2e66fbd4abcb`.
+The bundle remains on the same physical machine; the off-machine-copy blocker
+is unchanged.
