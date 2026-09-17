@@ -91,6 +91,11 @@ including `amsbook`, `biblatex`, `montserrat`, `acronym` and `enumitem`.
 The import also needs the table and graphics packages named in
 `latex/word-import-support.tex`. CI installs the documented TeX toolchain
 and builds both documents.
+On Debian/Ubuntu, install `cm-super` explicitly when using
+`--no-install-recommends`: scalable T1 fonts are needed for the template's
+font encoding with microtype expansion. Without them, the CI build failed
+with `auto expansion is only possible with scalable fonts` even though the
+complete local TeX Live installation built successfully.
 
 From `thesis/latex/`:
 

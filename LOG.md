@@ -1077,3 +1077,25 @@ is unchanged.
   source snapshot supersedes earlier draft-completeness descriptions only.
   No gate, research claim or supervisor decision is accepted by the import;
   D001/D004 and the existing evidence requirements remain separate controls.
+
+---
+
+## Entry #C022 — Refresh the project overview and complete the CI font dependency
+
+- **Date:** 2026-09-17
+- **Request:** Update the root README to describe current project state, not
+  the manuscript's format conversion.
+- **Action:** Summarise the implemented components, accepted functional G1,
+  pending native deployment, live validation, pilot, campaign and submission.
+  Distinguish the student-directed integrated-Yocto target and unpublished
+  2026-09-16 working reforecast from the published plan v1.2. Do not import the
+  unrelated local edits, adopt the working plan, approve dates or accept claims.
+- **CI correction:** The first Linux thesis build for PR #27 failed at font
+  expansion while both local builds passed. The minimal Ubuntu package list
+  omitted scalable T1 fonts under `--no-install-recommends`; add `cm-super`
+  explicitly, retaining the manuscript and template unchanged. The package
+  provides the corresponding Type 1 fonts with the original metrics
+  ([upstream description](https://ctan.org/pkg/cm-super)).
+- **Verification boundary:** Check README links and patch whitespace locally;
+  the subsequent GitHub workflow result, not this entry, establishes whether
+  the Linux build succeeds. Existing sealed build records remain unchanged.

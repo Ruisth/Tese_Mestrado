@@ -79,7 +79,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            biber latexmk texlive-bibtex-extra texlive-fonts-extra \
+            biber latexmk cm-super texlive-bibtex-extra texlive-fonts-extra \
             texlive-lang-portuguese texlive-latex-extra texlive-science
       - name: Build dissertation and supervisor draft
         working-directory: thesis/latex
