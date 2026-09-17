@@ -37,6 +37,20 @@
 - Preserve every failed attempt and raw artefact write-once. A repetition
   always receives a new predefined run identity.
 
+## Source-faithful manuscript maintenance
+
+These actions govern the 2026-09-17 Word-source conversion and subsequent
+manuscript work. They do not revise the gate schedule or acceptance rules
+below; current deliverable state remains in
+[`PROGRESS.md`](../../PROGRESS.md).
+
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Preserve the supplied Word manuscript in the canonical LaTeX source and regenerate its Markdown mirror | Source SHA-256, chapter/table/figure/reference inventory, source-fidelity checks and build record in [WORD_IMPORT.md](../../thesis/latex/WORD_IMPORT.md) and [word-import-manifest.json](../../thesis/latex/word-import-manifest.json) | Supplied DOCX and `Template_LaTeX`; reproducible LaTeX/Pandoc toolchain |
+| Keep unprovided chapters and front matter empty until separately authorised content is available | Chapters 3–6 contain headings/empty sections only; no restored old prose, sample text, TODOs or invented completion text | Explicitly supplied or authorised manuscript content; existing evidence-admission rules |
+| Review differences between the imported title/RQs/integrated-Yocto wording and the governance baseline separately | Dated alignment decision; no inference of implementation or supervisor approval from a format conversion | D001 and applicable supervisor decisions; unchanged governance controls |
+| Verify the 33 imported reference strings through the research protocol before academic release | Primary-source checks and research-register updates, distinguishing metadata verification from full-text reading | Access to the cited sources; separately authorised academic revision |
+
 ## G0 — Authority and provenance (13–15 August)
 
 **Cut rule:** obtain the supervisor decisions and initiate the ARM64 host

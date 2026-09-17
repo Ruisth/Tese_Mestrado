@@ -1,0 +1,12 @@
+generated 11 sections in C:\Users\ruimf\AppData\Local\Temp\egw-word-latex-20260917\repo\thesis\sections:
+  01_cover.md
+  02_acknowledgements.md
+  03_abstract.md
+  04_intro.md
+  05_background.md
+  06_architecture.md
+  07_implementation.md
+  08_experiments.md
+  09_results.md
+  10_conclusion.md
+  11_references.md

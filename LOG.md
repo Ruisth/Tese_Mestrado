@@ -1043,3 +1043,37 @@ is unchanged.
 - **Result:** desk work ends here. Next development: the paper-aligned
   smartwatch at 1 Hz on a non-burstable native ARM64 VM → MQTT/TLS →
   controller → Ditto → API (gate G2), once the host exists.
+
+---
+
+## Entry #C021 — Import the supplied Word manuscript into canonical LaTeX
+
+- **Date:** 2026-09-17
+- **Phase:** Source-faithful dissertation format conversion; no governance,
+  experimental or bibliographic-metadata revision.
+- **Source:** `Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx`,
+  SHA-256
+  `c589422a42318cf1635ad895cbe23cd24e2157ed569554a8ab3cd5dcaea25945`.
+- **Action:** Import the supplied Introduction and Theoretical Framework,
+  three tables, one research-process figure and 33 reference strings into
+  `thesis/latex/`, retaining the supplied `Template_LaTeX` formatting base,
+  two covers and logos. Preserve the Word title and known administrative
+  fields; leave unknown supervisor details blank. Leave Chapters 3–6 and
+  unprovided front-matter content empty apart from structural headings.
+  Refresh the generated Markdown mirrors and source documentation.
+- **Bibliography boundary:** Preserve the Word reference strings through
+  Biber/IEEE with a custom verbatim-reference driver; no new metadata audit
+  or correction is asserted. The existing research register is unchanged.
+- **Verification record:** [WORD_IMPORT.md](thesis/latex/WORD_IMPORT.md) and
+  [word-import-manifest.json](thesis/latex/word-import-manifest.json).
+  Local source-fidelity checks, seven projection regression tests, identical
+  Markdown regeneration and both PDF builds passed. The PDFs contain 43 and
+  10 pages respectively, without unresolved citations or overfull boxes;
+  evidence is sealed under `docs/evidence/word-import-2026-09-17/`.
+  Historical page counts and checksums above remain records of earlier
+  drafts; they do not verify the imported manuscript.
+- **Governance boundary:** Integrated-Yocto wording is supplied manuscript
+  content, not adoption or approval of a new plan version. The current
+  source snapshot supersedes earlier draft-completeness descriptions only.
+  No gate, research claim or supervisor decision is accepted by the import;
+  D001/D004 and the existing evidence requirements remain separate controls.

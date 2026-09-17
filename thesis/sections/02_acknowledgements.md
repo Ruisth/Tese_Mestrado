@@ -6,5 +6,3 @@
 # Dedication
 
 # Acknowledgment
-
-«ACKNOWLEDGMENTS — written by the student; include grants, if any»

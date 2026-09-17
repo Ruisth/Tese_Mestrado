@@ -1,130 +1,133 @@
 # Thesis — Dissertation Sources and Research Protocol
 
-Dissertation skeleton for the EGW project (Tema 1, C2DTA), based on the
-ISCTE LaTeX template supplied in the workspace (`../../Template_LaTeX/`);
-whether it is the current official 2026 template is **unconfirmed** and is
-exactly supervisor decision D004 — do not describe it as official until D004
-is recorded. The dissertation body
-is written in English; the Resumo is in Portuguese (integrated plan header; detailed
-rule in archived plan v1.0 §4.3). The normative plan for structure and content is
-[`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) §6.
+The canonical LaTeX manuscript is the 2026-09-17 conversion of the supplied
+`Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx`, using the supplied
+`Template_LaTeX` as its formatting base. This source snapshot supersedes the
+previous dissertation draft; its earlier page counts, word counts and chapter
+completeness statements do not describe the current manuscript.
 
-## Two representations of the same dissertation
+The manuscript title is **Blockchain-powered Personal AI -- Digital Twin Edge
+Gateway**, by Rui Miguel Franco Duarte (student number 94494), for the Master
+in Telecommunications and Computer Engineering. These fields come from the
+Word source. Unknown supervisor details remain blank.
 
-The repository template asks for a Markdown-first `thesis/sections/` tree; the
-institution requires the LaTeX template and that is what is submitted. Both
-exist here, with one rule that keeps them from drifting:
+## Source boundary and provenance
+
+The import preserves the supplied Word prose: Introduction and Theoretical
+Framework, three tables (the abbreviations table and two Chapter 2 tables),
+one research-process figure and 33 reference strings. Chapters 3–6 retain
+headings and, where present, empty structural sections only. Front-matter
+sections without supplied content remain empty. No previous-draft prose,
+sample text, TODO markers or invented completion text fills those gaps.
+
+The source DOCX SHA-256 is
+`c589422a42318cf1635ad895cbe23cd24e2157ed569554a8ab3cd5dcaea25945`.
+See [the import record](latex/WORD_IMPORT.md) and the
+[machine-readable source manifest](latex/word-import-manifest.json) for
+provenance, scope and verification evidence.
+
+The supplied template's `amsbook` class, 12 pt type, two-sided layout, A4
+paper, 25 mm margins, Montserrat cover font, one-and-a-half line spacing,
+two covers and institutional logos are retained. Use of this supplied
+template does **not** establish that it is the current official 2026
+template; that remains supervisor decision D004.
+
+This is a format conversion, not a scientific or bibliographic revision.
+In particular, integrated-Yocto wording comes from the supplied Word source;
+its inclusion neither adopts a new governance-plan version nor demonstrates
+implementation or supervisor approval. The repository's
+[governance plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
+decision records and claim states are unchanged. Any difference between the
+source manuscript and those controls needs a separate, authorised alignment
+decision. No gate or claim is accepted by this import.
+
+## Canonical source and generated mirror
 
 | Tree | Role |
 |---|---|
-| `latex/` | **The single edited source.** Everything is written here. |
-| `sections/` | **Generated mirror.** Overwritten on every generation run. |
+| `latex/` | Canonical editable dissertation source. |
+| `sections/` | Generated Markdown mirror; never edit by hand. |
 
-```bash
-python thesis/tools/generate_sections.py     # requires pandoc
+```sh
+python thesis/tools/generate_sections.py
 ```
 
-Every generated file carries a `GENERATED FILE - DO NOT EDIT` banner naming its
-source. The section-by-section mapping, and the three places where the
-dissertation's six chapters do not line up with the template's eleven sections,
-are documented in `manifest.yaml`.
+The generator requires Pandoc. Regenerate the mirror whenever LaTeX changes,
+in the same commit. Each generated file identifies its source in a
+`GENERATED FILE - DO NOT EDIT` banner. The mapping is recorded in
+[manifest.yaml](manifest.yaml); empty manuscript sections must remain empty
+in the mirror as well.
 
-Regenerate the mirror whenever the LaTeX changes, in the same commit — a stale
-mirror is worse than no mirror, because it looks current.
+## Layout and current content
 
-## Layout
-
-```
+```text
 thesis/
 ├─ latex/
-│  ├─ main.tex               # ISCTE template adapted; \input of the six chapters
-│  ├─ imagens/               # iscte.png, ista.png (copied from Template_LaTeX)
+│  ├─ main.tex                   # supplied template with imported content
+│  ├─ abbreviations.tex         # Word abbreviations table
+│  ├─ word-import-support.tex   # formatting and verbatim-reference support
+│  ├─ WORD_IMPORT.md            # import scope and verification record
+│  ├─ word-import-manifest.json # source identity and inventory
+│  ├─ imagens/                 # supplied logos and extracted research figure
+│  ├─ ch2_supervisor_draft.tex  # derivative of the current Chapter 2
 │  └─ chapters/
-│     ├─ 01_introduction.tex
-│     ├─ 02_background.tex
-│     ├─ 03_methodology.tex
-│     ├─ 04_architecture.tex
-│     ├─ 05_evaluation.tex   # empty result slots marked \todo{pending data-v1}
-│     └─ 06_conclusions.tex
+│     ├─ 01_introduction.tex    # Word Introduction
+│     ├─ 02_background.tex      # Word Theoretical Framework
+│     ├─ 03_methodology.tex     # heading only
+│     ├─ 04_architecture.tex    # headings only
+│     ├─ 05_evaluation.tex      # heading only
+│     └─ 06_conclusions.tex     # heading only
 ├─ refs/
-│  └─ references.bib         # VERIFIED entries only ("% verified <date> via <source>")
-├─ research/
-│  ├─ literature_review_protocol.md   # structured scoping/narrative review protocol
-│  ├─ search_log.csv                  # one row per executed query
-│  └─ study_selection.csv             # one row per candidate record
-└─ README.md
+│  └─ references.bib           # 33 reference strings preserved from Word
+├─ research/                  # existing research records, not re-audited
+├─ sections/                  # generated Markdown mirror
+└─ manifest.yaml
 ```
 
 ## How to compile
 
-Requires a standard TeX Live installation (2022 or later, `scheme-full`
-recommended: the template uses `amsbook`, `biblatex` with the `biber`
-backend, `montserrat`, `acronym`, `enumitem`, `booktabs`, `xcolor` — all
-present in TeX Live full).
+Use TeX Live with `latexmk`, Biber and the supplied template's packages,
+including `amsbook`, `biblatex`, `montserrat`, `acronym` and `enumitem`.
+The import also needs the table and graphics packages named in
+`latex/word-import-support.tex`. CI installs the documented TeX toolchain
+and builds both documents.
 
-Preferred (from `thesis/latex/`):
-
-```sh
-latexmk -pdf main.tex
-```
-
-Manual sequence:
+From `thesis/latex/`:
 
 ```sh
-pdflatex main
-biber main
-pdflatex main
-pdflatex main
+latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+latexmk -pdf -interaction=nonstopmode -halt-on-error ch2_supervisor_draft.tex
 ```
 
-The bibliography is loaded from `../refs/references.bib` (relative to
-`thesis/latex/`), so compile from inside `thesis/latex/`.
+The manual main-document sequence is `pdflatex main`, `biber main`, then
+`pdflatex main` twice. The bibliography path is `../refs/references.bib`,
+relative to `thesis/latex/`. Build outcomes belong in the import record;
+the commands above are instructions, not a claim that a build passed.
 
-## Hard rules (normative)
+## Bibliography and evidence boundaries
 
-1. **No number without evidence.** No quantitative result enters any chapter
-   without raw data, a manifest, the analysis script, and a row in
-   [`../docs/claim_evidence_matrix.md`](../docs/claim_evidence_matrix.md)
-   (archived plan v1.0 §6.3, carried forward by plan v1.1 §7). Chapter 5's result slots are `\todo{pending data-v1}` markers
-   and are filled only after the data freeze (`data-v1`, gate G5), exclusively
-   from `experiments/results/raw/` via the single analysis pipeline.
-2. **Zero `\todo` at submission.** `main.tex` defines
-   `\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}`; the final PDF must
-   contain no `\todo` occurrence (grep the sources before release).
-3. **Forbidden claims** (archived plan v1.0 §9.2; the evidence boundary is now plan v1.1 §3.1): no invented numbers; no Raspberry Pi 5 /
-   physical-hardware results; no SSI, blockchain or security achievements
-   beyond the implemented TLS/authentication baseline; no absolute
-   "no studies exist" statements (bound them to the review protocol).
-4. **Verbatim RQs.** RQ1–RQ3 wording is **proposed, not fixed**: plan v1.1
-   §3.2 keeps the public framing open until supervisor decision D001 is
-   recorded. Chapter 1 keeps its current wording unchanged until the single
-   post-D001 integration change; whichever wording is normative is quoted
-   verbatim from the plan
-   and must not drift.
-5. **Bibliography.** Only verified entries (each with a
-   `% verified <date> via <source>` comment). The compass file is a leads
-   list, never a citation source. Target: >= 30 verified sources by gate G6
-   (2026-09-18) via `research/literature_review_protocol.md`.
-6. **Placeholders.** `«STUDENT NAME»`-style front-matter fields are
-   administrative placeholders; fill them manually, never with invented data.
+The template retains IEEE `biblatex` with Biber. For this source-faithful
+import, each Word reference is stored as an `@misc` entry's `note`, with a
+custom driver preserving the supplied bibliographic string. This is a
+documented import exception to the earlier structured, verified-entry
+convention: no new metadata verification or correction is asserted.
+The 33 imported strings must not be confused with the separate historical
+research register or its earlier verification counts.
 
-## Chapter-to-plan mapping (archived plan v1.0 §6.1; word targets are indicative only)
+Future academic revisions must preserve the project's evidence discipline:
 
-| File | Chapter | Mandatory content (archived plan v1.0 §6.1) | Indicative target |
-|---|---|---|---:|
-| `chapters/01_introduction.tex` | 1 — Introduction | Problem, motivation, gap, RQs (verbatim §4.2), objectives, contributions-as-designed, delimitation | 2,500–3,000 words |
-| `chapters/02_background.tex` | 2 — Background and Related Work | Edge, digital twins, IoT/wearables, Yocto, containers, MQTT, WoT; SSI as context only | 6,000–7,000 |
-| `chapters/03_methodology.tex` | 3 — Research Methodology | DSR with build–evaluate cycle, review protocol, requirements, RQ→method→metric matrix (§4.2 + §7.2), experimental protocol (§7) | 4,000–5,000 |
-| `chapters/04_architecture.tex` | 4 — Architecture and Implementation | Real implemented design only, mirroring `../src/CONTRACTS.md`; interfaces, EGW-OS, stack, simulator, security, reproducibility | 5,000–6,000 |
-| `chapters/05_evaluation.tex` | 5 — Evaluation and Discussion | Measurement methodology now; results only after `data-v1`; RQ answers; threats to validity | 5,000–6,000 |
-| `chapters/06_conclusions.tex` | 6 — Conclusions and Future Work | Contributions demonstrated (evidence-backed only), limitations, future work | 1,500–2,000 |
+1. No quantitative project result without admitted raw data, a manifest,
+   reproducible analysis and a corresponding
+   [claim-evidence record](../docs/claim_evidence_matrix.md).
+2. No invented implementation, physical-hardware, SSI, blockchain or security
+   achievement. Word-source wording is not proof of an achievement.
+3. Keep unprovided sections empty until separately authorised content exists;
+   do not restore former draft prose merely to complete the structure.
+4. Do not infer supervisor approval of the title, RQs, template or manuscript
+   from the conversion. Decisions D001 and D004 remain separate controls.
+5. Complete reference verification and remaining manuscript review before
+   academic release; never silently correct the source during an import.
 
-The global 25,000–30,000-word target is indicative and subordinate to the
-official rules and to evidence quality (archived plan v1.0 §6.1).
-
-## Research protocol
-
-The literature study is a **structured scoping/narrative review — not an
-SLR**. Protocol, search strings, criteria, deduplication, snowballing,
-verification rule and the CSV logging specification:
-[`research/literature_review_protocol.md`](research/literature_review_protocol.md).
+The existing [literature-review protocol](research/literature_review_protocol.md)
+and research logs remain separate records. Their methods, searches and
+screening outcomes are not changed by this conversion.
