@@ -90,6 +90,24 @@ def pandoc_bin() -> str:
 
 def neutralise(tex: str) -> str:
     """Replace project-specific macros pandoc cannot know about."""
+    # Preserve literal separators from imported reference titles. Pandoc's
+    # LaTeX reader otherwise drops this text symbol when writing Markdown.
+    tex = tex.replace(r"\textbar{}", "|")
+    # Sources compile from latex/, but generated pages live in sections/.
+    tex = tex.replace(r"{imagens/", r"{../latex/imagens/")
+    # A continued longtable header is a pagination aid, not a second data row.
+    tex = re.sub(r"\\endfirsthead.*?\\endhead", r"\\endhead", tex, flags=re.S)
+    # Pandoc cannot evaluate TeX dimension arithmetic in p-column definitions
+    # and can consume numeric cell prefixes (e.g. '64-bit'). Widths belong to
+    # PDF layout; the Markdown projection needs only the column count.
+    def plain_columns(match: re.Match[str]) -> str:
+        count = match[0].count(r">{\RaggedRight\arraybackslash}p{")
+        return r"\begin{longtable}{" + "l" * count + "}" if count else match[0]
+
+    tex = re.sub(r"(?m)^\\begin\{longtable\}\{[^\n]*\}$", plain_columns, tex)
+    # The imported source uses stable numbered reference keys. GFM otherwise
+    # drops unsupported citation nodes rather than preserving their markers.
+    tex = re.sub(r"\\cite\{word(\d+)\}", lambda match: "[" + str(int(match[1])) + "]", tex)
     # \ac{TERM} / \acs / \acl -> TERM (acronym expansion lives in the PDF only)
     tex = re.sub(r"\\ac[sl]?\{([^}]*)\}", r"\1", tex)
     # \todo{...} -> a visible marker, so pending work stays pending in the mirror
@@ -157,6 +175,13 @@ def bib_entries(bib: Path) -> str:
             return re.sub(r"\s+", " ", m.group(1)).strip(" {}") if m else ""
 
         bits = [b for b in (field("author"), field("title"), field("year")) if b]
+        # A source-document import may preserve the complete formatted reference
+        # in a note instead of guessing structured bibliographic metadata.
+        # Match the outer note braces, including nested emphasis/link commands.
+        if not bits:
+            note = re.search(r"\bnote\s*=\s*\{(.*)\},?\s*$", body, re.S)
+            if note:
+                bits = [convert(note.group(1), pandoc_bin()).strip()]
         doi = field("doi")
         line = f"- **`{key}`** ({kind}) — " + ". ".join(bits)
         if doi:
@@ -180,12 +205,18 @@ def main() -> None:
     # --- front matter -----------------------------------------------------
     title = re.search(r"\\newcommand\{\\thesistitle\}\{([^}]*)\}", main_tex)
     cover = "# " + (title.group(1) if title else "Dissertation") + "\n\n"
-    cover += (
-        "Cover metadata (author, student number, supervisors, institution and\n"
-        "date) is held in `thesis/latex/main.tex` and rendered by the\n"
-        "institutional template. Administrative placeholders there are filled\n"
-        "in by the student, not by tooling.\n"
-    )
+    for pattern in (
+        r"\\textit\{([^{}]*)\}\\\\",
+        r"\\textit\{(Student number: [^{}]*)\}",
+        r"(?m)^(Master in [^\n\\]+)\\\\",
+        r"(?m)^(Lisbon, [^\n]+)$",
+    ):
+        value = re.search(pattern, main_tex)
+        if value:
+            cover += value[1] + "\n\n"
+    abbreviations = LATEX / "abbreviations.tex"
+    if abbreviations.is_file():
+        cover += "\n# List of Acronyms\n\n" + convert(read("abbreviations.tex"), pandoc)
     emit("01_cover", "latex/main.tex (title block)", cover)
 
     ack = extract_env(main_tex, r"\begin{dedication}", r"\end{dedication}")

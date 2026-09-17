@@ -1,0 +1,11 @@
+
+% Typesetting support for the Word source's tables and preserved references.
+\usepackage{booktabs,longtable,array,ragged2e}
+\newcounter{none}
+\usepackage{xurl}
+\usepackage{microtype}
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\ExecuteBibliographyOptions{sorting=none}
+\DeclareFieldFormat[misc]{note}{#1}
+\DeclareBibliographyDriver{misc}{\printfield{note}\finentry}
+\setlength{\emergencystretch}{2em}

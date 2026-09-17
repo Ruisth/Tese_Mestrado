@@ -1,356 +1,135 @@
-% =============================================================================
-% references.bib — VERIFIED core bibliography for the EGW dissertation.
-%
-% RULES (plan §6.2, review protocol thesis/research/literature_review_protocol.md):
-% - Every entry carries a "% verified <date> via <source>" comment. Do not add
-%   entries without completing verification against the primary record.
-% - The compass leads file (compass_artifact_*.md) is a LEADS list only; its
-%   metadata is unreliable and must never be bulk-imported.
-% - Target: >= 30 verified sources by gate G6 (18/09/2026); growth happens via
-%   the review protocol, never by padding.
-% Encoding: ASCII-safe LaTeX accents used throughout.
-% =============================================================================
+% References transcribed from the supplied Word document on 2026-09-17.
 
-% --- Core project / prior work -----------------------------------------------
+% Editorial and bibliographic corrections are a separate task.
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1016/j.bcra.2025.100342):
-% title, authors, journal, vol. 7, no. 3, art. 100342, June 2026 issue, Elsevier.
-% Note: the project plan refers to this as "Pinto et al. 2025" (online-first
-% year in the DOI); the version of record is assigned to the June 2026 issue.
-@article{pinto2026c2dta,
-  author  = {Pinto, Filipe and Ferreira da Silva, Catarina and Moro, Sergio and Aquino, Pedro},
-  title   = {Consumer-controlled digital twin architecture: {How} blockchain technology gives consumers control over their smart devices' digital twins and data},
-  journal = {Blockchain: Research and Applications},
-  year    = {2026},
-  volume  = {7},
-  number  = {3},
-  pages   = {100342},
-  doi     = {10.1016/j.bcra.2025.100342},
-  note    = {Article 100342. Available online 2025}
+@misc{word01,
+  note = {M. Satyanarayanan, ``The Emergence of Edge Computing,'' \emph{Computer (Long. Beach. Calif).}, vol. 50, no. 1, pp. 30--39, Jan. 2017, doi: 10.1109/MC.2017.9.},
 }
 
-% --- Methodology -------------------------------------------------------------
-
-% verified 2026-08-07 via Crossref API (doi.org/10.2307/25148625): MIS Quarterly,
-% vol. 28, no. 1, 2004. Crossref registers pages 75-106; the range 75-105 also
-% appears in common citations. AISEL record (aisel.aisnet.org/misq/vol28/iss1/6)
-% confirms vol. 28, iss. 1, 2004.
-@article{hevner2004design,
-  author  = {Hevner, Alan R. and March, Salvatore T. and Park, Jinsoo and Ram, Sudha},
-  title   = {Design Science in Information Systems Research},
-  journal = {MIS Quarterly},
-  year    = {2004},
-  volume  = {28},
-  number  = {1},
-  pages   = {75--106},
-  doi     = {10.2307/25148625}
+@misc{word02,
+  note = {W. Shi, J. Cao, Q. Zhang, Y. Li, and L. Xu, ``Edge Computing: Vision and Challenges,'' \emph{IEEE Internet Things J.}, vol. 3, no. 5, pp. 637--646, Oct. 2016, doi: 10.1109/JIOT.2016.2579198.},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.2753/MIS0742-1222240302):
-% JMIS, vol. 24, no. 3, pp. 45-77, 2007.
-@article{peffers2007design,
-  author  = {Peffers, Ken and Tuunanen, Tuure and Rothenberger, Marcus A. and Chatterjee, Samir},
-  title   = {A Design Science Research Methodology for Information Systems Research},
-  journal = {Journal of Management Information Systems},
-  year    = {2007},
-  volume  = {24},
-  number  = {3},
-  pages   = {45--77},
-  doi     = {10.2753/MIS0742-1222240302}
+@misc{word03,
+  note = {S. Seneviratne \emph{et al.}, ``A Survey of Wearable Devices and Challenges,'' \emph{IEEE Communications Surveys \& Tutorials}, vol. 19, no. 4, pp. 2573--2620, 2017, doi: 10.1109/COMST.2017.2731979.},
 }
 
-% --- Standards and official documentation ------------------------------------
-
-% verified 2026-08-07 via w3.org/TR/wot-thing-description11/: W3C Recommendation,
-% 05 December 2023; canonical URL w3.org/TR/2023/REC-wot-thing-description11-20231205/.
-@online{w3c2023wottd,
-  author   = {{World Wide Web Consortium (W3C)}},
-  title    = {Web of Things ({WoT}) Thing Description 1.1},
-  year     = {2023},
-  url      = {https://www.w3.org/TR/wot-thing-description11/},
-  urldate  = {2026-08-07},
-  note     = {W3C Recommendation, 5 December 2023}
+@misc{word04,
+  note = {R. Minerva, G. M. Lee, and N. Crespi, ``Digital Twin in the IoT Context: A Survey on Technical Features, Scenarios, and Architectural Models,'' \emph{Proceedings of the IEEE}, vol. 108, no. 10, pp. 1785--1824, Oct. 2020, doi: 10.1109/JPROC.2020.2998530.},
 }
 
-% verified 2026-08-07 via docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html:
-% OASIS Standard, 07 March 2019; editors Banks, Briggs, Borgendale, Gupta.
-@online{oasis2019mqtt,
-  author   = {{OASIS}},
-  title    = {{MQTT} Version 5.0},
-  year     = {2019},
-  url      = {https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html},
-  urldate  = {2026-08-07},
-  note     = {OASIS Standard, 7 March 2019. Edited by A. Banks, E. Briggs, K. Borgendale and R. Gupta}
+@misc{word05,
+  note = {A. Fuller, Z. Fan, C. Day, and C. Barlow, ``Digital Twin: Enabling Technologies, Challenges and Open Research,'' \emph{IEEE Access}, vol. 8, pp. 108952--108971, 2020, doi: 10.1109/ACCESS.2020.2998358.},
 }
 
-% verified 2026-08-07 via eclipse.dev/ditto/release_notes_394.html: release
-% notes for Eclipse Ditto 3.9.4, released 16.07.2026 (bugfix release of the
-% 3.9 line used in this project).
-@online{eclipse2026ditto,
-  author   = {{Eclipse Foundation}},
-  title    = {Eclipse Ditto: open source framework for digital twins in the {IoT}},
-  year     = {2026},
-  url      = {https://eclipse.dev/ditto/},
-  urldate  = {2026-08-07},
-  note     = {Project documentation; release notes for version 3.9.4 (16 July 2026) under the same site}
+@misc{word06,
+  note = {F. Pinto, C. Ferreira da Silva, S. Moro, and P. Aquino, ``Consumer-controlled digital twin architecture: How blockchain technology gives consumers control over their smart devices' digital twins and data,'' \emph{Blockchain: Research and Applications}, vol. 7, no. 3, p. 100342, Jun. 2026, doi: 10.1016/j.bcra.2025.100342.},
 }
 
-% verified 2026-08-07 via docs.yoctoproject.org/scarthgap/ (5.0 documentation)
-% and wiki.yoctoproject.org/wiki/Releases: "Scarthgap | 5.0 | April 2024 |
-% ... | Long Term Support (until April 2028)".
-@online{yocto2024scarthgap,
-  author   = {{Yocto Project}},
-  title    = {Yocto Project Documentation ({Scarthgap}, 5.0 {LTS})},
-  year     = {2024},
-  url      = {https://docs.yoctoproject.org/scarthgap/},
-  urldate  = {2026-08-07},
-  note     = {Scarthgap 5.0 released April 2024; Long-Term Support until April 2028}
+@misc{word07,
+  note = {K. Peffers, T. Tuunanen, M. A. Rothenberger, and S. Chatterjee, ``A Design Science Research Methodology for Information Systems Research,'' \emph{Journal of Management Information Systems}, vol. 24, no. 3, pp. 45--77, Dec. 2007, doi: 10.2753/MIS0742-1222240302.},
 }
 
-% verified 2026-08-08 via buildroot.org and buildroot.org/downloads/manual/manual.html:
-% "The Buildroot user manual", manual generated 2026-06-08 for Buildroot 2026.05;
-% self-description: "Buildroot is a simple, efficient and easy-to-use tool to
-% generate embedded Linux systems through cross-compilation."
-@online{buildroot2026manual,
-  author   = {{The Buildroot developers}},
-  title    = {The {Buildroot} User Manual},
-  year     = {2026},
-  url      = {https://buildroot.org/downloads/manual/manual.html},
-  urldate  = {2026-08-08},
-  note     = {Official project documentation, Buildroot 2026.05}
+@misc{word08,
+  note = {R. Dobrescu, S. Mocanu, O. Chenaru, M. Nicolae, and G. Florea, ``Versatile edge gateway for improving manufacturing supply chain management via collaborative networks,'' \emph{Int. J. Comput. Integr. Manuf.}, vol. 34, no. 4, pp. 407--421, Apr. 2021, doi: 10.1080/0951192X.2021.1879401.},
 }
 
-% verified 2026-08-08 via learn.microsoft.com/en-us/azure/digital-twins/overview:
-% "What is Azure Digital Twins?" -- PaaS offering, twin graphs, models defined
-% in DTDL, cloud-hosted; page dated 2025-01-27, retrieved 2026-08-08.
-% GREY LITERATURE: vendor documentation; engineering context only, no
-% scientific claims (protocol criterion E3 exception, marked).
-@online{microsoft2026azuredt,
-  author   = {{Microsoft Corporation}},
-  title    = {What is {Azure Digital Twins}?},
-  year     = {2025},
-  url      = {https://learn.microsoft.com/en-us/azure/digital-twins/overview},
-  urldate  = {2026-08-08},
-  note     = {Azure Digital Twins documentation overview. Vendor documentation (grey literature); used for engineering context only}
+@misc{word09,
+  note = {L. F. A. da Silva, P. R. da Silva Amalfi Costa, and C. Schepke, ``Performance and Resilience Evaluation of a Hybrid Edge--Cloud IoT System Across Connected, Offline, and Reconnection Scenarios,'' \emph{Lecture Notes in Computer Science}, pp. 651--668, 2027, doi: 10.1007/978-3-032-30488-9\_40.},
 }
 
-% --- Edge computing and digital twins ----------------------------------------
-
-% verified 2026-08-08 via Crossref API (doi.org/10.1109/MC.2017.9):
-% Computer, vol. 50, no. 1, pp. 30-39, 2017; single author M. Satyanarayanan.
-@article{satyanarayanan2017emergence,
-  author  = {Satyanarayanan, Mahadev},
-  title   = {The Emergence of Edge Computing},
-  journal = {Computer},
-  year    = {2017},
-  volume  = {50},
-  number  = {1},
-  pages   = {30--39},
-  doi     = {10.1109/MC.2017.9}
+@misc{word10,
+  note = {Eclipse Foundation, ``Eclipse Ditto: open source framework for digital twins in the IoT,'' 2026. {[}Online{]}. Available: \url{https://eclipse.dev/ditto/}},
 }
 
-% verified 2026-08-08 via Crossref API (doi.org/10.1007/978-3-319-38756-7_4):
-% chapter in "Transdisciplinary Perspectives on Complex Systems", Springer
-% International Publishing, pp. 85-113; online 2016, print edition 2017.
-@incollection{grieves2017digital,
-  author    = {Grieves, Michael and Vickers, John},
-  title     = {Digital Twin: Mitigating Unpredictable, Undesirable Emergent Behavior in Complex Systems},
-  booktitle = {Transdisciplinary Perspectives on Complex Systems},
-  publisher = {Springer International Publishing},
-  year      = {2017},
-  pages     = {85--113},
-  doi       = {10.1007/978-3-319-38756-7_4}
+@misc{word11,
+  note = {Yocto Project, ``Yocto Project Documentation (Scarthgap, 5.0 LTS),'' 2024. {[}Online{]}. Available: \url{https://docs.yoctoproject.org/scarthgap/}},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1109/JIOT.2016.2579198):
-% IEEE IoT-J, vol. 3, no. 5, pp. 637-646, 2016.
-@article{shi2016edge,
-  author  = {Shi, Weisong and Cao, Jie and Zhang, Quan and Li, Youhuizi and Xu, Lanyu},
-  title   = {Edge Computing: Vision and Challenges},
-  journal = {IEEE Internet of Things Journal},
-  year    = {2016},
-  volume  = {3},
-  number  = {5},
-  pages   = {637--646},
-  doi     = {10.1109/JIOT.2016.2579198}
+@misc{word12,
+  note = {M. Ozcelikors and A. Gumuskavak, ``Platform-independent Infotainment and Digital Cluster Development using Yocto Project,'' in \emph{2020 International Conference on Electrical, Communication, and Computer Engineering (ICECCE)}, IEEE, Jun. 2020, pp. 1--5. doi: 10.1109/ICECCE49384.2020.9179288.},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1109/ACCESS.2020.2998358):
-% IEEE Access, vol. 8, pp. 108952-108971, 2020.
-@article{fuller2020digital,
-  author  = {Fuller, Aidan and Fan, Zhong and Day, Charles and Barlow, Chris},
-  title   = {Digital Twin: Enabling Technologies, Challenges and Open Research},
-  journal = {IEEE Access},
-  year    = {2020},
-  volume  = {8},
-  pages   = {108952--108971},
-  doi     = {10.1109/ACCESS.2020.2998358}
+@misc{word13,
+  note = {A. Biswas, D. Biswas, S. S. Chauhan, and A. Borwankar, ``Smart home equipment control system with raspberry Pi and Yocto,'' \emph{Proceedings of the World Conference on Smart Trends in Systems, Security and Sustainability, WS4 2020}, pp. 553--558, Jul. 2020, doi: 10.1109/WORLDS450073.2020.9210376.},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1109/JPROC.2020.2998530):
-% Proceedings of the IEEE, vol. 108, no. 10, pp. 1785-1824, 2020.
-@article{minerva2020digital,
-  author  = {Minerva, Roberto and Lee, Gyu Myoung and Crespi, Noel},
-  title   = {Digital Twin in the {IoT} Context: {A} Survey on Technical Features, Scenarios, and Architectural Models},
-  journal = {Proceedings of the IEEE},
-  year    = {2020},
-  volume  = {108},
-  number  = {10},
-  pages   = {1785--1824},
-  doi     = {10.1109/JPROC.2020.2998530}
+@misc{word14,
+  note = {J. Malka, S. Zacchiroli, and T. Zimmermann, ``Does Functional Package Management Enable Reproducible Builds at Scale? Yes.,'' \emph{Proceedings - 2025 IEEE/ACM 22nd International Conference on Mining Software Repositories, MSR 2025}, pp. 775--787, 2025, doi: 10.1109/MSR66628.2025.00115.},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1145/3573206): ACM TIOT,
-% vol. 4, no. 1, pp. 1-32, February 2023.
-@article{picone2023flexible,
-  author  = {Picone, Marco and Mamei, Marco and Zambonelli, Franco},
-  title   = {A Flexible and Modular Architecture for Edge Digital Twin: Implementation and Evaluation},
-  journal = {ACM Transactions on Internet of Things},
-  year    = {2023},
-  volume  = {4},
-  number  = {1},
-  pages   = {1--32},
-  doi     = {10.1145/3573206}
+@misc{word15,
+  note = {S. Kaiser, M. S. Haq, A. S. Tosun, and T. Korkmaz, ``Container Technologies for ARM Architecture: A Comprehensive Survey of the State-of-the-Art,'' \emph{IEEE Access}, vol. 10, pp. 84853--84881, 2022, doi: 10.1109/ACCESS.2022.3197151.},
 }
 
-% verified 2026-08-08 via Crossref API (doi.org/10.1016/j.softx.2021.100661):
-% SoftwareX, vol. 13, art. 100661, 2021; authors Picone, Mamei, Zambonelli.
-@article{picone2021wldt,
-  author  = {Picone, Marco and Mamei, Marco and Zambonelli, Franco},
-  title   = {{WLDT}: {A} general purpose library to build {IoT} digital twins},
-  journal = {SoftwareX},
-  year    = {2021},
-  volume  = {13},
-  pages   = {100661},
-  doi     = {10.1016/j.softx.2021.100661},
-  note    = {Article 100661}
+@misc{word16,
+  note = {S. Kaiser, A. S. Tosun, and T. Korkmaz, ``Benchmarking Container Technologies on ARM-Based Edge Devices,'' \emph{IEEE Access}, vol. 11, pp. 107331--107347, 2023, doi: 10.1109/ACCESS.2023.3321274.},
 }
 
-% verified 2026-08-08 via Crossref API (doi.org/10.1016/j.compind.2023.104007):
-% Computers in Industry, vol. 152, art. 104007, November 2023; authors Robles,
-% Martin, Diaz. NOTE: this is the peer-reviewed version of record superseding
-% the arXiv preprint 2301.05560 (different title); resolves the OpenTwins
-% metadata problem flagged by the plan (section 6.2) and the review protocol.
-@article{robles2023opentwins,
-  author  = {Robles, Julia and Mart{\'i}n, Cristian and D{\'i}az, Manuel},
-  title   = {{OpenTwins}: {An} open-source framework for the development of next-gen compositional digital twins},
-  journal = {Computers in Industry},
-  year    = {2023},
-  volume  = {152},
-  pages   = {104007},
-  doi     = {10.1016/j.compind.2023.104007},
-  note    = {Article 104007}
+@misc{word17,
+  note = {OASIS, ``MQTT Version 5.0,'' 2019. {[}Online{]}. Available: \url{https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html}},
 }
 
-% verified 2026-08-08 via Crossref API (doi.org/10.3390/fi18030137): Future
-% Internet, vol. 18, no. 3, art. 137, published 6 March 2026; authors Neagu,
-% Serban, Hangan, Sebestyen (the compass leads file lacked the author list;
-% completed from the Crossref record).
-@article{neagu2026odt,
-  author  = {Neagu, Madalin and Serban, Codruta Maria and Hangan, Anca and Sebestyen, Gheorghe},
-  title   = {Digital Twins at the Edge: {A} High-Availability Framework for Resilient Data Processing in {IoT} Sensor Networks},
-  journal = {Future Internet},
-  year    = {2026},
-  volume  = {18},
-  number  = {3},
-  pages   = {137},
-  doi     = {10.3390/fi18030137},
-  note    = {Article 137}
+@misc{word18,
+  note = {M. Lagally and M. McCool, ``IoT Interoperability with W3C Web of Things,'' \emph{Proceedings - IEEE Consumer Communications and Networking Conference, CCNC}, 2022, doi: 10.1109/CCNC49033.2022.9700546.},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1145/3444692): ACM Computing
-% Surveys, vol. 54, no. 3, pp. 1-33, 2021.
-@article{varghese2021survey,
-  author  = {Varghese, Blesson and Wang, Nan and Bermbach, David and Hong, Cheol-Ho and De Lara, Eyal and Shi, Weisong and Stewart, Christopher},
-  title   = {A Survey on Edge Performance Benchmarking},
-  journal = {ACM Computing Surveys},
-  year    = {2021},
-  volume  = {54},
-  number  = {3},
-  pages   = {1--33},
-  doi     = {10.1145/3444692}
+@misc{word19,
+  note = {A. Candelieri, W. Zhang, E. Messina, and F. Archetti, ``Automated Rehabilitation Exercises Assessment in Wearable Sensor Data Streams,'' \emph{Proceedings - 2018 IEEE International Conference on Big Data, Big Data 2018}, pp. 5302--5304, Jul. 2018, doi: 10.1109/BIGDATA.2018.8621958.},
 }
 
-% --- Containers and virtualisation at the edge -------------------------------
-
-% verified 2026-08-07 via Crossref API (doi.org/10.1109/ISPASS.2015.7095802):
-% 2015 IEEE ISPASS, pp. 171-172.
-@inproceedings{felter2015updated,
-  author    = {Felter, Wes and Ferreira, Alexandre and Rajamony, Ram and Rubio, Juan},
-  title     = {An updated performance comparison of virtual machines and {Linux} containers},
-  booktitle = {2015 IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)},
-  year      = {2015},
-  pages     = {171--172},
-  doi       = {10.1109/ISPASS.2015.7095802}
+@misc{word20,
+  note = {J. Wang, H. Fang, S. Carreiro, H. Wang, and E. Boyer, ``A new mining method to detect real time substance use events from wearable biosensor data stream,'' \emph{2017 International Conference on Computing, Networking and Communications, ICNC 2017}, pp. 465--470, Mar. 2017, doi: 10.1109/ICCNC.2017.7876173.},
 }
 
-% verified 2026-08-07 via Crossref API (doi.org/10.1109/ACCESS.2017.2704444):
-% IEEE Access, vol. 5, pp. 8835-8850, 2017; single author Roberto Morabito.
-% Plan §6.2 flags this entry as frequently mis-cited; metadata above matches
-% the Crossref record exactly.
-@article{morabito2017virtualization,
-  author  = {Morabito, Roberto},
-  title   = {Virtualization on {Internet of Things} Edge Devices With Container Technologies: {A} Performance Evaluation},
-  journal = {IEEE Access},
-  year    = {2017},
-  volume  = {5},
-  pages   = {8835--8850},
-  doi     = {10.1109/ACCESS.2017.2704444}
+@misc{word21,
+  note = {J. Rumbut, H. Fang, E. W. Boyer, and H. Wang, ``Short: Precision Polysubstance Use Episode Detection in Wearable Biosensor Data Streams,'' \emph{Proceedings - 2023 IEEE/ACM International Conference on Connected Health: Applications, Systems and Engineering Technologies, CHASE 2023}, pp. 163--167, 2023, doi: 10.1145/3580252.3586989.},
 }
 
-% verified 2026-08-08 via Crossref API (doi.org/10.1145/3616480.3616485):
-% Proceedings of the 2023 5th International Electronics Communication
-% Conference (IECC 2023), pp. 27-37 (the compass leads file wrongly listed
-% pp. 17-29; corrected from the Crossref record); authors Gamess, Parajuli.
-@inproceedings{gamess2023docker,
-  author    = {Gamess, Eric and Parajuli, Mausam},
-  title     = {Performance Evaluation of the {Docker} Technology on Different {Raspberry Pi} Models},
-  booktitle = {Proceedings of the 2023 5th International Electronics Communication Conference (IECC 2023)},
-  publisher = {ACM},
-  year      = {2023},
-  pages     = {27--37},
-  doi       = {10.1145/3616480.3616485}
+@misc{word22,
+  note = {Vasileios Tsoutsouras, Sotirios Xydis, and Dimitrios Soudris, ``A HW/SW framework emulating wearable devices for remote wound monitoring and management \textbar{} IEEE Conference Publication \textbar{} IEEE Xplore,'' \emph{2014 4th International Conference on Wireless Mobile Communication and Healthcare - Transforming Healthcare Through Innovations in Mobile and Wireless Technologies (MOBIHEALTH)}, Nov. 2014, doi: 10.4108/Mobihealth33544.2014.7015988.},
 }
 
-% --- Wearable devices and workloads -------------------------------------------
-
-% verified 2026-08-08 via Crossref API (doi.org/10.1109/COMST.2017.2731979):
-% IEEE Communications Surveys & Tutorials, vol. 19, no. 4, pp. 2573-2620, 2017.
-@article{seneviratne2017wearables,
-  author  = {Seneviratne, Suranga and Hu, Yining and Nguyen, Tham and Lan, Guohao and Khalifa, Sara and Thilakarathna, Kanchana and Hassan, Mahbub and Seneviratne, Aruna},
-  title   = {A Survey of Wearable Devices and Challenges},
-  journal = {IEEE Communications Surveys \& Tutorials},
-  year    = {2017},
-  volume  = {19},
-  number  = {4},
-  pages   = {2573--2620},
-  doi     = {10.1109/COMST.2017.2731979}
+@misc{word23,
+  note = {World Wide Web Consortium (W3C), ``Decentralized Identifiers (DIDs) v1.0,'' 2022. {[}Online{]}. Available: \url{https://www.w3.org/TR/did-core/}},
 }
 
-% verified 2026-08-08 via Crossref API (doi.org/10.1145/3339825.3394926):
-% Proceedings of the 11th ACM Multimedia Systems Conference (MMSys '20),
-% pp. 231-236, 2020; 26 authors, first author Thambawita ("and others" used).
-@inproceedings{thambawita2020pmdata,
-  author    = {Thambawita, Vajira and Hicks, Steven Alexander and Borgli, Hanna and Stensland, H{\aa}kon Kvale and others},
-  title     = {{PMData}: a sports logging dataset},
-  booktitle = {Proceedings of the 11th ACM Multimedia Systems Conference (MMSys '20)},
-  publisher = {ACM},
-  year      = {2020},
-  pages     = {231--236},
-  doi       = {10.1145/3339825.3394926}
+@misc{word24,
+  note = {World Wide Web Consortium (W3C), ``Verifiable Credentials Data Model v2.0,'' 2025. {[}Online{]}. Available: \url{https://www.w3.org/TR/vc-data-model-2.0/}},
 }
 
-% --- MQTT / messaging --------------------------------------------------------
+@misc{word25,
+  note = {Decentralized Identity Foundation (DIF), ``DIDComm Messaging Specification v2.1,'' 2023. {[}Online{]}. Available: \url{https://identity.foundation/didcomm-messaging/spec/v2.1/}},
+}
 
-% verified 2026-08-07 via Crossref API bibliographic query ("A Comparison of
-% MQTT Brokers for Distributed IoT Edge Computing"): LNCS (Software
-% Architecture / ECSA 2020), pp. 352-368, doi 10.1007/978-3-030-58923-3_23.
-@inproceedings{koziolek2020mqtt,
-  author    = {Koziolek, Heiko and Gr{\"u}ner, Sten and R{\"u}ckert, Julius},
-  title     = {A Comparison of {MQTT} Brokers for Distributed {IoT} Edge Computing},
-  booktitle = {Software Architecture (ECSA 2020), Lecture Notes in Computer Science},
-  publisher = {Springer},
-  year      = {2020},
-  pages     = {352--368},
-  doi       = {10.1007/978-3-030-58923-3_23}
+@misc{word26,
+  note = {B. Varghese \emph{et al.}, ``A Survey on Edge Performance Benchmarking,'' \emph{ACM Comput. Surv.}, vol. 54, no. 3, pp. 1--33, Apr. 2022, doi: 10.1145/3444692.},
+}
+
+@misc{word27,
+  note = {O. Naman, H. Qadi, M. Karsten, and S. Al-Kiswany, ``MECBench: A Framework for Benchmarking Multi-Access Edge Computing Platforms,'' \emph{Proceedings - IEEE International Conference on Edge Computing}, vol. 2023-July, pp. 85--95, 2023, doi: 10.1109/EDGE60047.2023.00024.},
+}
+
+@misc{word28,
+  note = {M. V. S. Silva, C. A. Astudillo, and L. F. Bittencourt, ``Federated Urban Flow: A Model-Centric Benchmark for Reproducible Evaluation of Deep Learning in Federated Traffic Forecasting,'' \emph{2025 3rd International Conference on Federated Learning Technologies and Applications, FLTA 2025}, pp. 499--505, 2025, doi: 10.1109/FLTA67013.2025.11336506.},
+}
+
+@misc{word29,
+  note = {A. Garcia-Perez, R. Miñón, A. I. Torre-Bastida, J. Diaz-de-Arcaya, and E. Zulueta-Guerrero, ``Conceptualising a Benchmarking Platform for Embedded Devices,'' in \emph{2024 9th International Conference on Smart and Sustainable Technologies (SpliTech)}, IEEE, Jun. 2024, pp. 1--4. doi: 10.23919/SpliTech61897.2024.10612407.},
+}
+
+@misc{word30,
+  note = {J. Robles, C. Martín, and M. Díaz, ``OpenTwins: An open-source framework for the development of next-gen compositional digital twins,'' \emph{Comput. Ind.}, vol. 152, p. 104007, Nov. 2023, doi: 10.1016/j.compind.2023.104007.},
+}
+
+@misc{word31,
+  note = {T. H. Ko, H. M. Lee, D. H. Noh, C. Juhwan, and S. W. Byun, ``Design and Implementation of a Digital Twin Platform in Vertical Farming Systems,'' \emph{International Conference on Ubiquitous and Future Networks, ICUFN}, vol. 2022-July, pp. 366--368, 2022, doi: 10.1109/ICUFN55119.2022.9829694.},
+}
+
+@misc{word32,
+  note = {M. Picone, M. Mamei, and F. Zambonelli, ``A Flexible and Modular Architecture for Edge Digital Twin: Implementation and Evaluation,'' \emph{ACM Transactions on Internet of Things}, vol. 4, no. 1, pp. 1--32, Feb. 2023, doi: 10.1145/3573206.},
+}
+
+@misc{word33,
+  note = {M. Neagu, C. M. Serban, A. Hangan, and G. Sebestyen, ``Digital Twins at the Edge: A High-Availability Framework for Resilient Data Processing in IoT Sensor Networks,'' \emph{Future Internet}, vol. 18, no. 3, p. 137, Mar. 2026, doi: 10.3390/fi18030137.},
 }

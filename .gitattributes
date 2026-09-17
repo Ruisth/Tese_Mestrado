@@ -21,3 +21,7 @@
 # or reject those immutable bytes.
 docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/* whitespace=-blank-at-eol,-blank-at-eof
 docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/qemu-*.log -text
+
+# Preserve compiler output bytes in the Word import verification capsule.
+docs/evidence/word-import-2026-09-17/*.log -text whitespace=-blank-at-eol,-blank-at-eof
+docs/evidence/word-import-2026-09-17/*.blg -text whitespace=-blank-at-eol,-blank-at-eof

@@ -1,22 +1,29 @@
-title: "A Reproducible Yocto-Based ARM64 Edge Gateway for Digital Twins of Wearable Devices"
-authors: ["Rui Duarte"]
+title: "Blockchain-powered Personal AI -- Digital Twin Edge Gateway"
+authors: ["Rui Miguel Franco Duarte"]
+student_number: "94494"
 institution: "Iscte, Instituto Universitário de Lisboa (ISCTE-IUL)"
-degree: "MSc dissertation"
-style: "ISCTE-IUL institutional template"
-figs_dir: figs
+degree: "Master in Telecommunications and Computer Engineering"
+style: "Supplied Template_LaTeX; official 2026 status unconfirmed (D004)"
+figs_dir: latex/imagens
 bibfile: refs/references.bib
 
-# HOW THIS DIRECTORY WORKS
-#
-# The dissertation is authored in LaTeX (thesis/latex/) because the institution
-# requires its template and the LaTeX build is what gets submitted. The
-# Markdown files listed under `order` are a GENERATED MIRROR of that source,
-# produced by `python thesis/tools/generate_sections.py` (requires pandoc).
-#
-# Edit LaTeX. Never edit sections/*.md - they are overwritten on every run.
+# LaTeX is the canonical editable manuscript. Markdown is a generated mirror.
+# The supplied Word content is imported without scientific or metadata revision.
 source_of_truth: latex/main.tex
 generated_by: tools/generate_sections.py
 generated_are_read_only: true
+word_import:
+  date: "2026-09-17"
+  source_filename: "Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx"
+  source_sha256: "c589422a42318cf1635ad895cbe23cd24e2157ed569554a8ab3cd5dcaea25945"
+  provenance: latex/WORD_IMPORT.md
+  inventory: latex/word-import-manifest.json
+  supplied_chapters: 2
+  supplied_tables: 3
+  supplied_figures: 1
+  supplied_references: 33
+  bibliography_policy: "Preserve verbatim reference strings; no metadata audit asserted."
+  governance_effect: "None; no plan amendment, supervisor approval, gate or claim acceptance."
 
 order:
   - sections/01_cover.md
@@ -31,28 +38,33 @@ order:
   - sections/10_conclusion.md
   - sections/11_references.md
 
-# The repository template expects 11 sections; the plan's chapter structure has
-# six chapters plus front matter. This is the explicit mapping.
+# Six chapter slots and front matter map onto eleven repository mirror slots.
+# Chapters 3–6 contain structural headings only in this source snapshot.
 mapping:
-  sections/01_cover.md: latex/main.tex (title block)
-  sections/02_acknowledgements.md: latex/main.tex (dedication + acknowledgment)
-  sections/03_abstract.md: latex/main.tex (Resumo + Abstract)
+  sections/01_cover.md: latex/main.tex and latex/abbreviations.tex (Word cover metadata and abbreviations)
+  sections/02_acknowledgements.md: latex/main.tex (empty dedication and acknowledgment)
+  sections/03_abstract.md: latex/main.tex (empty Resumo and Abstract)
   sections/04_intro.md: latex/chapters/01_introduction.tex
   sections/05_background.md: latex/chapters/02_background.tex
-  sections/06_architecture.md: latex/chapters/04_architecture.tex (Overview, Normative Interfaces, Twin Model, Security Considerations)
-  sections/07_implementation.md: latex/chapters/04_architecture.tex (Platform Layer, Service Layer, Ingestion Controller, Simulator, Reproducibility and Evidence Structure)
-  sections/08_experiments.md: latex/chapters/03_methodology.tex
-  sections/09_results.md: latex/chapters/05_evaluation.tex
-  sections/10_conclusion.md: latex/chapters/06_conclusions.tex
+  sections/06_architecture.md: latex/chapters/04_architecture.tex (empty design sections)
+  sections/07_implementation.md: latex/chapters/04_architecture.tex (empty implementation sections)
+  sections/08_experiments.md: latex/chapters/03_methodology.tex (heading only)
+  sections/09_results.md: latex/chapters/05_evaluation.tex (heading only)
+  sections/10_conclusion.md: latex/chapters/06_conclusions.tex (heading only)
   sections/11_references.md: refs/references.bib
 
 deviations:
-  - "Chapter 4 of the dissertation covers architecture AND implementation in one chapter, as the plan's chapter structure requires; the mirror splits it by section to fill the two slots the repository template expects."
-  - "The template has no methodology slot. Chapter 3 (Design Science Research framing, review protocol, requirements, experimental protocol, metrics and validity rules) is mirrored into 08_experiments.md in full."
-  - "Figures are produced by the LaTeX build and by the analysis pipeline; figs/ holds the exported copies referenced from the mirror, not the originals."
+  - "The Word manuscript supplies Introduction and Theoretical Framework only; the other chapter slots retain empty structure, not former draft prose."
+  - "Chapter 4 retains the existing architecture/implementation section mapping, with both generated mirror slots empty apart from headings."
+  - "The repository template has no methodology slot; the empty Chapter 3 heading maps to 08_experiments.md."
+  - "The research-process PNG is extracted from the supplied Word source; the institutional logos come from the supplied LaTeX template."
+  - "IEEE biblatex and Biber use a custom driver for verbatim Word reference strings stored in @misc note fields, without a new bibliographic metadata audit."
 
 constraints:
-  - "No quantitative result enters any section without raw data, the command that produced it and a path to reproduce it (plan section 6.3)."
-  - "Absence-of-related-work statements are bounded to the corpus actually examined; the institutional database queries are not yet executed."
-  - "Cite peer-reviewed records verified against their primary source."
-  - "Body language is English; the Resumo is in Portuguese, as the template requires."
+  - "Preserve the supplied Word prose, tables, figure and references; no additional scientific content is authorised by the conversion."
+  - "Keep sections without supplied Word content empty; no TODOs, sample text or completion placeholders."
+  - "Retain the supplied template class, layout, typography, two covers and logos; do not infer official-template approval."
+  - "No quantitative project result is admitted without evidence and a claim-evidence record."
+  - "Imported title, research questions and integrated-Yocto wording do not amend governance controls or demonstrate implementation."
+  - "The bibliography preserves source strings; verification is a separate research action."
+  - "Body language is English; any later Portuguese Resumo must follow institutional requirements."

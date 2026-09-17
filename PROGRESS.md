@@ -7,9 +7,21 @@
 > the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
-Updated: 2026-08-14 (**PRs #12–#25 are all merged**, #15
+Updated: 2026-09-17 for the dissertation source import only. The supplied
+Word manuscript is now the source of the canonical LaTeX draft: Chapters 1–2,
+three tables, one research-process figure and 33 preserved reference strings.
+Chapters 3–6 and unprovided front matter contain empty structure only. This
+snapshot supersedes the older draft's page/word counts and completeness
+statements; it does not change the governance plan, record supervisor
+approval or accept a gate or claim. Integrated-Yocto wording is imported
+source content, not evidence that a plan amendment has been adopted. See
+[the import record](thesis/latex/WORD_IMPORT.md) and
+[source inventory](thesis/latex/word-import-manifest.json) for the source
+identity and current verification evidence.
+
+Previous governance and technical baseline: 2026-08-14 (**PRs #12–#25 are all merged**, #15
 included: the two-layer proposal package publishes as PROPOSED documents with
-no normative effect and the LaTeX integration stays blocked on D001; a
+no normative effect and academic alignment remains subject to D001; a
 clean-checkout image build plus five strict QEMU boots is sealed under
 `docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`; **gate G1 was
 formally accepted on 2026-08-14** in
@@ -77,7 +89,7 @@ for most claims and gates.
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **installed, exercised and captured**: WSL2 with Ubuntu 24.04.4 LTS is operational, with the build directory on ext4, and produced both Yocto evidence sets. The 2026-08-14 capsule records the kernel, OS, kas/Python/Git versions, filesystem type, capacity and the separate build/driver commits in `environment.txt` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap) | G0 — Pending | M2 |
 | ARM64 VM (measurement platform) | no | no — no university request/reply, public quotation, provisioned host or environment capture is recorded. Earlier Oracle/Hetzner/Azure attempts did not yield a non-burstable host. Plan v1.2 requires the university request first and a price check after 48 hours; AWS `c6g.xlarge` is the default fallback, subject to the EUR 30 ceiling | G0 — **Blocked: native non-burstable ARM64 host absent** | M0 |
 | G0 alignment email with Chapter 2 and D001–D010 | yes (draft in PR #15) | no — not sent; no `sent_at` or supervisor response is recorded | G0 — Blocked (sending is a student action; follow-up 2026-08-18 and meeting request 2026-08-20 if unanswered) | M1 |
-| Quarantine of results without evidence in the dissertation | yes | static — ch. 5 with 16 `\todo{pending data-v1}` and zero numbers; no Pi/SSI claims | G0 — Pending | M1 |
+| Exclusion of unsupported result content from unprovided dissertation sections | yes | source boundary — Chapters 3–6 contain headings/empty sections only in the 2026-09-17 Word import; former result placeholders and draft conclusions are not imported. This supersedes the old Chapter 5 TODO count, not the evidence-admission rules | G0 — Pending | M1 |
 
 ### Blocks G1–G7 — development brought forward without the ARM64 measurement VM
 
@@ -93,9 +105,9 @@ ARM64 measurement VM.
 | WoT TD 1.1 Thing Descriptions | yes | unit — `tests/test_things.py` cross-checks TD↔schema; real integration not demonstrated | G2–G3 — Pending | M2 |
 | Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); PR #13 rejects resource samples from a different UTC window, enforces at least 90% coverage and the protocol gap cap per container, makes simulator run directories write-once, propagates QEMU pipeline failures and makes `systemd=running` plus zero failed units strict boot assertions. After the PR #17 campaign-path regression and PR #18 PTY regression, the current evidence branch passed `718` tests locally on 2026-08-14; this is **not** a new test-evidence seal, so the canonical sealed figure remains 701. Live proof and the ARM64 runtime lock remain pending the VM | G4 — Pending (the harness sits outside G1's accepted functional scope) | M2 |
 | `experiments/results/` evidence structure | yes | static — `raw/processed/figures` directories created; zero data (experimental evidence M0) | G5 — Pending | M1 |
-| Dissertation (skeleton + substantive ch. 2) | yes | static — latexmk compiles: 57 pp., 0 unresolved references; ch. 2 with 4,361 body words (texcount, 2026-08-14; plus 88 heading and 60 caption words); premature claims removed from chs. 1/3/4/6 and from Table 2.1 (block P2); chs. 3/5/6 remain a skeleton | G6 — Pending | M1–M2 |
-| Review sources (`thesis/research/study_selection.csv`) | yes | static — 25 sources recorded, with verified metadata (Crossref/W3C/OASIS/official pages). **Reading depth: 7 assessed in full text (S001, S004–S009) and 18 by title/abstract only** (`stage=title_abstract`, provisional inclusion for the supervisor draft; the full-text pass is still to be run). "Verified" refers to the source metadata, never to the full reading; the institutional queries remain pending (student action, risk R17) | G6 — Pending | M1 |
-| Standalone PDF of ch. 2 for the supervisor | yes | static — PR #14 rebuilt `thesis/latex/ch2_supervisor_draft.pdf`: 16 pp., neutral title pending D001, author `Rui Duarte`, no unresolved references/citations or layout overflow; all pages inspected. SHA-256 `dbb3e2d956775e3ea6cea738b8114b8fa2f7713ff0cadaaee73cf1032b09eb39` | not a gate item — sending is a student action (no gate closes on this) | M2 |
+| Dissertation (Word-source Chapters 1–2 with empty remaining sections) | yes | local document verification — source fidelity passed for 56 text blocks, 117 table cells, 33 references and the figure; seven projection tests passed; Markdown regeneration is identical; the supplied-template PDF compiles to 43 pages, including empty structure and front matter, with no unresolved citations or overfull boxes. Evidence: [WORD_IMPORT.md](thesis/latex/WORD_IMPORT.md). Previous draft counts are historical; this is not bibliographic validation or a complete dissertation | G6 — Pending | M2 (document verification only) |
+| Review sources (`thesis/research/study_selection.csv`) | yes | historical research register — 25 sources recorded, with verified metadata (Crossref/W3C/OASIS/official pages). **Reading depth: 7 assessed in full text (S001, S004–S009) and 18 by title/abstract only** (`stage=title_abstract`, provisional inclusion for the previous supervisor draft; the full-text pass is still to be run). This register is unchanged and is not a verification record for the 33 Word-imported reference strings. No fresh metadata audit is claimed; institutional queries remain pending (student action, risk R17) | G6 — Pending | M1 |
+| Standalone Chapter 2 review derivative | yes | local document verification — current source follows the imported Chapter 2 and compiles to 10 pages with no unresolved citations or overfull boxes. Evidence: [WORD_IMPORT.md](thesis/latex/WORD_IMPORT.md). The PR #14 16-page PDF and its former checksum describe the historical draft only. Source conversion is not evidence that a document was sent | not a gate item — sending is a student action (no gate closes on this) | M2 (document verification only) |
 | Unit test suite | yes | unit — **sealed evidence: `701 passed`** over clean HEAD `4e67717` in `docs/evidence/tests/2026-08-11-head-4e67717/`, with JUnit, stdout, environment, interpreter, `pip freeze`, `pip check`, pytest version, SHA-256 of the lock file and `SHA256SUMS`. Current sealed figure: `701`. Earlier sealings are kept for traceability and are **historical only** (`683`, `618`, `593`, `515`), each tied to the commit it tested and never the current figure. **Zero live/`integration` tests exist** — creating them is a prerequisite for G3 | G3 — Pending | M2 |
 | Post-audit harness corrections (event fetch, 2 environments, collector on the VM, measured window, conditions C10–C14, queue growth, normalised CPU) | yes | unit — tests included in the current sealed suite of 701 (they were first sealed in the historical run of `593`); campaign plan with 95 runs; acceptance requires completeness (by identity against the plan when the plan is supplied to the analysis) and evidence — including evidence of real recovery in C12; real execution pending the VM | G3–G4 — Pending | M2 |
 
