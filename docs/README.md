@@ -55,6 +55,7 @@ only) and every other gate as Not decided.
 |---|---|
 | [`setup/wsl2_ubuntu_yocto.md`](setup/wsl2_ubuntu_yocto.md) | WSL2 + Ubuntu 24.04 + Yocto Scarthgap + kas + QEMU, and the evidence for G1 |
 | [`setup/vm_arm64_hetzner.md`](setup/vm_arm64_hetzner.md) | ARM64 measurement-VM checklist, environment manifest, Docker, hardening and teardown. **Provider not yet secured**: the file keeps its Hetzner filename but is now provider-neutral, since Hetzner has no ARM capacity — see R28 in [`g0/risks.md`](g0/risks.md) and [`adr/0007-three-tier-platform-model.md`](adr/0007-three-tier-platform-model.md) |
+| [`setup/qemu_integrated_gateway.md`](setup/qemu_integrated_gateway.md) | Runbook for the integrated QEMU/TCG gateway profile (Yocto ARM64 guest emulated on the x86-64 host, six containers inside the guest). Sections 1 to 3.4 (build and boot) were executed once on 2026-09-18 with every acceptance check passing; the evidence is not sealed. **Nothing from Section 3.5 onwards has been run**, and Sections 4-9 also need later deployment changes. Rationale and package audit: [`reviews/2026-09-17-egw-image-audit.md`](reviews/2026-09-17-egw-image-audit.md) |
 | [`setup/git_backup_remote.md`](setup/git_backup_remote.md) | Git backup and the private remote (risks R25/RA13) |
 
 ## Architecture decisions
