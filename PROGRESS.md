@@ -19,6 +19,10 @@ source content, not evidence that a plan amendment has been adopted. See
 [source inventory](thesis/latex/word-import-manifest.json) for the source
 identity and current verification evidence.
 
+Updated: 2026-09-18 for the plan v2.0 proposal section below and two
+governance rows only; no state field, gate, claim or supervisor decision
+changes.
+
 Previous governance and technical baseline: 2026-08-14 (**PRs #12–#25 are all merged**, #15
 included: the two-layer proposal package publishes as PROPOSED documents with
 no normative effect and academic alignment remains subject to D001; a
@@ -39,6 +43,40 @@ claim admission remain separate — the gate decision admitted no claim. The rem
 evidence**. **Gate G1 is the only accepted gate** (2026-08-14, functional
 platform layer only — accepting the gate validated no claim); G0 and G2–G7
 remain undecided.
+
+## Proposed scope and forecast — plan v2.0 proposal (2026-09-16, published for review 2026-09-18)
+
+The student has instructed that the final benchmarked system must boot the
+Yocto-built Linux image and run the gateway services inside it.
+[Plan v2.0](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) and
+[ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md) — *Proposed —
+pending supervisor agreement (accepted by the student for technical planning
+only)* — propose to replace the previous final deployment on a separate Ubuntu
+service host. They are published for review.
+[Plan v1.2](docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md)
+remains the plan in force until the student decides after consulting the
+supervisors. Nothing has been sent to the supervisors (D001–D014 are all
+`proposed_not_sent`) and nothing is approved by them. The sections below retain
+their dates, scope and evidence.
+
+| Item under the proposal | Implemented / verified state | Next evidence required |
+|---|---|---|
+| Original G1 Yocto/QEMU platform | Existing build and five strict boots; original G1 acceptance preserved | No relabelling as a native integrated gateway |
+| Integrated QEMU/TCG profile (ARM64 emulated on the x86-64 WSL2 workstation) | Ordered first by the project review once no native ARM64 virtual machine could be obtained on 2026-09-17. In draft pull request #28 (not on `dev`) the integrated image was built (commit `03e333e`) and booted twice under QEMU/TCG (commit `3209b17`) on 2026-09-18 with every build and boot acceptance check passing. The same day an isolated MongoDB 7.0.39 test passed on that guest (start, write/read, restart, persistence across a guest power cycle); it is recorded in the separate draft pull request #29, branch `evidence/integrated-qemu-2026-09-18` (commit `f03c92c`, not on `dev`), which proposes to seal the build, boot and MongoDB records, and not in pull request #28. The six-container stack has **not** been deployed; nothing has been measured; candidate evidence, none of it sealed on `dev`; sealing would not be acceptance | Six containers deployed inside the guest; functional path simulator -> MQTT/TLS -> controller -> Ditto -> API; correctness, fault handling, recovery and persistence. Functional and integration evidence only, never native ARM64 performance evidence (plan v2.0, section 10) |
+| New native Yocto VM target (G1B) | Not implemented or boot-verified; AWS custom AMI route documented as candidate. The student confirmed on 2026-09-16 that no ARM64 VM and no benchmarks existed; no provider allocation is assumed. On 2026-09-17 no native ARM64 virtual machine could be obtained (cloud attempts failed); the native route is the step after the emulated profile | Platform-specific image, native boot, image identity, network/storage/reboot. Every latency, throughput, saturation and resource result depends on it |
+| Services on Yocto (G2) | Controller/simulator/Compose code exists; no integrated live trace | Actual Mosquitto/controller/Ditto/MongoDB execution in the Yocto guest |
+| Experimental pipeline | Tools and historical unit checks exist; no valid integrated pilot or campaign | Guest-bound provenance, runtime verification, pilot and frozen protocol |
+| Dissertation | Chapters 1–2 imported from the supplied Word manuscript on 2026-09-17; Chapters 3–6 are empty structure (see the update note above) | Revised RQs/architecture if the proposal is adopted, evidence-based results, full review and final format |
+| Supervisor agreement | Not requested: the alignment email, the revised memo and D001–D014 are unsent | Replies recorded in the decision log: D011 (integrated title/RQs), D012 (platform access and budget), D013 (review window), D014 (re-scoping RQ3 or the evaluation to emulated functional evidence if no native ARM64 host is obtained in time, and any academic use of emulated results) |
+| Effort and dates (proposal) | Estimated 225-345 active hours remaining; 8 h/day reported | Internal completion 2026-10-20 (272 h available from 2026-09-17); extension 2026-11-03 reported by the student (384 h); neither is a confirmed administrative deadline |
+
+Read-only inspection of the existing WSL build on 2026-09-16 found kernel 6.6.142
+with EFI, cgroups/overlayfs/virtio support, but ACPI, NVMe and ENA disabled; the
+installed manifest lacks Compose, while a Compose V2 recipe is available. These
+checks identify adaptation work, not a new runtime success. No gate or claim is
+accepted by this proposal or by the emulated results. The proposed target
+milestones and reforecast triggers are in plan v2.0, sections 6-7; they were
+written on 2026-09-16 and have not been reforecast.
 
 ## State model — three independent fields (audit §5.1)
 
@@ -82,9 +120,9 @@ for most claims and gates.
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
 | Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#25 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten inventoried bundles verify, plus one **unversioned post-PR-#25 handover bundle** (`egw-20260814-post-pr25-merge.bundle`, SHA-256 `53014902…`, complete history to the PR #25 merge `2dafae1`) — the current handover artefact, deliberately kept out of the provenance inventory per the management order. A verified off-machine copy is still pending: it stays open until destination-side hash verification and the restore drill are completed | G0 — In progress | M2 |
-| Normative plan (v1.1, since bumped to v1.2), provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept a gate | G0 — In progress; G1 — Complete (accepted 2026-08-14, gate log) | M2 |
+| Normative plan (v1.1, since bumped to v1.2), provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept a gate. Plan v2.0 is proposed at the canonical path by the documentation pull request of 2026-09-18 (LOG #C028); v1.2 remains the plan in force and is archived byte-identical under `docs/governance/archive/` | G0 — In progress; G1 — Complete (accepted 2026-08-14, gate log) | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
-| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal claim admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package; the canonical decision log remains `proposed_not_sent` for all ten decisions | G0 — Pending | M1 |
+| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal claim admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence**. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package; the canonical decision log remains `proposed_not_sent` for all ten decisions. The integrated objective of the plan v2.0 proposal adds D011–D014 (2026-09-16/18), likewise `proposed_not_sent` | G0 — Pending | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Pending | M1 |
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **installed, exercised and captured**: WSL2 with Ubuntu 24.04.4 LTS is operational, with the build directory on ext4, and produced both Yocto evidence sets. The 2026-08-14 capsule records the kernel, OS, kas/Python/Git versions, filesystem type, capacity and the separate build/driver commits in `environment.txt` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap) | G0 — Pending | M2 |
 | ARM64 VM (measurement platform) | no | no — no university request/reply, public quotation, provisioned host or environment capture is recorded. Earlier Oracle/Hetzner/Azure attempts did not yield a non-burstable host. Plan v1.2 requires the university request first and a price check after 48 hours; AWS `c6g.xlarge` is the default fallback, subject to the EUR 30 ceiling | G0 — **Blocked: native non-burstable ARM64 host absent** | M0 |

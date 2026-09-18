@@ -1,5 +1,7 @@
 # 0001 — Separate functional platform (QEMU) from performance platform (native ARM64 VM)
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** [ADR 0008](0008-integrated-yocto-arm64-evaluation.md), whose status is *Proposed — pending supervisor agreement (accepted by the student for technical planning only)*, would supersede this ADR for final deployment and virtualisation classification. Until that is agreed the status below stands and [plan v1.2](../governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md) remains the plan in force; the G1 evidence is unchanged.
+
 **Status:** Accepted (2026-08-07) — fixed by integrated plan sections 5.1 and 12
 
 **Extended by:** [0007](0007-three-tier-platform-model.md) (Proposed,

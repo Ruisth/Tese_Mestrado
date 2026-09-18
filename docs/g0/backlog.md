@@ -1,8 +1,10 @@
 # Actionable backlog by gate (G0→G7)
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** Revised work packages, prerequisites and target dates are proposed in [plan v2.0, sections 4-6](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), published for review; its section 10 records that no native ARM64 VM could be obtained on 2026-09-17, the emulated QEMU/TCG-first order of work and the evidence classes. [plan v1.2](../governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md) remains the plan in force until the student decides after consulting the supervisors, so the dated August backlog below is kept unchanged; its elapsed dates are not future commitments. Current state remains in PROGRESS.md.
+
 > **This file owns actions only**: required work, expected evidence,
 > dependencies and cut rules. The versioned schedule and scope authority is
-> the [integrated development plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+> the [integrated development plan v1.2](../governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md).
 > The current state of every deliverable and gate lives exclusively in
 > [`../../PROGRESS.md`](../../PROGRESS.md); do not record completion,
 > implementation status, execution results or evidence counts here.

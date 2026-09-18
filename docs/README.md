@@ -2,7 +2,10 @@
 
 EGW project documentation. The normative source for scope, schedule and gates is
 [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-(**version 1.2**, 2026-08-14). Internal technical contracts:
+in its **version 1.2** (2026-08-14), now kept byte-for-byte as
+[`governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md`](governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md);
+the file at the canonical path now holds the proposed **version 2.0**
+(2026-09-16), published for review and not in force. Internal technical contracts:
 [`../src/CONTRACTS.md`](../src/CONTRACTS.md).
 The single source of operational state for every deliverable is
 [`../PROGRESS.md`](../PROGRESS.md); formal gate decisions are recorded solely
@@ -10,12 +13,25 @@ in [`governance/gate_decision_log.md`](governance/gate_decision_log.md), which
 currently records **G1 as Accepted** (2026-08-14, functional platform layer
 only) and every other gate as Not decided.
 
+## Proposed revision — 2026-09-16, published for review on 2026-09-18
+
+- [Proposed plan v2.0](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md): integrated
+  Yocto evaluation; section 10 separates emulated QEMU/TCG evidence from native
+  ARM64 evidence.
+- [ADR 0008](adr/0008-integrated-yocto-arm64-evaluation.md): Proposed — pending
+  supervisor agreement (accepted by the student for technical planning only).
+
+Plan v1.2 remains the plan in force until the student decides after consulting
+the supervisors. Nothing in the proposal has been sent to or approved by the
+supervisors. Under the proposal the final services execute on the Yocto guest;
+deployment/runbook and dissertation adaptations are pending implementation.
+
 ## G0 — scope and start-up
 
 | File | Content |
 |---|---|
-| [`g0/scope_and_rqs.md`](g0/scope_and_rqs.md) | Proposed objective and RQ1–RQ3, mandatory two-layer P0, explicit exclusions and closed premises (awaiting supervisor validation) |
-| [`g0/supervisor_email_g0.md`](g0/supervisor_email_g0.md) | Draft of the scope email to the supervisors (gate G0), including the plan §§4–5 escalation for the missing ARM64 measurement VM. **Drafted, not sent** — sending is a student action and is required to discharge the G0 communication item. Kept in Portuguese under the language policy's exception for external administrative communication |
+| [`g0/scope_and_rqs.md`](g0/scope_and_rqs.md) | Proposed integrated Yocto objective and working RQ1–RQ3 (scope v2.0): Proposed — pending supervisor agreement (accepted by the student for technical planning only); the August scope v1.1 behind plan v1.2 is the previous revision of the file |
+| [`g0/supervisor_email_g0.md`](g0/supervisor_email_g0.md) | Draft of the scope email to the supervisors (gate G0), including the plan v1.2 §§4–5 escalation for the missing ARM64 measurement VM. **Drafted, not sent** — sending is a student action and is required to discharge the G0 communication item. Kept in Portuguese under the language policy's exception for external administrative communication |
 | [`g0/two_layer_thesis_proposal.md`](g0/two_layer_thesis_proposal.md) | Versioned proposal for a two-layer title, objective, RQs, abstract and Resumo. **PROPOSED - NOT SENT - NOT APPROVED**; it has no normative effect before D001 |
 | [`g0/supervisor_decision_matrix.csv`](g0/supervisor_decision_matrix.csv) | D001-D010: decisions requested from the supervisors, recommended positions and explicit blockers. It contains no mutable state; the authoritative status is in the governance decision log |
 | [`g0/supervisor_seven_questions_matrix.md`](g0/supervisor_seven_questions_matrix.md) | Evidence-bounded response matrix for the seven supervisor questions, linked to diagrams and traceability artefacts |
@@ -27,8 +43,9 @@ only) and every other gate as Not decided.
 | File | Content |
 |---|---|
 | [`governance/language-policy.md`](governance/language-policy.md) | British English as the working language, planned renames and migration order |
-| [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | Normative plan v1.2 (v1.1 line): two-layer scope, rebased gates, cuts and acceptance contract |
-| [`governance/supervisor_decision_log.csv`](governance/supervisor_decision_log.csv) | D001-D010 state; a draft or silence is never approval |
+| [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | **Proposed** plan v2.0, published for review and not in force: integrated Yocto evaluation, native boot gate, evidence classes (emulated QEMU/TCG versus native ARM64), 2026-10-20 target and effort forecast |
+| [`governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md`](governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md) | Plan v1.2 (v1.1 line), byte-for-byte: two-layer scope, rebased gates, cuts and acceptance contract. **Remains the plan in force** until the student decides after consulting the supervisors. Its relative links were written for `governance/` and do not resolve from `archive/` |
+| [`governance/supervisor_decision_log.csv`](governance/supervisor_decision_log.csv) | Preserved D001-D010 history and new D011-D014 integrated-plan requests, all `proposed_not_sent`; a draft or silence is never approval |
 | [`governance/external_source_register.md`](governance/external_source_register.md) | Checksummed identities and redistribution controls for sources held outside the repository |
 | [`governance/provenance-history-rewrite.md`](governance/provenance-history-rewrite.md) | Evidence tag, verified bundles and exact-tree mappings across the history rewrite |
 

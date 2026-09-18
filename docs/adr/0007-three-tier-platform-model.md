@@ -1,5 +1,7 @@
 # 0007 — Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** [ADR 0008](0008-integrated-yocto-arm64-evaluation.md), whose status is *Proposed — pending supervisor agreement (accepted by the student for technical planning only)*, would supersede this ADR: under that proposal the final measured services run on the Yocto guest, and QEMU/TCG is distinguished from verified ARM64 KVM. Until that is agreed the status below stands. Historical availability and prices below are not current quotations.
+
 **Status:** Proposed (2026-08-12) — extends [ADR 0001](0001-qemu-functional-vs-arm64-vm-performance.md);
 awaiting validation by the supervisors. Nothing here accepts a gate or
 validates a claim.

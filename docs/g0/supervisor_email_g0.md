@@ -1,5 +1,7 @@
 # Draft de email aos orientadores - gate G0 e proposta de duas camadas
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** Unsent August draft: do not send unchanged. Its dates have elapsed, and the student has since proposed the integrated objective: see [plan v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) (proposal published for review), the [proposed scope](scope_and_rqs.md) and the revised [alignment memo](../governance/supervisor_alignment_memo.md) (draft, not sent). Nothing has been sent to or approved by the supervisors.
+
 **Versão do draft:** 1.2 (2026-08-14)
 
 **Estado:** **PROPOSED - NOT SENT**

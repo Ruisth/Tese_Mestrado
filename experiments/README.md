@@ -1,5 +1,7 @@
 # Experiments — campaign evidence tree
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** Under the proposed [plan v2.0](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) (published for review; [plan v1.2](../docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md) remains in force), SUT for the final campaign means the identified Yocto guest, including its kernel/rootfs and containers, and manifest validation and deployment are adapted before the integrated pilot. Emulated QEMU/TCG runs, historical or new, are functional and integration evidence only (plan v2.0, section 10); no data was created by this revision.
+
 This directory holds the experimental campaign of the EGW thesis: the frozen
 campaign plan and the evidence tree defined by the plan (section 5.8). All
 tooling lives in `src/egw_experiments/` and is standard-library only for the

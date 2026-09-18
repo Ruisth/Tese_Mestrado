@@ -33,26 +33,39 @@ outstanding. No performance result or research claim has been accepted.
 
 G1 is the only formally accepted gate. **0 of 15 research claims are accepted**;
 acceptance of the functional platform does not admit C01/C02 or any performance
-claim. The latest local planning record, dated 2026-09-16, reports no available
-ARM64 VM and no new native deployment, integration run or campaign. Historical
+claim. The planning record of 2026-09-16, now the plan v2.0 proposal described
+below, reports no available ARM64 VM and no new native deployment, integration
+run or campaign. Historical
 unit-test totals are not live validation and are not presented as fresh results.
 
 ## Planning and decision boundary
 
-The published governance baseline remains
-[the integrated plan v1.2](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
-It specifies separate functional-QEMU and native-service environments. Local
-planning prepared on 2026-09-16 instead targets an integrated Yocto guest;
-that v2.0 working revision and its supporting decisions are **not yet published
-in this branch**. This README records the current technical direction without
-silently replacing the versioned plan or implying supervisor approval.
+The plan in force remains
+[the integrated plan v1.2](docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md),
+kept byte-for-byte. It specifies separate functional-QEMU and native-service
+environments. The revision prepared on 2026-09-16 instead targets an integrated
+Yocto guest and is now published **as a proposal for review**:
+[plan v2.0](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) and
+[ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is
+*Proposed — pending supervisor agreement (accepted by the student for technical
+planning only)*. Plan v1.2 stays in force until the student decides after
+consulting the supervisors. Nothing has been sent to the supervisors: decisions
+D001–D014 are all `proposed_not_sent`, and nothing is approved by them.
 
-The local working forecast targets readiness on 2026-10-20 and records a
+The proposal separates two evidence classes (plan v2.0, section 10). ARM64
+emulated under QEMU/TCG on the x86-64 workstation gives functional and
+integration evidence only; every latency, throughput, saturation and resource
+result, and any statement about ARM hardware, depends on native ARM64. Adopting
+the integrated title and RQ wording, and re-scoping RQ3 or the evaluation to
+emulated functional evidence if no native ARM64 host is obtained in time, need
+supervisor agreement, as does any academic use of emulated results.
+
+The proposed forecast targets readiness on 2026-10-20 and records a
 student-reported extension date of 2026-11-03. These are not confirmed
-administrative deadlines in the published decision record. Publish and reconcile
-the revised architecture, scope, dates and acceptance criteria before treating
-them as the execution baseline; do not reuse elapsed August milestones as future
-commitments.
+administrative deadlines in the published decision record. Reconcile the revised
+architecture, scope, dates and acceptance criteria with the supervisors before
+treating them as the execution baseline; do not reuse elapsed August milestones
+as future commitments.
 
 [PROGRESS.md](PROGRESS.md) records deliverable-level implementation and evidence;
 formal gate outcomes live exclusively in
@@ -62,8 +75,10 @@ or alter the [claim-evidence matrix](docs/claim_evidence_matrix.md).
 
 ## Immediate priorities
 
-1. Reconcile and publish the integrated-Yocto plan revision, including supervisor
-   decisions, platform feasibility, budget and the confirmed submission date.
+1. Put the published integrated-Yocto proposal (plan v2.0, ADR 0008, decisions
+   D011–D014) to the supervisors and reconcile platform feasibility, budget and
+   the confirmed submission date. Functional integration work under QEMU/TCG
+   proceeds in parallel and does not wait for that reply.
 2. Obtain native ARM64 access and build/boot a compatible Yocto image. Do not
    assume the existing `qemuarm64` artefact can be imported into a cloud provider
    unchanged.
