@@ -1,5 +1,7 @@
 # EGW architecture diagrams
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** The diagrams below record the separate-platform design of [plan v1.2](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), which remains the plan in force. The proposed integrated topology is defined by [plan v2.0](../docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) (a proposal, not in force) and [ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is *Proposed — pending supervisor agreement (accepted by the student for technical planning only)*. If the proposal is adopted, update the dissertation figures during the planned editorial revision and do not reuse the old deployment figure as the final architecture.
+
 Sources of truth: the versioned
 [`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
 (normative) and [`../src/CONTRACTS.md`](../src/CONTRACTS.md) v1.1. These diagrams show only contracted

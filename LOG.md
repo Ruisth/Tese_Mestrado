@@ -1270,6 +1270,78 @@ is unchanged.
 
 ---
 
+## Entry #C028 — Publish the integrated-Yocto plan revision v2.0 and ADR 0008 as a proposal
+
+- **Date:** 2026-09-18
+- **Phase:** Governance documentation only; no code, evidence, thesis chapter
+  or search-protocol change. Entry ids #C023–#C027 are reserved for other open
+  work and are not used here.
+- **Request:** Publish the plan revision prepared on 2026-09-16 and ADR 0008 in
+  parallel with the functional tests, distinguishing proposed decisions from
+  decisions approved by the supervisors (none exists at this date), and state
+  what will be demonstrated
+  under QEMU, what still depends on native ARM64, which performance conclusions
+  are permitted and which scope change needs supervisor agreement.
+- **Action:** Bring the 2026-09-16 amendment into a documentation branch:
+  plan v2.0 at the canonical path with a status box, plan v1.2 archived
+  byte-for-byte (SHA-256
+  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
+  ADR 0008, scope/RQs v2.0, the revised alignment memo, decisions D011–D013
+  and pointer banners in the ADRs, G0 documents, diagrams, setup guide,
+  experiments and documentation indexes. Add plan section 10 and the ADR 0008
+  amendment of 2026-09-18 (evidence classes: emulated QEMU/TCG versus native
+  ARM64), decision D014 (re-scoping RQ3 or the evaluation to emulated
+  functional evidence if no native ARM64 host is obtained in time) and a
+  PROGRESS.md section for the proposal.
+- **Status of the documents:** ADR 0008 is *Proposed — pending supervisor
+  agreement (accepted by the student for technical planning only)*. Plan v2.0
+  is a proposal published for review. Plan v1.2 remains the plan in force
+  until the student decides after consulting the supervisors. D001–D014 are
+  all `proposed_not_sent`; the alignment email and memo have not been sent;
+  nothing is approved by the supervisors.
+- **Facts recorded (from the 2026-09-16 amendment):** the final services must
+  execute on the student's Yocto-built kernel/root filesystem during the ARM64
+  campaign, and the August separate-platform academic proposal has no recorded
+  supervisor approval. The revision rests on
+  the source documents, configuration, recipes and manifests, a read-only
+  inspection of the existing WSL kernel build and official custom-image
+  references; no cloud resource, new Yocto build, integration run or campaign
+  was executed for it. Estimate 225-345 active hours remaining at a reported
+  8 h/day including weekends; student target
+  2026-10-20 and student-reported extension date 2026-11-03, neither confirmed
+  administratively.
+- **Facts recorded (2026-09-17/18):** on 2026-09-17 no native ARM64 virtual
+  machine had been obtained (attempts with cloud providers had not produced one), so the project review
+  ordered an integrated QEMU/TCG profile first, with the native ARM64 route as
+  the subsequent step. On 2026-09-18, in draft pull request #28 (not on
+  `dev`), the integrated image was built (commit `03e333e`) and booted twice
+  under QEMU/TCG (commit `3209b17`) with every build and boot acceptance check
+  passing. The same day an isolated MongoDB 7.0.39 test passed on that guest;
+  it is recorded in the separate draft pull request #29, branch `evidence/integrated-qemu-2026-09-18`
+  (commit `f03c92c`, not on `dev`), which proposes to seal the build, boot and
+  MongoDB records, and not in pull request #28. The six-container stack has
+  not been deployed, nothing has been measured, and the evidence is candidate
+  evidence, none of it sealed on `dev`; sealing would not be acceptance.
+- **Evidence boundary:** ARM64 emulated on x86-64 yields functional and
+  integration evidence only, never native ARM64 performance evidence; academic
+  use of emulated results needs supervisor agreement. No gate, claim or
+  supervisor decision is accepted by this entry, and no historical seal is
+  changed.
+- **Left out:** the integrated QEMU profile, its runbook and image audit
+  (pull request #28), deployment and harness corrections, a further ADR in
+  preparation,
+  literature-search files, thesis chapters and review notes. The target dates
+  of plan v2.0 section 6 were not reforecast.
+- **Verification boundary:** the Markdown link checker and the evidence-seal
+  checker were run locally on the branch; the GitHub workflow result, not this
+  entry, establishes whether the required checks pass.
+- **Forward pointer (added 2026-09-18):** superseded in part by #C031, which
+  records the layout under `docs/governance/proposals/`, the dates confirmed
+  by the student and the merge of pull requests #28 and #29. The text above is
+  kept as written.
+
+---
+
 ## Entry #C029 — Progress counters in the controller's `GET /metrics`
 
 - **Date:** 2026-09-18
@@ -1332,3 +1404,94 @@ is unchanged.
   `controller_metrics.csv`; use the single-reading test in the integration
   runbook (whether its quiet interval may be shortened is decided there);
   repair the event-write defect.
+
+---
+
+## Entry #C031 — Move the plan v2.0 proposal under `docs/governance/proposals/`; dates confirmed by the student
+
+- **Date:** 2026-09-18
+- **Phase:** Governance documentation only; no code, evidence, thesis chapter
+  or search-protocol change. Identifier `#C030` is reserved for another open
+  pull request and is not used here; entry #C028 is kept as written, with a
+  dated forward pointer to this entry added at its end.
+- **Request:** Two decisions of the project review of 2026-09-18, forwarded by
+  the student. (1) Keep plan v1.2 at the canonical path and place v2.0 under
+  `docs/governance/proposals/`, with references that distinguish the plan in
+  force from the proposal. (2) Align the proposal with the planned submission
+  and the final deadline confirmed by the student, and reforecast the work
+  backwards from the submission without reporting forecasts as completed
+  milestones.
+- **Layout:** `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` (plan
+  v1.2, SHA-256
+  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
+  `docs/g0/scope_and_rqs.md` (August scope v1.1) and
+  `docs/governance/supervisor_alignment_memo.md` (August memo) are again
+  byte-identical to `dev`. The proposal texts that #C028 had placed at those
+  paths are now
+  `docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md`,
+  `scope_and_rqs_v2.0_proposal.md` and
+  `supervisor_alignment_memo_v2.0_proposal.md`, with their internal links
+  corrected, and the directory has a README that says what is in force and
+  how a proposal is adopted. The copy
+  `docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md` added
+  by #C028 is withdrawn, because the plan in force is at its canonical path
+  again; the archive content that was already on `dev` is untouched. ADR 0008
+  stays in `docs/adr/` with the status Proposed. Banners, index rows, the
+  README files, ADR 0008 and `PROGRESS.md` point to the proposal path and say
+  "proposal" when they mean plan v2.0, and to the canonical path when they
+  mean the plan in force. The files on `dev` that call the canonical path the
+  normative plan are correct again without being edited.
+- **Dates decision and its source:** planned submission **2026-10-20** and
+  final delivery deadline **2026-10-31**; the days from 2026-10-21 to
+  2026-10-31 are a contingency window for essential corrections, submission
+  difficulties and administrative recovery only, not the default delivery
+  period and not time for optional scope. Source: the student's confirmation
+  of 2026-09-18 after discussing the dates with the supervisors. It is a
+  first-party statement; no institutional portal or administrative document
+  was checked, and no supervisor reply is recorded by this entry. For current
+  planning the pair supersedes the date 2026-11-03 quoted in #C028 and the
+  2026-09-29 internal cut-off and 2026-09-30 baseline of plan v1.2; all three
+  stay in the historical records, and plan v1.2 is not edited.
+- **Forecast:** sections 6 and 7 of the proposal were rewritten on 2026-09-18
+  as a forecast worked backwards from the submission: a milestone table with a
+  status per milestone (demonstrated, in preparation, pending), the critical
+  path, a native ARM64 decision point forecast for 2026-09-25, reforecast
+  triggers and the cutting order. Capacity from 2026-09-19 to 2026-10-20 at
+  the reported 8 h/day is 256 h against the unrevised estimate of 225-345
+  active hours, so the submission date is feasible only near the lower
+  estimate; the binding constraint is the 152 h before the full draft, which
+  the estimate cannot yet be checked against. Branch C is prepared at risk
+  until D014 is answered, and the native branch has no writing days left with
+  a host obtained on the decision date. Decision D013 carries the
+  review-window dates of the forecast and the dates note, and D014 the
+  decision point and the requested reply date; every status, D001–D014, stays
+  `proposed_not_sent`.
+- **Facts recorded:** pull requests #28, #29, #32 and #31 were merged into
+  `dev` on 2026-09-18; merging validates no stack and accepts no gate.
+  Demonstrated so far, all emulated (ARM64 under QEMU/TCG on x86-64,
+  functional evidence only): the image build, two boots with every acceptance
+  check passing and the isolated MongoDB 7.0.39 test. Not demonstrated: the
+  six-container stack on the guest, the functional path simulator -> MQTT/TLS
+  -> controller -> Ditto -> API, any integration test on the real stack, any
+  measurement. The first bounded end-to-end functional test (one smartwatch,
+  1 Hz, 60 s) was authorised on 2026-09-18 and is in preparation; it has not
+  run. No native ARM64 host has been obtained.
+- **Known stale notes, left for a separate change:**
+  `docs/setup/qemu_integrated_gateway.md`,
+  `docs/reviews/2026-09-17-egw-image-audit.md`,
+  `src/yocto/kas/egw-qemuarm64-integrated.yml` and the `egw-gateway-image`
+  recipe, all on `dev` before this entry, say that the v2.0 revision is not
+  yet published on `dev` and cite "plan v2.0" without a path. After this
+  change the revision is on `dev` as a proposal only; the README of
+  `docs/governance/proposals/` says how to read those citations. The build
+  inputs are not touched by a documentation change.
+- **Not changed and not implied:** no gate is accepted; no RQ or scope
+  changes; no emulated performance claim is approved; nothing has been sent to
+  or approved by the supervisors; plan v1.2 remains the plan in force and
+  merging the pull request adopts nothing. Adoption of the proposal is a
+  separate decision of the student after consulting the supervisors, to be
+  recorded in this log. No historical entry, seal or run metadata is changed.
+- **Verification boundary:** the three restored files were compared with
+  `origin/dev` and show no difference; the Markdown link checker and the
+  evidence-seal checker were run locally; the GitHub workflow result, not this
+  entry, establishes whether the required checks pass.
