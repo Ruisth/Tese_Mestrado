@@ -1099,3 +1099,43 @@ is unchanged.
 - **Verification boundary:** Check README links and patch whitespace locally;
   the subsequent GitHub workflow result, not this entry, establishes whether
   the Linux build succeeds. Existing sealed build records remain unchanged.
+
+---
+
+## Entry #C023 — Integrated QEMU/TCG gateway profile (unbuilt proposal)
+
+- **Date:** 2026-09-18
+- **Request:** Verify whether the sealed `egw-image` is fit to host the
+  digital-twin stack, and prepare a first change set limited to an integrated
+  QEMU/TCG profile: the Yocto ARM64 guest emulated on the x86-64 host with the
+  six containers inside the guest. No native ARM64 host could be obtained.
+- **Finding:** The G1 image is a sound container host but cannot run the
+  stack as sealed. Its QEMU profile is `-cpu cortex-a57 -m 256`, while MongoDB 7
+  needs ARMv8.2-A and the compose memory limits alone total 2,432 MiB. It lacks
+  the Compose V2 plugin, `curl`, a non-root operator with key-only SSH, a
+  persistent journal, explicit NTP servers, a Docker `daemon.json`, an event
+  directory writable by uid 1000 and storage for the images. Removable
+  default-feature packages amount to about 24 MiB; size is not the problem.
+- **Action:** Add `kas/egw-qemuarm64-integrated.yml` with its lock file,
+  `egw-gateway-image.bb`, `egw-gateway-image-dev.bb`, the `egw-gateway-config`
+  recipe, `scripts/build-profile.sh`, `scripts/run-qemu-integrated.sh`, the
+  runbook `docs/setup/qemu_integrated_gateway.md` and the audit
+  `docs/reviews/2026-09-17-egw-image-audit.md`. The profile keeps the G1
+  machine, layers and pins, builds only in `build-integrated/`, selects
+  `-cpu cortex-a76`, 8 GiB and four vCPUs, forwards 2222 and 8883, and keeps
+  Docker data on a second ext4 disk outside the clone. The data-disk guard
+  resolves the canonical path before anything is created.
+- **Boundary:** Nothing was built, booted or measured. Every G1 input is
+  byte-identical and the eight evidence seals on this branch verify (59
+  artefacts). The environment is ARM64
+  emulated on x86-64: functional and integration evidence only, never native
+  performance evidence. The profile follows the student-directed
+  integrated-Yocto target, whose plan revision and ADR 0008 are not yet
+  published on `dev`; no plan version is adopted, no gate and no claim is
+  accepted. The native-route files, the deployment corrections (broker secret
+  ownership, ACL probe, prebuilt controller) and the harness reconciliation
+  helper are deliberately left for later pull requests.
+- **Verification record:** YAML and JSON parsing, `sh -n`/`bash -n`, a sandbox
+  run of the data-disk guard, the repository link and evidence-seal checks.
+  ShellCheck is not installed on the workstation, so the `shell safety` check
+  is the first ShellCheck run of the two new scripts.

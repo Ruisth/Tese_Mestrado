@@ -1,0 +1,17 @@
+# EGW operator privileges (installed as /etc/sudoers.d/egw, mode 0440, by
+# egw-gateway-config).
+#
+# The 'egw' account has no usable password and cannot obtain one over SSH
+# (key-only login), so sudo must be NOPASSWD to be usable at all — the same
+# convention cloud images use for their default user. Docker access does
+# not go through sudo (egw is in the 'docker' group); sudo is needed for
+# the harness collector hooks (systemd-run / systemctl stop of the
+# egw-resources unit), journalctl exports, reboots and service restarts in
+# the recovery tests. sudo is built without PAM on this distro ('pam' not
+# in DISTRO_FEATURES): NOPASSWD behaviour without PAM is expected but
+# untested until the first boot ('sudo -n true' is the acceptance check).
+#
+# To narrow it for the campaign, replace the rule with, for example:
+#   egw ALL=(root) NOPASSWD: /usr/bin/systemctl, /usr/bin/systemd-run, /usr/bin/journalctl, /usr/bin/timedatectl, /sbin/reboot
+# and rebuild; validate with 'visudo -c' on the guest.
+egw ALL=(ALL:ALL) NOPASSWD: ALL

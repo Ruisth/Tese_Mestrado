@@ -229,6 +229,33 @@ separate and still pending. Any future failure or scope
 reduction must preserve its evidence and pass through the normal review/CI path
 without weakening the strict systemd, failed-unit or container assertions.
 
+## Integrated QEMU/TCG gateway profile (unbuilt proposal, separate from G1)
+
+A second kas profile prepares the image that is meant to host the six-container
+digital-twin stack **inside** the Yocto guest. It follows the student-directed
+integrated-Yocto target; the plan revision that describes that target is not
+yet published on `dev`, so this profile accepts no gate and supports no claim.
+**Nothing in it has been built or booted.**
+
+| File | Role |
+|---|---|
+| `kas/egw-qemuarm64-integrated.yml` (+ `.lock.yml`) | Same machine, layers and pinned commits as G1; target `egw-gateway-image`; runqemu profile `-cpu cortex-a76`, `-m 8192`, `-smp 4`, host forwards 2222→22 and 8883→8883; builds in `build-integrated/` through `KAS_BUILD_DIR`, never in `build/` |
+| `meta-egw/recipes-core/images/egw-gateway-image.bb` | Campaign image: Docker with the Compose V2 plugin, `curl`, `sudo`, key-only SSH for the operator `egw` (uid 1000), persistent journal, no `debug-tweaks`; the build fails without `EGW_AUTHORIZED_KEYS_FILE` |
+| `meta-egw/recipes-core/images/egw-gateway-image-dev.bb` | Bring-up variant for QEMU only (adds `debug-tweaks` and the G1 smoke package); never evidence |
+| `meta-egw/recipes-core/egw-gateway-config/` | journald, timesyncd and sshd drop-ins, `daemon.json`, sudoers rule, tmpfiles entries for `/opt/egw`, and the docker.service drop-in that requires the data disk |
+| `scripts/build-profile.sh` | `kas checkout` + `kas build` of a non-G1 profile in its own build directory; refuses `build/` |
+| `scripts/run-qemu-integrated.sh` | Boots the integrated image with a persistent ext4 data disk (label `egw-data`, outside the clone) mounted on `/var/lib/docker` |
+
+The G1 inputs (`kas/egw-qemuarm64.yml`, its lock file, `egw-image.bb`,
+`egw-base-config`, `egw-container-smoke`, `scripts/build.sh`, `scripts/run-qemu.sh`,
+`scripts/boot_check.py`) are byte-identical, so the sealed G1 evidence stays
+reproducible from its own manifest. This environment is ARM64 **emulated** on an
+x86-64 host: whatever it produces is functional and integration evidence, never
+native ARM64 performance evidence. Procedure:
+[`docs/setup/qemu_integrated_gateway.md`](../../docs/setup/qemu_integrated_gateway.md);
+rationale and package audit:
+[`docs/reviews/2026-09-17-egw-image-audit.md`](../../docs/reviews/2026-09-17-egw-image-audit.md).
+
 ## Raspberry Pi 5 overlay (documented-only)
 
 A Raspberry Pi 5 configuration (meta-raspberrypi BSP, `machine:
