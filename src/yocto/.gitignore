@@ -1,6 +1,11 @@
 # Yocto build outputs — never commit build state (plan 5.1: builds live on
 # the WSL2 ext4 clone; caches live outside the checkout entirely).
 /build/
+# Separate build directories of the non-G1 kas profiles, selected with
+# KAS_BUILD_DIR by scripts/build-profile.sh (kas/egw-qemuarm64-integrated.yml
+# and kas/egw-genericarm64.yml). Same rule as /build/.
+/build-integrated/
+/build-genericarm64/
 /downloads/
 /sstate-cache/
 
