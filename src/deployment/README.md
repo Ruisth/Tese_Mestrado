@@ -2,9 +2,11 @@
 
 Compose stack for the Digital Twin Edge Gateway core on the ARM64 campaign VM
 (plan 4.3/5.1, CONTRACTS.md 8): Mosquitto (MQTT/TLS), Eclipse Ditto 3.9.4
-core (`gateway`, `policies`, `things` only), MongoDB and the locally built
+core (`gateway`, `policies`, `things` only), MongoDB and the prebuilt
 MQTT->Ditto controller. Ditto `search`, `connectivity`, UI and nginx are
-deliberately excluded (plan 4.3).
+deliberately excluded (plan 4.3). Nothing is built on the gateway: the five
+external images are pulled by their pinned digests and the controller image
+is loaded from an archive (step 4b).
 
 | Service | Image | Port on host |
 |---|---|---|
@@ -13,7 +15,7 @@ deliberately excluded (plan 4.3).
 | ditto-policies | `eclipse/ditto-policies:3.9.4` (digest-pinned) | none (internal) |
 | ditto-things | `eclipse/ditto-things:3.9.4` (digest-pinned) | none (internal) |
 | mongodb | `mongo:7.0.39` (digest-pinned) | none (internal) |
-| controller | built locally from `src/Dockerfile` | `127.0.0.1:8000` (loopback only) |
+| controller | `egw-controller:0.1.0`, prebuilt from `src/Dockerfile` and loaded (`pull_policy: never`, no `build:`) | `127.0.0.1:8000` (loopback only) |
 
 All pulled images are pinned by multi-arch digest in `images.lock.env` and
 must be `linux/arm64`-native (plan 9.2). The digests were read from the
@@ -25,8 +27,11 @@ first deploy (step 4 below).
 - ARM64-native VM (e.g. Hetzner CAX21 or equivalent: 4 vCPU, 8 GiB RAM,
   >= 80 GB disk), Ubuntu 24.04 LTS. Record provider, region, CPU, kernel and
   OS for the run manifest.
-- Docker Engine with the `compose` and `buildx` plugins (`docker compose
-  version`, `docker buildx version` must both work).
+- Docker Engine with the `compose` plugin (`docker compose version` must
+  work). `buildx` is needed on the provisioning host that builds the
+  controller image (step 4b), not on the gateway; without it
+  `scripts/resolve-image-lock.sh` still checks for `linux/arm64` but cannot
+  compare the tag with the locked digest (it prints a WARNING).
 - `openssl` (3.x, in the Ubuntu 24.04 base).
 - A checkout of this repository; all commands below run from
   `src/deployment/` unless stated otherwise. If the checkout lost the
@@ -128,6 +133,59 @@ a hard failure: investigate and re-pin deliberately, then record the change
 in the project LOG. Manual fallback per image:
 `docker manifest inspect <repo>:<tag>`.
 
+### 4b. Provide the controller image (prebuilt; never built on the gateway)
+
+`compose.yaml` gives the controller `image: egw-controller:0.1.0` with
+`pull_policy: never` and no `build:`. The gateway has no build context, no
+`buildx` and no `pip`; the image is built elsewhere and loaded.
+
+On a **provisioning host** (Docker with `buildx` and `linux/arm64`, natively
+or through emulation; Docker Desktop on Windows through Git Bash works), from
+a clean checkout of the commit to deploy:
+
+```sh
+sh src/deployment/scripts/build-controller-image.sh <output-dir>
+```
+
+The script refuses a build context (`src/`) with modified or untracked files,
+or with git-ignored files below a path that `src/Dockerfile` copies, unless
+`--allow-dirty` is given (development only; the record then says
+`source_tree_state=dirty`), builds `linux/arm64` with `buildx` and without
+cache, exports the image with `docker save` and writes, next to
+`egw-controller-0.1.0-arm64.tar`, the identity record
+`egw-controller-0.1.0-arm64.identity.txt`: source commit and tree state,
+base-image reference of `src/Dockerfile`, image id (digest of the image
+configuration, read from the archive), architecture and OS, archive SHA-256
+and size, `python --version` and `pip freeze --all` taken from the built
+image, Docker and `buildx` versions, UTC time. It pushes nothing; no registry
+holds this image. `<output-dir>` must lie outside `src/`.
+
+On the **gateway**, load the archive and compare the loaded image with the
+record (copy the record, or both files, to the gateway first):
+
+```sh
+docker load -i egw-controller-0.1.0-arm64.tar
+# or, without storing the archive on the gateway, from the provisioning host:
+#   ssh <gateway> docker load < egw-controller-0.1.0-arm64.tar
+sh scripts/verify-controller-image.sh egw-controller-0.1.0-arm64.identity.txt
+```
+
+Exit code 0 (`CONTROLLER IMAGE IDENTITY: verified`) is required before
+step 6. The check compares image id, architecture, OS and revision label, and
+refuses a record with `source_tree_state=dirty` unless `--allow-dirty` is
+given (development only, never for evidence). A loaded image has a tag and an
+image id but no `RepoDigests`; the image id is therefore its identity. Keep
+the record with the run evidence.
+Neither script has been executed against a Docker engine yet (written
+2026-09-18).
+
+**Limitation, stated plainly:** the Python dependencies of this image are
+**not locked**. `src/Dockerfile` runs `pip install .` without hashes, so the
+`pip_freeze` lines of the record say what was installed in that one build;
+they do not make it reproducible. This is accepted for the first functional
+demonstration only and is to be resolved before the experimental freeze with
+`scripts/generate-runtime-lock.sh` (see "Runtime Python lock" below).
+
 ### 5. Validate the configuration
 
 ```sh
@@ -136,18 +194,28 @@ in the project LOG. Manual fallback per image:
 
 Checks `.env` (present, no `CHANGE_ME` left), TLS files, password file,
 readability of the broker's secrets as uid 1883 (step 3b in `--check` mode:
-changes nothing), digest pins and `docker compose config -q`, and creates
-`data/events/`.
+changes nothing), digest pins, `docker compose config -q` and the presence of
+the controller image of step 4b, and creates `data/events/`.
 
 ### 6. Start the stack
 
 ```sh
-docker compose --env-file .env --env-file images.lock.env up -d --build
+# optional, makes the download a separate, visible step (the five external
+# services, by their pinned digests; the controller is never pulled):
+docker compose --env-file .env --env-file images.lock.env pull \
+    mosquitto mongodb ditto-policies ditto-things ditto-gateway
+
+docker compose --env-file .env --env-file images.lock.env up -d
 ```
 
 Both `--env-file` flags are required every time (passing any `--env-file`
 disables the automatic `.env` loading, and the image references interpolate
-from `images.lock.env`).
+from `images.lock.env`). Never add `--build`: `compose.yaml` has nothing to
+build, and a missing controller image is a named failure (`pull_policy:
+never`), answered by step 4b. UNVERIFIED on the gateway's Compose 2.26.0:
+that `up -d` finds the images pulled by `repo:tag@sha256:` without contacting
+the registry again, and how a bare `pull` treats a `pull_policy: never`
+service (hence the service names above).
 
 ### 7. Verify readiness
 
@@ -183,9 +251,8 @@ controller's filter `c2dt/+/+/telemetry`, not retained). Mosquitto's built-in
 `acl_file` check grants every SUBSCRIBE and filters at delivery, so only
 delivery of known traffic proves the restriction. It reads `.env` from
 `EGW_DEPLOY_DIR` (default `/opt/egw/deployment`) and uses
-`images.offline.env` as second `--env-file` unless `EGW_COMPOSE_ENV` names
-another file (e.g. `EGW_COMPOSE_ENV=images.lock.env`). Not yet executed
-against a broker (written 2026-09-18).
+`images.lock.env` as second `--env-file` unless `EGW_COMPOSE_ENV` names
+another file. Not yet executed against a broker (written 2026-09-18).
 
 Note: the compose healthcheck probes the broker every 30 s with client id
 `egw-healthcheck` and an invalid user; those `not authorised` log lines are
@@ -248,6 +315,13 @@ runs the broad `pip install .`: transitive dependencies can change without a
 repository change. Therefore a controller image built in the current state is
 acceptable for development only and **must not be used for thesis
 measurements**.
+
+The first end-to-end functional demonstration (one device, emulated ARM64
+guest, labelled as emulated functional evidence, not a measurement) uses such
+an image, with **unlocked Python dependencies**. What was installed is
+recorded as `pip freeze --all` in the identity record of step 4b; that
+documents one build and does not make it reproducible. This is to be resolved
+before the experimental freeze, by the procedure below.
 
 Once the non-burstable campaign VM exists, generate the lock on that `aarch64`
 host (the helper refuses other architectures):

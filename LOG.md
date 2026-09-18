@@ -1407,91 +1407,118 @@ is unchanged.
 
 ---
 
-## Entry #C031 — Move the plan v2.0 proposal under `docs/governance/proposals/`; dates confirmed by the student
+## Entry #C030 — Prebuilt controller image in the deployment; reconciliation helper versioned
 
 - **Date:** 2026-09-18
-- **Phase:** Governance documentation only; no code, evidence, thesis chapter
-  or search-protocol change. Identifier `#C030` is reserved for another open
-  pull request and is not used here; entry #C028 is kept as written, with a
-  dated forward pointer to this entry added at its end.
-- **Request:** Two decisions of the project review of 2026-09-18, forwarded by
-  the student. (1) Keep plan v1.2 at the canonical path and place v2.0 under
-  `docs/governance/proposals/`, with references that distinguish the plan in
-  force from the proposal. (2) Align the proposal with the planned submission
-  and the final deadline confirmed by the student, and reforecast the work
-  backwards from the submission without reporting forecasts as completed
-  milestones.
-- **Layout:** `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` (plan
-  v1.2, SHA-256
-  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
-  `docs/g0/scope_and_rqs.md` (August scope v1.1) and
-  `docs/governance/supervisor_alignment_memo.md` (August memo) are again
-  byte-identical to `dev`. The proposal texts that #C028 had placed at those
-  paths are now
-  `docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md`,
-  `scope_and_rqs_v2.0_proposal.md` and
-  `supervisor_alignment_memo_v2.0_proposal.md`, with their internal links
-  corrected, and the directory has a README that says what is in force and
-  how a proposal is adopted. The copy
-  `docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md` added
-  by #C028 is withdrawn, because the plan in force is at its canonical path
-  again; the archive content that was already on `dev` is untouched. ADR 0008
-  stays in `docs/adr/` with the status Proposed. Banners, index rows, the
-  README files, ADR 0008 and `PROGRESS.md` point to the proposal path and say
-  "proposal" when they mean plan v2.0, and to the canonical path when they
-  mean the plan in force. The files on `dev` that call the canonical path the
-  normative plan are correct again without being edited.
-- **Dates decision and its source:** planned submission **2026-10-20** and
-  final delivery deadline **2026-10-31**; the days from 2026-10-21 to
-  2026-10-31 are a contingency window for essential corrections, submission
-  difficulties and administrative recovery only, not the default delivery
-  period and not time for optional scope. Source: the student's confirmation
-  of 2026-09-18 after discussing the dates with the supervisors. It is a
-  first-party statement; no institutional portal or administrative document
-  was checked, and no supervisor reply is recorded by this entry. For current
-  planning the pair supersedes the date 2026-11-03 quoted in #C028 and the
-  2026-09-29 internal cut-off and 2026-09-30 baseline of plan v1.2; all three
-  stay in the historical records, and plan v1.2 is not edited.
-- **Forecast:** sections 6 and 7 of the proposal were rewritten on 2026-09-18
-  as a forecast worked backwards from the submission: a milestone table with a
-  status per milestone (demonstrated, in preparation, pending), the critical
-  path, a native ARM64 decision point forecast for 2026-09-25, reforecast
-  triggers and the cutting order. Capacity from 2026-09-19 to 2026-10-20 at
-  the reported 8 h/day is 256 h against the unrevised estimate of 225-345
-  active hours, so the submission date is feasible only near the lower
-  estimate; the binding constraint is the 152 h before the full draft, which
-  the estimate cannot yet be checked against. Branch C is prepared at risk
-  until D014 is answered, and the native branch has no writing days left with
-  a host obtained on the decision date. Decision D013 carries the
-  review-window dates of the forecast and the dates note, and D014 the
-  decision point and the requested reply date; every status, D001–D014, stays
-  `proposed_not_sent`.
-- **Facts recorded:** pull requests #28, #29, #32 and #31 were merged into
-  `dev` on 2026-09-18; merging validates no stack and accepts no gate.
-  Demonstrated so far, all emulated (ARM64 under QEMU/TCG on x86-64,
-  functional evidence only): the image build, two boots with every acceptance
-  check passing and the isolated MongoDB 7.0.39 test. Not demonstrated: the
-  six-container stack on the guest, the functional path simulator -> MQTT/TLS
-  -> controller -> Ditto -> API, any integration test on the real stack, any
-  measurement. The first bounded end-to-end functional test (one smartwatch,
-  1 Hz, 60 s) was authorised on 2026-09-18 and is in preparation; it has not
-  run. No native ARM64 host has been obtained.
-- **Known stale notes, left for a separate change:**
-  `docs/setup/qemu_integrated_gateway.md`,
-  `docs/reviews/2026-09-17-egw-image-audit.md`,
-  `src/yocto/kas/egw-qemuarm64-integrated.yml` and the `egw-gateway-image`
-  recipe, all on `dev` before this entry, say that the v2.0 revision is not
-  yet published on `dev` and cite "plan v2.0" without a path. After this
-  change the revision is on `dev` as a proposal only; the README of
-  `docs/governance/proposals/` says how to read those citations. The build
-  inputs are not touched by a documentation change.
-- **Not changed and not implied:** no gate is accepted; no RQ or scope
-  changes; no emulated performance claim is approved; nothing has been sent to
-  or approved by the supervisors; plan v1.2 remains the plan in force and
-  merging the pull request adopts nothing. Adoption of the proposal is a
-  separate decision of the student after consulting the supervisors, to be
-  recorded in this log. No historical entry, seal or run metadata is changed.
-- **Verification boundary:** the three restored files were compared with
-  `origin/dev` and show no difference; the Markdown link checker and the
-  evidence-seal checker were run locally; the GitHub workflow result, not this
-  entry, establishes whether the required checks pass.
+- **Request:** Project review of 2026-09-18, authorised by the student the
+  same day, before the first end-to-end functional test inside the
+  integrated QEMU guest: the published Compose file still built the
+  controller and `itest_reconcile.py` was outside `dev`; make the use of a
+  prebuilt image explicit, version the helper, use the external images
+  pinned by digest, publish no controller image, and record that the
+  Dockerfile installs Python dependencies without a reproducible lock.
+- **Action (deployment):** `src/deployment/compose.yaml`, service
+  `controller`: the `build:` stanza is removed and `pull_policy: never` is
+  added; `image: egw-controller:0.1.0` and `platform: linux/arm64` stay. No
+  other service, port, limit, pin or the ACL changes. The only command shape
+  on the gateway is `docker compose --env-file .env --env-file
+  images.lock.env up -d` (no `--build`); `images.lock.env` remains the only
+  source of the five external references, which are pulled by their pinned
+  digests inside the guest. New `scripts/build-controller-image.sh`
+  (provisioning host: `buildx`, `linux/arm64`, refuses a dirty build context
+  — git-ignored files below a path the Dockerfile copies included, since they
+  reach the image while `git status` stays silent about them —, `docker
+  save`, identity record with source commit, base image, image id read from
+  the archive, archive SHA-256, `python --version`, `pip freeze --all`, tool
+  versions and UTC time; pushes nothing; traps `HUP`/`INT`/`TERM` so that an
+  interrupted run leaves no archive without a record in any POSIX shell) and
+  `scripts/verify-controller-image.sh` (gateway: compares the loaded image
+  with the record — image id, architecture, OS and the revision label — and
+  refuses a record from a dirty build context). `scripts/validate-config.sh`
+  gains step 7 (controller image present, remedy `docker load -i <archive>`,
+  never a build or a pull), and its step 1 now looks for `CHANGE_ME` in
+  assignments only: the header comment of `.env.example` carries the word and
+  survives `cp .env.example .env`, so the step failed on every correctly
+  filled `.env` and the `up -d` interlock of runbook 5.5 could never have
+  passed — a defect already on `dev`, found by the project review of this
+  pull request.
+  `scripts/probe-acl.sh` takes `images.lock.env` as its default second env
+  file.
+- **Action (harness):** `src/egw_experiments/itest_reconcile.py` (`mark`,
+  `wait`, `check`, `snap`, `delta`, `same`) is versioned with
+  `src/tests/test_experiments_itest_reconcile.py` (106 cases, fakes only, no
+  network). It imports `CONFIRMATION_WINDOW_S`, `poll_controller_marker` and
+  `compute_run_metrics` from the harness, never redefines the confirmation
+  window and refuses a marker file whose deadline is not marker + window.
+  `mark` measures the lag up to the **return** of the poll, as the harness
+  does, so a slow round trip can no longer hide a lag above the 2 s
+  tolerance; `delta` exits 4 for a device with accepted records that the
+  `from` snapshot does not hold (a snapshot taken with another seed than the
+  run, which used to close vacuously) and says when a `/metrics` reading is
+  missing instead of passing over it; `check` adds warnings about files that
+  are not shown to be this run's and whole, and about a controller clock that
+  decreases along the event log, without changing a count or an exit status.
+  The test module extracts every `$REC` command line from the runbook and
+  parses it, so a drift between document and interface fails a case.
+- **Action (runbook):**
+  [`docs/setup/qemu_integrated_gateway.md`](docs/setup/qemu_integrated_gateway.md)
+  Sections 3.5, 4, 4.5, 5 to 7 and Appendix B follow the implemented route:
+  controller built with the script from a clean checkout, copied, streamed
+  into `docker load` and compared with its identity record (4.1, 4.3, 4.4,
+  repeated in front of `up -d` in 5.5); five external images pulled in the
+  guest with a `RepoDigests` check (new 5.2a); `EGW_BROKER_IMAGE` no longer
+  exported; every compose command names `images.lock.env`. The offline
+  route (six archives, `images.offline.env`, `images.identity.env`) was
+  never implemented and is removed from the text. The six points of 4.5 are
+  marked done (1, 4, 6), superseded (2, 5) or both (3). Four further
+  corrections came from the project review of this pull request: 4.3 brings
+  the WSL clone
+  to the commit named in the identity record and refuses a dirty `src/`, so
+  the deployment tree (5.1), the guest-side verification script (4.4) and the
+  harness (6.1) cannot come from a different commit than the image, and it
+  records that commit in `deploy_source_commit.txt`, which 6.6 copies next to
+  the Yocto build's own `source_commit.txt`; the pinned-digest verdict of
+  5.2a and the identity verdict of 4.4 are now written to
+  `/opt/egw/evidence/`, which 6.6 already fetches, and the `imagetools-*.txt`
+  files of 4.2 reach the host copy; 4.1 and 4.4 state what the two scripts
+  really print; and 5.7 names which `$REC` subcommand takes which URL option
+  (`delta` and `same` take neither, so the earlier advice would have ended in
+  a usage error).
+- **Limitation — unlocked dependencies:** `src/Dockerfile` still installs
+  with `pip install .`, without hashes or a lock, and its install method is
+  deliberately unchanged here. The first functional demonstration therefore
+  uses a controller image with **unlocked Python dependencies**; the
+  identity record lists `pip freeze --all` of that one build, which
+  documents it and does not make it reproducible. This must be resolved
+  before the experimental freeze (`scripts/generate-runtime-lock.sh`,
+  deployment README "Runtime Python lock"); such an image is not admissible
+  for thesis measurements.
+- **Boundary:** nothing here has run on the guest yet: no image was built,
+  saved, loaded or pulled, no script of this entry has met a Docker engine,
+  the stack was not deployed and no traffic was sent. Verified locally only:
+  `docker compose config` accepts the file and its resolved model differs
+  from the previous one only in the controller's `build`/`pull_policy`; unit
+  tests with a stub `docker` and with fakes (35 cases for the deployment
+  decision and the two image scripts, 106 for the helper; whole suite 1057
+  passed under Linux); the rewritten runbook lines ran verbatim against
+  stub `git`/`ssh`/`docker` commands under WSL (21 assertions for the
+  pull-by-digest route, then 17 more for the lines changed after the project
+  review of this pull request, the guest group under `dash` and `bash`) and
+  `src/tests/test_runbook_itest_helpers.py` passed afterwards under Linux
+  (64 cases). ShellCheck was not run locally; the GitHub workflow
+  establishes that result and the test results on Python 3.11 and 3.14.
+  Open, and named in runbook 4.5 as such:
+  `.github/workflows/manual-arm64-integration.yml` still says `up -d
+  --build` at line 34 and runs `validate-config.sh` at line 30 with no step
+  that provides `egw-controller:0.1.0`, so its step 7 would now fail there —
+  a known regression of a `workflow_dispatch` job whose self-hosted runner
+  does not exist, left to the change that repairs that workflow; the text
+  test of the deployment cases therefore still scans `src/deployment` only.
+  Also open: the header comments of `src/Dockerfile` and `src/.dockerignore`
+  still name the compose build context, and that comment edit belongs before
+  the evidence build, because `dockerfile_sha256` of the identity record
+  hashes the whole file.
+- **Decisions and next steps:** no gate, claim or maturity level is
+  accepted. Next, under the same authorisation: build the image from the
+  merged `dev`, load it, deploy the six services in the guest and run one
+  smartwatch at 1 Hz for 60 s, labelled as emulated functional evidence.

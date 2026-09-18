@@ -5,7 +5,7 @@
 #
 # Usage:  sh scripts/probe-acl.sh <tag>        tag: [A-Za-z0-9_-]+, unique per attempt
 # Env:    EGW_DEPLOY_DIR   (default /opt/egw/deployment)
-#         EGW_COMPOSE_ENV  (default images.offline.env; second --env-file)
+#         EGW_COMPOSE_ENV  (default images.lock.env; second --env-file)
 #         ACL_PROBE_OUT    (default /opt/egw/evidence/itest-acl-<tag>)
 #         ACL_PROBE_WINDOW (default 90; subscriber lifetime in seconds, -W)
 #         ACL_PROBE_READY  (default 40; max polls for both SUBSCRIBE log lines)
@@ -64,7 +64,7 @@ TAG=${1:-}
 case "$TAG" in ''|*[!A-Za-z0-9_-]*) echo "usage: $0 <tag>   (tag: [A-Za-z0-9_-]+)" >&2; exit 2;; esac
 
 DEPLOY=${EGW_DEPLOY_DIR:-/opt/egw/deployment}
-ENV2=${EGW_COMPOSE_ENV:-images.offline.env}
+ENV2=${EGW_COMPOSE_ENV:-images.lock.env}
 OUT=${ACL_PROBE_OUT:-/opt/egw/evidence/itest-acl-$TAG}
 WINDOW=${ACL_PROBE_WINDOW:-90}
 READY_MAX=${ACL_PROBE_READY:-40}

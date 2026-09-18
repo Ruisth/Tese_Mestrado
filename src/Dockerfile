@@ -1,8 +1,11 @@
 # Dockerfile — egw-controller image (MQTT->Ditto bridge, CONTRACTS.md 5/8).
 #
-# Build context is src/ (deployment/compose.yaml sets build.context: ..,
-# dockerfile: Dockerfile). Built locally on the ARM64 VM, never pulled, so it
-# is not listed in deployment/images.lock.env. The base image is pinned, but
+# Build context is src/. The image is built on a provisioning host by
+# deployment/scripts/build-controller-image.sh (buildx, linux/arm64, `docker
+# save` plus an identity record) and loaded into the gateway with `docker
+# load`: deployment/compose.yaml has no "build:" for the controller and the
+# gateway has no build context, no buildx and no pip. It is never pulled, so
+# it is not listed in deployment/images.lock.env. The base image is pinned, but
 # Python dependencies are NOT reproducibly locked yet: G2/exp-v1 remains
 # blocked until deployment/scripts/generate-runtime-lock.sh is run on the
 # ARM64 VM, requirements-runtime.lock is reviewed/committed, and this install

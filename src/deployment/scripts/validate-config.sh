@@ -15,7 +15,9 @@
 #      (plan §9.2);
 #   5. ./data/events exists (created here so the bind mount is owned by the
 #      invoking user, not root — the controller runs as uid 1000);
-#   6. `docker compose config -q` accepts the merged configuration.
+#   6. `docker compose config -q` accepts the merged configuration;
+#   7. the prebuilt controller image is present on this engine (compose.yaml
+#      never builds or pulls it: pull_policy "never"; README step 4b).
 #
 # Exit code 0 = safe to `up`; anything else = do NOT deploy.
 #
@@ -37,10 +39,12 @@ fail() {
 }
 
 # --- 1. .env -----------------------------------------------------------------
+# Placeholders are looked for in assignments only: the header comment of
+# .env.example names CHANGE_ME too, and it survives `cp .env.example .env`.
 if [ ! -f "$DEPLOY_DIR/.env" ]; then
     fail ".env not found in $DEPLOY_DIR" \
          "create it with: cp .env.example .env  (then fill in the CHANGE_ME values)"
-elif grep -q 'CHANGE_ME' "$DEPLOY_DIR/.env"; then
+elif grep -Eq '^[A-Za-z_][A-Za-z0-9_]*=.*CHANGE_ME' "$DEPLOY_DIR/.env"; then
     fail ".env still contains CHANGE_ME placeholder value(s)" \
          "set real passwords before deploying (never commit .env)"
 else
@@ -73,8 +77,9 @@ fi
 # Mosquitto 2.x opens keyfile/password_file/acl_file as its unprivileged user
 # (uid/gid 1883 in the official image), not as root: a key or password file
 # that user cannot read makes the broker exit at start-up. The check runs a
-# one-shot container of the broker image; on the offline guest export
-# EGW_BROKER_IMAGE=<loaded tag> first (see prepare-broker-secrets.sh).
+# one-shot container of the broker image; on a host that holds that image
+# only as a loaded tag export EGW_BROKER_IMAGE=<loaded tag> first (see
+# prepare-broker-secrets.sh).
 if [ "$tls_missing" -eq 1 ] || [ ! -f "$DEPLOY_DIR/mosquitto/config/passwd" ]; then
     echo "SKIP: broker secret readability (TLS material or password file missing)" >&2
 elif ! command -v docker >/dev/null 2>&1; then
@@ -125,10 +130,24 @@ else
     echo "SKIP: docker compose config (missing .env or images.lock.env)" >&2
 fi
 
+# --- 7. prebuilt controller image --------------------------------------------
+# Same name as "image:" of the controller in compose.yaml. Nothing is built
+# or pulled on the gateway, so an absent image can only be loaded:
+# scripts/build-controller-image.sh on a provisioning host, `docker load` here.
+CONTROLLER_IMAGE="egw-controller:0.1.0"
+if ! command -v docker >/dev/null 2>&1; then
+    echo "SKIP: controller image presence (docker CLI not found; reported above)" >&2
+elif docker image inspect "$CONTROLLER_IMAGE" >/dev/null 2>&1; then
+    echo "OK: controller image $CONTROLLER_IMAGE present (identity: scripts/verify-controller-image.sh)"
+else
+    fail "controller image $CONTROLLER_IMAGE is not present on this engine" \
+         "load the prebuilt archive: docker load -i <archive>   (README step 4b; never built or pulled here)"
+fi
+
 echo
 if [ "$failures" -gt 0 ]; then
     echo "FAILED: $failures problem(s) found. Do NOT deploy." >&2
     exit 1
 fi
 echo "OK: configuration is complete and consistent. Safe to run:"
-echo "    docker compose --env-file .env --env-file images.lock.env up -d --build"
+echo "    docker compose --env-file .env --env-file images.lock.env up -d"

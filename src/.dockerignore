@@ -1,5 +1,7 @@
 # .dockerignore — keep the controller build context minimal and free of
-# secrets. The build context is src/ (deployment/compose.yaml: context: ..).
+# secrets. The build context is src/, passed by
+# deployment/scripts/build-controller-image.sh; compose.yaml no longer
+# declares a build context for the controller.
 
 # Never ship deployment material: it contains .env, the Mosquitto password
 # file and the TLS private keys (plan 9.2: secrets stay out of images and
