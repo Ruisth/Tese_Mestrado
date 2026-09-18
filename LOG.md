@@ -1099,3 +1099,68 @@ is unchanged.
 - **Verification boundary:** Check README links and patch whitespace locally;
   the subsequent GitHub workflow result, not this entry, establishes whether
   the Linux build succeeds. Existing sealed build records remain unchanged.
+
+---
+
+## Entry #C029 — Progress counters in the controller's `GET /metrics`
+
+- **Date:** 2026-09-18
+- **Identifier:** `#C023`–`#C028` are used by or reserved for other open work
+  (pull requests #28, #29 and #30) and are not used here; identifiers are
+  never reused. For the same reason the decision record is ADR 0010: 0008 is
+  used by pull request #30 and 0009 is kept for other open work.
+- **Request:** Project review of 2026-09-18, authorised by the student the
+  same day: add `received`, `in_progress` and `processing_errors` to the
+  controller as a delimited observability change, with explicit semantics,
+  tests and restart handling. The counters show the controller's internal
+  state; they do not replace the reconciliation, by identity, of messages
+  sent with logged outcomes.
+- **Finding that motivates it:** `queue_depth` is `Queue.qsize()` and the
+  consumer removes a message before processing it, so a message in a Ditto
+  retry is in no field of `/metrics`; an exception that escapes processing
+  (a failed event-record write included) is logged and reaches no counter.
+  One reading could not distinguish "idle" from "one message in progress".
+- **Action:** Three additive integer fields. `received` is counted in
+  `ControllerService.submit()` before the queue-capacity decision;
+  `in_progress` is raised after the consumer takes a message and lowered in
+  a `finally`; `processing_errors` is the residual, raised in the same lock
+  acquisition when no outcome counter moved for that message. Every term of
+  the identity is written on the event loop and the `/metrics` handler reads
+  there, so one response is one snapshot. Identity, per response of a
+  running controller: `received == accepted + rejected + duplicate + failed
+  + dropped + processing_errors + in_progress + queue_depth`.
+- **Contract rule followed:** plan v1.2 section 1 ("material changes require
+  an ADR and regression tests") →
+  [ADR 0010](docs/adr/0010-controller-progress-counters.md), status
+  Proposed, and regression tests that keep the exact values of the existing
+  fields. `src/CONTRACTS.md` section 5 gains a dated additive sub-section
+  (semantics, identity, restart rules for readers, shutdown exclusion); the
+  title stays v1.1, as for the P5 confirmation marker, so no version string
+  or diagram moves: the rule of `diagrams/README.md` ("bump the version
+  named here ... in the same change") has no version to bump, a reading the
+  ADR states openly. Gate G3 ("contracts frozen") is `Pending`.
+- **Coordinated update (CONTRACTS header clause):**
+
+  | Component | Verdict | Basis |
+  |---|---|---|
+  | simulator | no change | does not read `/metrics` |
+  | controller | changed | `metrics.py`, `service.py` (`submit`, `run`), docstrings and one comment in `app.py` |
+  | schemas, TDs | no change | none describes `/metrics` |
+  | deployment | no change | only `/health` and `/ready` are probed |
+  | harness | no change | reads six counters and the marker by key; other integer keys are ignored; `controller_metrics.csv` keeps its columns |
+  | tests | updated and added | the two tests that pin the exact key set are updated; new tests cover the identity, the single-snapshot reading, fault, cancellation and shutdown paths |
+
+- **Not changed:** processing behaviour, outcomes, event records, retry
+  policy, `queue_depth`, the MQTT bridge, the shutdown sequence, the
+  simulator and the experiment harness. The defect by which a failed event
+  write leaves a message with no outcome is made visible, not repaired.
+- **Verification boundary:** unit tests with fakes only, outside the sealed
+  suite; the sealed figure stays 701. No live broker, no Ditto, no ARM64, no
+  run on the gateway. Local Markdown link check passed. The test counts of
+  the verified commit are recorded in the pull request; the GitHub workflow
+  result, not this entry, establishes the result on Python 3.11 and 3.14.
+- **Decisions and next steps:** no gate, claim or maturity level changes.
+  Follow-ups, each a separate change: record the new fields in
+  `controller_metrics.csv`; use the single-reading test in the integration
+  runbook (whether its quiet interval may be shortened is decided there);
+  repair the event-write defect.

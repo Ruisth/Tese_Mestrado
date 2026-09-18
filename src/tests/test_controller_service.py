@@ -2,16 +2,20 @@
 
 Covers all four outcomes (``accepted``/``rejected``/``duplicate``/``failed``),
 first-contact twin creation, dedupe seeding from an existing twin, latency
-semantics (ack and latency null unless accepted) and the metrics counters.
+semantics (ack and latency null unless accepted), the metrics counters and
+the accounting identity of the progress counters (CONTRACTS 5), asserted
+after every step of scripted runs and on the fault paths.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import re
 import uuid
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Callable, Iterator, Mapping
 
 import pytest
 
@@ -28,8 +32,11 @@ from test_controller_helpers import (
     EGW_UUID_NAMESPACE,
     RUN_ID,
     SCHEMA_DIR,
+    FailingEventLogger,
     FakeClock,
     FakeDittoClient,
+    GatedDittoClient,
+    accounting_gap,
     make_inbound,
     make_message_id,
     make_payload,
@@ -741,6 +748,567 @@ def test_queue_full_drops_message_and_counts_dropped(
     assert snapshot["rejected"] == 0
     assert snapshot["duplicate"] == 0
     assert snapshot["failed"] == 0
+
+
+# ---------------------------------------------------------------------------
+# progress counters and the accounting identity (CONTRACTS 5)
+# ---------------------------------------------------------------------------
+
+
+def _make_service(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    **kwargs: Any,
+) -> ControllerService:
+    return ControllerService(
+        repository=repository,
+        dedupe=DedupeCache(),
+        ditto=ditto,
+        events=events,
+        metrics=metrics,
+        **kwargs,
+    )
+
+
+def _gap(metrics: MetricsCounters, service: ControllerService) -> int:
+    """Identity gap of one reading taken as ``GET /metrics`` takes it: the
+    snapshot and the queue depth in one synchronous stretch on the loop."""
+    return accounting_gap(metrics.snapshot(), service.queue_depth())
+
+
+class _GapRecordingDittoClient(GatedDittoClient):
+    """Gated client that also records the identity gap at every Ditto update,
+    i.e. from inside the processing of each message."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.gaps: list[int] = []
+        self.probe: Callable[[], int] | None = None
+
+    async def patch_thing(
+        self, device_uuid: str, patch: Mapping[str, Any]
+    ) -> int:
+        if self.probe is not None:
+            self.gaps.append(self.probe())
+        return await super().patch_thing(device_uuid, patch)
+
+
+async def test_identity_holds_after_every_step_of_a_scripted_run(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """``received == outcomes + dropped + processing_errors + in_progress +
+    queue_depth`` after every step: enqueue, drop on a full queue, a message
+    held by a slow Ditto, and shutdown with work in progress. While the
+    shutdown marker is queued ``queue_depth`` counts it, so the gap is
+    exactly -1 (stated exclusion of CONTRACTS 5)."""
+    ditto = _GapRecordingDittoClient()
+    service = _make_service(repository, ditto, events, metrics, queue_maxsize=2)
+    ditto.probe = lambda: _gap(metrics, service)
+    assert _gap(metrics, service) == 0
+
+    for seq in range(3):
+        service.submit(make_inbound(make_payload("smartwatch", seq=seq)))
+        assert _gap(metrics, service) == 0
+    snapshot = metrics.snapshot()
+    assert (snapshot["received"], service.queue_depth(), snapshot["dropped"]) == (
+        3,
+        2,
+        1,
+    )
+
+    task = asyncio.create_task(service.run())
+    await ditto.entered.wait()
+    snapshot = metrics.snapshot()
+    # The message being processed is in in_progress, not in queue_depth.
+    assert (
+        snapshot["in_progress"],
+        service.queue_depth(),
+        snapshot["accepted"],
+    ) == (1, 1, 0)
+    assert _gap(metrics, service) == 0
+
+    await service.stop()  # marker queued behind the second message
+    assert service.queue_depth() == 2
+    assert _gap(metrics, service) == -1
+
+    ditto.release.set()
+    await task
+    snapshot = metrics.snapshot()
+    assert (
+        snapshot["in_progress"],
+        service.queue_depth(),
+        snapshot["accepted"],
+        snapshot["processing_errors"],
+    ) == (0, 0, 2, 0)
+    assert snapshot["received"] == 3
+    assert snapshot["dropped"] == 1
+    assert _gap(metrics, service) == 0
+    # Seen from inside processing: 0 for the first message (before stop()),
+    # -1 for the second (the marker was queued behind it).
+    assert ditto.gaps == [0, -1]
+    assert len(read_events(tmp_path)) == 2
+
+
+def test_received_includes_messages_dropped_on_a_full_queue(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """``received`` is counted whatever the capacity decision: once for a
+    queued message and once, never twice, for one counted as ``dropped``.
+    The ORDER inside ``submit`` is a separate property, pinned by
+    ``test_received_is_counted_before_dropped_inside_submit``."""
+    service = _make_service(repository, ditto, events, metrics, queue_maxsize=1)
+    for seq in range(3):
+        service.submit(make_inbound(make_payload("smartwatch", seq=seq)))
+    snapshot = metrics.snapshot()
+    assert snapshot["received"] == 3
+    assert snapshot["dropped"] == 2
+    assert service.queue_depth() == 1
+    assert snapshot["in_progress"] == 0
+    assert snapshot["processing_errors"] == 0
+    for outcome in ("accepted", "rejected", "duplicate", "failed"):
+        assert snapshot[outcome] == 0
+    assert _gap(metrics, service) == 0
+
+
+def test_received_is_counted_before_dropped_inside_submit(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+) -> None:
+    """``submit`` is a plain function, so a reader on the loop cannot see the
+    order of its two increments; a reader on another thread can. Counting
+    ``received`` first keeps ``dropped <= received`` true for every reader:
+    at the instant a message is counted as ``dropped`` it is already in
+    ``received``."""
+    received_when_dropped: list[int] = []
+
+    class RecordingCounters(MetricsCounters):
+        def increment_dropped(self) -> None:
+            received_when_dropped.append(self.snapshot()["received"])
+            super().increment_dropped()
+
+    metrics = RecordingCounters()
+    service = _make_service(repository, ditto, events, metrics, queue_maxsize=1)
+    for seq in range(3):
+        service.submit(make_inbound(make_payload("smartwatch", seq=seq)))
+    # The second and the third message were dropped.
+    assert received_when_dropped == [2, 3]
+    assert metrics.snapshot()["dropped"] == 2
+
+
+async def test_process_exception_counts_processing_error_and_keeps_pipeline_alive(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed event-record write escapes ``process()``: no outcome counter
+    and no event record exist for that message, so it is a
+    ``processing_errors``. It means "no outcome was recorded", not "not
+    applied": the twin WAS updated."""
+    with FailingEventLogger(tmp_path, failures=1) as events:
+        service = _make_service(repository, ditto, events, metrics)
+        service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+        service.submit(make_inbound(make_payload("smartwatch", seq=1)))
+        await service.stop()
+        with caplog.at_level(logging.ERROR, logger="egw_controller.service"):
+            await service.run()  # returns: the pipeline stayed alive
+
+    snapshot = metrics.snapshot()
+    assert snapshot["received"] == 2
+    assert snapshot["processing_errors"] == 1
+    assert snapshot["accepted"] == 1
+    assert snapshot["in_progress"] == 0
+    assert _gap(metrics, service) == 0
+    (record,) = read_events(tmp_path)
+    assert record["seq"] == 1
+    # Both twins updates happened, the one with no recorded outcome included.
+    assert [
+        patch["features"]["ingestion"]["properties"]["last_seq"]
+        for _, patch in ditto.patch_calls
+    ] == [0, 1]
+    assert "unhandled error while processing message" in caplog.text
+
+
+async def test_outcome_counted_then_failure_is_not_a_processing_error(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """Residual rule: an exception AFTER the outcome was counted must not
+    count the message a second time."""
+
+    class RaisesAfterOutcome(ControllerService):
+        async def process(self, message: InboundMessage) -> None:
+            await super().process(message)
+            raise RuntimeError("after the outcome was counted")
+
+    service = RaisesAfterOutcome(
+        repository=repository,
+        dedupe=DedupeCache(),
+        ditto=ditto,
+        events=events,
+        metrics=metrics,
+    )
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    await service.stop()
+    await service.run()
+    snapshot = metrics.snapshot()
+    assert snapshot["accepted"] == 1
+    assert snapshot["processing_errors"] == 0
+    assert snapshot["in_progress"] == 0
+    assert _gap(metrics, service) == 0
+
+
+async def test_process_returning_without_outcome_counts_processing_error(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """A message that leaves processing silently still reaches a final
+    counter: no exit path is on neither side of the identity."""
+
+    class ReturnsWithoutOutcome(ControllerService):
+        async def process(self, message: InboundMessage) -> None:
+            return None
+
+    service = ReturnsWithoutOutcome(
+        repository=repository,
+        dedupe=DedupeCache(),
+        ditto=ditto,
+        events=events,
+        metrics=metrics,
+    )
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    await service.stop()
+    await service.run()
+    snapshot = metrics.snapshot()
+    assert snapshot["received"] == 1
+    assert snapshot["processing_errors"] == 1
+    assert snapshot["in_progress"] == 0
+    assert _gap(metrics, service) == 0
+
+
+async def test_identity_holds_for_mixed_batch_through_the_queue(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """All four outcomes through ``submit`` + ``run``: each message lands in
+    exactly one outcome counter, and the event records are unchanged (none
+    of the progress names enters an event)."""
+
+    class FailsSecondPatch(FakeDittoClient):
+        async def patch_thing(
+            self, device_uuid: str, patch: Mapping[str, Any]
+        ) -> int:
+            if len(self.patch_calls) == 1:
+                self.fail_patch = DittoUnavailableError("down", attempts=3)
+            return await super().patch_thing(device_uuid, patch)
+
+    ditto = FailsSecondPatch()
+    service = _make_service(repository, ditto, events, metrics)
+    accepted = make_payload("smartwatch", seq=0)
+    service.submit(make_inbound(accepted))  # accepted
+    service.submit(make_inbound(accepted))  # duplicate
+    service.submit(  # rejected
+        make_inbound(make_payload("smartwatch", seq=1, heart_rate_bpm=999))
+    )
+    service.submit(make_inbound(make_payload("smartwatch", seq=2)))  # failed
+    assert _gap(metrics, service) == 0
+    await service.stop()
+    await service.run()
+
+    snapshot = metrics.snapshot()
+    assert snapshot["received"] == 4
+    assert snapshot["accepted"] == 1
+    assert snapshot["rejected"] == 1
+    assert snapshot["duplicate"] == 1
+    assert snapshot["failed"] == 1
+    assert snapshot["dropped"] == 0
+    assert snapshot["processing_errors"] == 0
+    assert snapshot["in_progress"] == 0
+    assert _gap(metrics, service) == 0
+    records = read_events(tmp_path)
+    assert [record["outcome"] for record in records] == [
+        "accepted",
+        "duplicate",
+        "rejected",
+        "failed",
+    ]
+    for record in records:
+        assert list(record) == list(EVENT_FIELDS)
+
+
+async def test_cancelled_consumer_counts_in_flight_message_and_still_raises(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cancellation with a message in flight: the message has no outcome, so
+    it is a ``processing_errors``; the backlog stays in ``queue_depth``; the
+    cancellation still propagates (the ``finally`` swallows nothing) and,
+    ``CancelledError`` not being an ``Exception``, leaves no log record."""
+    ditto = GatedDittoClient()
+    service = _make_service(repository, ditto, events, metrics)
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    service.submit(make_inbound(make_payload("smartwatch", seq=1)))
+    task = asyncio.create_task(service.run())
+    await ditto.entered.wait()
+    assert metrics.snapshot()["in_progress"] == 1
+
+    with caplog.at_level(logging.DEBUG, logger="egw_controller"):
+        task.cancel()
+        # Bounded wait: a consumer that swallowed the cancellation would take
+        # the second message and block on the gate for ever. The bound only
+        # turns that hang into a failure.
+        done, _ = await asyncio.wait({task}, timeout=5.0)
+        if not done:  # clean-up only, the test has already failed
+            ditto.release.set()
+            await service.stop()
+            await asyncio.wait({task}, timeout=5.0)
+    assert task in done, "the consumer swallowed the cancellation"
+    assert task.cancelled()
+    assert caplog.records == []
+    snapshot = metrics.snapshot()
+    assert (
+        snapshot["in_progress"],
+        snapshot["processing_errors"],
+        service.queue_depth(),
+    ) == (0, 1, 1)
+    assert snapshot["received"] == 2
+    assert _gap(metrics, service) == 0
+    assert read_events(tmp_path) == []
+
+
+async def test_consumer_cancelled_before_taking_a_message_counts_nothing(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """Cancellation delivered while the consumer waits in ``get()``, after
+    ``submit`` woke it but before it resumed: nothing was taken, so the
+    message stays in ``queue_depth`` and no gauge moves."""
+    service = _make_service(repository, ditto, events, metrics)
+    task = asyncio.create_task(service.run())
+    await asyncio.sleep(0)  # the consumer is now parked in get()
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    snapshot = metrics.snapshot()
+    assert (
+        snapshot["received"],
+        snapshot["in_progress"],
+        snapshot["processing_errors"],
+        service.queue_depth(),
+    ) == (1, 0, 0, 1)
+    assert _gap(metrics, service) == 0
+    assert ditto.patch_calls == []
+
+
+async def test_idle_consumer_cancelled_leaves_every_counter_at_zero(
+    service: ControllerService, metrics: MetricsCounters
+) -> None:
+    task = asyncio.create_task(service.run())
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    snapshot = metrics.snapshot()
+    assert (
+        snapshot["received"],
+        snapshot["in_progress"],
+        snapshot["processing_errors"],
+        service.queue_depth(),
+    ) == (0, 0, 0, 0)
+    assert _gap(metrics, service) == 0
+
+
+class _YieldingFaultyDittoClient(FakeDittoClient):
+    """Every call gives the loop back several times, as a real HTTP round
+    trip does; ``faults`` maps the number of a ``patch_thing`` call (from 1)
+    to the exception it raises after the twin was touched."""
+
+    def __init__(self, faults: Mapping[int, Exception]) -> None:
+        super().__init__()
+        self.faults = dict(faults)
+
+    async def get_twin(self, device_uuid: str) -> dict[str, Any] | None:
+        await asyncio.sleep(0)
+        twin = await super().get_twin(device_uuid)
+        await asyncio.sleep(0)
+        return twin
+
+    async def ensure_twin(self, **kwargs: str) -> int:
+        await asyncio.sleep(0)
+        requests = await super().ensure_twin(**kwargs)
+        await asyncio.sleep(0)
+        return requests
+
+    async def patch_thing(
+        self, device_uuid: str, patch: Mapping[str, Any]
+    ) -> int:
+        await asyncio.sleep(0)
+        attempts = await super().patch_thing(device_uuid, patch)
+        await asyncio.sleep(0)
+        fault = self.faults.get(len(self.patch_calls))
+        if fault is not None:
+            raise fault
+        return attempts
+
+
+async def test_identity_holds_at_every_loop_iteration_while_messages_arrive(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """A reader on the loop evaluates the identity at EVERY loop iteration
+    while messages arrive and the consumer is suspended inside Ditto calls
+    that end in an update, in a ``DittoError`` and in an exception that
+    escapes ``process()``: the gap is 0 every time, and the reader does see
+    a message in progress. An ``await`` inside one of the transitions of
+    ``run`` (taken -> in progress, outcome -> finished) would show here."""
+    ditto = _YieldingFaultyDittoClient(
+        {
+            2: DittoUnavailableError("down", attempts=3),  # -> failed
+            3: RuntimeError("escapes process()"),  # -> processing_errors
+        }
+    )
+    service = _make_service(repository, ditto, events, metrics, queue_maxsize=3)
+    readings: list[tuple[int, int]] = []
+    probing = True
+
+    async def probe() -> None:
+        while probing:
+            snapshot = metrics.snapshot()
+            readings.append(
+                (
+                    accounting_gap(snapshot, service.queue_depth()),
+                    snapshot["in_progress"],
+                )
+            )
+            await asyncio.sleep(0)
+
+    async def until_idle() -> None:
+        for _ in range(10_000):  # loop iterations; a hang guard only
+            if (
+                metrics.snapshot()["in_progress"] == 0
+                and service.queue_depth() == 0
+            ):
+                return
+            await asyncio.sleep(0)
+        raise AssertionError("the consumer never became idle")
+
+    probe_task = asyncio.create_task(probe())
+    run_task = asyncio.create_task(service.run())
+    invalid = make_inbound(
+        b"{", topic=topic_for(make_payload("smartwatch", seq=0))
+    )
+    # A burst larger than the queue: exactly three are queued, two dropped.
+    for seq in range(5):
+        service.submit(make_inbound(make_payload("smartwatch", seq=seq)))
+    # Then one arrival per loop iteration, while the consumer is inside Ditto.
+    for seq in range(5, 15):
+        await asyncio.sleep(0)
+        service.submit(
+            invalid
+            if seq % 3 == 0
+            else make_inbound(make_payload("smartwatch", seq=seq))
+        )
+    await until_idle()
+    # Room is certain now: one rejection and one more update.
+    service.submit(invalid)
+    service.submit(make_inbound(make_payload("smartwatch", seq=15)))
+    await until_idle()
+    probing = False
+    await probe_task
+    await service.stop()
+    await run_task
+
+    assert {gap for gap, _ in readings} == {0}
+    assert {in_progress for _, in_progress in readings} == {0, 1}
+    snapshot = metrics.snapshot()
+    assert snapshot["received"] == 17
+    assert snapshot["failed"] == 1
+    assert snapshot["processing_errors"] == 1
+    assert snapshot["accepted"] == len(ditto.patch_calls) - 2
+    assert snapshot["accepted"] >= 2
+    assert snapshot["rejected"] >= 1
+    assert snapshot["dropped"] >= 2
+    assert snapshot["duplicate"] == 0
+    assert _gap(metrics, service) == 0
+
+
+async def test_shutdown_marker_occupies_one_queue_slot(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """While the marker of ``stop()`` is queued it takes one slot (behaviour
+    that predates the progress counters): a message arriving then is counted
+    as ``dropped`` one slot before the configured capacity, and the gap
+    stays at the stated -1."""
+    service = _make_service(repository, ditto, events, metrics, queue_maxsize=2)
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    await service.stop()
+    service.submit(make_inbound(make_payload("smartwatch", seq=1)))
+    snapshot = metrics.snapshot()
+    assert (snapshot["received"], snapshot["dropped"]) == (2, 1)
+    assert service.queue_depth() == 2
+    assert _gap(metrics, service) == -1
+    await service.run()
+    snapshot = metrics.snapshot()
+    assert (snapshot["accepted"], snapshot["dropped"]) == (1, 1)
+    assert _gap(metrics, service) == 0
+
+
+async def test_direct_process_call_touches_no_progress_counter(
+    service: ControllerService, metrics: MetricsCounters
+) -> None:
+    """A direct ``process()`` call bypasses the queue, hence the accounting
+    boundary: only ``submit`` and ``run`` move the progress counters."""
+    await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    snapshot = metrics.snapshot()
+    assert snapshot["accepted"] == 1
+    assert snapshot["received"] == 0
+    assert snapshot["in_progress"] == 0
+    assert snapshot["processing_errors"] == 0
+
+
+async def test_message_behind_the_shutdown_marker_stays_in_queue_depth(
+    service: ControllerService, metrics: MetricsCounters, tmp_path: Path
+) -> None:
+    """A message enqueued behind the marker during teardown is counted by
+    ``submit`` and never taken: it stays in ``queue_depth``."""
+    await service.stop()
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    await service.run()  # reads the marker first and ends
+    snapshot = metrics.snapshot()
+    assert snapshot["received"] == 1
+    assert service.queue_depth() == 1
+    assert snapshot["in_progress"] == 0
+    assert snapshot["processing_errors"] == 0
+    for outcome in ("accepted", "rejected", "duplicate", "failed"):
+        assert snapshot[outcome] == 0
+    assert _gap(metrics, service) == 0
+    assert read_events(tmp_path) == []
 
 
 def test_inbound_message_is_immutable() -> None:
