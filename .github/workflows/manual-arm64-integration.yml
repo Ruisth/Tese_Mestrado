@@ -25,13 +25,23 @@ jobs:
       - name: Capture the system under test
         working-directory: src/deployment
         run: scripts/capture-sut-environment.sh "${{ runner.temp }}/${{ inputs.evidence_label }}-sut_environment.json"
+      # The controller is never built by Compose: compose.yaml carries no
+      # "build:" for it and pull_policy is never. On this native ARM64 runner
+      # the provisioning script builds and loads it before the stack starts.
+      - name: Build and load the controller image
+        run: |
+          sh src/deployment/scripts/build-controller-image.sh "${{ runner.temp }}/images"
+          docker load -i "${{ runner.temp }}/images/egw-controller-0.1.0-arm64.tar"
+      - name: Verify the loaded controller image against its record
+        working-directory: src/deployment/scripts
+        run: sh verify-controller-image.sh "${{ runner.temp }}/images/egw-controller-0.1.0-arm64.identity.txt"
       - name: Validate local secrets, pins and Compose configuration
         working-directory: src/deployment
         run: scripts/validate-config.sh
       - name: Start the stack and wait for readiness
         working-directory: src/deployment
         run: |
-          docker compose --env-file .env --env-file images.lock.env up -d --build
+          docker compose --env-file .env --env-file images.lock.env up -d
           timeout 600 sh -c 'until curl -fsS http://127.0.0.1:8000/ready >/dev/null; do sleep 5; done'
       - name: Install integration-test dependencies
         working-directory: src

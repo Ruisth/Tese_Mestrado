@@ -10,7 +10,11 @@
 # images.lock.env, so BOTH env files must be passed explicitly (passing any
 # --env-file disables the automatic .env loading):
 #
-#   docker compose --env-file .env --env-file images.lock.env up -d --build
+#   docker compose --env-file .env --env-file images.lock.env up -d
+#
+# Nothing is built by this file, and never on the gateway: the controller
+# image is prebuilt on a provisioning host and loaded with `docker load`
+# (README step 4b, scripts/build-controller-image.sh). Do not add --build.
 #
 # Ditto/Mongo service definitions (env vars, JVM options, healthchecks,
 # cluster alias, memory limits) were copied from the upstream Ditto 3.9.4
@@ -204,13 +208,17 @@ services:
     logging: *default-logging
 
   controller:
-    # Built locally from src/Dockerfile; not part of images.lock.env because
-    # it is never pulled from a registry (reproducibility comes from the
-    # pinned base image inside the Dockerfile plus the git commit).
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    # Prebuilt from src/Dockerfile on a provisioning host
+    # (scripts/build-controller-image.sh: buildx, linux/arm64, `docker save`
+    # plus an identity record) and brought in with `docker load`; not part of
+    # images.lock.env because it is never pulled from a registry. There is
+    # deliberately no "build:" here: the gateway has no build context, no
+    # buildx and no pip. pull_policy "never" turns a missing image into an
+    # immediate, named failure instead of a pull attempt of
+    # docker.io/library/egw-controller. Identity = image id + source commit
+    # (scripts/verify-controller-image.sh).
     image: egw-controller:0.1.0
+    pull_policy: never
     platform: linux/arm64
     restart: unless-stopped
     depends_on:

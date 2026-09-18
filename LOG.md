@@ -1332,3 +1332,121 @@ is unchanged.
   `controller_metrics.csv`; use the single-reading test in the integration
   runbook (whether its quiet interval may be shortened is decided there);
   repair the event-write defect.
+
+---
+
+## Entry #C030 — Prebuilt controller image in the deployment; reconciliation helper versioned
+
+- **Date:** 2026-09-18
+- **Request:** Project review of 2026-09-18, authorised by the student the
+  same day, before the first end-to-end functional test inside the
+  integrated QEMU guest: the published Compose file still built the
+  controller and `itest_reconcile.py` was outside `dev`; make the use of a
+  prebuilt image explicit, version the helper, use the external images
+  pinned by digest, publish no controller image, and record that the
+  Dockerfile installs Python dependencies without a reproducible lock.
+- **Action (deployment):** `src/deployment/compose.yaml`, service
+  `controller`: the `build:` stanza is removed and `pull_policy: never` is
+  added; `image: egw-controller:0.1.0` and `platform: linux/arm64` stay. No
+  other service, port, limit, pin or the ACL changes. The only command shape
+  on the gateway is `docker compose --env-file .env --env-file
+  images.lock.env up -d` (no `--build`); `images.lock.env` remains the only
+  source of the five external references, which are pulled by their pinned
+  digests inside the guest. New `scripts/build-controller-image.sh`
+  (provisioning host: `buildx`, `linux/arm64`, refuses a dirty build context
+  — git-ignored files below a path the Dockerfile copies included, since they
+  reach the image while `git status` stays silent about them —, `docker
+  save`, identity record with source commit, base image, image id read from
+  the archive, archive SHA-256, `python --version`, `pip freeze --all`, tool
+  versions and UTC time; pushes nothing; traps `HUP`/`INT`/`TERM` so that an
+  interrupted run leaves no archive without a record in any POSIX shell) and
+  `scripts/verify-controller-image.sh` (gateway: compares the loaded image
+  with the record — image id, architecture, OS and the revision label — and
+  refuses a record from a dirty build context). `scripts/validate-config.sh`
+  gains step 7 (controller image present, remedy `docker load -i <archive>`,
+  never a build or a pull), and its step 1 now looks for `CHANGE_ME` in
+  assignments only: the header comment of `.env.example` carries the word and
+  survives `cp .env.example .env`, so the step failed on every correctly
+  filled `.env` and the `up -d` interlock of runbook 5.5 could never have
+  passed — a defect already on `dev`, found by the project review of this
+  pull request.
+  `scripts/probe-acl.sh` takes `images.lock.env` as its default second env
+  file.
+- **Action (harness):** `src/egw_experiments/itest_reconcile.py` (`mark`,
+  `wait`, `check`, `snap`, `delta`, `same`) is versioned with
+  `src/tests/test_experiments_itest_reconcile.py` (106 cases, fakes only, no
+  network). It imports `CONFIRMATION_WINDOW_S`, `poll_controller_marker` and
+  `compute_run_metrics` from the harness, never redefines the confirmation
+  window and refuses a marker file whose deadline is not marker + window.
+  `mark` measures the lag up to the **return** of the poll, as the harness
+  does, so a slow round trip can no longer hide a lag above the 2 s
+  tolerance; `delta` exits 4 for a device with accepted records that the
+  `from` snapshot does not hold (a snapshot taken with another seed than the
+  run, which used to close vacuously) and says when a `/metrics` reading is
+  missing instead of passing over it; `check` adds warnings about files that
+  are not shown to be this run's and whole, and about a controller clock that
+  decreases along the event log, without changing a count or an exit status.
+  The test module extracts every `$REC` command line from the runbook and
+  parses it, so a drift between document and interface fails a case.
+- **Action (runbook):**
+  [`docs/setup/qemu_integrated_gateway.md`](docs/setup/qemu_integrated_gateway.md)
+  Sections 3.5, 4, 4.5, 5 to 7 and Appendix B follow the implemented route:
+  controller built with the script from a clean checkout, copied, streamed
+  into `docker load` and compared with its identity record (4.1, 4.3, 4.4,
+  repeated in front of `up -d` in 5.5); five external images pulled in the
+  guest with a `RepoDigests` check (new 5.2a); `EGW_BROKER_IMAGE` no longer
+  exported; every compose command names `images.lock.env`. The offline
+  route (six archives, `images.offline.env`, `images.identity.env`) was
+  never implemented and is removed from the text. The six points of 4.5 are
+  marked done (1, 4, 6), superseded (2, 5) or both (3). Four further
+  corrections came from the project review of this pull request: 4.3 brings
+  the WSL clone
+  to the commit named in the identity record and refuses a dirty `src/`, so
+  the deployment tree (5.1), the guest-side verification script (4.4) and the
+  harness (6.1) cannot come from a different commit than the image, and it
+  records that commit in `deploy_source_commit.txt`, which 6.6 copies next to
+  the Yocto build's own `source_commit.txt`; the pinned-digest verdict of
+  5.2a and the identity verdict of 4.4 are now written to
+  `/opt/egw/evidence/`, which 6.6 already fetches, and the `imagetools-*.txt`
+  files of 4.2 reach the host copy; 4.1 and 4.4 state what the two scripts
+  really print; and 5.7 names which `$REC` subcommand takes which URL option
+  (`delta` and `same` take neither, so the earlier advice would have ended in
+  a usage error).
+- **Limitation — unlocked dependencies:** `src/Dockerfile` still installs
+  with `pip install .`, without hashes or a lock, and its install method is
+  deliberately unchanged here. The first functional demonstration therefore
+  uses a controller image with **unlocked Python dependencies**; the
+  identity record lists `pip freeze --all` of that one build, which
+  documents it and does not make it reproducible. This must be resolved
+  before the experimental freeze (`scripts/generate-runtime-lock.sh`,
+  deployment README "Runtime Python lock"); such an image is not admissible
+  for thesis measurements.
+- **Boundary:** nothing here has run on the guest yet: no image was built,
+  saved, loaded or pulled, no script of this entry has met a Docker engine,
+  the stack was not deployed and no traffic was sent. Verified locally only:
+  `docker compose config` accepts the file and its resolved model differs
+  from the previous one only in the controller's `build`/`pull_policy`; unit
+  tests with a stub `docker` and with fakes (35 cases for the deployment
+  decision and the two image scripts, 106 for the helper; whole suite 1057
+  passed under Linux); the rewritten runbook lines ran verbatim against
+  stub `git`/`ssh`/`docker` commands under WSL (21 assertions for the
+  pull-by-digest route, then 17 more for the lines changed after the project
+  review of this pull request, the guest group under `dash` and `bash`) and
+  `src/tests/test_runbook_itest_helpers.py` passed afterwards under Linux
+  (64 cases). ShellCheck was not run locally; the GitHub workflow
+  establishes that result and the test results on Python 3.11 and 3.14.
+  Open, and named in runbook 4.5 as such:
+  `.github/workflows/manual-arm64-integration.yml` still says `up -d
+  --build` at line 34 and runs `validate-config.sh` at line 30 with no step
+  that provides `egw-controller:0.1.0`, so its step 7 would now fail there —
+  a known regression of a `workflow_dispatch` job whose self-hosted runner
+  does not exist, left to the change that repairs that workflow; the text
+  test of the deployment cases therefore still scans `src/deployment` only.
+  Also open: the header comments of `src/Dockerfile` and `src/.dockerignore`
+  still name the compose build context, and that comment edit belongs before
+  the evidence build, because `dockerfile_sha256` of the identity record
+  hashes the whole file.
+- **Decisions and next steps:** no gate, claim or maturity level is
+  accepted. Next, under the same authorisation: build the image from the
+  merged `dev`, load it, deploy the six services in the guest and run one
+  smartwatch at 1 Hz for 60 s, labelled as emulated functional evidence.
