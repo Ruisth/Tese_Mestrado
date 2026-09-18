@@ -1,0 +1,4 @@
+source_commit=3209b17e6483e4bcde2776898edcbfbe15c08be0
+branch=build/integrated-qemu-3209b17
+image_built_at=03e333e (evidence in ../2026-09-18-integrated-03e333e); this commit changes only scripts/run-qemu-integrated.sh and the runbook
+previous_boot_attempt=integrated-boot-01 at 03e333e failed before QEMU started (IMAGE_LINK_NAME), preserved in ../2026-09-18-integrated-03e333e/boot

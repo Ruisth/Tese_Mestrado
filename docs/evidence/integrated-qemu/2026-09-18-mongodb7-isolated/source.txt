@@ -1,0 +1,3 @@
+source_commit=3209b17e6483e4bcde2776898edcbfbe15c08be0
+branch=build/integrated-qemu-3209b17
+clone_clean=yes
