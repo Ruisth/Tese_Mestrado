@@ -1176,3 +1176,30 @@ is unchanged.
   candidate evidence is held outside the repository and is not sealed; no
   gate and no claim is accepted.
 - **Record:** `docs/reviews/2026-09-17-egw-image-audit.md`, Section 13.
+
+---
+
+## Entry #C027 — Third review of the test procedure; isolated MongoDB 7 test recorded
+
+- **Date:** 2026-09-18
+- **Request:** The project review found four residual defects in the
+  published test procedure (one reproduced by running the helper) and asked for
+  a short, focused correction with positive and negative cases; it also
+  recommended, and the student authorised, an isolated MongoDB 7 test on the
+  integrated guest.
+- **Action:** `accounted` now reconciles message identities instead of totals
+  and never states that no work is pending; test 7 cannot be accepted unless
+  the interruption and the recovery are both shown, and always attempts the
+  recovery; failures of evidence capture are binding; tunnels are closed
+  through a project-only control socket instead of a pattern kill. The cases
+  are executable: `src/tests/test_runbook_itest_helpers.py` extracts the text
+  from the runbook at run time (64 cases; the review's case fails against the
+  published text). Report: `docs/reviews/2026-09-18-test-procedure-corrections.md`.
+  The audit report records the round in Section 12.2 and the MongoDB test in
+  Section 13.5; the runbook status and its Section 3.5 note that the guest can
+  pull by the pinned digest.
+- **Boundary:** Stubs only: nothing in runbook Sections 4-9 has run on the
+  real host, guest or broker. The MongoDB test is functional evidence of an
+  emulated guest (record in pull request #29); the stack was not deployed,
+  nothing was measured, no gate and no claim is accepted. The entry ids #C025
+  and #C026 belong to other open pull requests.
