@@ -2,13 +2,13 @@
 
 Architecture decisions of the EGW project, in MADR-style short form
 (Status / Context / Decision / Consequences). ADRs record decisions already
-fixed by the normative integrated plan, which is
-[plan v1.2](../governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md)
-(the canonical path holds the proposed v2.0, which is not in force),
+fixed by the normative integrated plan
+([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md))
 and by [`../../src/CONTRACTS.md`](../../src/CONTRACTS.md); changing an accepted
 ADR therefore requires updating those sources first and logging the change in
-`LOG.md`. An ADR whose status is `Proposed` (0007, 0008) records a proposal,
-not a decision fixed by the plan in force.
+`LOG.md`. An ADR whose status is `Proposed` (0007, 0008, 0010) records a
+proposal, not a decision fixed by the plan in force; 0008 belongs to the
+[plan v2.0 proposal](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md).
 
 Conventions:
 

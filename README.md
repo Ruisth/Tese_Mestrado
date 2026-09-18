@@ -35,37 +35,51 @@ G1 is the only formally accepted gate. **0 of 15 research claims are accepted**;
 acceptance of the functional platform does not admit C01/C02 or any performance
 claim. The planning record of 2026-09-16, now the plan v2.0 proposal described
 below, reports no available ARM64 VM and no new native deployment, integration
-run or campaign. Historical
-unit-test totals are not live validation and are not presented as fresh results.
+run or campaign. Historical unit-test totals are not live validation and are
+not presented as fresh results.
 
 ## Planning and decision boundary
 
 The plan in force remains
-[the integrated plan v1.2](docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md),
-kept byte-for-byte. It specifies separate functional-QEMU and native-service
-environments. The revision prepared on 2026-09-16 instead targets an integrated
-Yocto guest and is now published **as a proposal for review**:
-[plan v2.0](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) and
-[ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is
+[the integrated plan v1.2](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
+unmodified at its canonical path. It specifies separate functional-QEMU and
+native-service environments. The revision prepared on 2026-09-16 instead targets
+an integrated Yocto guest and is published **as a proposal**, under
+[`docs/governance/proposals/`](docs/governance/proposals/README.md): the
+[plan v2.0 proposal](docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md),
+its [scope and RQs](docs/governance/proposals/scope_and_rqs_v2.0_proposal.md),
+the draft [alignment memo](docs/governance/proposals/supervisor_alignment_memo_v2.0_proposal.md)
+and [ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is
 *Proposed — pending supervisor agreement (accepted by the student for technical
 planning only)*. Plan v1.2 stays in force until the student decides after
-consulting the supervisors. Nothing has been sent to the supervisors: decisions
+consulting the supervisors; merging the proposal into the repository adopts
+nothing. Nothing has been sent to the supervisors: decisions
 D001–D014 are all `proposed_not_sent`, and nothing is approved by them.
 
-The proposal separates two evidence classes (plan v2.0, section 10). ARM64
+The proposal separates two evidence classes (plan v2.0 proposal, section 10). ARM64
 emulated under QEMU/TCG on the x86-64 workstation gives functional and
 integration evidence only; every latency, throughput, saturation and resource
 result, and any statement about ARM hardware, depends on native ARM64. Adopting
 the integrated title and RQ wording, and re-scoping RQ3 or the evaluation to
 emulated functional evidence if no native ARM64 host is obtained in time, need
-supervisor agreement, as does any academic use of emulated results.
+supervisor agreement, as does any academic use of emulated results. Demonstrated
+by 2026-09-18, all emulated: the image build, two boots and an isolated MongoDB 7.0.39
+test. The six-container stack has not been deployed; the first bounded
+end-to-end functional test (one smartwatch, 1 Hz, 60 s) is authorised and in
+preparation and has not run; nothing has been measured.
 
-The proposed forecast targets readiness on 2026-10-20 and records a
-student-reported extension date of 2026-11-03. These are not confirmed
-administrative deadlines in the published decision record. Reconcile the revised
-architecture, scope, dates and acceptance criteria with the supervisors before
-treating them as the execution baseline; do not reuse elapsed August milestones
-as future commitments.
+Dates for current planning: planned submission **2026-10-20** and final delivery
+deadline **2026-10-31**; the days from 2026-10-21 to 2026-10-31 are a contingency
+window for essential corrections only, not the default delivery period and not
+time for optional scope. Source: the student's confirmation of 2026-09-18 after
+discussing the dates with the supervisors, which is a first-party statement; no
+administrative record is held in the repository. The pair supersedes, for
+current planning, the 2026-09-29 internal cut-off and the 2026-09-30 baseline
+that plan v1.2 keeps as written. The milestone dates between now and the
+submission are in section 6 of the plan v2.0 proposal and are a forecast, not
+completed milestones. Reconcile the revised architecture, scope and acceptance
+criteria with the supervisors before treating them as the execution baseline;
+do not reuse elapsed August milestones as future commitments.
 
 [PROGRESS.md](PROGRESS.md) records deliverable-level implementation and evidence;
 formal gate outcomes live exclusively in
@@ -75,10 +89,11 @@ or alter the [claim-evidence matrix](docs/claim_evidence_matrix.md).
 
 ## Immediate priorities
 
-1. Put the published integrated-Yocto proposal (plan v2.0, ADR 0008, decisions
+1. Put the integrated-Yocto proposal (plan v2.0 proposal, ADR 0008, decisions
    D011–D014) to the supervisors and reconcile platform feasibility, budget and
-   the confirmed submission date. Functional integration work under QEMU/TCG
-   proceeds in parallel and does not wait for that reply.
+   the review calendar before the planned submission of 2026-10-20. Functional
+   integration work under QEMU/TCG proceeds in parallel and does not wait for
+   that reply.
 2. Obtain native ARM64 access and build/boot a compatible Yocto image. Do not
    assume the existing `qemuarm64` artefact can be imported into a cloud provider
    unchanged.

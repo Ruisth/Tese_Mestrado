@@ -1,6 +1,6 @@
 # ARM64 measurement VM checklist (provider not yet secured)
 
-> **2026-09-16 integrated-Yocto planning amendment (proposal).** This older distribution/provider setup guide is not a native Yocto boot procedure. The proposed [plan v2.0, section 4](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), published for review, describes the custom-image route and its prerequisites; [plan v1.2](../governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md) remains the plan in force until the student decides after consulting the supervisors. Old prices/availability are not current evidence.
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** This older distribution/provider setup guide is not a native Yocto boot procedure. The proposed [plan v2.0, section 4](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md), a proposal, not in force, describes the custom-image route and its prerequisites; [plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) remains the plan in force until the student decides after consulting the supervisors. Old prices/availability are not current evidence.
 
 Checklist to provision the temporary native-ARM64 instance used for the entire
 experimental campaign (plan 5.1). This document gives instructions only; account
