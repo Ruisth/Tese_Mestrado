@@ -1102,6 +1102,110 @@ is unchanged.
 
 ---
 
+## Entry #C023 — Integrated QEMU/TCG gateway profile (unbuilt proposal)
+
+- **Date:** 2026-09-18
+- **Request:** Verify whether the sealed `egw-image` is fit to host the
+  digital-twin stack, and prepare a first change set limited to an integrated
+  QEMU/TCG profile: the Yocto ARM64 guest emulated on the x86-64 host with the
+  six containers inside the guest. No native ARM64 host could be obtained.
+- **Finding:** The G1 image is a sound container host but cannot run the
+  stack as sealed. Its QEMU profile is `-cpu cortex-a57 -m 256`, while MongoDB 7
+  needs ARMv8.2-A and the compose memory limits alone total 2,432 MiB. It lacks
+  the Compose V2 plugin, `curl`, a non-root operator with key-only SSH, a
+  persistent journal, explicit NTP servers, a Docker `daemon.json`, an event
+  directory writable by uid 1000 and storage for the images. Removable
+  default-feature packages amount to about 24 MiB; size is not the problem.
+- **Action:** Add `kas/egw-qemuarm64-integrated.yml` with its lock file,
+  `egw-gateway-image.bb`, `egw-gateway-image-dev.bb`, the `egw-gateway-config`
+  recipe, `scripts/build-profile.sh`, `scripts/run-qemu-integrated.sh`, the
+  runbook `docs/setup/qemu_integrated_gateway.md` and the audit
+  `docs/reviews/2026-09-17-egw-image-audit.md`. The profile keeps the G1
+  machine, layers and pins, builds only in `build-integrated/`, selects
+  `-cpu cortex-a76`, 8 GiB and four vCPUs, forwards 2222 and 8883, and keeps
+  Docker data on a second ext4 disk outside the clone. The data-disk guard
+  resolves the canonical path before anything is created.
+- **Boundary:** Nothing was built, booted or measured. Every G1 input is
+  byte-identical and the eight evidence seals on this branch verify (59
+  artefacts). The environment is ARM64
+  emulated on x86-64: functional and integration evidence only, never native
+  performance evidence. The profile follows the student-directed
+  integrated-Yocto target, whose plan revision and ADR 0008 are not yet
+  published on `dev`; no plan version is adopted, no gate and no claim is
+  accepted. The native-route files, the deployment corrections (broker secret
+  ownership, ACL probe, prebuilt controller) and the harness reconciliation
+  helper are deliberately left for later pull requests.
+- **Verification record:** YAML and JSON parsing, `sh -n`/`bash -n`, a sandbox
+  run of the data-disk guard, the repository link and evidence-seal checks.
+  ShellCheck is not installed on the workstation, so the `shell safety` check
+  is the first ShellCheck run of the two new scripts.
+
+---
+
+## Entry #C024 — First build and boot of the integrated QEMU/TCG profile
+
+- **Date:** 2026-09-18
+- **Request:** Validate, by a delimited build and boot in WSL2, the integrated
+  profile of entry #C023 from an identified commit, preserving the G1 build
+  artefacts, without deploying the stack, running a campaign or accepting a
+  gate.
+- **What happened:** The first build (commit `68f9ae7`) failed in
+  `egw-gateway-image:do_rootfs` on an RPM conflict: `egw-gateway-config`
+  created `/etc/sudoers.d` 0755 while `sudo-lib` ships it 0750. Commit
+  `03e333e` creates it 0750; the build then succeeded (5,556 tasks). The first
+  boot attempt ended before QEMU started: the pinned `runqemu` cannot resolve
+  `IMAGE_LINK_NAME` when given an image name and a machine. Commit `3209b17`
+  passes the image's own `.qemuboot.conf`; the rebuild was a no-op and two
+  boots followed. Every failed attempt is preserved.
+- **Result:** Every artefact check (runbook 2.4) and guest check (runbook 3.4)
+  passed: Cortex-A76 model, four vCPUs, 8,204,356 kB of memory with
+  `mem=8192M`, `/var/lib/docker` on the labelled data disk, Docker 25.0.9 with
+  Compose v2.26.0, cgroup v2, key-only SSH for `egw` with `root` and password
+  logins refused, NTP synchronised, no failed unit. The second boot showed both
+  boots in the journal, the same SSH host key, data-disk UUID and Docker
+  engine id.
+- **Prediction refuted:** The kernel was re-executed rather than restored
+  from the shared sstate cache, because meta-virtualization signs the whole
+  `DISTRO_FEATURES` value into `do_kernel_metadata` and the profile removes
+  `nfs`. The resulting `Image` is byte-identical to the G1 `Image`. The
+  manifest comment is corrected.
+- **Boundary:** The sealed G1 build tree is unchanged (listing and checksums
+  compared before the first build, after the builds and after the boots). No
+  image was loaded, no container was started, MongoDB 7 was not tried. The
+  environment is ARM64 emulated on x86-64: functional evidence only. The
+  candidate evidence is held outside the repository and is not sealed; no
+  gate and no claim is accepted.
+- **Record:** `docs/reviews/2026-09-17-egw-image-audit.md`, Section 13.
+
+---
+
+## Entry #C027 — Third review of the test procedure; isolated MongoDB 7 test recorded
+
+- **Date:** 2026-09-18
+- **Request:** The project review found four residual defects in the
+  published test procedure (one reproduced by running the helper) and asked for
+  a short, focused correction with positive and negative cases; it also
+  recommended, and the student authorised, an isolated MongoDB 7 test on the
+  integrated guest.
+- **Action:** `accounted` now reconciles message identities instead of totals
+  and never states that no work is pending; test 7 cannot be accepted unless
+  the interruption and the recovery are both shown, and always attempts the
+  recovery; failures of evidence capture are binding; tunnels are closed
+  through a project-only control socket instead of a pattern kill. The cases
+  are executable: `src/tests/test_runbook_itest_helpers.py` extracts the text
+  from the runbook at run time (64 cases; the review's case fails against the
+  published text). Report: `docs/reviews/2026-09-18-test-procedure-corrections.md`.
+  The audit report records the round in Section 12.2 and the MongoDB test in
+  Section 13.5; the runbook status and its Section 3.5 note that the guest can
+  pull by the pinned digest.
+- **Boundary:** Stubs only: nothing in runbook Sections 4-9 has run on the
+  real host, guest or broker. The MongoDB test is functional evidence of an
+  emulated guest (record in pull request #29); the stack was not deployed,
+  nothing was measured, no gate and no claim is accepted. The entry ids #C025
+  and #C026 belong to other open pull requests.
+
+---
+
 ## Entry #C028 — Publish the integrated-Yocto plan revision v2.0 and ADR 0008 as a proposal
 
 - **Date:** 2026-09-18
