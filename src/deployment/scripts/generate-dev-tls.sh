@@ -57,6 +57,11 @@ if [ "$FORCE" -ne 1 ]; then
             exit 1
         fi
     done
+else
+    # After prepare-broker-secrets.sh, server.key belongs to the broker uid
+    # with mode 0600, so the operator cannot overwrite it in place; unlinking
+    # only needs write permission on the directory, which the operator owns.
+    rm -f "$CERT_DIR/ca.key" "$CERT_DIR/ca.crt" "$CERT_DIR/server.key" "$CERT_DIR/server.crt"
 fi
 
 SAN="DNS:localhost,DNS:mosquitto,IP:127.0.0.1"
@@ -100,14 +105,27 @@ openssl x509 -req -in "$CERT_DIR/server.csr" \
 
 rm -f "$CERT_DIR/server.csr" "$EXT_FILE"
 
-# Private keys stay owner-only; certificates are public material. The broker
-# container reads the key as root before dropping privileges, so 600 is safe.
+# Private keys stay owner-only; certificates are public material.
+#
+# server.key is NOT yet usable by the broker at this point. Mosquitto 2.x
+# drops to its unprivileged user right after loading the configuration file
+# and only then opens keyfile/certfile/password_file/acl_file
+# (https://mosquitto.org/documentation/migrating-to-2-0/); in the official
+# eclipse-mosquitto 2.0.x image that user is uid/gid 1883, and the image
+# entrypoint cannot chown a read-only bind mount. A 0600 key owned by the
+# operator is therefore unreadable by the broker. Run
+# scripts/prepare-broker-secrets.sh next: it hands server.key (and passwd) to
+# uid/gid 1883 with mode 0600 and verifies readability as that uid. ca.key
+# stays with the operator: the broker never needs it.
 chmod 600 "$CERT_DIR/ca.key" "$CERT_DIR/server.key"
 chmod 644 "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt"
 
 echo
 echo "Done. Server certificate:"
 openssl x509 -in "$CERT_DIR/server.crt" -noout -subject -enddate -ext subjectAltName
+echo
+echo "NEXT: after generate-dev-auth.sh, run scripts/prepare-broker-secrets.sh —"
+echo "until then the broker user (uid 1883) cannot read server.key."
 echo
 echo "Distribute ONLY ca.crt to MQTT clients (simulator --ca-cert /"
 echo "controller EGW_MQTT_CA_CERT). Never commit anything from $CERT_DIR"

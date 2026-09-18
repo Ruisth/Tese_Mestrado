@@ -62,6 +62,9 @@ Creates a local dev CA and the broker certificate (SAN: `localhost`,
 `mosquitto`, `127.0.0.1`, plus `EGW_HOST`) under `mosquitto/config/certs/`;
 825-day validity. Copy ONLY `ca.crt` to the machine that runs the simulator
 (its `--ca-cert`). Details: `mosquitto/config/certs/README.md`.
+`server.key` is created `0600` for the invoking user and is **not yet readable
+by the broker**; step 3b fixes and verifies that. `--force` removes and
+regenerates all four files (run step 3b again afterwards).
 
 ### 3. Generate broker credentials
 
@@ -71,10 +74,47 @@ set -a; . ./.env; set +a
 ```
 
 Creates `mosquitto/config/passwd` (users `egw-simulator`, `egw-controller`)
-via `mosquitto_passwd` inside the pinned broker image. Passwords come from
-the environment (or two positional arguments) and are never echoed.
-Authorization is enforced by `mosquitto/config/acl`: the simulator may only
-publish under `c2dt/#`, the controller may only subscribe (CONTRACTS.md 1).
+via `mosquitto_passwd` inside the pinned broker image and hands the file to
+the image's unprivileged `mosquitto` user (uid/gid 1883, mode `0600`).
+Passwords come from the environment (or two positional arguments) and are
+never echoed. `EGW_BROKER_IMAGE=<reference>` overrides the image (offline
+hosts that only hold a loaded tag). Authorization is enforced by
+`mosquitto/config/acl`: the simulator may only publish under `c2dt/#`, the
+controller may only subscribe (CONTRACTS.md 1).
+
+### 3b. Hand the broker its secrets and verify readability
+
+```sh
+./scripts/prepare-broker-secrets.sh
+```
+
+The broker does not read its key as root. Mosquitto 2.x drops to its
+unprivileged user right after loading `mosquitto.conf` and opens `keyfile`,
+`certfile`, `password_file` and `acl_file` only afterwards
+(<https://mosquitto.org/documentation/migrating-to-2-0/>). In the official
+`eclipse-mosquitto` 2.0.x image that user is uid/gid 1883
+(`docker/2.0-openssl/Dockerfile` in
+<https://github.com/eclipse-mosquitto/mosquitto>), and the image entrypoint
+cannot `chown` the read-only bind mounts of `compose.yaml`. The script
+therefore sets `passwd` and `certs/server.key` to owner `1883:1883`, mode
+`0600` (using `sudo` only if something has to change; `EGW_BROKER_PRIV=docker`
+does it from a one-shot root container instead), refuses any secret with a
+permission bit for "others", and then proves readability by reading every
+broker input as `--user 1883:1883` in a one-shot container of the pinned
+broker image with the same read-only mounts as `compose.yaml`. It also fails
+if that uid can read `ca.key`. Exit code 0 is required before step 6. The
+broker keeps its default privilege drop to uid 1883 (no `user: root` in
+`compose.yaml`, no `user root` in `mosquitto.conf`; the container still starts
+as root, reads `mosquitto.conf` and then drops), and no key is made
+world-readable. Not yet executed against a Docker engine (written 2026-09-18).
+
+`EGW_BROKER_UID` / `EGW_BROKER_GID` override the numeric ids (the read test
+fails if the default differs from the image's `mosquitto` user). `--check`
+verifies without changing anything. `--acl` additionally hands `acl` to uid
+1883 (mode `0640`), which silences Mosquitto's ownership warnings for
+`acl_file`; use it only on a deployed copy, never in a git working tree
+(`acl` is a tracked file). Re-run this step after every step 2 (`--force`)
+or step 3.
 
 ### 4. Verify the image lock (on the VM)
 
@@ -95,7 +135,9 @@ in the project LOG. Manual fallback per image:
 ```
 
 Checks `.env` (present, no `CHANGE_ME` left), TLS files, password file,
-digest pins and `docker compose config -q`, and creates `data/events/`.
+readability of the broker's secrets as uid 1883 (step 3b in `--check` mode:
+changes nothing), digest pins and `docker compose config -q`, and creates
+`data/events/`.
 
 ### 6. Start the stack
 
@@ -126,7 +168,24 @@ curl -s -H 'x-ditto-pre-authenticated: pre:egw-controller' \
 # Broker TLS + auth from the simulator machine:
 mosquitto_sub -h <EGW_HOST> -p 8883 --cafile ca.crt \
   -u egw-controller -P <password> -t 'c2dt/+/+/telemetry' -C 1
+
+# ACL proof with known traffic, on the VM/guest (exit 0 PASS, 1 FAIL,
+# 3 INCONCLUSIVE, 2 usage/precondition = nothing run; evidence under
+# /opt/egw/evidence/itest-acl-<tag>/):
+sh scripts/probe-acl.sh <tag>
 ```
+
+`scripts/probe-acl.sh` runs `mosquitto_sub`/`mosquitto_pub` inside the broker
+container: an authorised (`egw-controller`) and an unauthorised
+(`egw-simulator`) subscriber listen concurrently on `c2dt/#` while tagged
+messages are published as each user on `c2dt/acl-probe/<tag>` (outside the
+controller's filter `c2dt/+/+/telemetry`, not retained). Mosquitto's built-in
+`acl_file` check grants every SUBSCRIBE and filters at delivery, so only
+delivery of known traffic proves the restriction. It reads `.env` from
+`EGW_DEPLOY_DIR` (default `/opt/egw/deployment`) and uses
+`images.offline.env` as second `--env-file` unless `EGW_COMPOSE_ENV` names
+another file (e.g. `EGW_COMPOSE_ENV=images.lock.env`). Not yet executed
+against a broker (written 2026-09-18).
 
 Note: the compose healthcheck probes the broker every 30 s with client id
 `egw-healthcheck` and an invalid user; those `not authorised` log lines are

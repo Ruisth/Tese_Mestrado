@@ -12,7 +12,7 @@ It is populated exclusively by `../../scripts/generate-dev-tls.sh` and is
 | `ca.key` | Private key of the local dev CA (mode 600) | never |
 | `ca.crt` | Dev CA certificate — distributed to MQTT clients (`--ca-cert` of the simulator, `EGW_MQTT_CA_CERT` of the controller) | never |
 | `ca.srl` | OpenSSL serial bookkeeping | never |
-| `server.key` | Broker private key (mode 600) | never |
+| `server.key` | Broker private key (mode 600; owner becomes uid/gid 1883 — the broker's unprivileged user — after `scripts/prepare-broker-secrets.sh`) | never |
 | `server.crt` | Broker certificate, signed by the dev CA | never |
 
 ## How they are generated
@@ -37,8 +37,9 @@ EGW_HOST=<vm-public-hostname-or-ip> ./scripts/generate-dev-tls.sh
 
 ## Rules
 
-- Regenerate at will (`--force` overwrites); regeneration invalidates
-  previously distributed `ca.crt` copies.
+- Regenerate at will (`--force` removes and recreates all four files);
+  regeneration invalidates previously distributed `ca.crt` copies and must be
+  followed by `scripts/prepare-broker-secrets.sh`.
 - Copy **only** `ca.crt` to client machines; the two `.key` files never
   leave the VM.
 - If any private key is exposed or accidentally staged for commit, treat it

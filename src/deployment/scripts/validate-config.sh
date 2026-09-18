@@ -8,6 +8,9 @@
 #   2. TLS material exists (ca.crt, server.crt, server.key from
 #      scripts/generate-dev-tls.sh);
 #   3. the Mosquitto password file exists (scripts/generate-dev-auth.sh);
+#   3b. the broker's unprivileged user can read server.key, the certificates,
+#      passwd and acl, and no secret is open to others
+#      (scripts/prepare-broker-secrets.sh --check; read-only, no sudo);
 #   4. every IMAGE_* entry in images.lock.env is pinned by @sha256 digest
 #      (plan §9.2);
 #   5. ./data/events exists (created here so the bind mount is owned by the
@@ -64,6 +67,23 @@ if [ ! -f "$DEPLOY_DIR/mosquitto/config/passwd" ]; then
          "generate with: ./scripts/generate-dev-auth.sh (passwords from .env or args)"
 else
     echo "OK: Mosquitto password file present"
+fi
+
+# --- 3b. broker can read its secrets (verify only; changes nothing) -----------
+# Mosquitto 2.x opens keyfile/password_file/acl_file as its unprivileged user
+# (uid/gid 1883 in the official image), not as root: a key or password file
+# that user cannot read makes the broker exit at start-up. The check runs a
+# one-shot container of the broker image; on the offline guest export
+# EGW_BROKER_IMAGE=<loaded tag> first (see prepare-broker-secrets.sh).
+if [ "$tls_missing" -eq 1 ] || [ ! -f "$DEPLOY_DIR/mosquitto/config/passwd" ]; then
+    echo "SKIP: broker secret readability (TLS material or password file missing)" >&2
+elif ! command -v docker >/dev/null 2>&1; then
+    echo "SKIP: broker secret readability (docker CLI not found; reported below)" >&2
+elif sh "$SCRIPT_DIR/prepare-broker-secrets.sh" --check; then
+    echo "OK: broker user can read its secrets; none is open to others"
+else
+    fail "broker secrets are not readable by the broker user, or are open to others" \
+         "fix with: ./scripts/prepare-broker-secrets.sh   (then re-run this script)"
 fi
 
 # --- 4. image lock digests ---------------------------------------------------
