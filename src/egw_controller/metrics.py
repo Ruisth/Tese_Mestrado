@@ -1,10 +1,60 @@
-"""Thread-safe outcome counters and uptime for ``GET /metrics`` (CONTRACTS.md 5).
+"""Thread-safe counters and uptime for ``GET /metrics`` (CONTRACTS.md 5).
 
 The four contract counters (``accepted``/``rejected``/``duplicate``/``failed``)
 are incremented via :meth:`MetricsCounters.increment`. ``dropped`` is an
 additive operational counter (messages discarded on inbound queue overflow,
 before any processing) incremented via
 :meth:`MetricsCounters.increment_dropped`; it is not an event outcome.
+
+Progress counters (CONTRACTS 5, additive, 2026-09-18), none of them an event
+outcome:
+
+- ``received`` (cumulative, :meth:`MetricsCounters.increment_received`):
+  messages handed to the processing pipeline, counted once per
+  ``ControllerService.submit`` call BEFORE the queue-capacity decision, so it
+  includes every message later counted as ``dropped``;
+- ``in_progress`` (gauge, 0 or 1 with the single consumer): messages removed
+  from the inbound queue whose processing has not ended yet, Ditto retries
+  and back-off included (:meth:`MetricsCounters.processing_started` /
+  :meth:`MetricsCounters.processing_finished`);
+- ``processing_errors`` (cumulative): messages removed from the inbound queue
+  whose processing ended WITHOUT any outcome counter having been incremented
+  (an exception escaping the pipeline, a failed event-record write included,
+  or cancellation of the consumer). It means "no outcome was recorded", not
+  "not applied": the twin may already have been updated.
+
+``processing_errors`` is a RESIDUAL, not an error handler:
+``processing_finished`` raises it, in the same lock acquisition that lowers
+``in_progress``, when the sum of the four outcome counters has not moved
+since ``processing_started``. A message whose outcome was counted and whose
+processing then raised is therefore an outcome, never counted twice. The
+rule assumes the single consumer of ``ControllerService``: an ``increment``
+made from elsewhere while a message is being processed (another thread, or
+a direct ``ControllerService.process`` call while ``run`` holds a message)
+would mask an error, and the identity below would still hold. A
+``processing_finished`` with no message in progress is a programming error
+and raises ``RuntimeError`` with every counter untouched, so ``in_progress``
+is never negative.
+
+Accounting identity, for one ``GET /metrics`` response of a running
+controller, ``queue_depth`` being added by the HTTP handler::
+
+    received == accepted + rejected + duplicate + failed
+              + dropped + processing_errors
+              + in_progress + queue_depth
+
+The lock gives every thread lost-update-free counters and a mutually
+consistent copy in :meth:`MetricsCounters.snapshot`. It does NOT give a
+reader on another thread the identity: the outcome increment and the
+``in_progress`` decrement are two acquisitions, and ``queue_depth`` lives
+outside the lock. The identity is guaranteed for readers on the controller's
+event loop only, because every term is written there in synchronous
+stretches (no ``await`` between the two updates that move a message from one
+term to another) and the ``/metrics`` handler, the only production caller of
+``snapshot``, reads there too. Nothing may update these counters from the
+MQTT network thread. The counters describe the internal state of one
+process; they never replace the reconciliation, by identity, of messages
+sent with outcomes recorded in ``events.jsonl`` (CONTRACTS 5).
 
 Confirmation marker (CONTRACTS 5, sprint P5): every snapshot also carries
 ``monotonic_ns`` (``time.monotonic_ns()`` read while the snapshot is taken,
@@ -34,6 +84,12 @@ def _utc_now() -> datetime:
 class MetricsCounters:
     """Counters ``accepted``/``rejected``/``duplicate``/``failed`` plus uptime.
 
+    Also holds ``dropped`` and the progress counters ``received``,
+    ``in_progress`` and ``processing_errors`` (see module docstring for the
+    accounting identity, the residual rule behind ``processing_errors`` and
+    the event-loop confinement the identity depends on). All counters start
+    at zero with the process; ``started_at`` identifies the process.
+
     Clocks are injectable for tests: ``monotonic`` feeds ``uptime_s``,
     ``now`` stamps ``started_at`` (and ``wall_utc``) and ``monotonic_ns``
     feeds the confirmation marker ``monotonic_ns`` (see module docstring).
@@ -49,6 +105,11 @@ class MetricsCounters:
         self._lock = threading.Lock()
         self._counts: dict[str, int] = {outcome: 0 for outcome in OUTCOMES}
         self._dropped = 0
+        self._received = 0
+        self._in_progress = 0
+        self._processing_errors = 0
+        # Sum of the outcome counters when the current message was taken.
+        self._outcomes_at_start = 0
         self._monotonic = monotonic
         self._monotonic_ns = monotonic_ns
         self._started_monotonic = monotonic()
@@ -68,10 +129,43 @@ class MetricsCounters:
         with self._lock:
             self._dropped += 1
 
+    def increment_received(self) -> None:
+        """Count one message handed to the pipeline (before the capacity decision)."""
+        with self._lock:
+            self._received += 1
+
+    def processing_started(self) -> None:
+        """Mark one message as taken from the inbound queue by the consumer."""
+        with self._lock:
+            self._in_progress += 1
+            self._outcomes_at_start = sum(self._counts.values())
+
+    def processing_finished(self) -> None:
+        """Mark the end of processing of the message taken last.
+
+        One lock acquisition lowers ``in_progress`` and, when no outcome
+        counter moved since :meth:`processing_started`, raises
+        ``processing_errors`` (residual rule, see module docstring).
+
+        Raises ``RuntimeError``, changing nothing, when no message is in
+        progress; ``ControllerService.run`` cannot reach that case.
+        """
+        with self._lock:
+            if self._in_progress <= 0:
+                raise RuntimeError(
+                    "processing_finished() without a matching processing_started()"
+                )
+            self._in_progress -= 1
+            if sum(self._counts.values()) == self._outcomes_at_start:
+                self._processing_errors += 1
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             counts = dict(self._counts)
             dropped = self._dropped
+            received = self._received
+            in_progress = self._in_progress
+            processing_errors = self._processing_errors
         started_at = self._started_at.isoformat(timespec="milliseconds")
         # Confirmation marker: both clocks read at snapshot time, i.e. while
         # the /metrics request is handled (see module docstring).
@@ -80,6 +174,9 @@ class MetricsCounters:
         return {
             **counts,
             "dropped": dropped,
+            "received": received,
+            "in_progress": in_progress,
+            "processing_errors": processing_errors,
             "started_at": started_at.replace("+00:00", "Z"),
             "uptime_s": self._monotonic() - self._started_monotonic,
             "monotonic_ns": marker_ns,

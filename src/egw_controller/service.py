@@ -152,7 +152,13 @@ class ControllerService:
         )
 
     def submit(self, message: InboundMessage) -> None:
-        """Enqueue a message; called on the event loop via call_soon_threadsafe."""
+        """Enqueue a message; called on the event loop via call_soon_threadsafe.
+
+        This is the counting point of ``received`` (CONTRACTS 5): once per
+        call, before the capacity decision, so a message dropped on a full
+        queue is counted as ``received`` and as ``dropped``.
+        """
+        self._metrics.increment_received()
         try:
             self._queue.put_nowait(message)
         except asyncio.QueueFull:
@@ -167,11 +173,19 @@ class ControllerService:
         return self._queue.qsize()
 
     async def run(self) -> None:
-        """Drain the queue until :meth:`stop` enqueues the shutdown sentinel."""
+        """Drain the queue until :meth:`stop` enqueues the shutdown sentinel.
+
+        A taken message is ``in_progress`` until its processing ends, however
+        it ends; one that ends without an outcome counter having moved is a
+        ``processing_errors`` (CONTRACTS 5).
+        """
         while True:
             message = await self._queue.get()
             if message is None:
                 break
+            # Before the try, with no await since the removal from the queue:
+            # the finally below runs if and only if this call ran.
+            self._metrics.processing_started()
             try:
                 await self.process(message)
             except Exception:  # noqa: BLE001 - keep the pipeline alive
@@ -179,13 +193,20 @@ class ControllerService:
                     "unhandled error while processing message",
                     extra={"context": {"topic": message.topic}},
                 )
+            finally:
+                self._metrics.processing_finished()
 
     async def stop(self) -> None:
         """Request shutdown after the already-queued backlog is drained."""
         await self._queue.put(None)
 
     async def process(self, message: InboundMessage) -> None:
-        """Run one message through validate -> dedupe -> Ditto -> event log."""
+        """Run one message through validate -> dedupe -> Ditto -> event log.
+
+        A direct call bypasses the queue accounting: only :meth:`submit` and
+        :meth:`run` move ``received``, ``in_progress`` and
+        ``processing_errors``.
+        """
         received = message.received_monotonic_ns
 
         try:

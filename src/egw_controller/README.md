@@ -21,7 +21,7 @@ retry policy, event fields, environment variables) and the schemas in
 | `dedupe.py` | Run-scoped per-device `last_seq` + bounded message-id LRU, seeded from the twin |
 | `ditto.py` | Async Ditto client: ensure/get/patch twin, bounded retries, readiness |
 | `events.py` | Append-only `events.jsonl` per `run_id`, exact contract fields |
-| `metrics.py` | Thread-safe outcome counters + uptime |
+| `metrics.py` | Thread-safe outcome and progress counters + uptime |
 | `service.py` | Pipeline: validate -> dedupe -> Ditto update -> event log + counters |
 | `mqtt.py` | paho-mqtt v2 bridge (own network thread) into the asyncio queue |
 | `app.py` | FastAPI: `/health`, `/ready`, `/twins/{device_id}`, `/metrics` |
@@ -59,8 +59,17 @@ in `../CONTRACTS.md`, section 6.
   are not a lowercase UUID v4 are answered 404 without calling Ditto.
 - `GET /metrics` - the four contract counters
   `accepted`/`rejected`/`duplicate`/`failed`, plus `dropped` (messages
-  discarded on inbound queue overflow), `queue_depth`, `started_at` and
-  `uptime_s`.
+  discarded on inbound queue overflow), `queue_depth`, `started_at`,
+  `uptime_s`, `monotonic_ns` and `wall_utc`, and the progress counters
+  `received` (messages handed to the pipeline, counted before the
+  queue-capacity decision), `in_progress` (taken from the queue, processing
+  not ended, retries included) and `processing_errors` (processing ended with
+  no outcome recorded). In one response of a running controller
+  `received == accepted + rejected + duplicate + failed + dropped +
+  processing_errors + in_progress + queue_depth`. The progress counters show
+  the internal state of one controller process only and never replace the
+  reconciliation of sent messages with recorded outcomes by identity; see
+  CONTRACTS 5.
 
 ## Event log
 

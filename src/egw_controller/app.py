@@ -4,8 +4,8 @@
 - ``GET /ready``             -> 200 only when MQTT is connected AND Ditto answers,
   503 otherwise;
 - ``GET /twins/{device_id}`` -> twin read, normalized by the controller;
-- ``GET /metrics``           -> outcome counters + uptime + the confirmation
-  marker ``monotonic_ns``/``wall_utc`` (JSON).
+- ``GET /metrics``           -> outcome and progress counters + uptime + the
+  confirmation marker ``monotonic_ns``/``wall_utc`` (JSON).
 
 ``GET /metrics`` carries, additively (existing fields unchanged), the
 CONFIRMATION MARKER: ``monotonic_ns`` (``time.monotonic_ns()`` read while
@@ -14,6 +14,14 @@ the request is handled) and ``wall_utc`` (the same instant, RFC 3339 UTC).
 the harness can anchor the end-of-run confirmation deadline on the
 controller's clock instead of on the events being judged. It is not a
 latency measurement and never enters ``latency_ms`` (CONTRACTS 5).
+
+``GET /metrics`` also carries, additively (2026-09-18, existing fields
+unchanged), the PROGRESS COUNTERS ``received``, ``in_progress`` and
+``processing_errors``. One response is one snapshot, in which
+``received == accepted + rejected + duplicate + failed + dropped +
+processing_errors + in_progress + queue_depth`` while the controller runs.
+They show the internal state of one controller process only and never
+replace reconciliation by identity (CONTRACTS 5; ``metrics.py``).
 
 ``create_app`` takes injected dependencies (used directly by tests);
 ``create_app_from_env`` wires the full service + MQTT bridge from ``EGW_*``
@@ -112,6 +120,10 @@ def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
     async def metrics() -> dict[str, Any]:
         # snapshot() reads the confirmation marker (monotonic_ns/wall_utc)
         # here, at request handling time (CONTRACTS 5).
+        # One response is one snapshot: every term of the accounting
+        # identity is written on this event loop, so this handler must stay
+        # a coroutine (a plain function would run in a thread pool) with no
+        # await between snapshot() and queue_depth().
         return {**deps.metrics.snapshot(), "queue_depth": deps.queue_depth()}
 
     return app
