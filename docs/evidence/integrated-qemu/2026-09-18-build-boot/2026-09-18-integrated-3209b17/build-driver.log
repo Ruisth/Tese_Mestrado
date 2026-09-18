@@ -1,0 +1,57 @@
+Profile   : integrated (kas/egw-qemuarm64-integrated.yml)
+Build dir : /home/ruisth/yocto/egw/src/yocto/build-integrated (KAS_BUILD_DIR)
+Caches    : /home/ruisth/yocto-cache (downloads + sstate-cache, shared with G1)
+SSH key   : /home/ruisth/.ssh/egw_campaign.pub
+== kas checkout (pinned revisions from kas/egw-qemuarm64-integrated.yml + lock file) ==
+2026-09-18 13:16:02 - INFO     - kas 5.4 started on Ubuntu noble
+2026-09-18 13:16:02 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-09-18 13:16:02 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-09-18 13:16:02 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-09-18 13:16:02 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-09-18 13:16:03 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-09-18 13:16:03 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+== kas build (kas/egw-qemuarm64-integrated.yml) ==
+2026-09-18 13:16:03 - INFO     - kas 5.4 started on Ubuntu noble
+2026-09-18 13:16:03 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-09-18 13:16:03 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-09-18 13:16:03 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-09-18 13:16:03 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-09-18 13:16:03 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-09-18 13:16:03 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+2026-09-18 13:16:05 - INFO     - Loading cache...done.
+2026-09-18 13:16:06 - INFO     - Loaded 4833 entries from dependency cache.
+2026-09-18 13:16:06 - INFO     - NOTE: Resolving any missing task queue dependencies
+2026-09-18 13:16:07 - INFO     - 
+2026-09-18 13:16:07 - INFO     - Build Configuration:
+2026-09-18 13:16:07 - INFO     - BB_VERSION           = "2.8.1"
+2026-09-18 13:16:07 - INFO     - BUILD_SYS            = "x86_64-linux"
+2026-09-18 13:16:07 - INFO     - NATIVELSBSTRING      = "universal"
+2026-09-18 13:16:07 - INFO     - TARGET_SYS           = "aarch64-poky-linux"
+2026-09-18 13:16:07 - INFO     - MACHINE              = "qemuarm64"
+2026-09-18 13:16:07 - INFO     - DISTRO               = "poky"
+2026-09-18 13:16:07 - INFO     - DISTRO_VERSION       = "5.0.19"
+2026-09-18 13:16:07 - INFO     - TUNE_FEATURES        = "aarch64 crc cortexa57"
+2026-09-18 13:16:07 - INFO     - TARGET_FPU           = ""
+2026-09-18 13:16:07 - INFO     - meta-egw             = "build/integrated-qemu-3209b17:3209b17e6483e4bcde2776898edcbfbe15c08be0"
+2026-09-18 13:16:07 - INFO     - meta-filesystems
+2026-09-18 13:16:07 - INFO     - meta-networking
+2026-09-18 13:16:07 - INFO     - meta-oe
+2026-09-18 13:16:07 - INFO     - meta-python          = "scarthgap:ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f"
+2026-09-18 13:16:07 - INFO     - meta-virtualization  = "scarthgap:0d9fb7fef86c5cbc177045c7b86bc71948f8657d"
+2026-09-18 13:16:07 - INFO     - meta
+2026-09-18 13:16:07 - INFO     - meta-poky            = "scarthgap:bb98354685781296e3b3737e7762412100f359c2"
+2026-09-18 13:16:07 - INFO     - 
+2026-09-18 13:16:09 - INFO     - Initialising tasks...Sstate summary: Wanted 588 Local 588 Mirrors 0 Missed 0 Current 2039 (100% match, 100% complete)
+2026-09-18 13:16:10 - INFO     - done.
+2026-09-18 13:16:10 - INFO     - NOTE: Executing Tasks
+2026-09-18 13:16:12 - INFO     - NOTE: Tasks Summary: Attempted 5556 tasks of which 5556 didn't need to be rerun and all succeeded.
+== build finished ==
+== Sstate summary (record with the build evidence) ==
+2026-09-18 13:16:09 - INFO     - Initialising tasks...Sstate summary: Wanted 588 Local 588 Mirrors 0 Missed 0 Current 2039 (100% match, 100% complete)
+== kernel Image sha256, G1 build/ vs build-integrated/ (predicted equal) ==
+4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  /home/ruisth/yocto/egw/src/yocto/build/tmp/deploy/images/qemuarm64/Image
+4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image
+Logs   : /home/ruisth/yocto/logs/kas-checkout-integrated-20260918T121602Z.log
+         /home/ruisth/yocto/logs/kas-build-integrated-20260918T121602Z.log
+Images : /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/
+Next   : ./scripts/run-qemu-integrated.sh <run-name>   (boots egw-gateway-image; EGW_IMAGE=egw-gateway-image-dev for the bring-up variant)

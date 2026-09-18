@@ -1179,6 +1179,70 @@ is unchanged.
 
 ---
 
+## Entry #C025 — Seal the build, boot and MongoDB evidence of the integrated QEMU/TCG profile
+
+- **Date:** 2026-09-18
+- **Request:** Archive, as sealed technical evidence, what was observed on
+  2026-09-18 with the integrated QEMU/TCG profile of pull request #28, keeping
+  the distinction between archiving evidence and accepting a gate or a claim.
+- **Action:** Add `docs/evidence/integrated-qemu/` with two capsules copied
+  byte for byte from the candidate evidence held in the WSL2 home:
+  `2026-09-18-build-boot/` (failed first build at `68f9ae7`, successful build
+  at `03e333e`, boot attempt that failed before QEMU started, no-op rebuild and
+  two boots at `3209b17`, guest acceptance transcripts, persistence, offline
+  SSH host-key record, root file system checksums before and after the boots)
+  and `2026-09-18-mongodb7-isolated/` (MongoDB 7.0.39 pulled by the pinned
+  digest inside the guest; start, write and read, restart, recreation and
+  persistence across a guest power cycle; 35 checks, none failed). Store the
+  directory without text conversion and exclude captured scripts under
+  `docs/evidence/` from ShellCheck.
+- **Review adjustments applied before sealing:** the manifests now cover the
+  nested manifest of the failed attempt, and the SSH host-key continuity, which
+  had not been saved during the run, is recorded offline from the root file
+  system image and qualified as such. A scan found no private key, password or
+  token; two files hold public keys of material created for this validation.
+- **Boundary:** Functional evidence of an ARM64 guest **emulated** on x86-64.
+  The six-container stack was not deployed and nothing was measured; timings
+  in the transcripts are informational. The sealed G1 evidence and every G1
+  build input are unchanged. No gate is accepted and no claim is supported.
+- **Verification record:** `python tools/ci/verify_evidence.py` and
+  `python tools/ci/check_markdown_links.py` on the branch.
+
+---
+
+## Entry #C026 — Broker secret ownership and an ACL probe with known traffic
+
+- **Date:** 2026-09-18
+- **Request:** Correct two deployment defects found by the project review of
+  the integrated profile and make the ACL test prove what it claims.
+- **Finding:** Mosquitto 2 loads its configuration and drops to its
+  unprivileged user before it opens `password_file` and `keyfile`; in the
+  official 2.0 image that user is uid/gid 1883, and the entrypoint cannot
+  `chown` the read-only bind mounts of `compose.yaml`. With files owned by the
+  invoking user and mode 0600 the broker cannot read its own key. Separately,
+  Mosquitto's `acl_file` never refuses a SUBSCRIBE and filters at delivery, and
+  a denied PUBLISH is acknowledged normally under MQTT 3.1.1, so a test without
+  known traffic proves nothing.
+- **Action:** Add `scripts/prepare-broker-secrets.sh` (owner 1883:1883, mode
+  0600, refusal of any permission bit for others, read test as uid 1883 in a
+  one-shot container with the mounts of `compose.yaml`, `--check` mode) and call
+  it as step 3b of `validate-config.sh`; `generate-dev-auth.sh` hands `passwd`
+  to that uid and honours `EGW_BROKER_IMAGE`; `generate-dev-tls.sh --force`
+  removes the old outputs. Add `scripts/probe-acl.sh`: an authorised and an
+  unauthorised subscriber listen concurrently while tagged messages are
+  published by both users; the anonymous case counts only when the refusal is
+  observed; a delivery is a line that starts with the topic; the unauthorised
+  subscriber must be shown connected while the messages were published; an
+  incomplete broker-log collection is INCONCLUSIVE unless independent proof of
+  a security failure exists; preconditions exit 2 with nothing run.
+- **Boundary:** Nothing was run against a Docker engine, a broker or the
+  guest. `src/tests/test_probe_acl_verdict.py` exercises the verdict logic with
+  a stub `docker` under dash and bash (94 cases); behaviour under BusyBox ash
+  and against a real Mosquitto 2.0.22 is unobserved. No gate and no claim is
+  accepted.
+
+---
+
 ## Entry #C027 — Third review of the test procedure; isolated MongoDB 7 test recorded
 
 - **Date:** 2026-09-18
@@ -1271,3 +1335,68 @@ is unchanged.
 - **Verification boundary:** the Markdown link checker and the evidence-seal
   checker were run locally on the branch; the GitHub workflow result, not this
   entry, establishes whether the required checks pass.
+
+---
+
+## Entry #C029 — Progress counters in the controller's `GET /metrics`
+
+- **Date:** 2026-09-18
+- **Identifier:** `#C023`–`#C028` are used by or reserved for other open work
+  (pull requests #28, #29 and #30) and are not used here; identifiers are
+  never reused. For the same reason the decision record is ADR 0010: 0008 is
+  used by pull request #30 and 0009 is kept for other open work.
+- **Request:** Project review of 2026-09-18, authorised by the student the
+  same day: add `received`, `in_progress` and `processing_errors` to the
+  controller as a delimited observability change, with explicit semantics,
+  tests and restart handling. The counters show the controller's internal
+  state; they do not replace the reconciliation, by identity, of messages
+  sent with logged outcomes.
+- **Finding that motivates it:** `queue_depth` is `Queue.qsize()` and the
+  consumer removes a message before processing it, so a message in a Ditto
+  retry is in no field of `/metrics`; an exception that escapes processing
+  (a failed event-record write included) is logged and reaches no counter.
+  One reading could not distinguish "idle" from "one message in progress".
+- **Action:** Three additive integer fields. `received` is counted in
+  `ControllerService.submit()` before the queue-capacity decision;
+  `in_progress` is raised after the consumer takes a message and lowered in
+  a `finally`; `processing_errors` is the residual, raised in the same lock
+  acquisition when no outcome counter moved for that message. Every term of
+  the identity is written on the event loop and the `/metrics` handler reads
+  there, so one response is one snapshot. Identity, per response of a
+  running controller: `received == accepted + rejected + duplicate + failed
+  + dropped + processing_errors + in_progress + queue_depth`.
+- **Contract rule followed:** plan v1.2 section 1 ("material changes require
+  an ADR and regression tests") →
+  [ADR 0010](docs/adr/0010-controller-progress-counters.md), status
+  Proposed, and regression tests that keep the exact values of the existing
+  fields. `src/CONTRACTS.md` section 5 gains a dated additive sub-section
+  (semantics, identity, restart rules for readers, shutdown exclusion); the
+  title stays v1.1, as for the P5 confirmation marker, so no version string
+  or diagram moves: the rule of `diagrams/README.md` ("bump the version
+  named here ... in the same change") has no version to bump, a reading the
+  ADR states openly. Gate G3 ("contracts frozen") is `Pending`.
+- **Coordinated update (CONTRACTS header clause):**
+
+  | Component | Verdict | Basis |
+  |---|---|---|
+  | simulator | no change | does not read `/metrics` |
+  | controller | changed | `metrics.py`, `service.py` (`submit`, `run`), docstrings and one comment in `app.py` |
+  | schemas, TDs | no change | none describes `/metrics` |
+  | deployment | no change | only `/health` and `/ready` are probed |
+  | harness | no change | reads six counters and the marker by key; other integer keys are ignored; `controller_metrics.csv` keeps its columns |
+  | tests | updated and added | the two tests that pin the exact key set are updated; new tests cover the identity, the single-snapshot reading, fault, cancellation and shutdown paths |
+
+- **Not changed:** processing behaviour, outcomes, event records, retry
+  policy, `queue_depth`, the MQTT bridge, the shutdown sequence, the
+  simulator and the experiment harness. The defect by which a failed event
+  write leaves a message with no outcome is made visible, not repaired.
+- **Verification boundary:** unit tests with fakes only, outside the sealed
+  suite; the sealed figure stays 701. No live broker, no Ditto, no ARM64, no
+  run on the gateway. Local Markdown link check passed. The test counts of
+  the verified commit are recorded in the pull request; the GitHub workflow
+  result, not this entry, establishes the result on Python 3.11 and 3.14.
+- **Decisions and next steps:** no gate, claim or maturity level changes.
+  Follow-ups, each a separate change: record the new fields in
+  `controller_metrics.csv`; use the single-reading test in the integration
+  runbook (whether its quiet interval may be shortened is decided there);
+  repair the event-write defect.

@@ -237,7 +237,7 @@ integrated-Yocto target; the plan revision that describes that target is not
 yet published on `dev`, so this profile accepts no gate and supports no claim.
 On 2026-09-18 `egw-gateway-image` was built and booted twice under QEMU/TCG with
 every build and boot acceptance check passing (audit report, Section 13); the
-evidence is not sealed, the `-dev` image was not built and **the stack has not
+record is sealed in `docs/evidence/integrated-qemu/` (sealing is not acceptance), the `-dev` image was not built and **the stack has not
 been deployed**.
 
 | File | Role |

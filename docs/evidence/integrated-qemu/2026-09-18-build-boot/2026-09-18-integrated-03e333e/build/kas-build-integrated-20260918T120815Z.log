@@ -1,0 +1,89 @@
+2026-09-18 13:08:15 - INFO     - kas 5.4 started on Ubuntu noble
+2026-09-18 13:08:15 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-09-18 13:08:15 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-09-18 13:08:15 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-09-18 13:08:15 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-09-18 13:08:15 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-09-18 13:08:15 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+2026-09-18 13:08:17 - INFO     - Loading cache...done.
+2026-09-18 13:08:19 - INFO     - Loaded 4833 entries from dependency cache.
+2026-09-18 13:08:19 - INFO     - Parsing recipes...done.
+2026-09-18 13:08:19 - INFO     - Parsing of 2891 .bb files complete (2890 cached, 1 parsed). 4833 targets, 141 skipped, 0 masked, 0 errors.
+2026-09-18 13:08:19 - INFO     - NOTE: Resolving any missing task queue dependencies
+2026-09-18 13:08:21 - INFO     - 
+2026-09-18 13:08:21 - INFO     - Build Configuration:
+2026-09-18 13:08:21 - INFO     - BB_VERSION           = "2.8.1"
+2026-09-18 13:08:21 - INFO     - BUILD_SYS            = "x86_64-linux"
+2026-09-18 13:08:21 - INFO     - NATIVELSBSTRING      = "universal"
+2026-09-18 13:08:21 - INFO     - TARGET_SYS           = "aarch64-poky-linux"
+2026-09-18 13:08:21 - INFO     - MACHINE              = "qemuarm64"
+2026-09-18 13:08:21 - INFO     - DISTRO               = "poky"
+2026-09-18 13:08:21 - INFO     - DISTRO_VERSION       = "5.0.19"
+2026-09-18 13:08:21 - INFO     - TUNE_FEATURES        = "aarch64 crc cortexa57"
+2026-09-18 13:08:21 - INFO     - TARGET_FPU           = ""
+2026-09-18 13:08:21 - INFO     - meta-egw             = "build/integrated-qemu-03e333e:03e333e4ac5f726373d5b56350b46c0b30e3609b"
+2026-09-18 13:08:21 - INFO     - meta-filesystems
+2026-09-18 13:08:21 - INFO     - meta-networking
+2026-09-18 13:08:21 - INFO     - meta-oe
+2026-09-18 13:08:21 - INFO     - meta-python          = "scarthgap:ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f"
+2026-09-18 13:08:21 - INFO     - meta-virtualization  = "scarthgap:0d9fb7fef86c5cbc177045c7b86bc71948f8657d"
+2026-09-18 13:08:21 - INFO     - meta
+2026-09-18 13:08:21 - INFO     - meta-poky            = "scarthgap:bb98354685781296e3b3737e7762412100f359c2"
+2026-09-18 13:08:21 - INFO     - 
+2026-09-18 13:08:23 - INFO     - Initialising tasks...Sstate summary: Wanted 597 Local 588 Mirrors 0 Missed 9 Current 2030 (98% match, 99% complete)
+2026-09-18 13:08:23 - INFO     - Removing 5 stale sstate objects for arch cortexa57...done.
+2026-09-18 13:08:23 - INFO     - Removing 2 stale sstate objects for arch qemuarm64...done.
+2026-09-18 13:08:24 - INFO     - NOTE: Executing Tasks
+2026-09-18 13:08:25 - INFO     - NOTE: Running task 3628 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_install)
+2026-09-18 13:08:25 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_install: Started
+2026-09-18 13:08:25 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_install: Succeeded
+2026-09-18 13:08:25 - INFO     - NOTE: Running task 4273 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_package)
+2026-09-18 13:08:25 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_package: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_package: Succeeded
+2026-09-18 13:08:26 - INFO     - NOTE: Running task 5541 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_packagedata)
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_packagedata: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_packagedata: Succeeded
+2026-09-18 13:08:26 - INFO     - NOTE: Running task 5542 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_create_spdx)
+2026-09-18 13:08:26 - INFO     - NOTE: Running task 5543 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_package_write_rpm)
+2026-09-18 13:08:26 - INFO     - NOTE: Running task 5544 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_package_qa)
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_create_spdx: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_package_write_rpm: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_package_qa: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_create_spdx: Succeeded
+2026-09-18 13:08:26 - INFO     - NOTE: Running task 5545 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_create_runtime_spdx)
+2026-09-18 13:08:26 - INFO     - NOTE: Running task 5546 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/egw-gateway-config/egw-gateway-config.bb:do_create_runtime_spdx)
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_package_qa: Succeeded
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_create_runtime_spdx: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_create_runtime_spdx: Started
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_create_runtime_spdx: Succeeded
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-config-1.0-r0: task do_package_write_rpm: Succeeded
+2026-09-18 13:08:26 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_create_runtime_spdx: Succeeded
+2026-09-18 13:08:27 - INFO     - NOTE: Running task 5547 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_rootfs)
+2026-09-18 13:08:27 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_rootfs: Started
+2026-09-18 13:09:16 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_rootfs: Succeeded
+2026-09-18 13:09:16 - INFO     - NOTE: Running task 5548 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_flush_pseudodb)
+2026-09-18 13:09:16 - INFO     - NOTE: Running task 5549 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_write_qemuboot_conf)
+2026-09-18 13:09:16 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_flush_pseudodb: Started
+2026-09-18 13:09:16 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_flush_pseudodb: Succeeded
+2026-09-18 13:09:16 - INFO     - NOTE: Running task 5550 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_image_qa)
+2026-09-18 13:09:16 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_write_qemuboot_conf: Started
+2026-09-18 13:09:16 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_write_qemuboot_conf: Succeeded
+2026-09-18 13:09:17 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_qa: Started
+2026-09-18 13:09:17 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_qa: Succeeded
+2026-09-18 13:09:17 - INFO     - NOTE: Running task 5551 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_image)
+2026-09-18 13:09:17 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image: Started
+2026-09-18 13:09:18 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image: Succeeded
+2026-09-18 13:09:18 - INFO     - NOTE: Running task 5552 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_image_ext4)
+2026-09-18 13:09:18 - INFO     - NOTE: Running task 5553 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_image_tar)
+2026-09-18 13:09:18 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_ext4: Started
+2026-09-18 13:09:18 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_tar: Started
+2026-09-18 13:09:21 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_ext4: Succeeded
+2026-09-18 13:09:22 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_tar: Succeeded
+2026-09-18 13:09:22 - INFO     - NOTE: Running task 5554 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_image_complete)
+2026-09-18 13:09:22 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_complete: Started
+2026-09-18 13:09:23 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_image_complete: Succeeded
+2026-09-18 13:09:23 - INFO     - NOTE: Running task 5555 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_populate_lic_deploy)
+2026-09-18 13:09:24 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_populate_lic_deploy: Started
+2026-09-18 13:09:24 - INFO     - NOTE: recipe egw-gateway-image-1.0-r0: task do_populate_lic_deploy: Succeeded
+2026-09-18 13:09:24 - INFO     - NOTE: Running noexec task 5556 of 5556 (/home/ruisth/yocto/egw/src/yocto/build-integrated/../meta-egw/recipes-core/images/egw-gateway-image.bb:do_build)
+2026-09-18 13:09:25 - INFO     - NOTE: Tasks Summary: Attempted 5556 tasks of which 5538 didn't need to be rerun and all succeeded.

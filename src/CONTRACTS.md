@@ -120,7 +120,9 @@ rate.
     `accepted`, `rejected`, `duplicate`, `failed`, `dropped`, `queue_depth`,
     `started_at`, `uptime_s`, `monotonic_ns` (integer) and `wall_utc`
     (RFC 3339 UTC). The last two are additive (v1.1 → P5) and change no
-    existing field.
+    existing field. `received`, `in_progress` and `processing_errors`
+    (integers) are additive (2026-09-18) and change no existing field; they
+    are defined in the sub-section on progress counters below.
 
 ### Confirmation marker in `GET /metrics` (additive, sprint P5)
 
@@ -157,6 +159,135 @@ rate.
   instead of invalidating). The analysis then falls back to the deadline
   derived from the events, marking the run as legacy/non-verifiable with an
   explicit warning and recording `confirmation_deadline_source` in `per_run.csv`.
+
+### Progress counters in `GET /metrics` (additive, 2026-09-18)
+
+Decision record: [ADR 0010](../docs/adr/0010-controller-progress-counters.md).
+The three fields below are added to the response; every existing field keeps
+its name, type and meaning.
+
+**Type rule.** `received`, `in_progress` and `processing_errors` are JSON
+**integers** — never a boolean, `null` or a floating-point number — and are
+non-negative. They are zero when the controller process starts and are scoped
+to that process. A response that does not carry them means "this controller
+build does not report progress"; a reader must **never** read their absence
+as zero.
+
+- **`received`** (cumulative): the number of messages handed to the
+  processing pipeline on the controller's event loop since the process
+  started. It is counted once per message at the enqueue step
+  (`ControllerService.submit`), **before** the queue-capacity decision, and
+  therefore includes every message later counted as `dropped`.
+- **`in_progress`** (gauge): the number of messages removed from the inbound
+  queue whose processing has not yet ended, Ditto retries and back-off
+  included. The controller has a single consumer, so the value is 0 or 1;
+  readers test `in_progress == 0` and never `in_progress == 1`.
+- **`processing_errors`** (cumulative): the number of messages removed from
+  the inbound queue whose processing ended **without any outcome counter
+  having been incremented** — an exception that escaped the pipeline (a
+  failed write of the event record included) or cancellation of the consumer.
+  It means **"no outcome was recorded"**, not "not applied": the twin may
+  already have been updated, because the Ditto update precedes the event
+  record. No record exists in `events.jsonl` for such a message. For an
+  escaping exception the traceback and the topic, not the message identity,
+  are in the controller's error log; cancellation of the consumer leaves no
+  log record. A message whose outcome was counted is never also counted
+  here. The counter is a residual and relies on the controller's single
+  consumer being the only writer of the outcome counters: "no outcome
+  counter moved while this message was being processed" is then the same as
+  "this message has no outcome". An outcome counted from anywhere else during
+  that interval would hide a processing error while the identity below still
+  held; the controller has no such writer.
+
+Two existing fields are restated because the identity uses them; their
+meaning does not change. `dropped` = messages discarded at the enqueue step
+because the inbound queue was full, never processed. `queue_depth` = the
+number of entries waiting in the inbound queue; it **excludes** the message
+being processed.
+
+**Accounting identity.** Each response is one snapshot, taken in one step of
+the controller's event loop; every term is written on that same loop. For
+every response served by a running controller, with all values taken from
+that **one** response:
+
+```text
+received == accepted + rejected + duplicate + failed
+          + dropped + processing_errors
+          + in_progress + queue_depth
+```
+
+From the same response, `in_progress == 0 and queue_depth == 0` is the
+controller's statement that it holds no work **at that instant**. A reader
+evaluates a single reading in this order: (1) the three fields are present
+and are integers; (2) `in_progress == 0 and queue_depth == 0`; (3) the
+identity holds. A failure of (3) means "do not trust this reading"; it does
+not mean "work pending". Terms from two different responses are never
+combined.
+
+**What the counters are not.** They show the **internal state of one
+controller process only**. They cannot show a message that never reached the
+pipeline: one not published, one held by the broker or in a socket buffer,
+one still being handed over from the MQTT network thread to the event loop,
+or one discarded by the MQTT callback because the bridge has no running
+event loop. They carry no message identity and **never replace the
+reconciliation, by identity, of the messages sent with the outcomes recorded
+in `events.jsonl`**. `lost` and the delivery rate of section 9 are still
+computed from identities. "Holds no work at that instant" is not evidence
+that a run is complete. `processing_errors > 0` means that the event log is
+incomplete for that many messages.
+
+**`received` here and in section 9.** Section 9 defines the analysis term
+`received` as the controller callback, the instant stamped as
+`received_monotonic_ns`. The counter is taken one thread hand-over later, at
+the enqueue step on the event loop, and therefore excludes the two cases
+named above (discarded by the callback; still in hand-over). The section 9
+definition and the latency definition are unchanged.
+
+**Restart between two readings A and B.**
+
+1. All counters restart from zero with the process. A reader treats A and
+   B as readings of one process only if `A.started_at == B.started_at`
+   **and** `uptime_s` and every cumulative counter (`received`, `accepted`,
+   `rejected`, `duplicate`, `failed`, `dropped`, `processing_errors`) are
+   non-decreasing from A to B; otherwise it treats them as readings of
+   different processes. Both conditions are required: `started_at` is a
+   wall-clock instant with millisecond resolution, captured once at process
+   start, and a system without a reliable wall clock could repeat it. This
+   is a rule for readers, not proof: the response carries no other process
+   identifier, so a new process that repeats `started_at` and is read later
+   in its life, after more traffic, passes both conditions.
+   `monotonic_ns` is **not** a restart detector, because it is relative to
+   the boot of the system and survives a restart of the controller alone.
+2. Differences and sums are taken only between readings of one process,
+   never across a restart.
+3. When the process changes, the last reading of the old process closes it:
+   its `in_progress + queue_depth` is the number of messages that the reader
+   did **not see** reach a final counter. Some of them may have finished, and
+   others may have arrived, after that reading, so the figure is neither a
+   lower nor an upper bound on the messages left without an outcome; only
+   rule 4 settles them. The new process starts from zero and satisfies the
+   identity on its own; its "holds no work" statement is valid for the new
+   process only.
+4. For an interval that contains a restart, only reconciliation by identity
+   is evidence, and the run is reported as "controller restarted".
+
+**Shutdown.** To stop, the controller places one internal marker in the
+inbound queue; the marker is not a message. During shutdown `queue_depth`
+may therefore include that one marker, and the right-hand side of the
+identity may exceed `received` by exactly one. The meaning of `queue_depth`
+is not changed to hide it. While it is queued the marker occupies one queue
+slot, so a message that arrives then may be counted as `dropped` one slot
+before the configured capacity is reached; this is the existing shutdown
+behaviour, not a change. A message enqueued behind the marker is counted
+in `received` and stays in `queue_depth`. With a sentinel shutdown the
+message in progress finishes normally and the backlog ahead of the marker is
+drained; if the consumer is cancelled instead, a message in progress is
+counted in `processing_errors` and the backlog stays in `queue_depth`. A
+process that is killed runs no code: the restart rules above apply.
+
+**Harness.** The harness file `controller_metrics.csv` keeps its six
+counters (`accepted`, `rejected`, `duplicate`, `failed`, `dropped`,
+`queue_depth`); recording the new fields there is a separate change.
 
 ### Event log (primary latency source — plan §5.8/§7.3)
 

@@ -4,21 +4,33 @@ Verifies the latency start point (``received_monotonic_ns`` captured in the
 callback at message arrival), the threadsafe bridge into the asyncio queue,
 the QoS 1 subscription to the topic filter, the SUBACK-gated readiness
 (connected only after the broker grants the subscription at QoS 0/1) and the
-TLS/credential wiring of the self-built paho client.
+TLS/credential wiring of the self-built paho client, and the counting point
+of the ``received`` progress counter relative to the bridge (CONTRACTS 5).
 """
 
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from egw_controller.config import Settings
+from egw_controller.dedupe import DedupeCache
+from egw_controller.events import EventLogger
+from egw_controller.metrics import MetricsCounters
 from egw_controller.mqtt import MqttBridge
-from egw_controller.service import InboundMessage
-from test_controller_helpers import DEVICE_UUIDS, FakeClock
+from egw_controller.schema import SchemaRepository
+from egw_controller.service import ControllerService, InboundMessage
+from test_controller_helpers import (
+    DEVICE_UUIDS,
+    SCHEMA_DIR,
+    FakeClock,
+    FakeDittoClient,
+    accounting_gap,
+)
 
 WATCH = DEVICE_UUIDS["smartwatch"]
 
@@ -221,6 +233,84 @@ async def test_payload_is_copied_to_bytes() -> None:
     assert isinstance(inbound.payload, bytes)
     assert inbound.payload == b"abc"
     bridge.stop()
+
+
+# ---------------------------------------------------------------------------
+# Counting point of ``received`` (CONTRACTS 5, progress counters)
+# ---------------------------------------------------------------------------
+
+
+def make_bridged_service(
+    tmp_path: Path,
+) -> tuple[
+    MqttBridge, FakePahoClient, ControllerService, MetricsCounters, EventLogger
+]:
+    """Bridge wired to a real ``ControllerService.submit`` (no consumer)."""
+    metrics = MetricsCounters()
+    events = EventLogger(tmp_path)
+    service = ControllerService(
+        repository=SchemaRepository(SCHEMA_DIR),
+        dedupe=DedupeCache(),
+        ditto=FakeDittoClient(),
+        events=events,
+        metrics=metrics,
+    )
+    fake_client = FakePahoClient()
+    bridge = MqttBridge(
+        Settings.from_env({"EGW_MQTT_TLS": "false"}),
+        service.submit,
+        client=fake_client,  # type: ignore[arg-type]
+    )
+    return bridge, fake_client, service, metrics, events
+
+
+async def test_message_before_the_loop_exists_reaches_no_counter(
+    tmp_path: Path,
+) -> None:
+    """A message the callback discards because the bridge has no loop yet is
+    outside the accounting boundary: it is on neither side of the identity."""
+    bridge, client, service, metrics, events = make_bridged_service(tmp_path)
+    message = SimpleNamespace(topic="c2dt/x/y/telemetry", payload=b"{}")
+    client.on_message(client, None, message)  # bridge not started
+    await asyncio.sleep(0)
+    snapshot = metrics.snapshot()
+    for name in (
+        "accepted",
+        "rejected",
+        "duplicate",
+        "failed",
+        "dropped",
+        "received",
+        "in_progress",
+        "processing_errors",
+    ):
+        assert snapshot[name] == 0
+    assert service.queue_depth() == 0
+    events.close()
+
+
+async def test_bridged_message_is_received_only_after_the_hand_over(
+    tmp_path: Path,
+) -> None:
+    """``received`` is counted in ``submit`` on the event loop, one thread
+    hand-over after the callback, together with the enqueue: a message still
+    between the two is "not yet received", never received-but-unaccounted."""
+    bridge, client, service, metrics, events = make_bridged_service(tmp_path)
+    bridge.start()
+    message = SimpleNamespace(
+        topic=f"c2dt/egw-01/{WATCH}/telemetry", payload=b'{"seq": 0}'
+    )
+    client.on_message(client, None, message)
+    before = metrics.snapshot()
+    assert (before["received"], service.queue_depth()) == (0, 0)
+    assert accounting_gap(before, service.queue_depth()) == 0
+
+    await asyncio.sleep(0)  # the loop runs the scheduled submit
+    after = metrics.snapshot()
+    assert (after["received"], service.queue_depth()) == (1, 1)
+    assert accounting_gap(after, service.queue_depth()) == 0
+    bridge.stop()
+    events.close()
 
 
 # ---------------------------------------------------------------------------

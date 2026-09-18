@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
+from egw_controller.events import ControllerEvent, EventLogger
 from egw_controller.service import InboundMessage
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "schemas"
@@ -197,6 +199,69 @@ class FakeDittoClient:
 
     async def is_ready(self) -> bool:
         return self.ready
+
+
+class GatedDittoClient(FakeDittoClient):
+    """FakeDittoClient whose ``patch_thing`` waits until the test releases it.
+
+    ``entered`` is set when the pipeline reaches the Ditto update; the call
+    then blocks on ``release``, which stands for a slow Ditto or for retries
+    in progress.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def patch_thing(
+        self, device_uuid: str, patch: Mapping[str, Any]
+    ) -> int:
+        self.entered.set()
+        await self.release.wait()
+        return await super().patch_thing(device_uuid, patch)
+
+
+class FailingEventLogger(EventLogger):
+    """EventLogger whose first ``failures`` writes raise ``OSError``."""
+
+    def __init__(self, log_dir: Path | str, *, failures: int = 1) -> None:
+        super().__init__(log_dir)
+        self.failures_left = failures
+
+    def log(self, event: ControllerEvent) -> None:
+        if self.failures_left > 0:
+            self.failures_left -= 1
+            raise OSError("simulated event log write failure")
+        super().log(event)
+
+
+_TERMINAL_AND_HOLDING = (
+    "accepted",
+    "rejected",
+    "duplicate",
+    "failed",
+    "dropped",
+    "processing_errors",
+    "in_progress",
+)
+
+
+def accounting_gap(
+    reading: Mapping[str, Any], queue_depth: int | None = None
+) -> int:
+    """``received`` minus the right-hand side of the identity (CONTRACTS 5).
+
+    0 while the controller runs; -1 exactly while the shutdown marker of
+    ``ControllerService.stop`` is queued, because ``queue_depth`` counts it.
+    ``queue_depth`` defaults to ``reading["queue_depth"]`` (a ``/metrics``
+    body); pass it for a bare ``MetricsCounters.snapshot()``, in the same
+    synchronous stretch as the snapshot.
+    """
+    if queue_depth is None:
+        queue_depth = reading["queue_depth"]
+    held = sum(reading[name] for name in _TERMINAL_AND_HOLDING) + queue_depth
+    return reading["received"] - held
 
 
 def read_events(log_dir: Path, run_id: str = RUN_ID) -> list[dict[str, Any]]:

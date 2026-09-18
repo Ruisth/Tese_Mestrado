@@ -6,17 +6,39 @@ The service layer is faked: readiness flags and twin reads come from
 
 from __future__ import annotations
 
+import asyncio
+import inspect
+import json
+import threading
 import time
 from datetime import datetime, timedelta, timezone
-from typing import AsyncIterator
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, AsyncIterator
 
 import httpx
 import pytest
 
 from egw_controller.app import AppDeps, create_app
+from egw_controller.config import Settings
+from egw_controller.dedupe import DedupeCache
 from egw_controller.ditto import DittoUnavailableError
+from egw_controller.events import EventLogger
 from egw_controller.metrics import MetricsCounters
-from test_controller_helpers import DEVICE_UUIDS, FakeDittoClient, make_raw_twin
+from egw_controller.mqtt import MqttBridge
+from egw_controller.schema import SchemaRepository
+from egw_controller.service import ControllerService
+from test_controller_helpers import (
+    DEVICE_UUIDS,
+    SCHEMA_DIR,
+    FakeDittoClient,
+    GatedDittoClient,
+    accounting_gap,
+    make_inbound,
+    make_payload,
+    make_raw_twin,
+    topic_for,
+)
 
 WATCH = DEVICE_UUIDS["smartwatch"]
 
@@ -225,6 +247,11 @@ async def test_metrics_counts_and_uptime(
     # pre-existing field keeps its exact value and meaning.
     marker_ns = body.pop("monotonic_ns")
     wall_utc = body.pop("wall_utc")
+    # So are the progress counters (CONTRACTS 5, 2026-09-18). increment()
+    # alone, outside the queue, moves none of them.
+    assert body.pop("received") == 0
+    assert body.pop("in_progress") == 0
+    assert body.pop("processing_errors") == 0
     assert body == {
         "accepted": 2,
         "rejected": 1,
@@ -304,7 +331,8 @@ async def test_metrics_marker_does_not_touch_latency_fields(
 ) -> None:
     """The marker is an end-of-run anchor, never a latency measurement:
     /metrics exposes no latency field and the counters stay the contract
-    four plus the operational extras (CONTRACTS 5/9)."""
+    four plus the operational extras and the progress counters
+    (CONTRACTS 5/9)."""
     body = (await client.get("/metrics")).json()
     assert set(body) == {
         "accepted",
@@ -312,6 +340,9 @@ async def test_metrics_marker_does_not_touch_latency_fields(
         "duplicate",
         "failed",
         "dropped",
+        "received",
+        "in_progress",
+        "processing_errors",
         "queue_depth",
         "started_at",
         "uptime_s",
@@ -367,3 +398,251 @@ def test_metrics_rejects_unknown_outcome(metrics: MetricsCounters) -> None:
     # "dropped" is not an event outcome; it has its own increment method.
     with pytest.raises(ValueError):
         metrics.increment("dropped")
+
+
+# ---------------------------------------------------------------------------
+# GET /metrics progress counters and the accounting identity (CONTRACTS 5)
+# ---------------------------------------------------------------------------
+
+PROGRESS_FIELDS = ("received", "in_progress", "processing_errors")
+
+
+class MinimalPahoClient:
+    """The few paho client members ``MqttBridge`` touches (no network)."""
+
+    def __init__(self) -> None:
+        self.on_connect: Any = None
+        self.on_disconnect: Any = None
+        self.on_message: Any = None
+        self.on_subscribe: Any = None
+
+    def connect_async(self, host: str, port: int, keepalive: int = 60) -> None:
+        return None
+
+    def loop_start(self) -> None:
+        return None
+
+    def loop_stop(self) -> None:
+        return None
+
+    def disconnect(self) -> None:
+        return None
+
+
+def make_real_service(
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    *,
+    queue_maxsize: int = 100,
+) -> ControllerService:
+    return ControllerService(
+        repository=SchemaRepository(SCHEMA_DIR),
+        dedupe=DedupeCache(),
+        ditto=ditto,
+        events=events,
+        metrics=metrics,
+        queue_maxsize=queue_maxsize,
+    )
+
+
+async def test_metrics_progress_counters_are_additive_integers(
+    client: httpx.AsyncClient,
+) -> None:
+    """The three progress counters are non-negative JSON integers and every
+    pre-existing field keeps its type (additive change, CONTRACTS 5)."""
+    body = (await client.get("/metrics")).json()
+    for name in PROGRESS_FIELDS:
+        assert type(body[name]) is int
+        assert body[name] >= 0
+    for name in ("accepted", "rejected", "duplicate", "failed", "dropped"):
+        assert type(body[name]) is int
+    assert type(body["queue_depth"]) is int
+    assert type(body["monotonic_ns"]) is int
+    assert isinstance(body["uptime_s"], float)
+    assert isinstance(body["started_at"], str)
+    assert isinstance(body["wall_utc"], str)
+    assert accounting_gap(body) == 0
+
+
+async def test_metrics_reports_in_progress_while_ditto_is_slow(
+    metrics: MetricsCounters, tmp_path: Path
+) -> None:
+    """One reading tells busy from idle: a message held by a slow Ditto
+    (retries and back-off included) is outside ``queue_depth`` and outside
+    every outcome counter, and ``in_progress`` shows it."""
+    ditto = GatedDittoClient()
+    with EventLogger(tmp_path) as events:
+        service = make_real_service(ditto, events, metrics)
+        app = create_app(
+            AppDeps(
+                metrics=metrics,
+                ditto=ditto,
+                mqtt_connected=lambda: True,
+                queue_depth=service.queue_depth,
+            )
+        )
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as http:
+            task = asyncio.create_task(service.run())
+            service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+            await ditto.entered.wait()
+            busy = (await http.get("/metrics")).json()
+
+            ditto.release.set()
+            await service.stop()
+            await task
+            idle = (await http.get("/metrics")).json()
+
+    assert (busy["in_progress"], busy["queue_depth"], busy["accepted"]) == (1, 0, 0)
+    assert busy["received"] == 1
+    assert accounting_gap(busy) == 0
+    assert (idle["in_progress"], idle["queue_depth"], idle["accepted"]) == (0, 0, 1)
+    assert idle["received"] == 1
+    assert idle["processing_errors"] == 0
+    assert accounting_gap(idle) == 0
+
+
+def test_metrics_endpoint_runs_on_the_event_loop(deps: AppDeps) -> None:
+    """The handler must stay a coroutine: a plain function would be run in a
+    thread pool, and a reader on another thread is not guaranteed the
+    identity (see the module docstring of ``metrics.py``). A structural
+    guard on the shape of the route, not a behaviour test: the handler was a
+    coroutine before the progress counters existed, so it passes there too."""
+    app = create_app(deps)
+    (route,) = [
+        route for route in app.routes if getattr(route, "path", None) == "/metrics"
+    ]
+    assert inspect.iscoroutinefunction(route.endpoint)
+
+
+def test_metrics_handler_never_gives_the_loop_back(deps: AppDeps) -> None:
+    """One response is one snapshot only if nothing else runs on the loop
+    between ``snapshot()`` and ``queue_depth()``: driven by hand, the handler
+    coroutine must finish on its first step, without suspending once."""
+    app = create_app(deps)
+    (route,) = [
+        route for route in app.routes if getattr(route, "path", None) == "/metrics"
+    ]
+    coroutine = route.endpoint()
+    try:
+        with pytest.raises(StopIteration) as finished:
+            coroutine.send(None)
+    finally:
+        coroutine.close()
+    body = finished.value.value
+    assert body["queue_depth"] == 0
+    assert accounting_gap(body) == 0
+
+
+async def test_every_metrics_response_is_one_snapshot_under_a_second_thread(
+    metrics: MetricsCounters, tmp_path: Path
+) -> None:
+    """A real second thread fires the MQTT callback, with messages that are
+    rejected and messages that go through Ditto, while ``/metrics`` is
+    polled. Pinned here: every response satisfies the identity under that
+    pressure (no ``await`` inside a transition of the consumer or between
+    ``snapshot()`` and ``queue_depth()`` in the handler); a response does
+    show the message held by Ditto, the first one being held until a
+    response has shown it; and ``submit``, the counting point of
+    ``received`` and ``dropped``, only ever runs on the loop thread, the
+    bridge having handed each message over."""
+    total = 3000
+    paho = MinimalPahoClient()
+    ditto = GatedDittoClient()
+    loop_thread = threading.get_ident()
+    submit_threads: set[int] = set()
+    with EventLogger(tmp_path) as events:
+        service = make_real_service(ditto, events, metrics, queue_maxsize=50)
+
+        def submit(message: Any) -> None:
+            submit_threads.add(threading.get_ident())
+            service.submit(message)
+
+        bridge = MqttBridge(
+            Settings.from_env({"EGW_MQTT_TLS": "false"}),
+            submit,
+            client=paho,  # type: ignore[arg-type]
+        )
+        app = create_app(
+            AppDeps(
+                metrics=metrics,
+                ditto=ditto,
+                mqtt_connected=lambda: True,
+                queue_depth=service.queue_depth,
+            )
+        )
+        # Invalid JSON: rejected with no Ditto call and no retries.
+        invalid = SimpleNamespace(topic="c2dt/egw-01/x/telemetry", payload=b"{")
+
+        def valid(seq: int) -> SimpleNamespace:
+            payload = make_payload("smartwatch", seq=seq)
+            return SimpleNamespace(
+                topic=topic_for(payload),
+                payload=json.dumps(payload).encode("utf-8"),
+            )
+
+        # Every tenth message goes through Ditto, the very first included.
+        messages = [
+            valid(index // 10) if index % 10 == 0 else invalid
+            for index in range(total)
+        ]
+
+        producer_errors: list[BaseException] = []
+
+        def fire() -> None:
+            try:
+                for message in messages:
+                    paho.on_message(paho, None, message)
+            except BaseException as exc:  # noqa: BLE001 - reported below
+                producer_errors.append(exc)
+
+        producer = threading.Thread(target=fire, daemon=True)
+        task = asyncio.create_task(service.run())
+        bridge.start(asyncio.get_running_loop())
+        last_received = 0
+        seen_in_progress: set[int] = set()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as http:
+            producer.start()
+            # Bounded by the message count; the deadline only turns a hang
+            # into a failure.
+            deadline = time.monotonic() + 120.0
+            while True:
+                body = (await http.get("/metrics")).json()
+                # Every response, not only the last one.
+                assert accounting_gap(body) == 0, body
+                assert submit_threads <= {loop_thread}
+                # A callback that failed on the producer thread would
+                # otherwise only show as the deadline below.
+                assert producer_errors == []
+                assert body["received"] >= last_received
+                last_received = body["received"]
+                seen_in_progress.add(body["in_progress"])
+                if body["in_progress"] == 1:
+                    # Ditto held the first message until a response showed it.
+                    ditto.release.set()
+                if (
+                    body["received"] == total
+                    and body["in_progress"] == 0
+                    and body["queue_depth"] == 0
+                ):
+                    break
+                assert time.monotonic() < deadline, body
+                await asyncio.sleep(0)
+        producer.join()
+        bridge.stop()
+        await service.stop()
+        await task
+
+    final = body
+    assert seen_in_progress == {0, 1}
+    assert submit_threads == {loop_thread}
+    assert final["accepted"] >= 1
+    assert final["accepted"] + final["rejected"] + final["dropped"] == total
+    assert final["processing_errors"] == 0
+    assert final["duplicate"] == final["failed"] == 0

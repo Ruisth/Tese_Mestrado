@@ -30,3 +30,4 @@ Conventions:
 | [0006](0006-duplicate-state-in-twin-ingestion-feature.md) | Duplicate-detection state persisted in the twin `ingestion` feature | Accepted |
 | [0007](0007-three-tier-platform-model.md) | Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3 | Proposed; 0008 (proposed) would supersede it |
 | [0008](0008-integrated-yocto-arm64-evaluation.md) | Benchmark the service stack on the Yocto-built ARM64 guest | Proposed — pending supervisor agreement (accepted by the student for technical planning only) |
+| [0010](0010-controller-progress-counters.md) | Progress counters in the controller's `GET /metrics`: `received`, `in_progress`, `processing_errors` | Proposed |
