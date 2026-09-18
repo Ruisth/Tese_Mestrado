@@ -255,6 +255,15 @@ services:
       # "up" (validate-config.sh does it) or docker creates it root-owned
       # and the non-root container user (uid 1000) cannot write.
       - ./data/events:/data/events
+    # Without this block Compose attaches the controller to the project default
+    # network instead of egw-net, and the names mosquitto and ditto-gateway do
+    # not resolve: /ready then stays 503 with mqtt_connected and ditto_ready
+    # both false while every container reports healthy. Observed on the guest
+    # on 2026-09-18, at the first deployment of the stack.
+    networks:
+      egw-net:
+        aliases:
+          - controller
     healthcheck:
       # Same probe as the image HEALTHCHECK; kept here so compose semantics
       # (depends_on: service_healthy, docker events) do not depend on image
