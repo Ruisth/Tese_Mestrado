@@ -853,11 +853,17 @@ harness_run() {
 
 # .env sets EGW_SCHEMA_DIR=src/schemas, which resolves only from the clone root: an
 # absolute value here keeps the simulator working from any directory (2026-09-18).
+EGW_CLONE=${EGW_CLONE:-/home/ruisth/yocto/egw}
 case "${EGW_SCHEMA_DIR:-}" in
     /*) ;;
-    *)  export EGW_SCHEMA_DIR=/home/ruisth/yocto/egw/src/schemas ;;
+    *)  if [ -f "$EGW_CLONE/src/schemas/telemetry-envelope-v1.schema.json" ]; then
+            export EGW_SCHEMA_DIR="$EGW_CLONE/src/schemas"
+        else
+            # No clone at that path: drop the relative value so the schemas shipped next to
+            # the installed egw_simulator package are used (validation.py DEFAULT_SCHEMA_DIR).
+            unset EGW_SCHEMA_DIR
+        fi ;;
 esac
-[ -f "$EGW_SCHEMA_DIR/telemetry-envelope-v1.schema.json" ] || echo "STOP: EGW_SCHEMA_DIR=$EGW_SCHEMA_DIR does not hold telemetry-envelope-v1.schema.json: the simulator would fail at start"
 [ -n "$MOSQUITTO_SIMULATOR_PASSWORD" ] || stop "MOSQUITTO_SIMULATOR_PASSWORD is empty: run 'set -a; . ~/egw-tcg/.env; set +a', then source this file again"
 EOF
 host$ bash -n ~/egw-tcg/itest-helpers.sh && . ~/egw-tcg/itest-helpers.sh && $REC --help >/dev/null && echo "helpers loaded, reconcile helper importable"
