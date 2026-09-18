@@ -1,0 +1,20 @@
+total 1191864
+drwxr-xr-x 2 ruisth ruisth       4096 2026-08-11 22:10:04.832668903 +0100 .
+drwxr-xr-x 3 ruisth ruisth       4096 2026-08-11 01:29:24.564284580 +0100 ..
+-rw-r--r-- 2 ruisth ruisth   24150528 2026-08-11 01:29:08.000000000 +0100 Image
+-rw-r--r-- 2 ruisth ruisth   24150528 2026-08-11 01:29:08.000000000 +0100 Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260811002512.bin
+-rw-r--r-- 2 ruisth ruisth   24150528 2026-08-11 01:29:08.000000000 +0100 Image-qemuarm64.bin
+-rw-r--r-- 2 ruisth ruisth 2607275008 2026-08-11 23:22:49.606354441 +0100 egw-image-qemuarm64.rootfs-20260811210857.ext4
+-rw-r--r-- 2 ruisth ruisth      40012 2026-08-11 22:09:54.408168086 +0100 egw-image-qemuarm64.rootfs-20260811210857.manifest
+-rw-r--r-- 2 ruisth ruisth       1878 2026-08-11 22:09:58.744296307 +0100 egw-image-qemuarm64.rootfs-20260811210857.qemuboot.conf
+-rw-r--r-- 2 ruisth ruisth    1488658 2026-08-11 22:09:58.117538257 +0100 egw-image-qemuarm64.rootfs-20260811210857.spdx.tar.zst
+-rw-r--r-- 2 ruisth ruisth   92693208 2026-08-11 22:10:02.000000000 +0100 egw-image-qemuarm64.rootfs-20260811210857.tar.bz2
+-rw-r--r-- 2 ruisth ruisth     287523 2026-08-11 22:09:53.794571435 +0100 egw-image-qemuarm64.rootfs-20260811210857.testdata.json
+-rw-r--r-- 2 ruisth ruisth 2607275008 2026-08-11 23:22:49.606354441 +0100 egw-image-qemuarm64.rootfs.ext4
+-rw-r--r-- 2 ruisth ruisth      40012 2026-08-11 22:09:54.408168086 +0100 egw-image-qemuarm64.rootfs.manifest
+-rw-r--r-- 2 ruisth ruisth       1878 2026-08-11 22:09:58.744296307 +0100 egw-image-qemuarm64.rootfs.qemuboot.conf
+-rw-r--r-- 2 ruisth ruisth    1488658 2026-08-11 22:09:58.117538257 +0100 egw-image-qemuarm64.rootfs.spdx.tar.zst
+-rw-r--r-- 2 ruisth ruisth   92693208 2026-08-11 22:10:02.000000000 +0100 egw-image-qemuarm64.rootfs.tar.bz2
+-rw-r--r-- 2 ruisth ruisth     287523 2026-08-11 22:09:53.794571435 +0100 egw-image-qemuarm64.rootfs.testdata.json
+-rw-r--r-- 2 ruisth ruisth   65902274 2026-08-11 01:29:22.000000000 +0100 modules--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260811002512.tgz
+-rw-r--r-- 2 ruisth ruisth   65902274 2026-08-11 01:29:22.000000000 +0100 modules-qemuarm64.tgz

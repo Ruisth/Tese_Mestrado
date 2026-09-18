@@ -1,0 +1,2 @@
+LISTEN 0      1           127.0.0.1:8883      0.0.0.0:*    users:(("qemu-system-aar",pid=1181,fd=14))
+LISTEN 0      1           127.0.0.1:2222      0.0.0.0:*    users:(("qemu-system-aar",pid=1181,fd=15))

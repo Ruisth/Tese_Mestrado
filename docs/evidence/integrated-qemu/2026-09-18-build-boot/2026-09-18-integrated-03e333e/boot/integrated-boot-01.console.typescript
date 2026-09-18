@@ -1,0 +1,36 @@
+Script started on 2026-09-18 13:12:53+01:00 [COMMAND="./scripts/run-qemu-integrated.sh integrated-boot-01" <not executed on terminal>]
+== creating data disk /home/ruisth/yocto/egw-integrated/egw-data.img (32G, sparse) and formatting it ext4 (label egw-data) ==
+== run-qemu-integrated: integrated-boot-01
+== date (UTC)   : 2026-09-18T12:12:53Z
+== host         : Linux 6.6.87.2-microsoft-standard-WSL2 x86_64 (WSL2, x86-64; guest is ARM64 EMULATED under QEMU/TCG)
+== host memory  : 31 GiB total, 30 GiB available
+== build dir    : /home/ruisth/yocto/egw/src/yocto/build-integrated
+== image        : egw-gateway-image -> /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+== qemuboot     : /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs.qemuboot.conf
+==   qb_cpu = -cpu cortex-a76
+==   qb_machine = -machine virt
+==   qb_mem = -m 8192
+==   qb_opt_append = 
+==   qb_slirp_opt = -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8883-:8883
+==   qb_smp = -smp 4
+==   qb_system_name = qemu-system-aarch64
+== data disk    : /home/ruisth/yocto/egw-integrated/egw-data.img (34359738368 bytes apparent, 32G / 261M on disk)
+== runqemu cmd  : runqemu egw-gateway-image qemuarm64 nographic slirp qemuparams="-drive id=disk1,file=/home/ruisth/yocto/egw-integrated/egw-data.img,if=none,format=raw -device virtio-blk-pci,drive=disk1"
+== exit with Ctrl+A then x; keep this log as run evidence ==
+2026-09-18 13:12:54 - INFO     - kas 5.4 started on Ubuntu noble
+2026-09-18 13:12:54 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-09-18 13:12:54 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-09-18 13:12:54 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-09-18 13:12:54 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-09-18 13:12:54 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-09-18 13:12:54 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+2026-09-18 13:12:54 - INFO     - To start the default build, run: bitbake -c build egw-gateway-image
+runqemu - INFO - Running MACHINE=qemuarm64 bitbake -e  ...
+runqemu - ERROR - IMAGE_LINK_NAME wasn't set to find corresponding .qemuboot.conf file
+runqemu - INFO - Cleaning up
+runqemu - INFO - Host uptime: 511.31
+
+[?7h2026-09-18 13:12:55 - ERROR    - Shell returned non-zero exit status
+2026-09-18 13:12:55 - ERROR    - Command "/bin/bash -c 'runqemu egw-gateway-image qemuarm64 nographic slirp qemuparams="-drive id=disk1,file=/home/ruisth/yocto/egw-integrated/egw-data.img,if=none,format=raw -device virtio-blk-pci,drive=disk1"'" failed with error 1
+
+Script done on 2026-09-18 13:12:55+01:00 [COMMAND_EXIT_CODE="1"]

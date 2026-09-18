@@ -68,7 +68,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
       - name: Check tracked shell scripts for errors
         shell: bash
-        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck --severity=error
+        # Scripts kept under docs/evidence/ are captured material sealed by
+        # SHA256SUMS: they are immutable and are not linted.
+        run: git ls-files -z -- '*.sh' ':(exclude)docs/evidence/**' | xargs -0 -r shellcheck --severity=error
 
   thesis-build:
     name: thesis build

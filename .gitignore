@@ -40,6 +40,9 @@ experiments/results/raw/*
 # Archived evidence is the exception: SHA256SUMS in docs/evidence/ covers
 # console and build logs, so 'sha256sum -c' must succeed from a clean clone.
 !docs/evidence/**/*.log
+# The integrated QEMU capsules keep the original directory names of the
+# captured evidence, including a 'build/' directory of build records.
+!docs/evidence/integrated-qemu/**/build/
 *.lot
 *.out
 *.synctex.gz

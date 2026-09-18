@@ -1,0 +1,28 @@
+SSH host-key continuity - recorded 2026-09-18T13:43:24Z, after both boots, WITHOUT booting the guest.
+
+What was recorded during the boots: boot/known_hosts was written by the first SSH connection of
+integrated-boot-02 (StrictHostKeyChecking=no, empty file before). Every SSH command of
+integrated-boot-03 used StrictHostKeyChecking=yes against that file and succeeded; the ssh client
+refuses the connection when the presented key differs. That success was printed on the operator's
+terminal only and was NOT saved to a file during the run; no fingerprint was taken during either boot.
+
+What is observed now (public keys only; debugfs opens the image read-only):
+key recorded in boot/known_hosts (entry hashed by ssh, host [127.0.0.1]:2222):
+256 SHA256:G29VYeNt0vi/+3gnr0yaBIp/ieh2R1x8LHHavZCdons no comment (ED25519)
+host keys in the root file system image after integrated-boot-03:
+256 SHA256:G29VYeNt0vi/+3gnr0yaBIp/ieh2R1x8LHHavZCdons no comment (ED25519)
+256 SHA256:xVJTOKj6PubsbGUKeFnE+tY5dx0xJxMmZAp2n86/spc no comment (ECDSA)
+3072 SHA256:R1MnjZllYQ4sJbAeZxsHZdYpXFBKlKfAAiXCdNsv5Qw no comment (RSA)
+modification times of the host key files in the image (local time of the host, UTC+1):
+  ssh_host_ecdsa_key 18-Sep-2026 13:17
+  ssh_host_rsa_key 18-Sep-2026 13:17
+  ssh_host_rsa_key.pub 18-Sep-2026 13:17
+  ssh_host_ed25519_key 18-Sep-2026 13:17
+  ssh_host_ecdsa_key.pub 18-Sep-2026 13:17
+  ssh_host_ed25519_key.pub 18-Sep-2026 13:17
+
+RESULT: the ed25519 host key stored in the image after the second boot is byte-identical to the key
+the guest presented at the first connection of integrated-boot-02. All host key files carry the
+time of the first boot (12:17 UTC); none was rewritten during integrated-boot-03 (12:19 UTC).
+
+Limit: this shows the key on disk, not a fingerprint captured from the network during boot-03.

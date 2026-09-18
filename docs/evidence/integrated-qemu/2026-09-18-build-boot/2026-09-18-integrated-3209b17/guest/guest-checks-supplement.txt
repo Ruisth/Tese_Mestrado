@@ -1,0 +1,62 @@
+$ ls -laR /opt/egw
+/opt/egw:
+total 16
+drwxr-xr-x    4 egw      egw           4096 Sep 18 12:17 .
+drwxr-xr-x    4 root     root          4096 Sep 18 12:17 ..
+drwxr-xr-x    3 egw      egw           4096 Sep 18 12:17 deployment
+drwxr-xr-x    2 egw      egw           4096 Sep 18 12:17 evidence
+
+/opt/egw/deployment:
+total 12
+drwxr-xr-x    3 egw      egw           4096 Sep 18 12:17 .
+drwxr-xr-x    4 egw      egw           4096 Sep 18 12:17 ..
+drwxr-xr-x    3 egw      egw           4096 Sep 18 12:17 data
+
+/opt/egw/deployment/data:
+total 12
+drwxr-xr-x    3 egw      egw           4096 Sep 18 12:17 .
+drwxr-xr-x    3 egw      egw           4096 Sep 18 12:17 ..
+drwxr-xr-x    2 egw      egw           4096 Sep 18 12:17 events
+
+/opt/egw/deployment/data/events:
+total 8
+drwxr-xr-x    2 egw      egw           4096 Sep 18 12:17 .
+drwxr-xr-x    3 egw      egw           4096 Sep 18 12:17 ..
+
+/opt/egw/evidence:
+total 8
+drwxr-xr-x    2 egw      egw           4096 Sep 18 12:17 .
+drwxr-xr-x    4 egw      egw           4096 Sep 18 12:17 ..
+$ touch test as egw
+writable /opt/egw/deployment/
+writable /opt/egw/evidence/
+$ command -v (one by one)
+curl -> /usr/bin/curl
+openssl -> /usr/bin/openssl
+sudo -> /usr/bin/sudo
+resize2fs -> /usr/sbin/resize2fs
+e2fsck -> /usr/sbin/e2fsck
+docker -> /usr/bin/docker
+dockerd -> /usr/bin/dockerd
+containerd -> /usr/bin/containerd
+runc -> /usr/bin/runc
+mkfs.ext4 -> MISSING
+$ sshd -T selected
+permitrootlogin no
+pubkeyauthentication yes
+passwordauthentication no
+kbdinteractiveauthentication no
+x11forwarding no
+permitemptypasswords no
+allowusers egw
+$ systemd-analyze
+sh: systemd-analyze: not found
+$ rpcbind/111
+nothing listens on 111
+$ rootfs package count
+0
+$ timesyncd status
+head: invalid option -- '8'
+BusyBox v1.36.1 () multi-call binary.
+
+Usage: head [OPTIONS] [FILE]...

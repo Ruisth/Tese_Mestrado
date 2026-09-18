@@ -1,0 +1,49 @@
+{
+  "storage-driver": "overlay2",
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "3"
+  },
+  "live-restore": true
+}
+# stock fstab - you probably want to override this with a machine specific one
+
+/dev/root            /                    auto       defaults              1  1
+proc                 /proc                proc       defaults              0  0
+devpts               /dev/pts             devpts     mode=0620,ptmxmode=0666,gid=5      0  0
+tmpfs                /run                 tmpfs      mode=0755,nodev,nosuid,strictatime 0  0
+tmpfs                /var/volatile        tmpfs      defaults              0  0
+
+# uncomment this if your device has a SD/MMC/Transflash slot
+#/dev/mmcblk0p1       /media/card          auto       defaults,sync,noauto  0  0
+
+# EGW persistent Docker data disk (egw-gateway-image.bb): images, overlay2
+# layers, named volumes and json-file logs. Created on the host by
+# scripts/run-qemu-integrated.sh (mkfs.ext4 -L egw-data) and attached per run.
+LABEL=egw-data  /var/lib/docker  ext4  defaults,nofail,x-systemd.growfs,x-systemd.device-timeout=30s  0  0
+egw-qemu-integrated
+# EGW sshd hardening (installed as /etc/ssh/sshd_config.d/10-egw.conf by
+# egw-gateway-config). poky's sshd_config includes this directory on its
+# line 13, before any default; sshd keeps the FIRST value it sees for a
+# keyword, so these settings win even on egw-gateway-image-dev, where
+# debug-tweaks rewrites the later PermitRootLogin/PermitEmptyPasswords
+# lines of sshd_config to "yes".
+#
+# Plan v2.0 section 5 item 2 / PM item 3: SSH key access and controlled
+# service access; no passwordless root on the integrated profile. The
+# operator account 'egw' is created by egw-gateway-image.bb with an
+# unusable (not locked) password field and the key from
+# EGW_AUTHORIZED_KEYS_FILE.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PubkeyAuthentication yes
+AllowUsers egw
+X11Forwarding no
+# Keep the harness's long-lived 'ssh -N -L 8000:127.0.0.1:8000' and
+# 'ssh -L 8080:127.0.0.1:8080' tunnels alive across NAT/idle timeouts
+# (server-side keepalive every 60 s, drop after 3 misses).
+ClientAliveInterval 60
+ClientAliveCountMax 3
