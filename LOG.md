@@ -1099,3 +1099,36 @@ is unchanged.
 - **Verification boundary:** Check README links and patch whitespace locally;
   the subsequent GitHub workflow result, not this entry, establishes whether
   the Linux build succeeds. Existing sealed build records remain unchanged.
+
+---
+
+## Entry #C026 — Broker secret ownership and an ACL probe with known traffic
+
+- **Date:** 2026-09-18
+- **Request:** Correct two deployment defects found by the project review of
+  the integrated profile and make the ACL test prove what it claims.
+- **Finding:** Mosquitto 2 loads its configuration and drops to its
+  unprivileged user before it opens `password_file` and `keyfile`; in the
+  official 2.0 image that user is uid/gid 1883, and the entrypoint cannot
+  `chown` the read-only bind mounts of `compose.yaml`. With files owned by the
+  invoking user and mode 0600 the broker cannot read its own key. Separately,
+  Mosquitto's `acl_file` never refuses a SUBSCRIBE and filters at delivery, and
+  a denied PUBLISH is acknowledged normally under MQTT 3.1.1, so a test without
+  known traffic proves nothing.
+- **Action:** Add `scripts/prepare-broker-secrets.sh` (owner 1883:1883, mode
+  0600, refusal of any permission bit for others, read test as uid 1883 in a
+  one-shot container with the mounts of `compose.yaml`, `--check` mode) and call
+  it as step 3b of `validate-config.sh`; `generate-dev-auth.sh` hands `passwd`
+  to that uid and honours `EGW_BROKER_IMAGE`; `generate-dev-tls.sh --force`
+  removes the old outputs. Add `scripts/probe-acl.sh`: an authorised and an
+  unauthorised subscriber listen concurrently while tagged messages are
+  published by both users; the anonymous case counts only when the refusal is
+  observed; a delivery is a line that starts with the topic; the unauthorised
+  subscriber must be shown connected while the messages were published; an
+  incomplete broker-log collection is INCONCLUSIVE unless independent proof of
+  a security failure exists; preconditions exit 2 with nothing run.
+- **Boundary:** Nothing was run against a Docker engine, a broker or the
+  guest. `src/tests/test_probe_acl_verdict.py` exercises the verdict logic with
+  a stub `docker` under dash and bash (94 cases); behaviour under BusyBox ash
+  and against a real Mosquitto 2.0.22 is unobserved. No gate and no claim is
+  accepted.
