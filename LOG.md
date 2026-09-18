@@ -1179,6 +1179,37 @@ is unchanged.
 
 ---
 
+## Entry #C025 — Seal the build, boot and MongoDB evidence of the integrated QEMU/TCG profile
+
+- **Date:** 2026-09-18
+- **Request:** Archive, as sealed technical evidence, what was observed on
+  2026-09-18 with the integrated QEMU/TCG profile of pull request #28, keeping
+  the distinction between archiving evidence and accepting a gate or a claim.
+- **Action:** Add `docs/evidence/integrated-qemu/` with two capsules copied
+  byte for byte from the candidate evidence held in the WSL2 home:
+  `2026-09-18-build-boot/` (failed first build at `68f9ae7`, successful build
+  at `03e333e`, boot attempt that failed before QEMU started, no-op rebuild and
+  two boots at `3209b17`, guest acceptance transcripts, persistence, offline
+  SSH host-key record, root file system checksums before and after the boots)
+  and `2026-09-18-mongodb7-isolated/` (MongoDB 7.0.39 pulled by the pinned
+  digest inside the guest; start, write and read, restart, recreation and
+  persistence across a guest power cycle; 35 checks, none failed). Store the
+  directory without text conversion and exclude captured scripts under
+  `docs/evidence/` from ShellCheck.
+- **Review adjustments applied before sealing:** the manifests now cover the
+  nested manifest of the failed attempt, and the SSH host-key continuity, which
+  had not been saved during the run, is recorded offline from the root file
+  system image and qualified as such. A scan found no private key, password or
+  token; two files hold public keys of material created for this validation.
+- **Boundary:** Functional evidence of an ARM64 guest **emulated** on x86-64.
+  The six-container stack was not deployed and nothing was measured; timings
+  in the transcripts are informational. The sealed G1 evidence and every G1
+  build input are unchanged. No gate is accepted and no claim is supported.
+- **Verification record:** `python tools/ci/verify_evidence.py` and
+  `python tools/ci/check_markdown_links.py` on the branch.
+
+---
+
 ## Entry #C026 — Broker secret ownership and an ACL probe with known traffic
 
 - **Date:** 2026-09-18
