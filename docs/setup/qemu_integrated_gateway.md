@@ -594,6 +594,7 @@ host$ pip install -e /home/ruisth/yocto/egw/src          # paho-mqtt, jsonschema
 host$ python -m egw_simulator run --help | head -n 5
 host$ scp egw-tcg:/opt/egw/deployment/mosquitto/config/certs/ca.crt ~/egw-tcg/ca.crt
 host$ set -a; . ~/egw-tcg/.env; set +a                   # exports MOSQUITTO_SIMULATOR_PASSWORD etc. into this shell
+host$ export EGW_SCHEMA_DIR=/home/ruisth/yocto/egw/src/schemas   # .env carries the host-side default EGW_SCHEMA_DIR=src/schemas, which resolves only from the clone root; the simulator dies with FileNotFoundError on the envelope schema otherwise (observed 2026-09-18)
 ```
 
 The simulator must run in **WSL**, not in Windows: runqemu binds the hostfwd listeners on the WSL side's `127.0.0.1`.
@@ -850,6 +851,13 @@ harness_run() {
     || stop "harness_run $id: egw_experiments run exited non-zero"
 }
 
+# .env sets EGW_SCHEMA_DIR=src/schemas, which resolves only from the clone root: an
+# absolute value here keeps the simulator working from any directory (2026-09-18).
+case "${EGW_SCHEMA_DIR:-}" in
+    /*) ;;
+    *)  export EGW_SCHEMA_DIR=/home/ruisth/yocto/egw/src/schemas ;;
+esac
+[ -f "$EGW_SCHEMA_DIR/telemetry-envelope-v1.schema.json" ] || echo "STOP: EGW_SCHEMA_DIR=$EGW_SCHEMA_DIR does not hold telemetry-envelope-v1.schema.json: the simulator would fail at start"
 [ -n "$MOSQUITTO_SIMULATOR_PASSWORD" ] || stop "MOSQUITTO_SIMULATOR_PASSWORD is empty: run 'set -a; . ~/egw-tcg/.env; set +a', then source this file again"
 EOF
 host$ bash -n ~/egw-tcg/itest-helpers.sh && . ~/egw-tcg/itest-helpers.sh && $REC --help >/dev/null && echo "helpers loaded, reconcile helper importable"
