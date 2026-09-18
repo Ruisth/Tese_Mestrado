@@ -210,10 +210,18 @@ main() {
     mkdir -p "$LOG_DIR"
 
     local qemu_extra="-drive id=disk1,file=$DISK,if=none,format=raw -device virtio-blk-pci,drive=disk1${EGW_QEMU_EXTRA:+ $EGW_QEMU_EXTRA}"
-    # runqemu: <image> <machine> nographic slirp qemuparams="..."; the image
-    # name selects $IMAGE-$MACHINE.rootfs.ext4 and its qemuboot.conf in the
-    # deploy directory of THIS build directory (KAS_BUILD_DIR).
-    local cmd="runqemu $IMAGE $MACHINE nographic slirp qemuparams=\"$qemu_extra\""
+    # runqemu: <qemuboot.conf> nographic slirp qemuparams="..."; the explicit
+    # path binds the run to $IMAGE's own qemuboot.conf and rootfs in the
+    # deploy directory of THIS build directory (KAS_BUILD_DIR). The form
+    # 'runqemu <image> <machine>' does not work with the pinned runqemu: the
+    # machine argument makes it run a target-less 'bitbake -e', which has no
+    # IMAGE_LINK_NAME, and it then stops with "IMAGE_LINK_NAME wasn't set"
+    # (first boot attempt, 2026-09-18; poky scripts/runqemu check_arg_machine
+    # and check_args).
+    case "$qbconf" in
+        *[!A-Za-z0-9_./+@-]*) die "the qemuboot.conf path may contain only ASCII letters, digits and _ . / + @ - (it is passed through 'kas shell -c'); got '$qbconf'." ;;
+    esac
+    local cmd="runqemu $qbconf nographic slirp qemuparams=\"$qemu_extra\""
 
     {
         echo "== run-qemu-integrated: $RUN_NAME"

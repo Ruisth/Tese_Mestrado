@@ -173,10 +173,10 @@ host$ cp $DEPLOY/egw-gateway-image-qemuarm64.rootfs.manifest $DEPLOY/egw-gateway
 host$ (cd $DEPLOY && sha256sum $(readlink egw-gateway-image-qemuarm64.rootfs.ext4) $(readlink Image) ) > $EV/SHA256SUMS.artefacts
 host$ tar -xjOf $DEPLOY/egw-gateway-image-qemuarm64.rootfs.tar.bz2 ./etc/buildinfo > $EV/buildinfo.txt 2>/dev/null || echo "no /etc/buildinfo (image-buildinfo not inherited)" > $EV/buildinfo.txt
 host$ ls -d $KAS_BUILD_DIR/tmp/work/x86_64-linux/qemu-system-native/*/ > $EV/qemu_native_version_dir.txt
-host$ $KAS_BUILD_DIR/tmp/sysroots-components/x86_64/qemu-system-native/usr/bin/qemu-system-aarch64 --version > $EV/qemu_version.txt
+host$ $KAS_BUILD_DIR/tmp/work/qemuarm64-poky-linux/egw-gateway-image/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 --version > $EV/qemu_version.txt
 ```
 
-The last line records the QEMU that `runqemu` will execute (verified path layout in the G1 tree: `build/tmp/sysroots-components/x86_64/qemu-system-native/usr/bin/qemu-system-aarch64`, version 8.2.7; the integrated tree uses the same recipe from sstate). If the sysroots-components path does not exist in `build-integrated`, use `$KAS_BUILD_DIR/tmp/work/x86_64-linux/qemu-system-native/8.2.7/build/qemu-system-aarch64 --version`.
+The last line records the QEMU version of the build tree (8.2.7, the same recipe as G1, restored from sstate). It uses the copy in the image recipe's native sysroot because the `tmp/sysroots-components/x86_64/qemu-system-native/` binary cannot run on its own: it fails with `libfdt.so.1: cannot open shared object file` outside a recipe sysroot (observed on 2026-09-18). The binary `runqemu` actually executes is printed in its `Running ...` line (3.3).
 
 ---
 
@@ -211,12 +211,12 @@ host$ ./scripts/run-qemu-integrated.sh $BOOT
 That is the whole boot command for evidence runs. The wrapper (bash, `set -euo pipefail`) exports `KAS_WORK_DIR`, `KAS_BUILD_DIR=$PWD/build-integrated` and `EGW_CACHE_DIR`, refuses to run when `build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs.qemuboot.conf` is missing, creates and formats the data disk when absent, verifies its label with `blkid`, warns if host ports 2222/8883 are busy, writes a header (date, host, `qb_*` lines of the qemuboot.conf, the disk file's apparent and on-disk size, the exact runqemu command) to `~/yocto/logs/$BOOT.log`, and then runs:
 
 ```
-kas shell kas/egw-qemuarm64-integrated.yml -c 'runqemu egw-gateway-image qemuarm64 nographic slirp qemuparams="-drive id=disk1,file=$HOME/yocto/egw-integrated/egw-data.img,if=none,format=raw -device virtio-blk-pci,drive=disk1"' 2>&1 | tee -a ~/yocto/logs/$BOOT.log
+kas shell kas/egw-qemuarm64-integrated.yml -c 'runqemu $KAS_BUILD_DIR/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs.qemuboot.conf nographic slirp qemuparams="-drive id=disk1,file=$HOME/yocto/egw-integrated/egw-data.img,if=none,format=raw -device virtio-blk-pci,drive=disk1"' 2>&1 | tee -a ~/yocto/logs/$BOOT.log
 ```
 
 The equivalent explicit line (only for diagnosing the wrapper itself; the wrapper is the record) is that command with the same three exports set by hand and the disk file already formatted. Notes (all verified in `poky/scripts/runqemu`):
 
-- `kas shell` runs its command **from `$KAS_BUILD_DIR`** with the BitBake environment sourced (`oe-init-build-env`), so `runqemu` resolves `egw-gateway-image qemuarm64` against `build-integrated/tmp/deploy/images/qemuarm64/` — the deployed `egw-gateway-image-qemuarm64.rootfs.ext4` and its own `.qemuboot.conf` (same base name), never the `-dev` image's conf.
+- `kas shell` runs its command **from `$KAS_BUILD_DIR`** with the BitBake environment sourced (`oe-init-build-env`). The wrapper hands `runqemu` the **explicit path** of the image's own `.qemuboot.conf` in `build-integrated/tmp/deploy/images/qemuarm64/`, which also selects the deployed `egw-gateway-image-qemuarm64.rootfs.ext4` (same base name), never the `-dev` image's conf. The form `runqemu egw-gateway-image qemuarm64 ...` does **not** work with the pinned `runqemu`: the machine argument makes it run a target-less `bitbake -e`, which carries no `IMAGE_LINK_NAME`, and it stops with `IMAGE_LINK_NAME wasn't set to find corresponding .qemuboot.conf file` (first boot attempt, 2026-09-18; the G1 wrapper never passed an image name).
 - Memory is set in ONE place: `QB_MEM = "-m 8192"` from the qemuboot.conf, or `EGW_QEMU_EXTRA="-m 6144"` (bring-up only), which runqemu parses (line 823) and mirrors into the kernel `mem=` argument (line 843). Never pass `mem=` yourself via `bootparams=`.
 - To try a different CPU model without rebuilding, `EGW_QEMU_EXTRA="-cpu neoverse-n1"` is appended *after* the `QB_CPU` option (line 1557-1559); `UNVERIFIED:` QEMU honours the last `-cpu` given. Prefer changing `QB_CPU` in the manifest and rebuilding the image (only the qemuboot.conf changes) so the record in `testdata.json` matches the boot.
 - For the `-dev` image (root console login) use `EGW_IMAGE=egw-gateway-image-dev ./scripts/run-qemu-integrated.sh $BOOT-dev`; it attaches the same data disk and is for bring-up only, never for evidence runs.
