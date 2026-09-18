@@ -52,5 +52,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.evidence_label }}
-          path: ${{ runner.temp }}/${{ inputs.evidence_label }}-sut_environment.json
+          path: |
+            ${{ runner.temp }}/${{ inputs.evidence_label }}-sut_environment.json
+            ${{ runner.temp }}/images/egw-controller-0.1.0-arm64.identity.txt
           if-no-files-found: error

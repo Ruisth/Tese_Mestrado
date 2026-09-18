@@ -130,14 +130,19 @@ def test_the_five_external_services_still_come_from_the_digest_lock_only() -> No
     assert all(re.fullmatch(r"[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}", ref) for ref in entries.values())
 
 
-def test_no_port_and_no_memory_limit_changed_with_the_decision() -> None:
+def test_ports_and_memory_limits_are_the_values_the_records_justify() -> None:
+    """The three Ditto services were raised from 512M to 768M on 2026-09-18: on the
+    emulated guest they sat at 94-95 per cent of 512M when idle and ditto-things reached
+    98.1 per cent after a 672-message run, and a memory-cgroup OOM killed that JVM during
+    a power-off. Any further change belongs with its own measurement in compose.yaml.
+    """
     text = "\n".join(_code_lines(_read(COMPOSE)))
     assert re.findall(r'^\s+- "([0-9.:]+)"\s*$', text, re.M) == [
         "8883:8883",
         "127.0.0.1:8080:8080",
         "127.0.0.1:8000:8000",
     ]
-    assert re.findall(r"^\s+memory: (\S+)\s*$", text, re.M) == ["128M", "512M", "512M", "512M", "512M", "256M"]
+    assert re.findall(r"^\s+memory: (\S+)\s*$", text, re.M) == ["128M", "512M", "768M", "768M", "768M", "256M"]
 
 
 def test_no_deployment_file_tells_the_gateway_to_build() -> None:
