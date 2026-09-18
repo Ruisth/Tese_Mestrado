@@ -1,0 +1,443 @@
+### system
+
+$ systemctl is-system-running
+running
+[exit=0]
+
+$ systemctl --failed --no-legend
+[exit=0]
+
+$ uname -a
+Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux
+[exit=0]
+
+$ head -n 4 /etc/os-release
+ID=poky
+NAME="Poky (Yocto Project Reference Distro)"
+VERSION="5.0.19 (scarthgap)"
+VERSION_ID=5.0.19
+[exit=0]
+
+$ cat /etc/hostname
+egw-qemu-integrated
+[exit=0]
+### memory
+
+$ free -m
+              total        used        free      shared  buff/cache   available
+Mem:           8012         107        7736           4         169        7831
+Swap:             0           0           0
+[exit=0]
+
+$ head -n 1 /proc/meminfo
+MemTotal:        8204356 kB
+[exit=0]
+
+$ cat /proc/cmdline
+root=/dev/vda rw  mem=8192M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0 
+[exit=0]
+### cpu
+
+$ nproc
+4
+[exit=0]
+
+$ grep -m1 ^CPU part /proc/cpuinfo
+CPU part	: 0xd0b
+[exit=0]
+
+$ grep -m1 ^Features /proc/cpuinfo
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm lrcpc dcpop asimddp
+[exit=0]
+### storage
+
+$ df -h / /var/lib/docker /opt/egw
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    344.4M      1.7G  16% /
+/dev/vdb                 31.2G    288.0K     29.6G   0% /var/lib/docker
+/dev/root                 2.2G    344.4M      1.7G  16% /
+[exit=0]
+
+$ findmnt /var/lib/docker
+TARGET          SOURCE   FSTYPE OPTIONS
+/var/lib/docker /dev/vdb ext4   rw,relatime
+[exit=0]
+
+$ findmnt -no SOURCE,FSTYPE,OPTIONS /
+/dev/vda ext4   rw,relatime
+[exit=0]
+
+$ lsblk
+NAME MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda  253:0    0  2.4G  0 disk /
+vdb  253:16   0   32G  0 disk /var/lib/docker
+[exit=0]
+
+$ sudo -n blkid
+/dev/vdb: LABEL="egw-data" UUID="5244d70e-07de-4875-8dea-8291b0a03bf2" BLOCK_SIZE="4096" TYPE="ext4"
+/dev/vda: UUID="6e01c895-f44f-4183-92f5-b61569f9bef8" BLOCK_SIZE="4096" TYPE="ext4"
+[exit=0]
+
+$ systemctl is-active docker var-lib-docker.mount
+active
+active
+[exit=0]
+
+$ systemctl status systemd-growfs@var-lib-docker.service --no-pager
+● systemd-growfs@var-lib-docker.service - Grow File System on /var/lib/docker
+     Loaded: loaded (/usr/lib/systemd/system/systemd-growfs@.service; enabled-runtime; preset: disabled)
+     Active: active (exited) since Fri 2026-09-18 12:17:23 UTC; 28s ago
+       Docs: man:systemd-growfs@.service(8)
+    Process: 198 ExecStart=/usr/lib/systemd/systemd-growfs /var/lib/docker (code=exited, status=0/SUCCESS)
+   Main PID: 198 (code=exited, status=0/SUCCESS)
+        CPU: 202ms
+
+Warning: some journal files were not opened due to insufficient permissions.
+[exit=0]
+
+$ systemctl show -p Requires,After docker.service
+Requires=var-lib-docker.mount sysinit.target docker.socket -.mount system.slice
+After=containerd.service firewalld.service docker.socket time-set.target systemd-journald.socket system.slice sysinit.target basic.target network-online.target var-lib-docker.mount -.mount
+[exit=0]
+### container runtime
+
+$ docker info
+Client:
+ Version:    25.0.9
+ Context:    default
+ Debug Mode: false
+ Plugins:
+  compose: Docker Compose (Docker Inc.)
+    Version:  v2.26.0
+    Path:     /usr/lib/docker/cli-plugins/docker-compose
+
+Server:
+ Containers: 0
+  Running: 0
+  Paused: 0
+  Stopped: 0
+ Images: 0
+ Server Version: 25.0.9
+ Storage Driver: overlay2
+  Backing Filesystem: extfs
+  Supports d_type: true
+  Using metacopy: false
+  Native Overlay Diff: true
+  userxattr: false
+ Logging Driver: json-file
+ Cgroup Driver: systemd
+ Cgroup Version: 2
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+ Swarm: inactive
+ Runtimes: io.containerd.runc.v2 runc
+ Default Runtime: runc
+ Init Binary: docker-init
+ containerd version: ffa3ba0cfc08e443758c01c73a69db403d31ad1b.m
+ runc version: v1.1.14-0-g2c9f5602f-dirty
+ init version: b9f42a0-dirty
+ Security Options:
+  seccomp
+   Profile: builtin
+  cgroupns
+ Kernel Version: 6.6.142-yocto-standard
+ Operating System: Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)
+ OSType: linux
+ Architecture: aarch64
+ CPUs: 4
+ Total Memory: 7.824GiB
+ Name: egw-qemu-integrated
+ ID: 36865382-15c4-42b8-8436-4caaeb79c4e5
+ Docker Root Dir: /var/lib/docker
+ Debug Mode: false
+ Experimental: false
+ Insecure Registries:
+  127.0.0.0/8
+ Live Restore Enabled: true
+
+[exit=0]
+
+$ docker compose version
+Docker Compose version v2.26.0
+[exit=0]
+
+$ docker version
+Client:
+ Version:           25.0.9
+ API version:       1.44
+ Go version:        go1.22.12
+ Git commit:        43987fca48
+ Built:             Wed Dec 18 10:25:17 2024
+ OS/Arch:           linux/arm64
+ Context:           default
+
+Server:
+ Engine:
+  Version:          25.0.9
+  API version:      1.44 (minimum version 1.24)
+  Go version:       go1.22.12
+  Git commit:       a926bec8fc91332410133b24f3e9e3f5add13b48
+  Built:            Wed Dec 18 10:25:17 2024
+  OS/Arch:          linux/arm64
+  Experimental:     false
+ containerd:
+  Version:          v2.0.10
+  GitCommit:        ffa3ba0cfc08e443758c01c73a69db403d31ad1b.m
+ runc:
+  Version:          1.1.14
+  GitCommit:        v1.1.14-0-g2c9f5602f-dirty
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        b9f42a0-dirty
+[exit=0]
+
+$ docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+[exit=0]
+
+$ docker images
+REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
+[exit=0]
+
+$ findmnt -no FSTYPE /sys/fs/cgroup
+cgroup2
+[exit=0]
+### network, dns, time
+
+$ ip -o addr show
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host \       valid_lft forever preferred_lft forever
+2: enp0s1    inet 10.0.2.15/24 brd 10.0.2.255 scope global dynamic enp0s1\       valid_lft 86371sec preferred_lft 86371sec
+2: enp0s1    inet6 fec0::5054:ff:fe12:3502/64 scope site dynamic noprefixroute flags 100 \       valid_lft 86373sec preferred_lft 14373sec
+2: enp0s1    inet6 fe80::5054:ff:fe12:3502/64 scope link \       valid_lft forever preferred_lft forever
+4: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\       valid_lft forever preferred_lft forever
+[exit=0]
+
+$ cat /etc/resolv.conf
+# This is /run/systemd/resolve/resolv.conf managed by man:systemd-resolved(8).
+# Do not edit.
+#
+# This file might be symlinked as /etc/resolv.conf. If you're looking at
+# /etc/resolv.conf and seeing this text, you have followed the symlink.
+#
+# This is a dynamic resolv.conf file for connecting local clients directly to
+# all known uplink DNS servers. This file lists all configured search domains.
+#
+# Third party programs should typically not access this file directly, but only
+# through the symlink at /etc/resolv.conf. To manage man:resolv.conf(5) in a
+# different way, replace this symlink by a static file or a different symlink.
+#
+# See man:systemd-resolved.service(8) for details about the supported modes of
+# operation for /etc/resolv.conf.
+
+nameserver 10.0.2.3
+search .
+[exit=0]
+
+$ nslookup registry-1.docker.io
+Server:    10.0.2.3
+Address 1: 10.0.2.3
+
+Name:      registry-1.docker.io
+Address 1: 34.202.120.200 ec2-34-202-120-200.compute-1.amazonaws.com
+Address 2: 44.205.156.75 ec2-44-205-156-75.compute-1.amazonaws.com
+Address 3: 54.146.13.39 ec2-54-146-13-39.compute-1.amazonaws.com
+Address 4: 32.199.74.36 ec2-32-199-74-36.compute-1.amazonaws.com
+Address 5: 3.88.92.19 ec2-3-88-92-19.compute-1.amazonaws.com
+Address 6: 98.87.179.53 ec2-98-87-179-53.compute-1.amazonaws.com
+Address 7: 34.200.123.95 ec2-34-200-123-95.compute-1.amazonaws.com
+Address 8: 35.172.62.60 ec2-35-172-62-60.compute-1.amazonaws.com
+Address 9: 2600:1f18:2148:bc01:457:b284:686d:a95e
+Address 10: 2600:1f18:2148:bc01:28c3:be4e:dc31:c876
+Address 11: 2600:1f18:2148:bc00:4bdf:ac16:37c8:5dd1
+Address 12: 2600:1f18:2148:bc01:dd72:2229:ba54:942b
+Address 13: 2600:1f18:2148:bc02:7a6:aaef:c289:ed9d
+Address 14: 2600:1f18:2148:bc02:b5bc:25bf:5576:af3f
+Address 15: 2600:1f18:2148:bc01:eab1:ebfc:8b97:cd28
+Address 16: 2600:1f18:2148:bc02:645a:641b:a2fb:a353
+[exit=0]
+
+$ timedatectl
+               Local time: Fri 2026-09-18 12:17:57 UTC
+           Universal time: Fri 2026-09-18 12:17:57 UTC
+                 RTC time: Fri 2026-09-18 12:17:58
+                Time zone: UTC (UTC, +0000)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+[exit=0]
+
+$ timedatectl show
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Fri 2026-09-18 12:17:57 UTC
+RTCTimeUSec=Fri 2026-09-18 12:17:58 UTC
+[exit=0]
+
+$ date -u
+Fri Sep 18 12:17:57 UTC 2026
+[exit=0]
+
+$ sh -c ss -ltnu 2>/dev/null || netstat -ltnu
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       
+tcp        0      0 127.0.0.54:53           0.0.0.0:*               LISTEN      
+tcp        0      0 127.0.0.53:53           0.0.0.0:*               LISTEN      
+tcp        0      0 127.0.0.1:34795         0.0.0.0:*               LISTEN      
+tcp        0      0 :::22                   :::*                    LISTEN      
+udp        0      0 0.0.0.0:5353            0.0.0.0:*                           
+udp        0      0 127.0.0.54:53           0.0.0.0:*                           
+udp        0      0 127.0.0.53:53           0.0.0.0:*                           
+udp        0      0 10.0.2.15:68            0.0.0.0:*                           
+udp        0      0 :::5353                 :::*                                
+[exit=0]
+### journal and logs
+
+$ findmnt -no SOURCE,FSTYPE /var/log
+[exit=1]
+
+$ ls -ld /var/log /var/log/journal
+drwxr-xr-x    4 root     root          4096 Sep 18 12:17 /var/log
+drwxr-sr-x    3 root     systemd-      4096 Sep 18 12:17 /var/log/journal
+[exit=0]
+
+$ sudo -n journalctl --disk-usage
+Archived and active journals take up 16.0M in the file system.
+[exit=0]
+
+$ sudo -n journalctl --list-boots --no-pager
+IDX BOOT ID                          FIRST ENTRY                 LAST ENTRY
+  0 f2c02fd094ad44809d2c59eda36c2918 Fri 2026-09-18 12:17:20 UTC Fri 2026-09-18 12:17:58 UTC
+[exit=0]
+### operator access and permissions
+
+$ id
+uid=1000(egw) gid=1000(egw) groups=995(docker),1000(egw)
+[exit=0]
+
+$ ls -ld /opt/egw /opt/egw/data /opt/egw/data/events /home/egw /home/egw/.ssh
+ls: /opt/egw/data: No such file or directory
+ls: /opt/egw/data/events: No such file or directory
+drwxr-xr-x    3 egw      egw           4096 Mar  9  2018 /home/egw
+drwx------    2 egw      egw           4096 Mar  9  2018 /home/egw/.ssh
+drwxr-xr-x    4 egw      egw           4096 Sep 18 12:17 /opt/egw
+[exit=1]
+
+$ sh -c command -v curl openssl sudo resize2fs e2fsck docker
+/usr/bin/curl
+[exit=0]
+
+$ ls -l /usr/libexec/sftp-server
+-rwxr-xr-x    1 root     root        198760 Mar  9  2018 /usr/libexec/sftp-server
+[exit=0]
+
+$ grep -i ^Subsystem /etc/ssh/sshd_config
+Subsystem	sftp	/usr/libexec/sftp-server
+[exit=0]
+
+$ sudo -n visudo -c
+/etc/sudoers: parsed OK
+/etc/sudoers.d/egw: parsed OK
+[exit=0]
+
+$ sudo -n -l
+Matching Defaults entries for egw on egw-qemu-integrated:
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+Runas and Command-specific defaults for egw:
+    Defaults!/usr/sbin/visudo env_keep+="SUDO_EDITOR EDITOR VISUAL"
+
+User egw may run the following commands on egw-qemu-integrated:
+    (ALL : ALL) NOPASSWD: ALL
+[exit=0]
+
+$ sudo -n sshd -T
+port 22
+addressfamily any
+listenaddress [::]:22
+listenaddress 0.0.0.0:22
+logingracetime 120
+x11displayoffset 10
+maxauthtries 6
+maxsessions 10
+clientaliveinterval 60
+clientalivecountmax 3
+requiredrsasize 1024
+streamlocalbindmask 0177
+unusedconnectiontimeout none
+permitrootlogin no
+ignorerhosts yes
+ignoreuserknownhosts no
+hostbasedauthentication no
+hostbasedusesnamefrompacketonly no
+pubkeyauthentication yes
+passwordauthentication no
+kbdinteractiveauthentication no
+printmotd yes
+printlastlog yes
+x11forwarding no
+x11uselocalhost yes
+permittty yes
+permituserrc yes
+strictmodes yes
+tcpkeepalive yes
+permitemptypasswords no
+compression no
+gatewayports no
+usedns no
+allowtcpforwarding yes
+allowagentforwarding yes
+disableforwarding no
+allowstreamlocalforwarding yes
+streamlocalbindunlink no
+fingerprinthash SHA256
+exposeauthinfo no
+pidfile /var/run/sshd.pid
+modulifile /etc/ssh/moduli
+xauthlocation /usr/bin/xauth
+ciphers chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com
+macs umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+banner none
+forcecommand none
+chrootdirectory none
+trustedusercakeys none
+revokedkeys none
+securitykeyprovider internal
+authorizedprincipalsfile none
+versionaddendum none
+authorizedkeyscommand none
+authorizedkeyscommanduser none
+authorizedprincipalscommand none
+authorizedprincipalscommanduser none
+hostkeyagent none
+kexalgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256
+casignaturealgorithms ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256
+hostbasedacceptedalgorithms ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256
+hostkeyalgorithms ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256
+pubkeyacceptedalgorithms ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256
+loglevel INFO
+syslogfacility AUTH
+authorizedkeysfile .ssh/authorized_keys
+hostkey /etc/ssh/ssh_host_rsa_key
+hostkey /etc/ssh/ssh_host_ecdsa_key
+hostkey /etc/ssh/ssh_host_ed25519_key
+allowusers egw
+authenticationmethods any
+channeltimeout none
+subsystem sftp /usr/libexec/sftp-server 
+maxstartups 10:30:100
+persourcemaxstartups none
+persourcenetblocksize 32:128
+permittunnel no
+ipqos af21 cs1
+rekeylimit 0 0
+permitopen any
+permitlisten any
+permituserenvironment no
+pubkeyauthoptions none
+[exit=0]

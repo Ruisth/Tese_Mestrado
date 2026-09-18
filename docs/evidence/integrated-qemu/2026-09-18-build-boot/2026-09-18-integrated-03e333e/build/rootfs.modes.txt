@@ -1,0 +1,6 @@
+drwxr-x--- 0/0               0 2018-03-09 12:34 ./etc/sudoers.d/
+-r--r----- 0/0            1042 2018-03-09 12:34 ./etc/sudoers.d/egw
+drwx------ 1000/1000         0 2018-03-09 12:34 ./home/egw/.ssh/
+-rw------- 1000/1000        94 2018-03-09 12:34 ./home/egw/.ssh/authorized_keys
+drwxr-xr-x 0/0               0 2018-03-09 12:34 ./var/log/
+drwxr-xr-x 0/0               0 2018-03-09 12:34 ./var/log/journal/

@@ -25,3 +25,8 @@ docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/qemu-*.log -text
 # Preserve compiler output bytes in the Word import verification capsule.
 docs/evidence/word-import-2026-09-17/*.log -text whitespace=-blank-at-eol,-blank-at-eof
 docs/evidence/word-import-2026-09-17/*.blg -text whitespace=-blank-at-eol,-blank-at-eof
+
+# Preserve the captured bytes of the integrated QEMU evidence capsules: the
+# console transcripts keep the carriage returns and escape sequences of the
+# pseudo-terminal, and every file is covered by a SHA-256 manifest.
+docs/evidence/integrated-qemu/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

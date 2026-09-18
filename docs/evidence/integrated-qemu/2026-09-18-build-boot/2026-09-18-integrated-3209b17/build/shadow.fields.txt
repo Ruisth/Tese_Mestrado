@@ -1,0 +1,2 @@
+root password-field=[*]
+egw password-field=[*]

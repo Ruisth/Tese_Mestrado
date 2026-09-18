@@ -1,0 +1,19 @@
+is-system-running: running
+--- failed units
+--- boots in the persistent journal
+IDX BOOT ID                          FIRST ENTRY                 LAST ENTRY
+ -1 f2c02fd094ad44809d2c59eda36c2918 Fri 2026-09-18 12:17:20 UTC Fri 2026-09-18 12:19:01 UTC
+  0 a71d227bd4fe4afba69d635c71124621 Fri 2026-09-18 12:19:14 UTC Fri 2026-09-18 12:19:30 UTC
+--- marker written during boot-02
+boot-02
+--- data disk
+/dev/vdb ext4   rw,relatime
+/dev/vdb: LABEL="egw-data" UUID="5244d70e-07de-4875-8dea-8291b0a03bf2" BLOCK_SIZE="4096" TYPE="ext4"
+--- docker
+active
+engine-id=36865382-15c4-42b8-8436-4caaeb79c4e5 root=/var/lib/docker driver=overlay2 mem=8401260544 cpus=4
+Docker Compose version v2.26.0
+--- memory/cpu
+MemTotal:        8204356 kB
+4
+CPU part	: 0xd0b
