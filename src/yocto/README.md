@@ -229,13 +229,16 @@ separate and still pending. Any future failure or scope
 reduction must preserve its evidence and pass through the normal review/CI path
 without weakening the strict systemd, failed-unit or container assertions.
 
-## Integrated QEMU/TCG gateway profile (unbuilt proposal, separate from G1)
+## Integrated QEMU/TCG gateway profile (built and booted once, separate from G1)
 
 A second kas profile prepares the image that is meant to host the six-container
 digital-twin stack **inside** the Yocto guest. It follows the student-directed
 integrated-Yocto target; the plan revision that describes that target is not
 yet published on `dev`, so this profile accepts no gate and supports no claim.
-**Nothing in it has been built or booted.**
+On 2026-09-18 `egw-gateway-image` was built and booted twice under QEMU/TCG with
+every build and boot acceptance check passing (audit report, Section 13); the
+evidence is not sealed, the `-dev` image was not built and **the stack has not
+been deployed**.
 
 | File | Role |
 |---|---|

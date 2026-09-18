@@ -1,6 +1,6 @@
 # EGW Yocto image audit and integrated-gateway change set — 2026-09-17
 
-**Status:** proposal. Nothing described here has been built, booted or measured. The sealed G1 evidence and every G1 build input are untouched.
+**Status:** Sections 1 to 12 are a proposal as written on 2026-09-17 and 2026-09-18: nothing they describe had been built, booted or measured when they were written, and their wording is kept. Section 13 records the first build and boot of 2026-09-18 and says which predictions held. The sealed G1 evidence and every G1 build input are untouched.
 
 **Scope:** audit of the sealed `egw-image` (Yocto 5.0.19 Scarthgap, `qemuarm64`) against the Edge Gateway role in the C2DTA paper, the six-container digital-twin stack, the external simulator and the ARM64 boot targets; followed by the change set for the integrated QEMU/TCG gateway (first deliverable, PM work order of 2026-09-17) and for the native ARM64 route (second deliverable, ADR 0008 and plan v2.0).
 
@@ -613,3 +613,54 @@ A project review of the change set on 2026-09-18 requested five corrections and 
 6. **MongoDB 8.0.** The life-cycle dates, the ARMv8.2-A requirement, the Transparent Huge Pages recommendation for 8.0 and Ditto 3.9.4's statement of MongoDB 8.0 support were verified; `docs/adr/0009-mongodb-8-evaluation.md` (Proposed) keeps the 7.0.x pin for the first end-to-end demonstration and defines the acceptance tests for one pinned 8.0.x before the pilot freeze. No image reference was changed.
 
 Section 9.3 told the student to copy the change set over the WSL clone. That is superseded: the integrated profile now lives on a branch, and the build is made from that identified commit, as the G1 capsule was.
+
+## 13. Addendum — first build and boot of the integrated profile (2026-09-18)
+
+Scope: build and boot only, in WSL2, from identified commits of the branch of this change set. The six-container stack was **not** deployed, no image was loaded, no container was started and no campaign was run. No gate is accepted and no claim is supported. The environment is ARM64 **emulated** under QEMU/TCG on the x86-64 host. The candidate evidence (logs, checksums, guest transcripts, with `SHA256SUMS`) is held outside the repository under `~/yocto/evidence-candidates/2026-09-18-integrated-{68f9ae7,03e333e,3209b17}/` in the WSL2 home and is **not sealed**; sealing it under `docs/evidence/` is a separate decision.
+
+### 13.1 Attempts (every attempt is preserved)
+
+| # | Commit | Step | Outcome |
+|---|---|---|---|
+| 1 | `68f9ae7` | build | **Failed** in `egw-gateway-image:do_rootfs`: the dnf transaction test reported a file conflict on `/etc/sudoers.d` between `egw-gateway-config` (directory mode 0755) and `sudo-lib` (0750). RPM treats a mode difference on a shared directory as a conflict. Fixed by creating the directory 0750. |
+| 2 | `03e333e` | build | Succeeded: 5,556 tasks; `Sstate summary: Wanted 597 Local 588 Missed 9`. |
+| 3 | `03e333e` | boot | **Failed before QEMU started**: `runqemu egw-gateway-image qemuarm64 ...` makes the pinned `runqemu` run a target-less `bitbake -e`, which carries no `IMAGE_LINK_NAME`. The root file system was not touched (same sha256 before and after). Fixed by handing `runqemu` the image's own `.qemuboot.conf`. |
+| 4 | `3209b17` | rebuild | No-op (`Wanted 588 Local 588 Missed 0`); artefact checksums identical to attempt 2. |
+| 5 | `3209b17` | boot | Guest up, SSH reachable 19 s after the wrapper started; every check of runbook 3.4 passed; clean power-off. |
+| 6 | `3209b17` | boot | Persistence verified; clean power-off. |
+
+Artefacts before the first boot (sha256): root file system `egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4` `096e9270114f18ab87abfbcd6719240f5d9dd77c03295a1a72ac12c6be8ce6e6` (2,621,364,224 bytes, of which 2 GiB is the configured headroom; the manifest lists 614 packages and the guest reports 344 MiB used on `/` at first boot); `.tar.bz2` `d4569c0e845f3a7e36d292953de64dde76b6e81b7482206d0f0f385bcf805fc7`; kernel `Image` `4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037`. `runqemu` boots the ext4 file in place, so its checksum identifies the artefact before its first boot only.
+
+The sealed G1 tree was not touched: the listing and the checksums of `src/yocto/build/tmp/deploy/images/qemuarm64/` are identical to the record taken before attempt 1, after the builds and again after the boots.
+
+### 13.2 Predictions of Section 10 that the build and boot decided
+
+| Item | Result |
+|---|---|
+| 10-A.1 `docker-compose` builds | **Confirmed**: v2.26.0 in the manifest; `docker compose version` prints `v2.26.0` on the guest. Whether Compose accepts every construct of `compose.yaml` is still open (nothing was deployed). |
+| 10-A.2 `sudo` and `/etc/sudoers.d` | **Confirmed** after the fix of attempt 1: the packaged `sudoers` has an active `@includedir /etc/sudoers.d` (line 139); on the guest `visudo -c` parses `/etc/sudoers.d/egw`, `sudo -n true` works and `sudo -l` lists `NOPASSWD: ALL` for `egw`. |
+| 10-A.3 `kernel-image` kept out of the root file system | **Confirmed**: no `kernel-image*` line in the manifest. |
+| 10-A.4 `egw:*:` in `/etc/shadow`, uid/gid 1000 | **Confirmed**: both `root` and `egw` carry `*`; `id` reports `uid=1000(egw) gid=1000(egw) groups=995(docker),1000(egw)`. |
+| 10-A.5 sstate reuse and kernel identity | **Partly refuted.** The kernel `Image` is byte-identical to G1, but it was **re-executed, not restored**: `linux-yocto_virtualization.inc` of meta-virtualization calls `bb.utils.contains()` with a non-literal item (`distro_cond_feature`, line 34), so BitBake signs the whole `DISTRO_FEATURES` value into `do_kernel_metadata`, and removing `nfs` changes it (the only difference between the two sigdata files). First build: `Wanted 2627 Local 2547 Missed 80` (96 %). The manifest comment that predicted a restored kernel is corrected. The hash-equivalence database is per build directory, a plausible cause of the changed native dependency hashes; that was not verified object by object. |
+| 10-A.6 `image-buildinfo` with a url-less layer | **Confirmed**: `/etc/buildinfo` is written and carries `QB_CPU`, `QB_SMP`, `QB_MEM` and `EGW_HOSTNAME`. |
+| 10-B.2 data disk | **Confirmed with the disk attached**: `LABEL=egw-data` resolves to `/dev/vdb`, `var-lib-docker.mount` and `docker.service` are active, `systemd-growfs@var-lib-docker` exits 0, `docker.service` shows `Requires=var-lib-docker.mount`. A boot **without** the disk (docker failing visibly) was not exercised. |
+| 10-B.3 persistent `/var/log` and host name | **Confirmed**: `/var/log` is a real directory, `journalctl --list-boots` lists both boots after the second one, the host name is `egw-qemu-integrated`. |
+| 10-B.4 `runqemu` selecting the right image | **Refuted as written** (attempt 3) and replaced by the explicit `.qemuboot.conf` path. The `-dev` image was not built, so two images sharing the deploy directory was not exercised. |
+| 10-B.7 NTP through slirp | **Confirmed**: `System clock synchronized: yes` within the first minute. Host-guest clock offset is still unmeasured. |
+| 10-B.1, 10-B.5, 10-B.6, 10-B.8 | **Still open**: MongoDB 7 under `cortex-a76`, the `-dev` image, a second `-cpu`, JVM start-up under TCG. |
+
+### 13.3 Guest as booted
+
+QEMU command line printed by `runqemu`: `-machine virt -cpu cortex-a76 -smp 4 -m 8192`, kernel arguments `root=/dev/vda rw mem=8192M ip=dhcp ...`, forwards `127.0.0.1:2222->22` and `127.0.0.1:8883->8883` only (the host shows both listeners bound to 127.0.0.1), second virtio disk `egw-data.img` (32 GiB sparse, outside the clone). QEMU 8.2.7.
+
+On the guest: `systemctl is-system-running` = `running`, no failed unit; `6.6.142-yocto-standard aarch64`, Poky 5.0.19; `MemTotal` 8,204,356 kB; four CPUs, CPU part `0xd0b`, features including `atomics fphp asimdhp asimdrdm asimddp`; `/` on `/dev/vda` (2.2 GiB, 16 % used), `/var/lib/docker` on `/dev/vdb` (31.2 GiB); Docker 25.0.9, containerd 2.0.10, runc 1.1.14, `overlay2` on extfs, cgroup v2 with the systemd driver, json-file logging, live restore enabled; `/opt/egw/deployment/data/events` and `/opt/egw/evidence` owned by and writable for `egw`; `curl`, `openssl`, `sudo`, `resize2fs` and `e2fsck` present, `mkfs.ext4` absent by design; nothing listens on port 111.
+
+SSH: key login as `egw` works; `root` and password authentication are refused with `Permission denied (publickey)`; `sshd -T` reports `permitrootlogin no`, `passwordauthentication no`, `allowusers egw`.
+
+Second boot: strict host-key checking against the first boot's key succeeded, the marker file written during the first boot was present, the data-disk UUID and the Docker engine id were unchanged.
+
+### 13.4 Observations that are not acceptance failures
+
+1. `avahi-daemon` listens on UDP 5353: the `zeroconf` distro feature is still enabled in this profile. The guest sits behind slirp NAT, so nothing reaches it; on a physical gateway it would be exposure to review. Removing the feature would again change the kernel task signature (13.2, 10-A.5), not the kernel.
+2. Runbook 2.5 read the QEMU version from `tmp/sysroots-components/`, where the binary cannot load `libfdt` on its own; the runbook now uses the image recipe's native sysroot.
+3. The guest has no `systemd-analyze` and no rpm database (no package management in the image), so boot-time breakdown and an installed-package query must come from the build side (the manifest).

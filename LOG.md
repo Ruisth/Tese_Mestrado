@@ -1139,3 +1139,40 @@ is unchanged.
   run of the data-disk guard, the repository link and evidence-seal checks.
   ShellCheck is not installed on the workstation, so the `shell safety` check
   is the first ShellCheck run of the two new scripts.
+
+---
+
+## Entry #C024 — First build and boot of the integrated QEMU/TCG profile
+
+- **Date:** 2026-09-18
+- **Request:** Validate, by a delimited build and boot in WSL2, the integrated
+  profile of entry #C023 from an identified commit, preserving the G1 build
+  artefacts, without deploying the stack, running a campaign or accepting a
+  gate.
+- **What happened:** The first build (commit `68f9ae7`) failed in
+  `egw-gateway-image:do_rootfs` on an RPM conflict: `egw-gateway-config`
+  created `/etc/sudoers.d` 0755 while `sudo-lib` ships it 0750. Commit
+  `03e333e` creates it 0750; the build then succeeded (5,556 tasks). The first
+  boot attempt ended before QEMU started: the pinned `runqemu` cannot resolve
+  `IMAGE_LINK_NAME` when given an image name and a machine. Commit `3209b17`
+  passes the image's own `.qemuboot.conf`; the rebuild was a no-op and two
+  boots followed. Every failed attempt is preserved.
+- **Result:** Every artefact check (runbook 2.4) and guest check (runbook 3.4)
+  passed: Cortex-A76 model, four vCPUs, 8,204,356 kB of memory with
+  `mem=8192M`, `/var/lib/docker` on the labelled data disk, Docker 25.0.9 with
+  Compose v2.26.0, cgroup v2, key-only SSH for `egw` with `root` and password
+  logins refused, NTP synchronised, no failed unit. The second boot showed both
+  boots in the journal, the same SSH host key, data-disk UUID and Docker
+  engine id.
+- **Prediction refuted:** The kernel was re-executed rather than restored
+  from the shared sstate cache, because meta-virtualization signs the whole
+  `DISTRO_FEATURES` value into `do_kernel_metadata` and the profile removes
+  `nfs`. The resulting `Image` is byte-identical to the G1 `Image`. The
+  manifest comment is corrected.
+- **Boundary:** The sealed G1 build tree is unchanged (listing and checksums
+  compared before the first build, after the builds and after the boots). No
+  image was loaded, no container was started, MongoDB 7 was not tried. The
+  environment is ARM64 emulated on x86-64: functional evidence only. The
+  candidate evidence is held outside the repository and is not sealed; no
+  gate and no claim is accepted.
+- **Record:** `docs/reviews/2026-09-17-egw-image-audit.md`, Section 13.
