@@ -9,21 +9,27 @@
 > document that cites them.
 > [`PROGRESS.md`](../../PROGRESS.md) is the only source of current operational
 > state.
-> **The supervisors have approved nothing.** The exact public title and
-> research-question wording remain *proposed* until supervisor decisions D001
-> and D011 are recorded. The student's adoption settles execution; it does not
-> settle academic agreement. Adopting a plan version closes no gate, admits no
-> claim and turns no emulated result into native ARM64 evidence.
-> The student reported that a supervisor advised proceeding with QEMU tests.
-> That is student-reported advice: it is neither approval nor a documented
-> supervisor decision, and it is not recorded as one in
-> [`supervisor_decision_log.csv`](supervisor_decision_log.csv), where D001–D014
-> are all `proposed_not_sent`.
+> **The supervisor position, stated precisely.** The alignment package covering
+> what remains open — the experimental thresholds (D007), the academic use of
+> emulated results (D014), the authenticity of the local template copy inside
+> D004 and the storage semantics inside D010 — **has not been sent**, and
+> D001, D007, D008 and D012 of
+> [`supervisor_decision_log.csv`](supervisor_decision_log.csv) genuinely remain
+> `proposed_not_sent`. Against that, the student **reports** that the
+> state-of-the-art material was sent, that a supervisor approved proceeding with
+> the QEMU tests, and that twelve further items were confirmed (section 1.1).
+> Every one of those is **reported by the student**: none is a documented
+> supervisor decision, none carries a date, a message or a supervisor name, and
+> none closes a gate or admits a claim. The student's adoption settles
+> execution. Adopting a plan version closes no gate, admits no claim and turns
+> no emulated result into native ARM64 evidence.
 > Every date after 2026-09-18 in this plan is a planning target, not an
 > achieved milestone.
 
 **Version:** 2.0 — adopted 2026-09-18 (text of 2026-09-16 with the QEMU-only
-execution amendment of 2026-09-18)  
+execution amendment of 2026-09-18), amended on 2026-09-19 to record the
+supervisor confirmations reported by the student, the 95-run attempt target and
+the authorised terminology (section 9)  
 **Supersedes:** version 1.2 — 2026-08-14 (which superseded
 version 1.1 — 2026-08-13, which superseded version 1.0 — 2026-08-07)  
 **Planned submission:** 2026-10-20  
@@ -64,7 +70,7 @@ rewriting a superseded text.
 | Formal gate outcomes | [`gate_decision_log.md`](gate_decision_log.md) | Evidence or a merged change never implies acceptance; every outcome needs a dated decision record. Adopting a plan version accepts no gate. |
 | Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
 | Claims and admissible evidence | [`claim_evidence_matrix.md`](../claim_evidence_matrix.md) | No claim is accepted without the evidence named in the matrix and a recorded gate decision. |
-| Supervisor decisions | [`supervisor_decision_log.csv`](supervisor_decision_log.csv) | A draft, sent request, silence or agent recommendation is not approval. |
+| Supervisor decisions | [`supervisor_decision_log.csv`](supervisor_decision_log.csv) | A draft, a sent request, silence or a recommendation is not approval. The `status` column takes exactly three values: `proposed_not_sent`, `confirmed_reported_by_student` and `partly_confirmed_reported_by_student`. The two `…_reported_by_student` values record what the student reports a supervisor confirmed; they are never a documented supervisor decision. `sent_at` and `response_at` stay empty unless an actual date is held. |
 | Raw experimental records | `experiments/results/raw/` plus checksums | Write once. A correction or repeat receives a new identity. |
 | Work diary | [`LOG.md`](../../LOG.md) | Records actions and links to evidence; it does not override state or scope. |
 
@@ -81,20 +87,50 @@ means a claim or gate is accepted.
   filesystem booted under QEMU/TCG on the existing x86-64 workstation. Native
   ARM64 deployment leaves mandatory scope and becomes documented, unverified
   future work (section 8).
-- **The supervisors have approved nothing.** They have not agreed the title, the
-  research-question wording, the experimental thresholds or the revised academic
-  evaluation. No alignment package has been sent; every row of
-  [`supervisor_decision_log.csv`](supervisor_decision_log.csv) is
-  `proposed_not_sent`.
-- **Student-reported advice.** The student reported that a supervisor advised
-  proceeding with QEMU tests. It is recorded here as the student's report of
-  advice received, and nowhere as an approval or a supervisor decision.
-- **Adoption admits nothing.** It closes no gate, admits no claim, seals no
-  evidence and makes no emulated result native evidence. Formal gate outcomes
-  remain solely in [`gate_decision_log.md`](gate_decision_log.md).
+- **What is reported approved, and what is not.** The student **reports** that
+  the title and the research-question wording were approved, with RQ3 evaluated
+  in QEMU rather than on a native ARM64 virtual machine (D011). The
+  **experimental thresholds** (D007) and the **academic use of emulated
+  results** (D014) are not settled by that, and the alignment package that
+  carries them has not been sent.
+- **Reported supervisor approval to execute the QEMU tests.** The student
+  reports that a supervisor approved proceeding with the QEMU tests. It is
+  recorded here as a **supervisor confirmation reported by the student** — not
+  as a documented supervisor decision, and not as approval of the academic use
+  of the results, which remains D014.
+- **The twelve items the student reports confirmed (recorded 2026-09-18).**
+  (1) the title, exact wording *Blockchain-powered Personal AI – Digital Twin
+  Edge Gateway*; (2) the research questions, with RQ3 evaluated in QEMU;
+  (3) the local-core scope; (4) the literature-review method, settled in a
+  follow-up as a **scoping review**; (5) an instruction to attempt the
+  historical 95-run quantity, including the 24-hour soak, under QEMU
+  (section 3.3); (6) that a second operator is **not** required; (7) the review
+  schedule — Chapters 1–4 on 2026-10-01, the full draft on 2026-10-08 and
+  feedback between 2026-10-09 and 2026-10-14; (8) that the institution-supplied
+  LaTeX template is mandatory; (9) that an AI-use declaration is mandatory by
+  final submission; (10) that a scientific article is optional and not required
+  for delivery; (11) the authorised wearable-data terminology
+  ([`language-policy.md`](language-policy.md)); (12) that a local copy of the
+  work is expected as evidence. **Every one of these is reported by the
+  student.** No date, message or supervisor name was reported for any of them,
+  so `sent_at` and `response_at` stay empty in every row of the decision log,
+  and none of them is written anywhere as a documented supervisor decision.
+- **The state-of-the-art material is reported sent.** The student reports that
+  it was sent to the supervisors. No date and no copy is held, so none is
+  recorded; the August G0 email draft at
+  [`../g0/supervisor_email_g0.md`](../g0/supervisor_email_g0.md) is a different
+  document and is genuinely unsent.
+- **Adoption and these confirmations admit nothing.** They close no gate, admit
+  no claim, seal no evidence and make no emulated result native evidence. Formal
+  gate outcomes remain solely in [`gate_decision_log.md`](gate_decision_log.md).
 - **Authority basis.** The student is the decision owner for project execution.
-  The academic framing remains reserved to the supervisors through D001, D004,
-  D006, D007, D011 and D014.
+  What remains reserved to the supervisors is D007 (thresholds), D014 (the scope
+  of the evaluation and the academic use of emulated results), the
+  template-authenticity half of D004 and the storage-semantics half of D010. The
+  title and research-question halves of D011, the second-operator question of
+  D006 and the review-label question of D003 are reported settled, as reported
+  by the student; D001 and D008 keep their historical August wording, which was
+  never sent and is not what the student reports confirmed.
 
 ## 2. Baseline at 2026-09-18
 
@@ -105,15 +141,15 @@ preserved unmodified in the archived v1.2 file and is not rewritten here.
 | Area | Baseline | Consequence |
 |---|---|---|
 | Repository | `Claude/` is the active project and its tree was reconciled with the private GitHub `dev` branch. `ChatGPT/` is a divergent legacy workspace. | No automatic merge from `ChatGPT`; preserve it read-only and migrate only reviewed documentary conclusions. |
-| Unit evidence | The latest sealed record reports 701 passing unit tests, all against fakes. **No test of the nine integration/recovery families of the runbook has been run.** | Unit tests against fakes cannot support live-system claims; the integration battery is the next work package. |
+| Unit evidence | The latest sealed record reports 701 passing unit tests, all against fakes. The nine integration/recovery families of the runbook were **exercised once on 2026-09-18 and are not complete**: seven passed, tests 1 and 6 carry a failing harness part from the resource sampler under emulation, and the record is held outside the repository and unsealed. | Unit tests against fakes cannot support live-system claims; an unsealed, incomplete battery supports none either. Completing it, with the instrumentation defect fixed under its own change, is the next work package. |
 | Yocto/QEMU platform (sealed) | The integrated image build (commit `03e333e`), two boots with every acceptance check passing (commit `3209b17`) and an isolated MongoDB 7.0.39 test are sealed under [`docs/evidence/integrated-qemu/`](../evidence/integrated-qemu/). Gate G1 was accepted on 2026-08-14 for the functional platform layer only. | Sealed technical evidence, all emulated. Sealing is not acceptance and G1 is not relabelled as an integrated validation. |
 | Service stack in the guest (unsealed) | On 2026-09-18 the six-container stack was deployed inside the emulated Yocto guest and one bounded end-to-end flow passed: one smartwatch at 1 Hz for 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. The maximum latency observed, 12,286 ms, is an emulated observation and not a performance result. | **Candidate evidence held outside the repository and unsealed.** It admits no claim, closes no gate and is not citable until sealed and admitted. The statements that the stack has never been deployed and that the first flow has not run are corrected by this row. |
 | Defects found by that flow | The controller was attached to the wrong Compose network (fixed in `9ffd365`) and the host shell inherited a relative schema directory (fixed in `dc6d8bb` and `22fb0a9`). | The first live exercise behaved as the harness risk predicted. Fixing the defects closes no gate. |
 | Open stability incident | A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session at a 512 MiB container limit. The diagnosis of 2026-09-18 records the three Ditto services idling at 94–95 % of that limit and reaching 98.1 % after a 672-message workload, and a controlled `docker compose stop -t 60` after that workload producing no OOM anywhere in the boot. | The corrective work — a graceful stop before power-off, and container memory sizing — is **open** and is a separate change. The stack is not described as stable, and stability is not declared before the incident is resolved or its scope explicitly bounded and recorded. |
 | Experiments | There are zero official campaign runs and 0 of 15 claims accepted. | No number may enter results or conclusions before protocol and data freezes. |
 | Execution environment | The evaluation environment is the emulated integrated guest: ARM64 under QEMU/TCG on the x86-64 workstation (Windows 11, WSL2 Ubuntu-24.04). No native ARM64 host exists and none is required by this plan. | RQ3 is bounded to that environment (section 3.5). Native measurement is documented, unverified future work (section 8); no cloud allocation, spending or native build is requested by this plan version. |
-| Academic work | The dissertation skeleton and a substantive Chapter 2 draft exist. Exact title/RQs, template, review label and reproducibility wording are not supervisor-approved. | Send the revised alignment package and track D001–D014. Factual corrections do not wait for approval. |
-| G0 external actions | The alignment package is drafted but no sending evidence is recorded. | Sending the alignment package remains a student action that repository changes cannot discharge. Infrastructure procurement is **not** an obligation of this plan version. |
+| Academic work | The dissertation skeleton and a substantive Chapter 2 draft exist. The title, the research questions, the template obligation, the review label and the second-operator question are **reported confirmed** by the student (section 1.1). What stays open is the experimental thresholds (D007), the academic use of emulated results (D014) and the authenticity check of the local template copy (inside D004). | Send the reduced alignment package covering the open items. Factual corrections do not wait for approval, and a reported confirmation is never written up as a documented decision. |
+| G0 external actions | The state-of-the-art material is **reported sent** by the student, with no date or copy held. The reduced alignment package covering the open decisions is drafted and unsent. | Sending that package remains a student action that repository changes cannot discharge. Infrastructure procurement is **not** an obligation of this plan version. |
 
 ## 3. Scientific contract and evidence boundary
 
@@ -148,21 +184,32 @@ admitting no claim. This supersedes the version 1.2 prohibition on claiming that
 the Ditto service stack runs inside the Yocto image; that prohibition is
 retained only for any *native* deployment, which remains undemonstrated.
 
-### 3.2 Proposed public framing (decisions D001 and D011 pending)
+### 3.2 Public framing reported approved (D011)
 
-The wording below is **suggested wording for academic review**. It is not
-attributed to the supervisors, is not agreed with them, and is not settled by
-the student's adoption of this plan.
+The student **reports** that the title and the research questions were
+approved, with RQ3 evaluated in QEMU rather than on a native ARM64 virtual
+machine. That is a **supervisor confirmation reported by the student**, not a
+documented supervisor decision, and no date, message or supervisor name was
+reported with it.
 
-**Working title:** *Design and Experimental Evaluation of a Yocto-Based ARM64
-Edge Gateway for the Local Digital-Twin Core of C2DTA*
+**Title, as reported approved, verbatim:** *Blockchain-powered Personal AI –
+Digital Twin Edge Gateway*
+
+The broader blockchain and AI programme named in the title does not restore
+those components to mandatory scope: this dissertation's contribution is the
+local gateway of section 3.1, and section 3.4's exclusions are unchanged.
+
+The **approved verbatim research-question wording lives in the student
+manuscript** and is not held in the repository. The three items below are
+therefore **scope summaries of the approved questions**, not supervisor
+quotations, and no supervisor wording is attributed to them:
 
 1. **RQ1:** How can a versioned Yocto-based ARM64 gateway image be built,
    deployed and redeployed under QEMU to host the local digital-twin core of
    C2DTA?
 2. **RQ2:** To what extent can the integrated gateway ingest and materialise
-   concurrent synthetic telemetry from three wearable-device types correctly and
-   reliably, including under specified fault scenarios?
+   concurrent synthetic wearable data from three wearable-device types correctly
+   and reliably, including under specified fault scenarios?
 3. **RQ3:** What workload-dependent timing and resource-use behaviour, and
    operational limitations, are observed for the integrated gateway in the
    specified QEMU/TCG environment?
@@ -172,12 +219,19 @@ latency, sustainable throughput, saturation and per-container resource
 trade-offs on a non-burstable native-ARM64 environment; that claim is withdrawn
 from scope and becomes future work (section 8).
 
-Until D001, D011 and D006 are resolved, repository documents may use this
-working framing, but the final title must not use *reproducible*. A successful
-clean second-operator reconstruction is required before that stronger term
-returns; otherwise use *versioned* and *repeatable build by the author*. Agree
-the final academic formulation and the evaluation protocol with the supervisors
-before presenting either as approved.
+**The second operator is reported waived.** The student reports that another
+person does not need to test, so an independent clean reconstruction leaves
+mandatory delivery and is no longer an acceptance condition of any gate (D006,
+section 4.3). The waiver settles the **requirement**, not the **vocabulary**:
+because no independent reconstruction will exist, the final wording stays
+*versioned* and *repeatable build by the author*, and *reproducible* is not
+licensed — in the title or anywhere else. Waiving a second software tester also
+says nothing about literature screening, which is a separate matter recorded
+under D003.
+
+The **evaluation protocol** is not settled by the reported approval of the
+questions: the thresholds stay with D007 and the academic use of emulated
+results with D014, and neither may be presented as agreed.
 
 ### 3.3 Mandatory P0
 
@@ -195,9 +249,60 @@ before presenting either as approved.
   with sealed evidence, executed in the integrated emulated guest.
 - An **emulated functional campaign**, selected and documented after the bounded
   pilot and before protocol freeze, with reproducible analysis and a complete
-  English dissertation grounded only in admitted evidence. The 95-run campaign
-  and the 24-hour soak of the previous plan are **not carried over** to the
-  emulated environment. Every failed or inconclusive attempt is retained.
+  English dissertation grounded only in admitted evidence. Every failed or
+  inconclusive attempt is retained.
+
+#### 3.3.1 The 95-run composition as a target to attempt under QEMU
+
+**This supersedes the earlier position.** Until the amendment of 2026-09-19
+this plan said that "the 95-run campaign and the 24-hour soak of the previous
+plan are **not carried over** to the emulated environment". The student now
+**reports** an instruction to attempt the quantity of the native plan under
+QEMU, including the soak. That earlier exclusion is superseded rather than
+deleted. In section 3.3 above the sentence was removed and is quoted here
+instead, because that bullet list carries no dated annotations; everywhere else
+the superseded wording is marked where it stands — sections 4.3 (G4, G5) and 9
+of this plan, sections 3 and 7 of
+[`../g0/scope_and_rqs.md`](../g0/scope_and_rqs.md), the G3 row, the G5 cutting
+rule and the campaign row of [`../g0/backlog.md`](../g0/backlog.md), the G5 note
+of [`gate_decision_log.md`](gate_decision_log.md), rule 1 of section 8 of
+[`../setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md),
+`PROGRESS.md`, `README.md` and both forms of the claim matrix.
+
+The composition below is the **target to attempt**. It is not the frozen
+protocol, it is not a promise of 95 valid runs, and it is not approval of any
+inherited threshold. "Operator-driven" describes how a condition is driven, not
+a requirement for a native host.
+
+| Condition | Target runs | What it means under QEMU |
+|---|---:|---|
+| QEMU boots | 5 | Integrated image, prospective identities and functional checks; historical G1 boots are never silently counted |
+| Stack cold starts | 10 | Readiness under the recorded emulated setup |
+| Twin creation | 10 | Independent creations with recorded state and identities |
+| Smoke sequence | 10 | End-to-end correctness |
+| Nominal | 10 | Correctness and observed behaviour at the frozen nominal load |
+| Load sweep | 40 | Ten per historical rate level — 10, 50, 100 and 250 messages/s — subject to the pilot and the frozen QEMU protocol |
+| Invalid payload | 3 | Validation and rejection behaviour |
+| Dropout/reconnect | 3 | Actual disconnection, buffering and reconciliation |
+| Controller restart | 3 | Recorded restart and recovery |
+| Soak | 1 | Target 24 actual elapsed hours with continuous evidence collection |
+| **Total** | **95** | **25 operator-driven + 70 simulator-driven** |
+
+**Three things stay separate and are never conflated:** this attempt target; the
+**frozen protocol**, which is still chosen prospectively at G4 after the pilot;
+and the **actual valid run count**, which is whatever the campaign produces.
+
+**Feasibility condition.** The bounded pilot must check the achievable against
+the requested publishing rate, and with it the clock boundaries, the
+instrumentation, the storage, the recovery behaviour and the host/guest
+contention. The historical 70 simulator-driven runs alone carry a **33.17-hour
+logistics floor**, excluding the 25 operator-driven runs, setup, transfers,
+analysis and retries; that floor is a historical figure and not a QEMU forecast.
+If the pilot shows the target is not achievable in the campaign window, record
+the gap, replan explicitly and state the resulting claim limits. Do not extend a
+confirmation deadline, change a validity threshold or lower a load
+retrospectively to obtain a pass, and retain every failed or inconclusive
+attempt.
 
 ### 3.4 Explicit exclusions
 
@@ -247,11 +352,14 @@ in [ADR 0008](../adr/0008-integrated-yocto-arm64-evaluation.md).
    and integration evidence only. The presence of the word QEMU does not, by
    itself, identify the execution mode; never infer KVM from the label ARM64 and
    never silently fall back from KVM to TCG.
-5. **Reserved for the supervisors.** The academic title and RQ wording (D011),
-   and the scope of the evaluation together with any academic use of emulated
-   results (D014, now a standing request rather than a contingency). Their rows
-   are `proposed_not_sent`; neither may be applied to the dissertation as if it
-   were agreed.
+5. **Reserved for the supervisors.** The scope of the evaluation and any
+   academic use of emulated results (D014, a standing request rather than a
+   contingency) stay reserved and unanswered; nothing may be applied to the
+   dissertation as if that question were settled. The academic title and the
+   research-question wording of D011 are **reported approved** by the student
+   (section 1.1 and section 3.2) — reported, and never recorded as a documented
+   supervisor decision — and that approval does not reach the academic-use
+   question, which stays with D014.
 
 **Recording requirements for every run.** Record the QEMU version, the TCG mode
 and options, the virtual machine and CPU model, the vCPU count, the memory, the
@@ -268,6 +376,19 @@ never combined into one statistic or one aggregate. Changing platform does not
 authorise silently changing validity thresholds: the controller-clock
 confirmation rule and the latency boundary are preserved.
 
+### 3.6 Authorised terminology for active prose
+
+The student **reports** that the recommended wearable-data wording is
+authorised. The policy is written down once, in
+[`language-policy.md`](language-policy.md), and is not repeated here: in short,
+active explanatory prose and diagram labels use *wearable data*, *wearable event
+data*, *sensor measurements* or *device events* according to meaning, while
+literal `/telemetry` topics, API and schema identifiers, `src/CONTRACTS.md`,
+bibliography titles, quotations, sealed evidence and historical records keep
+their exact wording. A blind global replacement is forbidden. The confirmation
+is reported by the student and is recorded at D009; it is not a documented
+supervisor decision, and it creates no scope or interface requirement.
+
 ## 4. Delivery sequence, gates and cut rules
 
 ### 4.1 Work packages and planning targets
@@ -279,6 +400,9 @@ achieved milestones, and no gate is accepted by it.**
 | Work package | Target / acceptance boundary |
 |---|---|
 | Governance publication | Next focused documentation pull request; parallel to ongoing bounded tests |
+| Scoping-review protocol alignment | Target 2026-09-21; dated method, scope, eligibility and charting plan, preserving the real preliminary-search history |
+| Scoping-review search and selection | Target 2026-09-26; logged searches and exports, deduplication and documented screening; re-estimate from the actual corpus size at the 2026-09-21 checkpoint |
+| Scoping-review charting and synthesis | Target 2026-09-30; evidence chart, selection flow, synthesis and bibliography, feeding the chapters sent on 2026-10-01 |
 | Nine integration/recovery test families | Target 2026-09-21 to 2026-09-24; report per-test evidence, failures and residual risks |
 | Stable integrated QEMU baseline | Target 2026-09-25; no unresolved failure incompatible with the claimed stability scope |
 | Bounded pilot and protocol freeze | Target 2026-09-26 to 2026-09-29; select run identities, repeats, durations and acceptance criteria prospectively |
@@ -318,8 +442,10 @@ feature freeze**, **G4 — experimental freeze** (tag `exp-v1`), **G5 — data
 freeze** (tag `data-v1`), **G6 — analysis and full draft**, **G7 — release
 candidate**, followed by **Submission**.
 
-- **G0** remains *Not decided*. It keeps the alignment-package obligation:
-  D001–D014 requested with the revised memo. The university ARM64 request and
+- **G0** remains *Not decided*. It keeps the alignment-package obligation, now
+  reduced to the rows that remain open — D007, D014 and the unresolved halves of
+  D004 and D010 — requested with the revised memo. No confirmation reported by
+  the student closes it. The university ARM64 request and
   the measurement-host acquisition are **removed as gate conditions** and
   deferred with the native route; they are not deleted from history.
 - **G1** remains **Accepted** (2026-08-14), for the functional platform layer
@@ -399,8 +525,14 @@ or efficiency property, no stability over time and no native behaviour.
 
 **G4 — experimental freeze (`exp-v1`).** The bounded pilot complete, in order,
 on the integrated emulated system: a short nominal run, the plan's nominal
-duration, the load sweep and one bounded soak. The 24-hour soak and the 95-run
-campaign are **not executed in this environment**. Generator delivery is checked
+duration, the load sweep and one bounded soak. The pilot's job includes the
+**feasibility check of the 95-run attempt target** of section 3.3.1 — achievable
+against requested publishing rate, clock boundaries, instrumentation, storage,
+recovery and host/guest contention — which supersedes this plan's earlier
+statement that the 24-hour soak and the 95-run campaign were *not executed in
+this environment*. The attempt target is not the frozen set: the frozen set is
+still chosen prospectively after the pilot, and no number of valid runs is
+promised by the target. Generator delivery is checked
 on every run; a run whose generator could not sustain the requested rate is a
 pilot finding, not a measurement. Pilot data is **non-citable** and no pilot
 number enters the dissertation. The measurement instrumentation is in place and
@@ -418,9 +550,13 @@ before `exp-v1` is recorded as the frozen protocol of the evaluation. After G4,
 no metric, threshold, condition or exclusion rule changes.
 
 **G5 — data freeze (`data-v1`).** The campaign executed is the **frozen emulated
-functional set** selected after the pilot and before the freeze — explicitly not
-the 95-run plan and not the 24-hour soak. Until that set is selected, G5's scope
-is defined by that procedure rather than by a run count. Completeness is checked
+functional set** selected after the pilot and before the freeze. The 95-run
+composition of section 3.3.1, the 24-hour soak included, is the quantity that
+set **attempts to reach**, subject to the pilot's feasibility finding; this
+supersedes the earlier wording that the frozen set was *explicitly not the
+95-run plan and not the 24-hour soak*. Until that set is selected, G5's scope is
+defined by that procedure rather than by a run count, and the criterion below is
+the identities of the frozen set — never the number 95. Completeness is checked
 **by identity**: the identities of the valid runs match the frozen plan exactly,
 and identities missing, extra, duplicated or swapped fail the criterion and are
 named. Sealing is mandatory per run; an unsealed or failing run is excluded from
@@ -450,16 +586,48 @@ complete metadata, rendered diagrams and evidence-bounded answers to all three
 research questions. The limitations section states the boundary explicitly: the
 evaluation ran on an ARM64 guest emulated by QEMU/TCG on an x86-64 host; native
 ARM64 deployment and native performance were not demonstrated; the reuse routes
-for a later native target are documented and unverified. A reproduction package
-with a versioned archive, its SHA-256, restore instructions, a verified
-off-machine location and a restore check actually performed. Independent review
-and supervisor contact recorded, including attempts, with silence waiving
-neither D001 nor D004. Editorial QA complete, including the institutional AI-use
-declaration and form. Every accepted claim traces to admitted evidence; claims
-without evidence appear as limitations, never as conclusions. An annotated `rc1`
-tag with the document checksum and an independent build/review record. The
-deferred recipe-metadata corrections are closed no later than G7, at a
-functional rebuild and never as a standalone edit.
+for a later native target are documented and unverified. Every accepted claim
+traces to admitted evidence; claims without evidence appear as limitations,
+never as conclusions. An annotated `rc1` tag with the document checksum and an
+independent build/review record. The deferred recipe-metadata corrections are
+closed no later than G7, at a functional rebuild and never as a standalone edit.
+
+Three further criteria follow from what the student reports confirmed. Each is
+**prospective**, like everything else in this section, and each is reported, not
+documented:
+
+- **Institutional LaTeX template.** The dissertation is typeset in the
+  institution-supplied `Template_LaTeX` source, reported mandatory. This is a
+  criterion in its own right and no longer only a consequence of D004.
+  Separately, and **still open**: the local copy has not been authenticated
+  against the current official 2026 source, the cover and the
+  author/supervisor/co-supervisor metadata are unsettled, and the conformity
+  check of the final PDF is not reported as done.
+- **AI-use declaration.** A truthful declaration in the applicable institutional
+  format, identifying the actual assistance received and the author's
+  responsibility, reported mandatory by final submission. It is prepared during
+  drafting and verified here, before the planned submission of 2026-10-20. Git
+  and pull-request authorship conventions never excuse omitting it.
+- **Local evidence archive.** A local copy of the work is expected as evidence:
+  source snapshots, configurations with the secrets removed, raw results, logs,
+  manifests and checksums, retained locally. The **verified off-machine copy** is
+  a distinct resilience control, is still outstanding, and is not discharged by
+  local retention; the reproduction package below carries it.
+
+A reproduction package with a versioned archive, its SHA-256, restore
+instructions, a verified off-machine location and a restore check actually
+performed. Independent review and supervisor contact recorded, including
+attempts, with silence waiving neither D007 nor the open, template-authenticity
+half of D004. Editorial QA complete.
+
+**Not acceptance criteria of this gate.** An independent second-operator
+reconstruction is **not required**: the student reports it waived, so it is
+removed from G7 and from every gate condition. Clean-checkout rebuilding,
+redeployment and the author's own repeatability evidence are retained, and the
+wording stays *versioned* and *repeatable build by the author* precisely because
+no independent reconstruction exists. A **scientific article** is likewise not
+required for delivery: it is reported optional, is **deferred and not deleted**,
+stays off the critical path, and no grade improvement is guaranteed by it.
 
 **Which gates may be decided on emulated evidence.** The student may record a
 dated *technical* outcome for G2 and G3 on emulated evidence, because deployment,
@@ -467,10 +635,14 @@ the functional path, correctness, fault handling, recovery and persistence are
 exactly what rule 1 of section 3.5 allows an emulated run to demonstrate. For G4
 and G5 the pilot and the runs may exist and be sealed, but the frozen set becomes
 *the protocol and the data of the evaluation* only once D007 and D014 are
-answered. G6 and G7 carry academic weight only with the supervisors' decisions:
-D011 and D014 in both cases, D007 and D006 for the analysis and the
-reproducibility wording, and D001 and D004 blocking the final academic release. A
-gate decided on emulated evidence records that fact in its own row.
+answered. G6 and G7 carry academic weight only with the supervisors' decisions
+that remain open: **D014** in both cases, **D007** for the analysis, and the
+**template-authenticity half of D004** blocking the final academic release.
+D006 leaves this list — the second-operator requirement is reported waived — and
+so does the title and research-question half of D011, which the student reports
+approved; what a reported confirmation does not do is turn into a documented
+decision, so no gate row may cite one as the authority for its outcome. A gate
+decided on emulated evidence records that fact in its own row.
 
 **Stated conflict, not resolved here.** The claim-evidence matrix and
 `PROGRESS.md` both state that a QEMU result never supports a performance *or
@@ -509,11 +681,15 @@ the supervisors together with D014.
   budget decision (D012). The previous cost estimate is obsolete. The 48-hour
   university-host fallback rule and the native-host decision deadline are
   withdrawn from mandatory scope and deferred with the native route.
-- Silence from supervisors is not approval. D001 and D004 block the final
-  academic release; D007 blocks `exp-v1`; **D011** (integrated title and RQ
-  wording) and **D014** (the scope of the evaluation and any academic use of
-  emulated results) also block the final academic release. The student's
-  adoption settles execution, not these.
+- Silence from supervisors is not approval, for every row that is still open.
+  **D007** blocks `exp-v1`; **D014** (the scope of the evaluation and any
+  academic use of emulated results) and the **template-authenticity half of
+  D004** block the final academic release. D001 and D008 keep their historical
+  August wording and block nothing. The title and research-question half of
+  **D011** and the second-operator question of **D006** are reported settled by
+  the student and no longer block; a reported confirmation is not a documented
+  decision and never becomes one by being cited here. The student's adoption
+  settles execution, not the rows that remain open.
 
 ### 4.5 Cutting order
 
@@ -521,7 +697,10 @@ In this order. Nothing below weakens evidence integrity, the validity rules, the
 supervisors' review, the AI-use declaration or final QA.
 
 1. Anything outside P0, and the separate article and defence preparation, stay
-   out.
+   out. The article is **deferred, not deleted**: the student reports it
+   optional and not required for delivery, so it leaves mandatory acceptance,
+   stays off the critical path, and may be taken up only after the thesis and
+   its evidence are secure. No grade improvement is guaranteed by it.
 2. Non-prerequisite engineering: converting the nine operator-driven tests into
    automated integration tests; the optional host-side sampler of the QEMU
    process; auxiliary APIs.
@@ -566,14 +745,23 @@ provenance.
 
 ## 6. Academic alignment work
 
-Send the standalone Chapter 2 draft with the revised alignment memo and request
-the fourteen decisions, **D001–D014**, in
-[`supervisor_decision_log.csv`](supervisor_decision_log.csv). The alignment
-package is targeted for 2026-09-21 in section 4.1; it has not been sent. A reply
-on the evaluation scope and on the academic use of emulated results (D014) is
-needed before the evaluation chapter is written, and a reply on the title and
-research questions (D011) before they are treated as final. Silence is not
-approval.
+The student **reports** that the state-of-the-art material was sent. No date and
+no copy is held, so none is recorded here, and the reported sending is not
+turned into a `sent_at` value in
+[`supervisor_decision_log.csv`](supervisor_decision_log.csv).
+
+What still has to be sent is the **reduced alignment package**, covering only
+the items that remain open: the experimental thresholds (**D007**), the scope of
+the evaluation and any academic use of emulated results (**D014**), the
+authenticity of the local template copy together with the cover and metadata
+(the open half of **D004**), and the operational storage semantics (the open
+half of **D010**). A reply on D014 is needed before the evaluation chapter is
+written. The other rows are not re-requested: the student reports the title, the
+research questions, the local-core scope, the review type, the schedule, the
+template obligation, the second operator, the article, the terminology and the
+local evidence copy already confirmed (section 1.1), and asking again would
+treat a reported confirmation as if it had not been given. Silence remains no
+approval for the rows that stay open.
 
 Factual changes do not require supervisor permission:
 
@@ -598,6 +786,19 @@ Factual changes do not require supervisor permission:
   and professional relevance outside experimental results;
 - complete institutional searches and full-text assessment before making
   corpus-wide novelty claims.
+
+**Literature-review method.** The student reports that the method was settled in
+a follow-up as a **scoping review**, superseding the interchangeable
+"structured scoping/narrative" label (D003). That is reported by the student and
+is not a documented supervisor decision, and the choice is not reopened.
+Selecting the label executes nothing: the dated protocol revision, the searches,
+the screening, the charting and the synthesis are the work, and they are owned by
+[`../../thesis/research/literature_review_protocol.md`](../../thesis/research/literature_review_protocol.md).
+Its three working targets are in section 4.1 — protocol by 2026-09-21, search
+and selection by 2026-09-26, synthesis by 2026-09-30, feeding the chapters sent
+on 2026-10-01. They are working targets to be re-estimated against the real
+corpus at the 2026-09-21 checkpoint, not supervisor promises. The review is
+still never described as a systematic literature review.
 
 ## 7. Acceptance contract
 
@@ -707,17 +908,25 @@ establish candidate mechanisms, not this project's successful execution.
   native G1B from mandatory scope; rewords RQ1 and RQ3 so that RQ3 is bounded to
   the emulated environment, as **suggested wording for academic review**;
   replaces the elapsed August/September gate windows with the work-package
-  targets of section 4.1; fixes the evidence classes of section 3.5; does **not**
-  carry the 95-run campaign or the 24-hour soak into the emulated environment;
+  targets of section 4.1; fixes the evidence classes of section 3.5; did **not**
+  carry the 95-run campaign or the 24-hour soak into the emulated environment
+  (**superseded** by the amendment of 2026-09-19 below, which makes that
+  composition a target to attempt under QEMU);
   adds the prospective acceptance criteria of section 4.3; retargets the
   dependency-lock precondition to the guest runtime; extends the decision set to
   D001–D014; and moves native deployment to documented, unverified future work
   (section 8).
   **Authority and boundary.** The *student* adopted this version on 2026-09-18.
-  The supervisors approved nothing: not the title, not the research-question
-  wording, not the thresholds and not the revised academic evaluation. The
-  student reported that a supervisor advised proceeding with QEMU tests; that is
-  student-reported advice, recorded as such and never as a supervisor decision.
+  The supervisor position is the one stated in the banner and in section 1.1:
+  the thresholds (D007) and the academic use of emulated results (D014) are not
+  agreed and their package is unsent, while the title, the research-question
+  wording and ten further items are **reported confirmed by the student** and
+  are nowhere recorded as documented supervisor decisions. *(Wording of
+  2026-09-18, superseded by the amendment of 2026-09-19 below: "The supervisors
+  approved nothing: not the title, not the research-question wording, not the
+  thresholds and not the revised academic evaluation. The student reported that
+  a supervisor advised proceeding with QEMU tests; that is student-reported
+  advice.")*
   The adoption closes no gate, admits no claim, changes no research question by
   itself and makes no emulated result native evidence. Version 1.2 is archived
   unmodified with the SHA-256 recorded above, verified at the time of archiving,
@@ -727,4 +936,37 @@ establish candidate mechanisms, not this project's successful execution.
   section number and no path means this canonical file; citations written before
   2026-09-18 that point at the proposal keep their original meaning and are not
   rewritten.
-- Section 6's alignment package is read as requesting D001–D014.
+- **Amendment of 2026-09-19 — the reported supervisor confirmations, the
+  quantity supersession and the authorised terminology.** This amendment changes
+  no scope, no gate outcome and no claim. It corrects statements that were true
+  when version 2.0 was published and are no longer true, and it records what the
+  student reports. (a) Every blanket statement that nothing had been sent to the
+  supervisors and that nothing was approved is replaced by the split position of
+  the banner and section 1.1: the state-of-the-art material is reported sent, a
+  supervisor is reported to have approved proceeding with the QEMU tests, and
+  twelve further items are reported confirmed — all **reported by the student**
+  and none a documented supervisor decision, with no date, message or supervisor
+  name reported for any of them. D001, D007, D008 and D012 genuinely remain
+  `proposed_not_sent`. (b) The decision log gains two status values,
+  `confirmed_reported_by_student` and `partly_confirmed_reported_by_student`,
+  defined in the authority table of section 1; `sent_at` and `response_at` stay
+  empty everywhere, because no date was reported. Rows that bundle an approved
+  route with unsettled details are split into their confirmed and unresolved
+  parts rather than marked wholly approved or wholly unanswered. (c) The 95-run
+  composition, including the 24-hour soak, becomes the **target to attempt**
+  under QEMU recorded in section 3.3.1, subject to the bounded pilot's
+  feasibility check and separate both from the frozen protocol and from the
+  actual valid run count; this supersedes the earlier statement that they were
+  not carried over, which is marked where it stands rather than deleted. (d) The
+  institutional template, the AI-use declaration and the local evidence archive
+  become named G7 criteria; the second-operator requirement and the scientific
+  article leave mandatory acceptance, the article deferred and not deleted.
+  (e) The authorised wearable-data terminology is recorded once, in
+  [`language-policy.md`](language-policy.md), and pointed at from section 3.6.
+  (f) The review type is recorded as a scoping review, as reported, with its
+  three working targets in section 4.1. Nothing in this amendment closes a gate,
+  admits a claim or turns a reported confirmation into a documented decision.
+- Section 6's alignment package is read as requesting the rows that remain open:
+  D007, D014 and the unresolved halves of D004 and D010. The historical reading
+  of it as requesting D001–D014 belongs to the position before the amendment of
+  2026-09-19.

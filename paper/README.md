@@ -1,10 +1,20 @@
 # Paper — IEEE Article (Deferred)
 
 The scientific article is **out of scope until after the thesis submission**.
-The integrated plan (§4.5) explicitly excludes "artigo científico e preparação
-detalhada da defesa antes da submissão": if the thesis is submitted in
-September 2026, October may be used for the paper without reopening the
-submitted artefact. Nothing is drafted in this directory before then.
+Section 4.5 of the adopted plan keeps the article and the detailed defence
+preparation outside P0 and records the article as **deferred, not deleted**: the
+student **reports** that a supervisor said it is optional and not required for
+delivery, that it may improve the grade without any guarantee, and that it
+therefore leaves mandatory acceptance and the critical path. That is reported by
+the student, not a documented supervisor decision, and it removes no obligation
+from the thesis itself. Planned submission is **2026-10-20**, with 2026-10-21 to
+2026-10-31 a contingency window for essential corrections only; the article is
+considered after the thesis and its evidence are secure, not inside that window.
+Nothing is drafted in this directory before then. The earlier wording here cited
+the archived Portuguese v1.0 plan and assumed a September 2026 submission; both
+are superseded. See
+[`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+§4.5.
 
 ## Template to use when the paper starts
 

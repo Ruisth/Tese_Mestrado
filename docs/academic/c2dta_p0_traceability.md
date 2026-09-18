@@ -56,7 +56,7 @@ and admits no claim.
 | Identity ledger | British Columbia Test Indy Network | Not implemented | No stub or result claim |
 | Decentralised storage | IPFS | Not implemented | No dataset builder or IPFS interface in P0 |
 | Workload generator | Dedicated smartwatch simulator producing heart rate, geolocation and timestamp data at 1 Hz | Deterministic simulator for smartwatch, smart ring and smart clothing across six planned scenarios | Simulator is unit-tested; official live campaign has not run |
-| Evaluation automation | Gherkin scripts and ACA-Py Test Harness; eight scenarios defined, first seven evaluated across 88 steps | Pytest suite plus a custom experimental harness and pre-specified run plan | 701 unit tests are sealed; no live integration campaign or `data-v1` exists, and none of the nine integration/recovery test families has been run |
+| Evaluation automation | Gherkin scripts and ACA-Py Test Harness; eight scenarios defined, first seven evaluated across 88 steps | Pytest suite plus a custom experimental harness and pre-specified run plan | 701 unit tests are sealed; no live integration campaign or `data-v1` exists. The nine integration/recovery test families were exercised once on 2026-09-18 — seven passed, tests 1 and 6 carry a failing harness part from the resource sampler under emulation — and that record is held outside the repository and unsealed, so the battery is not complete and supports no claim |
 
 The Mosquitto version typography in the supplied paper appears as `2.0.1.5` in
 the extracted manuscript text. This inventory therefore names the paper's

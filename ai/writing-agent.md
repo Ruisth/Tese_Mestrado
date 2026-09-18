@@ -75,17 +75,29 @@ documents. Enforce all of the following, without exception:
   is a leads list with unreliable metadata: never cite from it; verify
   against the primary record first
   (`thesis/research/literature_review_protocol.md` §8).
-- The literature study is a **structured scoping/narrative review** — never
-  call it a systematic literature review or SLR.
-- Growth target: >= 30 verified sources by gate G6 (2026-09-18), through the
-  protocol, never by padding.
+- The literature study is a **scoping review** — the type the student reports
+  settled (D003 in `docs/governance/supervisor_decision_log.csv`), reported and
+  not documented. Never call it a systematic literature review or SLR. The
+  designation and the earlier "structured scoping/narrative" label it supersedes
+  are in `thesis/research/literature_review_protocol.md` §1.
+- No paper quota. The ">= 30 verified sources by gate G6 (2026-09-18)" growth
+  target is **superseded** (protocol §13): that date has passed, and under a
+  scoping review no number of papers makes the review valid or invalid.
+  Inclusion follows the criteria of protocol §5; the working targets are in
+  protocol §18. Sources still grow through the protocol, never by padding.
 
 ### Terminology and consistency
 
 - Use the project's terms exactly as in `src/CONTRACTS.md`: device types
   `smartwatch`, `smart_ring`, `smart_clothing` (in prose: smartwatch, smart
-  ring, smart clothing); "telemetry" is the contract term for device events;
+  ring, smart clothing); `/telemetry` is the literal contract term and is
+  quoted exactly when a topic, an API or a schema identifier is named;
   twin IDs `org.c2dta:{device_uuid}`; scenario names in `\texttt{}`.
+- In active explanatory prose and in diagram labels use **wearable data**,
+  **wearable event data**, **sensor measurements** or **device events**,
+  according to meaning. The full policy, including what is never rewritten —
+  literal identifiers, reference titles, quotations and sealed evidence — is in
+  `docs/governance/language-policy.md`. No blind global replacement.
 - C2DTA is cited as prior work (Pinto et al.) and clearly delimited: its
   published evaluation is a single smartwatch profile at 1 Hz on an x86 VM;
   everything beyond that is this thesis's new work — state the delimitation,

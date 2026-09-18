@@ -150,3 +150,13 @@ Future academic revisions must preserve the project's evidence discipline:
 The existing [literature-review protocol](research/literature_review_protocol.md)
 and research logs remain separate records. Their methods, searches and
 screening outcomes are not changed by this conversion.
+
+Separately from the conversion, that protocol was revised on 2026-09-19 to
+**version 2.0, a dated scoping-review protocol**: the review type is reported
+settled by the student under D003, and the revision adds the review question,
+the eligibility criteria, the charting fields, the five required outputs, the
+completion criterion and a working schedule. It executed no search, screened no
+record and charted no study, and `search_log.csv` and `study_selection.csv` are
+untouched. Section 2.1 of the imported manuscript still carries the earlier
+description and is corrected in the LaTeX tree under its own change, before the
+Chapters 1–4 hand-off of 2026-10-01.

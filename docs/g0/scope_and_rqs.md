@@ -8,7 +8,8 @@
 > records a supervisor decision. Any approved change requires a plan update and
 > an entry in the LOG.
 
-**Version:** 2.0 (2026-09-18)
+**Version:** 2.0 (2026-09-18), amended 2026-09-19 to record the supervisor
+confirmations reported by the student (section 7)
 
 **Supersedes:** version 1.1 (2026-08-13), the two-layer scope. That text is not
 rewritten anywhere: it is preserved in the repository history at `dev` commit
@@ -17,11 +18,17 @@ rewritten anywhere: it is preserved in the repository history at `dev` commit
 file's supersession banner.
 
 **State:** the **technical scope** below is adopted by the student for project
-execution. The **title and the research-question wording remain PROPOSED - NOT
-SENT**, awaiting explicit supervisor validation under D001/D011. The student's
-adoption of the plan is not supervisor agreement, and the student's report that
-a supervisor advised proceeding with QEMU tests is student-reported advice, not
-approval.
+execution. The **title and the research questions are reported approved**: the
+student reports that the title was approved, with the exact wording
+*Blockchain-powered Personal AI – Digital Twin Edge Gateway*, and that the
+research questions were approved with RQ3 evaluated in QEMU rather than on a
+native ARM64 virtual machine (D011). The student also reports that a supervisor
+approved proceeding with the QEMU tests. **All of that is reported by the
+student** — not a documented supervisor decision, with no date, message or
+supervisor name reported — and the student's adoption of the plan is not
+supervisor agreement either. The approved verbatim research-question wording
+lives in the student manuscript; what section 2 publishes is a **scope summary**
+of it.
 
 **Change control:** this document does not change the title or RQs in the
 normative dissertation source. The rationale and earlier proposed wording are
@@ -31,11 +38,17 @@ the requested decisions and recommendations are D001-D010 in
 D011-D014 for the integrated objective. That matrix contains no mutable status.
 The authoritative decision state is kept only in
 [`../governance/supervisor_decision_log.csv`](../governance/supervisor_decision_log.csv),
-where D001-D014 are all `proposed_not_sent`.
+whose statuses have been mixed since 2026-09-19: D001, D007, D008 and D012 stay
+`proposed_not_sent`, D002 and D009 are `confirmed_reported_by_student`, and the
+remaining rows are `partly_confirmed_reported_by_student`, each naming its
+confirmed and its unresolved part. `sent_at` and `response_at` are empty in
+every row, because no date was reported for any confirmation.
 
-The G0 email is drafted in
-[`supervisor_email_g0.md`](supervisor_email_g0.md) and has not yet been
-sent — sending it is a student action. Gate outcomes are recorded solely in
+The August G0 email is drafted in
+[`supervisor_email_g0.md`](supervisor_email_g0.md) and **that draft has not been
+sent** — sending it is a student action. It does not stand for the whole
+supervisor relationship: the student separately reports that the
+state-of-the-art material was sent, with no date or copy held. Gate outcomes are recorded solely in
 [`../governance/gate_decision_log.md`](../governance/gate_decision_log.md)
 (as at 2026-09-18: G1 accepted for the functional platform layer only; G0 and
 G2–G7 not decided, and the adoption of plan v2.0 changed none of them); the
@@ -45,13 +58,20 @@ state of every deliverable lives in [`../../PROGRESS.md`](../../PROGRESS.md).
 
 ## 1. Objective
 
+**Title, as reported approved, verbatim:** *Blockchain-powered Personal AI –
+Digital Twin Edge Gateway*. The broader blockchain and AI programme named in it
+restores nothing to mandatory scope: this dissertation's contribution is the
+local gateway described below, and section 5 is unchanged.
+
 Design and experimentally evaluate a versioned ARM64 Edge Gateway for the local
 digital-twin core of C2DTA, as **one integrated system under test**: the
 Yocto-produced ARM64 kernel and root filesystem booted under QEMU/TCG on the
 existing x86-64 workstation, hosting the six-service containerised digital-twin
-stack that receives concurrent synthetic telemetry from three wearable types,
-validates the events and materialises them as digital twins in Eclipse Ditto.
-The simulator and the experiment harness stay outside the guest.
+stack that receives concurrent synthetic wearable data from three wearable
+types — published on the literal `/telemetry` topic, the contract name retained
+from the interface — validates the events and materialises them as digital
+twins in Eclipse Ditto. The simulator and the experiment harness stay outside
+the guest.
 
 The operating-system platform and the application services remain a logical
 decomposition, not two separately deployed artefacts. A Yocto root filesystem
@@ -67,20 +87,26 @@ and describe only the identified emulated configuration; they are never native
 ARM capacity, physical-device latency, energy efficiency or performance
 superiority. Native ARM64 deployment and native measurement are documented,
 unverified future work and are not required to complete this dissertation. The
-word `reproducible` remains subject to D006 and is not a demonstrated property
-until an independent clean reproduction has succeeded.
+second-operator requirement of D006 is **reported waived** by the student, so no
+independent clean reconstruction is owed; because none will exist, the word
+`reproducible` stays unavailable and the wording remains *versioned* and
+*repeatable build by the author*. The waiver concerns software testing and says
+nothing about literature screening.
 
 ## 2. Research questions
 
-**Working wording for academic review. It is not agreed with the supervisors**
-and is requested under D001/D011; it is not yet integrated into the normative
-dissertation source:
+The student **reports** that the research questions were approved, with RQ3
+evaluated in QEMU rather than on a native ARM64 virtual machine (D011). That is
+reported by the student and is not a documented supervisor decision. The
+**approved verbatim wording lives in the student manuscript** and is not held in
+the repository, so the three items below are **scope summaries of the approved
+questions** and never supervisor quotations:
 
 1. **RQ1:** *How can a versioned Yocto-based ARM64 gateway image be built,
    deployed and redeployed under QEMU to host the local digital-twin core of
    C2DTA?*
 2. **RQ2:** *To what extent can the integrated gateway ingest and materialise
-   concurrent synthetic telemetry from three wearable-device types correctly
+   concurrent synthetic wearable data from three wearable-device types correctly
    and reliably, including under specified fault scenarios?*
 3. **RQ3:** *What workload-dependent timing and resource-use behaviour, and
    operational limitations, are observed for the integrated gateway in the
@@ -88,8 +114,11 @@ dissertation source:
 
 RQ3 is **bounded to emulation**. It does not retain the earlier claim about
 capacity on a non-burstable native ARM64 environment, and no answer to it may
-be presented as native ARM64 performance. Whether emulated results may be used
-in the academic evaluation at all is D014 and is unanswered.
+be presented as native ARM64 performance. Two things must not be conflated: the
+student **reports** that RQ3 evaluated in QEMU was approved and that a
+supervisor approved proceeding with the QEMU tests, and **whether emulated
+results may be used as the academic evaluation at all is D014 and remains
+unanswered**. Approving the route is not approving the use of its results.
 
 ACA-Py and SSI are **not required** to answer any RQ.
 
@@ -116,14 +145,21 @@ ACA-Py and SSI are **not required** to answer any RQ.
 - Scenarios `smoke`, `nominal`, `load-sweep`, `dropout-reconnect`, `invalid-payload`
   and `soak`.
 - Unit, integration, E2E and recovery tests, run inside the integrated
-  emulated guest. The **24-hour stability soak leaves mandatory scope**: it is
-  not transferred to the emulated environment. A bounded emulated stability run
-  may be defined at the pilot; the absence of a 24-hour soak is recorded as an
-  explicit limitation and is never filled with an inferred result.
+  emulated guest, including a **24-hour stability soak attempted** in that
+  environment. *(Superseded wording of 2026-09-18: "The 24-hour stability soak
+  leaves mandatory scope: it is not transferred to the emulated environment.")*
+  Attempting it promises no valid 24-hour run: if the bounded pilot finds it
+  infeasible, a shorter emulated stability run is defined in its place and the
+  absence of a 24-hour soak is recorded as an explicit limitation, never filled
+  with an inferred result.
 - An emulated functional campaign inside the specified QEMU/TCG guest,
   selected and documented after the bounded pilot and frozen before execution.
-  The 95-run campaign of the previous plan is **not** carried over. Every
-  failed or inconclusive attempt is retained, and emulated runs are never
+  The **95-run composition of the previous plan is the quantity that campaign
+  attempts to reach**, subject to the pilot's feasibility check — see section
+  3.3.1 of the adopted plan for the per-condition table. *(Superseded wording of
+  2026-09-18: "The 95-run campaign of the previous plan is not carried over.")*
+  The attempt is neither the frozen protocol nor a promise of 95 valid runs.
+  Every failed or inconclusive attempt is retained, and emulated runs are never
   pooled with any future native run in one aggregate.
 - A complete dissertation in English, with a Resumo in Portuguese if required.
 - A versioned evidence and reproduction package with code, configurations, logs,
@@ -187,16 +223,37 @@ marketplace, a UI or any other cut function.
 
 ## 7. Change record
 
+- **Amendment of 2026-09-19, within version 2.0.** It changes no scope, gate or
+  claim; it records the supervisor confirmations the student reports and marks
+  what they supersede. The title recorded in section 1 and the research questions of
+  section 2 are **reported approved**, with RQ3 evaluated in QEMU; the approved
+  verbatim RQ wording stays in the student manuscript, so the repository
+  publishes scope summaries. The second-operator requirement of D006 is reported
+  waived, without licensing the word *reproducible*. The 24-hour soak and the
+  95-run composition return to section 3 as a **target to attempt** under QEMU,
+  subject to the pilot's feasibility check, superseding the version 2.0
+  statements that they left mandatory scope; those statements are marked where
+  they stand rather than deleted. Section 1 adopts the authorised wearable-data
+  wording of
+  [`../governance/language-policy.md`](../governance/language-policy.md) while
+  keeping the literal `/telemetry` topic. **Every confirmation above is reported
+  by the student**: none is a documented supervisor decision, none carries a
+  date, and none closes a gate or admits a claim. The academic use of emulated
+  results (D014) and the experimental thresholds (D007) remain open.
 - **Version 2.0 (2026-09-18).** Published for the student's adoption of plan
   v2.0 with the QEMU-only execution amendment. The two-layer objective becomes
   one integrated system under test; the research questions are rewritten and
   RQ3 is bounded to the specified QEMU/TCG environment; the native ARM64
   measurement environment, the 95-run campaign and the 24-hour soak leave
-  mandatory scope and become future work or documented limitations; the dates
-  move to the planned submission of 2026-10-20 with the final deadline of
-  2026-10-31. **The supervisors approved none of this.** Nothing has been sent
-  to them, D001-D014 remain `proposed_not_sent`, the title and RQ wording stay
-  a request under D001/D011, and the academic use of emulated results stays a
-  request under D014. No gate is closed and no claim is admitted.
+  mandatory scope and become future work or documented limitations *(the 95-run
+  campaign and the soak are superseded by the amendment of 2026-09-19 above)*;
+  the dates move to the planned submission of 2026-10-20 with the final deadline
+  of 2026-10-31. *(Wording of 2026-09-18, superseded by the amendment above:
+  "The supervisors approved none of this. Nothing has been sent to them,
+  D001-D014 remain `proposed_not_sent`, the title and RQ wording stay a request
+  under D001/D011.")* What holds after that amendment: the title and the RQ
+  wording are reported approved by the student, the academic use of emulated
+  results stays a request under D014, and D001, D007, D008 and D012 remain
+  `proposed_not_sent`. No gate is closed and no claim is admitted.
 - **Version 1.1 (2026-08-13).** The two-layer scope, superseded by version 2.0
   and preserved in the repository history.

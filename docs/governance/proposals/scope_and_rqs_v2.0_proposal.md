@@ -5,6 +5,18 @@
 student; final title/RQ wording and retained C2DTA local-core boundary await
 supervisor agreement. No gate, experiment or approval is claimed here.
 
+**Dated banner, 2026-09-19 — the title and RQ request below is overtaken.** The
+student **reports** that the title was approved, with the exact wording
+*Blockchain-powered Personal AI – Digital Twin Edge Gateway*, and that the
+research questions were approved with RQ3 evaluated in QEMU rather than on a
+native ARM64 virtual machine. That is reported by the student, carries no date,
+message or supervisor name, and is not a documented supervisor decision. It
+supersedes this proposal's request for those items; the proposal text itself,
+including the wording below, is **history and is not rewritten**. The current
+position is in
+[section 3.2 of the adopted plan](../INTEGRATED_DEVELOPMENT_PLAN_2026.md) and in
+[`docs/g0/scope_and_rqs.md`](../../g0/scope_and_rqs.md).
+
 **Status — superseded proposal text (2026-09-18).** This scope belongs to the
 [plan v2.0 proposal](INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) and is
 kept with it under `docs/governance/proposals/`. **On 2026-09-18 the student

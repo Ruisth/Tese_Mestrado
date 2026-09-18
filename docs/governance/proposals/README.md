@@ -7,21 +7,29 @@ has been adopted, the adopted text lives at its canonical path and governs;
 where the two differ, the canonical text wins. Merging a pull request that adds
 or changes a file here adopts nothing.
 
-Nothing in this directory has been sent to or approved by the supervisors.
+**None of these texts has been sent to or approved by the supervisors.** That is
+a statement about the files here, not about the supervisor relationship: since
+2026-09-19 the repository records the state-of-the-art material as **reported
+sent** by the student and twelve items as **reported confirmed**, none of them
+dated and none of them a documented supervisor decision. Read
+[section 1.1 of the adopted plan](../INTEGRATED_DEVELOPMENT_PLAN_2026.md) for
+the current position; the texts below keep their own wording as history.
 
 ## What is in force
 
 | Subject | File in force (canonical path) |
 |---|---|
 | Integrated plan | [`../INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../INTEGRATED_DEVELOPMENT_PLAN_2026.md), **version 2.0, adopted by the student on 2026-09-18** with the QEMU-only execution amendment |
-| Scope and research questions | Section 3 of the adopted plan, mirrored by [`../../g0/scope_and_rqs.md`](../../g0/scope_and_rqs.md), **version 2.0 of 2026-09-18**: its technical scope is adopted, while its title and research-question wording remain `PROPOSED - NOT SENT` under D001/D011. The August version 1.1 of 2026-08-13 is preserved in the repository history at `dev` revision `9179612` |
+| Scope and research questions | Section 3 of the adopted plan, mirrored by [`../../g0/scope_and_rqs.md`](../../g0/scope_and_rqs.md), **version 2.0 of 2026-09-18**, amended 2026-09-19: its technical scope is adopted, and its title and research-question wording are **reported approved by the student** under D011 — reported, not documented, with the approved verbatim RQ wording held in the student manuscript. The August version 1.1 of 2026-08-13 is preserved in the repository history at `dev` revision `9179612` |
 | Supervisor alignment memo | [`../supervisor_alignment_memo.md`](../supervisor_alignment_memo.md), the August memo of record, itself unsent |
 
-"In force" means the text the project executes against. The title and the
-research-question wording of the scope document, and the August memo as a whole,
-are themselves **PROPOSED - NOT SENT** (decision D001), and nothing in them is
-approved by the supervisors. The student's adoption of plan v2.0
-settles execution; it settles no academic wording.
+"In force" means the text the project executes against. The August memo as a
+whole remains **PROPOSED - NOT SENT**. The title and the research-question
+wording of the scope document no longer are: since 2026-09-19 they are recorded
+as **reported approved by the student** under D011, which is a report and never
+a documented supervisor decision. The student's adoption of plan v2.0 settles
+execution; it settled no academic wording, and neither the adoption nor a
+reported confirmation closes a gate.
 
 The previous canonical text, plan version 1.2, is preserved unmodified at
 [`../archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2.md`](../archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2.md)
@@ -32,16 +40,19 @@ byte for byte against `dev` revision `9179612` when it was archived on
 
 Gate outcomes are recorded only in the
 [gate decision log](../gate_decision_log.md) and supervisor replies only in the
-[supervisor decision log](../supervisor_decision_log.csv), in which decisions
-D001–D014 are all `proposed_not_sent`. **Adopting a plan version accepts no gate
-and admits no claim.**
+[supervisor decision log](../supervisor_decision_log.csv), whose statuses have
+been mixed since 2026-09-19: D001, D007, D008 and D012 remain
+`proposed_not_sent`, while the other rows carry a `…_reported_by_student` status
+that records what the student reports a supervisor confirmed and never a
+documented decision. **Adopting a plan version accepts no gate and admits no
+claim, and neither does a reported confirmation.**
 
 ## What is in this directory
 
 | File | Content | State |
 |---|---|---|
 | [`INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md`](INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) | Plan v2.0: integrated Yocto ARM64 evaluation, evidence classes (emulated QEMU/TCG versus native ARM64), branching forecast schedule and effort forecast | **Adopted 2026-09-18**, with a dated QEMU-only execution amendment; superseded by the canonical text and kept here as the record of what was proposed. Dated correction notes mark the statements that events of 2026-09-18 overtook |
-| [`scope_and_rqs_v2.0_proposal.md`](scope_and_rqs_v2.0_proposal.md) | Scope v2.0: integrated objective, proposed title and working RQ1–RQ3 | The technical scope it describes is the execution baseline; **the title and RQ wording are not agreed** and remain a request to the supervisors (D001, D011) |
+| [`scope_and_rqs_v2.0_proposal.md`](scope_and_rqs_v2.0_proposal.md) | Scope v2.0: integrated objective, proposed title and working RQ1–RQ3 | The technical scope it describes is the execution baseline. Its request for the title and RQ wording is **overtaken**: since 2026-09-19 the student reports both approved, with the title *Blockchain-powered Personal AI – Digital Twin Edge Gateway* and RQ3 evaluated in QEMU. The proposal text itself is history and is not rewritten |
 | [`supervisor_alignment_memo_v2.0_proposal.md`](supervisor_alignment_memo_v2.0_proposal.md) | Revised alignment memo for the supervisors | Draft, not sent |
 
 [ADR 0008](../../adr/0008-integrated-yocto-arm64-evaluation.md) belongs to the
@@ -96,14 +107,18 @@ never-as-a-standalone-edit rule.
    to the canonical path when it means the plan in force and to this directory
    when it means the proposal text.
 
-**Status of this procedure for plan v2.0, as at 2026-09-18.** Steps 1 to 3 are
+**Status of this procedure for plan v2.0, as at 2026-09-19.** Steps 1 to 3 are
 complete: the student adopted the plan on 2026-09-18 with the QEMU-only
 execution amendment, the decision and its basis are recorded in
 [`LOG.md`](../../../LOG.md), the canonical file carries the adopted text, and
 version 1.2 is archived unmodified with its verified checksum. **Step 4 is
-outstanding:** D011 to D014 are unanswered, ADR 0008 has not reached a
-supervisor-agreed status, and the title, the research questions, the thresholds
-and the scope of the evaluation are not agreed.
+narrowed but outstanding:** what is still unanswered is D007 (the thresholds),
+D014 (the scope of the evaluation and any academic use of emulated results) and
+the unresolved halves of D004 and D010. ADR 0008 has not reached a
+supervisor-agreed status, and it will not reach one on a reported confirmation:
+the title, the research questions and the other items the student reports
+confirmed are recorded as reported, and only a documented supervisor decision
+changes that status.
 
 A proposal that is withdrawn or superseded stays here, marked as such, so that
 the record of what was proposed is kept.

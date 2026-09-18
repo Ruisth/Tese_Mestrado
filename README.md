@@ -9,8 +9,9 @@ Digital Twin Architecture (C2DTA). The adopted execution baseline is an
 integrated gateway: the project's Yocto-built ARM64 kernel and root filesystem
 boot under QEMU/TCG on the existing x86-64 workstation, and containerised
 Mosquitto, the MQTT-to-Ditto controller, Eclipse Ditto and MongoDB run inside
-that guest. An external simulator supplies synthetic wearable telemetry from
-outside the guest. The stack was deployed and exercised once in that guest on
+that guest. An external simulator supplies synthetic wearable data from outside
+the guest, published on the `/telemetry` topic — the literal contract name
+retained from the interface. The stack was deployed and exercised once in that guest on
 2026-09-18; the environment is emulated, so it yields functional and
 integration evidence only, and no gate or claim follows from it.
 
@@ -31,9 +32,9 @@ and nothing has been measured.
 | Integrated QEMU/TCG gateway profile | Built and booted on 2026-09-18, with build, boot and an isolated MongoDB 7 test sealed under `docs/evidence/integrated-qemu/` | Seal the first-flow record; resolve the `ditto-things` teardown OOM and container memory sizing before any stability statement |
 | Native ARM64 Yocto target | **Future work under the adopted plan**: documented and unverified. No provisioned host or native Yocto boot is recorded, and none is required to complete this dissertation | Nothing is owed. If native work is ever authorised: adapt the image, verify boot, network, storage, reboot and image identity, each under its own protocol |
 | Digital-twin services — G2 | Six containers were deployed inside the emulated Yocto guest on 2026-09-18 and a bounded telemetry-to-twin trace was produced; that record is **candidate evidence outside the repository and unsealed** | Seal it, then demonstrate MQTT/TLS → controller → Ditto → API with identity-reconciled evidence labelled emulated |
-| Wearable simulator and recovery — G3 | Three profiles and six scenarios implemented with unit-level checks | The nine integration/recovery test families in the guest — **none has been run**; only the smartwatch is paper-aligned, with ring/clothing as dissertation extensions |
+| Wearable simulator and recovery — G3 | Three profiles and six scenarios implemented with unit-level checks; the nine integration/recovery test families were exercised once on 2026-09-18, seven passing, with a record held outside the repository and unsealed | Complete the nine families — tests 1 and 6 carry a failing harness part from the resource sampler under emulation, so the battery is **not complete**; only the smartwatch is paper-aligned, with ring/clothing as dissertation extensions |
 | Experimental tooling and pilot — G4 | Campaign runner, collection and analysis code have unit-level evidence | Verify instrumentation against the emulated guest, generate the hashed runtime lock for the controller image, complete the bounded pilot and freeze the protocol |
-| Experimental campaign — G5 | **Not executed**; no admitted campaign dataset | Select the emulated functional campaign at the pilot and run it frozen; the 95-run campaign and the 24-hour soak of the previous plan are not carried over |
+| Experimental campaign — G5 | **Not executed**; no admitted campaign dataset | Select the emulated functional campaign at the pilot and run it frozen. The 95-run composition, the 24-hour soak included, is the quantity that campaign **attempts to reach** under QEMU, subject to the pilot's feasibility check — superseding the earlier position that it was not carried over; it is neither the frozen protocol nor a promise of 95 valid runs |
 | Dissertation and analysis — G6 | Introduction and theoretical framework are drafted; remaining chapters are not complete | Author/supervisor review, literature screening, evidence-based evaluation, discussion and conclusions |
 | Final release and submission — G7 | **Pending** | Complete dissertation review, reproduction package and submission checks |
 
@@ -55,16 +56,26 @@ Version 1.2 is preserved unmodified in
 [`docs/governance/archive/`](docs/governance/archive/), and the texts under
 [`docs/governance/proposals/`](docs/governance/proposals/README.md) are kept as
 the record of what was proposed. [ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md)
-is *Accepted by the student for project execution (2026-09-18) — not agreed by
-the supervisors*.
+is *Accepted by the student for project execution (2026-09-18), amended
+2026-09-19 — academic framing reported approved by the student, academic use of
+emulated results (D014) not agreed*.
 
-**The adoption settles execution only.** Nothing has been sent to the
-supervisors: decisions D001–D014 are all `proposed_not_sent`, and nothing is
-approved by them. The title and research-question wording remain proposed
-(D001/D011), and the scope of the evaluation and any academic use of emulated
-results remain D014. The student reported that a supervisor advised proceeding
-with QEMU tests; that is student-reported advice, not approval and not a
-documented supervisor decision. Adoption closes no gate and admits no claim.
+**The adoption settles execution only.** What remains unsent is the alignment
+package covering the open rows: the experimental thresholds (D007), the scope of
+the evaluation and any academic use of emulated results (D014), the authenticity
+of the local template copy inside D004 and the storage semantics inside D010.
+D001, D007, D008 and D012 stay `proposed_not_sent`. Against that, the student
+**reports** that the state-of-the-art material was sent, that a supervisor
+approved proceeding with the QEMU tests, and that twelve further items were
+confirmed: the title, the research questions with RQ3 evaluated in QEMU, the
+local-core scope, a scoping review as the review method, an attempt at the
+historical 95-run quantity, no second operator, the review schedule, the
+mandatory institutional template, a mandatory AI-use declaration, an optional
+article, the authorised wearable-data terminology and a local evidence copy.
+**All of that is reported by the student**: none of it is a documented
+supervisor decision, none carries a date, a message or a supervisor name, and
+none of it changes what the decision log may assert. Adoption and these
+confirmations close no gate and admit no claim.
 
 The adopted plan separates two evidence classes. ARM64 emulated under QEMU/TCG
 on the x86-64 workstation gives functional and integration evidence only:
@@ -84,8 +95,12 @@ test (one smartwatch, 1 Hz, 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late,
 identity exit 0; maximum latency 12,286 ms, emulated and informational). That
 run exposed two defects, both fixed on `dev`, and a memory-cgroup OOM killed
 the `ditto-things` JVM during the power-off of the session; the corrective work
-is open, so no stability is claimed. None of the nine integration/recovery test
-families has been run and nothing has been measured.
+is open, so no stability is claimed. The nine integration/recovery test families
+were exercised once on 2026-09-18: seven passed, and tests 1 and 6 carry a
+failing harness part, because the resource sampler under test cannot reach the
+harness's minimum sample count under emulation. That record too is held outside
+the repository and unsealed; the battery is not complete, the instrumentation
+defect is a separate change, and nothing has been measured.
 
 Dates for current planning: planned submission **2026-10-20** and final delivery
 deadline **2026-10-31**; the days from 2026-10-21 to 2026-10-31 are a contingency
@@ -110,10 +125,12 @@ or alter the [claim-evidence matrix](docs/claim_evidence_matrix.md).
 
 ## Immediate priorities
 
-1. Send the alignment package to the supervisors and obtain D004, D007, D011,
-   D013 and D014 — the title and RQ wording, the thresholds, the review window,
-   and the scope of the evaluation and any academic use of emulated results —
-   before the planned submission of 2026-10-20. Functional integration work
+1. Send the **reduced** alignment package and obtain the rows that remain open —
+   the thresholds (D007), the scope of the evaluation and any academic use of
+   emulated results (D014), the authenticity of the local template copy inside
+   D004 and the storage semantics inside D010 — before the planned submission of
+   2026-10-20. The title, the research questions and the review window are
+   reported confirmed and are not re-requested. Functional integration work
    under QEMU/TCG proceeds in parallel and does not wait for that reply.
 2. Seal the first-flow record of 2026-09-18 inside the repository, then resolve
    the `ditto-things` teardown OOM and the container memory sizing. Claim no
@@ -124,8 +141,11 @@ or alter the [claim-evidence matrix](docs/claim_evidence_matrix.md).
 4. Generate and enforce the hashed runtime lock for the controller image before
    the protocol freeze: an image installed with `pip install .` is not
    admissible for thesis measurements.
-5. Continue literature screening and dissertation writing in parallel. Add
-   results only after the corresponding data and analysis are admissible.
+5. Run the scoping review — the review type the student reports settled — and
+   continue dissertation writing in parallel: dated protocol by 2026-09-21,
+   search and selection by 2026-09-26, synthesis by 2026-09-30, feeding the
+   chapters sent on 2026-10-01. Those are working targets. Add results only
+   after the corresponding data and analysis are admissible.
 
 Native ARM64 access and a natively booted image are **future work**, outside
 the critical path. Do not assume the existing `qemuarm64` artefact can be

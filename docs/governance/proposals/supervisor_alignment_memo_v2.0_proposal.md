@@ -3,6 +3,28 @@
 **Revised:** 2026-09-16; amended 2026-09-18; amended again 2026-09-18 (moved
 under `docs/governance/proposals/`; dates and facts); revised again 2026-09-18
 after the student adopted plan v2.0 with the QEMU-only execution amendment.
+**Dated banner, 2026-09-19 — what this memo must still carry, and what it must
+not.** The memo stays a **draft and is not sent**, and its body below is not
+rewritten. What it still has to request is only the rows that remain open: the
+experimental thresholds (D007), the scope of the evaluation and any academic use
+of emulated results (D014), the authenticity of the local `Template_LaTeX` copy
+with its cover and metadata (the open half of D004), and the operational
+storage semantics (the open half of D010). What it must **not** re-request is
+what the student reports confirmed: the title, the research questions with RQ3
+in QEMU, the local-core scope, the scoping-review method, the experimental
+quantity to attempt, the second-operator waiver, the review schedule, the
+template obligation, the AI-use declaration, the optional article, the
+terminology policy and the local evidence copy. All of that is **reported by the
+student**, undated, and is not a documented supervisor decision. Item 3 below is
+also overtaken: the 95-run campaign and the 24-hour soak are now a target to
+attempt under QEMU, subject to the pilot's feasibility check. One statement of
+fact in item 3 is also out of date and must not be sent as written: "None of the
+nine integration/recovery test families has been run" is superseded — later on
+2026-09-18 the nine were exercised once, seven passed, and tests 1 and 6 carry a
+failing harness part from the resource sampler under emulation. That record is
+held outside the repository and unsealed, so the battery is **not complete** and
+nothing has been measured; the sentence that replaces it must say both halves.
+
 **Draft, not sent.** This memo does not record supervisor approval. On
 2026-09-18 the student adopted [plan v2.0](../INTEGRATED_DEVELOPMENT_PLAN_2026.md)
 with a dated QEMU-only execution amendment, and that adopted text at the

@@ -24,25 +24,42 @@ governance rows only (that section is now the adopted-scope section below); no s
 changes. Updated again the same day: the proposal texts moved under
 `docs/governance/proposals/`, plan v1.2 was returned, unmodified, to its
 canonical path, and the proposal section took the dates confirmed by the
-student. That move was described in a LOG entry `#C031` that was written on a
-feature branch and lost in a later merge, so it is absent from `LOG.md` on
-`dev`; the identifier is not reused, and the record of the move is carried
-forward by [LOG `#C032`](LOG.md).
+student. That move was described in LOG entry `#C031`, which was written on a
+feature branch and lost in a later merge. **This note corrected on 2026-09-19:**
+`#C031` was restored to `LOG.md` on 2026-09-18, verbatim and in identifier
+order, on the branch that publishes this change, so the citation is no longer
+dangling; the identifier is not reused, and [LOG `#C032`](LOG.md) continues to
+carry the same record.
 
 Updated: 2026-09-18 for the **adoption of plan v2.0 with the QEMU-only
 execution amendment**. The student adopted it for project execution on that
 date and instructed its publication at the canonical path; see
 [the adopted plan](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
 [ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md) — *Accepted by
-the student for project execution, not agreed by the supervisors* — and
+the student for project execution; academic framing reported approved by the
+student, academic use of emulated results not agreed* — and
 [LOG `#C032`](LOG.md). The same update records the first end-to-end flow of
-2026-09-18 inside the emulated Yocto guest. **The adoption closes no gate,
-admits no claim and records no supervisor approval**: nothing has been sent to
-the supervisors, D001–D014 remain `proposed_not_sent`, and no emulated result
-becomes native ARM64 evidence. The student reported that a supervisor advised
-proceeding with QEMU tests; that is student-reported advice, not approval and
-not a documented supervisor decision. Every date after 2026-09-18 in this file
-is a planning target.
+2026-09-18 inside the emulated Yocto guest. **The adoption closes no gate and
+admits no claim**, and no emulated result becomes native ARM64 evidence. Every
+date after 2026-09-18 in this file is a planning target.
+
+Updated: 2026-09-19 to record the **supervisor confirmations reported by the
+student** ([LOG `#C033`](LOG.md)). The blanket statement that nothing had been
+sent and nothing approved is withdrawn: the state-of-the-art material is
+reported sent, a supervisor is reported to have approved proceeding with the
+QEMU tests, and twelve further items are reported confirmed — the title, the
+research questions with RQ3 in QEMU, the local-core scope, a scoping review as
+the review method, an attempt at the historical 95-run quantity, no second
+operator, the review schedule, the mandatory institutional template, a mandatory
+AI-use declaration, an optional article, the authorised wearable-data
+terminology and a local evidence copy. **All of that is reported by the
+student**: none of it is a documented supervisor decision, no date, message or
+supervisor name was reported for any of it, and none of it closes a gate or
+admits a claim. What stays unsent is the reduced alignment package covering
+D007, D014 and the unresolved halves of D004 and D010. The `status` column of
+the decision log now carries three values — `proposed_not_sent`,
+`confirmed_reported_by_student` and `partly_confirmed_reported_by_student` —
+with `sent_at` and `response_at` empty in every row.
 
 Addendum 2026-09-18, controller observability only: `GET /metrics` gains the
 additive progress counters `received`, `in_progress` and `processing_errors`
@@ -64,9 +81,12 @@ v1.2 to regularise the in-place amendment of v1.1; the current sealed unit
 figure remains 701 tests).
 
 **Claim status: 0 of 15 accepted.** C01 has partial evidence: the identified
-same-operator clean-checkout build is now produced and sealed, while D006 still
-has to decide whether a second operator is required before retaining a stronger
-reproducibility claim. C02 has the preliminary two-boot seal and the new strict
+same-operator clean-checkout build is now produced and sealed, and its **formal
+admission is the single step still outstanding** — the second-operator
+requirement of D006 is reported waived by the student on 2026-09-18, so it is no
+longer a dependency of the claim, while the wording stays *versioned* and
+*repeatable build by the author* precisely because no independent reconstruction
+exists. C02 has the preliminary two-boot seal and the new strict
 five-boot G1 set; the predefined later `data-v1` identities and the formal
 claim admission remain separate — the gate decision admitted no claim. The remaining **13 still have no admissible experimental
 evidence**. **Gate G1 is the only accepted gate** (2026-08-14, functional
@@ -86,12 +106,15 @@ the student for project execution (2026-09-18)*. The proposal texts stay under
 [`docs/governance/proposals/`](docs/governance/proposals/README.md) as the
 record of what was proposed; the canonical text governs where the two differ.
 
-The adoption settles **execution only**. Nothing has been sent to the
-supervisors (D001–D014 are all `proposed_not_sent`) and nothing is approved by
-them: the title and the RQ wording remain D001/D011, and the scope of the
-evaluation and any academic use of emulated results remain D014. The student
-reported that a supervisor advised proceeding with QEMU tests — student-reported
-advice, never approval. Native ARM64 deployment and native performance
+The adoption settles **execution only**. The title, the research questions with
+RQ3 in QEMU, the local-core scope, the review type, the review schedule, the
+template obligation, the second-operator waiver, the optional article, the
+terminology policy and the local evidence copy are **reported confirmed by the
+student** — reported, and nowhere recorded as documented supervisor decisions.
+What remains open is the experimental thresholds (D007), the academic use of
+emulated results (D014), the authenticity of the local template copy inside
+D004 and the storage semantics inside D010; their package is unsent, and D001,
+D007, D008 and D012 stay `proposed_not_sent`. Native ARM64 deployment and native performance
 measurement are documented, unverified future work and are not required to
 complete this dissertation; their absence is an explicit limitation, not a
 blocker. **Adoption closes no gate and admits no claim**, and no emulated
@@ -101,12 +124,12 @@ scope and evidence.
 | Item under the adopted plan | Implemented / verified state | Next evidence required |
 |---|---|---|
 | Original G1 Yocto/QEMU platform | Existing build and five strict boots; original G1 acceptance preserved | No relabelling as a native integrated gateway |
-| Integrated QEMU/TCG profile (ARM64 emulated on the x86-64 WSL2 workstation) | Ordered first by the project review once no native ARM64 virtual machine could be obtained on 2026-09-17. In pull request #28 (merged into `dev` on 2026-09-18) the integrated image was built (commit `03e333e`) and booted twice under QEMU/TCG (commit `3209b17`) on 2026-09-18 with every build and boot acceptance check passing. The same day an isolated MongoDB 7.0.39 test passed on that guest (start, write/read, restart, persistence across a guest power cycle); the build, boot and MongoDB records were sealed as technical evidence in `docs/evidence/integrated-qemu/` (pull request #29, merged into `dev` on 2026-09-18). Pull requests #32 (broker secret hand-over and ACL probe) and #31 (controller progress counters) were merged into `dev` the same day; merging validates no stack and accepts no gate. Later the same day the six-container stack was **deployed inside the guest** and the first bounded end-to-end functional test (one smartwatch, 1 Hz, 60 s) **ran**: 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. Maximum latency 12,286 ms — **emulated, informational, never a performance result**. The record of that run is **candidate evidence held outside the repository and unsealed**, so it supports no claim. Two defects it exposed were fixed on `dev`: the controller was attached to the wrong Compose network (`9ffd365`) and the host shell inherited a relative schema directory (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session (512 MiB container limit); the corrective work is a separate change and is open (see the Ditto-resources risk in [`docs/g0/risks.md`](docs/g0/risks.md)). No stability is claimed, nothing has been measured, and sealing is not acceptance | Seal the first-flow record inside the repository; resolve the teardown OOM and container memory sizing; run the nine integration/recovery test families of the runbook (**none has been run**). Functional and integration evidence only, never native ARM64 performance evidence (adopted plan, evidence classes) |
+| Integrated QEMU/TCG profile (ARM64 emulated on the x86-64 WSL2 workstation) | Ordered first by the project review once no native ARM64 virtual machine could be obtained on 2026-09-17. In pull request #28 (merged into `dev` on 2026-09-18) the integrated image was built (commit `03e333e`) and booted twice under QEMU/TCG (commit `3209b17`) on 2026-09-18 with every build and boot acceptance check passing. The same day an isolated MongoDB 7.0.39 test passed on that guest (start, write/read, restart, persistence across a guest power cycle); the build, boot and MongoDB records were sealed as technical evidence in `docs/evidence/integrated-qemu/` (pull request #29, merged into `dev` on 2026-09-18). Pull requests #32 (broker secret hand-over and ACL probe) and #31 (controller progress counters) were merged into `dev` the same day; merging validates no stack and accepts no gate. Later the same day the six-container stack was **deployed inside the guest** and the first bounded end-to-end functional test (one smartwatch, 1 Hz, 60 s) **ran**: 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. Maximum latency 12,286 ms — **emulated, informational, never a performance result**. The record of that run is **candidate evidence held outside the repository and unsealed**, so it supports no claim. Two defects it exposed were fixed on `dev`: the controller was attached to the wrong Compose network (`9ffd365`) and the host shell inherited a relative schema directory (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session (512 MiB container limit); the corrective work is a separate change and is open (see the Ditto-resources risk in [`docs/g0/risks.md`](docs/g0/risks.md)). No stability is claimed, nothing has been measured, and sealing is not acceptance | Seal the first-flow record inside the repository; resolve the teardown OOM and container memory sizing; complete the nine integration/recovery test families of the runbook (**exercised once on 2026-09-18**: seven passed; tests 1 and 6 carry a failing harness part from the resource sampler under emulation; that record is held outside the repository and unsealed, so the battery is not complete). Functional and integration evidence only, never native ARM64 performance evidence (adopted plan, evidence classes) |
 | Native Yocto VM target — **future work under the adopted plan** | Not implemented or boot-verified; AWS custom AMI route documented as a candidate. The student confirmed on 2026-09-16 that no ARM64 VM and no benchmarks existed; no provider allocation is assumed. On 2026-09-17 no native ARM64 virtual machine could be obtained (cloud attempts failed). The QEMU-only amendment of 2026-09-18 removes the native target from mandatory scope: it is **documented, unverified future work**, it blocks no gate of the adopted plan, and no allocation, spending or native build is requested | Nothing is required of it for this dissertation. If native work is ever authorised: platform-specific image, native boot, image identity, network/storage/reboot, each with its own protocol and data. Latency, throughput, saturation and resource-capacity results stay outside the adopted scope and are recorded as an explicit limitation |
 | Services on Yocto (G2) | Controller/simulator/Compose code exists; a bounded integrated trace was produced inside the emulated guest on 2026-09-18 (row above) — **emulated, unsealed, candidate evidence outside the repository**, so no acceptance evidence exists and G2 stays Not decided | Sealed, identity-reconciled MQTT/TLS → controller → Ditto → API evidence from the guest, labelled emulated; the nine integration/recovery families |
 | Experimental pipeline | Tools and historical unit checks exist; no valid integrated pilot or campaign | Guest-bound provenance, runtime verification, pilot and frozen protocol |
-| Dissertation | Chapters 1–2 imported from the supplied Word manuscript on 2026-09-17; Chapters 3–6 are empty structure (see the update note above) | Architecture and RQ sections revised to the adopted integrated, emulation-bounded scope; evidence-based results; full review and final format. The academic wording of the title and RQs stays proposed pending D001/D011 |
-| Supervisor agreement | Not requested: the alignment email, the revised memo and D001–D014 are unsent. The student's adoption of the plan is **not** a supervisor decision and is not recorded as one | Replies recorded in the decision log: D011 (integrated title/RQs), D012 (platform access and budget — deferred with the native route; no allocation or spending is requested), D013 (review window), D014 (the evaluation being carried out on the integrated emulated system, the emulation-bounded RQ3 and any academic use of emulated results) |
+| Dissertation | Chapters 1–2 imported from the supplied Word manuscript on 2026-09-17; Chapters 3–6 are empty structure (see the update note above) | Architecture and RQ sections revised to the adopted integrated, emulation-bounded scope; evidence-based results; full review and final format. The title and the RQs are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries. D001's two-layer wording was never sent and is superseded as a live request |
+| Supervisor agreement | **Reported confirmed by the student** (2026-09-19, LOG #C033), and recorded as reported rather than as documented decisions: the state-of-the-art material sent; approval to proceed with the QEMU tests; the title, verbatim *Blockchain-powered Personal AI – Digital Twin Edge Gateway*; the research questions with RQ3 evaluated in QEMU; the local-core scope; a scoping review as the review method; an attempt at the historical 95-run quantity under QEMU; no second operator; the review schedule of Chapters 1–4 on 2026-10-01, full draft on 2026-10-08 and feedback 2026-10-09 to 2026-10-14; the mandatory institutional template; a mandatory AI-use declaration; an optional article; the authorised wearable-data terminology; and a local evidence copy. No date, message or supervisor name was reported for any of them. **Still outstanding:** the reduced alignment package. The student's adoption of the plan is **not** a supervisor decision and is not recorded as one | Replies recorded in the decision log for the rows that stay open: D007 (thresholds), D014 (the academic use of emulated results and the wording of the limitation that records the absence of native evidence), the authenticity of the local template copy with the cover and metadata (inside D004), and the operational storage semantics (inside D010). D012 stays deferred with the native route; no allocation or spending is requested. The unresolved parts of D011 and D013 — the approved verbatim RQ wording, which lives in the student manuscript, and the dates after the feedback window — are tracked in their rows, not re-requested |
 | Effort and dates (adopted plan) | The estimate of 225-345 active hours (2026-09-16) is **superseded pending re-estimation** after the current integration battery; it was never a fresh measurement and agent execution time is not the student's writing capacity. 8 h/day reported. Planned submission 2026-10-20 and final delivery deadline 2026-10-31, confirmed by the student on 2026-09-18 after discussing the dates with the supervisors (a first-party statement; no administrative document checked); 2026-10-21 to 2026-10-31 is a contingency window for essential corrections only | A re-estimate by the student, split between the work before and after the full draft, and logged hours. The work-package dates of the adopted plan are planning targets, none of them completed; a missed target is reported with its cause, the remaining work and a revised forecast, never silently moved |
 
 Read-only inspection of the existing WSL build on 2026-09-16 found kernel 6.6.142
@@ -162,11 +185,11 @@ for most claims and gates.
 | Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#25 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten inventoried bundles verify, plus one **unversioned post-PR-#25 handover bundle** (`egw-20260814-post-pr25-merge.bundle`, SHA-256 `53014902…`, complete history to the PR #25 merge `2dafae1`) — the current handover artefact, deliberately kept out of the provenance inventory per the management order. A verified off-machine copy is still pending: it stays open until destination-side hash verification and the restore drill are completed | G0 — In progress | M2 |
 | Normative plan (v1.1, since bumped to v1.2), provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept a gate. Plan v2.0 was first published as a proposal under `docs/governance/proposals/` (documentation pull requests of 2026-09-18; LOG #C028) and was **adopted by the student on 2026-09-18 with the QEMU-only execution amendment** (LOG #C032), replacing v1.2 at the canonical path; v1.2 is preserved unmodified in `docs/governance/archive/`. Adoption is a student decision: it records no supervisor approval and accepts no gate | G0 — In progress; G1 — Complete (accepted 2026-08-14, gate log) | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
-| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; D006/second-operator treatment and formal claim admission remain pending), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence** — 12 of them `Pending — no evidence` and C13 now `Deferred — outside the adopted scope`, the 24-hour soak being excluded by the adopted plan and recorded as an explicit limitation. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package; the canonical decision log remains `proposed_not_sent` for all ten decisions. The integrated objective adds D011–D014 (D011–D013 proposed on 2026-09-16, D014 on 2026-09-18), likewise `proposed_not_sent`; the student's adoption of plan v2.0 on 2026-09-18 does not change any of them. The RQ wording published in [`docs/g0/scope_and_rqs.md`](docs/g0/scope_and_rqs.md) v2.0 is working wording for academic review, bounded to the emulated environment and not agreed with the supervisors | G0 — Pending | M1 |
+| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; its formal claim admission is the one step still outstanding, the second-operator requirement of D006 being reported waived), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence** — all `Pending — no evidence`, C13 included: the 24-hour soak returns as a **target to attempt** under QEMU inside the 95-run composition, subject to the pilot's feasibility check, superseding its earlier deferral out of scope. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package. The decision log now carries mixed statuses (2026-09-19): `proposed_not_sent` for D001, D007, D008 and D012, `confirmed_reported_by_student` for D002 and D009, and `partly_confirmed_reported_by_student` for the rest, each naming its confirmed and its unresolved part; `sent_at` and `response_at` are empty everywhere. The title and the RQ wording published in [`docs/g0/scope_and_rqs.md`](docs/g0/scope_and_rqs.md) v2.0 are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries | G0 — Pending | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Pending | M1 |
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **installed, exercised and captured**: WSL2 with Ubuntu 24.04.4 LTS is operational, with the build directory on ext4, and produced both Yocto evidence sets. The 2026-08-14 capsule records the kernel, OS, kas/Python/Git versions, filesystem type, capacity and the separate build/driver commits in `environment.txt` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap) | G0 — Pending | M2 |
 | ARM64 VM (native measurement platform) — **deferred future work** | no | no — no university request/reply, public quotation, provisioned host or environment capture is recorded. Earlier Oracle/Hetzner/Azure attempts did not yield a non-burstable host. Under the adopted plan of 2026-09-18 the university request, the 48-hour fallback rule and the AWS `c6g.xlarge` default leave mandatory scope: **no allocation, spending or native build is requested**, and the EUR 30 ceiling stands only as a limit on any future native work that a new budget decision (D012) authorises | not a gate item of the adopted plan — **deferred with the native route; it blocks no gate**. Its absence bounds what RQ3 may claim and is recorded as an explicit limitation | M0 |
-| G0 alignment email with Chapter 2 and D001–D010 | yes (draft in PR #15) | no — not sent; no `sent_at` or supervisor response is recorded | G0 — Blocked (sending is a student action; follow-up 2026-08-18 and meeting request 2026-08-20 if unanswered) | M1 |
+| G0 alignment email with Chapter 2 and D001–D010 | yes (draft in PR #15) | no — that August draft is not sent, and **no `sent_at` or supervisor response is recorded for any row**, because no date was reported. Recorded separately on 2026-09-19: the student **reports** that the state-of-the-art material was sent and that twelve items were confirmed (see the supervisor-agreement row above). Those are reported by the student, are not documented supervisor decisions, and do not discharge this draft | G0 — Blocked (sending the reduced package covering D007, D014 and the unresolved halves of D004 and D010 is a student action) | M1 |
 | Exclusion of unsupported result content from unprovided dissertation sections | yes | source boundary — Chapters 3–6 contain headings/empty sections only in the 2026-09-17 Word import; former result placeholders and draft conclusions are not imported. This supersedes the old Chapter 5 TODO count, not the evidence-admission rules | G0 — Pending | M1 |
 
 ### Blocks G1–G7 — development on the integrated emulated platform
@@ -179,7 +202,7 @@ gate.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — preliminary and strict evidence sealed**: the 2026-08-11 seal preserves the first build and two automated bring-up boots. On 2026-08-14 a new checkout/build directory at `f0e19d5` completed all 5,715 BitBake tasks successfully while deliberately reusing the external downloads/sstate cache (2,261 tasks did not need rerun; not a cold-cache claim). Rootfs SHA-256 is `6c37fcc1…`, kernel SHA-256 is `4457ef38…`, and the manifest has 639 packages. The first strict attempt is preserved as `fail`: the guest returned exact `STATE=running`, zero failed units and clean power-down, but the pre-fix predicate rejected doubled PTY carriage returns. PR #18, merged as `9fe38ff`, fixed the predicate and added a regression; five new IDs then each passed 7 of 7 required assertions, recorded 2 of 2 observations, reached the console and powered down cleanly. Both seals verify independently. Functional evidence only: nothing here supports a performance or security statement | **G1 — Complete: accepted on 2026-08-14** (decision recorded in [`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md), authority: student; scope: functional platform layer only — it validates no claim and supports no performance statement). D006 remains a separate second-operator decision, and the later predefined `data-v1` identities are not silently replaced | M5 (functional scope) |
+| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — preliminary and strict evidence sealed**: the 2026-08-11 seal preserves the first build and two automated bring-up boots. On 2026-08-14 a new checkout/build directory at `f0e19d5` completed all 5,715 BitBake tasks successfully while deliberately reusing the external downloads/sstate cache (2,261 tasks did not need rerun; not a cold-cache claim). Rootfs SHA-256 is `6c37fcc1…`, kernel SHA-256 is `4457ef38…`, and the manifest has 639 packages. The first strict attempt is preserved as `fail`: the guest returned exact `STATE=running`, zero failed units and clean power-down, but the pre-fix predicate rejected doubled PTY carriage returns. PR #18, merged as `9fe38ff`, fixed the predicate and added a regression; five new IDs then each passed 7 of 7 required assertions, recorded 2 of 2 observations, reached the console and powered down cleanly. Both seals verify independently. Functional evidence only: nothing here supports a performance or security statement | **G1 — Complete: accepted on 2026-08-14** (decision recorded in [`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md), authority: student; scope: functional platform layer only — it validates no claim and supports no performance statement). The second-operator requirement of D006 is reported waived on 2026-09-18, so no reconstruction is owed; the repeatability wording stays *versioned* and *repeatable build by the author*, and the later predefined `data-v1` identities are not silently replaced | M5 (functional scope) |
 | Integrated QEMU/TCG gateway profile (`kas/egw-qemuarm64-integrated.yml`, `egw-gateway-image`, `egw-gateway-config`, `scripts/build-profile.sh`, `scripts/run-qemu-integrated.sh`, runbook `docs/setup/qemu_integrated_gateway.md`) | built and booted once under QEMU/TCG (2026-09-18); later the same day the six-container stack was **deployed in the guest** and the first bounded end-to-end flow ran — build, boot and MongoDB evidence sealed (row below), the first-flow record **outside the repository and unsealed**; sealing is not acceptance | build from commit `03e333e` (5,556 tasks) after a first attempt at `68f9ae7` failed on an RPM directory-mode conflict; two boots from commit `3209b17` after a first boot attempt failed in the wrapper's `runqemu` invocation; every artefact and guest acceptance check of runbook 2.4 and 3.4 passed (Cortex-A76 model, 4 vCPUs, 8 GiB, data disk on `/var/lib/docker`, Compose v2.26.0, key-only SSH, persistence across boots); kernel `Image` byte-identical to G1 although its tasks were re-executed; G1 build tree and inputs untouched, the eight evidence seals verify (59 artefacts). Record: `docs/reviews/2026-09-17-egw-image-audit.md` Section 13. Evidence sealed in `docs/evidence/integrated-qemu/`. ARM64 **emulated**: functional evidence only | none — the profile is the environment of the adopted plan v2.0 (2026-09-18, QEMU-only amendment); adoption accepts no gate | M1 |
 | Evidence of the integrated QEMU/TCG profile (pull request #28): build, two boots, isolated MongoDB 7 test | sealed 2026-09-18 — **functional only, emulated; this capsule covers build, boot and an isolated MongoDB test and contains no stack deployment, no end-to-end flow and no measurement** | integration (emulated) — `docs/evidence/integrated-qemu/`: image built at `03e333e` after a preserved failed attempt at `68f9ae7`, two boots at `3209b17` with every build and guest acceptance check passing (Cortex-A76 model, 4 vCPUs, 8 GiB, data disk on `/var/lib/docker`, Docker 25.0.9 with Compose v2.26.0, key-only SSH, persistence across boots), kernel `Image` byte-identical to G1, G1 build tree unchanged; MongoDB 7.0.39 pulled by digest inside the guest: start, write/read, restart, recreation and persistence across a guest power cycle, 35 checks, 0 failed. Manifests verified by `tools/ci/verify_evidence.py` | none — sealing is not acceptance; no gate, no claim | M2 |
 | Record of the first end-to-end flow in the guest (2026-09-18) | produced 2026-09-18 — **candidate evidence held outside the repository; not sealed, not in `docs/evidence/`** | integration (emulated), unsealed — six containers deployed inside the Yocto guest; one smartwatch at 1 Hz for 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0; maximum latency 12,286 ms, **emulated and informational, never a performance result**. The run exposed and led to two fixes on `dev` (controller on the wrong Compose network, `9ffd365`; relative schema directory inherited by the host shell, `dc6d8bb`, `22fb0a9`), and a memory-cgroup OOM killed the `ditto-things` JVM during the power-off of that session at the 512 MiB container limit; the corrective work is open and is a separate change | none — unsealed candidate evidence admits no claim and closes no gate; it becomes admissible only once sealed in the repository and admitted by a dated decision | M2 (emulated, unsealed) |
@@ -210,8 +233,10 @@ amendment. **The adoption closes no gate and admits no claim**; gate outcomes
 are recorded solely in
 [`the formal gate-decision log`](docs/governance/gate_decision_log.md).
 
-- **G0 — Not decided.** The alignment email and the D001–D014 request remain
-  unsent and the verified off-machine copy remains outstanding. The university
+- **G0 — Not decided.** The reduced alignment package — D007, D014 and the
+  unresolved halves of D004 and D010 — remains unsent, and the verified
+  off-machine copy remains outstanding. The confirmations reported by the
+  student on 2026-09-18 close nothing here. The university
   ARM64 request and its 48-hour fallback rule are **deferred with the native
   route** and are no longer conditions of this gate.
 - **G1 — Accepted on 2026-08-14**, functional platform layer only, unchanged by
@@ -220,13 +245,21 @@ are recorded solely in
   bounded end-to-end flow ran inside the emulated Yocto guest on 2026-09-18;
   its record is candidate evidence held outside the repository and unsealed, so
   no acceptance evidence exists.
-- **G3 — Not decided.** None of the nine integration/recovery test families has
-  been run, and no live `integration` test exists in the pytest suite.
+- **G3 — Not decided.** The nine integration/recovery test families were
+  exercised once on 2026-09-18: seven passed, and tests 1 and 6 carry a failing
+  harness part, because the resource sampler under test cannot reach the
+  harness's minimum sample count under emulation. That record is held outside
+  the repository and unsealed; the battery is **not complete**, nothing has been
+  measured and no live `integration` test exists in the pytest suite. The
+  instrumentation defect is a separate change.
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;
-  `experiments/results/raw/` is empty. The 95-run campaign and the 24-hour soak
-  of the previous plan are **not carried over** to the emulated environment.
+  `experiments/results/raw/` is empty. Since 2026-09-19 the 95-run composition,
+  the 24-hour soak included, is the quantity the campaign **attempts to reach**
+  under QEMU, subject to the pilot's feasibility check; this supersedes the
+  earlier statement that it was not carried over. The attempt is not the frozen
+  protocol and promises no valid run count.
 - **G6 — Not decided.** No analysis exists, because no admitted data exists.
 - **G7 — Not decided.** No release candidate exists.
 - **Prospective acceptance criteria** for G2–G7 under the integrated emulated
@@ -239,6 +272,12 @@ are recorded solely in
 > windows were superseded on 2026-09-18 by the adopted plan v2.0 with the
 > QEMU-only execution amendment; read the 2026-09-18 block above for the
 > current position. Historical records are not rewritten.
+>
+> **Forward pointer added 2026-09-19.** Its statements that the alignment email
+> had not been sent and that D001–D010 all remained `proposed_not_sent` were
+> true when written. They are superseded by the confirmations the student
+> reports: read the 2026-09-19 update note at the top of this file and the
+> supervisor-agreement row above. The sentences below are not edited.
 
 Factual record of the situation. **Nothing here declares a gate closed or
 failed**: the gate decision belongs to the student and the supervisors and is
@@ -286,8 +325,9 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
 
 | Action | Deadline | Expected evidence |
 |---|---|---|
-| Send the consolidated alignment email to the supervisors with Chapter 2 and the **D001–D014** request, using the revised memo (drafts under `docs/g0/` and `docs/governance/proposals/`) | **immediate**; silence is never approval | email sent; copy/date in the LOG and decision-log `sent_at` fields |
-| Confirm the official 2026 template, submission/front-matter requirements and any authorised contingency (D004 and the alignment email) | immediate; request an explicit reply with D001–D014 | request and reply recorded in the LOG and canonical decision log |
+| Send the **reduced** alignment package covering the rows that remain open — the thresholds (D007), the scope of the evaluation and the academic use of emulated results (D014), the authenticity of the local template copy with the cover and metadata (inside D004) and the operational storage semantics (inside D010) — using the revised memo (drafts under `docs/g0/` and `docs/governance/proposals/`) | **immediate**; silence is never approval for these rows | email sent; copy/date in the LOG and decision-log `sent_at` fields. The state-of-the-art material is reported sent with no date held, so no `sent_at` is written for it |
+| Authenticate the local `Template_LaTeX` copy against the current official 2026 source, and settle the cover and front-matter metadata (the open half of D004) | immediate | request and reply recorded in the LOG and canonical decision log. The **requirement** to use the institution-supplied template is reported confirmed and is not re-requested |
+| Prepare the AI-use declaration during drafting and verify it at G7 | before packaging on 2026-10-19 | a truthful declaration in the applicable institutional format, identifying the actual assistance received and the author's responsibility; reported mandatory by final submission |
 | Install Ubuntu 24.04 on WSL2 with the build directory on ext4 (guide in `docs/setup/wsl2_ubuntu_yocto.md`) | 2026-08-09 to 2026-08-10 | **done and evidenced**: Ubuntu 24.04.4 LTS operational on ext4; the 2026-08-14 capsule records kernel, OS, tools, filesystem type/capacity and the clean build/driver identities |
 | ~~Request a university ARM64 host and apply the 48-hour public-host fallback rule~~ | **Deferred on 2026-09-18 with the native route.** It is not an obligation of the adopted plan, it closes no gate and the adopted plan requests no allocation or spending. The historical row is kept so the deferral is visible rather than silently deleted | none required; if native work is ever authorised, the original evidence list applies unchanged |
 
@@ -335,15 +375,17 @@ it was and is not re-derived here.
 
 | Item (critical path) | owner | planned_h | actual_h | remaining_h | due | evidence | forecast | blocker |
 |---|---|---|---|---|---|---|---|---|
-| Alignment email + the D001–D014 request | Student | 0.5–1 (est.) | | | immediate | email + date in the LOG and decision log | | not sent |
+| Reduced alignment package: D007, D014 and the unresolved halves of D004 and D010 | Student | 0.5–1 (est.) | | | immediate | email + date in the LOG and decision log | | not sent |
+| Scoping-review protocol, search, selection and synthesis | Student | | | | protocol 2026-09-21; search and selection 2026-09-26; synthesis 2026-09-30 | dated protocol revision, logged searches and exports, screening decisions, evidence chart, selection flow and synthesis, owned by `thesis/research/` | | working targets, to be re-estimated against the real corpus at the 2026-09-21 checkpoint |
+| AI-use declaration | Student | | | | prepared during drafting; verified at G7 | truthful declaration in the applicable institutional format | | reported mandatory by final submission |
 | WSL2 Ubuntu 24.04 on ext4 | Student | 2–4 (est.) | | | 2026-08-09 to 2026-08-10 | **produced:** version, tools, filesystem and capacity archived in the 2026-08-14 G1 capsule | | |
 | ~~ARM64 VM `aarch64`~~ | Student | 1–2 (est.) | | | **deferred 2026-09-18 with the native route** | none required by the adopted plan | | not a blocker of any gate |
 | Independent Git backup | Both | 0.5–1 (est.) | | | before further cleanup | private remote plus verified full bundle/checksum copied and verified off-machine | | off-machine destination not recorded |
 | Theoretical framing sprint | Both | 18–24 (est.) | | | 2026-08-10 to 2026-08-11 | draft of 4,000–5,000 words + research logs filled in | | |
-| Clean Yocto rebuild + five strict QEMU boots | Student | | | | 2026-08-18 | **produced and sealed 2026-08-14:** build at `f0e19d5`; five fresh result/log pairs driven at `9fe38ff`, each with `systemd=running`, zero failed units and clean shutdown; one earlier instrumentation failure preserved; nested `SHA256SUMS` verifies | | gate G1 accepted 2026-08-14 (gate log); D006 treatment still pending |
+| Clean Yocto rebuild + five strict QEMU boots | Student | | | | 2026-08-18 | **produced and sealed 2026-08-14:** build at `f0e19d5`; five fresh result/log pairs driven at `9fe38ff`, each with `systemd=running`, zero failed units and clean shutdown; one earlier instrumentation failure preserved; nested `SHA256SUMS` verifies | | gate G1 accepted 2026-08-14 (gate log); the second operator of D006 is reported waived, so nothing further is owed here |
 | Governance publication of the adopted plan | Both | | | | 2026-09-18 | this documentation change; it confirms consistency only and accepts no gate | | |
 | First bounded end-to-end flow in the guest | Both | | | | 2026-09-18 | **ran 2026-09-18, emulated:** 60/60 accounted, twin `last_seq` 59, reconciliation exit 0; record held outside the repository and unsealed | | sealing inside the repository is outstanding |
-| Nine integration/recovery test families in the guest | Both | | | | 2026-09-21 to 2026-09-24 | per-test evidence, failures and residual risks; **none has been run** | | teardown OOM and container memory sizing open |
+| Nine integration/recovery test families in the guest | Both | | | | 2026-09-21 to 2026-09-24 | per-test evidence, failures and residual risks; **exercised once on 2026-09-18, not complete** — seven passed, tests 1 and 6 carry a failing harness part from the resource sampler under emulation; the record is held outside the repository and unsealed | | teardown OOM and container memory sizing open; the resource-sampler instrumentation defect is a separate change |
 | Stable integrated QEMU baseline | Both | | | | 2026-09-25 | no unresolved failure incompatible with the claimed stability scope | | nine test families |
 | Bounded pilot + protocol freeze (`exp-v1`) | Both | | | | 2026-09-26 to 2026-09-29 | prospectively selected run identities, repeats, durations and acceptance criteria; hashed runtime lock for the controller image | | stable baseline; D007 |
 | Frozen emulated functional campaign | Both | | | | 2026-09-30 to 2026-10-02 | complete `raw/<run_id>/` + `SHA256SUMS` for the frozen set | | `exp-v1` |

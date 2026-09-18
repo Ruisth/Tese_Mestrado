@@ -17,6 +17,16 @@
 > and the decision set is now D001–D014. The text below is kept unchanged as the
 > August record. **Nothing in it was sent to or approved by the supervisors**,
 > and the student's adoption is not supervisor approval.
+>
+> **Dated pointer, 2026-09-19.** The sentence above stays true of *this memo*,
+> but it is not the state of the decision set. The student reports the
+> state-of-the-art material sent and twelve items confirmed — among them the
+> title, the research questions with RQ3 in QEMU, and the literature-review
+> method as a **scoping review**, which supersedes the "structured
+> scoping/narrative review" label requested as D003 below. All of it is
+> **reported by the student**, undated, and none of it is a documented
+> supervisor decision. What is still to be requested is D007, D014 and the
+> unresolved halves of D004 and D010.
 
 **Proposed working title:** *Design and Experimental Evaluation of a Two-Layer
 ARM64 Edge Gateway Prototype for the Local Digital-Twin Core of C2DTA*  

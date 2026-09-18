@@ -1,16 +1,16 @@
 # 0008 — Benchmark the service stack on the Yocto-built ARM64 guest
 
-**Date:** 2026-09-16; amended 2026-09-18 (evidence classes, see the last section but one); links and facts updated 2026-09-18 when the plan v2.0 proposal moved under `docs/governance/proposals/`; **amended 2026-09-18 — adopted by the student for project execution with the QEMU-only execution amendment** (see the last section)
+**Date:** 2026-09-16; amended 2026-09-18 (evidence classes, see the last section but one); links and facts updated 2026-09-18 when the plan v2.0 proposal moved under `docs/governance/proposals/`; **amended 2026-09-18 — adopted by the student for project execution with the QEMU-only execution amendment**; **amended 2026-09-19 — supervisor confirmations reported by the student** (see the last section)
 
-**Status:** **Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution — not agreed by the supervisors.** The decision has not been sent to them, nothing in it is approved by them, and **supervisor validation of the academic framing remains pending**: the academic title and research-question wording are decision D011, and the scope of the evaluation and any academic use of emulated results are decision D014. Both are `proposed_not_sent`.
+**Status:** **Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; the academic framing is reported approved and the academic use of emulated results is not agreed.** Amended 2026-09-19. The student **reports** that the academic title, the research-question wording with RQ3 evaluated in QEMU, and the local-core scope were approved (D011), and that a supervisor approved proceeding with the QEMU tests. Those are **reported by the student**, carry no date, message or supervisor name, and are not documented supervisor decisions. What remains open is the scope of the evaluation and any academic use of emulated results (D014), together with the experimental thresholds (D007); D014's row is `partly_confirmed_reported_by_student`, with its academic-use half unanswered.
 
 **Supersedes, for the adopted execution baseline** (student authority, 2026-09-18): the separate-operating-system/service deployment in [0001](0001-qemu-functional-vs-arm64-vm-performance.md) and [0007](0007-three-tier-platform-model.md). Their historical status is retained, and their rules continue to govern any future native measurement work.
 
-**Authority:** the student's adoption of plan v2.0 with the QEMU-only execution amendment on 2026-09-18, published at the canonical path, [`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md). That is the student's authority over project execution; it is **not** supervisor approval. The student reported that a supervisor advised proceeding with QEMU tests: that is student-reported advice, not approval and not a documented supervisor decision. Adopting a plan version accepts no gate and admits no claim.
+**Authority:** the student's adoption of plan v2.0 with the QEMU-only execution amendment on 2026-09-18, published at the canonical path, [`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md). That is the student's authority over project execution; it is **not** supervisor approval. Separately, the student reports **supervisor approval to proceed with the QEMU tests** — a supervisor confirmation reported by the student, undated and not a documented supervisor decision. Adopting a plan version accepts no gate and admits no claim, and neither does a reported confirmation.
 
 ## Context
 
-The original thesis theme asks for a Yocto-based Linux distribution supporting wearable digital twins on ARM, and for the solution to be tested. The August two-layer proposal described the implemented state accurately but proposed a reduced final evaluation: Yocto boot checks and application benchmarks on a different Linux system. No supervisor approval for that reframing is recorded. The student has now explicitly requested the integrated objective.
+The original thesis theme asks for a Yocto-based Linux distribution supporting wearable digital twins on ARM, and for the solution to be tested. The August two-layer proposal described the implemented state accurately but proposed a reduced final evaluation: Yocto boot checks and application benchmarks on a different Linux system. **As at 2026-08 no supervisor approval for that reframing was recorded, and none has been since**: that two-layer wording was never sent, and what the student reports approved in September is the integrated framing of D011, not this one. The student has explicitly requested the integrated objective.
 
 ## Decision
 
@@ -30,7 +30,7 @@ For AWS, the versioned `meta-aws` Scarthgap custom AMI route would be investigat
 - Ubuntu may be a build, administration or temporary diagnostic environment. Ubuntu-hosted service measurements cannot be relabelled as the final Yocto-based campaign.
 - A Yocto filesystem used only as a container/chroot is insufficient because the measured kernel would still be the outer host's kernel.
 - An ARM64 cloud result characterises that guest/platform configuration. It does not prove performance on a physical gateway, universal image portability, superiority over Ubuntu or the full C2DTA identity/blockchain architecture.
-- Keep the functional and service layers as a logical decomposition; demonstrate their integration before the pilot and final campaign. **Partly demonstrated on 2026-09-18**: the six-container stack was deployed inside the emulated guest and one bounded end-to-end functional path passed. That evidence is candidate evidence held outside the repository and unsealed; it admits no claim and closes no gate, and the nine integration/recovery test families remain unrun.
+- Keep the functional and service layers as a logical decomposition; demonstrate their integration before the pilot and final campaign. **Partly demonstrated on 2026-09-18**: the six-container stack was deployed inside the emulated guest and one bounded end-to-end functional path passed. That evidence is candidate evidence held outside the repository and unsealed; it admits no claim and closes no gate. The nine integration/recovery test families were themselves exercised once on 2026-09-18, seven passing, with tests 1 and 6 carrying a failing harness part from the resource sampler under emulation; that record is likewise held outside the repository and unsealed, so the battery is **not complete** and demonstrates nothing at a gate.
 - Image, kernel, runtime, container and measurement changes are recorded and frozen together before citable experiments.
 - The implementation remains pending. This ADR records the direction the student has adopted for project execution, not a successful deployment, a closed gate or supervisor approval.
 
@@ -45,7 +45,7 @@ This amendment changes no part of the decision above; it fixes how evidence is c
 1. *What runs under QEMU/TCG (ARM64 emulated on x86-64) may demonstrate.* Build and redeployment of the versioned Yocto image, boot, the container runtime, deployment of the six-container stack inside the guest, the functional path smartwatch simulator -> MQTT/TLS -> controller -> Ditto -> API, correctness, fault handling and recovery, and persistence. This is functional and integration evidence only. Of that list, the build, the boot and the isolated MongoDB test are demonstrated and sealed; the stack deployment and the bounded functional path are demonstrated as **unsealed candidate evidence held outside the repository**; correctness under the nine test families, fault handling, recovery and persistence are not yet demonstrated. Timing observed under emulation may be recorded only as informational and must be labelled emulated.
 2. *Dependent on native ARM64.* Any statement about ARM hardware performance or capacity, and the native-boot evidence of the image (EFI/disk layout, cloud-image route). **RQ3 is reworded in the adopted plan, section 3.2**, so that it is bounded to the specified QEMU/TCG environment and does not require any of them; the version 1.2 wording — latency, sustainable throughput, saturation and per-container resource trade-offs on a non-burstable native-ARM64 environment — is withdrawn from scope and becomes future work.
 3. *Permitted performance conclusions.* No conclusion about ARM64 hardware performance or capacity may be drawn from an emulated run. At most, relative observations may be reported, clearly labelled as emulated and not generalised beyond that environment. Emulated results are never native ARM64 performance evidence, and their academic use needs supervisor agreement.
-4. *Reserved for the supervisors.* (a) The academic title and research-question wording (D011), which the student's adoption of the plan does **not** settle. (b) The scope of the evaluation and any academic use of emulated results (D014), reworded on 2026-09-18 from a contingency conditional on failing to obtain a native host into a **standing request**, because native deployment has left mandatory scope. They are recorded as D011 and D014 in the [decision log](../governance/supervisor_decision_log.csv) with the status `proposed_not_sent`; **none has been sent or agreed.**
+4. *Reserved for the supervisors.* (a) The academic title and research-question wording (D011) are **reported approved** by the student, with RQ3 evaluated in QEMU — reported, undated and not a documented supervisor decision; the student's adoption of the plan is not what settled them, and the approved verbatim RQ wording lives in the student manuscript rather than in the repository. (b) The scope of the evaluation and any academic use of emulated results (D014) stay reserved, reworded on 2026-09-18 from a contingency conditional on failing to obtain a native host into a **standing request**, because native deployment has left mandatory scope. Approving the QEMU route, which the student also reports, is not approving the academic use of its results. Both rows are in the [decision log](../governance/supervisor_decision_log.csv), each naming its confirmed and its unresolved part; **D014's academic-use half has been neither sent nor agreed.**
 
 ## Amendment of 2026-09-18 — QEMU-only execution scope, adopted by the student
 
@@ -75,17 +75,68 @@ prohibition on pooling execution modes in one aggregate; and the rule that a
 later successful native port does not retrofit emulated results into native
 evidence.
 
-**Boundary.** The *student* adopted this. **The supervisors have approved
-nothing**: not the title, not the research-question wording, not the
-thresholds, not the revised academic evaluation. The student reported that a
-supervisor advised proceeding with QEMU tests, which is student-reported advice
-and not a supervisor decision. Supervisor validation of the academic framing
-remains pending through D011 and D014. This amendment closes no gate, admits no
-claim, seals no evidence and makes no emulated result native evidence. Every
-date after 2026-09-18 in the adopted plan is a planning target.
+**Boundary.** The *student* adopted this. *(Wording of 2026-09-18, superseded by
+the amendment of 2026-09-19 below: "The supervisors have approved nothing: not
+the title, not the research-question wording, not the thresholds, not the
+revised academic evaluation. The student reported that a supervisor advised
+proceeding with QEMU tests, which is student-reported advice.")* What holds
+after that amendment: the title, the research-question wording and approval to
+proceed with the QEMU tests are **reported by the student**, never recorded as
+documented supervisor decisions; the **thresholds** (D007) and the **academic
+use of emulated results** (D014) are not agreed and their package is unsent.
+This amendment closes no gate, admits no claim, seals no evidence and makes no
+emulated result native evidence. Every date after 2026-09-18 in the adopted plan
+is a planning target.
 
 **Relation to 0001 and 0007.** For the adopted execution baseline this ADR
 supersedes their separate-operating-system/service deployment rule, on the
 student's authority over project execution. Their recorded status, their
 historical context and their rules for any future native measurement work are
 retained; their banners are updated accordingly.
+
+## Amendment of 2026-09-19 — supervisor confirmations reported by the student
+
+**What changed.** Nothing in the decision, the rules or the evidence classes.
+This amendment records what the student reports and corrects the statements
+above that asserted total supervisor silence.
+
+**What is reported.** The state-of-the-art material sent; supervisor approval to
+proceed with the QEMU tests; and twelve confirmations — the title, verbatim
+*Blockchain-powered Personal AI – Digital Twin Edge Gateway*; the research
+questions with RQ3 evaluated in QEMU; the local-core scope; a scoping review as
+the literature-review method; an instruction to attempt the historical 95-run
+quantity, the 24-hour soak included, under QEMU; that a second operator is not
+required; the review schedule; the mandatory institutional LaTeX template; a
+mandatory AI-use declaration; an optional article; the authorised wearable-data
+terminology; and a local evidence copy. Each is recorded in
+[`../governance/supervisor_decision_log.csv`](../governance/supervisor_decision_log.csv)
+under a `…_reported_by_student` status, with `sent_at` and `response_at` empty
+because no date was reported.
+
+**What is not reported, and stays open.** The experimental thresholds (D007);
+the academic use of emulated results and the wording of the limitation that
+records the absence of native evidence (D014); the authenticity of the local
+template copy with its cover and metadata (inside D004); and the operational
+storage semantics (inside D010).
+
+**Consequence for this ADR.** The 95-run composition, with the soak, becomes a
+**target to attempt** under QEMU, subject to the bounded pilot's feasibility
+check and separate both from the frozen protocol and from the actual valid run
+count; that supersedes the QEMU-only amendment's exclusion of it. The waiver of
+the second operator removes an acceptance requirement and licenses no
+vocabulary: without an independent reconstruction the wording stays *versioned*
+and *repeatable build by the author*. Nothing here closes a gate, admits a
+claim or turns a reported confirmation into a documented decision.
+
+**One statement of fact corrected.** The amendment of 2026-09-18 above ends
+with "None of the nine integration/recovery test families has been run, and
+nothing has been measured." That sentence is kept as the dated record it is,
+and it is **superseded on this date**: later on 2026-09-18 the nine families
+were exercised once — seven passed, and tests 1 and 6 carry a failing harness
+part, because the resource sampler under test cannot reach the harness's
+minimum sample count under emulation. That record is held outside the
+repository and unsealed, the battery is **not complete**, nothing has been
+measured, and the instrumentation defect is fixed under its own change. The
+current position is in the Consequences section above and in
+[`../governance/gate_decision_log.md`](../governance/gate_decision_log.md)
+(G3).

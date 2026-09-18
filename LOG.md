@@ -1713,3 +1713,156 @@ is unchanged.
   sizing as a separate change; run the nine integration/recovery test families
   in the guest; send the alignment package so that D004, D007, D011, D013 and
   D014 can be answered.
+---
+
+## Entry #C033 — Publish the supervisor confirmations reported by the student, the quantity supersession and the authorised terminology
+
+- **Date:** 2026-09-19
+- **Request:** The student reported a set of supervisor confirmations, recorded
+  in the project-management record of 2026-09-18, and instructed that they be
+  published in the canonical repository documents on the branch that already
+  carries the adoption of plan v2.0. The records written before them state, as
+  a blanket fact, that nothing had been sent to the supervisors and that nothing
+  was approved. Those statements are no longer true and had to be replaced.
+- **What is reported, and how it is recorded.** Twelve items, plus the sending
+  of the state-of-the-art material and approval to proceed with the QEMU tests.
+  (1) the title, exact wording *Blockchain-powered Personal AI – Digital Twin
+  Edge Gateway*; (2) the research questions, with RQ3 evaluated in QEMU rather
+  than on a native ARM64 virtual machine; (3) the local-core scope; (4) the
+  literature-review method, settled in a follow-up as a **scoping review**;
+  (5) an instruction to attempt the historical 95-run quantity, the 24-hour soak
+  included, under QEMU; (6) that a second operator is not required; (7) the
+  review schedule — Chapters 1–4 on 2026-10-01, the full draft on 2026-10-08,
+  feedback between 2026-10-09 and 2026-10-14; (8) that the institution-supplied
+  LaTeX template is mandatory; (9) that an AI-use declaration is mandatory by
+  final submission; (10) that a scientific article is optional and not required
+  for delivery; (11) the authorised wearable-data terminology; (12) that a local
+  copy of the work is expected as evidence. **Every one of these is a supervisor
+  confirmation reported by the student.** No date, no message, no supervisor
+  name and no evidence file was reported for any of them, so none is invented:
+  `sent_at` and `response_at` stay empty in every row of the decision log, and
+  nothing is written anywhere as a documented supervisor decision.
+- **What stays open, and stays unsent.** The experimental thresholds (D007); the
+  scope of the evaluation and any academic use of emulated results, with the
+  wording of the limitation that records the absence of native evidence (D014);
+  the authenticity of the local `Template_LaTeX` copy against the current
+  official 2026 source, with its cover and metadata (the open half of D004); and
+  the operational storage semantics (the open half of D010). The alignment
+  package is narrowed to exactly those and is still a draft. D001, D007, D008
+  and D012 remain `proposed_not_sent`.
+- **Boundary — what this entry is not.** **No gate is closed and no claim is
+  admitted.** Approving the QEMU route is not approving the academic use of its
+  results; approving the research questions settles neither the evaluation
+  protocol nor the thresholds; a waived second operator does not license the word
+  *reproducible* and says nothing about literature screening; choosing the review
+  label executes no review; and an instruction to attempt a run quantity approves
+  no threshold. Every reported confirmation stays a report. It never becomes a
+  documented decision by being cited, and no gate row may use one as its decision
+  record.
+- **Action — decision registers.** `docs/governance/supervisor_decision_log.csv`
+  keeps its nine columns and gains two status values,
+  `confirmed_reported_by_student` and
+  `partly_confirmed_reported_by_student`, defined in the authority table of plan
+  section 1 and in `docs/README.md`. Row by row: D001 and D008 keep their
+  historical August wording, which was never sent and is not what the student
+  reports confirmed; D002 and D009 are confirmed; D003, D004, D005, D006, D010,
+  D011, D013 and D014 are split into their confirmed and their unresolved parts;
+  D007 stays unsent with a note recording that the quantity instruction settles
+  no threshold; D012 stays unsent and deferred. `docs/g0/supervisor_decision_matrix.csv`
+  keeps its five columns and its stateless convention, and takes dated
+  supersession notes in the recommended-position and blocking-effect cells.
+- **Action — the 95-run composition.** Plan section 3.3.1 records the
+  composition with its per-condition table as the **target to attempt** under
+  QEMU: 5 QEMU boots, 10 stack cold starts, 10 twin creations, 10 smoke
+  sequences, 10 nominal, a 40-run load sweep at 10, 50, 100 and 250 messages/s,
+  3 invalid payload, 3 dropout/reconnect, 3 controller restart and 1 soak of 24
+  actual elapsed hours — 25 operator-driven and 70 simulator-driven. It is kept
+  separate from the frozen protocol, which is still chosen prospectively at G4,
+  and from the actual valid run count, and it is subject to the bounded pilot's
+  feasibility check. **This supersedes the earlier "not transferred to QEMU"
+  wording**, which is marked where it stands in the plan, the scope document, the
+  backlog, the gate log, `PROGRESS.md`, `README.md` and both forms of the claim
+  matrix rather than deleted. C13 returns from `Deferred — outside the adopted
+  scope` to `Pending — no evidence`, so 13 claims are now pending and 0 of 15 are
+  accepted.
+- **Action — final delivery.** Plan section 4.3 names the institutional LaTeX
+  template, the AI-use declaration and the local evidence archive as G7 criteria
+  in their own right, all prospective. The second-operator requirement and the
+  scientific article leave mandatory acceptance; the article is **deferred, not
+  deleted**. The verified off-machine copy stays a separate resilience control
+  and is still outstanding. C01 drops its D006 dependency and waits only on its
+  formal claim admission, while the repeatability wording stays *versioned* and
+  *repeatable build by the author*.
+- **Action — terminology.** The authorised policy is written down once, in
+  `docs/governance/language-policy.md`, and pointed at from plan section 3.6, from
+  D009 and from `docs/README.md`. Active explanatory prose and diagram labels use
+  *wearable data*, *wearable event data*, *sensor measurements* or *device
+  events*; the literal `/telemetry` topic, API and schema identifiers,
+  `src/CONTRACTS.md`, bibliography titles, quotations, sealed evidence and
+  historical records keep their exact wording. **No blind global replacement was
+  run**: the wording was applied only to the active prose edited in this change.
+- **Action — review method.** D003 records the scoping review as reported
+  settled, with execution unresolved, and plan sections 4.1 and 6 carry its three
+  working targets — protocol by 2026-09-21, search and selection by 2026-09-26,
+  synthesis by 2026-09-30, feeding the chapters sent on 2026-10-01 — to be
+  re-estimated against the real corpus at the 2026-09-21 checkpoint.
+- **Action — the scoping-review protocol.**
+  `thesis/research/literature_review_protocol.md` is revised in place to
+  **version 2.0, dated 2026-09-19**. It designates the review a scoping review
+  and supersedes the combined "structured scoping/narrative" label by a dated
+  note rather than by deletion; it adds the review question with its
+  Population/Concept/Context framing and the recorded engineering adaptation,
+  names JBI as the structuring guidance and PRISMA-ScR as the reporting
+  framework, records the information sources and their access limits, separates
+  the three preliminary rows `Q001`–`Q003` of `search_log.csv` from a formal
+  execution that has not happened, keeps the A–J axis identifiers, describes the
+  single-reviewer screening without claiming dual screening, and adds the
+  charting fields, the five required outputs, the completion criterion, the
+  limitations and departures, and the working schedule. **The revision executed
+  no search, screened no record and charted no study**; it is not registered and
+  not preregistered; `search_log.csv` and `study_selection.csv` are untouched.
+  The lapsed targets of Section 13 — at least 30 verified sources by G6, and the
+  August search window — are marked superseded where they stand, and no paper
+  quota is reinstated. The prose of axis H takes the authorised wearable-data
+  wording while the axis letter and every logged query string keep their exact
+  form. Section 18 records that Section 2.1 of the drafted manuscript still
+  carries the pre-revision description; its source is in the LaTeX tree, it is
+  not edited here, and the correction is tracked as a backlog row due before
+  2026-10-01.
+- **Correction carried in the same change.** Entry `#C031` was restored to this
+  diary on 2026-09-18, so the citations of it in `PROGRESS.md` and in the D013
+  note of the decision log are no longer dangling; both were corrected here. The
+  identifier note in `#C032` is left as written, because a dated diary entry is
+  not rewritten.
+- **Historical records left as written.** `LOG.md` entries `#C031` and `#C032`,
+  the dated `PROGRESS.md` snapshot of 2026-08-14 — which takes a forward pointer
+  only — the August proposals and memos, which take dated banners without their
+  bodies being rewritten, and everything under `docs/evidence/`.
+- **Correction — the nine integration/recovery test families.** The records
+  written before this entry said, as a blanket fact, that none of the nine
+  families had been run. Later on 2026-09-18 they were exercised once: **seven
+  passed, and tests 1 and 6 have a failing harness part**, because the resource
+  sampler under test cannot reach the harness's minimum sample count under
+  emulation; that instrumentation defect is a separate change. The record is
+  held outside the repository and unsealed, so the battery is **not complete**,
+  nothing has been measured and G3 stays `Not decided`. The corrected wording
+  replaces the blanket statement in `README.md`, `PROGRESS.md`, `docs/README.md`,
+  `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 3.5 of
+  the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
+  `docs/adr/0008-integrated-yocto-arm64-evaluation.md` and
+  `docs/setup/qemu_integrated_gateway.md` the dated sentences are kept where
+  they stand and superseded by a dated note.
+- **Also unchanged and still true.** The August G0 email draft at
+  `docs/g0/supervisor_email_g0.md` is genuinely unsent. The
+  first-flow record of 2026-09-18 remains candidate evidence held outside the
+  repository and unsealed, and the `ditto-things` teardown incident remains open.
+- **Decisions and next steps:** no gate, claim or maturity level changes, and no
+  documented supervisor decision is created. Next: send the reduced alignment
+  package covering D007, D014 and the unresolved halves of D004 and D010;
+  **execute** the protocol published here — the formal searches, the screening,
+  the charting and the synthesis — and correct the manuscript's Section 2.1;
+  seal the first-flow record; resolve the teardown OOM and the container memory
+  sizing; fix the resource sampler and **complete** the nine
+  integration/recovery test families; and check the 95-run attempt target against
+  the pilot's feasibility finding before any campaign window is treated as
+  credible.
