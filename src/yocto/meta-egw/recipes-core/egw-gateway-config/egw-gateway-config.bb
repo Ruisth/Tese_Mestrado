@@ -78,17 +78,18 @@ do_install() {
 
     # sudo: the rule goes into /etc/sudoers.d/egw (mode 0440, owner root,
     # file name without '.').
-    # UNVERIFIED: that the sudoers file installed by poky's sudo_1.9.17p2
-    # contains an active '@includedir /etc/sudoers.d'. sudo has never been
-    # fetched or built in the pinned tree (no build/tmp/work/*/sudo, no
-    # sudo tarball in the download cache) and the recipe itself only does
-    # 'chmod 0440 ${sysconfdir}/sudoers' (sudo_1.9.17p2.bb line 42) — the
-    # statement rests on upstream sudo knowledge. First-build acceptance:
-    # 'visudo -c' and 'sudo -l -U egw' on the guest, and
-    # 'ssh -p 2222 egw@127.0.0.1 sudo -n true'. If the include is missing,
-    # append '@includedir /etc/sudoers.d' to /etc/sudoers with a
-    # sudo bbappend (do_install:append) — not by editing the package here.
-    install -d ${D}${sysconfdir}/sudoers.d
+    # Verified in the package built on 2026-09-18 (build-integrated/,
+    # packages-split/sudo-lib/etc/sudoers line 139): poky's sudo_1.9.17p2
+    # ships an active '@includedir /etc/sudoers.d'. Still to be confirmed
+    # on the booted guest: 'visudo -c', 'sudo -l -U egw' and
+    # 'ssh -p 2222 egw@127.0.0.1 sudo -n true'.
+    # The directory is also owned by sudo-lib, which ships it as 0750
+    # root:root (rpm -qplv sudo-lib-1.9.17p2-r0.cortexa57.rpm). RPM treats a
+    # mode difference on a shared directory as a file conflict: the first
+    # build (commit 68f9ae7, 2026-09-18) created it 0755 and do_rootfs failed
+    # in the dnf transaction test. The mode here must stay identical to
+    # sudo-lib's.
+    install -d -m 0750 ${D}${sysconfdir}/sudoers.d
     install -m 0440 ${WORKDIR}/egw-sudoers ${D}${sysconfdir}/sudoers.d/egw
 
     # tmpfiles: operator-owned deployment/evidence tree, created at every

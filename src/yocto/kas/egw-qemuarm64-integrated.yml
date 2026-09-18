@@ -146,33 +146,46 @@ local_conf_header:
     # Features removed relative to G1. Rule applied: remove a feature only
     # when every consumer of it in the pinned layers (grep over poky/meta,
     # meta-oe, meta-networking, meta-python, meta-filesystems,
-    # meta-virtualization, 2026-09-18) is a packagegroup, so that no task
-    # hash of a recipe G1 built changes. What is verifiable, recipe by
-    # recipe: the KERNEL (linux-yocto.inc lines 36-38 read MACHINE_FEATURES
-    # only through bb.utils.contains on efi/numa/vfat, and DISTRO_FEATURES
-    # through contains on ptest/virtualization — BitBake signs a contains()
-    # check by the presence of the named item, not by the whole list),
-    # the QEMU that boots the guest (qemu-system-native sees DISTRO_FEATURES
-    # only through DISTRO_FEATURES_FILTER_NATIVE) and busybox (busybox.inc
-    # reads only ipv4, ipv6, nls, bluetooth, wifi, systemd, sysvinit and
-    # usrmerge from DISTRO_FEATURES — lines 74-80, 327, 349, 517 — never
-    # MACHINE_FEATURES, and not the syslog provider variable of block 28;
-    # none of those is removed) keep their G1 task hashes and come
-    # back unchanged from the shared sstate cache. The guest therefore
-    # runs the SAME 6.6.142 kernel binary and configuration the G1
-    # evidence describes. No block of this manifest assigns a variable
-    # that reaches every recipe's signature: block 28 deliberately avoids
-    # VOLATILE_LOG_DIR and hostname:pn-base-files (sigdata evidence there).
+    # meta-virtualization, 2026-09-18) is a packagegroup. The QEMU that
+    # boots the guest (qemu-system-native sees DISTRO_FEATURES only through
+    # DISTRO_FEATURES_FILTER_NATIVE) and busybox (busybox.inc reads only
+    # ipv4, ipv6, nls, bluetooth, wifi, systemd, sysvinit and usrmerge from
+    # DISTRO_FEATURES — lines 74-80, 327, 349, 517 — never MACHINE_FEATURES,
+    # and not the syslog provider variable of block 28; none of those is
+    # removed) were predicted to keep their G1 task hashes.
+    # CORRECTED after the first build (commit 68f9ae7, 2026-09-18): the
+    # prediction that the KERNEL would also keep its G1 task hashes was
+    # wrong. poky reads DISTRO_FEATURES for the kernel only through
+    # bb.utils.contains on literal items (ptest), which BitBake signs by
+    # the presence of the item; but meta-virtualization's
+    # linux-yocto_virtualization.inc (distro_cond_feature, line 34) calls
+    # contains() with a NON-literal item, so BitBake falls back to signing
+    # the whole DISTRO_FEATURES value into do_kernel_metadata. Removing
+    # 'nfs' below therefore changes that signature and the kernel tasks
+    # re-execute in build-integrated/ (comparison of the two
+    # do_kernel_metadata sigdata files: the only difference is "_remove of
+    # nfs"). No kernel input changes: the resulting Image is byte-identical
+    # to the G1 Image, sha256 in both trees
+    #   4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
+    # so the guest runs the SAME 6.6.142 kernel binary and configuration
+    # the G1 evidence describes. No block of this manifest assigns a
+    # variable that reaches EVERY recipe's signature: block 28 deliberately
+    # avoids VOLATILE_LOG_DIR and hostname:pn-base-files (sigdata evidence
+    # there). The hash-equivalence database is per build directory
+    # (cache/hashserv.db), so a fresh build-integrated/ may also miss
+    # objects that G1 reached through an equivalence mapping (plausible
+    # cause of the changed native dependency hashes of the kernel; not
+    # verified object by object).
     # Build acceptance (scripts/build-profile.sh prints both): keep
     # BitBake's closing 'Sstate summary:' line with the build evidence,
     # and compare 'sha256sum tmp/deploy/images/qemuarm64/Image' between
-    # build/ (G1) and build-integrated/ — equal by prediction; a
-    # different kernel Image means a variable reached the kernel's
-    # signature and must be explained before a boot counts as evidence.
-    # First-build work (no G1 stamps exist for them) is confined to
-    # docker-compose, sudo, egw-gateway-config, the packagegroups that
-    # read the features below and the two image recipes; curl, openssh,
-    # e2fsprogs and util-linux were built by G1 and are restored.
+    # build/ (G1) and build-integrated/ — they must be equal; a
+    # different kernel Image means a variable changed a kernel INPUT and
+    # must be explained before a boot counts as evidence.
+    # Work done by the first build: docker-compose, sudo,
+    # egw-gateway-config, the packagegroups that read the features below,
+    # the two image recipes and the re-executed kernel tasks (first build:
+    # Wanted 2627, Local 2547, Missed 80 — 96 % restored).
     #
     #   nfs (DISTRO_FEATURES)
     #       -> packagegroup-base.bb: packagegroup-base-nfs = rpcbind (plus
