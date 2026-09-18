@@ -1,5 +1,7 @@
 # Risk register
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** The integrated-image boot, access and schedule risks of the proposed revision are detailed in [plan v2.0, sections 3-7](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md), a proposal, not in force; its section 10 records that no native ARM64 VM could be obtained on 2026-09-17, the emulated QEMU/TCG-first order of work and the evidence classes; [plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) remains the plan in force until the student decides after consulting the supervisors. Provider availability, cost assumptions and dates below are dated records, not current quotations.
+
 > Base: the integrated plan's §11 table (R1–R8; the Risk / Early signal /
 > Mitigation fields are transcribed from the plan without alteration) +
 > additional operational risks from this repository (R9–R15) + risks from the

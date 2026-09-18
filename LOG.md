@@ -1270,6 +1270,78 @@ is unchanged.
 
 ---
 
+## Entry #C028 — Publish the integrated-Yocto plan revision v2.0 and ADR 0008 as a proposal
+
+- **Date:** 2026-09-18
+- **Phase:** Governance documentation only; no code, evidence, thesis chapter
+  or search-protocol change. Entry ids #C023–#C027 are reserved for other open
+  work and are not used here.
+- **Request:** Publish the plan revision prepared on 2026-09-16 and ADR 0008 in
+  parallel with the functional tests, distinguishing proposed decisions from
+  decisions approved by the supervisors (none exists at this date), and state
+  what will be demonstrated
+  under QEMU, what still depends on native ARM64, which performance conclusions
+  are permitted and which scope change needs supervisor agreement.
+- **Action:** Bring the 2026-09-16 amendment into a documentation branch:
+  plan v2.0 at the canonical path with a status box, plan v1.2 archived
+  byte-for-byte (SHA-256
+  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
+  ADR 0008, scope/RQs v2.0, the revised alignment memo, decisions D011–D013
+  and pointer banners in the ADRs, G0 documents, diagrams, setup guide,
+  experiments and documentation indexes. Add plan section 10 and the ADR 0008
+  amendment of 2026-09-18 (evidence classes: emulated QEMU/TCG versus native
+  ARM64), decision D014 (re-scoping RQ3 or the evaluation to emulated
+  functional evidence if no native ARM64 host is obtained in time) and a
+  PROGRESS.md section for the proposal.
+- **Status of the documents:** ADR 0008 is *Proposed — pending supervisor
+  agreement (accepted by the student for technical planning only)*. Plan v2.0
+  is a proposal published for review. Plan v1.2 remains the plan in force
+  until the student decides after consulting the supervisors. D001–D014 are
+  all `proposed_not_sent`; the alignment email and memo have not been sent;
+  nothing is approved by the supervisors.
+- **Facts recorded (from the 2026-09-16 amendment):** the final services must
+  execute on the student's Yocto-built kernel/root filesystem during the ARM64
+  campaign, and the August separate-platform academic proposal has no recorded
+  supervisor approval. The revision rests on
+  the source documents, configuration, recipes and manifests, a read-only
+  inspection of the existing WSL kernel build and official custom-image
+  references; no cloud resource, new Yocto build, integration run or campaign
+  was executed for it. Estimate 225-345 active hours remaining at a reported
+  8 h/day including weekends; student target
+  2026-10-20 and student-reported extension date 2026-11-03, neither confirmed
+  administratively.
+- **Facts recorded (2026-09-17/18):** on 2026-09-17 no native ARM64 virtual
+  machine had been obtained (attempts with cloud providers had not produced one), so the project review
+  ordered an integrated QEMU/TCG profile first, with the native ARM64 route as
+  the subsequent step. On 2026-09-18, in draft pull request #28 (not on
+  `dev`), the integrated image was built (commit `03e333e`) and booted twice
+  under QEMU/TCG (commit `3209b17`) with every build and boot acceptance check
+  passing. The same day an isolated MongoDB 7.0.39 test passed on that guest;
+  it is recorded in the separate draft pull request #29, branch `evidence/integrated-qemu-2026-09-18`
+  (commit `f03c92c`, not on `dev`), which proposes to seal the build, boot and
+  MongoDB records, and not in pull request #28. The six-container stack has
+  not been deployed, nothing has been measured, and the evidence is candidate
+  evidence, none of it sealed on `dev`; sealing would not be acceptance.
+- **Evidence boundary:** ARM64 emulated on x86-64 yields functional and
+  integration evidence only, never native ARM64 performance evidence; academic
+  use of emulated results needs supervisor agreement. No gate, claim or
+  supervisor decision is accepted by this entry, and no historical seal is
+  changed.
+- **Left out:** the integrated QEMU profile, its runbook and image audit
+  (pull request #28), deployment and harness corrections, a further ADR in
+  preparation,
+  literature-search files, thesis chapters and review notes. The target dates
+  of plan v2.0 section 6 were not reforecast.
+- **Verification boundary:** the Markdown link checker and the evidence-seal
+  checker were run locally on the branch; the GitHub workflow result, not this
+  entry, establishes whether the required checks pass.
+- **Forward pointer (added 2026-09-18):** superseded in part by #C031, which
+  records the layout under `docs/governance/proposals/`, the dates confirmed
+  by the student and the merge of pull requests #28 and #29. The text above is
+  kept as written.
+
+---
+
 ## Entry #C029 — Progress counters in the controller's `GET /metrics`
 
 - **Date:** 2026-09-18

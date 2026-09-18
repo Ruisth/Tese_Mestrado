@@ -10,6 +10,28 @@ in [`governance/gate_decision_log.md`](governance/gate_decision_log.md), which
 currently records **G1 as Accepted** (2026-08-14, functional platform layer
 only) and every other gate as Not decided.
 
+## Proposed revision — 2026-09-16, published as a proposal on 2026-09-18
+
+The proposal texts live under
+[`governance/proposals/`](governance/proposals/README.md); the plan in force
+stays at the canonical path named above.
+
+- [Plan v2.0 proposal](governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md):
+  integrated Yocto evaluation; section 6 is a forecast for the planned
+  submission of 2026-10-20 (final deadline 2026-10-31); section 10 separates
+  emulated QEMU/TCG evidence from native ARM64 evidence.
+- [Scope and RQs v2.0 proposal](governance/proposals/scope_and_rqs_v2.0_proposal.md):
+  proposed integrated objective, title and working RQ1–RQ3.
+- [Alignment memo, draft for the proposal](governance/proposals/supervisor_alignment_memo_v2.0_proposal.md):
+  draft, not sent.
+- [ADR 0008](adr/0008-integrated-yocto-arm64-evaluation.md): Proposed — pending
+  supervisor agreement (accepted by the student for technical planning only).
+
+Plan v1.2 remains the plan in force until the student decides after consulting
+the supervisors. Nothing in the proposal has been sent to or approved by the
+supervisors. Under the proposal the final services execute on the Yocto guest;
+deployment/runbook and dissertation adaptations are pending implementation.
+
 ## G0 — scope and start-up
 
 | File | Content |
@@ -28,7 +50,8 @@ only) and every other gate as Not decided.
 |---|---|
 | [`governance/language-policy.md`](governance/language-policy.md) | British English as the working language, planned renames and migration order |
 | [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | Normative plan v1.2 (v1.1 line): two-layer scope, rebased gates, cuts and acceptance contract |
-| [`governance/supervisor_decision_log.csv`](governance/supervisor_decision_log.csv) | D001-D010 state; a draft or silence is never approval |
+| [`governance/proposals/`](governance/proposals/README.md) | **Proposals, not in force:** the [plan v2.0 proposal](governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) (integrated Yocto evaluation, evidence classes, forecast schedule for the planned submission of 2026-10-20 with the final deadline 2026-10-31, effort forecast), the [scope and RQs v2.0 proposal](governance/proposals/scope_and_rqs_v2.0_proposal.md) and the draft [alignment memo](governance/proposals/supervisor_alignment_memo_v2.0_proposal.md). Adoption is a separate decision of the student after consulting the supervisors |
+| [`governance/supervisor_decision_log.csv`](governance/supervisor_decision_log.csv) | Preserved D001-D010 history and new D011-D014 integrated-plan requests, all `proposed_not_sent`; a draft or silence is never approval |
 | [`governance/external_source_register.md`](governance/external_source_register.md) | Checksummed identities and redistribution controls for sources held outside the repository |
 | [`governance/provenance-history-rewrite.md`](governance/provenance-history-rewrite.md) | Evidence tag, verified bundles and exact-tree mappings across the history rewrite |
 

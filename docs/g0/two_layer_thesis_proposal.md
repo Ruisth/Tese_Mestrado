@@ -1,5 +1,7 @@
 # Two-layer thesis framing proposal
 
+> **2026-09-16 integrated-Yocto planning amendment (proposal).** The student has since proposed the integrated objective ([plan v2.0](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md), a proposal, and the [proposed scope/RQs](../governance/proposals/scope_and_rqs_v2.0_proposal.md)); [plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) remains in force, and neither that proposal nor this unapproved August one has been sent to or agreed by the supervisors. Preserved text below is historical, including its unsupported x86 attribution for the base paper; do not reuse it as a current factual description.
+
 **Document version:** 1.0
 
 **Date:** 2026-08-13
