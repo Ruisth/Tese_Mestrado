@@ -81,11 +81,13 @@ docs/g0/riscos.md                -> docs/g0/risks.md                [done 2026-0
 thesis/latex/imagens/            -> thesis/latex/images/            [pending]
 ```
 
-The Portuguese integrated plan v1.0 is preserved byte-for-byte under
-`docs/governance/archive/`. The rebased English plan v1.1 at
-`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` is normative from
-2026-08-13 and records every intentional change; historical evidence is never
-rewritten to match it.
+The Portuguese integrated plan v1.0 and the English plan v1.2 are preserved
+byte-for-byte under `docs/governance/archive/`, the latter with its verified
+SHA-256 as archived on 2026-09-18. The English plan at
+`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` was normative as v1.1 from
+2026-08-13 and is normative as **version 2.0 from 2026-09-18**, when the student
+adopted it with the QEMU-only execution amendment; each version records every
+intentional change, and historical evidence is never rewritten to match it.
 
 ## Status of the migration, stated plainly
 

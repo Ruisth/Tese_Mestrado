@@ -6,9 +6,12 @@ fixed by the normative integrated plan
 ([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md))
 and by [`../../src/CONTRACTS.md`](../../src/CONTRACTS.md); changing an accepted
 ADR therefore requires updating those sources first and logging the change in
-`LOG.md`. An ADR whose status is `Proposed` (0007, 0008, 0010) records a
-proposal, not a decision fixed by the plan in force; 0008 belongs to the
-[plan v2.0 proposal](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md).
+`LOG.md`. An ADR whose status is `Proposed` (0007, 0010) records a proposal, not
+a decision fixed by the plan in force. **0008 is accepted by the student for
+project execution (2026-09-18), as amended for QEMU-only execution**, and is
+fixed by the adopted plan; it is **not agreed by the supervisors**, and the
+academic title and research-question wording remain decision D011 with the scope
+of the evaluation decision D014, both `proposed_not_sent`.
 
 Conventions:
 
@@ -16,18 +19,20 @@ Conventions:
 - Statuses: `Proposed`, `Accepted`, `Deprecated`, `Superseded by NNNN`; a
   qualifier may follow the status word.
 - New decisions taken during implementation (G1–G4) get new ADRs; ADRs are due
-  with the first version of thesis chapter 4 (plan v1.1 §4, G3 window 24–30 August).
+  with the first version of thesis chapter 4, which the adopted plan
+  ([v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), section 4.1)
+  targets for 2026-10-01 with Chapters 1–4. That is a planning target.
 
 ## Index
 
 | ADR | Title | Status |
 |---|---|---|
-| [0001](0001-qemu-functional-vs-arm64-vm-performance.md) | Separate functional platform (QEMU) from performance platform (native ARM64 VM) | Accepted — extended by 0007; 0008 (proposed) would supersede its final-deployment rule |
+| [0001](0001-qemu-functional-vs-arm64-vm-performance.md) | Separate functional platform (QEMU) from performance platform (native ARM64 VM) | Accepted — extended by 0007; superseded in part by 0008 (2026-09-18) |
 | [0002](0002-ssi-acapy-conditional-p1.md) | Historical conditional SSI/ACA-Py option | Superseded by integrated plan v1.1 |
 | [0003](0003-flat-measurements-common-envelope-uuidv5.md) | Flat measurement fields with common envelope v1 and UUIDv5 message_id | Accepted |
 | [0004](0004-minimal-ditto-preauth.md) | Minimal Ditto deployment (policies/things/gateway) with pre-authentication for the controller | Accepted |
 | [0005](0005-latency-measured-in-controller-monotonic.md) | Primary latency measured inside the controller with a monotonic clock | Accepted |
 | [0006](0006-duplicate-state-in-twin-ingestion-feature.md) | Duplicate-detection state persisted in the twin `ingestion` feature | Accepted |
-| [0007](0007-three-tier-platform-model.md) | Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3 | Proposed; 0008 (proposed) would supersede it |
-| [0008](0008-integrated-yocto-arm64-evaluation.md) | Benchmark the service stack on the Yocto-built ARM64 guest | Proposed — pending supervisor agreement (accepted by the student for technical planning only) |
+| [0007](0007-three-tier-platform-model.md) | Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3 | Proposed; superseded for the adopted baseline by 0008 (2026-09-18); never validated by the supervisors |
+| [0008](0008-integrated-yocto-arm64-evaluation.md) | Benchmark the service stack on the Yocto-built ARM64 guest | Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution — not agreed by the supervisors |
 | [0010](0010-controller-progress-counters.md) | Progress counters in the controller's `GET /metrics`: `received`, `in_progress`, `processing_errors` | Proposed |

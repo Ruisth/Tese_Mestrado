@@ -323,8 +323,12 @@ recorded as `pip freeze --all` in the identity record of step 4b; that
 documents one build and does not make it reproducible. This is to be resolved
 before the experimental freeze, by the procedure below.
 
-Once the non-burstable campaign VM exists, generate the lock on that `aarch64`
-host (the helper refuses other architectures):
+Generate the lock on an `aarch64` host (the helper refuses other
+architectures). Under the plan adopted on 2026-09-18 that host is the
+integrated Yocto ARM64 guest emulated under QEMU/TCG, in which the controller
+image is deployed; the plan makes the complete hashed dependency lock of that
+guest runtime a precondition before the protocol freeze, and no native campaign
+VM is required for it:
 
 ```sh
 cd /opt/egw/src

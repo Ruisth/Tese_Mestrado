@@ -1,10 +1,11 @@
 # EGW architecture diagrams
 
-> **2026-09-16 integrated-Yocto planning amendment (proposal).** The diagrams below record the separate-platform design of [plan v1.2](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), which remains the plan in force. The proposed integrated topology is defined by [plan v2.0](../docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) (a proposal, not in force) and [ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is *Proposed — pending supervisor agreement (accepted by the student for technical planning only)*. If the proposal is adopted, update the dissertation figures during the planned editorial revision and do not reuse the old deployment figure as the final architecture.
+> **Plan v2.0 adopted 2026-09-18 (QEMU-only execution amendment).** The deployment diagram below records the **integrated emulated topology** of [the adopted plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) and [ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is *Accepted by the student for project execution (2026-09-18) — not agreed by the supervisors*. The separate-platform figure of plan v1.2 is historical: update the dissertation figures during the planned editorial revision and do not reuse the old deployment figure as the architecture of record. Drawing a component accepts no gate and admits no claim.
 
 Sources of truth: the versioned
 [`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-(normative) and [`../src/CONTRACTS.md`](../src/CONTRACTS.md) v1.1. These diagrams show only contracted
+(normative, version 2.0 adopted 2026-09-18) and
+[`../src/CONTRACTS.md`](../src/CONTRACTS.md) v1.1. These diagrams show only contracted
 behaviour (topics, ports, endpoints, outcomes); they make no performance claims.
 
 ## 1. Logical component diagram
@@ -48,58 +49,63 @@ Notation: `(egw_id)` and `(device_uuid)` stand for the `{egw_id}` and
 `{device_uuid}` placeholders of the CONTRACTS topic and thingId templates
 (parentheses avoid Mermaid brace parsing).
 
-## 2. Deployment diagram — three platform tiers (plan sections 3.1 and 5, ADR 0001, CONTRACTS 8)
+## 2. Deployment diagram — the integrated emulated gateway (adopted plan v2.0, ADR 0008, CONTRACTS 8)
 
-The functional platform (WSL2 + QEMU) validates build, boot, systemd, network
-and the OCI runtime only; no performance conclusions come from it, and a QEMU
-result never supports a performance or security statement. Every measurement
-must be taken on a non-burstable native-ARM64 instance, with the simulator running
-off-instance so the external link is excluded from the controller-side latency
-measurement.
+The system under test is one integrated system: the Yocto-produced ARM64 kernel
+and root filesystem booted under QEMU/TCG on the existing x86-64 workstation,
+with the container runtime and all six containers inside that guest. The
+simulator and the experiment harness stay outside the guest, on the same
+physical workstation. The environment is emulated, so it yields functional and
+integration evidence only: a QEMU result never supports a performance or
+security statement, and no measurement admissible for RQ3 has been taken.
 
-**Provisioning state, read this with the diagram.** Only the functional tier
-exists. The dashed subgraphs are **planned and not provisioned**: the
-measurement instance **does not exist** (Oracle, Hetzner and Azure for Students
-all failed to supply a non-burstable native ARM64 machine — risk R28), and the burstable
-integration instance also **does not exist**; only an eligible burstable SKU
-has been identified. They are drawn because they are
-contracted by the plan, not because they are deployed; nothing in them has run.
+**Provisioning state, read this with the diagram.** As of 2026-09-18 the WSL2
+workstation and the emulated guest exist and have run the work shown: the image
+was built, the guest booted, the six containers were deployed inside it and one
+bounded end-to-end flow completed. The build, boot and isolated MongoDB records
+are sealed under `docs/evidence/integrated-qemu/`; the first-flow record is
+candidate evidence held outside the repository and unsealed. **There is no
+native tier**: no native or burstable ARM64 instance exists, none is requested
+by the adopted plan, and native deployment is documented, unverified future
+work. Sealing is not acceptance, and drawing a component never upgrades its
+evidence maturity.
 
 ```mermaid
 flowchart TB
-    subgraph FUNC["Functional platform - PROVISIONED - build/boot validation only, no performance claims (plan 3.1)"]
-        subgraph WSL["Windows 11 host / WSL2 Ubuntu 24.04 LTS (build tree on ext4)"]
-            KAS["kas manifest (qemuarm64)<br/>BitBake build of egw-image"]
-            QEMU["QEMU aarch64 boot<br/>systemd, network, OCI runtime<br/>functional checks"]
-        end
-        KAS --> QEMU
-    end
+    subgraph HOST["Windows 11 host / WSL2 Ubuntu 24.04 LTS - PROVISIONED - build and emulation host (x86-64)"]
+        KAS["kas manifests (qemuarm64)<br/>BitBake builds of egw-image and egw-gateway-image"]
+        OPS["egw_simulator + experiment harness<br/>outside the guest, on the same physical machine<br/>collects results/raw/(run_id)/"]
 
-    subgraph INTEG["ARM64 integration tier - PLANNED, NOT PROVISIONED - functional integration only, NEVER numbers"]
-        BURST["Burstable ARM64 instance (Azure B4pls_v2 class)<br/>eligible SKU identified; no instance provisioned<br/>CPU-credit throttling bars it from measurement"]
-    end
-
-    subgraph PERF["Measurement platform - PLANNED, NOT PROVISIONED - the ONLY source of numbers (plan 3.1)"]
-        subgraph VM["Non-burstable native-ARM64 instance, DOES NOT EXIST YET<br/>candidates: Azure D4pls_v5 (quota requested) or AWS c6g.xlarge<br/>4 vCPU, 8 GiB RAM, >= 80 GB disk; non-burstable; any shared-vCPU limitation is provider-dependent and recorded"]
-            CSTACK["docker compose (linux/arm64):<br/>Mosquitto :8883 exposed<br/>Ditto gateway :8080 localhost-only<br/>Ditto policies / things + MongoDB internal<br/>controller :8000 localhost-only"]
+        subgraph GUEST["Integrated Yocto ARM64 guest - PROVISIONED - QEMU/TCG emulation, functional and integration evidence only<br/>4 vCPU, 8 GiB, data disk on /var/lib/docker: emulator settings, not a physical gateway"]
+            CSTACK["docker compose (linux/arm64, digests pinned):<br/>Mosquitto :8883 exposed<br/>Ditto gateway :8080 guest-local<br/>Ditto policies / things + MongoDB internal<br/>controller :8000 guest-local"]
         end
-        OPS["Operator machine (off-instance, plan 3.1)<br/>egw_simulator + experiment harness<br/>collects results/raw/(run_id)/"]
+
+        KAS --> GUEST
         OPS -- "mqtts :8883<br/>TLS + username/password" --> CSTACK
-        OPS -. "ssh: harness control,<br/>resources.csv, logs" .-> VM
+        OPS -. "ssh: harness control, resources.csv, logs" .-> GUEST
     end
 
-    FUNC -. "same source tree and contracts;<br/>no measurements transferred" .- INTEG
-    INTEG -. "same source tree and contracts;<br/>no measurements transferred" .- PERF
+    NATIVE["Native ARM64 host - FUTURE WORK, NOT BUILT AND NOT BOOTED<br/>QEMU/KVM on an ARM64 host, or a provider-managed ARM64 VM<br/>needs its own protocol and data; emulated results never become native evidence"]
 
-    classDef planned stroke-dasharray: 5 5
-    class INTEG,PERF,VM planned
+    GUEST -. "same source tree, recipes and contracts;<br/>no results transferred in either direction" .- NATIVE
+
+    classDef future stroke-dasharray: 5 5
+    class NATIVE future
 ```
 
-Primary latency is measured inside the controller process on the measurement
-instance, between MQTT receive and the Ditto 2xx acknowledgement (plan §3.1;
-[`ADR 0005`](../docs/adr/0005-latency-measured-in-controller-monotonic.md);
-[`CONTRACTS` §5](../src/CONTRACTS.md)). Until that instance exists, no such
-measurement has been taken.
+Resource readings taken inside the guest or per container are recorded
+separately from readings of the host QEMU process, and are never converted
+between each other by an assumed emulation slowdown factor. The generator
+shares the physical workstation with the emulator, so being outside the guest
+does not establish physical resource isolation; the achieved load and that
+contention are recorded with every run (risk R13).
+
+Primary latency is measured inside the controller process in the emulated
+guest, between MQTT receive and the Ditto 2xx acknowledgement
+([`ADR 0005`](../docs/adr/0005-latency-measured-in-controller-monotonic.md);
+[`CONTRACTS` §5](../src/CONTRACTS.md)). Values obtained there are informational
+and labelled emulated; no measurement admissible for RQ3 has been taken, and
+none will be under the adopted scope.
 
 ## 3. Sequence diagram — one telemetry event (accepted, duplicate and invalid branches)
 

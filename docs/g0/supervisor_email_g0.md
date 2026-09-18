@@ -1,6 +1,6 @@
 # Draft de email aos orientadores - gate G0 e proposta de duas camadas
 
-> **2026-09-16 integrated-Yocto planning amendment (proposal).** Unsent August draft: do not send unchanged. Its dates have elapsed, and the student has since proposed the integrated objective: see [plan v2.0](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) (a proposal, not in force; [plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) remains the plan in force), the [proposed scope](../governance/proposals/scope_and_rqs_v2.0_proposal.md) and the revised [alignment memo](../governance/proposals/supervisor_alignment_memo_v2.0_proposal.md) (draft, not sent). Nothing has been sent to or approved by the supervisors.
+> **Superseded on 2026-09-18.** Unsent August draft: do not send unchanged. Its dates have elapsed, and the student adopted the integrated objective with the QEMU-only execution amendment as [plan v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md); see also the adopted [scope and RQs](scope_and_rqs.md) version 2.0 and the revised [alignment memo](../governance/proposals/supervisor_alignment_memo_v2.0_proposal.md) (draft, not sent). The infrastructure escalation in section 4 below asks for a native ARM64 measurement host: that request was **deferred with the native route** on 2026-09-18 and is not part of what should now be sent. **Nothing has been sent to or approved by the supervisors**, and the student's adoption is not a supervisor decision.
 
 **Versão do draft:** 1.2 (2026-08-14)
 

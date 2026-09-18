@@ -1522,3 +1522,103 @@ is unchanged.
   accepted. Next, under the same authorisation: build the image from the
   merged `dev`, load it, deploy the six services in the guest and run one
   smartwatch at 1 Hz for 60 s, labelled as emulated functional evidence.
+---
+
+## Entry #C032 — Publish the student's adoption of plan v2.0 with the QEMU-only execution amendment
+
+- **Date:** 2026-09-18
+- **Request:** The student adopted plan v2.0 with a dated QEMU-only execution
+  amendment as the execution baseline on 2026-09-18, after discussing with the
+  project review whether the Yocto image built for QEMU could later be reused
+  on a native ARM64 virtual machine, and instructed that the adoption be
+  published at the canonical plan path through one focused documentation pull
+  request against `dev`.
+- **Decision recorded:** the active baseline is **plan v2.0 with the QEMU-only
+  execution amendment**, not the unmodified proposal. The system under test is
+  the Yocto-produced ARM64 kernel and root filesystem booted under QEMU/TCG on
+  the existing x86-64 workstation, hosting the six-service digital-twin stack,
+  with the simulator and harness outside the guest. Native ARM64 deployment and
+  native measurement leave mandatory scope and become documented, unverified
+  future work: no cloud allocation, spending or native build is requested, the
+  native-host decision deadlines and procurement dependencies are withdrawn
+  from the critical path, and the native boot milestone leaves the gate set.
+  RQ3 is bounded to the specified emulated environment. The native 95-run
+  campaign and the 24-hour soak are **not** transferred to emulation; the
+  emulated functional campaign is selected after the bounded pilot and frozen
+  before execution. The submission target is 2026-10-20, the final delivery
+  deadline 2026-10-31, and 2026-10-21 to 2026-10-31 is a contingency window for
+  essential corrections only.
+- **Boundary — what the adoption is not.** It is a **student decision about
+  execution**. The supervisors approved nothing: not the title, not the
+  research-question wording, not the thresholds and not the revised academic
+  evaluation. Nothing has been sent to them and D001–D014 remain
+  `proposed_not_sent`. The student reported that a supervisor advised
+  proceeding with QEMU tests; that is **student-reported advice**, never
+  approval and never a documented supervisor decision, and it is not written
+  into the supervisor decision log. **Adoption closes no gate and admits no
+  claim**, and it turns no emulated result into native ARM64 evidence. Every
+  date after 2026-09-18 recorded in this change is a planning target. A green
+  documentation pull request confirms consistency checks, not successful
+  integration, supervisor approval or gate acceptance.
+- **Action (records owned by this entry):** `PROGRESS.md` takes a dated
+  adoption note, an "Adopted scope and forecast" section, a gate-status block
+  for 2026-09-18 with G1 unchanged and G0 and G2–G7 Not decided, a row for the
+  first-flow candidate evidence, the two evidence classes in place of the
+  three-tier platform table, and a reforecast effort table whose `actual_h`,
+  `remaining_h` and `forecast` columns stay empty (risk RA15). `README.md` and
+  `docs/README.md` name the adopted plan and its facts. `docs/g0/scope_and_rqs.md`
+  becomes version 2.0 with the integrated objective and the QEMU-bounded
+  RQ1–RQ3, marked **working wording for academic review, not agreed with the
+  supervisors**. `docs/g0/backlog.md` gains the QEMU execution path and keeps
+  the August gate sections as history with their native prerequisites marked
+  deferred. `docs/g0/risks.md` downgrades the native-host risk from blocking
+  dependency to a bound on RQ3, records the residual risks of the adopted
+  baseline against existing identifiers, and retargets the runtime-lock and
+  contention risks. Both forms of the claim→evidence matrix take the evidence
+  classes, the emulated environment and the deferral of the 24-hour soak, and
+  were compared field by field afterwards. `diagrams/architecture.md` replaces
+  the three-tier deployment figure with the integrated emulated topology, and
+  `diagrams/README.md` marks the two-layer PlantUML view historical.
+  `docs/academic/c2dta_p0_traceability.md` retargets its platform rows and its
+  comparison rules.
+- **Action (first end-to-end flow of 2026-09-18, recorded here because the
+  corrected records depend on it):** inside the Yocto guest under QEMU/TCG the
+  six-container stack was deployed and one bounded end-to-end functional test
+  passed — one smartwatch at 1 Hz for 60 s; **60 sent, 60 delivered unique,
+  0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected**; twin
+  `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited
+  0. Maximum latency **12,286 ms**, recorded as an **emulated, informational**
+  observation and never as a performance result. The run exposed two defects,
+  both fixed on `dev`: the controller was attached to the wrong Compose network
+  (`9ffd365`) and the host shell inherited a relative schema directory
+  (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM
+  **during the power-off** of that session, at the 512 MiB container limit; the
+  diagnosis of the same day found the three Ditto services idle at 94–95 % of
+  that limit and at 98.1 % after a 672-message workload, and a controlled
+  `docker compose stop -t 60` after that workload produced no OOM anywhere in
+  the boot. The corrective work — a graceful stop before power-off and
+  container memory sizing — is a **separate change and remains open**; no
+  stability is claimed.
+- **Evidence boundary:** the record of that flow is **candidate evidence held
+  outside the repository and unsealed**. The only sealed capsules for the
+  integrated profile remain the build, boot and isolated MongoDB records of
+  2026-09-18 under `docs/evidence/integrated-qemu/`, and sealing is not
+  acceptance. Nothing native has been built or booted. **None of the nine
+  integration/recovery test families has been run** and nothing has been
+  measured.
+- **Identifier note:** `#C031` was written on the branch of the earlier
+  governance pull request (`3673910`) and did not survive the merge
+  `f09b0e6`, so it is absent from `LOG.md` on `dev` although `PROGRESS.md` and
+  the D013 note of the supervisor decision log refer to it; the D014 note's
+  citation of it is removed by this change. Identifiers
+  are never reused, so the number stays unused here and the content it carried
+  — the move of the proposal texts under `docs/governance/proposals/`, the
+  return of plan v1.2 to its canonical path and the dates confirmed by the
+  student on 2026-09-18 — is carried by this entry and by the dated update note
+  in `PROGRESS.md`.
+- **Decisions and next steps:** no gate, claim or maturity level is accepted,
+  and no supervisor decision changes state. Next: seal the first-flow record
+  inside the repository; resolve the teardown OOM and the container memory
+  sizing as a separate change; run the nine integration/recovery test families
+  in the guest; send the alignment package so that D004, D007, D011, D013 and
+  D014 can be answered.

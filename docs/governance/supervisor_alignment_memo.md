@@ -1,8 +1,22 @@
-# Supervisor alignment memo — Edge Gateway P0
+# Supervisor alignment memo — Edge Gateway P0 (August text)
 
 > **State: PROPOSAL, NOT SENT.** This memo is not evidence of supervisor
 > approval. Responses become authoritative only when recorded in
 > [`supervisor_decision_log.csv`](supervisor_decision_log.csv).
+>
+> **Superseded in substance on 2026-09-18.** This is the August memo, written
+> under plan v1.2 and its two separately scoped layers. On 2026-09-18 the
+> student adopted [plan v2.0](INTEGRATED_DEVELOPMENT_PLAN_2026.md) with a dated
+> QEMU-only execution amendment: the objective is one integrated system under
+> test, evaluated on the Yocto ARM64 guest emulated under QEMU/TCG, and native
+> ARM64 deployment is documented, unverified future work. The title, the
+> research questions, the target submission date and the platform roles below
+> are therefore **not a current description of the project**; the memo to send
+> is the revised draft at
+> [`proposals/supervisor_alignment_memo_v2.0_proposal.md`](proposals/supervisor_alignment_memo_v2.0_proposal.md),
+> and the decision set is now D001–D014. The text below is kept unchanged as the
+> August record. **Nothing in it was sent to or approved by the supervisors**,
+> and the student's adoption is not supervisor approval.
 
 **Proposed working title:** *Design and Experimental Evaluation of a Two-Layer
 ARM64 Edge Gateway Prototype for the Local Digital-Twin Core of C2DTA*  

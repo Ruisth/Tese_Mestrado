@@ -35,11 +35,25 @@ template; that remains supervisor decision D004.
 This is a format conversion, not a scientific or bibliographic revision.
 In particular, integrated-Yocto wording comes from the supplied Word source;
 its inclusion neither adopts a new governance-plan version nor demonstrates
-implementation or supervisor approval. The repository's
-[governance plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
-decision records and claim states are unchanged. Any difference between the
-source manuscript and those controls needs a separate, authorised alignment
-decision. No gate or claim is accepted by this import.
+implementation or supervisor approval. The import changed no decision record
+and no claim state. No gate or claim is accepted by it.
+
+**Dated note of 2026-09-18.** The
+[governance plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) was
+separately adopted as **version 2.0, with the QEMU-only execution amendment**,
+by a decision of the student — not by this import and not with supervisor
+approval. The imported manuscript diverges from it: Chapter 1 as imported states
+that the Yocto image boots as the operating system of a **native ARM64 virtual
+machine**, makes that an objective and describes an evaluation on a temporary,
+non-burstable native ARM64 virtual machine. That evaluation is **outside the
+adopted scope**, which evaluates the integrated system under QEMU/TCG and
+requires no native host. The generated mirror under `sections/` is not edited to
+hide the divergence, and the source is never silently corrected during an import
+(the mirror rule below, and rule 5 of the evidence discipline): the manuscript
+wording must be revised at source before the academic release, and until then it
+is not a description of the adopted scope. Any other difference between the source
+manuscript and the repository's controls still needs a separate, authorised
+alignment decision.
 
 ## Canonical source and generated mirror
 

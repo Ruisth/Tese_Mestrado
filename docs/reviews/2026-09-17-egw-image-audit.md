@@ -8,6 +8,8 @@
 
 **Governance note (2026-09-18):** plan v2.0 and ADR 0008, cited throughout, are the integrated-Yocto working revision of 2026-09-16. That revision is **not yet published on `dev`**, where plan v1.2 remains the published plan. This report accepts no gate and no claim, and it adopts no plan version. The native-route files described in Sections 7 and 8.2 (`kas/egw-genericarm64.yml`, its lock file, `meta-egw/wic/`, `meta-egw/recipes-kernel/`) are held back from the first pull request, which is limited to the integrated QEMU/TCG profile; Section 12 records what changed after this report was written.
 
+**Second governance note (2026-09-18, later the same day):** the student adopted plan v2.0 with the QEMU-only execution amendment and published it at `../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`, where it supersedes v1.2; the proposal text of 2026-09-16 is kept as history under `../governance/proposals/`. The publication statement in the note above is therefore superseded, and citations of "plan v2.0" in Sections 1 to 13 are read against the adopted text where the two differ. Nothing else in this report changes: adoption is a decision of the student, it records no supervisor approval, and this report still accepts no gate and no claim. Sections 1 to 13 are untouched.
+
 **Companion runbook:** [`../setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md).
 
 ## 1. Verdict

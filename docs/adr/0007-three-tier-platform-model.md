@@ -1,10 +1,11 @@
 # 0007 — Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3
 
-> **2026-09-16 integrated-Yocto planning amendment (proposal).** [ADR 0008](0008-integrated-yocto-arm64-evaluation.md), whose status is *Proposed — pending supervisor agreement (accepted by the student for technical planning only)*, would supersede this ADR: under that proposal the final measured services run on the Yocto guest, and QEMU/TCG is distinguished from verified ARM64 KVM. Until that is agreed the status below stands. Historical availability and prices below are not current quotations.
+> **Superseded on 2026-09-18, for the adopted execution baseline.** [ADR 0008](0008-integrated-yocto-arm64-evaluation.md) — *Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; not agreed by the supervisors* — supersedes this ADR: the services run inside the Yocto guest emulated by QEMU/TCG, and there is **no tier-3 measurement platform in the adopted baseline**. The three-tier model below is retained as the historical record and as the rule set that would apply to any future native measurement work, including the bar on numbers from a burstable instance. **The rules that survive unchanged** are that no latency, throughput or resource figure from tier 1 or tier 2 enters the dissertation, that every piece of evidence states its execution mode, and that data from different modes is never mixed in one analysis. Historical availability and prices below are not current quotations. The plan in force is [version 2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), adopted by the student on 2026-09-18; the supervisors approved nothing.
 
 **Status:** Proposed (2026-08-12) — extends [ADR 0001](0001-qemu-functional-vs-arm64-vm-performance.md);
-awaiting validation by the supervisors. Nothing here accepts a gate or
-validates a claim.
+**never validated by the supervisors**; superseded for the adopted execution
+baseline by [0008](0008-integrated-yocto-arm64-evaluation.md) on 2026-09-18.
+Nothing here accepts a gate or validates a claim.
 
 ## Context
 
@@ -96,6 +97,12 @@ Three platform tiers, with a single rule about numbers:
   measurement platform). This ADR bars the
   shortcut; it does not obtain the machine, and no reformulation of the platform
   model can substitute for that acquisition.
+  **Qualified 2026-09-18:** as of that date the absence of a native host **no
+  longer blocks G2 onwards**, because the adopted baseline evaluates the
+  integrated system under QEMU/TCG. What the absence now does is bound what RQ3
+  may claim — the adopted RQ3 is worded so that it does not require native
+  evidence — and defer native-boot evidence to future work. The machine is still
+  not obtained, and no emulated result substitutes for it.
 - The escalation rule has since been superseded: archived plan v1.0 §8.1
   required the risk to be reported with no VM on 2026-08-12; plan v1.1 §4
   replaces it with the university-first procedure — no university host
@@ -104,3 +111,9 @@ Three platform tiers, with a single rule about numbers:
   with AWS `c6g.xlarge` as the default fallback. Both the request and any
   provisioning are student actions and are recorded in `LOG.md` when they
   happen.
+  **Superseded again on 2026-09-18:** with the adoption of plan v2.0 and its
+  QEMU-only execution amendment, infrastructure procurement leaves mandatory
+  scope. The university-first procedure and the 48-hour fallback are deferred
+  with the native route, no cloud allocation or spending is requested, and the
+  EUR 30 ceiling stands only as a limit that would apply if native work were ever
+  authorised (D012, `proposed_not_sent`).

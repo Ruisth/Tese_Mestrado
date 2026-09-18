@@ -10,12 +10,21 @@ sections 4.3, 5.1, 8 and 9.1 "Plataforma").
 > **QEMU is functional-only, never performance.** QEMU runs here validate
 > build, boot, systemd, networking and the OCI runtime — nothing else. No
 > latency, throughput or resource conclusion may ever be derived from QEMU, and
-> a QEMU result never supports a performance or security statement (plan
-> section 5.1). Measurement happens exclusively on a non-burstable native-ARM64
-> instance, the third tier of the platform model — which **does not exist yet**
-> (see [`docs/setup/vm_arm64_hetzner.md`](../../docs/setup/vm_arm64_hetzner.md));
-> a burstable ARM64 instance is admitted for functional integration only and
-> never for numbers.
+> a QEMU result never supports a performance or security statement (adopted
+> plan, section 3.5).
+>
+> **Dated note of 2026-09-18.** Under the plan the student adopted that day with
+> the QEMU-only execution amendment, the integrated system is evaluated under
+> QEMU/TCG and **no native ARM64 host is required**. The non-burstable
+> native-ARM64 instance, the third tier of the platform model, is withdrawn from
+> mandatory scope and deferred with the native route (adopted plan, sections 3.5
+> and 8); the provisioning checklist at
+> [`docs/setup/vm_arm64_hetzner.md`](../../docs/setup/vm_arm64_hetzner.md) is
+> retained only for that future work, and the rule that a burstable ARM64
+> instance is admitted for functional integration only and never for numbers
+> applies to it as well. Timing and resource figures produced in the emulated
+> environment are informational and labelled emulated: they describe only that
+> configuration and are never native ARM capacity or a performance claim.
 
 ## Layout
 
