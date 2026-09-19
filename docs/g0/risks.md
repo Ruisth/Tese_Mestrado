@@ -234,7 +234,8 @@ identified build and new five-boot strict set were produced and sealed on
 2026-08-14; gate G1 was accepted later the same day (decision in
 [`../governance/gate_decision_log.md`](../governance/gate_decision_log.md),
 functional platform layer only) while the second-operator requirement of D006 is
-reported waived on 2026-09-18 — reported by the student, not documented — so no
+reported waived, recorded on 2026-09-18 (the date of the record, never of the
+waiver, for which none was reported) — reported by the student, not documented — so no
 reconstruction is owed and the wording stays *versioned* and *repeatable build by
 the author*. The 2026-09-30 baseline and the 2026-09-29 internal cut-off
 survive only in the archived plan v1.2 and in dated historical records.

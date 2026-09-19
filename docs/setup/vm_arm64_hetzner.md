@@ -46,7 +46,7 @@ Target: a **non-burstable native-ARM64** measurement VM of
 resource envelope selected for feasibility, cost and experimental control**
 (it originates in the plan of 2026-08-07, sized around a Hetzner CAX21-class
 instance) — it is not a C2DTA requirement and does not claim to represent all
-edge hardware; the paper's own evaluation ran on an x86 VM with 16 GB/32
+edge hardware; the paper's own evaluation ran with the evaluation hardware unstated in the paper, so no instruction-set architecture is attributed to it with 16 GB/32
 CPUs and sizes no ARM64 host. **The envelope is fixed, not
 operator-discretionary: the official campaign runs on 4 vCPU / 8 GiB /
 >= 80 GB as the normative plan specifies.** Adopting a different profile is a

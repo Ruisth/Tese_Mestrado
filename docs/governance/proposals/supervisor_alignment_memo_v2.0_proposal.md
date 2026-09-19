@@ -18,7 +18,7 @@ terminology policy and the local evidence copy. All of that is **reported by the
 student**, undated, and is not a documented supervisor decision. Item 3 below is
 also overtaken: the 95-run campaign and the 24-hour soak are now a target to
 attempt under QEMU, subject to the pilot's feasibility check. One statement of
-fact in item 3 is also out of date and must not be sent as written: "None of the
+fact in item 6 is also out of date and must not be sent as written: "None of the
 nine integration/recovery test families has been run" is superseded — later on
 2026-09-18 the nine were exercised once, seven passed, and tests 1 and 6 carry a
 failing harness part from the resource sampler under emulation. That record is
@@ -87,7 +87,11 @@ particular:
    fixed. A memory-cgroup OOM killed the twin service's JVM during the power-off
    of that session; the corrective work is open, and no stability is claimed.
    **None of the nine integration/recovery test families has been run, and
-   nothing has been measured.** Emulated runs give functional and integration
+   nothing has been measured.** *(Superseded on 2026-09-19 and not to be sent
+   as written: later on 2026-09-18 the nine families were exercised once, seven
+   passed and tests 1 and 6 carry a failing harness part; the battery is not
+   complete and nothing has been measured. The wording above is kept as the
+   record of what the memo said; see the banner at the head of this memo.)* Emulated runs give functional and integration
    evidence only and support no ARM64 hardware performance conclusion; the
    maximum latency observed in the flow above is an emulated observation and not
    a performance result. **The request to you (D014, reworded as a standing

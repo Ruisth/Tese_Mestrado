@@ -21,10 +21,15 @@ no date, no message and no supervisor name. **No gate outcome below changes
 because of them**, and no future row may cite one as its decision record.
 
 **Two dates, and what each one means.** The confirmations were recorded in the
-project-management record of **2026-09-18**; that is the date a note inside
-either register names when it says "recorded", "superseded" or "dated note of"
-2026-09-18, and it is not the date of the supervisor conversation, which was not
-reported. The register rows themselves, and every narrative record that cites
+project-management record of **2026-09-18**; that is the date a note names when it says
+"recorded", "superseded" or "dated note of" 2026-09-18, and it is not the date of
+the supervisor conversation, which was not reported. **The convention binds every
+document, not only the two registers:** a narrative record — this log, the claim
+matrix, `PROGRESS.md`, the risk register, a backlog row — may date the *recording*
+of a reported confirmation and may never date the supervisor's act itself, so
+"instructed on", "waived on", "approved on" and "confirmed on" followed by a date
+are wrong wherever they appear *(added 2026-09-19 after six such phrasings were
+found in the narrative documents of this change and corrected)*. The register rows themselves, and every narrative record that cites
 them, were **written on 2026-09-19**. The confirmations remain undated.
 
 The **prospective** acceptance criteria for G2 to G7 under the adopted plan

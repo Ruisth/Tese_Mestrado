@@ -1847,8 +1847,8 @@ is unchanged.
   held outside the repository and unsealed, so the battery is **not complete**,
   nothing has been measured and G3 stays `Not decided`. The corrected wording
   replaces the blanket statement in `README.md`, `PROGRESS.md`, `docs/README.md`,
-  `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 3.5 of
-  the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
+  `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 2 (Baseline at
+  2026-09-18) of the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
   `docs/adr/0008-integrated-yocto-arm64-evaluation.md` and
   `docs/setup/qemu_integrated_gateway.md` the dated sentences are kept where
   they stand and superseded by a dated note.

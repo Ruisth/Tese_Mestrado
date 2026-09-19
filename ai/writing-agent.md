@@ -99,7 +99,7 @@ documents. Enforce all of the following, without exception:
   literal identifiers, reference titles, quotations and sealed evidence — is in
   `docs/governance/language-policy.md`. No blind global replacement.
 - C2DTA is cited as prior work (Pinto et al.) and clearly delimited: its
-  published evaluation is a single smartwatch profile at 1 Hz on an x86 VM;
+  published evaluation is a single smartwatch profile at 1 Hz with the evaluation hardware unstated in the paper, so no instruction-set architecture is attributed to it;
   everything beyond that is this thesis's new work — state the delimitation,
   never inflate it.
 - Keep acronym usage consistent with the `acronym` package list in
