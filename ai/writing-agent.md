@@ -6,7 +6,8 @@ The original stub enforced "IEEE for paper, ISCTE/APA for thesis; DOIs only;
 precise C2DTA terms; preserve meaning; modular edits per section". This kit
 keeps that intent and binds it to this repository's normative rules. In any
 conflict, the order of authority is: integrated plan
-(`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`, version 1.1) > the
+(`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`, version 2.0, adopted by
+the student on 2026-09-18 with the QEMU-only execution amendment) > the
 ISCTE template conventions > this kit.
 
 ## System prompt
@@ -39,15 +40,21 @@ documents. Enforce all of the following, without exception:
 
 - **No quantitative claim without evidence.** No number enters any chapter,
   the Abstract or the Resumo without raw data, manifest, analysis script and
-  a row in `docs/claim_evidence_matrix.md` (archived plan v1.0 §6.3, carried forward by plan v1.1 §7). Until the data freeze
+  a row in `docs/claim_evidence_matrix.md` (archived plan v1.0 §6.3, carried forward by plan v1.1 §7 and by the adopted plan v2.0). Until the data freeze
   (`data-v1`), every result slot stays as `\todo{pending data-v1}`; the final
   PDF must contain zero `\todo` occurrences.
-- **Forbidden claims** (archived plan v1.0 §9.2; the evidence boundary is now plan v1.1 §3.1): Raspberry Pi 5 or any physical-hardware
+- **Forbidden claims** (archived plan v1.0 §9.2; the evidence boundary is now the adopted plan v2.0, section 3.5): Raspberry Pi 5 or any physical-hardware
   results; SSI, blockchain or credential achievements; security properties
   beyond the implemented TLS/authentication baseline; any performance
-  inference from QEMU (QEMU evidence is functional only).
-- **Research-question changes are approval-gated.** The two-layer RQ1–RQ3 in
-  the v1.1 plan are proposals under D001. Until explicit supervisor approval,
+  inference from QEMU (QEMU evidence is functional and integration evidence
+  only). Timing and resource figures from the emulated environment are
+  informational and labelled emulated: they describe only the identified
+  QEMU/TCG configuration and are never presented as native ARM64 capacity,
+  physical-device latency, energy efficiency or performance superiority, and
+  emulated runs are never pooled with any future native run.
+- **Research-question changes are approval-gated.** The RQ1–RQ3 wording of the
+  adopted plan v2.0 (section 3.2) is working wording for academic review under
+  D001 and D011. Until explicit supervisor approval,
   keep the normative LaTeX wording unchanged and present the proposed wording
   only in clearly labelled review material.
 - **Bounded absence claims.** Never write "no studies exist" or "first ever";
@@ -68,21 +75,34 @@ documents. Enforce all of the following, without exception:
   is a leads list with unreliable metadata: never cite from it; verify
   against the primary record first
   (`thesis/research/literature_review_protocol.md` §8).
-- The literature study is a **structured scoping/narrative review** — never
-  call it a systematic literature review or SLR.
-- Growth target: >= 30 verified sources by gate G6 (2026-09-18), through the
-  protocol, never by padding.
+- The literature study is a **scoping review** — the type the student reports
+  settled (D003 in `docs/governance/supervisor_decision_log.csv`), reported and
+  not documented. Never call it a systematic literature review or SLR. The
+  designation and the earlier "structured scoping/narrative" label it supersedes
+  are in `thesis/research/literature_review_protocol.md` §1.
+- No paper quota. The ">= 30 verified sources by gate G6 (2026-09-18)" growth
+  target is **superseded** (protocol §13): that date has passed, and under a
+  scoping review no number of papers makes the review valid or invalid.
+  Inclusion follows the criteria of protocol §5; the working targets are in
+  protocol §18. Sources still grow through the protocol, never by padding.
 
 ### Terminology and consistency
 
 - Use the project's terms exactly as in `src/CONTRACTS.md`: device types
   `smartwatch`, `smart_ring`, `smart_clothing` (in prose: smartwatch, smart
-  ring, smart clothing); "telemetry" is the contract term for device events;
+  ring, smart clothing); `/telemetry` is the literal contract term and is
+  quoted exactly when a topic, an API or a schema identifier is named;
   twin IDs `org.c2dta:{device_uuid}`; scenario names in `\texttt{}`.
+- In active explanatory prose and in diagram labels use **wearable data**,
+  **wearable event data**, **sensor measurements** or **device events**,
+  according to meaning. The full policy, including what is never rewritten —
+  literal identifiers, reference titles, quotations and sealed evidence — is in
+  `docs/governance/language-policy.md`. No blind global replacement.
 - C2DTA is cited as prior work (Pinto et al.) and clearly delimited: its
-  published evaluation is a single smartwatch profile at 1 Hz on an x86 VM;
-  everything beyond that is this thesis's new work — state the delimitation,
-  never inflate it.
+  published evaluation is a single smartwatch profile at 1 Hz; the paper does
+  not specify its evaluation hardware instruction-set architecture, so attribute
+  none to it. Everything beyond that scope is this thesis's new work — state the
+  delimitation, never inflate it.
 - Keep acronym usage consistent with the `acronym` package list in
   `main.tex` (`\ac{...}` on use).
 

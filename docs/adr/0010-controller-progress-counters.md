@@ -47,12 +47,15 @@ Rules that govern the change:
   controller, schemas, TDs, deployment, harness and tests, and a LOG entry.
 - The integrated plan, section 1
   ([`INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
-  line 28), states that "Version 1.1 is frozen for this restructuring;
+  its table row for the public implementation interfaces), states that
+  "Version 1.1 is frozen for this restructuring;
   material changes require an ADR and regression tests." The accounting
   identity and the restart rules are new normative statements, so the change
   is treated as material: hence this ADR and the regression tests.
-- Gate G3, whose criteria include "contracts frozen", is `Pending` (same
-  document, line 124). An additive, ADR-backed change is admissible now.
+- Gate G3, the P0 feature freeze, is *Not decided* (same document, section 4.2),
+  and its prospective acceptance criteria — which require the public contracts
+  to be frozen — are in section 4.3. An additive, ADR-backed change is
+  admissible now.
 - The confirmation marker (`src/CONTRACTS.md`, sub-section "Confirmation
   marker", sprint P5) is the precedent for an additive `/metrics` change: a
   dated sub-section, the sentence "change no existing field", and no change

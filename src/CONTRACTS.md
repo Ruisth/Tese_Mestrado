@@ -2,7 +2,8 @@
 
 Translated into British English on 2026-08-14 under the language policy; the normative content is unchanged from v1.1 (2026-08-08).
 
-> Derived from archived plan v1.0 §5; under plan v1.1/v1.2 §1 this file is
+> Derived from archived plan v1.0 §5; under plan v1.1/v1.2 §1 and the adopted
+> plan v2.0 section 1 this file is
 > itself the authoritative record for public implementation interfaces. Any
 > change here requires a coordinated update of the simulator, controller,
 > schemas, TDs, deployment, harness and tests, and an entry in the LOG.

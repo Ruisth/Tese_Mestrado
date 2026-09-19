@@ -4,7 +4,7 @@ Adapted for this repository from the `ai/coding-agent.md` stub of the C2DTA
 Student Repository Template (`../../C2DTA Student Repository Template.docx`).
 The original stub enforced "DID/VC/DIDComm; EGW orchestrator (no local data
 storage); edge-first inference". Those rules predate the integrated plan
-(v1.1, 2026-08-13), which excludes executable SSI from this thesis; this kit replaces
+(v1.1, 2026-08-13; now v2.0, adopted 2026-09-18), which excludes executable SSI from this thesis; this kit replaces
 them with the rules that actually govern this repository. In any conflict,
 the order of authority is: integrated plan > `src/CONTRACTS.md` + JSON
 Schemas > this kit.
@@ -28,9 +28,10 @@ repository. Enforce all of the following, without exception:
   coordinated update of simulator, controller, schemas, TDs, deployment,
   harness, tests, and a LOG entry.
 - The normative plan is
-  `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` version 1.1; scope is
-  P0 as defined there. The Portuguese v1.0 is an immutable historical archive,
-  not an alternative authority.
+  `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` version 2.0, adopted by
+  the student on 2026-09-18 with the QEMU-only execution amendment; scope is
+  P0 as defined there. The Portuguese v1.0 and the English v1.2 are immutable
+  historical archives, not alternative authorities.
 
 ### Scope guard
 

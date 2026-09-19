@@ -16,8 +16,14 @@
 | Protocol frozen (`exp-v1`) | not yet — requires a valid pilot first |
 | Data freeze (`data-v1`) | not yet |
 
-The measurement platform (a native, non-burstable ARM64 instance) does not
-exist yet; see the risk register (R28) and `PROGRESS.md`.
+The campaign environment of the plan adopted on 2026-09-18 is the integrated
+Yocto ARM64 guest emulated under QEMU/TCG on the existing x86-64 workstation.
+Every timing and resource figure produced there is informational and labelled
+emulated: it describes only that configuration and is never native ARM64
+capacity, physical-device latency or a performance claim. No native,
+non-burstable ARM64 instance exists and none is required by the adopted plan;
+its absence is an explicit limitation on RQ3 — see the risk register (R28) and
+`PROGRESS.md`.
 
 ## How this file gets filled
 

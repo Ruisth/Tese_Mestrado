@@ -1522,3 +1522,358 @@ is unchanged.
   accepted. Next, under the same authorisation: build the image from the
   merged `dev`, load it, deploy the six services in the guest and run one
   smartwatch at 1 Hz for 60 s, labelled as emulated functional evidence.
+---
+
+## Entry #C031 — Move the plan v2.0 proposal under `docs/governance/proposals/`; dates confirmed by the student
+
+- **Date:** 2026-09-18
+- **Phase:** Governance documentation only; no code, evidence, thesis chapter
+  or search-protocol change. Identifier `#C030` is reserved for another open
+  pull request and is not used here; entry #C028 is kept as written, with a
+  dated forward pointer to this entry added at its end.
+- **Request:** Two decisions of the project review of 2026-09-18, forwarded by
+  the student. (1) Keep plan v1.2 at the canonical path and place v2.0 under
+  `docs/governance/proposals/`, with references that distinguish the plan in
+  force from the proposal. (2) Align the proposal with the planned submission
+  and the final deadline confirmed by the student, and reforecast the work
+  backwards from the submission without reporting forecasts as completed
+  milestones.
+- **Layout:** `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` (plan
+  v1.2, SHA-256
+  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
+  `docs/g0/scope_and_rqs.md` (August scope v1.1) and
+  `docs/governance/supervisor_alignment_memo.md` (August memo) are again
+  byte-identical to `dev`. The proposal texts that #C028 had placed at those
+  paths are now
+  `docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md`,
+  `scope_and_rqs_v2.0_proposal.md` and
+  `supervisor_alignment_memo_v2.0_proposal.md`, with their internal links
+  corrected, and the directory has a README that says what is in force and
+  how a proposal is adopted. The copy
+  `docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md` added
+  by #C028 is withdrawn, because the plan in force is at its canonical path
+  again; the archive content that was already on `dev` is untouched. ADR 0008
+  stays in `docs/adr/` with the status Proposed. Banners, index rows, the
+  README files, ADR 0008 and `PROGRESS.md` point to the proposal path and say
+  "proposal" when they mean plan v2.0, and to the canonical path when they
+  mean the plan in force. The files on `dev` that call the canonical path the
+  normative plan are correct again without being edited.
+- **Dates decision and its source:** planned submission **2026-10-20** and
+  final delivery deadline **2026-10-31**; the days from 2026-10-21 to
+  2026-10-31 are a contingency window for essential corrections, submission
+  difficulties and administrative recovery only, not the default delivery
+  period and not time for optional scope. Source: the student's confirmation
+  of 2026-09-18 after discussing the dates with the supervisors. It is a
+  first-party statement; no institutional portal or administrative document
+  was checked, and no supervisor reply is recorded by this entry. For current
+  planning the pair supersedes the date 2026-11-03 quoted in #C028 and the
+  2026-09-29 internal cut-off and 2026-09-30 baseline of plan v1.2; all three
+  stay in the historical records, and plan v1.2 is not edited.
+- **Forecast:** sections 6 and 7 of the proposal were rewritten on 2026-09-18
+  as a forecast worked backwards from the submission: a milestone table with a
+  status per milestone (demonstrated, in preparation, pending), the critical
+  path, a native ARM64 decision point forecast for 2026-09-25, reforecast
+  triggers and the cutting order. Capacity from 2026-09-19 to 2026-10-20 at
+  the reported 8 h/day is 256 h against the unrevised estimate of 225-345
+  active hours, so the submission date is feasible only near the lower
+  estimate; the binding constraint is the 152 h before the full draft, which
+  the estimate cannot yet be checked against. Branch C is prepared at risk
+  until D014 is answered, and the native branch has no writing days left with
+  a host obtained on the decision date. Decision D013 carries the
+  review-window dates of the forecast and the dates note, and D014 the
+  decision point and the requested reply date; every status, D001–D014, stays
+  `proposed_not_sent`.
+- **Facts recorded:** pull requests #28, #29, #32 and #31 were merged into
+  `dev` on 2026-09-18; merging validates no stack and accepts no gate.
+  Demonstrated so far, all emulated (ARM64 under QEMU/TCG on x86-64,
+  functional evidence only): the image build, two boots with every acceptance
+  check passing and the isolated MongoDB 7.0.39 test. Not demonstrated: the
+  six-container stack on the guest, the functional path simulator -> MQTT/TLS
+  -> controller -> Ditto -> API, any integration test on the real stack, any
+  measurement. The first bounded end-to-end functional test (one smartwatch,
+  1 Hz, 60 s) was authorised on 2026-09-18 and is in preparation; it has not
+  run. No native ARM64 host has been obtained.
+- **Known stale notes, left for a separate change:**
+  `docs/setup/qemu_integrated_gateway.md`,
+  `docs/reviews/2026-09-17-egw-image-audit.md`,
+  `src/yocto/kas/egw-qemuarm64-integrated.yml` and the `egw-gateway-image`
+  recipe, all on `dev` before this entry, say that the v2.0 revision is not
+  yet published on `dev` and cite "plan v2.0" without a path. After this
+  change the revision is on `dev` as a proposal only; the README of
+  `docs/governance/proposals/` says how to read those citations. The build
+  inputs are not touched by a documentation change.
+- **Not changed and not implied:** no gate is accepted; no RQ or scope
+  changes; no emulated performance claim is approved; nothing has been sent to
+  or approved by the supervisors; plan v1.2 remains the plan in force and
+  merging the pull request adopts nothing. Adoption of the proposal is a
+  separate decision of the student after consulting the supervisors, to be
+  recorded in this log. No historical entry, seal or run metadata is changed.
+- **Verification boundary:** the three restored files were compared with
+  `origin/dev` and show no difference; the Markdown link checker and the
+  evidence-seal checker were run locally; the GitHub workflow result, not this
+  entry, establishes whether the required checks pass.
+
+---
+
+## Entry #C032 — Publish the student's adoption of plan v2.0 with the QEMU-only execution amendment
+
+- **Date:** 2026-09-18
+- **Request:** The student adopted plan v2.0 with a dated QEMU-only execution
+  amendment as the execution baseline on 2026-09-18, after discussing with the
+  project review whether the Yocto image built for QEMU could later be reused
+  on a native ARM64 virtual machine, and instructed that the adoption be
+  published at the canonical plan path through one focused documentation pull
+  request against `dev`.
+- **Decision recorded:** the active baseline is **plan v2.0 with the QEMU-only
+  execution amendment**, not the unmodified proposal. The system under test is
+  the Yocto-produced ARM64 kernel and root filesystem booted under QEMU/TCG on
+  the existing x86-64 workstation, hosting the six-service digital-twin stack,
+  with the simulator and harness outside the guest. Native ARM64 deployment and
+  native measurement leave mandatory scope and become documented, unverified
+  future work: no cloud allocation, spending or native build is requested, the
+  native-host decision deadlines and procurement dependencies are withdrawn
+  from the critical path, and the native boot milestone leaves the gate set.
+  RQ3 is bounded to the specified emulated environment. The native 95-run
+  campaign and the 24-hour soak are **not** transferred to emulation; the
+  emulated functional campaign is selected after the bounded pilot and frozen
+  before execution. The submission target is 2026-10-20, the final delivery
+  deadline 2026-10-31, and 2026-10-21 to 2026-10-31 is a contingency window for
+  essential corrections only.
+- **Boundary — what the adoption is not.** It is a **student decision about
+  execution**. The supervisors approved nothing: not the title, not the
+  research-question wording, not the thresholds and not the revised academic
+  evaluation. Nothing has been sent to them and D001–D014 remain
+  `proposed_not_sent`. The student reported that a supervisor advised
+  proceeding with QEMU tests; that is **student-reported advice**, never
+  approval and never a documented supervisor decision, and it is not written
+  into the supervisor decision log. **Adoption closes no gate and admits no
+  claim**, and it turns no emulated result into native ARM64 evidence. Every
+  date after 2026-09-18 recorded in this change is a planning target. A green
+  documentation pull request confirms consistency checks, not successful
+  integration, supervisor approval or gate acceptance.
+- **Action (records owned by this entry):** `PROGRESS.md` takes a dated
+  adoption note, an "Adopted scope and forecast" section, a gate-status block
+  for 2026-09-18 with G1 unchanged and G0 and G2–G7 Not decided, a row for the
+  first-flow candidate evidence, the two evidence classes in place of the
+  three-tier platform table, and a reforecast effort table whose `actual_h`,
+  `remaining_h` and `forecast` columns stay empty (risk RA15). `README.md` and
+  `docs/README.md` name the adopted plan and its facts. `docs/g0/scope_and_rqs.md`
+  becomes version 2.0 with the integrated objective and the QEMU-bounded
+  RQ1–RQ3, marked **working wording for academic review, not agreed with the
+  supervisors**. `docs/g0/backlog.md` gains the QEMU execution path and keeps
+  the August gate sections as history with their native prerequisites marked
+  deferred. `docs/g0/risks.md` downgrades the native-host risk from blocking
+  dependency to a bound on RQ3, records the residual risks of the adopted
+  baseline against existing identifiers, and retargets the runtime-lock and
+  contention risks. Both forms of the claim→evidence matrix take the evidence
+  classes, the emulated environment and the deferral of the 24-hour soak, and
+  were compared field by field afterwards. `diagrams/architecture.md` replaces
+  the three-tier deployment figure with the integrated emulated topology, and
+  `diagrams/README.md` marks the two-layer PlantUML view historical.
+  `docs/academic/c2dta_p0_traceability.md` retargets its platform rows and its
+  comparison rules.
+- **Action (first end-to-end flow of 2026-09-18, recorded here because the
+  corrected records depend on it):** inside the Yocto guest under QEMU/TCG the
+  six-container stack was deployed and one bounded end-to-end functional test
+  passed — one smartwatch at 1 Hz for 60 s; **60 sent, 60 delivered unique,
+  0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected**; twin
+  `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited
+  0. Maximum latency **12,286 ms**, recorded as an **emulated, informational**
+  observation and never as a performance result. The run exposed two defects,
+  both fixed on `dev`: the controller was attached to the wrong Compose network
+  (`9ffd365`) and the host shell inherited a relative schema directory
+  (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM
+  **during the power-off** of that session, at the 512 MiB container limit; the
+  diagnosis of the same day found the three Ditto services idle at 94–95 % of
+  that limit and at 98.1 % after a 672-message workload, and a controlled
+  `docker compose stop -t 60` after that workload produced no OOM anywhere in
+  the boot. The corrective work — a graceful stop before power-off and
+  container memory sizing — is a **separate change and remains open**; no
+  stability is claimed.
+- **Evidence boundary:** the record of that flow is **candidate evidence held
+  outside the repository and unsealed**. The only sealed capsules for the
+  integrated profile remain the build, boot and isolated MongoDB records of
+  2026-09-18 under `docs/evidence/integrated-qemu/`, and sealing is not
+  acceptance. Nothing native has been built or booted. **None of the nine
+  integration/recovery test families has been run** and nothing has been
+  measured.
+- **Identifier note:** `#C031` was written on the branch of the earlier
+  governance pull request (`3673910`) and did not survive the merge
+  `f09b0e6`, so it is absent from `LOG.md` on `dev` although `PROGRESS.md` and
+  the D013 note of the supervisor decision log refer to it; the D014 note's
+  citation of it is removed by this change. Identifiers
+  are never reused, so the number stays unused here and the content it carried
+  — the move of the proposal texts under `docs/governance/proposals/`, the
+  return of plan v1.2 to its canonical path and the dates confirmed by the
+  student on 2026-09-18 — is carried by this entry and by the dated update note
+  in `PROGRESS.md`.
+- **Decisions and next steps:** no gate, claim or maturity level is accepted,
+  and no supervisor decision changes state. Next: seal the first-flow record
+  inside the repository; resolve the teardown OOM and the container memory
+  sizing as a separate change; run the nine integration/recovery test families
+  in the guest; send the alignment package so that D004, D007, D011, D013 and
+  D014 can be answered.
+---
+
+## Entry #C033 — Publish the supervisor confirmations reported by the student, the quantity supersession and the authorised terminology
+
+- **Date:** 2026-09-19
+- **Request:** The student reported a set of supervisor confirmations, recorded
+  in the project-management record of 2026-09-18, and instructed that they be
+  published in the canonical repository documents on the branch that already
+  carries the adoption of plan v2.0. The records written before them state, as
+  a blanket fact, that nothing had been sent to the supervisors and that nothing
+  was approved. Those statements are no longer true and had to be replaced.
+- **What is reported, and how it is recorded.** Twelve items, plus the sending
+  of the state-of-the-art material and approval to proceed with the QEMU tests.
+  (1) the title, exact wording *Blockchain-powered Personal AI – Digital Twin
+  Edge Gateway*; (2) the research questions, with RQ3 evaluated in QEMU rather
+  than on a native ARM64 virtual machine; (3) the local-core scope; (4) the
+  literature-review method, settled in a follow-up as a **scoping review**;
+  (5) an instruction to attempt the historical 95-run quantity, the 24-hour soak
+  included, under QEMU; (6) that a second operator is not required; (7) the
+  review schedule — Chapters 1–4 on 2026-10-01, the full draft on 2026-10-08,
+  feedback between 2026-10-09 and 2026-10-14; (8) that the institution-supplied
+  LaTeX template is mandatory; (9) that an AI-use declaration is mandatory by
+  final submission; (10) that a scientific article is optional and not required
+  for delivery; (11) the authorised wearable-data terminology; (12) that a local
+  copy of the work is expected as evidence. **Every one of these is a supervisor
+  confirmation reported by the student.** No date, no message, no supervisor
+  name and no evidence file was reported for any of them, so none is invented:
+  `sent_at` and `response_at` stay empty in every row of the decision log, and
+  nothing is written anywhere as a documented supervisor decision.
+- **What stays open, and stays unsent.** The experimental thresholds (D007); the
+  scope of the evaluation and any academic use of emulated results, with the
+  wording of the limitation that records the absence of native evidence (D014);
+  the authenticity of the local `Template_LaTeX` copy against the current
+  official 2026 source, with its cover and metadata (the open half of D004); and
+  the operational storage semantics (the open half of D010). The alignment
+  package is narrowed to exactly those and is still a draft. D001, D007, D008
+  and D012 remain `proposed_not_sent`.
+- **Boundary — what this entry is not.** **No gate is closed and no claim is
+  admitted.** Approving the QEMU route is not approving the academic use of its
+  results; approving the research questions settles neither the evaluation
+  protocol nor the thresholds; a waived second operator does not license the word
+  *reproducible* and says nothing about literature screening; choosing the review
+  label executes no review; and an instruction to attempt a run quantity approves
+  no threshold. Every reported confirmation stays a report. It never becomes a
+  documented decision by being cited, and no gate row may use one as its decision
+  record.
+- **Action — decision registers.** `docs/governance/supervisor_decision_log.csv`
+  keeps its nine columns and gains two status values,
+  `confirmed_reported_by_student` and
+  `partly_confirmed_reported_by_student`, defined in the authority table of plan
+  section 1 and in `docs/README.md`. Row by row: D001 and D008 keep their
+  historical August wording, which was never sent and is not what the student
+  reports confirmed; D002 and D009 are confirmed; D003, D004, D005, D006, D010,
+  D011, D013 and D014 are split into their confirmed and their unresolved parts;
+  D007 stays unsent with a note recording that the quantity instruction settles
+  no threshold; D012 stays unsent and deferred. `docs/g0/supervisor_decision_matrix.csv`
+  keeps its five columns and its stateless convention, and takes dated
+  supersession notes in the recommended-position and blocking-effect cells.
+- **Action — the 95-run composition.** Plan section 3.3.1 records the
+  composition with its per-condition table as the **target to attempt** under
+  QEMU: 5 QEMU boots, 10 stack cold starts, 10 twin creations, 10 smoke
+  sequences, 10 nominal, a 40-run load sweep at 10, 50, 100 and 250 messages/s,
+  3 invalid payload, 3 dropout/reconnect, 3 controller restart and 1 soak of 24
+  actual elapsed hours — 25 operator-driven and 70 simulator-driven. It is kept
+  separate from the frozen protocol, which is still chosen prospectively at G4,
+  and from the actual valid run count, and it is subject to the bounded pilot's
+  feasibility check. **This supersedes the earlier "not transferred to QEMU"
+  wording**, which is marked where it stands in the plan, the scope document, the
+  backlog, the gate log, `PROGRESS.md`, `README.md` and both forms of the claim
+  matrix rather than deleted. C13 returns from `Deferred — outside the adopted
+  scope` to `Pending — no evidence`, so 13 claims are now pending and 0 of 15 are
+  accepted.
+- **Action — final delivery.** Plan section 4.3 names the institutional LaTeX
+  template, the AI-use declaration and the local evidence archive as G7 criteria
+  in their own right, all prospective. The second-operator requirement and the
+  scientific article leave mandatory acceptance; the article is **deferred, not
+  deleted**. The verified off-machine copy stays a separate resilience control
+  and is still outstanding. C01 drops its D006 dependency and waits only on its
+  formal claim admission, while the repeatability wording stays *versioned* and
+  *repeatable build by the author*.
+- **Action — terminology.** The authorised policy is written down once, in
+  `docs/governance/language-policy.md`, and pointed at from plan section 3.6, from
+  D009 and from `docs/README.md`. Active explanatory prose and diagram labels use
+  *wearable data*, *wearable event data*, *sensor measurements* or *device
+  events*; the literal `/telemetry` topic, API and schema identifiers,
+  `src/CONTRACTS.md`, bibliography titles, quotations, sealed evidence and
+  historical records keep their exact wording. **No blind global replacement was
+  run**: the wording was applied only to the active prose edited in this change.
+- **Action — review method.** D003 records the scoping review as reported
+  settled, with execution unresolved, and plan sections 4.1 and 6 carry its three
+  working targets — protocol by 2026-09-21, search and selection by 2026-09-26,
+  synthesis by 2026-09-30, feeding the chapters sent on 2026-10-01 — to be
+  re-estimated against the real corpus at the 2026-09-21 checkpoint.
+- **Action — the scoping-review protocol.**
+  `thesis/research/literature_review_protocol.md` is revised in place to
+  **version 2.0, dated 2026-09-19**. It designates the review a scoping review
+  and supersedes the combined "structured scoping/narrative" label by a dated
+  note rather than by deletion; it adds the review question with its
+  Population/Concept/Context framing and the recorded engineering adaptation,
+  names JBI as the structuring guidance and PRISMA-ScR as the reporting
+  framework, records the information sources and their access limits, separates
+  the three preliminary rows `Q001`–`Q003` of `search_log.csv` from a formal
+  execution that has not happened, keeps the A–J axis identifiers, describes the
+  single-reviewer screening without claiming dual screening, and adds the
+  charting fields, the five required outputs, the completion criterion, the
+  limitations and departures, and the working schedule. **The revision executed
+  no search, screened no record and charted no study**; it is not registered and
+  not preregistered; `search_log.csv` and `study_selection.csv` are untouched.
+  The lapsed targets of Section 13 — at least 30 verified sources by G6, and the
+  August search window — are marked superseded where they stand, and no paper
+  quota is reinstated. The prose of axis H takes the authorised wearable-data
+  wording while the axis letter and every logged query string keep their exact
+  form. Section 18 records that Section 2.1 of the drafted manuscript still
+  carries the pre-revision description; its source is in the LaTeX tree, it is
+  not edited here, and the correction is tracked as a backlog row due before
+  2026-10-01.
+- **Correction carried in the same change.** Entry `#C031` was restored to this
+  diary on 2026-09-18, so the citations of it in `PROGRESS.md` and in the D013
+  note of the decision log are no longer dangling; both were corrected here. The
+  identifier note in `#C032` is left as written, because a dated diary entry is
+  not rewritten.
+- **Historical records left as written.** `LOG.md` entries `#C031` and `#C032`,
+  the dated `PROGRESS.md` snapshot of 2026-08-14 — which takes a forward pointer
+  only — the August proposals and memos, which take dated banners without their
+  bodies being rewritten, and everything under `docs/evidence/`.
+- **Correction — the nine integration/recovery test families.** The records
+  written before this entry said, as a blanket fact, that none of the nine
+  families had been run. Later on 2026-09-18 they were exercised once: **seven
+  passed, and tests 1 and 6 have a failing harness part**, because the resource
+  sampler under test cannot reach the harness's minimum sample count under
+  emulation; that instrumentation defect is a separate change. The record is
+  held outside the repository and unsealed, so the battery is **not complete**,
+  nothing has been measured and G3 stays `Not decided`. The corrected wording
+  replaces the blanket statement in `README.md`, `PROGRESS.md`, `docs/README.md`,
+  `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 2 (Baseline at
+  2026-09-18) of the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
+  `docs/adr/0008-integrated-yocto-arm64-evaluation.md`,
+  `docs/setup/qemu_integrated_gateway.md` and
+  `docs/governance/proposals/supervisor_alignment_memo_v2.0_proposal.md` — in the
+  memo, both the statement of fact in item 6 and the sentence that called the
+  reported QEMU approval student-reported advice — the statements were written in
+  this change, so they are corrected in place and a dated note of 2026-09-19 records
+  the correction. In the ADR, two sentences that did stand on `dev` — that the
+  six-container stack had not been deployed, and that the first bounded
+  functional test had not run — were overtaken by the events of 2026-09-18 and
+  are not carried forward; both facts are restated correctly in the same
+  paragraph, which keeps verbatim that sealing is not acceptance and that no
+  gate and no claim is accepted. Elsewhere the dated
+  sentences are kept where
+  they stand and superseded by a dated note.
+- **Also unchanged and still true.** The August G0 email draft at
+  `docs/g0/supervisor_email_g0.md` is genuinely unsent. The
+  first-flow record of 2026-09-18 remains candidate evidence held outside the
+  repository and unsealed, and the `ditto-things` teardown incident remains open.
+- **Decisions and next steps:** no gate, claim or maturity level changes, and no
+  documented supervisor decision is created. Next: send the reduced alignment
+  package covering D007, D014 and the unresolved halves of D004 and D010;
+  **execute** the protocol published here — the formal searches, the screening,
+  the charting and the synthesis — and correct the manuscript's Section 2.1;
+  seal the first-flow record; resolve the teardown OOM and the container memory
+  sizing; fix the resource sampler and **complete** the nine
+  integration/recovery test families; and check the 95-run attempt target against
+  the pilot's feasibility finding before any campaign window is treated as
+  credible.
