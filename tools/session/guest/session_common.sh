@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by the session scripts. Defines the SSH access to the guest and the
 # session log. $E must be set by the caller.
 SSH_OPTS=(-i "$HOME/.ssh/egw_campaign" -p 2222 -o IdentitiesOnly=yes -o BatchMode=yes
