@@ -535,7 +535,19 @@ The review package is complete when **all** of the following hold:
 
 1. Every included study is traceable from retrieval, through selection, to a
    charted row — `search_log.csv` → `study_selection.csv` → the charting table
-   of Section 14.
+   of Section 14. A study that no formal query retrieved has no `query_id`, and
+   one is never invented for it: a seeded source is traceable instead through
+   the `origin` column of `study_selection.csv` (`known-source` or
+   `compass-lead`) together with `verified_via` and `verified_date`, which say
+   where it came from and how it was checked. Both routes are retrieval
+   provenance; neither is a substitute for the other, and the preliminary
+   records are not rewritten to manufacture a link. State of 2026-09-19: of the
+   25 rows currently marked included, 24 are seeded (15 `known-source`, 9
+   `compass-lead`) and one links to `Q001`, which is itself preliminary. The
+   formal execution of the searches will add rows carrying a `query_id`; until
+   it has run, this criterion is satisfied by the seeded route only, and the
+   PRISMA-ScR flow reports the two routes separately rather than merging them
+   into one retrieval count.
 2. The reported counts reconcile: retrieved, duplicates removed, screened,
    full texts sought and obtained, excluded with reasons, included and charted.
 3. The reported methods and limitations match the work actually done, including
