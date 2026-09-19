@@ -1957,8 +1957,9 @@ is unchanged.
   invalid run valid. Two sub-checks were not run, the sequence reset of test 4
   and the Ditto repeat of test 7: both stood in the runbook's prose, and the
   tooling that extracted the battery's commands took only fenced code blocks
-  and dropped them. The battery is **not complete** and nothing has been
-  measured.
+  and dropped them. The battery is **not complete** and no official campaign has
+  been completed or admitted; its measurements are diagnostic, not accepted
+  campaign results or native performance evidence.
 - **Findings — the invalid timed attempts of 2026-09-19.** Both
   `smoke_sequence-r02` and `controller_restart-r02` (run directories under
   `~/egw-tcg/pilot/results/raw/`) are **invalid**: ingestion rejected the first
@@ -2065,7 +2066,7 @@ is unchanged.
   bullet and the corrected statement of the 2026-09-19 amendment, which no
   longer says that the sampler defect is fixed — it is addressed under its own
   change, not merged into `dev`. "Unsealed" becomes "locally hash-sealed
-  candidate archive, not admitted" in the same places. The historical
+  candidate archive, not admitted" in the same places. In the same pass, the first-flow record of 2026-09-18, all 51 entries of whose `SHA256SUMS` verify, becomes a "locally hash-sealed candidate, outside the published evidence package, not admitted" wherever current state called it unsealed; blanket statements that nothing has been measured become "no official campaign has been completed or admitted", the diagnostic measurements being neither accepted campaign results nor native performance evidence; and the memory and graceful-stop correction merged through pull request #34 is no longer called open, general or prolonged stability staying not demonstrated. Where such a statement stood on `dev` in the runbook status, ADR 0008's amendment of 2026-09-18 or a historical proposal, it is kept and superseded by a dated note or marker. The historical
   proposals under `docs/governance/proposals/` take dated markers beside the
   false sentences, without rewriting them: sections 6.1 and 6.2 of the plan
   v2.0 proposal, and the banner and item 6 of the v2.0 alignment memo, whose
@@ -2211,7 +2212,7 @@ is unchanged.
   holding open the scope of the evaluation and any academic use of emulated
   results, and its sentence that approving the QEMU route is not approving the
   academic use of its results, are superseded by the D014 revision above. The
-  other boundaries of both entries stand.
+  other boundaries of both entries stand, with three exceptions, the dated entries themselves being kept as written: the first-flow record they call unsealed is a locally hash-sealed candidate (all 51 `SHA256SUMS` entries verify), outside the published evidence package and not admitted; the `ditto-things` teardown correction they call open has since been merged into `dev` through pull request #34, with general or prolonged stability not demonstrated; and "nothing has been measured" is too broad — no official campaign has been completed or admitted, and the diagnostic measurements are not accepted campaign results or native performance evidence.
 - **Decisions and next steps.** Decided by the student on 2026-09-19: **G0
   Accepted** for project initiation and baseline alignment. No other gate,
   claim or maturity level changes, no documented supervisor decision is

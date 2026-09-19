@@ -28,17 +28,16 @@ end-to-end flow ran inside the emulated Yocto guest on 2026-09-18, with its
 record held outside the repository. Completing the nine integration/recovery
 test families, the bounded pilot, the protocol freeze and the functional
 campaign remains outstanding, and test acceptance is paused at the student's
-request. No performance result or research claim has been accepted, and
-nothing has been measured.
+request. No performance result or research claim has been accepted, and no official campaign has been completed or admitted; the diagnostic measurements taken so far are not accepted campaign results or native performance evidence.
 
 | Workstream | Current state | Remaining evidence or work |
 |---|---|---|
 | Governance and baseline alignment — G0 | **Accepted on 2026-09-19** by the student, with the project manager's concurrence, for project initiation and baseline alignment ([decision record](docs/governance/decisions/2026-09-19-g0-closure.md)). It is a dated change of G0's exit scope, not a retroactive pass against the legacy criteria: the historical alignment package and the off-machine copy are **not** marked as performed | The residual obligations are reallocated in the decision record (section 3): integration defects, missing sub-checks, timely delivery and admissible run evidence to G2/G3; the D007 thresholds, prospective fault-window rules, loads and durations, the 95-run feasibility and the frozen protocol to G4, before `exp-v1`; any genuinely unsettled method or claim detail tracked at G4/G6, with no blanket D014 blocker; executing the scoping review and writing and analysing the dissertation to Chapters 1–4 and G6; the template check against the institution's original, final PDF compliance and the AI-use declaration to G7; local source, configuration, log and data copies as an ongoing execution control, with the final evidence and reproduction package at G7. Verifying the off-machine copy, its hash and the restore path stays an active resilience action owned by the student, retained in the risks and backlog and required at G7 — not verified or waived by this decision |
 | Development environment | WSL2 Ubuntu 24.04 is operational and has produced the recorded Yocto builds | Full environment capture for each recorded emulated run |
 | Yocto/QEMU platform — G1 | **Accepted on 2026-08-14, functional scope only**: identified clean-checkout build and five strict boots | Unchanged by the adoption; QEMU evidence is not native performance evidence |
-| Integrated QEMU/TCG gateway profile | Built and booted on 2026-09-18, with build, boot and an isolated MongoDB 7 test sealed under `docs/evidence/integrated-qemu/` | Seal the first-flow record; resolve the `ditto-things` teardown OOM and container memory sizing before any stability statement |
+| Integrated QEMU/TCG gateway profile | Built and booted on 2026-09-18, with build, boot and an isolated MongoDB 7 test sealed under `docs/evidence/integrated-qemu/` | Incorporate the locally hash-sealed first-flow record into the published evidence package; re-measure the Ditto memory footprint under the limits that pull request #34 merged for the `ditto-things` teardown OOM before any stability statement beyond bounded observations |
 | Native ARM64 Yocto target | **Future work under the adopted plan**: documented and unverified. No provisioned host or native Yocto boot is recorded, and none is required to complete this dissertation | Nothing is owed. If native work is ever authorised: adapt the image, verify boot, network, storage, reboot and image identity, each under its own protocol |
-| Digital-twin services — G2 | Six containers were deployed inside the emulated Yocto guest on 2026-09-18 and a bounded telemetry-to-twin trace was produced; that record is **candidate evidence outside the repository and unsealed** | Seal it, then demonstrate MQTT/TLS → controller → Ditto → API with identity-reconciled evidence labelled emulated |
+| Digital-twin services — G2 | Six containers were deployed inside the emulated Yocto guest on 2026-09-18 and a bounded telemetry-to-twin trace was produced; that record is **a locally hash-sealed candidate outside the published evidence package, not admitted** | Incorporate it into the published evidence package, then demonstrate MQTT/TLS → controller → Ditto → API with identity-reconciled evidence labelled emulated |
 | Wearable simulator and recovery — G3 | Three profiles and six scenarios implemented with unit-level checks. The nine integration/recovery test families were exercised once on 2026-09-18: functional results were shown for tests 2 and 8 and for the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only). The record is a locally hash-sealed candidate archive held outside the repository, not admitted to the project evidence record. *Corrected 2026-09-19: the earlier "seven passing" overstated it* | Complete the nine families — the battery is **not complete**: test 5 fails its deadline criterion (326 of 2,016 valid events confirmed late), two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`), both runbook prose steps that the extracted test commands did not include — and the timed harness parts of tests 1 and 6 are invalid. Two diagnostic findings recorded on 2026-09-19 are open: a delivery backlog under QEMU/TCG, and a controller restart that appears to discard the controller's in-memory queue (bears on C12). Only the smartwatch is paper-aligned, with ring/clothing as dissertation extensions |
 | Experimental tooling and pilot — G4 | Campaign runner, collection and analysis code have unit-level evidence | Verify instrumentation against the emulated guest, generate the hashed runtime lock for the controller image, complete the bounded pilot and freeze the protocol |
 | Experimental campaign — G5 | **Not executed**; no admitted campaign dataset | Select the emulated functional campaign at the pilot and run it frozen. The 95-run composition, the 24-hour soak included, is the quantity that campaign **attempts to reach** under QEMU, subject to the pilot's feasibility check — superseding the earlier position that it was not carried over; it is neither the frozen protocol nor a promise of 95 valid runs |
@@ -106,14 +105,15 @@ superiority. Native deployment and native measurement are documented,
 unverified future work, and their absence is an explicit limitation.
 Demonstrated by 2026-09-18, all emulated: the image build, two boots and an
 isolated MongoDB 7.0.39 test, sealed under `docs/evidence/integrated-qemu/`;
-and, held **outside the repository and unsealed**, the deployment of the
+and, as a **locally hash-sealed candidate outside the published evidence package, not admitted**, the deployment of the
 six-container stack in the guest and the first bounded end-to-end functional
 test (one smartwatch, 1 Hz, 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late,
 0 duplicate, 0 failed, 0 rejected; twin `last_seq` 59; reconciliation by
 identity exit 0; maximum latency 12,286 ms, emulated and informational). That
 run exposed two defects, both fixed on `dev`, and a memory-cgroup OOM killed
 the `ditto-things` JVM during the power-off of the session; the corrective work
-is open, so no stability is claimed. The nine integration/recovery test families
+is merged through pull request #34, and beyond bounded observations no stability
+is claimed. The nine integration/recovery test families
 were exercised once on 2026-09-18 *(corrected 2026-09-19: the earlier statement
 that seven passed overstated the record)*. Functional results were demonstrated
 for tests 2 and 8 and for the tested checks of test 9, and the specific
@@ -123,8 +123,7 @@ sequence-reset sub-check of test 4 nor the Ditto repeat of test 7 was run, and
 the timed harness parts of tests 1 and 6 are invalid. That record is a
 locally hash-sealed candidate archive held outside the repository, not
 incorporated into or admitted by the project evidence record; the battery is
-not complete, the instrumentation defect is a separate change, and nothing has
-been measured.
+not complete, the instrumentation defect is a separate change, and no official campaign has been completed or admitted: the battery's diagnostic measurements are not accepted campaign results or native performance evidence.
 
 Dates for current planning: planned submission **2026-10-20** and final delivery
 deadline **2026-10-31**; the days from 2026-10-21 to 2026-10-31 are a contingency
@@ -165,9 +164,10 @@ no extension and does not alter the
    title, the research questions and the review window are reported confirmed
    and are not re-requested. Functional integration work under QEMU/TCG
    proceeds in parallel and does not wait for those replies.
-2. Seal the first-flow record of 2026-09-18 inside the repository, then resolve
-   the `ditto-things` teardown OOM and the container memory sizing. Claim no
-   stability until that is done.
+2. Incorporate the locally hash-sealed first-flow record of 2026-09-18 into the published evidence package, then re-measure
+   the Ditto memory footprint under the limits that pull request #34 merged for
+   the `ditto-things` teardown OOM. Claim no general or prolonged stability from
+   the bounded observations made so far.
 3. Complete the nine integration/recovery test families in the emulated guest
    once test acceptance resumes (it is paused at the student's request): run
    the two sub-checks that were not run — the sequence-reset sub-check of

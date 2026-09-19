@@ -78,8 +78,8 @@ decomposition, not two separately deployed artefacts. A Yocto root filesystem
 run in a container or chroot does not satisfy the objective, and neither does a
 Yocto image booted while Ditto runs on another Linux installation. Eclipse
 Ditto runs inside the Yocto guest: that was demonstrated under emulation on
-2026-09-18, and the record of it is candidate evidence held outside the
-repository and unsealed, so it admits no claim.
+2026-09-18, and the record of it is a locally hash-sealed candidate held outside the
+published evidence package and not admitted, so it admits no claim.
 
 **QEMU produces no performance result.** Timing, observed throughput and
 resource use recorded in this environment are informational, labelled emulated,

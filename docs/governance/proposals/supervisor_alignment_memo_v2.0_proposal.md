@@ -36,8 +36,9 @@ families has been run" — later on
 2026-09-18 the nine were exercised once, seven passed, and tests 1 and 6 carry a
 failing harness part from the resource sampler under emulation. *(Marker of
 2026-09-19, added by a later correction; the sentence before it is kept as
-written: "seven passed" overstates the record, and "unsealed" in the next
-sentence misstates it — see the marker in item 6.)* That record is
+written: "seven passed" overstates the record, "unsealed" in the next
+sentence misstates it and "nothing has been measured" there is too broad — see
+the marker in item 6.)* That record is
 held outside the repository and unsealed, so the battery is **not complete** and
 nothing has been measured; item 6 below now states both halves.
 
@@ -130,7 +131,7 @@ particular:
    test 4 and the Ditto repeat of test 7 were not run; the timed harness runs
    of tests 1 and 6 are invalid. The
    record is a locally hash-sealed candidate archive outside the repository, not
-   admitted to the project evidence record.)* Emulated runs give functional and integration
+   admitted to the project evidence record. The bold first-flow sentence earlier in this item is likewise not to be sent as written: that record is a locally hash-sealed candidate outside the published evidence package, not admitted. Nor is the sentence on the corrective work: the memory and graceful-stop correction has since been merged into `dev` through pull request #34, only bounded observations follow from it, and no general or prolonged stability is claimed. "Nothing has been measured" is also too broad: no official campaign has been completed or admitted, and the battery's measurements are diagnostic, not accepted campaign results or native performance evidence.)* Emulated runs give functional and integration
    evidence only and support no ARM64 hardware performance conclusion; the
    maximum latency observed in the flow above is an emulated observation and not
    a performance result. **The request to you (D014, reworded as a standing
@@ -166,7 +167,7 @@ remains.)* Every date after 2026-09-18 is a planning target.
 
 Existing G1 evidence remains valid for functional build/boot only. The
 integrated evidence produced so far is emulated, functional, and in the case of
-the deployment and the first flow held outside the repository and unsealed. **No
+the deployment and the first flow held outside the repository and unsealed. *(Marker of 2026-09-19, added by a later correction; the sentence before it is kept as written and is not to be sent as written: the deployment and first-flow record is a locally hash-sealed candidate outside the published evidence package, not admitted.)* **No
 performance result is claimed**, and no gate or claim is accepted. Record actual
 replies against D011-D014 and the surviving D004/D006/D007 items in the
 [decision log](../supervisor_decision_log.csv); sending this memo is a student action.
