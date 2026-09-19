@@ -175,12 +175,32 @@ def test_an_interrupted_copy_is_recovered_without_rerunning(roots):
             raise OSError("copy interrupted")
         return le._copy_verified(src, dst, retries)
 
-    with pytest.raises(OSError):
+    with pytest.raises(le.ExportError, match="operating-system error"):
         le.export_attempt(a, dest, copier=dying)
     assert (dest / "incomplete" / a.name).is_dir()
+    assert json.loads((a / "export" / "receipt.json").read_text())["state"] == "failed"
+    assert "INCOMPLETE" in (dest / "INDEX.md").read_text()
     results = le.recover(attempts, dest)
     assert results == [{"run_id": a.name, "result": "exported"}]
     assert len(list((dest / "runs").rglob("t*.csv"))) == 3
+
+
+def test_the_real_copy_check_catches_a_corrupted_destination(roots, monkeypatch):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    (a / "tests" / "junit.xml").write_text("<testsuite/>")
+    le.finish_attempt(a, "finished")
+    real = le.shutil.copyfile
+
+    def corrupt(src, dst, *args, **kwargs):
+        real(src, dst)
+        with open(dst, "ab") as fh:
+            fh.write(b"!")
+
+    monkeypatch.setattr(le.shutil, "copyfile", corrupt)
+    with pytest.raises(le.ExportError, match="did not verify"):
+        le.export_attempt(a, dest)
+    assert not list((dest / "runs").rglob("junit.xml"))
 
 
 def test_secrets_are_excluded_with_a_redacted_derivative(roots, tmp_path):
@@ -216,17 +236,122 @@ def test_a_missing_artefact_is_declared_not_fabricated(roots, tmp_path):
     assert "did not exist at export time" in summary and "`raw/*/resources.csv`: **missing**" in summary
 
 
-def test_a_running_attempt_is_not_exported_but_a_dead_one_is_recovered_as_interrupted(roots):
+def test_a_running_attempt_is_never_touched_unless_the_operator_names_it(roots):
     attempts, dest, env = roots
     a = _attempt(attempts, dest)
     with pytest.raises(le.ExportError, match="still marked running"):
         le.export_attempt(a, dest)
-    le.update_attempt(a, {"pid": 2 ** 22 + 12345})  # no such process
-    results = le.recover(attempts, dest)
+    # recover in another terminal while the attempt is still being driven:
+    assert le.recover(attempts, dest)[0]["result"].startswith("running: not touched")
+    assert json.loads((a / "attempt.json").read_text())["status"] == "running"
+    assert not (dest / "runs").exists() or not list((dest / "runs").rglob(a.name))
+    # the operator says its process died:
+    le.run_command(a, "partial", [sys.executable, "-c", "print(1)"], echo=False)
+    results = le.recover(attempts, dest, interrupt=[a.name])
     assert results[0]["result"] == "exported"
     pkg = next((dest / "runs").rglob(a.name))
     attempt = json.loads((pkg / "attempt.json").read_text())
     assert attempt["status"] == "interrupted" and attempt["system_outcome"] == "interrupted"
+    last = json.loads((a / "commands.jsonl").read_text().splitlines()[-1])
+    assert attempt["ended_utc"] == last["ended_utc"]  # not the time of the recovery
+
+
+def test_a_package_finalised_from_an_earlier_state_is_not_reported_as_exported(roots):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    le.finish_attempt(a, "interrupted", system_outcome="interrupted")
+    le.export_attempt(a, dest)
+    le.finish_attempt(a, "finished", system_outcome="pass")
+    with pytest.raises(le.ExportError, match="earlier state"):
+        le.export_attempt(a, dest)
+
+
+def test_recover_goes_on_after_one_attempt_fails(roots):
+    attempts, dest, env = roots
+    bad = _attempt(attempts, dest)
+    le.finish_attempt(bad, "finished")
+    le.update_attempt(bad, {"run_id": "not a valid id"})
+    good = _attempt(attempts, dest, scenario="other")
+    le.finish_attempt(good, "finished")
+    results = {r["run_id"]: r["result"] for r in le.recover(attempts, dest)}
+    assert results[bad.name].startswith("export failed")
+    assert results[good.name] == "exported"
+
+
+def test_a_secret_in_an_attempt_field_never_reaches_the_summary(roots):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    le.finish_attempt(a, "failed", system_outcome="fail", reason=f"broker refused --password {SECRET}")
+    m = le.export_attempt(a, dest, secrets=le.load_secrets(env))
+    pkg = Path(m["destination"]["package"])
+    assert SECRET.encode() not in _all_bytes(pkg)
+    assert "[REDACTED:MOSQUITTO_SIMULATOR_PASSWORD]" in (pkg / "SUMMARY.md").read_text()
+    assert m["secret_scan"]["secret_values"] == ["MOSQUITTO_SIMULATOR_PASSWORD"]
+    assert "| fail |" in (dest / "INDEX.md").read_text()  # verdicts read from the redacted attempt
+
+
+def test_an_export_without_secret_values_says_so(roots):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    le.finish_attempt(a, "finished")
+    m = le.export_attempt(a, dest)
+    assert "NO env file" in (Path(m["destination"]["package"]) / "SUMMARY.md").read_text()
+
+
+def test_sources_with_the_same_name_get_distinct_folders(roots, tmp_path):
+    attempts, dest, env = roots
+    one = _raw_capsule(tmp_path / "a", "r01")
+    two = _raw_capsule(tmp_path / "b", "r01")
+    a = _attempt(attempts, dest)
+    le.add_source(a, "raw", one)
+    le.add_source(a, "raw", two)
+    le.finish_attempt(a, "finished")
+    pkg = Path(le.export_attempt(a, dest)["destination"]["package"])
+    assert verify_sha256sums(pkg / "raw" / "r01") == []
+    assert verify_sha256sums(pkg / "raw" / "source02-r01") == []
+
+
+def test_names_that_differ_only_by_case_are_refused(roots, tmp_path):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    (a / "analysis" / "Table.csv").write_text("1")
+    (a / "analysis" / "table.csv").write_text("2")
+    le.finish_attempt(a, "finished")
+    if len(list((a / "analysis").iterdir())) < 2:
+        pytest.skip("case-insensitive filesystem")
+    with pytest.raises(le.ExportError, match="same package path on Windows"):
+        le.export_attempt(a, dest)
+
+
+def test_expected_artefact_patterns_do_not_cross_folders(roots, tmp_path):
+    attempts, dest, env = roots
+    raw = tmp_path / "results" / "raw" / "nominal-r01"
+    (raw / "logs").mkdir(parents=True)
+    (raw / "logs" / "manifest.json").write_text("{}")
+    a = _attempt(attempts, dest)
+    le.add_source(a, "raw", raw)
+    le.update_attempt(a, {"expected_artefacts": ["raw/*/manifest.json"]})
+    le.finish_attempt(a, "finished")
+    summary = (Path(le.export_attempt(a, dest)["destination"]["package"]) / "SUMMARY.md").read_text()
+    assert "`raw/*/manifest.json`: **missing**" in summary
+
+
+def test_a_relative_source_is_recorded_absolute(roots, tmp_path, monkeypatch):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    monkeypatch.chdir(tmp_path)
+    le.add_source(a, "raw", "results/raw/later")
+    path = json.loads((a / "sources.json").read_text())["sources"][0]["path"]
+    assert Path(path).is_absolute() and path.endswith("results/raw/later")
+
+
+def test_a_command_never_overwrites_an_earlier_console_file(roots):
+    attempts, dest, env = roots
+    a = _attempt(attempts, dest)
+    (a / "console" / "001-crashed.stdout.txt").write_text("kept")
+    le.run_command(a, "next", [sys.executable, "-c", "print(2)"], echo=False)
+    assert (a / "console" / "001-crashed.stdout.txt").read_text() == "kept"
+    assert (a / "console" / "002-next.stdout.txt").is_file()
 
 
 def test_a_historical_backfill_keeps_its_seal_and_is_indexed_as_historical(roots, tmp_path):
@@ -242,6 +367,10 @@ def test_a_historical_backfill_keeps_its_seal_and_is_indexed_as_historical(roots
     assert "*(historical)*" in (dest / "INDEX.md").read_text()
     assert le.backfill(raw, attempts, dest, name="controller_restart-r02", scenario="x", date="2026-09-19",
                        note="again")["note"].startswith("already exported")
+    other = _raw_capsule(tmp_path / "elsewhere", "controller_restart-r02")
+    with pytest.raises(le.ExportError, match="already used"):
+        le.backfill(other, attempts, dest, name="controller_restart-r02", scenario="x", date="2026-09-19",
+                    note="a different capsule under the same name")
 
 
 def test_the_index_never_loses_an_attempt(roots):
@@ -263,12 +392,18 @@ def test_the_command_line_round_trip(roots, capsys):
     attempts, dest, env = roots
     assert le.main(["new", "--attempts-root", str(attempts), "--scenario", "cli", "--purpose", "engineering"]) == 0
     a = capsys.readouterr().out.strip()
-    assert le.main(["exec", "--attempt", a, "--name", "false", "--", sys.executable, "-c", "raise SystemExit(5)"]) == 5
+    assert le.main(["exec", "--attempt", a, "--name", "false", "--secrets-env", str(env), "--",
+                    sys.executable, "-c", "raise SystemExit(5)"]) == 5
     assert le.main(["set", "--attempt", a, "workload={\"devices\": 1}"]) == 0
     assert le.main(["finish", "--attempt", a, "--status", "failed", "--outcome", "fail", "--reason", "exit 5"]) == 0
     assert le.main(["export", "--attempt", a, "--dest-root", str(dest), "--secrets-env", str(env)]) == 0
     assert "verified" in capsys.readouterr().out
-    assert le.main(["export", "--attempt", str(Path(a).parent / "nope"), "--dest-root", str(dest)]) == 2
+    assert le.main(["export", "--attempt", str(Path(a).parent / "nope"), "--dest-root", str(dest),
+                    "--secrets-env", str(env)]) == 2
+    with pytest.raises(SystemExit):  # the secret scan is not optional on the command line
+        le.main(["export", "--attempt", a, "--dest-root", str(dest)])
+    with pytest.raises(SystemExit):  # an empty destination would write into the current directory
+        le.main(["export", "--attempt", a, "--dest-root", " ", "--secrets-env", str(env)])
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs FIFOs")

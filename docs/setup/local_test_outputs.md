@@ -65,6 +65,7 @@ The tool is `python -m egw_experiments.local_export` (source:
 Run it from the clean clone's `src/` with its virtual environment.
 
 ```bash
+OUT="/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test"   # the WSL path of the Windows folder
 A=$(python -m egw_experiments.local_export new --attempts-root ~/egw-exec/attempts \
       --scenario "smartwatch slice" --purpose engineering --dest-root "$OUT")
 python -m egw_experiments.local_export exec --attempt "$A" --name pytest \
@@ -77,13 +78,27 @@ python -m egw_experiments.local_export export --attempt "$A" --dest-root "$OUT" 
       --secrets-env ~/egw-tcg/.env
 python -m egw_experiments.local_export recover --attempts-root ~/egw-exec/attempts \
       --dest-root "$OUT" --secrets-env ~/egw-tcg/.env      # after a crash
+python -m egw_experiments.local_export recover --attempts-root ~/egw-exec/attempts \
+      --dest-root "$OUT" --secrets-env ~/egw-tcg/.env --interrupt <run_id>   # an attempt whose process died
 ```
 
 `exec` keeps each command's stdout and stderr in `console/` and records its
 argv in `commands.jsonl` with every secret value replaced by the variable's
 name; it exits with the command's own exit code. `add-source` names artefacts
 written elsewhere (a harness raw directory, a simulator run directory and its
-`<run_id>.*` siblings), which the export copies under `raw/` or `simulator/`.
+`<run_id>.*` siblings), which the export copies under `raw/` or `simulator/`;
+two sources with the same name get distinct folders. `--secrets-env` is
+required on `exec`, `export`, `recover` and `backfill`, and every summary states
+which variables were searched. `recover` exports every attempt without a
+complete export, historical ones included, and never touches an attempt still
+marked running unless it is named with `--interrupt`: a running attempt may be
+driven from another terminal. A package already finalised from an earlier
+state of its attempt is never replaced; exporting the changed attempt then
+fails with a message that says so.
+
+The export runs automatically, at completion and on failure, when an attempt
+is driven by the session drivers in [`tools/session/`](../../tools/session/README.md);
+a command run by hand is exported by hand.
 
 ## Rules the export keeps
 
@@ -100,13 +115,20 @@ written elsewhere (a harness raw directory, a simulator run directory and its
 - A file holding a secret value from the given env file, or a private key, is
   not copied. It is listed as excluded and, when it is text, replaced by a
   separately named redacted derivative (`*.sanitized`); the original stays on
-  the WSL side only.
-- FIFOs, sockets and symlinks are listed and never read.
-- Missing artefacts are listed as missing; nothing is fabricated.
-- Raw packages and archives never enter Git. Only the tool, its tests and this
-  page are versioned.
+  the WSL side only. The summary and the export manifest are written from
+  redacted copies of the attempt's fields.
+- FIFOs, sockets and symlinks are listed and never read. Two package paths
+  that differ only by letter case are refused, because Windows would merge
+  them.
+- Missing artefacts are listed as missing; nothing is fabricated. An operating
+  system error during the copy (a full disk, a file held open by Explorer)
+  leaves the partial package under `incomplete/`, listed in the index, and a
+  later export resumes it.
+- Raw packages and archives never enter Git. Only the tool, its tests, the
+  session drivers and this page are versioned.
 
-The analysis (`python -m egw_experiments analyze --base-dir <dir>`) rewrites
-`<dir>/processed` and `<dir>/figures`. Point it at a copy of a package's
-`raw/` tree, never at the package itself, so that a sealed package is not
-modified.
+The analysis (`python -m egw_experiments analyze --base-dir <dir>`) reads
+`<dir>/raw/<run_id>/` and rewrites `<dir>/processed` and `<dir>/figures`. To
+analyse an exported harness run, copy its `raw/<run_id>/` folder into a new
+working folder, as `<work>/raw/<run_id>/`, and pass `--base-dir <work>`: a
+sealed package is then never modified.

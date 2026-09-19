@@ -259,16 +259,40 @@ def add_source(
         raise ValueError(f"kind must be one of {SOURCE_KINDS}")
     attempt_dir = Path(attempt_dir)
     sources = _read_json(attempt_dir / "sources.json")
+    # Always absolute: a path that does not exist yet must not later be
+    # resolved against whatever directory the export happens to run in.
+    p = Path(path)
     sources["sources"].append(
-        {"kind": kind, "path": str(Path(path).resolve() if Path(path).exists() else path),
+        {"kind": kind, "path": str(p.resolve() if p.exists() else p.absolute()),
          "siblings_glob": siblings_glob, "role": role, "added_utc": utc_now()}
     )
     _write_json(attempt_dir / "sources.json", sources)
 
 
-def _next_seq(attempt_dir: Path) -> int:
-    lines = (attempt_dir / "commands.jsonl").read_text(encoding="utf-8").splitlines()
-    return len([ln for ln in lines if ln.strip()]) + 1
+def _open_console_pair(attempt_dir: Path, slug: str):
+    """The next free command number, with its two console files created exclusively.
+
+    The number is one more than any number already used in ``console/``, so an
+    interrupted command (console files, no record) or a concurrent one never has
+    its output overwritten.
+    """
+    console = attempt_dir / "console"
+    console.mkdir(exist_ok=True)
+    while True:
+        used = [int(m.group(1)) for m in (re.match(r"^(\d{3,})-", p.name) for p in console.iterdir()) if m]
+        seq = max(used, default=0) + 1
+        out_rel = f"console/{seq:03d}-{slug}.stdout.txt"
+        err_rel = f"console/{seq:03d}-{slug}.stderr.txt"
+        try:
+            out_f = open(attempt_dir / out_rel, "xb")
+        except FileExistsError:
+            continue
+        try:
+            err_f = open(attempt_dir / err_rel, "xb")
+        except FileExistsError:
+            out_f.close()
+            continue
+        return seq, out_rel, err_rel, out_f, err_f
 
 
 def _tee(stream, sinks) -> None:
@@ -299,17 +323,15 @@ def run_command(
     """
     attempt_dir = Path(attempt_dir)
     secrets = secrets or {}
-    seq = _next_seq(attempt_dir)
     slug = scenario_slug(name)
-    out_rel = f"console/{seq:03d}-{slug}.stdout.txt"
-    err_rel = f"console/{seq:03d}-{slug}.stderr.txt"
+    seq, out_rel, err_rel, out_file, err_file = _open_console_pair(attempt_dir, slug)
     data = _read_json(attempt_dir / "attempt.json")
     if not data.get("started_utc"):
         update_attempt(attempt_dir, {"started_utc": utc_now()})
     started = utc_now()
     t0 = _dt.datetime.now(_dt.timezone.utc)
     code: int
-    with open(attempt_dir / out_rel, "wb") as out_f, open(attempt_dir / err_rel, "wb") as err_f:
+    with out_file as out_f, err_file as err_f:
         try:
             proc = subprocess.Popen(
                 argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL
@@ -396,7 +418,8 @@ def _plan_files(attempt_dir: Path) -> _Plan:
         else:
             _walk(plan, p, p.name)
     sources = _read_json(attempt_dir / "sources.json")["sources"] if (attempt_dir / "sources.json").is_file() else []
-    for src in sources:
+    taken: set[str] = set()
+    for idx, src in enumerate(sources, start=1):
         path = Path(src["path"])
         top = src["kind"]
         entries = [path]
@@ -411,24 +434,37 @@ def _plan_files(attempt_dir: Path) -> _Plan:
             plan.missing.append({"kind": top, "path": str(path), "role": src.get("role", "")})
             entries = entries[1:]
         for entry in entries:
+            # Two sources with the same name (two runs called 'r01' in two
+            # places) get distinct folders instead of making the export fail.
+            name = entry.name
+            if f"{top}/{name}".casefold() in taken:
+                name = f"source{idx:02d}-{entry.name}"
+            taken.add(f"{top}/{name}".casefold())
+            rel = f"{top}/{name}"
             if entry.is_symlink():
-                plan.special.append({"package_path": f"{top}/{entry.name}", "source": str(entry), "type": "symlink"})
+                plan.special.append({"package_path": rel, "source": str(entry), "type": "symlink"})
             elif entry.is_dir():
-                _walk(plan, entry, f"{top}/{entry.name}")
+                _walk(plan, entry, rel)
             elif entry.is_file():
-                plan.files.append((entry, f"{top}/{entry.name}"))
+                plan.files.append((entry, rel))
             else:
-                plan.special.append({"package_path": f"{top}/{entry.name}", "source": str(entry),
+                plan.special.append({"package_path": rel, "source": str(entry),
                                      "type": "special file (FIFO, socket or device)"})
-    seen: set[str] = set()
-    unique = []
-    for src, rel in plan.files:
-        if rel in seen:
-            raise ExportError(f"two artefacts map to the same package path {rel!r}")
-        seen.add(rel)
-        unique.append((src, rel))
-    plan.files = unique
+    # Windows paths are case-insensitive: two names that differ only by case
+    # would land on one file there, so the plan is refused instead.
+    seen: dict[str, str] = {}
+    for _src, rel in plan.files:
+        key = rel.casefold()
+        if key in seen:
+            raise ExportError(f"two artefacts map to the same package path on Windows: {seen[key]!r} and {rel!r}")
+        seen[key] = rel
     return plan
+
+
+def _glob_match(path: str, pattern: str) -> bool:
+    """Shell-style match where ``*`` and ``?`` never cross a ``/``."""
+    rx = "".join("[^/]*" if c == "*" else "[^/]" if c == "?" else re.escape(c) for c in pattern)
+    return re.fullmatch(rx, path) is not None
 
 
 def _scan(path: Path, secrets: dict[str, bytes]) -> list[str]:
@@ -499,6 +535,8 @@ def export_attempt(
     Raises :class:`ExportError` when a copy cannot be verified; the partial
     package then stays under ``incomplete/`` and a later call resumes it.
     """
+    if not str(dest_root).strip():
+        raise ExportError("no destination root given")
     attempt_dir = Path(attempt_dir)
     dest_root = Path(dest_root)
     secrets = secrets or {}
@@ -516,6 +554,11 @@ def export_attempt(
         if not problems and (final / "export_manifest.json").is_file():
             manifest = _read_json(final / "export_manifest.json")
             if manifest.get("run_id") == run_id:
+                stale = _stale_against(manifest, attempt_dir)
+                if stale:
+                    raise ExportError(
+                        f"a package of this attempt was finalised from an earlier state ({', '.join(stale)} "
+                        f"changed since); the current state was NOT exported and the package is never replaced")
                 rebuild_index(dest_root)
                 return {**manifest, "note": "already exported; the package verifies"}
         raise ExportError(f"{final} already exists and does not verify as this attempt's package: {problems[:3]}")
@@ -523,6 +566,33 @@ def export_attempt(
     if attempt.get("status") == "running":
         raise ExportError("the attempt is still marked running; finish it (or recover it) first")
 
+    try:
+        return _export(attempt, attempt_dir, dest_root, final, staging, receipt_path, secrets, copier)
+    except OSError as exc:
+        # Disk full, access denied, a vanished file, a rename blocked by a
+        # Windows handle: the partial package stays visible and is indexed.
+        _write_receipt(receipt_path, "failed", staging, {"copy_verification": f"failed: {exc}"})
+        try:
+            rebuild_index(dest_root)
+        except OSError:
+            pass
+        raise ExportError(f"export interrupted by an operating-system error: {exc}; the partial package stays in "
+                          f"{staging} and a later export resumes it") from exc
+
+
+def _stale_against(manifest: dict, attempt_dir: Path) -> list[str]:
+    """Attempt files whose current bytes differ from the finalised package's copy."""
+    recorded = {f["package_path"]: f["sha256"] for f in manifest.get("files", [])}
+    changed = []
+    for name in ("attempt.json", "commands.jsonl", "sources.json"):
+        p = attempt_dir / name
+        if name in recorded and p.is_file() and sha256_file(p) != recorded[name]:
+            changed.append(name)
+    return changed
+
+
+def _export(attempt, attempt_dir, dest_root, final, staging, receipt_path, secrets, copier) -> dict:
+    run_id = attempt["run_id"]
     plan = _plan_files(attempt_dir)
     staging.mkdir(parents=True, exist_ok=True)
     files, excluded, sanitized, failed = [], [], [], []
@@ -575,21 +645,41 @@ def export_attempt(
         "sanitized_derivatives": sanitized,
         "copy_verification": "verified" if not failed else "failed",
         "failed_copies": failed,
+        "secret_scan": {
+            "secret_values": sorted(secrets),
+            "private_keys": True,
+            "note": "values of the listed variables (names only) and PEM private keys were searched in every file"
+                    if secrets else "NO env file was given: only PEM private keys were searched",
+        },
     }
+    manifest = json.loads(redact_text(json.dumps(manifest, ensure_ascii=False), secrets))
     _write_json(staging / "export_manifest.json", manifest)
     if failed:
         _write_receipt(receipt_path, "failed", staging, manifest)
         rebuild_index(dest_root)
         raise ExportError(f"{len(failed)} file(s) did not verify after copying: {failed[:5]}; the package stays in {staging}")
 
-    (staging / "SUMMARY.md").write_text(render_summary(attempt, manifest, _read_commands(attempt_dir)), encoding="utf-8")
-    for f in _scan_package_for_secrets(staging, secrets):
-        raise ExportError(f"generated file {f} contains a secret value; not finalised")
+    # The summary is rendered from redacted copies: a secret that reached an
+    # attempt field (a reason, a workload note) must not reach Windows.
+    attempt_r = json.loads(redact_text(json.dumps(attempt, ensure_ascii=False), secrets))
+    commands_r = [json.loads(redact_text(json.dumps(c, ensure_ascii=False), secrets)) for c in _read_commands(attempt_dir)]
+    (staging / "SUMMARY.md").write_text(render_summary(attempt_r, manifest, commands_r), encoding="utf-8")
+    hits = _scan_package_for_secrets(staging, secrets)
+    if hits:
+        for name in hits:
+            (staging / name).unlink()
+        _write_receipt(receipt_path, "failed", staging, manifest)
+        rebuild_index(dest_root)
+        raise ExportError(f"generated file(s) {hits} still held a secret value and were removed; not finalised")
     write_sha256sums(staging)
     problems = verify_sha256sums(staging)
-    if problems:
+    listed = {ln[66:] for ln in (staging / "SHA256SUMS").read_text(encoding="utf-8").splitlines() if len(ln) > 66}
+    unlisted = [f["package_path"] for f in files if f["package_path"] not in listed]
+    if problems or unlisted:
         _write_receipt(receipt_path, "failed", staging, manifest)
-        raise ExportError(f"the package's SHA256SUMS does not verify: {problems[:3]}")
+        rebuild_index(dest_root)
+        raise ExportError(f"the package's SHA256SUMS does not verify ({problems[:3]}) or misses copied files "
+                          f"({unlisted[:3]}); not finalised")
     final.parent.mkdir(parents=True, exist_ok=True)
     os.replace(staging, final)
     manifest["destination"]["windows_path"] = _wsl_to_windows(final.resolve())
@@ -680,6 +770,7 @@ def render_summary(attempt: dict, manifest: dict, commands: list[dict]) -> str:
         f"| Copy verification | **{manifest.get('copy_verification')}** — {len(manifest.get('files', []))} file(s) "
         f"copied and verified by SHA-256; {len(manifest.get('excluded', []))} excluded for secrets; "
         f"{len(manifest.get('missing_sources', []))} expected source(s) missing |",
+        f"| Secret scan | {_cell((manifest.get('secret_scan') or {}).get('note', 'not recorded'))} |",
         f"| Reason | {_cell(attempt.get('reason'))} |",
         f"| Next action | {_cell(attempt.get('next_action'))} |",
         "",
@@ -699,7 +790,7 @@ def render_summary(attempt: dict, manifest: dict, commands: list[dict]) -> str:
         present = {f["package_path"] for f in manifest.get("files", [])}
         lines += ["## Expected artefacts", ""]
         for exp in attempt["expected_artefacts"]:
-            ok = any(fnmatch.fnmatchcase(p, exp) for p in present)
+            ok = any(_glob_match(p, exp) for p in present)
             lines.append(f"- `{exp}`: {'present' if ok else '**missing**'}")
         lines.append("")
     if manifest.get("skipped_special"):
@@ -735,7 +826,11 @@ def _package_rows(dest_root: Path) -> list[dict]:
         for d in sorted(dirs):
             if not d.is_dir():
                 continue
+            # attempt.json may have been excluded for a secret: its redacted
+            # derivative then carries the verdicts.
             a = d / "attempt.json"
+            if not a.is_file():
+                a = d / "attempt.json.sanitized"
             try:
                 attempt = _read_json(a) if a.is_file() else {"run_id": d.name}
             except (OSError, json.JSONDecodeError):
@@ -819,8 +914,10 @@ one folder per attempt, at completion and on failure. Nothing is replaced.
   validity is in its summary and, for harness runs, in its raw manifest.
 
 QEMU observations are ARM64 EMULATED (QEMU/TCG), never native ARM64 performance. A package
-here is not published or admitted evidence and not an off-machine backup. Secrets are
-never copied: a file that contains one is listed as excluded, with a redacted derivative.
+here is not published or admitted evidence and not an off-machine backup. A file that
+holds the value of a secret variable of the env file given to the export, or a private
+key, is not copied: it is listed as excluded, with a redacted derivative. Each summary
+states which variables were searched.
 
 Written by `python -m egw_experiments.local_export` (repository `src/egw_experiments/local_export.py`).
 """
@@ -831,40 +928,55 @@ Written by `python -m egw_experiments.local_export` (repository `src/egw_experim
 # --------------------------------------------------------------------------
 
 
-def _pid_alive(pid) -> bool:
-    try:
-        os.kill(int(pid), 0)
-    except (OSError, TypeError, ValueError):
-        return False
-    return True
+def recover(
+    attempts_root: str | Path,
+    dest_root: str | Path,
+    *,
+    secrets: dict[str, bytes] | None = None,
+    interrupt: Iterable[str] = (),
+) -> list[dict]:
+    """Export every attempt (historical ones included) without a complete export.
 
-
-def recover(attempts_root: str | Path, dest_root: str | Path, *, secrets: dict[str, bytes] | None = None) -> list[dict]:
-    """Export every attempt that has no complete export receipt.
-
-    An attempt still marked running whose process is gone is marked
-    interrupted first: a crash never hides an attempt.
+    An attempt still marked running is NOT touched: whether its process is
+    alive cannot be told reliably (it may be driven by a shell script from
+    another terminal). The operator names the attempts that died with
+    ``interrupt``; each is then marked interrupted, keeping any outcome it had
+    already recorded, and exported. Every attempt is handled on its own: a
+    failure is reported and the loop goes on.
     """
+    interrupt = set(interrupt)
+    root = Path(attempts_root)
+    candidates = sorted(root.glob("*")) + sorted((root / "_historical").glob("*"))
     results = []
-    for attempt_dir in sorted(Path(attempts_root).glob("*")):
+    for attempt_dir in candidates:
         if not (attempt_dir / "attempt.json").is_file():
             continue
-        receipt = attempt_dir / "export" / "receipt.json"
-        if receipt.is_file() and _read_json(receipt).get("state") == "complete":
-            continue
-        attempt = _read_json(attempt_dir / "attempt.json")
-        if attempt.get("status") == "running":
-            if _pid_alive(attempt.get("pid")) and attempt.get("pid") != os.getpid():
-                results.append({"run_id": attempt["run_id"], "result": "skipped: still running"})
-                continue
-            finish_attempt(attempt_dir, "interrupted", system_outcome="interrupted",
-                           reason=(attempt.get("reason") or "") + " [marked interrupted by recover: the process "
-                           "that ran it is gone]")
         try:
+            receipt = attempt_dir / "export" / "receipt.json"
+            if receipt.is_file() and _read_json(receipt).get("state") == "complete":
+                continue
+            attempt = _read_json(attempt_dir / "attempt.json")
+            if attempt.get("status") == "running":
+                if attempt["run_id"] not in interrupt:
+                    results.append({"run_id": attempt["run_id"], "result": "running: not touched (name it with "
+                                    "--interrupt if its process died)"})
+                    continue
+                commands = _read_commands(attempt_dir)
+                updates = {"recovered_utc": utc_now(),
+                           "reason": (attempt.get("reason") or "") + " [marked interrupted by the operator through "
+                                     "recover]"}
+                if attempt.get("system_outcome", "unknown") == "unknown":
+                    updates["system_outcome"] = "interrupted"
+                update_attempt(attempt_dir, {"status": "interrupted",
+                                             "ended_utc": commands[-1]["ended_utc"] if commands else None, **updates})
             export_attempt(attempt_dir, dest_root, secrets=secrets)
-            results.append({"run_id": attempt["run_id"], "result": "exported"})
-        except ExportError as exc:
-            results.append({"run_id": attempt["run_id"], "result": f"export failed: {exc}"})
+            results.append({"run_id": attempt_dir.name, "result": "exported"})
+        except (ExportError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+            results.append({"run_id": attempt_dir.name, "result": f"export failed: {exc}"})
+    try:
+        rebuild_index(dest_root)
+    except OSError:
+        pass
     return results
 
 
@@ -879,20 +991,29 @@ def backfill(
     note: str,
     original_validity: str = "unknown",
     original_outcome: str = "unknown",
+    emulated: bool = True,
     secrets: dict[str, bytes] | None = None,
 ) -> dict:
-    """Copy a preserved historical attempt as it is, indexed as historical."""
+    """Copy a preserved historical attempt as it is, indexed as historical.
+
+    A name identifies one source: backfilling another source under a name
+    already used is refused, never reported as the earlier package.
+    """
     run_id = "HIST_" + re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-")
     attempt_dir = Path(attempts_root) / "_historical" / run_id
-    if not attempt_dir.exists():
+    if attempt_dir.exists():
+        recorded = _read_json(attempt_dir / "attempt.json").get("original_identity")
+        if recorded != str(Path(source).absolute()) and recorded != str(Path(source).resolve()):
+            raise ExportError(f"historical name {run_id!r} is already used for {recorded}; not {source}")
+    else:
         attempt_dir.mkdir(parents=True)
         for d in ATTEMPT_DIRS:
             (attempt_dir / d).mkdir()
         (attempt_dir / "commands.jsonl").touch()
         _write_json(attempt_dir / "attempt.json", {
-            "run_id": run_id, "scenario": scenario, "purpose": "engineering", "emulated": True,
+            "run_id": run_id, "scenario": scenario, "purpose": "engineering", "emulated": emulated,
             "created_utc": f"{date}T00:00:00.000000Z", "date": date, "status": "finished", "historical": True,
-            "original_identity": str(source), "instrumentation_validity": original_validity,
+            "original_identity": str(Path(source).resolve()), "instrumentation_validity": original_validity,
             "system_outcome": original_outcome, "reason": note, "next_action": "", "identities": {},
             "workload": {}, "expected_artefacts": [], "seed": None, "started_utc": None, "ended_utc": None,
         })
@@ -928,7 +1049,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("exec", help="run one command inside an attempt; exits with its code")
     s.add_argument("--attempt", required=True)
     s.add_argument("--name", required=True)
-    s.add_argument("--secrets-env")
+    s.add_argument("--secrets-env", required=True, help="env file whose secret values are redacted from the argv")
     s.add_argument("--cwd")
     s.add_argument("cmd", nargs=argparse.REMAINDER)
 
@@ -954,12 +1075,14 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("export", help="export one attempt")
     s.add_argument("--attempt", required=True)
     s.add_argument("--dest-root", required=True)
-    s.add_argument("--secrets-env")
+    s.add_argument("--secrets-env", required=True, help="env file whose secret values are searched for")
 
     s = sub.add_parser("recover", help="export every attempt without a complete export")
     s.add_argument("--attempts-root", required=True)
     s.add_argument("--dest-root", required=True)
-    s.add_argument("--secrets-env")
+    s.add_argument("--secrets-env", required=True, help="env file whose secret values are searched for")
+    s.add_argument("--interrupt", nargs="*", default=[], metavar="RUN_ID",
+                   help="attempts still marked running whose process died: mark them interrupted and export them")
 
     s = sub.add_parser("backfill", help="copy a preserved historical attempt, indexed as historical")
     s.add_argument("--source", required=True)
@@ -971,12 +1094,15 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--note", required=True)
     s.add_argument("--validity", default="unknown", choices=VALIDITY_VALUES)
     s.add_argument("--outcome", default="unknown", choices=OUTCOME_VALUES)
-    s.add_argument("--secrets-env")
+    s.add_argument("--not-emulated", action="store_true", help="a host-side record (a build), not a guest observation")
+    s.add_argument("--secrets-env", required=True, help="env file whose secret values are searched for")
 
     s = sub.add_parser("index", help="regenerate INDEX.md from the packages on disk")
     s.add_argument("--dest-root", required=True)
 
     a = p.parse_args(argv)
+    if getattr(a, "dest_root", None) is not None and not a.dest_root.strip():
+        p.error("--dest-root must not be empty")
     try:
         if a.command == "new":
             d = new_attempt(a.attempts_root, a.scenario, a.purpose, dest_root=a.dest_root, seed=a.seed,
@@ -1004,16 +1130,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"exported {m['run_id']}: {m['destination']['windows_path']} ({m['copy_verification']}, "
                   f"{len(m['files'])} files, {len(m['excluded'])} excluded)")
         elif a.command == "recover":
-            for r in recover(a.attempts_root, a.dest_root, secrets=load_secrets(a.secrets_env)):
+            for r in recover(a.attempts_root, a.dest_root, secrets=load_secrets(a.secrets_env), interrupt=a.interrupt):
                 print(f"{r['run_id']}: {r['result']}")
         elif a.command == "backfill":
             m = backfill(a.source, a.attempts_root, a.dest_root, name=a.name, scenario=a.scenario, date=a.date,
                          note=a.note, original_validity=a.validity, original_outcome=a.outcome,
-                         secrets=load_secrets(a.secrets_env))
+                         emulated=not a.not_emulated, secrets=load_secrets(a.secrets_env))
             print(f"backfilled {m['run_id']}: {m['destination']['windows_path']} ({m['copy_verification']})")
         elif a.command == "index":
             print(rebuild_index(a.dest_root))
-    except (ExportError, ValueError, FileExistsError, FileNotFoundError) as exc:
+    except (ExportError, ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0
