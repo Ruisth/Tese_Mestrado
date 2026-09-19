@@ -394,145 +394,114 @@ analysis also uses `nproc` from this file to normalize docker-stats CPU
 percentages to host-level utilization (audit 9.7). Re-capture after any VM
 change (resize, kernel or Docker update).
 
-### 2. `scripts/collect-resources.sh` — 1 Hz container resources
+### 2. `scripts/collect-resources.sh` — container resources, one sample per second
 
-Samples `docker stats` once per second into a CSV the analysis reads
-directly (`ts_utc,container,cpu_pct,mem_bytes,mem_pct`), until SIGTERM or
-`--duration`. **Superseded on 2026-09-19 in two points** (the sentence is kept
-as the record of what the collector did until then): the default sampling
-source is no longer `docker stats` but the kernel's cgroup v2 accounting, and
-the CSV carries a sixth column, `host`, so the header is
-`ts_utc,container,cpu_pct,mem_bytes,mem_pct,host`. Start it before the run's
-warm-up, stop it after the 60 s confirmation window, fetch the CSV and ingest
-with `--resources-from`:
+> **Updated 2026-09-19.** The sentence this section used to open with — that the
+> collector "samples `docker stats` once per second" and should be stopped
+> "after the 60 s confirmation window" — no longer describes the script, and its
+> CSV schema omitted the `host` column the harness has required since work order
+> P1. What follows describes the collector as it now stands (LOG `#C034`).
+
+Appends one row per container per sample to a CSV the analysis reads directly
+(`ts_utc,container,cpu_pct,mem_bytes,mem_pct,host`), until SIGTERM,
+`--duration` or `--max-samples`:
 
 ```sh
-# on the VM (or via ssh/systemd-run; see the script header):
-sh scripts/collect-resources.sh /tmp/resources-<run_id>.csv --duration 900
+# on the VM (or through the harness hooks: see the script header):
+sh scripts/collect-resources.sh /tmp/resources-<run_id>.csv --duration 900 \
+    --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
 ```
+
+**Source.** By default it reads the kernel's cgroup v2 accounting under
+`/sys/fs/cgroup` directly — no Docker CLI, no daemon round trip. On the emulated
+guest one `docker stats --no-stream` call cost 3-5 s idle and about 21 s under
+load (2026-09-18) and 3-4 s idle (2026-09-19), which is why the previous
+collector could not reach the harness's 30 distinct instants. `--source docker`
+keeps that old path for a host whose cgroup tree is not visible; `auto` (the
+default) re-checks the source on every sample and records every change.
+
+**Columns.** `cpu_pct` is docker's single-CPU basis (100 × CPU time / elapsed
+time, over 100 for a multi-threaded container) — CPU time the *guest* accounts
+to the container, not the host QEMU process and not native performance; the
+elapsed time is the `/proc/uptime` reading kept exactly as read, so it does not
+lose precision however long the guest has been up. `mem_bytes` is
+`memory.current` minus `inactive_file` when that is smaller, otherwise
+`memory.current` — docker's cgroup v2 "used"; it is not total cgroup usage and
+does not by itself give an OOM margin. `mem_pct` divides by `memory.max`; only an
+explicit `max` means unlimited and uses the guest's `MemTotal`. An unreadable or
+empty `memory.max` — like any unreadable input — writes **no row** and a
+diagnostic: a hole is evidence of a failed sample, a zero would be a claim. The
+first sample of a container only primes its CPU delta.
+
+**Cadence and timestamps.** Timestamps have whole-second resolution, so the
+collector's job is one sample in every wall-clock second. It works with what the
+gateway's busybox 1.36.1 offers — no `$EPOCHREALTIME` (that busybox is built
+without `CONFIG_ASH_RANDOM_SUPPORT`), but a builtin fractional `sleep` — and
+nothing else:
+
+- the timestamp is the second awk reads with `systime()` as it starts the
+  sample (checked against `date +%s` at startup), formatted in UTC by arithmetic:
+  no `strftime`, whose UTC flag busybox ignores, and no time zone;
+- samples are paced on `/proc/uptime` with the fractional sleep, each aimed 0.5 s
+  into a second; the offset between the two clocks is calibrated after the first
+  sample by watching the clock the stamps come from (`systime()`, or `date +%s`
+  when awk has none) cross a boundary, and again when a sample lands in a second
+  it did not aim at — at most once every 10 s, since a calibration costs up to a
+  second of clock reads. A stepped or slewed wall clock costs a recalibration and
+  at most a skipped second, which is counted; it never turns this pacing off;
+- the last stamped second is kept in the state file: a sample in that second or
+  an earlier one (a clock stepped back) is **withheld** with a diagnostic, never
+  written, and every second left without a sample is counted and written down.
+
+Without a fractional sleep it paces on whole seconds and says so; withholding
+and counting still apply.
+
+**Files beside the CSV**, all kept after the collector exits:
+
+| File | Holds |
+|---|---|
+| `<csv>.diagnostics.log` | Every diagnostic, one timestamped line each: the collector's own `sha256` and host at start, the pacing mode and each calibration, source changes, withheld samples, seconds without a sample, unreadable inputs, a sampler process that failed, the service inventory (`inventory: observed=… expected=… missing=… unnamed_ids=…`, every name observed whether or not `--expect-services` was given) and a closing summary with the measured count of seconds without a sample |
+| `<csv>.lifecycle.csv` | `ts_utc,event,container_id,name`: each container cgroup appearing, disappearing, resetting its CPU counter (a recreated cgroup) and first resolving to a name — the id-to-service mapping and the record of a restart |
+| `<csv>.self-test` | Only in a `--self-test` run, naming every substituted input |
+
+Fetch the two companion files with the CSV (`scp 'vm:/tmp/resources-<run_id>.csv*' .`):
+they explain every gap the CSV has. The harness's fetch hook in the runbook still
+fetches the CSV alone, and its start hook does not yet pass `--expect-services`;
+both belong to the acceptance update, not to this script. Only a short excerpt of
+the diagnostics reaches stderr.
+
+**Timing against the harness.** `egw_experiments run` starts the collector just
+before any warm-up and stops it just after the measured run, **before** the 60 s
+confirmation window (`run.py`). The 30-instant rule is counted over the whole
+file. A condition with no warm-up — the 30 s `smoke_sequence` — therefore gives
+the collector almost no lead and no margin; the runbook's remedy for the
+instrumentation acceptance is a `nominal` entry, whose 120 s warm-up gives it the
+lead it needs. That is a protocol question, handled by the acceptance update.
+
+**Safety.** One collector per output file (a `mkdir` lock, `<csv>.lock`, naming
+the holder's pid); the state is written to a temporary file and moved into
+place; a state line that is not numeric is ignored rather than believed; an
+unresolved container name is shown as the 12-character id and never cached as if
+it were the name; the Docker CLI is called only for a container whose own
+`config.v2.json` cannot be read. `--cgroup-root`, `--docker-root`,
+`--uptime-from`, `--meminfo-from`, `--stamp-epoch` and `--format-epoch` are
+refused without `--self-test`, so a plain invocation can never read substituted
+inputs or a substituted clock.
+
+**What has and has not been shown** (2026-09-19), by exact version — two
+earlier versions of this script ran on the emulated guest, and neither is the
+one described above:
+
+| Version (sha256) | Where it ran | What it showed |
+|---|---|---|
+| `f17bdd8c…` — an intermediate version, never committed; it slept a whole interval after each sample | Guest, idle and under the harness (00:03-00:24 UTC) | Idle: 40 samples, 39 distinct instants, a CSV that passed `validate_resources_csv` at its production thresholds. Under the harness: a median of 1.0 s between samples but 0.84 distinct instants per second over 600 s (a second skipped about every five, from the interval-plus-cost period); neither run was ingested — `smoke_sequence-r02` held 25 instants where 30 are required, `controller_restart-r02` had a 6 s gap on the deliberately restarted controller |
+| `b7aeddba…` — commit `aa7440d`; it paced on whole seconds of `/proc/uptime` | Guest, idle only (00:26 UTC) | 30 samples in 29 s gave 26 distinct instants: two samples sharing a second |
+| This version | Not on the guest. Under `src/tests/test_collect_resources.py`: 210 cases under sh, dash, bash **and the gateway image's own busybox 1.36.1** (all but four host-shell-only cases) (its `sh` and `awk`, sha256 `ebb5f78d…`, run under the build's `qemu-aarch64` user emulator with [`tools/test/make-busybox-wrappers.sh`](../../tools/test/make-busybox-wrappers.sh)) | Exact arithmetic; the long-uptime precision; the `memory.max` rule; withheld and counted seconds; the diagnostics, lifecycle and inventory; real-time pacing that never stamps a second twice and records every second it skips, under that busybox too; and a 33-sample run that passes `validate_resources_csv` with its production thresholds and a measured window, under dash and under that busybox. **It has not yet run on the guest**, whose kernel supplies the real cgroup files; under the busybox emulation the kernel, `/proc` and the cgroup trees are the build host's |
+
+Nothing has been measured.
 
 The harness's own `--local-resources` sampler measures the load-generator
 host and is dev-only (audit 9.1).
-
-#### Why the source changed (2026-09-19)
-
-On the emulated ARM64 guest (QEMU/TCG) one `docker stats --no-stream` call
-cost 3 to 5 s while the stack was idle and about 21 s while it was working,
-because the CLI must round-trip the daemon and the daemon samples every
-container: the collector produced **7 distinct sample instants across 42 rows
-in a 150 s window**, against `MIN_DISTINCT_SAMPLE_INSTANTS = 30` and
-`MIN_RESOURCE_SAMPLES = 30` (`src/egw_experiments/resources.py`).
-`egw_experiments run` therefore refused the timed run, marked it `invalid` and
-withheld `SHA256SUMS`. The harness was behaving correctly; the sampler was the
-defect. Those figures were observed on 2026-09-18 and recorded in a
-candidate-evidence note held **outside** this repository and unsealed; they are
-not evidence in this repository and no claim rests on them.
-
-#### What each column now holds
-
-Reading the cgroup files costs no daemon round trip: a few small file reads per
-sample. The columns keep exactly the meaning they had, so ingested files from
-before and after this change are the same quantity.
-
-| Column | Default source (`cgroup`) | `--source docker` |
-|---|---|---|
-| `ts_utc` | `date -u` taken once per sample, before the readings | same |
-| `container` | the container's own `config.v2.json` under the Docker data root; failing that a `docker ps` listing refreshed only when an unknown container id appears and at most once every 10 s; as a last resort the 12-character container id, which keeps the non-empty-name rule of the ingest validation | the `Name` field of `docker stats` |
-| `cpu_pct` | `100 × Δ(cpu.stat usage_usec) / Δ(wall clock)` — docker's single-CPU basis, so a multi-threaded container exceeds 100 and the analysis normalises by `nproc` from `sut_environment.json` (audit 9.7). Wall time comes from `/proc/uptime`, so a clock step does not corrupt it (it still corrupts `ts_utc`, which the harness catches: a timestamp going backwards is refused) | `CPUPerc` |
-| `mem_bytes` | `memory.current` minus `memory.stat`'s `inactive_file` — the same "used" part `docker stats` reports on cgroup v2 | the used half of `MemUsage`, converted to bytes |
-| `mem_pct` | `100 × mem_bytes / memory.max`, falling back to `MemTotal` when the cgroup is unlimited, as `docker stats` does | `MemPerc` |
-| `host` | `hostname` of the machine the sample was taken on; verified at ingestion against `sut_environment.json` | same |
-
-Both cgroup driver layouts are sampled: `system.slice/docker-<id>.scope`
-(systemd driver) and `docker/<id>` (cgroupfs driver). The CSV schema, the
-header rule, the host provenance column and the append/restart refusal are
-unchanged, and the script remains POSIX sh + awk with no bashism and no gawk
-extension (the gateway image ships busybox 1.36.1).
-
-**The first sample only primes.** With a fresh state file the first cgroup
-sample records the CPU counters and writes no row, because a rate needs two
-readings. Collection therefore starts one interval after the script does, and
-a collector must run one interval longer than the window it has to cover. The
-harness hooks start it before the warm-up and stop it after the confirmation
-window, so that interval falls outside the measured window.
-
-#### Options
-
-| Option | Default | Effect |
-|---|---|---|
-| `--duration SECONDS` | `0` (run until SIGTERM/SIGINT) | whole seconds; checked after each sample |
-| `--interval SECONDS` | `1` | whole seconds, at least 1. The loop sleeps this long **after** each sample, so the achieved period is the interval plus the cost of one sample; there is no compensation |
-| `--source auto\|cgroup\|docker` | `auto` | `cgroup` reads `/sys/fs/cgroup`; `docker` restores the previous `docker stats --no-stream` loop unchanged, for a host whose cgroup v2 tree is not visible (cgroup v1, or a Docker the collector cannot see into); `auto` picks `cgroup` when a container cgroup is discoverable and `docker` otherwise |
-| `--max-samples N` | `0` (no limit) | the priming sample counts against the limit, so a cgroup run writes **N−1** rows |
-| `--no-docker` | off | never call `docker ps` for names; names then come from `config.v2.json` or from the 12-character id |
-| `--cgroup-root`, `--docker-root`, `--state-file`, `--uptime-from`, `--meminfo-from` | the real paths | synthetic-tree options, for `src/tests/test_collect_resources.py` only. **They are never used in a run:** they let the collector read its measurements from any directory, and the CSV records neither the sampling source nor the roots, so a file produced with them is indistinguishable at ingestion from a measured one |
-
-#### Reading which source was chosen
-
-Before the loop the collector writes one line to stderr naming the source in
-force for the whole run:
-
-```text
-collecting container resources from cgroup at one sample every 1s into /tmp/resources-<run_id>.csv (duration: 900s, 0 = until SIGTERM)
-```
-
-`from cgroup` or `from docker` is the whole statement. Under `--source auto`
-the choice is made **once**, before the first sample, and is never
-re-evaluated; when no container cgroup is discoverable the collector first
-prints
-
-```text
-note: no container cgroup found under /sys/fs/cgroup; falling back to docker stats
-```
-
-and then runs the docker-stats loop for the rest of the run. Read that line
-wherever the orchestration sends the collector's stderr — the log file of the
-manual `nohup` form, or `journalctl -u egw-resources-<run_id>` on the VM for
-the `systemd-run` form. **The CSV does not record it**, so a run whose stderr
-was not kept cannot be shown afterwards to have used the cgroup source.
-
-#### State of this change, stated plainly (2026-09-19)
-
-`src/tests/test_collect_resources.py` covers the cgroup path with eleven
-scenarios against a synthetic cgroup tree, each run under every POSIX shell
-present (`sh`, `dash`, `bash`): `33 passed` on WSL2 Ubuntu 24.04, Python
-3.12.3, pytest 9.1.1, in about 15 s. They include the priming sample writing no
-row, 0.5 s of CPU over 1.0 s of wall clock reading `50.00`, a container using
-three cores reading `300.00`, the `MemTotal` fallback, both cgroup driver
-layouts, the name fallback chain, a container that disappears, a counter that
-goes backwards, a foreign CSV header, and a five-sample cadence case whose
-output passes `validate_resources_csv` with only the two threshold arguments
-relaxed to the sample count. A smoke run against the workstation's own cgroup
-tree found no container cgroup there and so exercised the fallback to docker
-stats only. `shellcheck` is not installed on that workstation; the error-level
-gate runs in CI.
-
-**Not done:** the collector has never run on the emulated guest, the harness
-parts of integration tests 1 and 6 have **not** been re-run, the test battery
-is therefore not complete and nothing is measured. No gate is closed and no
-claim is admitted; the re-run is the acceptance step and it comes after this
-change.
-
-Limitations found by the review of 2026-09-19 and not addressed here (they
-live in `src/`, which this change does not reopen; risk R34 in
-[`../../docs/g0/risks.md`](../../docs/g0/risks.md) carries them):
-
-- the period is the interval **plus** the cost of a sample, with no
-  compensation and no upper bound — a per-sample cost above 4 s would put every
-  consecutive pair beyond `MAX_SAMPLE_GAP_S = 5.0` and invalidate the run
-  again, from a different cause; the cost has never been measured on the guest;
-- `--source auto` decides once, before the warm-up, so a collector started
-  while the containers are still coming up selects docker stats for the whole
-  run and says so only on stderr;
-- a container name that fails to resolve once is cached, including the
-  12-character-id fallback, so one failed resolution can split a container into
-  two series and fail the per-container ingest rules;
-- an unreadable `memory.stat` or a missing `MemTotal` substitutes zero instead
-  of skipping the row, which passes the ingest gate as a measurement;
-- nothing stops two collectors appending to the same CSV;
-- `--source docker` is not byte-for-byte the previous loop: it sleeps the full
-  interval after a call that already costs seconds, where the old loop slept
-  only when the call had cost nothing.
 
 ### 3. `scripts/measure-cold-start.sh` — cold-start sample (claim C04)
 
