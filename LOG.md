@@ -1877,3 +1877,181 @@ is unchanged.
   integration/recovery test families; and check the 95-run attempt target against
   the pilot's feasibility finding before any campaign window is treated as
   credible.
+
+---
+
+## Entry #C034 — SUT resource collector: cgroup v2 source, one stamp per wall-clock second, complete diagnostics and lifecycle record
+
+- **Date:** 2026-09-19
+- **Identifier:** the next after `#C033`. Entry `#C035` belongs to the focused
+  governance and acceptance update prepared in parallel on branch
+  `docs/acceptance-governance-2026-09-19` (pull request #36); neither entry
+  depends on the other.
+- **Request:** the PM review of 2026-09-19 (held outside this repository, in the
+  project-management workspace), section 4.2 and step 2 of its work order: one
+  focused collector change carrying the two source fixes it names, complete
+  diagnostics, the service inventory and provenance, documentation that matches
+  what actually ran, and tests at the production ingest limits.
+- **Finding that motivates it.** `src/deployment/scripts/collect-resources.sh`
+  sampled `docker stats --no-stream` once per sample. On the emulated guest one
+  call cost 3-5 s idle and about 21 s under load (2026-09-18) and 3-4 s idle
+  (2026-09-19), so a timed run could not reach the harness's 30 distinct
+  instants. Two cgroup v2 rewrites then ran on the guest and each showed a
+  different pacing defect, with timestamps of whole-second resolution: an
+  uncommitted intermediate version (`f17bdd8c…`) slept a whole interval after
+  each sample, giving 0.84 distinct instants per second over 600 s with a second
+  skipped about every five; commit `aa7440d` (`b7aeddba…`) paced on whole seconds
+  of `/proc/uptime`, and 30 samples in 29 s gave 26 distinct instants because
+  samples shared a second. All of it is candidate evidence held outside the
+  repository, in the WSL2 home of the student's workstation, and unsealed.
+- **Action — source and arithmetic.** The collector reads cgroup v2 accounting
+  directly: `cpu_pct` on docker's single-CPU basis (guest-accounted CPU time, not
+  host QEMU CPU); `mem_bytes` as docker's cgroup v2 "used" (`memory.current`
+  minus `inactive_file` when that is smaller, otherwise `memory.current`);
+  `mem_pct` over `memory.max`. **Only an explicit `max` means unlimited**; an
+  unreadable or empty `memory.max` now writes no row and a diagnostic instead of
+  dividing by the guest's `MemTotal` (the first fix the PM review names). Any
+  unreadable input writes no row: a hole is evidence of a failed sample, a zero
+  would be a claim. The `/proc/uptime` reading is stored exactly as read:
+  written back as an awk number it was rounded to 0.1 s after 2.8 h of uptime,
+  to 1 s after 27.8 h, and turned into exponent form after 11.6 days.
+- **Action — cadence and timestamps.** Built for what the gateway's busybox
+  1.36.1 offers. It has no `$EPOCHREALTIME` (`CONFIG_ASH_RANDOM_SUPPORT` is off —
+  a first draft of this change relied on it and a review caught that by running
+  the image's own busybox) but it has a builtin fractional `sleep`. The
+  timestamp is the second awk reads with `systime()`, checked against
+  `date +%s` at startup and formatted in UTC by arithmetic, with no `strftime`
+  and no time zone. Samples are paced on `/proc/uptime` with the fractional
+  sleep, aimed 0.5 s into a second, with the offset between the two clocks
+  calibrated after the first sample and again when a sample lands in the wrong
+  second — at most once every 10 s, and never turned off: a first version of
+  this redesign stopped calibrating after 20 attempts and fell back to
+  whole-second pacing for good, which a long run under the image's busybox
+  reached in about 11 minutes, because the WSL2 wall clock is stepped about
+  0.5 s every 33 s. The last stamped second is kept in the state file: a sample in
+  that second or an earlier one (a clock stepped back) is withheld with a
+  diagnostic, and forward UTC gaps are counted, in every pacing mode. Withheld
+  samples are counted separately, with the elapsed time they cost (the PM's
+  second review, below).
+- **Action — diagnostics, inventory and provenance.** Every diagnostic goes to
+  `<csv>.diagnostics.log`, timestamped, appended and never deleted (the second
+  fix the PM review names). That includes a sampler process that dies, which
+  previously left a hole with no record. The start line records the collector's
+  own sha256 and the host, so a run is bound to its exact instrument. The stop
+  line records both counts.
+  `<csv>.lifecycle.csv` records each container cgroup appearing, disappearing,
+  resetting its CPU counter and first resolving to a name — the id-to-service
+  mapping and the record of a restart. A container whose first reads fail
+  appears once, not once per failed read. `--expect-services` names the services
+  a run must observe; the stop writes one `inventory:` line (every name observed,
+  the expected names, the missing ones and the ids never named), with or
+  without a declaration.
+- **Action — kept from the review of the first rewrite.** Substituted inputs,
+  including the self-test clock `--stamp-epoch`, are refused without
+  `--self-test`, and a self-test run is marked as such. The source is
+  re-evaluated on every sample. An unresolved name is never cached. The output is
+  locked against a second collector. The state file is replaced whole and
+  validated before use. The Docker CLI is now called only for a container whose
+  own `config.v2.json` cannot be read; before, it ran on the first sample of every
+  run.
+- **Action — documentation.** The script header and section 2 of
+  `src/deployment/README.md` state the harness's real timing — the collector is
+  stopped **before** the 60 s confirmation window, not after it as the earlier
+  text said — and that the 30-instant rule is counted over the whole file. The
+  README records, by exact version, what ran where. `tools/test/make-busybox-wrappers.sh`
+  builds the wrappers that run the tests under the image's own busybox.
+- **Action — the pull request's review.** Three findings, all taken. A sample
+  withheld because the clock stepped back now asks for a recalibration too, as a
+  sample in the wrong second already did. The seconds such a step re-enters
+  stay without rows either way, because they were stamped already and the
+  timestamps never go back. The `docker stats` source now follows the same
+  stamp rules: the second its call starts in, withheld if not after the last
+  one stamped, every forward UTC gap counted, a recalibration when it misses
+  its second. The pass that records
+  the disappearance of every container stamps no second, so it cannot
+  withhold a docker sample in the same second, and it runs once. The service
+  inventory reads the CSV as well as the lifecycle file, so names that only
+  the docker source reports count as observed.
+- **Action — the PM's second review (2026-09-19).** Two bounded findings,
+  both taken. First, the seconds count measured forward UTC gaps only: after a
+  wall clock stepped back and recovered, the stamps resumed at the next second,
+  so the count added zero although elapsed time had passed without rows, and
+  the text above said such a gap was counted. The count is now named
+  `utc_gap_seconds` and defined as forward UTC gaps; withheld samples are
+  counted separately (`withheld_samples`), each with its `/proc/uptime`
+  reading, and every run of them reports the elapsed time from the last
+  accepted sample to the one that ends it, less one interval and less any
+  UTC-gap seconds that sample adds (`withheld_elapsed_s`), so the two counts
+  never hold the same seconds. A run whose elapsed time cannot be measured,
+  and a run still open when the collector stops, are counted apart. Neither
+  count is a measured coverage: a forward clock step inflates the first, and
+  a stamped sample that writes no row for a container is in neither. A
+  withheld sample now updates the state's counters and keeps every container
+  reading. Second, after a successful `docker ps` listing every discovered id
+  was marked as named, so an id that a partial listing omitted was never asked
+  for again; now the ids marked are exactly those the listing kept names, so
+  an id it omits is asked for again even if an earlier listing named it (a
+  restarted container is resolved from the listing kept). Regressions: a
+  clock stepped back and then recovered; a withheld run that ends with a
+  forward UTC gap, in two forms; and three partial listings with a restart
+  between the second and the third, which fails on the old code and on a
+  first draft of this fix. One focused review with a verification of each of
+  its findings found both of those later defects in the draft, and the wrong
+  wording of three messages and comments; all were corrected.
+- **Branch history.** The branch first merged `dev` at `40aae52`. Its own draft
+  edits to the governance records, which described the review findings as
+  unrepaired and the guest as never exercised, were dropped in favour of `dev`'s
+  text. The governance records are updated by entry `#C035`'s change.
+- **Verified, and where.** `src/tests/test_collect_resources.py`: 234 cases on
+  WSL2 Ubuntu 24.04 (Python 3.12.3, pytest 9.1.1), against a synthetic cgroup
+  tree, under sh, dash, bash **and the gateway image's own busybox 1.36.1** (its
+  `sh` and `awk`, sha256 `ebb5f78d…`, under the build's `qemu-aarch64` user
+  emulator; eight cases stay host-shell only, because they put a fake `awk` or
+  `docker` ahead of the real one or run two collectors side by side). They
+  cover:
+  - the exact arithmetic, including the long-uptime precision at 12,345.67,
+    123,456.30 and 1,234,567.89 s;
+  - an empty and a missing `memory.max`, and `inactive_file` above the usage;
+  - a withheld second, a clock stepped back, a clock stepped back and then
+    recovered, and both counts, from the cgroup source and from a fake
+    `docker stats`;
+  - a dying sampler process; two failures within one continuous run; an awk
+    without `systime()` stamped by `date`;
+  - the lifecycle of a restart and of a container whose first reads fail; the
+    single pass that records every container's disappearance; the inventory,
+    including docker-sourced names; a partial `docker ps` listing; the recorded
+    collector hash;
+  - UTC formatting against the calendar, including leap days and the 2100
+    boundary, under a non-UTC time zone;
+  - real-time pacing that never stamps a second twice and records every
+    forward UTC gap, under every shell including that busybox;
+  - a 33-sample run that passes `validate_resources_csv` with its production
+    thresholds and a measured window, under dash and under that busybox.
+  A long run under that busybox (six synthetic containers with moving counters,
+  real clocks, 720 samples requested) kept the wall-clock pacing to the end on
+  `bac41d4` and on `5d3ff8c`: 19 recalibrations, one for each 0.5 s step of the
+  WSL2 wall clock, 18 forward UTC-gap seconds, no sample withheld, 58-60
+  distinct instants in every full minute, and `validate_resources_csv` passed
+  with the collector's start and stop as the window. It is a user-space
+  compatibility run on synthetic cgroup files, not a soak and not 720
+  consecutive one-second observations. For the head of this change, the test
+  output (with JUnit XML), the long run's files and command, the collector's
+  sha256 and the busybox and wrapper identities are kept in a local evidence
+  capsule on the build host, `/home/ruisth/yocto/evidence-candidates/2026-09-19-collector-pr37/`, outside the
+  published evidence and not admitted; the pull request description gives its
+  figures.
+  ShellCheck is not installed on this host; its error-level gate runs in CI.
+- **What is NOT shown.** This version has **not run on the emulated guest**. Under
+  the busybox emulation the shell and awk are the guest's, but the kernel,
+  `/proc` and the cgroup trees are the build host's. The harness parts of
+  integration tests 1 and 6 have not been re-run, and acceptance remains paused
+  at the student's request. No official campaign has been completed or
+  admitted, no run is admitted, no gate is closed and no claim is supported. The harness's start hook does not
+  yet pass `--expect-services`, and its fetch hook collects the CSV alone. Those
+  two points, the short-run margin and the treatment of a deliberate restart
+  belong to the acceptance update (entry `#C035`, pull request #36), not to this
+  script.
+- **Decisions and next steps:** none taken here. After the student's instruction
+  to resume and the relevant protocol decisions, the first guest run of this
+  version is the acceptance pair the PM review sets out: resource ingestion and
+  end-to-end deadline accounting and recovery evidence, on a nominal entry.
