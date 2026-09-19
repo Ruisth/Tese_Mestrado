@@ -108,8 +108,8 @@ from their rendered output. The corrections are therefore recorded here:
   pending" as "P0 artefact exists; emulated functional evidence only, no
   admitted claim", and read the note "it does not yet contain a live
   native-ARM64 vertical-slice result" as "it contains no admitted
-  vertical-slice result; the emulated run of 2026-09-18 is unsealed functional
-  evidence, and no native result exists".
+  vertical-slice result; the emulated run of 2026-09-18 is locally hash-sealed functional
+  evidence outside the published evidence package, not admitted, and no native result exists".
 
 Regenerate both sources and their SVGs together, with the documented PlantUML
 command above, in the first change made on a machine that has PlantUML

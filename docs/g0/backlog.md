@@ -10,7 +10,12 @@
 > requires. Since 2026-09-19 this file also carries the confirmations the
 > student reports — recorded as reported, never as documented supervisor
 > decisions — and **no gate is closed and no claim is admitted** by any of them.
-> Current state remains in `PROGRESS.md`.
+> **Updated 2026-09-19:** G0 was accepted on that date by the student's own
+> decision, with the project manager's concurrence, for project initiation and
+> baseline alignment; the G0 section below carries the reallocated residual
+> obligations, and the rows on the integration battery are corrected and joined
+> by four new actions from the battery and the diagnostic attempts of
+> 2026-09-19. Current state remains in `PROGRESS.md`.
 
 > **This file owns actions only**: required work, expected evidence,
 > dependencies and cut rules. The versioned schedule and scope authority is
@@ -45,8 +50,8 @@ cause, the remaining work and a revised forecast; it is never silently moved.
 | Scoping-review search and selection | Target 2026-09-26; logged searches and exports, deduplication and documented screening decisions; re-estimate the remaining workload from the real corpus at the 2026-09-21 checkpoint |
 | Scoping-review charting and synthesis | Target 2026-09-30; evidence chart, selection flow, synthesis and bibliography, feeding the chapters sent on 2026-10-01 |
 | Correct the review designation in the manuscript | Before 2026-10-01; Section 2.1 of the drafted manuscript still reads "a structured review with systematic elements". Edit `thesis/latex/chapters/02_background.tex` under its own change and regenerate `thesis/sections/05_background.md`; the designation becomes **scoping review**, matching Section 1 of the protocol |
-| Seal the first-flow record and close the teardown incident | Seal the 2026-09-18 end-to-end record inside the repository; resolve the `ditto-things` power-off OOM and the container memory sizing as a separate change. No stability statement before that |
-| Nine integration/recovery test families | Target 2026-09-21 to 2026-09-24; report per-test evidence, failures and residual risks. **Exercised once on 2026-09-18 and not complete**: seven families passed and tests 1 and 6 carry a failing harness part, because the resource sampler under test cannot reach the harness's minimum sample count under emulation. That record is held outside the repository and unsealed, so it admits no claim; the instrumentation defect is a separate change |
+| Publish the first-flow record and verify the teardown-incident correction | Incorporate the locally hash-sealed 2026-09-18 end-to-end record into the published evidence package; re-measure the Ditto memory footprint under the limits that pull request #34 merged for the `ditto-things` power-off OOM. No general or prolonged stability statement from bounded observations |
+| Nine integration/recovery test families | Target 2026-09-21 to 2026-09-24; report per-test evidence, failures and residual risks. **Exercised once on 2026-09-18 and not complete**: functional results were shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`) — and the timed harness parts of tests 1 and 6 are invalid. That record is a locally hash-sealed candidate archive held outside the repository, not admitted, so it admits no claim; the instrumentation defect is a separate change, and test acceptance is paused at the student's request. The follow-up actions are in the G2 section below *(corrected 2026-09-19: previously "seven families passed")* |
 | Stable integrated QEMU baseline | Target 2026-09-25; no unresolved failure incompatible with the claimed stability scope |
 | Bounded pilot and protocol freeze (`exp-v1`) | Target 2026-09-26 to 2026-09-29; select run identities, repeats, durations and acceptance criteria prospectively; hashed runtime lock for the controller image in place |
 | Frozen emulated functional campaign | Target 2026-09-30 to 2026-10-02; only after a reviewed protocol and usable instrumentation |
@@ -85,13 +90,22 @@ cause, the remaining work and a revised forecast; it is never silently moved.
 - After G5, permit no feature work. Record missing evidence as a limitation;
   never replace it with an inferred result.
 - Supervisor silence is not approval **for the rows that stay open**: D007
-  blocks `exp-v1`; D014 (the evaluation scope and any academic use of emulated
-  results) and the template-authenticity half of D004 block the final academic
-  release. The title and RQ half of D011 and the second-operator question of
+  blocks `exp-v1`; the template-authenticity half of D004 blocks the final
+  academic release; and the open part of D014 is only the wording of the
+  native-evidence limitation and of claims about emulated timing and resource
+  figures — the QEMU evaluation scope of RQ3 is reported approved (reported by
+  the student, undated, not a documented supervisor decision) and is not
+  re-requested, and numerical criteria belong to D007 *(corrected 2026-09-19;
+  previously listed the evaluation scope and any academic use of emulated
+  results (D014) as open and as a blocker of the final academic release)*. The title and RQ half of D011 and the second-operator question of
   D006 are reported settled by the student and block nothing; a reported
   confirmation is never treated as a documented decision, and none of them
   closes a gate. The student's adoption of the plan settles execution, not the
-  open rows.
+  open rows. *Reallocated by the G0 decision of 2026-09-19: D014 is no longer
+  a blanket blocker — the reported approval of RQ3 evaluated with QEMU tests is
+  not reopened, and any genuinely unsettled methodological or claim detail is
+  tracked specifically at G4/G6; D007 still blocks `exp-v1` and the
+  template-authenticity half of D004 is owed at G7.*
 - Keep ACA-Py, DIDComm, Fabric, Indy, IPFS, wallets and executable
   SSI/blockchain flows outside P0 and outside any contingency window.
 - Preserve every failed attempt and raw artefact write-once. A repetition
@@ -118,7 +132,26 @@ below; current deliverable state remains in
 > host are marked **deferred with the native route** rather than deleted, so
 > the deferral stays visible.
 
-## G0 — Authority and provenance (window of 13–15 August, elapsed)
+## G0 — Authority and provenance (window of 13–15 August, elapsed; gate accepted 2026-09-19)
+
+> **G0 accepted on 2026-09-19** — authority: the student (Rui Duarte), with the
+> project manager's concurrence; scope: project initiation and baseline
+> alignment ([decision record](../governance/decisions/2026-09-19-g0-closure.md)).
+> This is a dated change of G0's exit scope, **not** a retroactive pass against
+> the cut rule below, which is kept as written: the alignment request and the
+> verified off-machine copy are **not** marked as performed. The residual
+> obligations are reallocated as follows; the rows of this section stay as the
+> record of the actions and are read against this table.
+>
+> | Residual obligation | Owner / acceptance boundary |
+> |---|---|
+> | Integration defects, missing sub-checks, timely delivery and admissible run evidence | Developer; G2/G3 remain pending |
+> | D007 thresholds, prospective fault-window rules, loads/durations, 95-run feasibility and frozen protocol | Student/Developer and the required supervisor decision; G4, before `exp-v1` |
+> | Any genuinely unsettled methodological or claim detail | Tracked specifically at G4/G6; the reported QEMU RQ3 approval is not reopened through a blanket D014 blocker |
+> | Execute the scoping review and write and analyse the dissertation | Student, with technical support; Chapters 1–4 and G6, not completed by G0 |
+> | Check the local template against the institution's supplied original, the final PDF's compliance, and implement the AI-use declaration | Student/Developer; G7 |
+> | Maintain local source, configuration, log and data copies and complete the final evidence and reproduction package | Developer/Student; ongoing execution control and G7 |
+> | Verify the off-machine copy, its hash and the restore path | Student; an active resilience action to do promptly, retained in the risk register (R25) and this backlog and required at G7 — **neither verified nor waived** by the G0 decision |
 
 **Cut rule:** obtain the supervisor decisions that remain open without treating
 silence as approval. The required result is an alignment request covering D007,
@@ -132,7 +165,7 @@ this gate.
 | Action | Expected evidence | Dependencies |
 |---|---|---|
 | Keep the scope document aligned with the title and RQs the student reports approved | [`scope_and_rqs.md`](scope_and_rqs.md) carrying the reported-approved title verbatim and scope summaries of the approved RQs, each marked as reported by the student and never as a documented decision. The student's adoption of plan v2.0 is not that approval either | The student's report; the approved verbatim RQ wording, held in the student manuscript |
-| Send the **reduced** alignment package — D007, D014 and the unresolved halves of D004 and D010 — using the revised memo | Sent-message copy/date; `sent_at` and response references in the canonical decision log. A reply on the academic use of emulated results (D014) is needed before the evaluation chapter is written | Student action; the [revised memo draft](../governance/proposals/supervisor_alignment_memo_v2.0_proposal.md) |
+| Send the **reduced** alignment package — D007, the open part of D014 (limitation and claim wording) and the unresolved halves of D004 and D010 — using the revised memo | Sent-message copy/date; `sent_at` and response references in the canonical decision log. *(Corrected 2026-09-19; previously also required a reply on the academic use of emulated results (D014) before the evaluation chapter is written: the QEMU evaluation scope of RQ3 is reported approved and is not re-requested.)* *Since the G0 decision of 2026-09-19 this is no longer a G0 condition and is not marked as sent: the D007 request belongs to G4 before `exp-v1`, the template authenticity inside D004 to G7, and D014's genuinely unsettled detail is tracked at G4/G6 rather than as a blanket precondition of the evaluation chapter* | Student action; the [revised memo draft](../governance/proposals/supervisor_alignment_memo_v2.0_proposal.md) |
 | Hold a short alignment meeting when written decisions remain unresolved | Minutes recording each decision, owner and follow-up date | Supervisors' availability |
 | Maintain an Ubuntu 24.04 WSL2 ext4 Yocto environment | `wsl -l -v`, filesystem proof for the build directory and environment capture | Student machine; WSL2 ext4 guide |
 | ~~Request a university ARM64 measurement host and apply the 48-hour fallback rule~~ — **deferred with the native route on 2026-09-18** | None. It is not an obligation of the adopted plan and closes no gate. If native work is ever authorised, the original evidence list applies unchanged: request/reply record, price quotation before provisioning, and provider, region, CPU, tenancy/shared-vCPU, kernel, OS and clock provenance after provisioning | A new budget decision (D012); the EUR 30 ceiling; [`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md) as a generic checklist only |
@@ -172,9 +205,13 @@ the reforecast triggers of the adopted schedule.
 | Action | Expected evidence | Dependencies |
 |---|---|---|
 | Deploy the minimal ARM64 compose stack inside the guest: Mosquitto TLS, Ditto, MongoDB and controller | Clean `docker compose up`; health/readiness output; pinned image digests; runtime lock and `pip check` record | Integrated emulated guest; operational certificates and secrets |
-| Seal the first-flow record of 2026-09-18 inside the repository | Sealed capsule with manifest and verified checksums, labelled emulated, naming the run identities and the maximum latency as an informational emulated observation; sealing is not acceptance | The candidate record held outside the repository |
-| Resolve the `ditto-things` power-off OOM and the container memory sizing | A separate change with its own evidence: a graceful stop before power-off and container memory limits sized against the observed usage; no stability statement before it lands | Integrated emulated guest |
-| Complete the nine integration/recovery test families of the runbook | Per-test evidence, retained failures and a residual-risk list. The families were exercised once on 2026-09-18 — seven passed, tests 1 and 6 carry a failing harness part from the resource sampler under emulation — and that record is held outside the repository and unsealed, so the battery is **not complete** and admits no claim | Stable deployment in the guest; the instrumentation fix for the resource sampler |
+| Incorporate the locally hash-sealed first-flow record of 2026-09-18 into the published evidence package | Sealed capsule with manifest and verified checksums, labelled emulated, naming the run identities and the maximum latency as an informational emulated observation; sealing is not acceptance | The candidate record held outside the repository |
+| Resolve the `ditto-things` power-off OOM and the container memory sizing — *done through pull request #34; the follow-up is to re-measure the Ditto footprint after the remaining tests* | A separate change with its own evidence: a graceful stop before power-off and container memory limits sized against the observed usage; no general or prolonged stability statement from the bounded observations that followed | Integrated emulated guest |
+| Complete the nine integration/recovery test families of the runbook | Per-test evidence, retained failures and a residual-risk list. The families were exercised once on 2026-09-18 — functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`) — and the timed harness parts of tests 1 and 6 are invalid — and that record is a locally hash-sealed candidate archive held outside the repository, not admitted, so the battery is **not complete** and admits no claim *(corrected 2026-09-19: previously "seven passed")*. After resumption, follow the proposed [acceptance sequence](../governance/proposals/acceptance_protocol_update_2026-09-19.md) (proposed, not adopted): one fresh bounded acceptance pair first, then only the affected or missing checks | Stable deployment in the guest; the instrumentation fix for the resource sampler; test acceptance resumed by the student |
+| Run the two missing sub-checks: the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 *(added 2026-09-19)* | Test 4: `run_test itest-dup-02 42 --scenario smoke --duration 60` giving `lost = 0` and every `delta` line `OK`, as the runbook requires, under its own run identity — or an equivalent existing record mapped to it; none was found in the 2026-09-18 archive. Test 7: the fault repeated once for Ditto (`R=itest-ditto-fault-01; SVC=ditto-things`, then the runbook's fault line and evaluation line again), accepted only when the interruption and the recovery are both shown; until then test 7 has demonstrated the MongoDB fault only. Neither was run on 2026-09-18: both steps are prose in the runbook and the extraction used for the battery took only fenced code blocks; extract both next time | Test acceptance resumed by the student; stable deployment in the guest |
+| Retain and follow up the test 5 deadline failure *(added 2026-09-19)* | Test 5 of 2026-09-18 fails its stated criterion — 326 of 2,016 valid events were confirmed after the controller-clock deadline, against `lost = 0` and `late_confirmations = 0` — and that valid negative result is retained and analysed, never repeated until a pass and discarded. Any new attempt uses a new run identity and unchanged deadline semantics, and reconciles the two validation paths that disagreed on the simulator manifest | The delivery-backlog diagnosis below; test acceptance resumed by the student |
+| Diagnose the delivery backlog under QEMU/TCG *(added 2026-09-19)* | A diagnosis, under unchanged deadline semantics, of why the controller — a single consumer processing messages sequentially against Ditto — sustained about 3-8 acknowledgements per second against 11.2 msg/s published in the invalid attempts of 2026-09-19, with its queue growing by 4.7-10.6 per second; read the guest-side event logs, which were not read for the diagnostic counts. A lower future workload comes only through an explicit prospective QEMU protocol decision; a deadline is never moved after lateness is observed | Guest-side logs after resumption; D007 and the protocol at G4 |
+| Confirm the controller-restart queue finding and take the design decision *(added 2026-09-19)* | Confirmation from the guest-side event and container logs of whether the about 2,136 messages of `controller_restart-r02` that the backlog does not explain — 1,765 published before the restart and about 371 during the outage — were lost with the controller's in-memory queue (acknowledged on enqueue, clean session, fixed client id); then a separate, recorded design decision on that data path before any C12 evidence is collected. Missing fetched records are not proof of permanent loss | Guest-side logs after resumption; a separate design decision; claim C12 and RQ2 |
 | Exercise the MQTT→Ditto controller against real services | TLS broker connection, accepted/rejected event records and a real Ditto twin update | Live compose stack |
 | Execute the wearable→MQTT→controller→Ditto vertical slice | `sent_events.jsonl`, `events.jsonl` and `GET /twins/{device_id}` showing the expected materialised state | Controller, broker, Ditto and simulator |
 | Run the simulator `smoke` scenario against the real broker | Simulator manifest and write-once raw output for a live run | Live compose stack |
@@ -264,7 +301,7 @@ not deleted.
 | Authenticate the local template copy against the current official 2026 source and settle the cover and author/supervisor/co-supervisor metadata | Record of the comparison and its outcome, and the settled metadata. **Still open** — the reported confirmation covers the requirement, not the authenticity of the local copy | Supervisors or the institution (the open half of D004) |
 | Prepare the AI-use declaration during drafting and verify it here | Truthful declaration in the applicable institutional format, identifying the actual assistance received and the author's responsibility. Reported mandatory by final submission; Git and pull-request authorship conventions never excuse omitting it | Drafting; the applicable institutional format |
 | Retain the local evidence archive | Source snapshots, configurations with secrets removed, raw results, logs, manifests and checksums, retained locally. A local copy is reported expected as evidence | Sealed evidence and run records |
-| Run the final smoke and package the reproduction artefacts, including the **verified off-machine copy** | Versioned archive, SHA-256, restore instructions and a verified off-machine storage location with the restore check actually performed. This is a separate resilience control from the local archive above and is **still outstanding** | `data-v1`; stable code/document tree; off-machine storage |
+| Run the final smoke and package the reproduction artefacts, including the **verified off-machine copy** | Versioned archive, SHA-256, restore instructions and a verified off-machine storage location with the restore check actually performed. This is a separate resilience control from the local archive above and is **still outstanding**. *Since the G0 decision of 2026-09-19, verifying the off-machine copy, its hash and the restore path is an active resilience action owned by the student, to be done promptly rather than left to this gate, and required here — neither verified nor waived* | `data-v1`; stable code/document tree; off-machine storage |
 | Incorporate and record supervisor and independent-review feedback | Change list, replies and unresolved-item rationale | Review feedback |
 | Perform language, references, front-matter, consistency and page-by-page visual QA | Completed editorial checklist; final PDF with correct metadata, diagrams and no TODOs/placeholders | Full draft; the open half of D004 |
 | Produce and inspect the release candidate | Annotated `rc1` tag, PDF checksum and independent build/review record | All G7 acceptance evidence |

@@ -64,7 +64,7 @@ workstation and the emulated guest exist and have run the work shown: the image
 was built, the guest booted, the six containers were deployed inside it and one
 bounded end-to-end flow completed. The build, boot and isolated MongoDB records
 are sealed under `docs/evidence/integrated-qemu/`; the first-flow record is
-candidate evidence held outside the repository and unsealed. **There is no
+a locally hash-sealed candidate held outside the published evidence package and not admitted. **There is no
 native tier**: no native or burstable ARM64 instance exists, none is requested
 by the adopted plan, and native deployment is documented, unverified future
 work. Sealing is not acceptance, and drawing a component never upgrades its
