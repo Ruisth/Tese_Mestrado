@@ -1849,9 +1849,12 @@ is unchanged.
   replaces the blanket statement in `README.md`, `PROGRESS.md`, `docs/README.md`,
   `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 2 (Baseline at
   2026-09-18) of the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
-  `docs/adr/0008-integrated-yocto-arm64-evaluation.md` and
-  `docs/setup/qemu_integrated_gateway.md` the statements were written in this
-  change, so they are corrected in place and a dated note of 2026-09-19 records
+  `docs/adr/0008-integrated-yocto-arm64-evaluation.md`,
+  `docs/setup/qemu_integrated_gateway.md` and
+  `docs/governance/proposals/supervisor_alignment_memo_v2.0_proposal.md` — in the
+  memo, both the statement of fact in item 6 and the sentence that called the
+  reported QEMU approval student-reported advice — the statements were written in
+  this change, so they are corrected in place and a dated note of 2026-09-19 records
   the correction. In the ADR, two sentences that did stand on `dev` — that the
   six-container stack had not been deployed, and that the first bounded
   functional test had not run — were overtaken by the events of 2026-09-18 and
