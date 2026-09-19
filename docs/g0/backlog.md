@@ -53,6 +53,25 @@ below; current deliverable state remains in
 | Review differences between the imported title/RQs/integrated-Yocto wording and the governance baseline separately | Dated alignment decision; no inference of implementation or supervisor approval from a format conversion | D001 and applicable supervisor decisions; unchanged governance controls |
 | Verify the 33 imported reference strings through the research protocol before academic release | Primary-source checks and research-register updates, distinguishing metadata verification from full-text reading | Access to the cited sources; separately authorised academic revision |
 
+## SUT resource instrumentation and the integration re-runs (added 2026-09-19)
+
+These actions follow the instrumentation defect of the SUT resource collector
+found on 2026-09-18 in the emulated guest and its correction of 2026-09-19
+(LOG `#C034`). They belong to the live-execution work of G3–G4, add no scope
+and revise neither the gate schedule nor the acceptance rules below; the state
+of each item remains in [`PROGRESS.md`](../../PROGRESS.md), and the nine
+integration tests are those of
+[the integrated-gateway runbook](../setup/qemu_integrated_gateway.md), Section 7.
+
+| Action | Expected evidence | Dependencies |
+|---|---|---|
+| Sample SUT container resources from a source whose own cost cannot dominate the cadence | `resources.csv` from a timed run in the guest carrying at least `MIN_RESOURCE_SAMPLES` rows and `MIN_DISTINCT_SAMPLE_INSTANTS` distinct instants, no per-container gap above `MAX_SAMPLE_GAP_S`, the required window coverage and a `host` column equal to the guest hostname | Deployed stack in the guest; the harness collector hooks |
+| Compensate the sampling period for the cost of a sample, and measure that cost where the collector runs | Interval, measured per-sample cost and achieved cadence recorded with the run; the collector's header, `src/deployment/README.md` and the experiments documentation stating the same cadence as the code | Corrected collector; guest access |
+| Record, for every run, which sampling source and which filesystem roots produced `resources.csv` | Source and roots in an artefact the fetch hook collects and in the run manifest; the synthetic-tree options unusable by accident in a run | Collector; harness collector hooks |
+| Close the remaining defects recorded by the review of the collector before any run whose data is offered as evidence | One case per defect in `src/tests/test_collect_resources.py` — the `auto` source re-evaluated during the run, a name that becomes resolvable later, an unreadable `memory.stat` or a missing `MemTotal` skipping the row instead of writing a zero, a second collector on one output refused, a truncated state file rejected — and a script header that matches the behaviour | Review record of 2026-09-19 |
+| Re-run the harness part of integration test 1 and the harness run of test 6 in the guest, under new run identities | Per re-run: `manifest.json` with `validity: "valid"`, written `SHA256SUMS`, an ingestible `resources.csv` with the guest hostname, `controller_metrics.csv` and `sut_environment.json`; for test 6 also the manifest's restart record and samples resuming within `RESTART_RECOVERY_MAX_S`; the artefacts of the failed attempts of 2026-09-18 preserved | Corrected collector on the guest; deployed stack; write-once rule and new run identities |
+| Record how a per-container sampling hole left by a deliberately restarted container is to be treated, before test 6 is judged on it | Dated note stating whether the gap rule applies across the intended restart of that condition, with no threshold, metric or exclusion rule changed after G4 | Protocol constants; the re-run of test 6 |
+
 ## G0 — Authority and provenance (13–15 August)
 
 **Cut rule:** obtain the supervisor decisions and initiate the ARM64 host

@@ -1522,3 +1522,147 @@ is unchanged.
   accepted. Next, under the same authorisation: build the image from the
   merged `dev`, load it, deploy the six services in the guest and run one
   smartwatch at 1 Hz for 60 s, labelled as emulated functional evidence.
+
+---
+
+## Entry #C034 — SUT resource sampler moved from `docker stats` to cgroup v2
+
+- **Date:** 2026-09-19
+- **Identifier:** `dev` ends at `#C030`, and `#C031`, `#C032` and `#C033` are
+  taken by the open governance pull request #35 (branch
+  `docs/adopt-plan-v2-qemu`), which is not merged; identifiers are assigned
+  when an entry is written and are never reused (note of 2026-08-12 at the
+  head of this file), so this entry is `#C034` and the sequence on `dev` jumps
+  over three numbers that belong to that pull request.
+- **Request:** After the integration session of 2026-09-18 on the emulated
+  guest, correct the SUT-side resource collector so that its sampling cadence
+  no longer depends on a Docker CLI round trip, and record exactly what that
+  correction shows and what it does not.
+- **Finding that motivates it:** `src/deployment/scripts/collect-resources.sh`
+  ran `docker stats --no-stream` once per sample. On the emulated ARM64 guest
+  (QEMU/TCG) on 2026-09-18 one such call cost 3 to 5 s idle and about 21 s
+  while the stack was working, because the CLI must round-trip the daemon and
+  the daemon samples every container. The collector therefore produced 7
+  distinct sample instants across 42 rows in a 150 s window, against
+  `MIN_DISTINCT_SAMPLE_INSTANTS = 30` and `MIN_RESOURCE_SAMPLES = 30`
+  (`src/egw_experiments/resources.py`): `egw_experiments run` refused the timed
+  run, marked it `invalid` and withheld `SHA256SUMS`. Of the nine
+  integration/recovery test families of runbook Section 7, seven passed that
+  day and tests 1 and 6 have a failing harness part, the ad-hoc part of test 1
+  having passed. The harness was behaving correctly; the sampler was the
+  defect. Those figures are candidate evidence of that session, recorded in the
+  note `preflight/instrumentation-finding.md`, which is held outside this
+  repository and is unsealed.
+- **Action (collector):** the default sampling source is now the kernel's
+  cgroup v2 accounting, read straight from `/sys/fs/cgroup`: no daemon, no CLI,
+  a few small file reads per sample. The columns keep exactly their previous
+  meaning. `cpu_pct` is `100 * delta(cpu.stat usage_usec) / delta(wall clock)`,
+  docker's single-CPU basis, so a multi-threaded container exceeds 100; wall
+  time comes from `/proc/uptime`, which a clock step does not move. `mem_bytes`
+  is `memory.current` minus `memory.stat`'s `inactive_file`, the same "used"
+  part `docker stats` reports on cgroup v2, and `mem_pct` is that over
+  `memory.max`, falling back to `MemTotal` when the cgroup is unlimited.
+  Container names come from the container's own `config.v2.json` under the
+  Docker data root (no daemon call); when that file is unreadable, from a
+  `docker ps` listing refreshed only when an unknown container id appears and
+  at most once every 10 s; as a last resort the 12-character id, so the
+  non-empty-name rule of the ingest validation still holds. Both cgroup driver
+  layouts are sampled (`system.slice/docker-<id>.scope` for the systemd driver
+  and `docker/<id>` for cgroupfs). The first sample of a fresh state file only
+  primes the CPU delta and writes no row, so collection starts one interval
+  after the script does. New options: `--interval`, `--source
+  auto|cgroup|docker`, `--max-samples`, `--no-docker`, `--cgroup-root`,
+  `--docker-root`, `--state-file`, `--uptime-from` and `--meminfo-from`; the
+  last five exist so the collector can be exercised against a synthetic tree
+  and are not used in a run. `--source docker` keeps the previous docker-stats
+  parsing, and `auto` (the default) picks cgroup when a container cgroup is
+  discoverable and docker-stats otherwise, saying on stderr which it chose.
+  POSIX sh and awk only, with no bashism and no gawk extension: the gateway
+  image ships busybox 1.36.1 with no gawk and no coreutils (sealed image
+  manifest). The CSV schema, the header rule, the host provenance column, the
+  append/restart refusal and every harness threshold are unchanged.
+- **Action (tests):** new `src/tests/test_collect_resources.py` — eleven
+  scenarios against a synthetic cgroup tree, each run under every POSIX shell
+  present on the host.
+- **Verified, and where:** `33 passed` (11 scenarios x 3 shells: `sh`, `dash`,
+  `bash`) on WSL2 Ubuntu 24.04, Python 3.12.3, pytest 9.1.1, in about 15 s,
+  against a synthetic `/sys/fs/cgroup` tree, a synthetic Docker data root and
+  synthetic `/proc/uptime` and `/proc/meminfo` files. The arithmetic is checked
+  exactly: the first sample writes no row; one interval of 0.5 s of CPU over
+  1.0 s of wall clock reads `50.00`; a container using three cores reads
+  `300.00`; `memory.current` minus `inactive_file` over `memory.max`; the
+  `MemTotal` fallback for an unlimited cgroup; both cgroup driver layouts; the
+  name fallback chain; a container that disappears; a counter that goes
+  backwards produces no row; a foreign CSV header is refused. The cadence case
+  runs five samples at 1 Hz against the real `/proc/uptime`, asserts that the
+  run takes under 15 s and that the output passes `validate_resources_csv` with
+  only the two threshold arguments relaxed to the sample count, so the header,
+  the column completeness, the numeric rules, the timestamp ordering and the
+  host provenance are all checked as at ingestion. A smoke run on the same WSL2
+  host against its real cgroup tree exercised the auto-detection fallback: no
+  container cgroup exists there, so the collector reported the fallback to
+  docker stats and produced no rows. The Markdown link check was run locally on
+  this branch; `shellcheck` is not installed on this host and its error-level
+  gate runs in CI, whose result, not this entry, establishes it.
+- **What is NOT shown:** nothing ran on the emulated guest. No container, no
+  Docker engine and no cgroup of a real container was read, and **nothing was
+  measured** — this change contains no new figure about the system under test.
+  The harness parts of integration tests 1 and 6 have not been re-run, so the
+  defect is removed but unproven where it appeared, and the battery of nine is
+  not complete. The collector's own cost per sample on the guest is unmeasured,
+  so the cadence it achieves there is unknown and the nominal 1 Hz must not be
+  assumed. No gate closes, no claim is admitted, no maturity level moves, and
+  the sealed unit figure stays 701: the new module is outside the sealed suite.
+  The 3-5 s, about 21 s and 7-instants figures quoted above belong to the
+  session of 2026-09-18 and remain candidate evidence held outside this
+  repository.
+- **Open, recorded and not repaired here:** the review of this change, carried
+  out on 2026-09-19 against the ingest contract, the protocol constants and the
+  runbook, confirmed ten defects and noted three suspected ones. Those that
+  bear on the re-run: the loop sleeps a whole interval *after* the sample, so
+  the period is the interval plus the cost of the sample with no compensation,
+  and at a per-sample cost above 4 s every consecutive pair would exceed
+  `MAX_SAMPLE_GAP_S = 5.0` (`src/egw_experiments/protocol.py`) and invalidate
+  the run again from a different cause — for the same reason the `--source
+  docker` path is now slower than the loop it replaces, which slept only when a
+  sample had cost nothing; `--source auto` is decided once before the loop, so a
+  collector started while no container cgroup is visible — the hooks start it
+  before the warm-up, and a guest reboot (test 8) or a `down`/`up -d` cycle
+  leaves no container cgroup while the stack comes up — selects docker stats
+  for the whole run and announces it only on stderr, i.e. to the journal of a
+  transient unit; the four synthetic-tree options let the collector read
+  its measurements from any directory, while neither the CSV nor the manifest
+  records the sampling source or the roots used; a container name that fails to
+  resolve once is cached and never retried, which across the deliberate restart
+  of test 6 would carry one container as two series; an unreadable
+  `memory.stat` or a missing `MemTotal` substitutes a zero instead of skipping
+  the row, and a zero is a claim where a hole is the evidence of a failed
+  sample; nothing prevents two collectors from appending to one CSV; the state
+  file is rewritten in place, so a process killed mid-write can leave a
+  truncated line that yields a wrong `cpu_pct`; and two statements of the
+  script header do not match its behaviour (a restart does not resume the
+  deltas on the default path, and `--max-samples N` yields `N-1` rows). Among
+  the suspected items, the re-run of test 6 is not gated on the sampler alone:
+  `validate_resources_csv` computes sampling gaps per container and flags any
+  pair above `MAX_SAMPLE_GAP_S`, so if the controller takes more than about
+  four seconds to come back under TCG the run is invalid for a hole that is the
+  expected behaviour of that test — pre-existing, equally true of the
+  docker-stats collector, and not introduced here. The actions are in
+  [`docs/g0/backlog.md`](docs/g0/backlog.md).
+- **Records and documentation of the same change:** this entry,
+  [`PROGRESS.md`](PROGRESS.md) and [`docs/g0/backlog.md`](docs/g0/backlog.md)
+  carry the state and the actions; the collector's own header,
+  `src/deployment/README.md` and
+  [the integrated-gateway runbook](docs/setup/qemu_integrated_gateway.md)
+  describe the source, the options and the limitations above.
+- **Left out:** everything under `src/` other than the two files named in the
+  two action paragraphs; sealed evidence, the thesis sources and the workflows
+  are untouched; no dated entry, seal or August proposal is rewritten, and no
+  harness threshold, metric or exclusion rule is changed.
+- **Decisions and next steps:** no gate, claim or maturity level changes. In
+  order, each a separate change: repair the defects recorded above, cadence
+  compensation and a recorded sampling source first; then re-run the harness
+  part of test 1 and the harness run of test 6 on the guest under new run
+  identities, which is the acceptance step for this change; then measure the
+  collector's own cost per sample there. No result of those re-runs may be
+  presented as native ARM64 performance evidence.
