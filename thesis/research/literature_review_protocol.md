@@ -542,10 +542,14 @@ The review package is complete when **all** of the following hold:
    where it came from and how it was checked. Both routes are retrieval
    provenance; neither is a substitute for the other, and the preliminary
    records are not rewritten to manufacture a link. State of 2026-09-19: of the
-   25 rows currently marked included, 24 are seeded (15 `known-source`, 9
-   `compass-lead`) and one links to `Q001`, which is itself preliminary. The
-   formal execution of the searches will add rows carrying a `query_id`; until
-   it has run, this criterion is satisfied by the seeded route only, and the
+   25 rows currently marked included, all 25 carry a seeded `origin`
+   (15 `known-source`, 10 `compass-lead`); 24 carry no `query_id`, and one
+   `compass-lead` row, `S021`, additionally links to `Q001`, which is itself
+   preliminary. The two routes therefore overlap rather than partition the
+   set, and the PRISMA-ScR flow reports them separately while declaring that
+   row once. The formal execution of the searches will add rows carrying a
+   `query_id`; until it has run, this criterion is satisfied by the seeded
+   route only, and the
    PRISMA-ScR flow reports the two routes separately rather than merging them
    into one retrieval count.
 2. The reported counts reconcile: retrieved, duplicates removed, screened,

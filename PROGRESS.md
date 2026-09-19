@@ -83,8 +83,9 @@ figure remains 701 tests).
 **Claim status: 0 of 15 accepted.** C01 has partial evidence: the identified
 same-operator clean-checkout build is now produced and sealed, and its **formal
 admission is the single step still outstanding** — the second-operator
-requirement of D006 is reported waived by the student on 2026-09-18, so it is no
-longer a dependency of the claim, while the wording stays *versioned* and
+requirement of D006 is reported waived, recorded on 2026-09-18 (the date of the record, never of the waiver, for which none was reported), as reported by the
+student and not as a documented supervisor decision, so it is no longer a
+dependency of the claim, while the wording stays *versioned* and
 *repeatable build by the author* precisely because no independent reconstruction
 exists. C02 has the preliminary two-boot seal and the new strict
 five-boot G1 set; the predefined later `data-v1` identities and the formal

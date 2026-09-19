@@ -1850,7 +1850,10 @@ is unchanged.
   `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 2 (Baseline at
   2026-09-18) of the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
   `docs/adr/0008-integrated-yocto-arm64-evaluation.md` and
-  `docs/setup/qemu_integrated_gateway.md` the dated sentences are kept where
+  `docs/setup/qemu_integrated_gateway.md` the statements were written in this
+  change, so they are corrected in place and a dated note of 2026-09-19 records
+  the correction; no wording that stood on `dev` was removed. Elsewhere the dated
+  sentences are kept where
   they stand and superseded by a dated note.
 - **Also unchanged and still true.** The August G0 email draft at
   `docs/g0/supervisor_email_g0.md` is genuinely unsent. The

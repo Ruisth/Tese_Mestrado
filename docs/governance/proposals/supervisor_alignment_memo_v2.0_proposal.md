@@ -32,7 +32,11 @@ canonical path is the plan in force. The student's adoption settles execution
 only: the title, the research-question wording, the thresholds and the scope of
 the evaluation are not agreed with the supervisors. The student reported that a
 supervisor advised proceeding with QEMU tests; that is student-reported advice,
-not approval. The August memo stays unmodified at
+not approval. *(Superseded on 2026-09-19: the student reports supervisor
+approval to proceed with the QEMU tests, recorded at D008 and D014 of the
+decision log; reported by the student, undated, with no message and no
+supervisor name, and not a documented supervisor decision. The wording above is
+kept as the record of what the memo said.)* The August memo stays unmodified at
 [`docs/governance/supervisor_alignment_memo.md`](../supervisor_alignment_memo.md).
 
 The original Theme 1 objective is to develop/test a custom Yocto distribution
@@ -63,7 +67,11 @@ particular:
    frozen after a valid bounded pilot on the integrated emulated system (D007).
    The 95-run campaign and the 24-hour soak of the earlier plan are not carried
    over to the emulated environment; the functional campaign is selected and
-   documented after the pilot and before the freeze.
+   documented after the pilot and before the freeze. *(Superseded on 2026-09-19 and not
+   to be sent as written: the student reports an instruction to attempt the
+   historical 95-run composition, the 24-hour soak included, under QEMU,
+   subject to the bounded pilot's feasibility check. The ordering is unchanged:
+   nothing is started before the pilot has reported and the protocol is frozen.)*
 4. Review calendar (a request; the dates are the student's forecast of
    2026-09-18, not a commitment assumed on your behalf): Chapters 1-4 shared
    on 2026-10-01, complete draft on 2026-10-08, feedback requested between
