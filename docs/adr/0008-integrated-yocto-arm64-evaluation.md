@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-16; amended 2026-09-18 (evidence classes, see the last section but one); links and facts updated 2026-09-18 when the plan v2.0 proposal moved under `docs/governance/proposals/`; **amended 2026-09-18 — adopted by the student for project execution with the QEMU-only execution amendment**; **amended 2026-09-19 — supervisor confirmations reported by the student** (see the last section)
 
-**Status:** **Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; the academic framing is reported approved and the academic use of emulated results is not agreed.** Amended 2026-09-19. The student **reports** that the academic title, the research-question wording with RQ3 evaluated in QEMU, and the local-core scope were approved (D011), and that a supervisor approved proceeding with the QEMU tests. Those are **reported by the student**, carry no date, message or supervisor name, and are not documented supervisor decisions. What remains open is the scope of the evaluation and any academic use of emulated results (D014), together with the experimental thresholds (D007); D014's row is `partly_confirmed_reported_by_student`, with its academic-use half unanswered.
+**Status:** **Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; the academic framing and the QEMU evaluation scope of RQ3 are reported approved, and only D014's limitation and claim wording is open.** Amended 2026-09-19. The student **reports** that the academic title, the research-question wording with RQ3 evaluated in QEMU, and the local-core scope were approved (D011), and that a supervisor approved proceeding with the QEMU tests. Those are **reported by the student**, carry no date, message or supervisor name, and are not documented supervisor decisions. What remains open is the wording of the native-evidence limitation and of claims about emulated timing and resource figures (the open part of D014, whose row is `partly_confirmed_reported_by_student`) and the experimental thresholds and other numerical criteria (D007); the QEMU evaluation scope of RQ3 is reported approved and is not re-requested. *(Corrected 2026-09-19 to match the narrowed D014 row of the [decision log](../governance/supervisor_decision_log.csv); this line previously said the academic use of emulated results was not agreed and D014's academic-use half unanswered. The dated statements below that say so are kept as written and are superseded by this line.)*
 
 **Supersedes, for the adopted execution baseline** (student authority, 2026-09-18): the separate-operating-system/service deployment in [0001](0001-qemu-functional-vs-arm64-vm-performance.md) and [0007](0007-three-tier-platform-model.md). Their historical status is retained, and their rules continue to govern any future native measurement work.
 
@@ -30,7 +30,7 @@ For AWS, the versioned `meta-aws` Scarthgap custom AMI route would be investigat
 - Ubuntu may be a build, administration or temporary diagnostic environment. Ubuntu-hosted service measurements cannot be relabelled as the final Yocto-based campaign.
 - A Yocto filesystem used only as a container/chroot is insufficient because the measured kernel would still be the outer host's kernel.
 - An ARM64 cloud result characterises that guest/platform configuration. It does not prove performance on a physical gateway, universal image portability, superiority over Ubuntu or the full C2DTA identity/blockchain architecture.
-- Keep the functional and service layers as a logical decomposition; demonstrate their integration before the pilot and final campaign. **Partly demonstrated on 2026-09-18**: the six-container stack was deployed inside the emulated guest and one bounded end-to-end functional path passed. That evidence is candidate evidence held outside the repository and unsealed; it admits no claim and closes no gate. The nine integration/recovery test families were themselves exercised once on 2026-09-18, seven passing, with tests 1 and 6 carrying a failing harness part from the resource sampler under emulation; that record is likewise held outside the repository and unsealed, so the battery is **not complete** and demonstrates nothing at a gate.
+- Keep the functional and service layers as a logical decomposition; demonstrate their integration before the pilot and final campaign. **Partly demonstrated on 2026-09-18**: the six-container stack was deployed inside the emulated guest and one bounded end-to-end functional path passed. That evidence is candidate evidence held outside the repository and unsealed; it admits no claim and closes no gate. The nine integration/recovery test families were themselves exercised once on 2026-09-18: functional results were demonstrated for tests 2 and 8 and for the tested checks of test 9, and the specific behaviours of tests 3 (rejection of invalid payloads), 4 (duplicate handling) and 7 (bounded retry under a MongoDB fault, not lossless delivery); test 5 fails its deadline criterion (326 of 2,016 valid events confirmed late); two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`), both runbook prose steps that the extracted test commands did not include, so test 7 demonstrated the MongoDB fault only; and the timed harness runs of tests 1 and 6 are invalid. That record is a locally hash-sealed candidate archive held outside the repository, not incorporated into or admitted by the project evidence record, so the battery is **not complete**, nothing has been measured, and it demonstrates nothing at a gate. *(Corrected on 2026-09-19: this bullet first said that seven tests passed and that tests 1 and 6 carried a failing harness part; re-read test by test, the record does not support that.)*
 - Image, kernel, runtime, container and measurement changes are recorded and frozen together before citable experiments.
 - The implementation remains pending. This ADR records the direction the student has adopted for project execution, not a successful deployment, a closed gate or supervisor approval.
 
@@ -132,11 +132,16 @@ claim or turns a reported confirmation into a documented decision.
 integration/recovery test families in the paragraph of facts above was written
 in this change and is corrected there rather than preserved and superseded,
 because it never stood on `dev`. What happened: later on 2026-09-18 the nine
-families were exercised once — seven passed, and tests 1 and 6 carry a failing harness
-part, because the resource sampler under test cannot reach the harness's
-minimum sample count under emulation. That record is held outside the
-repository and unsealed, the battery is **not complete**, nothing has been
-measured, and the instrumentation defect is fixed under its own change. The
+families were exercised once; the per-test state is in the Consequences section
+above — test 5 fails its deadline criterion, the sequence-reset sub-check of
+test 4 and the Ditto repeat of test 7 were not run, and the timed harness runs
+of tests 1 and 6 are invalid.
+That record is a locally hash-sealed candidate archive held outside the
+repository and not admitted, the battery is **not complete**, nothing has been
+measured, and the resource-sampler defect is addressed under its own change,
+which is not merged into `dev`. *(Corrected on 2026-09-19: this sentence first
+said "seven passed, and tests 1 and 6 carry a failing harness part", and that
+the instrumentation defect was fixed; both overstated the record.)* The
 current position is in the Consequences section above and in
 [`../governance/gate_decision_log.md`](../governance/gate_decision_log.md)
 (G3).

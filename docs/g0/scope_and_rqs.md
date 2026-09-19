@@ -116,9 +116,15 @@ RQ3 is **bounded to emulation**. It does not retain the earlier claim about
 capacity on a non-burstable native ARM64 environment, and no answer to it may
 be presented as native ARM64 performance. Two things must not be conflated: the
 student **reports** that RQ3 evaluated in QEMU was approved and that a
-supervisor approved proceeding with the QEMU tests, and **whether emulated
-results may be used as the academic evaluation at all is D014 and remains
-unanswered**. Approving the route is not approving the use of its results.
+supervisor approved proceeding with the QEMU tests, and that report is recorded as the
+QEMU evaluation scope of RQ3 being **reported approved** — undated, not a
+documented supervisor decision, and not re-requested. What D014 still holds
+open is only the wording of the native-evidence limitation and of claims about
+emulated timing and resource figures; numerical criteria belong to D007.
+*(Corrected 2026-09-19 to match the narrowed D014 row of the
+[decision log](../governance/supervisor_decision_log.csv); this paragraph
+previously said that whether emulated results may be used as the academic
+evaluation at all was D014 and remained unanswered.)*
 
 ACA-Py and SSI are **not required** to answer any RQ.
 
@@ -239,7 +245,9 @@ marketplace, a UI or any other cut function.
   keeping the literal `/telemetry` topic. **Every confirmation above is reported
   by the student**: none is a documented supervisor decision, none carries a
   date, and none closes a gate or admits a claim. The academic use of emulated
-  results (D014) and the experimental thresholds (D007) remain open.
+  results (D014) and the experimental thresholds (D007) remain open. *(Superseded
+  on 2026-09-19 by the narrowed D014 row: the QEMU evaluation scope of RQ3 is
+  reported approved and only D014's limitation and claim wording stays open.)*
 - **Version 2.0 (2026-09-18).** Published for the student's adoption of plan
   v2.0 with the QEMU-only execution amendment. The two-layer objective becomes
   one integrated system under test; the research questions are rewritten and
@@ -253,7 +261,8 @@ marketplace, a UI or any other cut function.
   D001-D014 remain `proposed_not_sent`, the title and RQ wording stay a request
   under D001/D011.")* What holds after that amendment: the title and the RQ
   wording are reported approved by the student, the academic use of emulated
-  results stays a request under D014, and D001, D007, D008 and D012 remain
+  results stays a request under D014 *(superseded on 2026-09-19: only D014's
+  limitation and claim wording stays open)*, and D001, D007, D008 and D012 remain
   `proposed_not_sent`. No gate is closed and no claim is admitted.
 - **Version 1.1 (2026-08-13).** The two-layer scope, superseded by version 2.0
   and preserved in the repository history.

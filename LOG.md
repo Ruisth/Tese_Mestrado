@@ -1877,3 +1877,357 @@ is unchanged.
   integration/recovery test families; and check the 95-run attempt target against
   the pilot's feasibility finding before any campaign window is treated as
   credible.
+
+---
+
+## Entry #C035 — Governance and acceptance update: G0 accepted, the integration battery restated test by test, the acceptance proposals
+
+- **Date:** 2026-09-19
+- **Identifier:** `#C034` belongs to the resource-sampler pull request prepared
+  in parallel on branch `fix/resource-sampler-cgroup` and is not used here.
+  Identifiers are never reused; when that pull request merges, its entry sits
+  before this one.
+- **Request:** The project review of 2026-09-19 (sections 2, 4.3, 4.4 and 5,
+  and step 3 of section 7) asked for one bounded governance and acceptance
+  update: correct the account of the integration battery of 2026-09-18, which
+  the repository gave in 19 places across 12 files as "seven passed, and tests
+  1 and 6 carry a failing harness part"; state the exclusion rule by evidence
+  validity rather than by outcome; stop reopening the reported QEMU evaluation
+  scope of RQ3 through D014; and write the acceptance and protocol proposals
+  for review. The dated entry "2026-09-19 03:29 WEST - G0 closure" of the
+  project-management instruction register, held outside the repository,
+  together with its amendment at line 59, records the student's statement,
+  verbatim "Penso que o G0 se pode considerar fechado", and the project
+  manager's concurrence, and asks that the G0 decision and its scope amendment
+  be published together in this update. **The guest stays off, and test
+  acceptance remains paused at the student's request.**
+- **Findings — the integration battery of 2026-09-18, test by test.** The
+  record is the candidate archive
+  `~/yocto/evidence-candidates/2026-09-18-integration-tests/` in the WSL2 home
+  of the workstation. A confirmation is late when its Ditto acknowledgement
+  falls after the controller-clock deadline, the controller marker plus 60 s;
+  a late record does not rescue its message. The nine families were exercised
+  once:
+  1. *Smoke and harness artefacts:* three ad-hoc repetitions are recorded; the
+     timed harness runs `smoke_sequence-r01` (2026-09-18) and `-r02`
+     (2026-09-19) are **invalid**, their resource files not ingested.
+  2. *Three wearables:* **functional result demonstrated** — 672 valid events,
+     672 delivered in time, 0 lost, 0 late (600 from the smart clothing, 60
+     from the smartwatch and 12 from the smart ring). The margin is thin: the
+     last acknowledgement came 3.1 s before the deadline, and an earlier
+     672-message preflight run had 378 late.
+  3. *Invalid payloads:* **rejection behaviour demonstrated** — 67
+     intended-invalid payloads rejected, none accepted and no valid one
+     rejected — but 132 of the 1,277 valid events were confirmed late, so it is
+     not a zero-late run.
+  4. *Duplicates and sequence:* **duplicate handling demonstrated** — 672
+     duplicates, none double-accepted. **The required sequence-reset sub-check
+     `itest-dup-02` was not run**: the runbook states it in prose, the
+     battery's commands were extracted from fenced code blocks only, and the
+     archive holds no such record. The post-replay warning "IMPLAUSIBLE
+     controller confirmation marker" is explained: the deliberate replay falls
+     after the window and the guard compares the deadline with the latest
+     receive time over all records, so the in-window figures are unaffected.
+  5. *Disconnect and reconnect:* **fails its stated temporal criterion** — all
+     2,016 valid events were eventually accepted, but only 1,690 within the
+     deadline and **326 late**, where the runbook requires `lost = 0` and
+     `late_confirmations = 0`. Three deliberate disconnects and 165 buffered
+     events were observed. Two validation paths disagree: the reconciliation
+     warns that the simulator manifest is absent from the harness layout,
+     while the totals it appends from the simulator's own manifest show them.
+  6. *Controller restart:* the timed harness runs `controller_restart-r01`
+     (2026-09-18) and `-r02` (2026-09-19) are **invalid** (resource gaps and a
+     controller-metrics outage), so recovery and delivery are not accepted.
+  7. *MongoDB fault:* **bounded retry and fault behaviour demonstrated**, not
+     lossless delivery — 62 events failed after their three attempts, and of
+     the 3,298 accepted, 1,012 were late. The runbook's repeat for Ditto
+     (`itest-ditto-fault-01`) was **not run** either, for the same extraction
+     reason, so test 7 covers only its MongoDB half.
+  8. *Guest reboot:* **reboot and persistence demonstrated** — the boot id
+     changed, the twin counters persisted and a fresh 336-event run reconciled
+     with 0 lost and 0 late. The controller's own counters restarted at 0, as
+     the runbook expects.
+  9. *TLS and authorisation:* **the tested checks passed** — wrong CA, wrong
+     password and plaintext refused, the ACL probe passed and anonymous access
+     was refused (exit code 5). This is not a general security assurance.
+
+  All 312 entries of the archive's `SHA256SUMS` verify. It is a **locally
+  hash-sealed candidate archive, not incorporated into or admitted by the
+  project evidence record**, and an outer archive seal does not make a nested
+  invalid run valid. Two sub-checks were not run, the sequence reset of test 4
+  and the Ditto repeat of test 7: both stood in the runbook's prose, and the
+  tooling that extracted the battery's commands took only fenced code blocks
+  and dropped them. The battery is **not complete** and nothing has been
+  measured.
+- **Findings — the invalid timed attempts of 2026-09-19.** Both
+  `smoke_sequence-r02` and `controller_restart-r02` (run directories under
+  `~/egw-tcg/pilot/results/raw/`) are **invalid**: ingestion rejected the first
+  run's resource file for 25 distinct sample instants against a minimum of 30,
+  and the second's for one 6.0 s gap in the controller's series, 00:18:29Z to
+  00:18:35Z, inside the recorded restart interval, against the 5 s limit; the
+  second run's `controller_metrics.csv` also has 26 failed polls and a
+  29.115 s gap. Counted by exact message ID against each manifest's
+  controller-clock deadline — **diagnostic counts, never campaign results** —
+  `smoke_sequence-r02` published 336: 236 in time, 15 late and 85 with no
+  accepted record in the fetched log, all 85 a backlog that the controller's
+  accepted counter shows was accepted later (a check on the counter, not on
+  message identities); `controller_restart-r02` published 6,720: 3,795 in
+  time, 24 late and 2,901 with no record. Two findings follow, with their
+  limits:
+  - **Throughput.** Under QEMU/TCG the controller's single consumer, which
+    processes messages one at a time with one sequential Ditto request each,
+    sustained about 3–8 acknowledgements per second against a publishing rate
+    of 11.2 msg/s; its queue grew by 4.7–10.6 per second, and latency was
+    50–86 s at the median and 69–157 s at the 95th percentile (emulated,
+    informational). The broker kept up, with a median transit of 2–14 ms. The
+    late confirmations of tests 3, 5 and 7 of the battery fit the same
+    backlog: in every battery run the controller had received every message by
+    the marker.
+  - **The restart appears to discard the controller's in-memory queue.** Of
+    the 2,901 messages of `controller_restart-r02` without an accepted record,
+    about 765 fit the backlog, but about 2,136 do not: 1,765 were published
+    before the restart and about 371 during the outage. The MQTT client
+    acknowledges on enqueue, the queue is in memory and the client uses a clean
+    session with a fixed client id, so messages queued, or published while no
+    session existed, would not survive a restart. This bears directly on claim
+    C12 and on RQ2, and it is a design and data-path issue, not only a matter
+    of emulator speed.
+  - **Limits of both.** They come from two invalid runs, under emulation. The
+    guest-side event log on the data disk, the twins' ingestion counters and
+    the container logs were **not read**; the fetched event log is a snapshot
+    taken about 2.6 s after the deadline; the stop timeline is inferred; and no
+    permanent loss is asserted. The controller code is identical between the
+    harness commit of the r02 runs (`8e88670`) and `dev`, but the commit of the
+    image deployed in the guest was not verified. The restart finding needs
+    confirmation from the guest-side logs after resumption, and then a separate
+    design decision.
+  - **Instrument binding and hook order.** Both r02 runs used an intermediate
+    collector, sha256 `f17bdd8c66da…4e47a`, that matches no committed version;
+    the version pushed as `aa7440d` (`b7aeddba…136e`) was installed at
+    00:26:31Z, after both runs had begun, and has been exercised only idle. The
+    manifests record the harness commit, whose collector is a different one,
+    and no collector hash. The harness stops the collector **before** the 60 s
+    confirmation window (`run.py` lines 1941–1943), so a condition without a
+    warm-up gives the collector almost no pre-roll and its priming sample falls
+    inside the measured window (first rows 1.4 s and 1.7 s after the start of
+    the window in the two r02 runs).
+- **Findings — governance.** Section 4.3 of the canonical plan excluded "an
+  unsealed or failing run" from every summary, acceptance and figure. That
+  contradicted the plan's own "Failures kept" condition and its rule that
+  slowness alone never excludes a run, and it is broader than the implemented
+  analysis (`analyze.py` lines 312–342 and 3498–3534), which excludes by
+  validity and integrity and keeps a valid run with `lost > 0`, so that the run
+  fails its criterion. D014 held open, as a blanket blocker of G4–G7 and of the
+  final academic release, a question the student reports already answered: the
+  research questions approved with RQ3 evaluated with QEMU tests. And three
+  documents disagreed about G0's conditions: plan section 4.2 named the
+  alignment package and not the off-machine copy, which the plan's G7 criterion
+  already carried; the gate log named both; `PROGRESS.md` tagged the
+  off-machine copy "G0 — In progress" and the alignment email "G0 — Blocked".
+- **Action — the G0 decision.**
+  [`docs/governance/decisions/2026-09-19-g0-closure.md`](docs/governance/decisions/2026-09-19-g0-closure.md)
+  (new) is the durable decision record, readable from a clean checkout: G0
+  **Accepted** on 2026-09-19 for project initiation and baseline alignment,
+  authority Student (Rui Duarte), with the project manager's concurrence; the
+  accepted scope; the register's residual-obligation table, with a column
+  naming where this repository tracks each obligation; the previous state;
+  what the decision does not do; and the source entry and its amendment quoted
+  verbatim, the register named by its file name only. It is a dated change of
+  G0's exit scope, **not** a retroactive pass against the legacy conditions.
+  `docs/governance/gate_decision_log.md`: the G0 row reads Accepted,
+  2026-09-19, Student (Rui Duarte), citing the record and this entry; the
+  replaced `Not decided` row is kept verbatim under a new "Superseded row
+  states" section; a dated sentence says that the decision rests on the
+  student's own statement, not on a reported confirmation. Plan section 4.2:
+  the G0 bullet states the decision, with its former wording kept as a dated
+  note, and the "G0 external actions" row of section 2 and section 6 say that
+  the alignment package is no longer a G0 condition. `PROGRESS.md`,
+  `README.md`, `docs/README.md`, `docs/g0/backlog.md` and `docs/g0/risks.md`
+  record the acceptance and the reallocation: integration defects and
+  admissible run evidence to G2/G3; D007, the fault-window rules, the loads,
+  the 95-run feasibility and the frozen protocol to G4; genuinely unsettled
+  method or claim detail tracked at G4/G6, with no blanket D014 blocker; the
+  scoping review's execution and the writing to Chapters 1–4 and G6; the
+  template check, the AI-use declaration and the final evidence package to G7;
+  and the verified off-machine copy, its hash and its restore path as an active
+  resilience action owned by the student — R25's owner changes from "Both" to
+  the student — retained in the risk register and the backlog and required at
+  G7, **neither verified nor waived**.
+- **Action — the battery restated in place.** Each current-state statement is
+  corrected where it stands, with a short dated note: the status section and
+  G3 row of `README.md`; in `PROGRESS.md`, the gate-status block, now dated
+  2026-09-19, with its G3 bullet, and the effort row of the nine families; the
+  runbook row of `docs/README.md`; both battery rows of `docs/g0/backlog.md`;
+  the G3 note of the gate log; the unit-evidence row of plan section 2; the
+  Evaluation automation cell of `docs/academic/c2dta_p0_traceability.md`; the
+  status note of `docs/setup/qemu_integrated_gateway.md`; and, in
+  `docs/adr/0008-integrated-yocto-arm64-evaluation.md`, the Consequences
+  bullet and the corrected statement of the 2026-09-19 amendment, which no
+  longer says that the sampler defect is fixed — it is addressed under its own
+  change, not merged into `dev`. "Unsealed" becomes "locally hash-sealed
+  candidate archive, not admitted" in the same places. The historical
+  proposals under `docs/governance/proposals/` take dated markers beside the
+  false sentences, without rewriting them: sections 6.1 and 6.2 of the plan
+  v2.0 proposal, and the banner and item 6 of the v2.0 alignment memo, whose
+  bold sentences are marked not to be sent as written. The runbook also gains
+  dated notes on the failure of test 5, on the invalid timed runs of test 6,
+  the latter pointing to the proposed restart rule, and on test 7, which
+  covered the MongoDB fault only; and, in the test 1 paragraph, the hook order
+  as implemented — stop hook before the 60 s window, fetch hook after it.
+- **Action — the two prose steps of the runbook fenced.** In
+  `docs/setup/qemu_integrated_gateway.md` the two steps that the extraction
+  tooling dropped are now fenced `host$` blocks, their commands unchanged, so
+  that they cannot be skipped the same way: the test 4 sequence reset
+  (`run_test itest-dup-02 ...`), right after test 4's expected results, and
+  the test 7 Ditto repeat (`R=itest-ditto-fault-01; SVC=ditto-things`, then
+  test 7's test line and evaluation line, copied unchanged), under a heading
+  of its own, "Repeat of test 7 for Ditto", because the runbook's tests
+  (`src/tests/test_runbook_itest_helpers.py`) read the fenced commands of the
+  test 7 section as a single run. A dated note in test 4 and in test 7 records
+  that the step was not run. This is a change of form only: no command,
+  criterion or result changes, and neither sub-check has been run.
+- **Action — the exclusion rule and D014.** Plan section 4.3 (G5) now excludes
+  by evidence validity, never by outcome: a run with missing or corrupted
+  provenance or invalid instrumentation is excluded from the eligible
+  quantitative aggregates but retained and reported with its reason; a valid
+  run showing overload, loss, late confirmation or failed recovery is retained
+  and analysed — the system fails the criterion and the observation does not
+  vanish; conditions are never repeated until they pass, and changed
+  configurations or protocols are never mixed unidentified. This is a wording
+  correction; the analysis code already behaves this way. D014, in the plan
+  (banner and sections 1.1, 2, 3.2, 3.5, 4.3, 4.4 and 6) and in
+  `docs/governance/supervisor_decision_log.csv`: the QEMU evaluation scope of
+  RQ3 is recorded as **reported approved** — reported by the student, undated,
+  not a documented supervisor decision — and is not reopened; the open part is
+  narrowed to the wording of the limitation that records the absence of native
+  evidence and of any claim about emulated timing or resource figures, tracked
+  at G4 and G6, with the numerical criteria under D007; D014 is no longer a
+  blanket blocker of G4–G7 or of the final academic release. Its status stays
+  `partly_confirmed_reported_by_student`, with `sent_at` and `response_at`
+  empty. D008 and D011 in the decision log, and D008 in
+  `docs/g0/supervisor_decision_matrix.csv`, take dated notes that point to the
+  narrowed D014, their statuses unchanged. The plan also states the scoping
+  review (D003) and the waiver of a second software tester (D006) as settled
+  decisions, separate from their incomplete execution and documentation, and
+  its section 9 itemises this update. Current-state text elsewhere that still
+  described the QEMU evaluation scope or the academic use of emulated results
+  as open under D014 is corrected in place, each with a dated note — rule 6 of
+  Section 8 of the runbook among them — and the historical v2.0 alignment memo
+  takes dated markers, without rewriting, beside its banner sentence, its D014
+  request and the two sentences that treat the evaluation scope as unagreed or
+  as a condition of submission. Where any such wording remains, rule 5 of plan
+  section 3.5 and the D014 row of the decision log govern.
+- **Action — what is new and true.** `PROGRESS.md`: a row for the per-test
+  record of the battery, a row for the diagnostic findings of the r02
+  attempts, and the controller row corrected, which said that no real restart
+  had been exercised. `docs/g0/backlog.md`: four G2 actions — run the two
+  missing sub-checks, the test 4 sequence reset and the Ditto repeat of
+  test 7; retain and follow up the test 5 deadline failure; diagnose the
+  delivery backlog under QEMU/TCG; and confirm the controller-restart queue
+  finding before a design decision. `docs/g0/risks.md`: a section "Findings recorded on 2026-09-19"
+  registers the restart queue finding against R31 (with C12 and RQ2) and the
+  throughput finding against R13 and R23, with cross-notes; no identifier is
+  created, because the range is frozen. `docs/claim_evidence_matrix.md` and
+  `docs/claim_evidence_matrix.csv`: C12 stays `Pending — no evidence` and takes
+  a dated note, admitting nothing, that points to the findings and to the
+  proposed restart rule.
+- **Action — the acceptance and protocol proposals.**
+  [`docs/governance/proposals/acceptance_protocol_update_2026-09-19.md`](docs/governance/proposals/acceptance_protocol_update_2026-09-19.md)
+  (new), marked **PROPOSED — for review, not adopted**, gives the verified facts
+  and, per item, what stays unchanged and who decides: (1) short-run selection
+  — keep the 30-distinct-instant minimum and the 60 s confirmation rule, and
+  run the next instrumentation acceptance as a nominal entry with its declared
+  duration unchanged, under a new run identity, which is not a passed 30-second
+  smoke; whether the count should be taken inside the window and whether
+  duplicate `(container, ts)` rows should be rejected stay open questions;
+  (2) a lifecycle-aware rule for a deliberate restart — a designated window for
+  the restarted container only, opened at the start of the restart command,
+  closed at the first successful `/ready` answered by the new instance and
+  capped at the command's finish plus `RESTART_RECOVERY_MAX_S`, the run failing
+  its recovery criteria if the cap is reached; the 5 s limit everywhere else;
+  data never zero-filled or interpolated; the first post-start CPU-delta sample
+  within 5 s of the close; no exemption for delivery accounting; fifteen
+  regression cases; (3) late delivery as its own issue, with the two findings
+  above and unchanged deadline semantics; (4) the test 4 sequence-reset
+  coverage, with the Ditto half of test 7, recording that both prose steps
+  were moved into fenced blocks on 2026-09-19 as a change of form only;
+  (5) binding every run to the hashes
+  of its exact helper, deployment configuration, controller image and
+  collector; (6) the acceptance sequence after resumption — one fresh bounded
+  acceptance pair first, stop on failure, then only the affected or missing
+  checks, then G3, with no jump to the 95 runs or the 24-hour soak.
+  `docs/governance/proposals/README.md` gains its index row.
+- **Verified, and how.** Every fact above was verified on 2026-09-19,
+  read-only, against primary evidence: the battery archive (`sha256sum -c`
+  over its 312 entries; every per-test figure recomputed from
+  `sent_events.jsonl`, `events.jsonl` and the controller marker, and matching
+  the reconciliation outputs exactly); the r02 run directories (manifests,
+  `controller_metrics.csv` and the fetched event logs, counted by exact message
+  ID); the candidate archive
+  `~/yocto/evidence-candidates/2026-09-19-sampler-fix/` for the collector
+  installations and their hashes; and the source at `dev` revision `40aae52`
+  and at `aa7440d`, read with `git show` and `git grep`. The reconciliation and
+  analysis code is byte-identical between `8e88670`, `9ffd365` and `40aae52`.
+  Both quotations in the decision record were compared with the register and
+  are identical. On this change, from the work-tree root:
+  `python tools/ci/check_markdown_links.py` (91 Markdown files) and
+  `python tools/ci/verify_evidence.py` (304 artefacts across 14 evidence
+  seals) pass; the three edited CSV files parse with their column counts
+  unchanged (9, 9 and 5); the runbook's code fences balance, and
+  `src/tests/test_experiments_itest_reconcile.py`, which parses the runbook's
+  `$REC` lines, passes (106 cases); `src/tests/test_runbook_itest_helpers.py`,
+  which does not run on Windows, passes on the WSL2 Ubuntu host (64 cases)
+  with both fenced sub-check steps in place. The GitHub workflow result, not
+  this entry, establishes whether the required checks pass.
+- **Not shown and not done.** The guest was not booted and its data disk was
+  not accessed; no test, harness run or campaign was executed; **test
+  acceptance stays paused at the student's request** and nothing here resumes
+  it. **No evidence is admitted**: the battery archive and the first-flow
+  record stay outside `docs/evidence/`, and every r02 figure is diagnostic.
+  **No gate beyond G0 is decided** — G1 stays accepted as recorded on
+  2026-08-14 and G2–G7 stay `Not decided` — and **no claim is admitted**: 0 of
+  15, C12 included. The G0 decision marks neither the historical alignment
+  package as sent nor the off-machine copy as made, verified or waived; nothing
+  is sent to the supervisors; no supervisor date, message or name is recorded,
+  and no reported confirmation becomes a documented supervisor decision. None
+  of the proposals is adopted: no protocol constant, validator, harness
+  behaviour or code changes; D007's numbers and the protocol freeze stay
+  separate decisions; and the old runs stay invalid under their original rules.
+  The restart queue finding is not confirmed, no permanent loss is claimed and
+  no design decision on the restart path is taken. Neither missing sub-check
+  was run — the test 4 sequence reset and the Ditto repeat of test 7 were only
+  moved into fenced blocks. The docstring of `resources.py` (lines 92–95)
+  that places the collector stop after the confirmation window is code and is
+  not changed here; the same wording on the sampler branch belongs to that pull
+  request.
+- **Correction of entries #C032 and #C033, which are not rewritten.** #C033
+  said that the nine families were exercised once, that "seven passed, and
+  tests 1 and 6 have a failing harness part", and that the record was "held
+  outside the repository and unsealed". The first overstates the record and
+  the second misclassifies it; the per-test account and the classification
+  above replace both. #C032's statement that none of the nine families had
+  been run was superseded by #C033 and is replaced, like #C033's, by the
+  per-test account above. #C033's description of D014 as
+  holding open the scope of the evaluation and any academic use of emulated
+  results, and its sentence that approving the QEMU route is not approving the
+  academic use of its results, are superseded by the D014 revision above. The
+  other boundaries of both entries stand.
+- **Decisions and next steps.** Decided by the student on 2026-09-19: **G0
+  Accepted** for project initiation and baseline alignment. No other gate,
+  claim or maturity level changes, no documented supervisor decision is
+  created, and none of the proposals is adopted. Next: the student verifies
+  the off-machine copy, its hash and its restore path promptly, as an active
+  resilience action required at G7, and decides on each proposal as the
+  proposal document names. After the student resumes test acceptance, and not
+  before: read the guest-side event log, the twins' ingestion counters and the
+  container logs of `controller_restart-r02`, read-only, to confirm or refute
+  the restart queue finding, and take a separate design decision on the
+  restart path before any C12 evidence is collected; then, if the proposed
+  acceptance sequence is adopted, one fresh bounded acceptance pair requiring
+  resource ingestion, end-to-end deadline accounting and recovery evidence,
+  stopping on failure, and afterwards only the affected or missing checks —
+  `itest-dup-02` and the Ditto repeat of test 7 among them — under new run
+  identities, unchanged deadline semantics and recorded instrument hashes; then
+  G3. No jump to the 95 runs or the 24-hour soak. The resource-sampler change
+  (`#C034`) proceeds under its own review, and D007 is still owed before
+  `exp-v1`.
