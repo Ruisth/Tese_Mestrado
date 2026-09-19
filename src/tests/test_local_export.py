@@ -373,6 +373,16 @@ def test_a_historical_backfill_keeps_its_seal_and_is_indexed_as_historical(roots
                     note="a different capsule under the same name")
 
 
+@pytest.mark.parametrize("date", ["../../archive", "/tmp/elsewhere", "2026-9-19", "2026-02-30", ""])
+def test_a_backfill_date_must_be_a_calendar_date(roots, tmp_path, date):
+    attempts, dest, env = roots
+    raw = _raw_capsule(tmp_path / "old")
+    with pytest.raises(ValueError):
+        le.backfill(raw, attempts, dest, name="x", scenario="x", date=date, note="x")
+    assert not (attempts / "_historical").exists()
+    assert not any(p.name.startswith("HIST_") for p in tmp_path.rglob("HIST_*"))
+
+
 def test_the_index_never_loses_an_attempt(roots):
     attempts, dest, env = roots
     names = []

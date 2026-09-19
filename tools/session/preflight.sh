@@ -15,7 +15,7 @@ trap '(cd "$REPO/src" && $LE finish --attempt "$A" --status interrupted --outcom
     "workload={\"session\": \"$(basename "$SESSION")\", \"collector_samples\": \"45 s at 1 s\", \"expected_services\": \"$EXPECT_SERVICES\"}")
 problems=()
 
-gx "$A" stack-start-interlock "cd /opt/egw/deployment && stat -c '%u:%g %n' data/events && if ls scripts/prepare-broker-secrets.sh scripts/probe-acl.sh >/dev/null && grep -q '3b\.' scripts/validate-config.sh && sh scripts/verify-controller-image.sh /opt/egw/images/egw-controller-0.1.0-arm64.identity.txt && sh scripts/validate-config.sh; then $DC up -d; echo \"up exit=\$?\"; else echo 'STOP: interlock failed - the stack was NOT started'; exit 1; fi" \
+gx "$A" stack-start-interlock "cd /opt/egw/deployment && stat -c '%u:%g %n' data/events && if ls scripts/prepare-broker-secrets.sh scripts/probe-acl.sh >/dev/null && grep -q '3b\.' scripts/validate-config.sh && sh scripts/verify-controller-image.sh /opt/egw/images/egw-controller-0.1.0-arm64.identity.txt && sh scripts/validate-config.sh; then $DC up -d; rc=\$?; echo \"up exit=\$rc\"; exit \$rc; else echo 'STOP: interlock failed - the stack was NOT started'; exit 1; fi" \
     || problems+=("stack start interlock failed")
 
 NEW=$REPO/src/deployment/scripts/collect-resources.sh
@@ -31,7 +31,7 @@ ex "$A" deployed-vs-clone "$PY" "$DRIVERS/deployed_vs_clone.py" "$OUTF" "$REPO/s
 hx "$A" controller-health 'for p in health ready metrics; do printf "%s: " $p; curl -s -m 30 -o /tmp/egw-pf-$p.json -w "%{http_code}\n" "$CTRL/$p"; cat /tmp/egw-pf-$p.json; echo; done; wait_ready 300 && echo "READY"' \
     || problems+=("controller not ready")
 gx "$A" stack-health "cd /opt/egw/deployment && $DC ps --format '{{.Name}} {{.State}} {{.Health}}'; for c in \$(docker ps -a --format '{{.Names}}'); do echo \"\$c OOMKilled=\$(docker inspect -f '{{.State.OOMKilled}}' \$c) restarts=\$(docker inspect -f '{{.RestartCount}}' \$c)\"; done; echo '## memory-cgroup OOM lines this boot'; sudo -n dmesg | grep -ci 'memory cgroup out of memory' || true; echo '## storage'; df -h / /var/lib/docker /tmp; free -m; echo '## docker stats (one sample; slow under TCG)'; docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.MemPerc}} {{.CPUPerc}}'"
-gx "$A" broker-secrets-check "cd /opt/egw/deployment && sh scripts/prepare-broker-secrets.sh --check --acl; echo \"check exit=\$?\"" \
+gx "$A" broker-secrets-check "cd /opt/egw/deployment && sh scripts/prepare-broker-secrets.sh --check --acl; rc=\$?; echo \"check exit=\$rc\"; exit \$rc" \
     || problems+=("broker secrets check failed")
 ex "$A" clock-offset env E="$SESSION" bash -c '. "$E/scripts/session_common.sh"; for i in 1 2 3; do h0=$(date +%s.%N); g=$(gssh "date +%s"); h1=$(date +%s.%N); echo "host_before=$h0 guest=$g host_after=$h1"; done'
 gx "$A" guest-clock 'timedatectl show; date -u'

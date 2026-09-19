@@ -8,7 +8,7 @@ S=$SESSION
 [ -n "$S" ] && [ -d "$S" ] || { echo "STOP: no open session" >&2; exit 1; }
 fails=0
 hx "$S" tunnel-down 'tunnel_down || true'
-gx "$S" stack-stop "cd /opt/egw/deployment && $DC stop -t 60; echo \"stop exit=\$?\"; docker ps -a --format '{{.Names}} {{.Status}}'" || fails=$((fails + 1))
+gx "$S" stack-stop "cd /opt/egw/deployment && $DC stop -t 60; rc=\$?; echo \"stop exit=\$rc\"; docker ps -a --format '{{.Names}} {{.Status}}'; exit \$rc" || fails=$((fails + 1))
 gx "$S" oom-before-poweroff 'sudo -n dmesg | grep -i "memory cgroup out of memory" || echo "no memory-cgroup OOM in this boot"'
 ex "$S" session-close bash "$S/scripts/session_close.sh" "$S" || fails=$((fails + 1))
 ex "$S" artefacts-after-poweroff bash -c "sha256sum '$ROOTFS_EXT4'; ls -l '$DATA_DISK'; pgrep -af qemu-system-aarch64 || echo 'no qemu process left'"

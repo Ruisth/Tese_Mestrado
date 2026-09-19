@@ -120,8 +120,20 @@ def run_date(run_id: str, attempt: dict | None = None) -> str:
         s = m.group(1)
         return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
     if attempt and attempt.get("date"):
-        return str(attempt["date"])
+        return valid_date(str(attempt["date"]))
     raise ValueError(f"cannot derive a date from run id {run_id!r}")
+
+
+def valid_date(text: str) -> str:
+    """A calendar date in the form YYYY-MM-DD, or ValueError.
+
+    The date becomes a folder name under ``runs/``: anything else (``..``, an
+    absolute path) could place a package outside the destination root.
+    """
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        raise ValueError(f"date {text!r} is not in the form YYYY-MM-DD")
+    _dt.date.fromisoformat(text)
+    return text
 
 
 def load_secrets(env_file: str | Path | None) -> dict[str, bytes]:
@@ -999,6 +1011,7 @@ def backfill(
     A name identifies one source: backfilling another source under a name
     already used is refused, never reported as the earlier package.
     """
+    date = valid_date(date)
     run_id = "HIST_" + re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-")
     attempt_dir = Path(attempts_root) / "_historical" / run_id
     if attempt_dir.exists():
