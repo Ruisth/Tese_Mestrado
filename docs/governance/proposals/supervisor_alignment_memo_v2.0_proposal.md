@@ -41,7 +41,7 @@ reported by the student, undated, with no message and no supervisor name, and
 not a documented supervisor decision. *(Written in this change and corrected
 here on 2026-09-19; the earlier draft of this paragraph called it
 student-reported advice rather than approval. It is not preserved memo
-wording.)* The August memo stays unmodified at
+wording.)* The August memo keeps its August text unchanged, under dated banners, at
 [`docs/governance/supervisor_alignment_memo.md`](../supervisor_alignment_memo.md).
 
 The original Theme 1 objective is to develop/test a custom Yocto distribution
