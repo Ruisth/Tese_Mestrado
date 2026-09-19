@@ -224,6 +224,8 @@ The equivalent explicit line (only for diagnosing the wrapper itself; the wrappe
 - To try a different CPU model without rebuilding, `EGW_QEMU_EXTRA="-cpu neoverse-n1"` is appended *after* the `QB_CPU` option (line 1557-1559); `UNVERIFIED:` QEMU honours the last `-cpu` given. Prefer changing `QB_CPU` in the manifest and rebuilding the image (only the qemuboot.conf changes) so the record in `testdata.json` matches the boot.
 - For the `-dev` image (root console login) use `EGW_IMAGE=egw-gateway-image-dev ./scripts/run-qemu-integrated.sh $BOOT-dev`; it attaches the same data disk and is for bring-up only, never for evidence runs.
 - Exit QEMU with `Ctrl+A` then `x` (the wrapper's stdin stays attached to the terminal; stdout/stderr are teed into the log).
+- **Stop the stack before powering the guest off**, whenever it is running:
+  `ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env stop -t 60'`, then `ssh egw-tcg 'sync; sudo -n poweroff'`. A power-off with the containers still running leaves the JVMs to be stopped by the shutdown of `docker.service`, and on 2026-09-18 the kernel killed the `ditto-things` JVM that way (memory-cgroup OOM during teardown). The same run stopped cleanly in 19 to 42 s when the stack was stopped first, with no OOM in the whole boot. `docker compose stop` keeps the containers and volumes; the stack comes back with `start` at the next boot.
 
 Immediately after boot, from a second host terminal:
 
