@@ -419,8 +419,8 @@ load (2026-09-18) and 3-4 s idle (2026-09-19), which is why the previous
 collector could not reach the harness's 30 distinct instants. `--source docker`
 keeps that old path for a host whose cgroup tree is not visible, under the same
 stamp rules below: a sample is stamped with the second its call starts in, so a
-slow call shows up as counted seconds without a sample, and the names it reports
-count in the inventory. `auto` (the default) re-checks the source on every sample
+slow call shows up as forward UTC-gap seconds, and the names it reports count in
+the inventory. `auto` (the default) re-checks the source on every sample
 and records every change.
 
 **Columns.** `cpu_pct` is docker's single-CPU basis (100 × CPU time / elapsed
@@ -450,14 +450,36 @@ nothing else:
   sample by watching the clock the stamps come from (`systime()`, or `date +%s`
   when awk has none) cross a boundary, and again when a sample lands in a second
   it did not aim at, or is withheld — at most once every 10 s, since a
-  calibration costs up to a second of clock reads. A wall clock slewed or stepped
-  by a fraction of a second costs a recalibration and at most one skipped second;
-  a step of D whole seconds leaves D seconds without rows (after a backward step
-  they were stamped already, and timestamps never go back). Either is counted and
-  diagnosed; neither turns this pacing off;
+  calibration costs up to a second of clock reads. A stepped or slewed wall clock
+  never turns this pacing off;
 - the last stamped second is kept in the state file: a sample in that second or
-  an earlier one (a clock stepped back) is **withheld** with a diagnostic, never
-  written, and every second left without a sample is counted and written down.
+  an earlier one (a clock stepped back) is **withheld** with a diagnostic that
+  gives its `/proc/uptime` reading, never written. Timestamps never go back and
+  are never invented.
+
+**Two counts that never hold the same seconds**, each with a diagnostic line per
+event and a total in the closing `stop:` line:
+
+- `utc_gap_seconds` — the forward gaps between consecutive stamped seconds:
+  seconds of UTC, beyond one interval, in which no sample was stamped. A wall
+  clock stepped forward adds to it although no time passed unsampled.
+- `withheld_samples` and `withheld_elapsed_s` — the samples withheld and, for
+  each run of them, the elapsed time on `/proc/uptime` from the last accepted
+  sample to the one that ends the run, less one interval and less the UTC-gap
+  seconds that same sample adds. After a backward step of D seconds the stamps
+  resume at the next second, so the UTC count sees no gap; the elapsed time
+  without rows, about D seconds, shows only here. A run whose elapsed time
+  cannot be measured is counted in `withheld_runs_unmeasured`, and the samples of
+  a run still open when the collector stops in `withheld_open_at_stop`, with a
+  line giving its elapsed time so far.
+
+Continuous UTC stamps are therefore not proof of continuous elapsed-time
+coverage, and neither count, nor their sum, is a measured coverage: a forward
+step inflates the first, and a stamped sample can still write no row for a
+container (the priming sample, an unreadable input, a counter reset), which is
+diagnosed on its own and is in neither count. A step of a fraction of a second
+usually costs one second or one withheld sample; a step of D whole seconds costs
+about D, in one count or the other.
 
 Without a fractional sleep it paces on whole seconds and says so; withholding
 and counting still apply.
@@ -466,7 +488,7 @@ and counting still apply.
 
 | File | Holds |
 |---|---|
-| `<csv>.diagnostics.log` | Every diagnostic, one timestamped line each: the collector's own `sha256` and host at start, the pacing mode and each calibration, source changes, withheld samples, seconds without a sample, unreadable inputs, a sampler process that failed, the service inventory (`inventory: observed=… expected=… missing=… unnamed_ids=…`, every name observed — in the lifecycle file, or in the CSV for the docker source — whether or not `--expect-services` was given) and a closing summary with the measured count of seconds without a sample |
+| `<csv>.diagnostics.log` | Every diagnostic, one timestamped line each: the collector's own `sha256` and host at start, the pacing mode and each calibration, source changes, withheld samples with their uptime and the elapsed time each run of them cost, forward UTC gaps, unreadable inputs, a sampler process that failed, the service inventory (`inventory: observed=… expected=… missing=… unnamed_ids=…`, every name observed — in the lifecycle file, or in the CSV for the docker source — whether or not `--expect-services` was given) and a closing summary with both counts |
 | `<csv>.lifecycle.csv` | `ts_utc,event,container_id,name`: each container cgroup appearing, disappearing, resetting its CPU counter (a recreated cgroup) and first resolving to a name — the id-to-service mapping and the record of a restart |
 | `<csv>.self-test` | Only in a `--self-test` run, naming every substituted input |
 
@@ -489,7 +511,9 @@ the holder's pid); the state is written to a temporary file and moved into
 place; a state line that is not numeric is ignored rather than believed; an
 unresolved container name is shown as the 12-character id and never cached as if
 it were the name; the Docker CLI is called only for a container whose own
-`config.v2.json` cannot be read. `--cgroup-root`, `--docker-root`,
+`config.v2.json` cannot be read, and a `docker ps` listing counts as naming only
+the ids it lists — one it omits is asked for again at the next listing, at most
+every 10 s. `--cgroup-root`, `--docker-root`,
 `--uptime-from`, `--meminfo-from`, `--stamp-epoch` and `--format-epoch` are
 refused without `--self-test`, so a plain invocation can never read substituted
 inputs or a substituted clock.
@@ -502,9 +526,11 @@ one described above:
 |---|---|---|
 | `f17bdd8c…` — an intermediate version, never committed; it slept a whole interval after each sample | Guest, idle and under the harness (00:03-00:24 UTC) | Idle: 40 samples, 39 distinct instants, a CSV that passed `validate_resources_csv` at its production thresholds. Under the harness: a median of 1.0 s between samples but 0.84 distinct instants per second over 600 s (a second skipped about every five, from the interval-plus-cost period); neither run was ingested — `smoke_sequence-r02` held 25 instants where 30 are required, `controller_restart-r02` had a 6 s gap on the deliberately restarted controller |
 | `b7aeddba…` — commit `aa7440d`; it paced on whole seconds of `/proc/uptime` | Guest, idle only (00:26 UTC) | 30 samples in 29 s gave 26 distinct instants: two samples sharing a second |
-| This version | Not on the guest. Under `src/tests/test_collect_resources.py`: 219 cases under sh, dash, bash **and the gateway image's own busybox 1.36.1** (all but seven host-shell-only cases) (its `sh` and `awk`, sha256 `ebb5f78d…`, run under the build's `qemu-aarch64` user emulator with [`tools/test/make-busybox-wrappers.sh`](../../tools/test/make-busybox-wrappers.sh)) | Exact arithmetic; the long-uptime precision; the `memory.max` rule; withheld and counted seconds, from either source; the diagnostics, lifecycle and inventory, including docker-sourced names; real-time pacing that never stamps a second twice and records every second it skips, under that busybox too; and a 33-sample run that passes `validate_resources_csv` with its production thresholds and a measured window, under dash and under that busybox. **It has not yet run on the guest**, whose kernel supplies the real cgroup files; under the busybox emulation the kernel, `/proc` and the cgroup trees are the build host's |
+| This version | Not on the guest. Under `src/tests/test_collect_resources.py`: 234 cases under sh, dash, bash **and the gateway image's own busybox 1.36.1** (all but eight host-shell-only cases) (its `sh` and `awk`, sha256 `ebb5f78d…`, run under the build's `qemu-aarch64` user emulator with [`tools/test/make-busybox-wrappers.sh`](../../tools/test/make-busybox-wrappers.sh)) | Exact arithmetic; the long-uptime precision; the `memory.max` rule; forward UTC gaps and withheld samples, from either source, including a clock stepped back and then recovered; the diagnostics, lifecycle and inventory, including docker-sourced names and a partial `docker ps` listing; real-time pacing that never stamps a second twice and records every forward UTC gap, under that busybox too; and a 33-sample run that passes `validate_resources_csv` with its production thresholds and a measured window, under dash and under that busybox. **It has not yet run on the guest**, whose kernel supplies the real cgroup files; under the busybox emulation the kernel, `/proc` and the cgroup trees are the build host's. The test output and a long run are kept in a local evidence capsule on the build host (`/home/ruisth/yocto/evidence-candidates/2026-09-19-collector-pr37/`), outside the published evidence and not admitted |
 
-Nothing has been measured.
+No run of this version has been ingested: no official campaign has been
+completed or admitted, and nothing in this section is a campaign result or
+native performance evidence.
 
 The harness's own `--local-resources` sampler measures the load-generator
 host and is dev-only (audit 9.1).

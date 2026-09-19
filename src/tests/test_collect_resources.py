@@ -5,7 +5,7 @@ POSIX shell available on the host — and, when ``EGW_TEST_BUSYBOX_DIR`` names a
 directory of wrappers for the gateway image's own busybox (``sh``, ``awk`` and
 the applets the script calls; ``tools/test/make-busybox-wrappers.sh`` builds
 them), under that busybox too, which is the shell and awk the guest actually
-runs. Seven cases are host-shell only, because they put a fake ``awk`` or
+runs. Eight cases are host-shell only, because they put a fake ``awk`` or
 ``docker`` ahead of the real one on PATH or run two collectors side by side. Nothing here needs Docker, a container or a cgroup:
 the collector is pointed at a synthetic ``/sys/fs/cgroup`` tree, a synthetic
 ``/proc/uptime`` and, for one-shot samples, a synthetic wall-clock second with
@@ -85,6 +85,8 @@ PLAIN_ID = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
 MIB = 1024 * 1024
 BASE_EPOCH = 1_789_779_000
 TIMESTAMPED = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z ")
+# The cases that run on the real clocks read /proc/uptime.
+NEEDS_PROC = pytest.mark.skipif(not Path("/proc/uptime").exists(), reason="no /proc/uptime on this host")
 
 
 def write(path: Path, text: str) -> None:
@@ -517,7 +519,7 @@ def test_a_second_already_stamped_is_withheld(tree: Tree, shell: str) -> None:
     tree.set_uptime(101.0)
     tree.set_container(SCOPE_ID, usage_usec=100_000)
     assert tree.sample(shell, stamp=BASE_EPOCH + 1).returncode == 0
-    state_before = tree.state.read_text(encoding="utf-8")
+    before = tree.state_lines()
 
     tree.set_uptime(101.5)
     tree.set_container(SCOPE_ID, usage_usec=150_000)
@@ -525,8 +527,13 @@ def test_a_second_already_stamped_is_withheld(tree: Tree, shell: str) -> None:
 
     assert result.returncode == 0
     assert [row["ts_utc"] for row in tree.rows()] == [utc(BASE_EPOCH + 1)]
-    assert any("sample withheld" in line for line in tree.diagnostics())
-    assert tree.state.read_text(encoding="utf-8") == state_before
+    assert any("sample withheld at uptime 101.50 s" in line for line in tree.diagnostics())
+    after = tree.state_lines()
+    assert after[1:] == before[1:], "a withheld sample changed a container's readings"
+    # The last stamped second, the gap count and that sample's uptime stay;
+    # the sample is counted as withheld, in the current run of them.
+    assert after[0][:4] == before[0][:4]
+    assert after[0][4:6] == ["1", "1"]
 
 
 @pytest.mark.parametrize("shell", SHELLS)
@@ -544,8 +551,8 @@ def test_a_clock_stepped_back_never_writes_an_earlier_second(tree: Tree, shell: 
 
 
 @pytest.mark.parametrize("shell", SHELLS)
-def test_seconds_without_a_sample_are_counted(tree: Tree, shell: str) -> None:
-    """Every second left without a sample is written down and summed in the closing line."""
+def test_forward_utc_gaps_are_counted(tree: Tree, shell: str) -> None:
+    """Every second of UTC left without a stamp is written down and summed in the closing line."""
     tree.set_container(SCOPE_ID, usage_usec=0)
     assert tree.sample(shell, stamp=BASE_EPOCH).returncode == 0
 
@@ -554,10 +561,98 @@ def test_seconds_without_a_sample_are_counted(tree: Tree, shell: str) -> None:
     assert tree.sample(shell, stamp=BASE_EPOCH + 4).returncode == 0
 
     lines = tree.diagnostics()
-    assert any("no sample in the 3 second(s) before this one" in line for line in lines)
-    assert lines[-1].endswith(" pacing=wall-clock") or " stop: " in lines[-1]
-    assert "skipped_seconds=3" in [line for line in lines if " stop: " in line][-1]
+    assert any("forward UTC gap: no sample stamped in the 3 second(s) before this one" in line for line in lines)
+    stop = [line for line in lines if " stop: " in line][-1]
+    assert "utc_gap_seconds=3 withheld_samples=0 withheld_elapsed_s=0.00" in stop
     assert len(tree.rows()) == 1
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+def test_a_clock_stepped_back_then_recovered_is_counted_on_the_elapsed_clock(tree: Tree, shell: str) -> None:
+    """The stamps resume at the next second, so the UTC count sees nothing; the elapsed time does.
+
+    Last accepted stamp S at uptime 101 s. The wall clock steps back about
+    4 s and stays there: the samples at uptime 102-105 s fall in S-3 .. S and
+    are withheld. At 106 s the stamps pass S again and S+1 is accepted: a
+    forward UTC gap of zero, but 5 s of elapsed time since the last accepted
+    sample, 4 s of them beyond the one-second interval.
+    """
+    tree.set_container(SCOPE_ID, usage_usec=0)
+    assert tree.sample(shell, stamp=BASE_EPOCH + 10).returncode == 0
+    tree.set_uptime(101.0)
+    tree.set_container(SCOPE_ID, usage_usec=100_000)
+    assert tree.sample(shell, stamp=BASE_EPOCH + 11).returncode == 0
+
+    for uptime, stamp in ((102.0, 8), (103.0, 9), (104.0, 10), (105.0, 11)):
+        tree.set_uptime(uptime)
+        assert tree.sample(shell, stamp=BASE_EPOCH + stamp).returncode == 0
+
+    tree.set_uptime(106.0)
+    tree.set_container(SCOPE_ID, usage_usec=200_000)
+    assert tree.sample(shell, stamp=BASE_EPOCH + 12).returncode == 0
+
+    assert [row["ts_utc"] for row in tree.rows()] == [utc(BASE_EPOCH + 11), utc(BASE_EPOCH + 12)]
+    lines = tree.diagnostics()
+    assert sum("sample withheld at uptime" in line for line in lines) == 4
+    assert not any("forward UTC gap" in line for line in lines)
+    assert any(
+        "stamps resumed after 4 withheld sample(s): 4.00 s of elapsed time without an accepted sample" in line
+        and "(uptime 101.00 s to 106.00 s, less one interval)" in line
+        for line in lines
+    )
+    # A run that ends inside the withheld stretch says so, since no accepted
+    # sample has measured it yet.
+    assert any("the run ended 1 withheld sample(s) after the last accepted one: 1.00 s" in line for line in lines)
+    stops = [line for line in lines if " stop: " in line]
+    assert "withheld_open_at_stop=1 " in stops[2]
+    assert (
+        "utc_gap_seconds=0 withheld_samples=4 withheld_elapsed_s=4.00 withheld_runs_unmeasured=0 "
+        "withheld_open_at_stop=0 " in stops[-1]
+    )
+
+
+@pytest.mark.parametrize("shell", SHELLS)
+@pytest.mark.parametrize(
+    ("resume_uptime", "resume_after_s", "gap", "elapsed"),
+    [
+        # The clock is corrected forward while samples are withheld: the two
+        # missed seconds are UTC gaps, and nothing is left for the other count.
+        (104.0, 3, 2, "0.00"),
+        # The stamps resume late: 6 s beyond the interval, 3 of them UTC gaps.
+        (108.0, 4, 3, "3.00"),
+    ],
+)
+def test_the_two_counts_never_hold_the_same_seconds(
+    tree: Tree, shell: str, resume_uptime: float, resume_after_s: int, gap: int, elapsed: str
+) -> None:
+    """A run of withheld samples that ends with a forward UTC gap: the elapsed figure leaves those seconds out.
+
+    Last accepted stamp S at uptime 101 s; the samples at 102 and 103 s are
+    stamped S-3 and S-2 and withheld; the next is accepted in a second more
+    than one after S.
+    """
+    tree.set_container(SCOPE_ID, usage_usec=0)
+    assert tree.sample(shell, stamp=BASE_EPOCH + 10).returncode == 0
+    tree.set_uptime(101.0)
+    tree.set_container(SCOPE_ID, usage_usec=100_000)
+    assert tree.sample(shell, stamp=BASE_EPOCH + 11).returncode == 0
+    for uptime, stamp in ((102.0, 8), (103.0, 9)):
+        tree.set_uptime(uptime)
+        assert tree.sample(shell, stamp=BASE_EPOCH + stamp).returncode == 0
+
+    tree.set_uptime(resume_uptime)
+    tree.set_container(SCOPE_ID, usage_usec=200_000)
+    assert tree.sample(shell, stamp=BASE_EPOCH + 11 + resume_after_s).returncode == 0
+
+    lines = tree.diagnostics()
+    assert any(f"forward UTC gap: no sample stamped in the {gap} second(s)" in line for line in lines)
+    assert any(
+        f"stamps resumed after 2 withheld sample(s): {elapsed} s of elapsed time without an accepted sample" in line
+        and f"less one interval and the {gap} forward UTC-gap second(s) just counted" in line
+        for line in lines
+    )
+    stop = [line for line in lines if " stop: " in line][-1]
+    assert f"utc_gap_seconds={gap} withheld_samples=2 withheld_elapsed_s={elapsed} " in stop
 
 
 # --------------------------------------------------------------------------
@@ -637,6 +732,65 @@ def test_docker_is_not_called_when_every_container_names_itself(tree: Tree, shel
     )
     assert result.returncode == 0, result.stderr
     assert calls.read_text(encoding="utf-8").startswith("ps -a")
+
+
+@NEEDS_PROC
+@pytest.mark.parametrize("shell", HOST_SHELLS)
+def test_an_id_a_partial_listing_omits_is_asked_for_again(tree: Tree, shell: str) -> None:
+    """A ``docker ps`` answer that omits a container leaves it to the next listing, whatever came before.
+
+    One continuous run, because listings are rate-limited within a run (one
+    every 10 s at most). The first answer names only A, the second only B,
+    the third both. Between the second and the third, A's cgroup is removed
+    and recreated under the same id, as a restart does: A comes back unnamed,
+    because the listing kept is the second one, and must be named by the
+    third. Neither container has a readable config.v2.json.
+    """
+    tree.uptime = Path("/proc/uptime")
+    bin_dir = tree.root / "bin"
+    calls = tree.root / "docker-calls"
+    write(
+        bin_dir / "docker",
+        "#!/bin/sh\n"
+        '[ "$1" = ps ] || exit 1\n'
+        f"echo \"$*\" >> '{calls}'\n"
+        f"n=$(wc -l < '{calls}')\n"
+        f"[ \"$n\" -ne 2 ] && echo '{SCOPE_ID} egw-a'\n"
+        f"[ \"$n\" -ge 2 ] && echo '{PLAIN_ID} egw-b'\n"
+        "exit 0\n",
+    )
+    (bin_dir / "docker").chmod(0o755)
+    env = {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    tree.set_container(SCOPE_ID, usage_usec=0)
+    tree.set_container(PLAIN_ID, systemd_driver=False, usage_usec=0)
+    scope = tree.dir_for(SCOPE_ID, systemd_driver=True)
+
+    def restart() -> None:
+        # After the second listing (about 10-11 s in), before the third (20 s).
+        time.sleep(13.5)
+        shutil.rmtree(scope)
+        time.sleep(2.0)
+        tree.set_container(SCOPE_ID, usage_usec=0)
+
+    thread = threading.Thread(target=restart)
+    thread.start()
+    result = tree.run(
+        shell, "--source", "cgroup", "--interval", "1", "--max-samples", "25", env=env, no_docker=False
+    )
+    thread.join()
+
+    assert result.returncode == 0, result.stderr
+    assert len(calls.read_text(encoding="utf-8").splitlines()) == 3
+    events = tree.lifecycle()
+    assert ("named", PLAIN_ID, "egw-b") in events
+    a_events = [event for event in events if event[1] == SCOPE_ID]
+    assert a_events == [
+        ("appeared", SCOPE_ID, "egw-a"),
+        ("disappeared", SCOPE_ID, "egw-a"),
+        ("appeared", SCOPE_ID, ""),
+        ("named", SCOPE_ID, "egw-a"),
+    ]
+    assert tree.rows()[-1]["container"] in {"egw-a", "egw-b"}
 
 
 @pytest.mark.parametrize("shell", SHELLS)
@@ -874,7 +1028,7 @@ def test_the_state_file_is_replaced_whole(tree: Tree, shell: str) -> None:
 
     assert not Path(f"{tree.state}.tmp").exists()
     lines = tree.state_lines()
-    assert lines[0] == ["#last", str(BASE_EPOCH + 7), "0"]
+    assert lines[0] == ["#last", str(BASE_EPOCH + 7), "0", "100.00", "0", "0", "0.00", "0"]
     assert lines[1] == [SCOPE_ID, "1234567", "100.00", "egw-controller"]
 
 
@@ -981,8 +1135,8 @@ def test_docker_samples_follow_the_same_stamp_rules(tree: Tree, shell: str) -> N
     assert (rows[0]["container"], rows[0]["cpu_pct"], rows[0]["mem_bytes"]) == ("egw-controller-1", "1.50", str(10 * MIB))
     lines = tree.diagnostics()
     assert sum("sample withheld" in line for line in lines) == 2
-    assert any("no sample in the 3 second(s) before this one" in line for line in lines)
-    assert "skipped_seconds=3" in [line for line in lines if " stop: " in line][-1]
+    assert any("forward UTC gap: no sample stamped in the 3 second(s) before this one" in line for line in lines)
+    assert "utc_gap_seconds=3 withheld_samples=2 " in [line for line in lines if " stop: " in line][-1]
 
 
 @pytest.mark.parametrize("shell", HOST_SHELLS)
@@ -1080,13 +1234,11 @@ def test_format_epoch_needs_self_test(tree: Tree, shell: str) -> None:
 # Real clocks: pacing, a failure late in one run, the production limits
 # --------------------------------------------------------------------------
 
-NEEDS_PROC = pytest.mark.skipif(not Path("/proc/uptime").exists(), reason="no /proc/uptime on this host")
-
 
 @NEEDS_PROC
 @pytest.mark.parametrize("shell", SHELLS)
 def test_real_time_pacing_stamps_every_second_once(tree: Tree, shell: str) -> None:
-    """One sample per wall-clock second: stamps never repeat, and a skipped second is recorded.
+    """One sample per wall-clock second: stamps never repeat, and every forward UTC gap is recorded.
 
     Two earlier versions failed exactly here on the guest: 29 samples gave 26
     distinct instants, and a 600 s run 0.84 instants per second.
@@ -1105,7 +1257,7 @@ def test_real_time_pacing_stamps_every_second_once(tree: Tree, shell: str) -> No
     steps = [int((b - a).total_seconds()) for a, b in zip(stamps, stamps[1:])]
     assert all(step >= 1 for step in steps), steps
     stop = [line for line in lines if " stop: " in line][-1]
-    recorded = int(re.search(r"skipped_seconds=(\d+)", stop).group(1))
+    recorded = int(re.search(r"utc_gap_seconds=(\d+)", stop).group(1))
     withheld = sum("sample withheld" in line for line in lines)
     assert len(stamps) + withheld == 7
     assert sum(step - 1 for step in steps) <= recorded

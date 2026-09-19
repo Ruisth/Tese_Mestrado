@@ -6,9 +6,10 @@
 # applet of the built image under the Yocto build's qemu-aarch64 user-mode
 # emulator. With EGW_TEST_BUSYBOX_DIR pointing at that directory, the cases of
 # src/tests/test_collect_resources.py also run under that exact busybox, with
-# PATH holding nothing else, so no host shell or awk can stand in for it. Four
-# cases stay host-shell only: they put a fake awk or docker ahead of the real
-# one on PATH, or run two collectors side by side.
+# PATH holding nothing else, so no host shell or awk can stand in for it. The
+# cases parametrized over HOST_SHELLS stay host-shell only: they put a fake
+# awk or docker ahead of the real one on PATH, or run two collectors side by
+# side.
 #
 # What it reproduces: the guest's shell and awk (the same binary). What it does
 # not: the guest kernel — /proc and the synthetic cgroup trees are the host's.

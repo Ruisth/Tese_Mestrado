@@ -106,17 +106,35 @@
 #     when awk has none) cross a second boundary, and again when a sample lands
 #     in a second other than the one it aimed at, or is withheld — at most once
 #     every 10 s, since a calibration costs up to a second of clock reads. A
-#     wall clock slewed or stepped by a fraction of a second (NTP, a
-#     hypervisor's time sync) costs a recalibration and at most one skipped
-#     second; a step of D whole seconds leaves D seconds without rows (after a
-#     backward step they were stamped already, and timestamps never go back).
-#     Either is counted and diagnosed; neither turns this pacing off;
+#     stepped or slewed wall clock (NTP, a hypervisor's time sync) never turns
+#     this pacing off;
 #   - awk keeps the last stamped second in the state file and WITHHOLDS a
 #     sample stamped with that second or an earlier one (a clock stepped
-#     back, or two samples in one second), with a diagnostic; every second
-#     left without a sample is counted and written to the diagnostics, in
-#     every mode and from either source, so the closing summary's
-#     skipped-second count is measured.
+#     back, or two samples in one second), with a diagnostic that gives its
+#     /proc/uptime reading. Timestamps never go back and are never invented.
+# Two counts are kept, in every pacing mode and from either source, each
+# with a diagnostic line per event and a total in the closing summary:
+#   - utc_gap_seconds: the forward gaps between consecutive stamped seconds,
+#     i.e. seconds of UTC, beyond one interval, in which no sample was
+#     stamped. A wall clock stepped forward adds to it although no time
+#     passed unsampled;
+#   - withheld_samples and withheld_elapsed_s: the samples withheld, and, for
+#     each run of them, the elapsed time on /proc/uptime from the last
+#     accepted sample to the one that ends the run, less one interval and
+#     less the UTC-gap seconds that same sample adds. A wall clock stepped
+#     back by D seconds and left there leaves about D seconds of elapsed
+#     time without rows that the UTC count does not hold (the stamps resume
+#     at the next second): they show only here. Runs whose elapsed time
+#     cannot be measured are counted apart (withheld_runs_unmeasured), and so
+#     are the samples of a run still open when the collector stops
+#     (withheld_open_at_stop), with a line giving its elapsed time so far.
+# The two counts never hold the same seconds. Neither of them, nor their
+# sum, proves continuous elapsed-time coverage: a forward step inflates the
+# first, and a stamped sample can still write no row for a container (the
+# priming sample, an unreadable input, a counter reset), which is diagnosed
+# on its own and is in neither count. A step of a fraction of a second
+# usually costs one second or one withheld sample; a step of D whole seconds
+# costs about D, in one count or the other.
 # Without a fractional sleep the collector paces on whole seconds and says
 # so; the withholding and the counting still apply.
 #
@@ -127,10 +145,11 @@
 #                                 each, appended and never deleted: the
 #                                 collector's own sha256 and the host at
 #                                 start, the pacing mode and calibrations,
-#                                 source changes, withheld samples, seconds
-#                                 without a sample, unreadable inputs, a
-#                                 sampler process that failed, the service
-#                                 inventory and a closing summary
+#                                 source changes, withheld samples and the
+#                                 elapsed time a run of them cost, forward
+#                                 UTC gaps, unreadable inputs, a sampler
+#                                 process that failed, the service inventory
+#                                 and a closing summary with both counts
 #   <output.csv>.lifecycle.csv    ts_utc,event,container_id,name — one row
 #                                 when a container cgroup appears, when it
 #                                 disappears, when its CPU counter resets (a
@@ -159,8 +178,8 @@
 # `--source docker` restores the old docker-stats loop, for a host whose
 # cgroup v2 tree is not visible, under the same stamp rules: a sample is
 # stamped with the second its call starts in, withheld if that second is not
-# after the last one stamped, and a slow call shows up as counted seconds
-# without a sample. `auto` (the default) re-evaluates the source
+# after the last one stamped, and a slow call shows up as forward UTC-gap
+# seconds. `auto` (the default) re-evaluates the source
 # ON EVERY SAMPLE and records every change. `--no-docker` forbids the CLI.
 #
 # Runs until SIGTERM/SIGINT, until --duration expires or until
@@ -362,6 +381,71 @@ function utc(t,   days, secs, z, era, doe, yoe, y, doy, mp, d, mo) {
 }
 '
 
+# The stamp bookkeeping both sampler programs share (each defines warn()).
+# The state's "#last" line holds, tab separated: the last stamped second; the
+# forward UTC-gap seconds so far; the /proc/uptime reading of that sample,
+# exactly as read; the samples withheld so far; the samples withheld since the
+# last accepted one; the elapsed seconds that finished runs of withheld
+# samples left without an accepted sample, beyond what the UTC count holds;
+# and the finished runs whose elapsed time could not be measured. A line from
+# an older collector, with only the first two numbers, reads as zero for the
+# counters and as unknown for the uptime.
+AWK_STAMP='
+function last_init() {
+    LAST = ""; GAPS = 0; UPLAST = ""; WH = 0; EPWH = 0; WHS = "0.00"; UNK = 0
+}
+function last_parse(line,   a) {
+    split(line, a, "\t")
+    if (a[1] != "#last") return 0
+    if (a[2] ~ /^[0-9]+$/) LAST = a[2] + 0
+    if (a[3] ~ /^[0-9]+$/) GAPS = a[3] + 0
+    if (a[4] ~ /^[0-9]+(\.[0-9]+)?$/) UPLAST = a[4]
+    if (a[5] ~ /^[0-9]+$/) WH = a[5] + 0
+    if (a[6] ~ /^[0-9]+$/) EPWH = a[6] + 0
+    if (a[7] ~ /^[0-9]+(\.[0-9]+)?$/) WHS = a[7]
+    if (a[8] ~ /^[0-9]+$/) UNK = a[8] + 0
+    return 1
+}
+function last_line(second) {
+    return sprintf("#last\t%d\t%d\t%s\t%d\t%d\t%s\t%d\n", second, GAPS, UPLAST, WH, EPWH, WHS, UNK)
+}
+# 1 when a sample in second STAMP, taken at uptime UP (as read, or ""), must
+# be withheld: a second already stamped, or an earlier one, is never stamped
+# again. The counters for the state line are updated here.
+function stamp_withheld(stamp, up) {
+    if (LAST == "" || stamp > LAST) return 0
+    WH++
+    EPWH++
+    warn("sample withheld at uptime " (up == "" ? "unknown" : up " s") ": it fell in second " utc(stamp) ", not after the last stamped second " utc(LAST) " (a clock stepped back, or two samples in one second); no rows")
+    return 1
+}
+# An accepted sample: the forward UTC gap before it, and the end of a run of
+# withheld samples, measured on the elapsed-time clock. The elapsed figure
+# leaves out one interval and the UTC-gap seconds this same sample adds, so
+# the two counts never hold the same seconds.
+function stamp_accept(stamp, up,   gap, el) {
+    gap = 0
+    if (LAST != "" && stamp - LAST > INTERVAL) {
+        gap = stamp - LAST - INTERVAL
+        GAPS += gap
+        warn("forward UTC gap: no sample stamped in the " gap " second(s) before this one (previous sample in " utc(LAST) ")")
+    }
+    if (EPWH > 0) {
+        if (up != "" && UPLAST != "") {
+            el = (up + 0) - (UPLAST + 0) - INTERVAL - gap
+            if (el < 0) el = 0
+            WHS = sprintf("%.2f", WHS + el)
+            warn("stamps resumed after " EPWH " withheld sample(s): " sprintf("%.2f", el) " s of elapsed time without an accepted sample (uptime " UPLAST " s to " up " s, less one interval" (gap > 0 ? " and the " gap " forward UTC-gap second(s) just counted" : "") "); not in the forward UTC-gap count")
+        } else {
+            UNK++
+            warn("stamps resumed after " EPWH " withheld sample(s); the elapsed time they cost is unknown (no elapsed-time reading) and is in neither count")
+        }
+        EPWH = 0
+    }
+    UPLAST = up
+}
+'
+
 # A measurement never reads its inputs from a substituted path or clock.
 # Without this guard a plain invocation could produce a file that carries the
 # real hostname around invented numbers, and no rule of the ingest validation
@@ -486,20 +570,21 @@ cgroup_discover() {
 # The whole per-sample computation is one awk program. It takes the sample's
 # second (systime(), or EPOCH from the shell), refuses a second that is not
 # after the last one it stamped, reads every container's cgroup files,
-# resolves names, prints the CSV rows, records lifecycle events and seconds
-# left without a sample, and writes the next state to a temporary file the
-# shell moves into place.
+# resolves names, prints the CSV rows, records lifecycle events, forward UTC
+# gaps and withheld samples, and writes the next state to a temporary file
+# the shell moves into place.
 #
-# State file lines: "#last<TAB>second<TAB>skipped-seconds-total" and, per
-# container, "id<TAB>usage_usec<TAB>uptime<TAB>name", where the uptime is the
+# State file lines: the "#last" line (see AWK_STAMP) and, per container,
+# "id<TAB>usage_usec<TAB>uptime<TAB>name", where the uptime is the
 # /proc/uptime token exactly as read and "-" marks a container seen but not
 # yet primed.
 #
 # Exit status: 0 clean; 10 a diagnostic was written; 11 the sample was
-# withheld (state untouched; the shell recalibrates); 12 rows written but the
-# sample landed in a second other than EXPECT (the shell recalibrates); 3 no
-# usable clock or uptime (reason in ERRF, no rows).
-AWK_CGROUP="$AWK_UTC"'
+# withheld (no rows; the state keeps every reading and only counts the
+# withheld sample; the shell recalibrates); 12 rows written but the sample
+# landed in a second other than EXPECT (the shell recalibrates); 3 no usable
+# clock or uptime (reason in ERRF, no rows).
+AWK_CGROUP="$AWK_UTC$AWK_STAMP"'
 function warn(msg) {
     print TS " " msg >> DIAG
     WARNED = 1
@@ -593,15 +678,12 @@ BEGIN {
     if (stamp < 1000000000 && EPOCH == "") fail("implausible wall clock " stamp "; no rows")
     TS = utc(stamp)
 
-    LAST = ""
-    SKIPPED = 0
+    last_init()
+    raw = ""
     while ((getline line < STATE) > 0) {
+        if (last_parse(line)) continue
+        raw = raw line "\n"
         n = split(line, a, "\t")
-        if (a[1] == "#last") {
-            if (a[2] ~ /^[0-9]+$/) LAST = a[2] + 0
-            if (a[3] ~ /^[0-9]+$/) SKIPPED = a[3] + 0
-            continue
-        }
         if (n < 3) continue
         if (a[2] == "-" && a[3] == "-") {
             SEEN[a[1]] = 1
@@ -618,17 +700,17 @@ BEGIN {
     }
     close(STATE)
 
-    # A second already stamped, or an earlier one, is never stamped again:
-    # the sample is withheld and the state left as it was. The clean-up pass
-    # stamps nothing, so it is never withheld.
-    if (CLEANUP != 1 && LAST != "" && stamp <= LAST) {
-        warn("sample withheld: it fell in second " TS ", not after the last stamped second " utc(LAST) " (a clock stepped back, or two samples in one second)")
-        exit 11
-    }
-
     wallstr = firstfield(UPTIME)
     if (wallstr !~ /^[0-9]+(\.[0-9]+)?$/) fail("cannot read an elapsed-time clock from " UPTIME "; no rows")
     wall = wallstr + 0
+
+    # A withheld sample keeps every reading in the state and only counts
+    # itself. The clean-up pass stamps nothing, so it is never withheld.
+    if (CLEANUP != 1 && stamp_withheld(stamp, wallstr)) {
+        printf("%s%s", last_line(LAST), raw) > STATETMP
+        close(STATETMP)
+        exit 11
+    }
 
     MEMTOTAL = ""
     state = ""
@@ -695,19 +777,15 @@ BEGIN {
     for (id in SEEN) {
         if (!(id in PRESENT)) life("disappeared", id, PREV_NAME[id])
     }
-    if (CLEANUP != 1 && LAST != "" && stamp - LAST > INTERVAL) {
-        gap = stamp - LAST - INTERVAL
-        SKIPPED += gap
-        warn("no sample in the " gap " second(s) before this one (previous sample in " utc(LAST) ")")
-    }
+    if (CLEANUP != 1) stamp_accept(stamp, wallstr)
     # Written to a temporary file the shell moves into place: a collector
     # killed mid-write must not leave a truncated state line behind. The
-    # clean-up pass keeps the last stamped second and the count as they were.
+    # clean-up pass keeps the "#last" line as it was.
     if (CLEANUP == 1) {
-        if (LAST != "") printf("#last\t%d\t%d\n", LAST, SKIPPED) > STATETMP
+        if (LAST != "") printf("%s", last_line(LAST)) > STATETMP
         else printf("") > STATETMP
     } else {
-        printf("#last\t%d\t%d\n%s", stamp, SKIPPED, state) > STATETMP
+        printf("%s%s", last_line(stamp), state) > STATETMP
     }
     close(STATETMP)
     if (EXPECT != "" && stamp != EXPECT + 0) {
@@ -723,12 +801,17 @@ BEGIN {
 # docker stats parser, kept for --source docker: every line is a flat JSON
 # object with "Name":"...", "CPUPerc":"1.23%", "MemUsage":"126.4MiB /
 # 7.628GiB", "MemPerc":"1.61%". It follows the cgroup program's stamp rules
-# and exit statuses (0, 10, 11, 12): the sample's second (EPOCH, from the
-# shell) is formatted in UTC by arithmetic, a second not after the last
-# stamped one is withheld, every second without a sample is counted in the
-# state file's "#last" line, and a sample outside the aimed second asks for
-# a recalibration. The state's other lines are carried through unchanged.
-AWK_DOCKER="$AWK_UTC"'
+# and exit statuses (0, 10, 11, 12) through AWK_STAMP: the sample's second
+# (EPOCH) and its /proc/uptime reading (UP) come from the shell, taken before
+# the call; a second not after the last stamped one is withheld; forward UTC
+# gaps and withheld samples are counted in the state file's "#last" line; and
+# a sample outside the aimed second asks for a recalibration. The state's
+# other lines are carried through unchanged.
+AWK_DOCKER="$AWK_UTC$AWK_STAMP"'
+function warn(msg) {
+    print TS " " msg >> DIAG
+    WARNED = 1
+}
 function field(line, name,    re, v) {
     re = "\"" name "\":\"[^\"]*\""
     if (match(line, re) == 0) return ""
@@ -761,21 +844,17 @@ function bytes(s,    n, u, mult) {
 BEGIN {
     stamp = EPOCH + 0
     TS = utc(stamp)
-    LAST = ""
-    SKIPPED = 0
+    if (UP !~ /^[0-9]+(\.[0-9]+)?$/) UP = ""
+    last_init()
     other = ""
     while ((getline line < STATE) > 0) {
-        split(line, a, "\t")
-        if (a[1] == "#last") {
-            if (a[2] ~ /^[0-9]+$/) LAST = a[2] + 0
-            if (a[3] ~ /^[0-9]+$/) SKIPPED = a[3] + 0
-            continue
-        }
+        if (last_parse(line)) continue
         other = other line "\n"
     }
     close(STATE)
-    if (LAST != "" && stamp <= LAST) {
-        print TS " sample withheld: it fell in second " TS ", not after the last stamped second " utc(LAST) " (a clock stepped back, or two samples in one second)" >> DIAG
+    if (stamp_withheld(stamp, UP)) {
+        printf("%s%s", last_line(LAST), other) > STATETMP
+        close(STATETMP)
         WITHHELD = 1
     }
 }
@@ -788,16 +867,11 @@ WITHHELD { next }
 }
 END {
     if (WITHHELD) exit 11
-    if (LAST != "" && stamp - LAST > INTERVAL) {
-        gap = stamp - LAST - INTERVAL
-        SKIPPED += gap
-        print TS " no sample in the " gap " second(s) before this one (previous sample in " utc(LAST) ")" >> DIAG
-        WARNED = 1
-    }
-    printf("#last\t%d\t%d\n%s", stamp, SKIPPED, other) > STATETMP
+    stamp_accept(stamp, UP)
+    printf("%s%s", last_line(stamp), other) > STATETMP
     close(STATETMP)
     if (EXPECT != "" && stamp != EXPECT + 0) {
-        print TS " clock phase: aimed at second " utc(EXPECT + 0) " and sampled in " TS "; recalibrating" >> DIAG
+        warn("clock phase: aimed at second " utc(EXPECT + 0) " and sampled in " TS "; recalibrating")
         exit 12
     }
     if (WARNED) exit 10
@@ -841,6 +915,20 @@ END {
     for (i = 1; i <= n; i++) {
         if (want[i] != "" && !(want[i] in seen)) {
             print "expected service never observed: " want[i] (unnamed > 0 ? " (" unnamed " container id(s) never resolved to a name)" : "")
+        }
+    }
+}
+'
+
+# The ids (from IDS) that a `docker ps` listing names, by the same prefix
+# rule the cgroup program resolves them with, each printed once as " id".
+AWK_LISTED='
+BEGIN { n = split(IDS, want, " ") }
+NF >= 2 {
+    for (i = 1; i <= n; i++) {
+        if (!(i in done) && substr(want[i], 1, length($1)) == $1) {
+            printf " %s", want[i]
+            done[i] = 1
         }
     }
 }
@@ -984,12 +1072,14 @@ settle() {
             RECAL=1
             ;;
         11)
-            # Withheld, usually because the wall clock stepped back: the phase
-            # is stale, so recalibrate (at most once every 10 s). The seconds
-            # the step re-enters were stamped already and are never stamped
-            # again, so they stay without rows whatever the phase; the next
-            # accepted sample counts them.
-            rm -f "$STATE_FILE.tmp"
+            # Withheld, usually because the wall clock stepped back: no rows,
+            # and the state only counts the withheld sample. The phase is
+            # stale, so recalibrate (at most once every 10 s). The seconds the
+            # step re-enters were stamped already and are never stamped again,
+            # so they stay without rows whatever the phase; the next accepted
+            # sample reports the elapsed time they cost beyond what the
+            # forward UTC-gap count holds.
+            [ -f "$STATE_FILE.tmp" ] && mv "$STATE_FILE.tmp" "$STATE_FILE"
             RECAL=1
             ;;
         3)
@@ -1128,7 +1218,13 @@ while [ "$stop" -eq 0 ]; do
                 if docker ps -a --no-trunc --format '{{.ID}} {{.Names}}' \
                     > "$NAMES_FILE.tmp" 2> /dev/null && [ -s "$NAMES_FILE.tmp" ]; then
                     mv "$NAMES_FILE.tmp" "$NAMES_FILE"
-                    named_ids="$named_ids $IDS"
+                    # Only the ids this listing names, and only while it is
+                    # the one kept: an id it omits (a partial answer, a
+                    # container created after the call) is asked for again
+                    # at the next listing, even if an earlier listing named
+                    # it, since a restarted container is resolved from the
+                    # listing kept, not from the earlier one.
+                    named_ids=$(awk -v IDS="$IDS" "$AWK_LISTED" "$NAMES_FILE" 2> /dev/null)
                 else
                     rm -f "$NAMES_FILE.tmp"
                 fi
@@ -1149,10 +1245,12 @@ while [ "$stop" -eq 0 ]; do
     fi
     if [ "$this" = docker ]; then
         # Stamped before the call, the second the sample was aimed at: a
-        # slow call (seconds under emulation) then shows up as counted
-        # seconds without a sample before the next one.
+        # slow call (seconds under emulation) then shows up as forward
+        # UTC-gap seconds before the next one.
         _stamp=$STAMP_EPOCH
         [ -z "$_stamp" ] && _stamp=$(date +%s)
+        _up=
+        read -r _up _rest < "$UPTIME_FILE" 2> /dev/null || _up=
         # --format json is JSON-lines on Docker >= 23; older CLIs accept
         # the equivalent '{{json .}}' template.
         lines=$(docker stats --no-stream --format json 2>/dev/null)
@@ -1160,7 +1258,7 @@ while [ "$stop" -eq 0 ]; do
             lines=$(docker stats --no-stream --format '{{json .}}' 2>/dev/null)
         fi
         if [ -n "$lines" ]; then
-            printf '%s\n' "$lines" | awk -v EPOCH="$_stamp" -v EXPECT="$expect" \
+            printf '%s\n' "$lines" | awk -v EPOCH="$_stamp" -v UP="$_up" -v EXPECT="$expect" \
                 -v INTERVAL="$INTERVAL" -v HOST="$HOST" -v STATE="$STATE_FILE" \
                 -v STATETMP="$STATE_FILE.tmp" -v DIAG="$DIAG_FILE" \
                 "$AWK_DOCKER" >> "$OUT"
@@ -1189,22 +1287,51 @@ while [ "$stop" -eq 0 ]; do
     fi
 done
 
-# The service inventory, and the closing summary with the measured count of
-# seconds that had no sample (kept by awk in the state file).
+# The service inventory, and the closing summary with the two counts kept by
+# awk in the state file (and a run of withheld samples still open at the
+# end, which no accepted sample has measured).
 awk -v EXPECT="$EXPECT_SERVICES" -v CSV="$OUT" "$AWK_INVENTORY" "$LIFE_FILE" "$OUT" 2> /dev/null | while IFS= read -r _line; do
     diag "$_line"
 done
-skipped=unknown
-if [ -r "$STATE_FILE" ]; then
-    while IFS= read -r _line; do
-        case $_line in
-            "#last"*)
-                skipped=${_line##*	}
-                break
-                ;;
-        esac
-    done < "$STATE_FILE"
+AWK_SUMMARY='
+BEGIN {
+    gaps = "unknown"; wh = "unknown"; whs = "unknown"; unk = "unknown"; ep = 0; uplast = ""
+    while ((getline line < STATE) > 0) {
+        split(line, a, "\t")
+        if (a[1] != "#last") continue
+        gaps = (a[3] ~ /^[0-9]+$/) ? a[3] : "unknown"
+        wh = (a[5] ~ /^[0-9]+$/) ? a[5] : 0
+        ep = (a[6] ~ /^[0-9]+$/) ? a[6] + 0 : 0
+        whs = (a[7] ~ /^[0-9]+(\.[0-9]+)?$/) ? a[7] : "0.00"
+        unk = (a[8] ~ /^[0-9]+$/) ? a[8] : 0
+        uplast = a[4]
+        break
+    }
+    close(STATE)
+    print gaps " " wh " " whs " " unk " " ep
+    if (ep > 0) {
+        now = ""
+        if ((getline line < UPTIME) > 0) { split(line, b, " "); now = b[1] }
+        close(UPTIME)
+        if (now ~ /^[0-9]+(\.[0-9]+)?$/ && uplast ~ /^[0-9]+(\.[0-9]+)?$/) {
+            print "the run ended " ep " withheld sample(s) after the last accepted one: " sprintf("%.2f", now - uplast) " s of elapsed time since it (uptime " uplast " s to " now " s), in neither total"
+        } else {
+            print "the run ended " ep " withheld sample(s) after the last accepted one; the elapsed time since it is unknown"
+        }
+    }
+}
+'
+gaps=unknown
+withheld=unknown
+withheld_s=unknown
+unmeasured=unknown
+open_run=unknown
+if awk -v STATE="$STATE_FILE" -v UPTIME="$UPTIME_FILE" "$AWK_SUMMARY" > "$ERR_FILE" 2> /dev/null; then
+    read -r gaps withheld withheld_s unmeasured open_run < "$ERR_FILE" || :
+    sed -n '2,$p' "$ERR_FILE" | while IFS= read -r _line; do
+        diag "$_line"
+    done
 fi
-diag "stop: samples=$samples skipped_seconds=$skipped calibrations=$calibrations pacing=$([ "$FRAC_SLEEP" -eq 1 ] && echo wall-clock || echo whole-seconds)"
+diag "stop: samples=$samples utc_gap_seconds=$gaps withheld_samples=$withheld withheld_elapsed_s=$withheld_s withheld_runs_unmeasured=$unmeasured withheld_open_at_stop=$open_run calibrations=$calibrations pacing=$([ "$FRAC_SLEEP" -eq 1 ] && echo wall-clock || echo whole-seconds)"
 lines_total=$(grep -c . "$DIAG_FILE" 2> /dev/null || echo 0)
-echo "collector stopped after $samples samples ($skipped second(s) without a sample; $lines_total diagnostic line(s) in $DIAG_FILE); output: $OUT" >&2
+echo "collector stopped after $samples samples (forward UTC gaps: $gaps s; withheld: $withheld sample(s), with $withheld_s s of elapsed time without an accepted sample beyond one interval and the UTC gaps, $unmeasured run(s) of them unmeasured and $open_run still withheld at stop; $lines_total diagnostic line(s) in $DIAG_FILE); output: $OUT" >&2
