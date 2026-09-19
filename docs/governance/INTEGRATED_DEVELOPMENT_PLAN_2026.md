@@ -10,9 +10,9 @@
 > [`PROGRESS.md`](../../PROGRESS.md) is the only source of current operational
 > state.
 > **The supervisor position, stated precisely.** The alignment package covering
-> what remains open — the experimental thresholds (D007), the academic use of
-> emulated results (D014), the authenticity of the local template copy inside
-> D004 and the storage semantics inside D010 — **has not been sent**, and
+> what remains open — the experimental thresholds (D007), the protocol and claim
+> limitations still open under D014, the authenticity of the local template copy
+> inside D004 and the storage semantics inside D010 — **has not been sent**, and
 > D001, D007, D008 and D012 of
 > [`supervisor_decision_log.csv`](supervisor_decision_log.csv) genuinely remain
 > `proposed_not_sent`. Against that, the student **reports** that the
@@ -23,13 +23,29 @@
 > none closes a gate or admits a claim. The student's adoption settles
 > execution. Adopting a plan version closes no gate, admits no claim and turns
 > no emulated result into native ARM64 evidence.
-> Every date after 2026-09-18 in this plan is a planning target, not an
-> achieved milestone.
+> Apart from the dated records of 2026-09-19 — the amendment and the update of
+> that day and the G0 decision — every date after 2026-09-18 in this plan is a
+> planning target, not an achieved milestone.
+
+> **Update of 2026-09-19 — governance and acceptance.** Recorded by the student
+> on 2026-09-19 and itemised in section 9. It corrects the integration-battery
+> baseline of section 2, which overstated the battery as "seven passed"; restates
+> the G5 exclusion rule so that invalid evidence is excluded from eligible
+> aggregates while a valid negative result is retained and analysed
+> (section 4.3); records the QEMU evaluation scope of RQ3 as **reported
+> approved** and narrows D014 to the protocol and claim limitations that remain
+> open, so that it is no longer a blanket blocker of G4–G7 or of the final
+> academic release; and records **G0 as Accepted** on 2026-09-19 for project
+> initiation and baseline alignment, with its residual obligations allocated to
+> later gates (section 4.2 and the
+> [G0 decision record](decisions/2026-09-19-g0-closure.md)). It admits no
+> evidence and no claim, and it closes no other gate.
 
 **Version:** 2.0 — adopted 2026-09-18 (text of 2026-09-16 with the QEMU-only
 execution amendment of 2026-09-18), amended on 2026-09-19 to record the
 supervisor confirmations reported by the student, the 95-run attempt target and
-the authorised terminology (section 9)  
+the authorised terminology, and updated on 2026-09-19 by the governance and
+acceptance update above (section 9)  
 **Supersedes:** version 1.2 — 2026-08-14 (which superseded
 version 1.1 — 2026-08-13, which superseded version 1.0 — 2026-08-07)  
 **Planned submission:** 2026-10-20  
@@ -89,15 +105,19 @@ means a claim or gate is accepted.
   future work (section 8).
 - **What is reported approved, and what is not.** The student **reports** that
   the title and the research-question wording were approved, with RQ3 evaluated
-  in QEMU rather than on a native ARM64 virtual machine (D011). The
-  **experimental thresholds** (D007) and the **academic use of emulated
-  results** (D014) are not settled by that, and the alignment package that
-  carries them has not been sent.
+  in QEMU rather than on a native ARM64 virtual machine (D011). That approval
+  covers the **evaluation scope**: RQ3 is evaluated with the QEMU tests, so the
+  QEMU evaluation scope is **reported approved** (D014) and is not reopened. The
+  **experimental thresholds** (D007) and the protocol and claim limitations
+  that remain open under D014 are not settled by that, and the alignment
+  package that carries them has not been sent.
 - **Reported supervisor approval to execute the QEMU tests.** The student
   reports that a supervisor approved proceeding with the QEMU tests. It is
   recorded here as a **supervisor confirmation reported by the student** — not
-  as a documented supervisor decision, and not as approval of the academic use
-  of the results, which remains D014.
+  as a documented supervisor decision. Read with item (2) below, it is part of
+  the reported approval of the QEMU evaluation scope of RQ3 (D014); what D014
+  still holds open is limited to protocol and claim limitations (section 3.5,
+  rule 5).
 - **The twelve items the student reports confirmed (recorded 2026-09-18).**
   (1) the title, exact wording *Blockchain-powered Personal AI – Digital Twin
   Edge Gateway*; (2) the research questions, with RQ3 evaluated in QEMU;
@@ -124,13 +144,17 @@ means a claim or gate is accepted.
   no claim, seal no evidence and make no emulated result native evidence. Formal
   gate outcomes remain solely in [`gate_decision_log.md`](gate_decision_log.md).
 - **Authority basis.** The student is the decision owner for project execution.
-  What remains reserved to the supervisors is D007 (thresholds), D014 (the scope
-  of the evaluation and the academic use of emulated results), the
-  template-authenticity half of D004 and the storage-semantics half of D010. The
-  title and research-question halves of D011, the second-operator question of
-  D006 and the review-label question of D003 are reported settled, as reported
-  by the student; D001 and D008 keep their historical August wording, which was
-  never sent and is not what the student reports confirmed.
+  What remains reserved to the supervisors is D007 (thresholds), the open part
+  of D014 (the protocol and claim limitations, the QEMU evaluation scope of RQ3
+  being reported approved), the template-authenticity half of D004 and the
+  storage-semantics half of D010. The title and research-question halves of
+  D011, the second-operator question of D006 and the review-label question of
+  D003 are reported settled, as reported by the student. Decision,
+  implementation, evidence and acceptance stay separate: the scoping review
+  (D003) and the waiver of a second software tester (D006) are settled
+  decisions even though the review's execution and the repeatability
+  documentation are incomplete. D001 and D008 keep their historical August
+  wording, which was never sent and is not what the student reports confirmed.
 
 ## 2. Baseline at 2026-09-18
 
@@ -141,15 +165,15 @@ preserved unmodified in the archived v1.2 file and is not rewritten here.
 | Area | Baseline | Consequence |
 |---|---|---|
 | Repository | `Claude/` is the active project and its tree was reconciled with the private GitHub `dev` branch. `ChatGPT/` is a divergent legacy workspace. | No automatic merge from `ChatGPT`; preserve it read-only and migrate only reviewed documentary conclusions. |
-| Unit evidence | The latest sealed record reports 701 passing unit tests, all against fakes. The nine integration/recovery families of the runbook were **exercised once on 2026-09-18 and are not complete**: seven passed, tests 1 and 6 carry a failing harness part from the resource sampler under emulation, and the record is held outside the repository and unsealed. | Unit tests against fakes cannot support live-system claims; an unsealed, incomplete battery supports none either. Completing it, with the instrumentation defect fixed under its own change, is the next work package. |
+| Unit evidence | The latest sealed record reports 701 passing unit tests, all against fakes. The nine integration/recovery families of the runbook were **exercised once on 2026-09-18 and are not complete**. Functional results were demonstrated for test 2 (three wearables: 672 valid events, none lost or late, the last acknowledgement 3.1 s before the deadline), test 8 (guest reboot and persistence) and the tested checks of test 9 (TLS and authorisation refusals, not a general security assurance); the specific behaviours of test 3 (invalid payloads rejected, but 132 of 1,277 valid events confirmed late), test 4 (672 duplicates, none double-accepted) and test 7 (bounded retry under a MongoDB fault, not lossless delivery: 62 failed after three attempts and 1,012 of 3,298 accepted records late) were shown. Test 5 **fails** its deadline criterion (326 of 2,016 valid events late); two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`), so test 7 demonstrated the MongoDB fault only — because both are written in runbook prose that the extracted test scripts did not include; and the timed harness parts of tests 1 and 6 are **invalid**. No official campaign has been completed or admitted; the diagnostic measurements above are not accepted campaign results or native performance evidence. The record is a locally hash-sealed candidate archive held outside the repository, not incorporated into or admitted by the project evidence record. *(Corrected 2026-09-19: this row previously said that seven tests passed and that tests 1 and 6 carried a failing harness part, which overstated the battery.)* | Unit tests against fakes cannot support live-system claims; an incomplete battery that is not admitted supports none either, and the outer seal of its archive does not make a nested invalid run valid. Completing it — the instrumentation defect fixed under its own change, the two missing sub-checks run and the late deliveries analysed rather than set aside — is the next work package. |
 | Yocto/QEMU platform (sealed) | The integrated image build (commit `03e333e`), two boots with every acceptance check passing (commit `3209b17`) and an isolated MongoDB 7.0.39 test are sealed under [`docs/evidence/integrated-qemu/`](../evidence/integrated-qemu/). Gate G1 was accepted on 2026-08-14 for the functional platform layer only. | Sealed technical evidence, all emulated. Sealing is not acceptance and G1 is not relabelled as an integrated validation. |
-| Service stack in the guest (unsealed) | On 2026-09-18 the six-container stack was deployed inside the emulated Yocto guest and one bounded end-to-end flow passed: one smartwatch at 1 Hz for 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. The maximum latency observed, 12,286 ms, is an emulated observation and not a performance result. | **Candidate evidence held outside the repository and unsealed.** It admits no claim, closes no gate and is not citable until sealed and admitted. The statements that the stack has never been deployed and that the first flow has not run are corrected by this row. |
+| Service stack in the guest (locally hash-sealed, not admitted) | On 2026-09-18 the six-container stack was deployed inside the emulated Yocto guest and one bounded end-to-end flow passed: one smartwatch at 1 Hz for 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. The maximum latency observed, 12,286 ms, is an emulated observation and not a performance result. | **Locally hash-sealed candidate evidence (all 51 `SHA256SUMS` entries verify), held outside the published evidence package and not admitted.** It admits no claim, closes no gate and is not citable until incorporated into the published evidence package and admitted. *(Corrected 2026-09-19: this row previously called the record unsealed.)* The statements that the stack has never been deployed and that the first flow has not run are corrected by this row. |
 | Defects found by that flow | The controller was attached to the wrong Compose network (fixed in `9ffd365`) and the host shell inherited a relative schema directory (fixed in `dc6d8bb` and `22fb0a9`). | The first live exercise behaved as the harness risk predicted. Fixing the defects closes no gate. |
-| Open stability incident | A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session at a 512 MiB container limit. The diagnosis of 2026-09-18 records the three Ditto services idling at 94–95 % of that limit and reaching 98.1 % after a 672-message workload, and a controlled `docker compose stop -t 60` after that workload producing no OOM anywhere in the boot. | The corrective work — a graceful stop before power-off, and container memory sizing — is **open** and is a separate change. The stack is not described as stable, and stability is not declared before the incident is resolved or its scope explicitly bounded and recorded. |
+| Stability incident (correction merged) | A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session at a 512 MiB container limit. The diagnosis of 2026-09-18 records the three Ditto services idling at 94–95 % of that limit and reaching 98.1 % after a 672-message workload, and a controlled `docker compose stop -t 60` after that workload producing no OOM anywhere in the boot. | The corrective work — a graceful stop before power-off, and container memory sizing — was a separate change and is merged into `dev` through pull request #34 (`d0c9238`): the three Ditto limits are 768 MiB and the runbook stops the stack before power-off. Only bounded observations follow from it, so the stack is not described as stable, and general or prolonged stability is not declared before it is demonstrated or its scope explicitly bounded and recorded. *(Corrected 2026-09-19: this row previously called the corrective work open.)* |
 | Experiments | There are zero official campaign runs and 0 of 15 claims accepted. | No number may enter results or conclusions before protocol and data freezes. |
 | Execution environment | The evaluation environment is the emulated integrated guest: ARM64 under QEMU/TCG on the x86-64 workstation (Windows 11, WSL2 Ubuntu-24.04). No native ARM64 host exists and none is required by this plan. | RQ3 is bounded to that environment (section 3.5). Native measurement is documented, unverified future work (section 8); no cloud allocation, spending or native build is requested by this plan version. |
-| Academic work | The dissertation skeleton and a substantive Chapter 2 draft exist. The title, the research questions, the template obligation, the review label and the second-operator question are **reported confirmed** by the student (section 1.1). What stays open is the experimental thresholds (D007), the academic use of emulated results (D014) and the authenticity check of the local template copy (inside D004). | Send the reduced alignment package covering the open items. Factual corrections do not wait for approval, and a reported confirmation is never written up as a documented decision. |
-| G0 external actions | The state-of-the-art material is **reported sent** by the student, with no date or copy held. The reduced alignment package covering the open decisions is drafted and unsent. | Sending that package remains a student action that repository changes cannot discharge. Infrastructure procurement is **not** an obligation of this plan version. |
+| Academic work | The dissertation skeleton and a substantive Chapter 2 draft exist. The title, the research questions — with RQ3 evaluated with the QEMU tests, so that the QEMU evaluation scope is reported approved (D014) — the template obligation, the review label and the second-operator question are **reported confirmed** by the student (section 1.1). What stays open is the experimental thresholds (D007), the protocol and claim limitations left open under D014 and the authenticity check of the local template copy (inside D004). *(Corrected 2026-09-19: this row previously listed the academic use of emulated results as open.)* | Send the reduced alignment package covering the open items. Factual corrections do not wait for approval, and a reported confirmation is never written up as a documented decision. |
+| G0 external actions | The state-of-the-art material is **reported sent** by the student, with no date or copy held. The reduced alignment package covering the open decisions is drafted and unsent. | Sending that package remains a student action that repository changes cannot discharge. Since 2026-09-19 it is no longer a condition of G0, whose residual obligations are allocated to later gates (section 4.2). Infrastructure procurement is **not** an obligation of this plan version. |
 
 ## 3. Scientific contract and evidence boundary
 
@@ -179,7 +203,7 @@ outside the guest.
   latency and not proof of durable storage at that acknowledgement time.
 
 The stack runs inside the Yocto guest under emulation: the demonstration of
-2026-09-18 is functional evidence, held outside the repository, unsealed, and
+2026-09-18 is functional evidence, held outside the published evidence package as a locally hash-sealed candidate, not admitted, and
 admitting no claim. This supersedes the version 1.2 prohibition on claiming that
 the Ditto service stack runs inside the Yocto image; that prohibition is
 retained only for any *native* deployment, which remains undemonstrated.
@@ -229,9 +253,14 @@ licensed — in the title or anywhere else. Waiving a second software tester als
 says nothing about literature screening, which is a separate matter recorded
 under D003.
 
-The **evaluation protocol** is not settled by the reported approval of the
-questions: the thresholds stay with D007 and the academic use of emulated
-results with D014, and neither may be presented as agreed.
+The reported approval of the questions covers their **evaluation scope**:
+RQ3 is evaluated with the QEMU tests, and that scope is recorded as **reported
+approved** under D014 — reported by the student, undated, and not a documented
+supervisor decision. It does not settle the **evaluation protocol**: the
+numerical thresholds stay with D007, and the protocol and claim limitations that
+remain open — the wording of claims and limitations about emulated timing and
+resource behaviour and about the absence of native evidence — stay with D014.
+Neither may be presented as agreed.
 
 ### 3.3 Mandatory P0
 
@@ -335,8 +364,8 @@ in [ADR 0008](../adr/0008-integrated-yocto-arm64-evaluation.md).
    simulator → MQTT/TLS → controller → Ditto → API; correctness; fault handling
    and recovery; persistence. Of these, the build, the boot and the isolated
    MongoDB test are demonstrated and sealed; the stack deployment and the
-   bounded functional path are demonstrated as unsealed candidate evidence held
-   outside the repository (section 2). Timing observed under emulation may be
+   bounded functional path are demonstrated as a locally hash-sealed candidate
+   held outside the published evidence package and not admitted (section 2). Timing observed under emulation may be
    recorded only as informational and must be labelled emulated.
 2. **Still dependent on native ARM64.** Any statement about ARM hardware
    performance or capacity, and the native-boot evidence of the image (EFI and
@@ -346,20 +375,29 @@ in [ADR 0008](../adr/0008-integrated-yocto-arm64-evaluation.md).
    performance or capacity may be drawn from an emulated run. At most, relative
    observations may be reported, clearly labelled as emulated and not generalised
    beyond that environment. An emulated result is never native ARM64 performance
-   evidence, and **any academic use of emulated results needs supervisor
-   agreement** (D014).
+   evidence. Using the emulated evaluation to answer the questions as bounded in
+   section 3.2 is **reported approved** (D014); the wording of any claim or
+   limitation about emulated timing and resource behaviour still needs
+   supervisor agreement under the open part of D014 (rule 5).
 4. **QEMU/TCG is never a performance measurement platform.** It yields functional
    and integration evidence only. The presence of the word QEMU does not, by
    itself, identify the execution mode; never infer KVM from the label ARM64 and
    never silently fall back from KVM to TCG.
-5. **Reserved for the supervisors.** The scope of the evaluation and any
-   academic use of emulated results (D014, a standing request rather than a
-   contingency) stay reserved and unanswered; nothing may be applied to the
-   dissertation as if that question were settled. The academic title and the
-   research-question wording of D011 are **reported approved** by the student
-   (section 1.1 and section 3.2) — reported, and never recorded as a documented
-   supervisor decision — and that approval does not reach the academic-use
-   question, which stays with D014.
+5. **Reported approved, and what stays open.** The academic title and the
+   research questions of D011 are **reported approved** by the student, with
+   RQ3 evaluated with the QEMU tests (item 2 of section 1.1, and section 3.2).
+   The QEMU evaluation scope is therefore recorded as **reported approved**
+   under D014 — reported by the student, undated, and never recorded as a
+   documented supervisor decision — and it is not reopened. What D014 still
+   holds open is limited to genuinely unsettled protocol and claim limitations:
+   the wording of claims and limitations about emulated timing and resource
+   behaviour and about the absence of native evidence. The numerical criteria
+   are not part of D014: they stay with D007, as in section 3.2. The open
+   wording is tracked specifically at G4 and G6 (section 4.3); nothing may be
+   applied to the dissertation as if it were settled, and D014 is not a blanket
+   blocker of any gate or of the final academic release. *(Corrected
+   2026-09-19: this rule previously held the scope of the evaluation and any
+   academic use of emulated results reserved and unanswered.)*
 
 **Recording requirements for every run.** Record the QEMU version, the TCG mode
 and options, the virtual machine and CPU model, the vCPU count, the memory, the
@@ -442,12 +480,33 @@ feature freeze**, **G4 — experimental freeze** (tag `exp-v1`), **G5 — data
 freeze** (tag `data-v1`), **G6 — analysis and full draft**, **G7 — release
 candidate**, followed by **Submission**.
 
-- **G0** remains *Not decided*. It keeps the alignment-package obligation, now
-  reduced to the rows that remain open — D007, D014 and the unresolved halves of
-  D004 and D010 — requested with the revised memo. No confirmation reported by
-  the student closes it. The university ARM64 request and
-  the measurement-host acquisition are **removed as gate conditions** and
-  deferred with the native route; they are not deleted from history.
+- **G0** is **Accepted** (2026-09-19) for **project initiation and baseline
+  alignment**, on the authority of the student (Rui Duarte); the decision record
+  is [`decisions/2026-09-19-g0-closure.md`](decisions/2026-09-19-g0-closure.md).
+  It is a dated change of G0's exit scope, **not** a retroactive pass against
+  its earlier conditions: the alignment package that this section required and
+  the verified off-machine copy that the gate log and `PROGRESS.md` also
+  attached to G0 are **not** recorded as performed, and no confirmation reported
+  by the student is written up as a documented supervisor decision. The
+  remaining work is allocated as follows. Integration defects,
+  missing sub-checks, timely delivery and admissible run evidence go to G2 and
+  G3. The D007 thresholds, the prospective fault-window rules, the loads and
+  durations, the feasibility check of the 95-run attempt target and the frozen
+  protocol go to G4, before `exp-v1`. Any genuinely unsettled methodological or
+  claim detail — the open part of D014 and the storage-semantics half of D010
+  among them — is tracked specifically at G4 and G6, without a blanket D014
+  blocker. Executing the scoping review and writing the dissertation go to
+  Chapters 1–4 and G6. The check of the local template against the
+  institution's supplied original, the conformity of the final PDF, the AI-use
+  declaration and the final evidence and reproduction package go to G7. The
+  **off-machine copy, its hash and its restore path** are an active resilience
+  action owned by Rui, retained in the risk register and the backlog and
+  required at G7 (section 4.3); this decision neither verifies nor waives them.
+  The university ARM64 request and the measurement-host acquisition were
+  **removed as gate conditions** on 2026-09-18 and deferred with the native
+  route; they are not deleted from history. *(Until 2026-09-19 this bullet
+  read: G0 remains Not decided and keeps the alignment-package obligation,
+  reduced to D007, D014 and the unresolved halves of D004 and D010.)*
 - **G1** remains **Accepted** (2026-08-14), for the functional platform layer
   only. It validated no claim, C01 and C02 remain partial, and nothing in this
   version reopens, relabels or extends it. The native Yocto boot formerly
@@ -559,10 +618,21 @@ defined by that procedure rather than by a run count, and the criterion below is
 the identities of the frozen set — never the number 95. Completeness is checked
 **by identity**: the identities of the valid runs match the frozen plan exactly,
 and identities missing, extra, duplicated or swapped fail the criterion and are
-named. Sealing is mandatory per run; an unsealed or failing run is excluded from
-every summary, acceptance and figure. Failures are preserved and only
-evidence-invalidated conditions are rerun, under new identities with a recorded
-lineage and a dated deviation record. The analysis is regenerated by the
+named. Sealing is mandatory per run. **Exclusion follows evidence validity,
+never the outcome:** an unsealed run, or one with missing or corrupted
+provenance or invalid instrumentation, is excluded from the eligible
+quantitative aggregates, but it is retained and reported with the reason for its
+exclusion; a valid run that shows overload, loss, late confirmation or failed
+recovery is retained and analysed — the system fails the relevant criterion,
+and the observation does not vanish. Conditions are never repeated until they
+pass with the valid failures silently discarded, and runs under changed
+configurations or protocols are never mixed without those changes being
+identified. *(Corrected 2026-09-19: this sentence previously excluded "an
+unsealed or failing run" from every summary, acceptance and figure, which
+contradicted the "Failures kept" condition above, the rule that slowness alone
+never excludes a run and the implemented analysis rule.)* Failures are preserved
+and only evidence-invalidated conditions are rerun, under new identities with a
+recorded lineage and a dated deviation record. The analysis is regenerated by the
 delivered command from the admitted raw data, never pooling execution modes, and
 every figure and table carries the emulated label. The freeze is a dated decision
 linked from `PROGRESS.md`, with an annotated tag and an immutable raw tree. After
@@ -634,15 +704,22 @@ dated *technical* outcome for G2 and G3 on emulated evidence, because deployment
 the functional path, correctness, fault handling, recovery and persistence are
 exactly what rule 1 of section 3.5 allows an emulated run to demonstrate. For G4
 and G5 the pilot and the runs may exist and be sealed, but the frozen set becomes
-*the protocol and the data of the evaluation* only once D007 and D014 are
-answered. G6 and G7 carry academic weight only with the supervisors' decisions
-that remain open: **D014** in both cases, **D007** for the analysis, and the
-**template-authenticity half of D004** blocking the final academic release.
-D006 leaves this list — the second-operator requirement is reported waived — and
-so does the title and research-question half of D011, which the student reports
-approved; what a reported confirmation does not do is turn into a documented
-decision, so no gate row may cite one as the authority for its outcome. A gate
-decided on emulated evidence records that fact in its own row.
+*the protocol and the data of the evaluation* only once **D007** is decided.
+Using emulated evidence as the evaluation is **not** a further condition: the
+QEMU evaluation scope of RQ3 is reported approved (D014, rule 5 of section 3.5).
+What D014 still holds open — the protocol and claim limitations — is tracked
+specifically where it applies, in the frozen protocol at G4 and in the analysis
+and full draft at G6; an unsettled item constrains the protocol element or the
+claim it concerns, never a gate as a whole. The analysis at G6 carries academic
+weight only with **D007** decided, and the **template-authenticity half of
+D004** blocks the final academic release at G7. D006 leaves this list — the
+second-operator requirement is reported waived — and so does the title and
+research-question half of D011, which the student reports approved; D014 leaves
+it too, apart from the specific items tracked at G4 and G6. What a reported
+confirmation does not do is turn into a documented decision, so no gate row may
+cite one as the authority for its outcome. A gate decided on emulated evidence records that fact in its own row.
+*(Corrected 2026-09-19: this paragraph previously made D014 a condition of G4
+and G5 and of the academic weight of G6 and G7.)*
 
 **Stated conflict, not resolved here.** The claim-evidence matrix and
 `PROGRESS.md` both state that a QEMU result never supports a performance *or
@@ -682,10 +759,14 @@ the supervisors together with D014.
   university-host fallback rule and the native-host decision deadline are
   withdrawn from mandatory scope and deferred with the native route.
 - Silence from supervisors is not approval, for every row that is still open.
-  **D007** blocks `exp-v1`; **D014** (the scope of the evaluation and any
-  academic use of emulated results) and the **template-authenticity half of
-  D004** block the final academic release. D001 and D008 keep their historical
-  August wording and block nothing. The title and research-question half of
+  **D007** blocks `exp-v1`; the **template-authenticity half of D004** blocks
+  the final academic release. **D014** is not a blanket blocker: the QEMU
+  evaluation scope of RQ3 is reported approved, and its open part — the
+  protocol and claim limitations of rule 5 of section 3.5 — is tracked at G4
+  and G6 against the protocol element or claim it concerns *(corrected
+  2026-09-19; D014 previously blocked the final academic release as a whole)*.
+  D001 and D008 keep their historical August wording and block nothing. The
+  title and research-question half of
   **D011** and the second-operator question of **D006** are reported settled by
   the student and no longer block; a reported confirmation is not a documented
   decision and never becomes one by being cited here. The student's adoption
@@ -751,17 +832,22 @@ turned into a `sent_at` value in
 [`supervisor_decision_log.csv`](supervisor_decision_log.csv).
 
 What still has to be sent is the **reduced alignment package**, covering only
-the items that remain open: the experimental thresholds (**D007**), the scope of
-the evaluation and any academic use of emulated results (**D014**), the
-authenticity of the local template copy together with the cover and metadata
-(the open half of **D004**), and the operational storage semantics (the open
-half of **D010**). A reply on D014 is needed before the evaluation chapter is
-written. The other rows are not re-requested: the student reports the title, the
-research questions, the local-core scope, the review type, the schedule, the
-template obligation, the second operator, the article, the terminology and the
-local evidence copy already confirmed (section 1.1), and asking again would
-treat a reported confirmation as if it had not been given. Silence remains no
-approval for the rows that stay open.
+the items that remain open: the experimental thresholds (**D007**), the protocol
+and claim limitations that remain open under **D014**, the authenticity of the
+local template copy together with the cover and metadata (the open half of
+**D004**), and the operational storage semantics (the open half of **D010**). A
+reply on the open part of D014 is needed before the affected claim and
+limitation wording is finalised; it does not hold back the evaluation chapter as
+a whole, because the QEMU evaluation scope of RQ3 is reported approved
+*(corrected 2026-09-19; this paragraph previously asked for the academic use of
+emulated results and required a reply on D014 before the evaluation chapter was
+written)*. Since 2026-09-19 sending the package is no longer a condition of G0
+(section 4.2). The other rows are not re-requested: the student reports the
+title, the research questions, the local-core scope, the review type, the
+schedule, the template obligation, the second operator, the article, the
+terminology and the local evidence copy already confirmed (section 1.1), and
+asking again would treat a reported confirmation as if it had not been given.
+Silence remains no approval for the rows that stay open.
 
 Factual changes do not require supervisor permission:
 
@@ -809,7 +895,8 @@ still never described as a systematic literature review.
 - G1 has a clean identified build and five strict accepted boots. G2 requires a
   real, identity-reconciled trace produced **inside the emulated Yocto guest**,
   sealed and labelled emulated; fakes do not count, and candidate evidence held
-  outside the repository is not admissible until it is sealed.
+  outside the repository is not admissible until it is incorporated, with a
+  verified seal, into the published evidence package and admitted.
 - The bounded pilot covers all conditions without creating citable results.
 - Every planned run has a predeclared identity. Failure is retained, never
   deleted; a repeat has a new identity and lineage.
@@ -921,7 +1008,9 @@ establish candidate mechanisms, not this project's successful execution.
   the thresholds (D007) and the academic use of emulated results (D014) are not
   agreed and their package is unsent, while the title, the research-question
   wording and ten further items are **reported confirmed by the student** and
-  are nowhere recorded as documented supervisor decisions. *(Wording of
+  are nowhere recorded as documented supervisor decisions. *(From the update of
+  2026-09-19 below, the QEMU evaluation scope under D014 is reported approved
+  and only its protocol and claim limitations stay open.)* *(Wording of
   2026-09-18, superseded by the amendment of 2026-09-19 below: "The supervisors
   approved nothing: not the title, not the research-question wording, not the
   thresholds and not the revised academic evaluation. The student reported that
@@ -967,6 +1056,36 @@ establish candidate mechanisms, not this project's successful execution.
   three working targets in section 4.1. Nothing in this amendment closes a gate,
   admits a claim or turns a reported confirmation into a documented decision.
 - Section 6's alignment package is read as requesting the rows that remain open:
-  D007, D014 and the unresolved halves of D004 and D010. The historical reading
-  of it as requesting D001–D014 belongs to the position before the amendment of
-  2026-09-19.
+  D007, D014 (from the update of 2026-09-19 below, only its protocol and claim
+  limitations) and the unresolved halves of D004 and D010. The historical
+  reading of it as requesting D001–D014 belongs to the position before the
+  amendment of 2026-09-19.
+- **Update of 2026-09-19 — governance and acceptance.** Recorded by the student
+  on 2026-09-19. It changes no scope, research question, schedule target or
+  claim, and it decides no gate other than G0. (a) The unit-evidence row of
+  section 2 said that seven of the nine integration/recovery families passed
+  and that tests 1 and 6 carried a failing harness part; that overstated the
+  battery, and the verified per-test state replaces it, including the deadline
+  failure of test 5, the two sub-checks that were not run (the sequence reset of
+  test 4 and the Ditto repeat of test 7) and the classification of the record
+  as a locally hash-sealed candidate archive not admitted into the project
+  evidence record. (b) G5's exclusion rule
+  excluded "an unsealed or failing run"; it now excludes by evidence validity
+  and retains and analyses a valid negative result, which is a wording
+  correction that aligns the rule with the plan's other conditions and with the
+  implemented analysis. (c) The QEMU evaluation scope of RQ3 is recorded as
+  **reported approved** under D014 — reported by the student, undated, and not a
+  documented supervisor decision — and D014's open part is narrowed to the
+  genuinely unsettled protocol and claim limitations, tracked at G4 and G6; D014
+  is no longer a blanket blocker of G4–G7 or of the final academic release
+  (banner and sections 1.1, 2, 3.2, 3.5, 4.3, 4.4 and 6). The scoping review
+  (D003) and the waiver of a second software tester (D006) are kept as settled
+  decisions, separate from their incomplete execution and documentation.
+  (d) G0 is recorded **Accepted** on 2026-09-19 for project initiation and
+  baseline alignment, on the authority of the student (Rui Duarte), as a dated
+  change of its exit scope with its residual obligations allocated to later
+  gates (section 4.2); the decision record is
+  [`decisions/2026-09-19-g0-closure.md`](decisions/2026-09-19-g0-closure.md).
+  The alignment package and the verified off-machine copy are not recorded as
+  performed. (e) Section 2 and sections 3.1 and 3.5 restate the first-flow record of 2026-09-18 as a locally hash-sealed candidate, outside the published evidence package and not admitted, replace "nothing has been measured" by the boundary that no official campaign has been completed or admitted, and record the memory and graceful-stop correction of the `ditto-things` teardown incident as merged through pull request #34, with general or prolonged stability not demonstrated. Nothing in this update admits evidence, accepts a claim, decides
+  G2–G7 or turns a reported confirmation into a documented supervisor decision.

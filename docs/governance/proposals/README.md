@@ -54,6 +54,7 @@ claim, and neither does a reported confirmation.**
 | [`INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md`](INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) | Plan v2.0: integrated Yocto ARM64 evaluation, evidence classes (emulated QEMU/TCG versus native ARM64), branching forecast schedule and effort forecast | **Adopted 2026-09-18**, with a dated QEMU-only execution amendment; superseded by the canonical text and kept here as the record of what was proposed. Dated correction notes mark the statements that events of 2026-09-18 overtook |
 | [`scope_and_rqs_v2.0_proposal.md`](scope_and_rqs_v2.0_proposal.md) | Scope v2.0: integrated objective, proposed title and working RQ1–RQ3 | The technical scope it describes is the execution baseline. Its request for the title and RQ wording is **overtaken**: since 2026-09-19 the student reports both approved, with the title *Blockchain-powered Personal AI – Digital Twin Edge Gateway* and RQ3 evaluated in QEMU. The proposal text itself is history and is not rewritten |
 | [`supervisor_alignment_memo_v2.0_proposal.md`](supervisor_alignment_memo_v2.0_proposal.md) | Revised alignment memo for the supervisors | Draft, not sent |
+| [`acceptance_protocol_update_2026-09-19.md`](acceptance_protocol_update_2026-09-19.md) | Acceptance and protocol update asked for by the project review of 2026-09-19: short-run selection, a lifecycle-aware rule for a deliberate controller restart with its regression cases, late delivery as its own issue (with the controller-restart queue finding), test 4 sequence-reset coverage, binding each run to its exact instrument, and the acceptance sequence after resumption | **PROPOSED — for review, not adopted** (written 2026-09-19). Nothing in it is adopted, sent or decided, and test acceptance stays paused; each item names who decides it, and its numerical values stay with D007 |
 
 [ADR 0008](../../adr/0008-integrated-yocto-arm64-evaluation.md) belongs to the
 same work. Its status is now *Accepted by the student for project execution
@@ -112,9 +113,10 @@ complete: the student adopted the plan on 2026-09-18 with the QEMU-only
 execution amendment, the decision and its basis are recorded in
 [`LOG.md`](../../../LOG.md), the canonical file carries the adopted text, and
 version 1.2 is archived unmodified with its verified checksum. **Step 4 is
-narrowed but outstanding:** what is still unanswered is D007 (the thresholds),
-D014 (the scope of the evaluation and any academic use of emulated results) and
-the unresolved halves of D004 and D010. ADR 0008 has not reached a
+narrowed but outstanding:** what is still unanswered is D007 (the thresholds and the other numerical
+criteria), the open part of D014 and the unresolved halves of D004 and D010:
+the QEMU evaluation scope of RQ3 is reported approved — reported by the student, undated, not a documented supervisor decision — and is not re-requested; the open part of D014 is only the wording of the native-evidence limitation and of claims about emulated timing and resource figures, and numerical criteria belong to D007 *(corrected 2026-09-19; previously listed the scope of the
+evaluation and any academic use of emulated results as unanswered under D014)*. ADR 0008 has not reached a
 supervisor-agreed status, and it will not reach one on a reported confirmation:
 the title, the research questions and the other items the student reports
 confirmed are recorded as reported, and only a documented supervisor decision
