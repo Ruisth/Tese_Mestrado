@@ -22,6 +22,8 @@ SUT_NODE = "sut-vm"
 RESOURCES_HEADER = "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"
 
 SIM_RUN_IDS = ["smoke-r01", "smoke-r02", "smoke-r03"]
+#: The one service of the per-run resources fixtures (--expect-services).
+FIXTURE_SERVICES = ["egw-controller"]
 EXTERNAL_RUN_ID = "cold-r01"
 PLAN_ORDER = ["smoke-r01", EXTERNAL_RUN_ID, "smoke-r02", "smoke-r03"]
 
@@ -163,15 +165,26 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         "utf-8",
     )
 
-    # Per-run SUT resources, addressed by a {run_id} template.
+    # Per-run SUT resources, addressed by a {run_id} template, each with the
+    # collector's companions beside it: the manual path is accounted for
+    # like the fetch hook's output (manifest 1.4).
     for rid in SIM_RUN_IDS:
         lines = [RESOURCES_HEADER]
         for i in range(40):
             lines.append(
                 f"2026-09-07T10:00:{i % 60:02d}Z,egw-controller,10.0,1024,1.0,{SUT_NODE}"
             )
-        (tmp_path / f"resources-{rid}.csv").write_text(
-            "\n".join(lines) + "\n", "utf-8"
+        csv_path = tmp_path / f"resources-{rid}.csv"
+        csv_path.write_text("\n".join(lines) + "\n", "utf-8")
+        Path(f"{csv_path}.diagnostics.log").write_text(
+            f"2026-09-07T09:59:59Z start: collector_sha256={'cd' * 32} "
+            "host=sut-vm; expected services: egw-controller\n"
+            "2026-09-07T10:00:41Z inventory: observed=egw-controller "
+            "expected=egw-controller missing=none unnamed_ids=0\n",
+            "utf-8",
+        )
+        Path(f"{csv_path}.lifecycle.csv").write_text(
+            "ts_utc,event,container_id,name\n", "utf-8"
         )
 
     base = tmp_path / "results"
@@ -182,6 +195,7 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         event_log_dir=event_log_dir,
         sut_env_from=sut_env,
         resources_from=(tmp_path / "resources-{run_id}.csv").as_posix(),
+        expect_services=FIXTURE_SERVICES,
         # No controller is reachable in a unit test, so the run end cannot
         # be stamped in the controller's clock domain (sprint P5, report
         # 5.2). The campaign tests are about batch behaviour, so the
@@ -343,6 +357,45 @@ def test_campaign_only_conditions_filters_without_reordering(
     assert rc == 0
     assert _executed_run_ids(fake_env.calls) == SIM_RUN_IDS
     assert [line["run_id"] for line in _log_lines(fake_env.base)] == SIM_RUN_IDS
+
+
+def test_campaign_accounts_for_each_resources_from_file_like_the_fetch_hook(
+    plan_path, fake_env
+) -> None:
+    """The per-run --resources-from file (the manual path) and its
+    companions are copied, inspected against --expect-services and sealed."""
+    rc = campaign_mod.run_campaign(
+        plan_path, only_conditions=["smoke_sequence"], **fake_env.kwargs
+    )
+    assert rc == 0
+    for rid in SIM_RUN_IDS:
+        collector = _manifest(fake_env.base, rid)["collector"]
+        assert collector["source"] == "--resources-from"
+        assert collector["source_path"] == (
+            fake_env.tmp_path / f"resources-{rid}.csv"
+        ).as_posix()
+        assert collector["expected_services"] == FIXTURE_SERVICES
+        assert collector["problems"] == []
+        kept = (
+            fake_env.base / "raw" / rid / "logs" / "collector" / "resources-from"
+        )
+        assert (kept / f"resources-{rid}.csv.diagnostics.log").is_file()
+
+
+def test_campaign_resources_from_without_expect_services_is_invalid(
+    plan_path, fake_env
+) -> None:
+    kwargs = dict(fake_env.kwargs)
+    kwargs.pop("expect_services")
+    rc = campaign_mod.run_campaign(
+        plan_path, only_conditions=["smoke_sequence"], **kwargs
+    )
+    assert rc == 1
+    manifest = _manifest(fake_env.base, "smoke-r01")
+    assert manifest["validity"] == "invalid"
+    assert "--expect-services was not given" in " ".join(
+        manifest["validity_reasons"]
+    )
 
 
 def test_campaign_only_conditions_unknown_exits_2(
@@ -518,6 +571,7 @@ def test_campaign_drives_the_collector_hooks_per_run(
     record, hooks = _hook_templates(tmp_path)
     kwargs = dict(fake_env.kwargs)
     kwargs.pop("resources_from")  # nothing pre-fetched exists
+    kwargs.pop("expect_services")  # the hooks carry their own list
     rc = campaign_mod.run_campaign(
         plan_path, only_conditions=["smoke_sequence"], **kwargs, **hooks
     )
@@ -563,6 +617,7 @@ def test_campaign_without_expect_services_marks_hooked_runs_invalid(
     hooks.pop("expect_services")
     kwargs = dict(fake_env.kwargs)
     kwargs.pop("resources_from")
+    kwargs.pop("expect_services")
     rc = campaign_mod.run_campaign(
         plan_path, only_conditions=["smoke_sequence"], **kwargs, **hooks
     )
@@ -578,6 +633,7 @@ def test_campaign_stops_when_a_collector_hook_fails(
     record, hooks = _hook_templates(tmp_path, fetch_rc=4)
     kwargs = dict(fake_env.kwargs)
     kwargs.pop("resources_from")
+    kwargs.pop("expect_services")
     rc = campaign_mod.run_campaign(
         plan_path, only_conditions=["smoke_sequence"], **kwargs, **hooks
     )

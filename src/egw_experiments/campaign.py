@@ -40,7 +40,8 @@ Behaviour:
   through per run, so a fresh campaign produces its own resources.csv
   instead of requiring a pre-fetched one (sprint P5, report 5.3), and so is
   ``--expect-services`` (the services every run's collector output must
-  account for; the ``{expect_services}`` placeholder of the hooks);
+  account for, whether a hook fetched it or ``--resources-from`` names it;
+  the ``{expect_services}`` placeholder of the hooks);
 - cooldowns: the plan's ``cooldown_s`` is honored by the run wiring itself
   (``execute_run`` sleeps the remaining cooldown after the confirmation
   window). ``--no-cooldown`` suppresses it and records a protocol

@@ -167,9 +167,14 @@ collector's service inventory and the rows per expected service in the
 manifest (``collector``). Every ``collector.problems`` entry (a missing
 companion, a self-test marker, no expected services, an expected service
 without rows, an inventory naming a missing service, a collector that did not
-stop cleanly, ...) makes a timed run INVALID. The full stdout and stderr of
-every hook are kept as ``logs/collector/hook-<hook>.stdout.txt`` /
-``.stderr.txt``.
+stop cleanly, ...) makes a timed run INVALID. The manual path is accounted
+for in the same way: a ``--resources-from`` file (``run``, ``campaign`` or
+``collect``) and the companions beside it are copied into
+``logs/collector/resources-from/`` and inspected. The full stdout and stderr
+of every hook are kept as ``logs/collector/hook-<hook>.stdout.txt`` /
+``.stderr.txt``; a hook that exceeds its timeout is ended with its whole
+process group, so none of its children writes after the seal. The sha256 of
+the helper the fetch hook runs is recorded (``collector.fetch_helper_sha256``).
 
 Mandatory artefacts (sprint P5, report 5.4): each condition kind declares
 the evidence a completed run MUST carry (simulator: manifest.json,
@@ -189,6 +194,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -241,20 +247,30 @@ FETCH_ATTEMPTS = 3
 FETCH_BACKOFF_BASE_S = 2.0
 FETCH_TIMEOUT_S = 300.0
 
+#: Seconds a collector hook's process group is given to exit after SIGTERM
+#: (sent when the hook exceeds its timeout) before SIGKILL. A hook runs in a
+#: session of its own, so the whole group is signalled: the ssh/scp children
+#: of fetch-collector-output.sh must never outlive the hook and write into
+#: logs/collector/ after the inspection and the seal.
+HOOK_KILL_GRACE_S = 5.0
+
 # Environment variables consulted when the corresponding CLI flag is absent.
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
 # 1.4 (collector output accounting, 2026-09-19; additive, no reader change
-# needed): adds 'collector' ({expected_services, hooks_in_use} and, when a
-# collector hook is configured, the inspection of logs/collector/: 'files'
+# needed): adds 'collector' ({expected_services, hooks_in_use, source} and,
+# when the SUT resources come from a collector hook or --resources-from, the
+# inspection of the collector's output in logs/collector/: 'files'
 # (csv/diagnostics/lifecycle/self_test: path, present, size, sha256),
 # 'deployed_sha256', 'start_line_count', 'declared_expected_services',
 # 'inventory', 'inventory_missing', 'stop_line', 'self_test_present',
-# 'rows_per_expected_service', 'unexpected_services', 'problems'); every
-# 'collector_hooks' record gains 'stdout_file'/'stderr_file' (the hook's full
-# output under logs/collector/); 'config.cli' gains 'expect_services'.
-# 'collector.problems' are validity reasons of a timed run.
+# 'rows_per_expected_service', 'unexpected_services', 'problems'; with a
+# fetch hook also 'fetch_helper_path'/'fetch_helper_sha256'; with
+# --resources-from also 'source_path'); every 'collector_hooks' record gains
+# 'stdout_file'/'stderr_file' (the hook's full output under logs/collector/)
+# and, when it exceeded its timeout, 'timed_out'; 'config.cli' gains
+# 'expect_services'. 'collector.problems' are validity reasons of a timed run.
 # 1.3 (sprint P5.4, additive within the version — no reader change needed):
 # 'controller_marker' gains 'lag_s'/'lag_tolerance_s' and 'controller_metrics'
 # gains 'invalid_values'/'last_invalid_value'.
@@ -365,6 +381,12 @@ COLLECTOR_OUTPUT_FILES: dict[str, tuple[str, bool]] = {
     "self_test": (".self-test", False),
 }
 
+#: Sub-directory of logs/collector/ receiving a copy of the --resources-from
+#: file and of the companions beside it (the manual path), under the same
+#: name the fetch hook uses, so they are sealed with the run like the fetched
+#: output — without ever touching what a fetch hook put in logs/collector/.
+RESOURCES_FROM_SUBDIR = "resources-from"
+
 #: Characters of one service (container) name, the same set the collector
 #: accepts for --expect-services (collect-resources.sh, argument checks).
 SERVICE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -462,20 +484,35 @@ def ingest_copy(src: str | Path, dest: str | Path, run_dir: str | Path) -> bool:
     if dest.is_file():
         if sha256_file(src) == sha256_file(dest):
             return True
-        sealed_note = (
-            f"this run directory is sealed ({SUMS_FILENAME} present)"
-            if run_dir_is_sealed(run_dir)
-            else "raw run evidence is write-once"
-        )
-        raise SealedRunError(
-            f"refusing to overwrite {dest.name} in {run_dir}: the existing "
-            f"raw file's content differs from {src}; {sealed_note}. "
-            "Recording different evidence requires a NEW run identity: "
-            "repeat the run under a new versioned run_id and document the "
-            "exclusion of the old one (plan 5.8)."
-        )
+        raise overwrite_refusal(dest, src, run_dir)
     shutil.copyfile(src, dest)
     return True
+
+
+def overwrite_refusal(
+    dest: str | Path, src: str | Path, run_dir: str | Path
+) -> SealedRunError:
+    """The :class:`SealedRunError` refusing to replace ``dest`` with ``src``.
+
+    ``dest`` is named by its path inside the run directory (``resources.csv``,
+    ``logs/collector/...``)."""
+    dest = Path(dest)
+    try:
+        shown = dest.relative_to(run_dir).as_posix()
+    except ValueError:
+        shown = dest.name
+    sealed_note = (
+        f"this run directory is sealed ({SUMS_FILENAME} present)"
+        if run_dir_is_sealed(run_dir)
+        else "raw run evidence is write-once"
+    )
+    return SealedRunError(
+        f"refusing to overwrite {shown} in {run_dir}: the existing "
+        f"raw file's content differs from {src}; {sealed_note}. "
+        "Recording different evidence requires a NEW run identity: "
+        "repeat the run under a new versioned run_id and document the "
+        "exclusion of the old one (plan 5.8)."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -822,6 +859,62 @@ def _as_bytes(data: bytes | str | None) -> bytes:
     return data
 
 
+def _signal_hook_group(proc: subprocess.Popen, *, kill: bool) -> None:
+    """SIGTERM (or SIGKILL) the hook's whole process group.
+
+    The hook was started in a session of its own, so its process group id is
+    its pid and every child it did not move elsewhere (the ssh and scp of
+    fetch-collector-output.sh) is a member. Where process groups do not
+    exist (Windows), only the hook process itself can be signalled.
+    """
+    if os.name == "posix":
+        sig = signal.SIGKILL if kill else signal.SIGTERM
+        try:
+            os.killpg(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass  # the group is already gone
+        return
+    try:
+        if kill:
+            proc.kill()
+        else:
+            proc.terminate()
+    except OSError:
+        pass
+
+
+def _stop_hook_process_group(
+    proc: subprocess.Popen, grace_s: float
+) -> tuple[bytes | None, bytes | None]:
+    """End a hook that exceeded its timeout, children included.
+
+    SIGTERM to the group, ``grace_s`` seconds to exit, then SIGKILL to the
+    group. Returns the output read so far (``communicate`` keeps what it read
+    across its timeouts). A descendant that left the group (for example a
+    daemonised ssh ControlMaster) could keep the pipes open after the
+    SIGKILL; reading is then abandoned after one more grace period.
+    """
+    _signal_hook_group(proc, kill=False)
+    try:
+        return proc.communicate(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_hook_group(proc, kill=True)
+    partial: tuple[bytes | str | None, bytes | str | None]
+    try:
+        return proc.communicate(timeout=grace_s)
+    except subprocess.TimeoutExpired as exc:
+        partial = (exc.stdout, exc.stderr)
+    for stream in (proc.stdout, proc.stderr):
+        if stream is not None:
+            stream.close()
+    try:
+        proc.wait(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        pass
+    return _as_bytes(partial[0]), _as_bytes(partial[1])
+
+
 def execute_collector_hook(
     hook: str,
     template: str,
@@ -831,7 +924,8 @@ def execute_collector_hook(
     dest: str | Path,
     expect_services: list[str] | None = None,
     log_dir: str | Path | None = None,
-    timeout_s: float = FETCH_TIMEOUT_S,
+    timeout_s: float | None = None,
+    kill_grace_s: float | None = None,
 ) -> dict[str, Any]:
     """Execute one collector hook and return its manifest record.
 
@@ -840,12 +934,25 @@ def execute_collector_hook(
     applicable). A non-zero (or absent) return code is NEVER a silent
     warning: the caller turns it into a validity reason naming the hook.
 
+    The hook runs without a shell, with stdin from the null device, in a
+    session (and so a process group) of its own. When it exceeds
+    ``timeout_s`` (default :data:`FETCH_TIMEOUT_S`) the WHOLE group gets
+    SIGTERM and, ``kill_grace_s`` seconds later (default
+    :data:`HOOK_KILL_GRACE_S`), SIGKILL: a child left running (the ssh/scp of
+    the fetch script) must not write into logs/collector/ after the
+    inspection and the seal. The record then carries ``timed_out: true``,
+    ``returncode: null`` and an ``error`` saying so.
+
     With ``log_dir`` the hook's FULL stdout and stderr are written, byte for
     byte, to ``<log_dir>/hook-<hook>.stdout.txt`` and ``.stderr.txt``
     whenever the command ran (also when it timed out); the record then
     carries their paths as ``stdout_path``/``stderr_path``. The 500-character
     ``stderr_tail`` stays in the record for a quick read of the manifest.
     """
+    timeout_s = FETCH_TIMEOUT_S if timeout_s is None else float(timeout_s)
+    kill_grace_s = (
+        HOOK_KILL_GRACE_S if kill_grace_s is None else float(kill_grace_s)
+    )
     cmd_str = format_collector_template(
         template,
         run_id,
@@ -863,20 +970,30 @@ def execute_collector_hook(
     }
     stdout: bytes | None = None
     stderr: bytes | None = None
+    proc: subprocess.Popen | None = None
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             shlex.split(cmd_str, posix=True),
-            capture_output=True,
-            timeout=timeout_s,
-            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
         )
-        record["returncode"] = proc.returncode
-        stdout, stderr = _as_bytes(proc.stdout), _as_bytes(proc.stderr)
-    except subprocess.TimeoutExpired as exc:
-        record["error"] = str(exc)
-        stdout, stderr = _as_bytes(exc.stdout), _as_bytes(exc.stderr)
     except (OSError, ValueError) as exc:
         record["error"] = str(exc)
+    if proc is not None:
+        try:
+            out, err = proc.communicate(timeout=timeout_s)
+            record["returncode"] = proc.returncode
+        except subprocess.TimeoutExpired:
+            out, err = _stop_hook_process_group(proc, kill_grace_s)
+            record["timed_out"] = True
+            record["error"] = (
+                f"timed out after {timeout_s:g} s; the hook's process group "
+                f"was terminated (SIGTERM, then SIGKILL after {kill_grace_s:g} "
+                "s)"
+            )
+        stdout, stderr = _as_bytes(out), _as_bytes(err)
     if stderr is not None:
         stderr_tail = stderr.decode("utf-8", errors="replace").strip()
         if stderr_tail:
@@ -940,9 +1057,10 @@ def inspect_collector_outputs(
     """Account for the SUT collector's fetched output (collector hooks).
 
     ``collector_dest`` is the fetched CSV (``logs/collector/resources-
-    <run_id>.csv``); its companions sit beside it with the suffixes of
-    :data:`COLLECTOR_OUTPUT_FILES`. Nothing is modified: the files are read
-    and hashed where the fetch hook put them, BEFORE the run directory is
+    <run_id>.csv``, or the manual path's copy under
+    ``logs/collector/resources-from/``); its companions sit beside it with
+    the suffixes of :data:`COLLECTOR_OUTPUT_FILES`. Nothing is modified: the
+    files are read and hashed where they were put, BEFORE the run directory is
     sealed. Returns the manifest's ``collector`` record:
 
     - ``files``: per key (``csv``, ``diagnostics``, ``lifecycle``,
@@ -987,9 +1105,11 @@ def inspect_collector_outputs(
 
     csv_name = collector_dest.name
     if not files["csv"]["present"]:
+        where = files["csv"]["path"].rpartition("/")[0] or collector_dest.parent.name
         problems.append(
-            f"collector CSV {csv_name} is absent from logs/{COLLECTOR_FETCH_SUBDIR}/"
-            ": the fetch hook did not deliver the collector's output"
+            f"collector CSV {csv_name} is absent from {where}/: the "
+            "collector's output was not delivered (by the fetch hook or "
+            "--resources-from)"
         )
     for key, (suffix, mandatory) in COLLECTOR_OUTPUT_FILES.items():
         if key != "csv" and mandatory and not files[key]["present"]:
@@ -1161,6 +1281,119 @@ def collector_problem_reasons(problems: list[str] | None) -> list[str]:
         "evidence cannot be trusted"
         for problem in problems or []
     ]
+
+
+#: Programs that run the script given as their first argument
+#: (``sh <script> ...``, ``python3 <script> ...``).
+_SCRIPT_INTERPRETER_RE = re.compile(
+    r"^(?:sh|bash|dash|ash|ksh|zsh|python(?:\d+(?:\.\d+)*)?t?)(?:\.exe)?$",
+    re.IGNORECASE,
+)
+
+
+def identify_hook_helper(command: str) -> dict[str, Any]:
+    """The local program a rendered hook command runs, and its sha256.
+
+    For ``sh <script> ...`` (or another shell, or ``python <script> ...``)
+    the helper is the script; otherwise it is the command's first word. A
+    bare program name such as ``scp`` is NOT looked up on PATH: only a path
+    naming a readable local regular file is hashed. Returns ``{"path",
+    "sha256"}``; ``sha256`` is None when the helper cannot be identified
+    (``path`` is then what the command names, or None for ``sh -c ...``).
+    """
+    try:
+        argv = shlex.split(command, posix=True)
+    except ValueError:
+        argv = []
+    path_text: str | None = argv[0] if argv else None
+    if (
+        argv
+        and _SCRIPT_INTERPRETER_RE.match(Path(argv[0]).name)
+        and len(argv) > 1
+    ):
+        path_text = None if argv[1].startswith("-") else argv[1]
+    digest: str | None = None
+    if path_text:
+        candidate = Path(path_text)
+        try:
+            if candidate.is_file():
+                digest = sha256_file(candidate)
+        except OSError:
+            digest = None
+    return {"path": path_text, "sha256": digest}
+
+
+def resources_from_copy_plan(
+    src: str | Path, run_dir: str | Path, run_id: str
+) -> tuple[Path, list[tuple[Path, Path]]]:
+    """Where the manual path keeps its copy of the collector output.
+
+    Returns ``(dest_csv, pairs)``: ``dest_csv`` is
+    ``logs/collector/resources-from/resources-<run_id>.csv`` and ``pairs``
+    lists ``(source, destination)`` for the ``--resources-from`` file and
+    every companion that exists beside it (the suffixes of
+    :data:`COLLECTOR_OUTPUT_FILES`).
+    """
+    src = Path(src)
+    dest_csv = (
+        Path(run_dir)
+        / "logs"
+        / COLLECTOR_FETCH_SUBDIR
+        / RESOURCES_FROM_SUBDIR
+        / f"resources-{run_id}.csv"
+    )
+    pairs = [
+        (Path(f"{src}{suffix}"), Path(f"{dest_csv}{suffix}"))
+        for suffix, _mandatory in COLLECTOR_OUTPUT_FILES.values()
+        if Path(f"{src}{suffix}").is_file()
+    ]
+    return dest_csv, pairs
+
+
+def resources_from_copy_conflicts(
+    pairs: list[tuple[Path, Path]],
+) -> list[tuple[Path, Path]]:
+    """The ``(source, destination)`` pairs whose destination already holds
+    DIFFERENT content (raw evidence is write-once)."""
+    return [
+        (source, dest)
+        for source, dest in pairs
+        if dest.is_file() and sha256_file(source) != sha256_file(dest)
+    ]
+
+
+def copy_resources_from_outputs(
+    pairs: list[tuple[Path, Path]], run_dir: str | Path
+) -> None:
+    """Copy the manual-path collector output into the run directory.
+
+    Refuses with :class:`SealedRunError` BEFORE copying anything when a
+    destination holds different content; identical files are left as they
+    are (an idempotent re-collection adds nothing).
+    """
+    conflicts = resources_from_copy_conflicts(pairs)
+    if conflicts:
+        source, dest = conflicts[0]
+        raise overwrite_refusal(dest, source, run_dir)
+    for source, dest in pairs:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        ingest_copy(source, dest, run_dir)
+
+
+def collector_warnings(record: dict[str, Any]) -> list[str]:
+    """Manifest warnings for one collector record: every problem, plus the
+    services found outside the expected list (a warning only)."""
+    out = [
+        f"collector output problem: {problem}"
+        for problem in record.get("problems") or []
+    ]
+    unexpected = record.get("unexpected_services") or []
+    if unexpected:
+        out.append(
+            "collector CSV holds rows of services outside --expect-services "
+            "(not a validity problem): " + ", ".join(unexpected)
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1962,10 +2195,15 @@ def execute_run(
     ``{duration_s}``, ``{dest}`` and ``{expect_services}`` placeholders.
 
     ``expect_services`` (``--expect-services``) names the services the
-    collector must account for; it requires at least one collector hook
-    (exit 2 otherwise, before anything is written). Whenever a collector
-    hook is configured, :func:`inspect_collector_outputs` runs right after
-    the fetch hook and its ``problems`` invalidate the timed run.
+    collector must account for (an invalid list is refused with exit 2
+    before anything is written). Whenever the SUT resources come from the
+    collector — a fetch hook, ``--resources-from`` (the manual path, whose
+    file and companions are first copied to
+    ``logs/collector/resources-from/``) or start/stop hooks without a fetch
+    hook — :func:`inspect_collector_outputs` runs right after the fetch
+    point and its ``problems`` invalidate the timed run; a missing
+    ``expect_services`` is one of them. ``--local-resources`` (dev only)
+    is not inspected.
     """
     plan_path = Path(plan_path)
     try:
@@ -2044,15 +2282,6 @@ def execute_run(
             )
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
-            return 2
-        if not collector_hooks_in_use:
-            print(
-                "error: --expect-services is enforced against the output the "
-                "collector hooks fetch (--collector-start-cmd / "
-                "--collector-stop-cmd / --collector-fetch-cmd); it cannot be "
-                "used without them.",
-                file=sys.stderr,
-            )
             return 2
 
     if fetch_events_cmd is None:
@@ -2379,7 +2608,26 @@ def execute_run(
 
     # Collector fetch hook: AFTER the confirmation window, producing the
     # local CSV that goes through the EXISTING validated ingest path below,
-    # with the collector's companions beside it in logs/collector/.
+    # with the collector's companions beside it in logs/collector/. The
+    # helper it runs is identified by its sha256 first (manifest 1.4).
+    fetch_helper: dict[str, Any] | None = None
+    if collector_fetch_cmd:
+        fetch_helper = identify_hook_helper(
+            format_collector_template(
+                collector_fetch_cmd,
+                run_id,
+                duration_s=collector_window_s,
+                dest=collector_dest,
+                expect_services=expect_services,
+            )
+        )
+        if fetch_helper["sha256"] is None:
+            warnings.append(
+                "the helper run by --collector-fetch-cmd "
+                f"({fetch_helper['path']!r}) is not a readable local file, "
+                "so its sha256 is not recorded and the fetch helper that ran "
+                "cannot be identified"
+            )
     _run_collector_hook("fetch", collector_fetch_cmd)
     resources_ingest_from: str | Path | None = resources_from
     resources_source_label = "--resources-from"
@@ -2395,33 +2643,46 @@ def execute_run(
     # Collector output accounting (2026-09-19), right after the fetch and
     # long before the seal: which files arrived, which collector produced
     # them, whether it stopped cleanly and whether every expected service
-    # has rows. Every problem is a validity reason of the timed run.
+    # has rows. Every problem is a validity reason of the timed run. The
+    # manual path (--resources-from) is accounted for exactly like the fetch
+    # hook: its file and the companions beside it are copied (write-once)
+    # into logs/collector/resources-from/ so the seal covers them, then
+    # inspected. --local-resources (dev only) has no collector output.
     collector_record: dict[str, Any] = {
         "expected_services": expect_services,
         "hooks_in_use": collector_hooks_in_use,
+        "source": None,
     }
     collector_problems: list[str] = []
-    if collector_hooks_in_use:
-        inspection = inspect_collector_outputs(
-            collector_dest, expect_services, run_dir=run_dir
+    inspect_target: Path | None = None
+    if collector_fetch_cmd:
+        collector_record["source"] = "--collector-fetch-cmd"
+        collector_record["fetch_helper_path"] = fetch_helper["path"]
+        collector_record["fetch_helper_sha256"] = fetch_helper["sha256"]
+        inspect_target = collector_dest
+    elif resources_from is not None:
+        collector_record["source"] = "--resources-from"
+        collector_record["source_path"] = str(resources_from)
+        inspect_target, copy_pairs = resources_from_copy_plan(
+            resources_from, run_dir, run_id
         )
-        if not collector_fetch_cmd:
+        copy_resources_from_outputs(copy_pairs, run_dir)
+    elif collector_hooks_in_use:
+        inspect_target = collector_dest
+    if inspect_target is not None:
+        inspection = inspect_collector_outputs(
+            inspect_target, expect_services, run_dir=run_dir
+        )
+        if collector_record["source"] is None:
             inspection["problems"].insert(
                 0,
-                "collector hooks are configured without --collector-fetch-cmd: "
-                "the collector's CSV and companions were not fetched into "
-                f"logs/{COLLECTOR_FETCH_SUBDIR}/",
+                "collector hooks are configured without --collector-fetch-cmd "
+                "or --resources-from: the collector's CSV and companions were "
+                f"not fetched into logs/{COLLECTOR_FETCH_SUBDIR}/",
             )
         collector_record.update(inspection)
         collector_problems = list(inspection["problems"])
-        for problem in collector_problems:
-            warnings.append(f"collector output problem: {problem}")
-        if inspection["unexpected_services"]:
-            warnings.append(
-                "collector CSV holds rows of services outside "
-                "--expect-services (not a validity problem): "
-                + ", ".join(inspection["unexpected_services"])
-            )
+        warnings.extend(collector_warnings(collector_record))
         for problem in collector_problems:
             print(
                 f"[harness] collector output problem: {problem}",
@@ -2818,6 +3079,7 @@ def collect_run(
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
     allow_missing_controller_marker: bool = False,
+    expect_services: list[str] | None = None,
 ) -> int:
     """Re-attempt evidence collection for an EXISTING run directory.
 
@@ -2837,6 +3099,17 @@ def collect_run(
     rewrites SHA256SUMS. Existing raw files are NEVER overwritten with
     different content (SealedRunError => exit 2); identical re-copies are
     no-ops, so re-running collect is idempotent.
+
+    Collector output accounting (manifest 1.4): ``resources_from`` is the
+    manual path, accounted for exactly as in ``run``. The file and the
+    companions beside it are copied (write-once) into
+    ``logs/collector/resources-from/`` and inspected, and the new
+    inspection replaces the manifest's ``collector`` record (the previous
+    one is kept in the ``collect_history`` entry). The expected services
+    are the ones the run recorded; ``expect_services`` may supply them when
+    the run recorded none, never change them (exit 2), and is only
+    accepted together with ``resources_from``. Without ``resources_from``
+    the problems recorded at run time are re-applied unchanged.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -2854,6 +3127,53 @@ def collect_run(
     except (OSError, json.JSONDecodeError) as exc:
         print(f"error: cannot read {manifest_path}: {exc}", file=sys.stderr)
         return 2
+
+    # Expected services (manifest 1.4): fixed by the run. 'collect' may
+    # supply them for a run that recorded none, never change them, and only
+    # together with the --resources-from output it accounts for.
+    recorded_collector = manifest.get("collector")
+    recorded_expected = (
+        recorded_collector.get("expected_services")
+        if isinstance(recorded_collector, dict)
+        else None
+    ) or ((manifest.get("config") or {}).get("cli") or {}).get("expect_services")
+    if not (
+        isinstance(recorded_expected, list)
+        and recorded_expected
+        and all(isinstance(name, str) for name in recorded_expected)
+    ):
+        recorded_expected = None
+    if expect_services is not None:
+        try:
+            expect_services = (
+                parse_expected_services(expect_services)
+                if isinstance(expect_services, str)
+                else validate_expected_services(list(expect_services))
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if resources_from is None:
+            print(
+                "error: --expect-services on 'collect' applies to the "
+                "--resources-from output it accounts for; give both, or "
+                "neither.",
+                file=sys.stderr,
+            )
+            return 2
+        if recorded_expected and set(recorded_expected) != set(expect_services):
+            print(
+                f"error: run {run_id!r} recorded the expected services "
+                f"{','.join(recorded_expected)!r}; 'collect' cannot change "
+                f"them to {','.join(expect_services)!r}.",
+                file=sys.stderr,
+            )
+            return 2
+    effective_expected: list[str] | None = (
+        list(recorded_expected)
+        if recorded_expected
+        else expect_services
+    )
 
     # Sealed-raw rules (work order P1 item 11): once SHA256SUMS exists the
     # directory is sealed. Adding a genuinely MISSING file is allowed only
@@ -2985,8 +3305,24 @@ def collect_run(
     expected_window_end_utc = (
         measured_window.get("end") if isinstance(measured_window, dict) else None
     )
+    previous_collector: dict[str, Any] | None = None
     if resources_from is not None:
+        src = Path(resources_from)
+        dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
         try:
+            # Refuse BEFORE anything is written: a manual-path copy that
+            # differs from the one already kept is different evidence (the
+            # resources.csv refusal is named first when it applies too).
+            conflicts = resources_from_copy_conflicts(copy_pairs)
+            if conflicts:
+                existing = run_dir / "resources.csv"
+                if (
+                    src.is_file()
+                    and existing.is_file()
+                    and sha256_file(existing) != sha256_file(src)
+                ):
+                    raise overwrite_refusal(existing, src, run_dir)
+                raise overwrite_refusal(conflicts[0][1], conflicts[0][0], run_dir)
             if ingest_resources(
                 run_dir,
                 resources_from,
@@ -2997,9 +3333,36 @@ def collect_run(
             ):
                 manifest["resource_source"] = "sut-collector"
                 actions.append("ingested resources.csv (sut-collector)")
+            copy_resources_from_outputs(copy_pairs, run_dir)
         except SealedRunError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
+        # The manual path is accounted for exactly as in 'run'. A source that
+        # does not exist (a mistyped path) leaves the recorded accounting
+        # alone: ingest_resources has already warned about it.
+        if src.is_file():
+            previous_collector = (
+                recorded_collector if isinstance(recorded_collector, dict) else None
+            )
+            collector_record: dict[str, Any] = {
+                "expected_services": effective_expected,
+                "hooks_in_use": bool(
+                    previous_collector and previous_collector.get("hooks_in_use")
+                ),
+                "source": "--resources-from",
+                "source_path": str(src),
+            }
+            collector_record.update(
+                inspect_collector_outputs(
+                    dest_csv, effective_expected, run_dir=run_dir
+                )
+            )
+            manifest["collector"] = collector_record
+            warnings.extend(collector_warnings(collector_record))
+            actions.append(
+                f"accounted for the collector output of --resources-from {src} "
+                f"({len(collector_record['problems'])} problem(s))"
+            )
     resource_source = manifest.get("resource_source") or (
         "sut-collector" if (run_dir / "resources.csv").is_file() else "none"
     )
@@ -3043,11 +3406,13 @@ def collect_run(
         collector_hooks = []
     # The collector output was inspected at run time, right after the fetch
     # hook; 'collect' cannot re-fetch it (guest /tmp does not survive a
-    # power-off), so its problems are re-applied as recorded, never dropped.
-    collector_record = manifest.get("collector")
+    # power-off), so its problems are re-applied as recorded, never dropped
+    # — unless --resources-from was accounted for just above, whose record
+    # has replaced the run's.
+    current_collector = manifest.get("collector")
     collector_problems = (
-        [str(p) for p in collector_record.get("problems") or []]
-        if isinstance(collector_record, dict)
+        [str(p) for p in current_collector.get("problems") or []]
+        if isinstance(current_collector, dict)
         else []
     )
     missing_artifacts = missing_mandatory_artifacts(
@@ -3132,7 +3497,11 @@ def collect_run(
     history = manifest.get("collect_history")
     if not isinstance(history, list):
         history = []
-    history.append({"utc": utc_now_iso(), "actions": actions})
+    entry: dict[str, Any] = {"utc": utc_now_iso(), "actions": actions}
+    if manifest.get("collector") is not recorded_collector:
+        # The collector record this pass replaced, kept for the audit trail.
+        entry["previous_collector"] = previous_collector
+    history.append(entry)
     manifest["collect_history"] = history
 
     # Sealed-dir additions (work order P1 item 11b): the only legitimate

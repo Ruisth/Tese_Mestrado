@@ -157,6 +157,42 @@ def _sut_env_file(tmp_path: Path, **overrides) -> Path:
     return path
 
 
+#: The one service the resources fixtures carry (``_resources_file``). A
+#: timed run fed by --resources-from accounts for the collector's output
+#: like the fetch hook's (manifest 1.4), so the fixtures pass this list as
+#: ``expect_services`` and write the companions beside the CSV.
+FIXTURE_SERVICES = ["egw-controller"]
+
+
+def _write_companions(
+    csv_path: Path,
+    services: list[str] = FIXTURE_SERVICES,
+    *,
+    missing: str = "none",
+) -> None:
+    """The .diagnostics.log and .lifecycle.csv collect-resources.sh writes
+    beside its CSV: a start line naming the collector's sha256 and the
+    expected services, a clean inventory and a stop line."""
+    listed = ",".join(services)
+    Path(f"{csv_path}.diagnostics.log").write_text(
+        f"2026-09-07T09:59:59Z start: collector_sha256={'cd' * 32} "
+        f"host={SUT_NODE} source=cgroup interval=1s duration=0s pacing: "
+        f"fixture; timestamps: fixture; expected services: {listed}\n"
+        f"2026-09-07T10:00:41Z inventory: observed={','.join(sorted(services))} "
+        f"expected={listed} missing={missing} unnamed_ids=0\n"
+        "2026-09-07T10:00:41Z stop: samples=41 utc_gap_seconds=0\n",
+        "utf-8",
+    )
+    Path(f"{csv_path}.lifecycle.csv").write_text(
+        "ts_utc,event,container_id,name\n"
+        + "".join(
+            f"2026-09-07T09:59:59Z,named,{i:012d},{name}\n"
+            for i, name in enumerate(services)
+        ),
+        "utf-8",
+    )
+
+
 def _resources_file(
     tmp_path: Path,
     *,
@@ -164,10 +200,13 @@ def _resources_file(
     host: str = SUT_NODE,
     header: str = RESOURCES_HEADER,
     name: str = "resources.csv",
+    companions: bool = True,
 ) -> Path:
     """A SUT collector resources.csv passing the ingest validation (fix 3):
     exact 6-column header with host provenance, >= MIN_RESOURCE_SAMPLES
-    rows, every host equal to the SUT node."""
+    rows, every host equal to the SUT node. With ``companions`` (default)
+    the collector's .diagnostics.log and .lifecycle.csv for
+    :data:`FIXTURE_SERVICES` sit beside it, as the manual path requires."""
     path = tmp_path / name
     lines = [header]
     for i in range(rows):
@@ -175,6 +214,8 @@ def _resources_file(
             f"2026-09-07T10:00:{i % 60:02d}Z,egw-controller,10.0,1024,1.0,{host}"
         )
     path.write_text("\n".join(lines) + "\n", "utf-8")
+    if companions:
+        _write_companions(path)
     return path
 
 
@@ -264,6 +305,7 @@ def test_fetch_failure_keeps_run_recoverable_no_sha256sums(
         fetch_events_cmd=failing,
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     assert rc == 1
     run_dir = base / "raw" / "smoke_sequence-r01"
@@ -299,6 +341,7 @@ def test_fetch_template_from_environment_variable(
         event_log_dir=tmp_path / "empty-event-log",
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
@@ -359,6 +402,7 @@ def test_timed_run_with_ingested_sut_evidence_is_valid(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
@@ -433,6 +477,7 @@ def test_resources_from_and_local_resources_mutually_exclusive(
         base_dir=tmp_path / "results",
         no_tls=True,
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         local_resources=True,
     )
     assert rc == 2
@@ -642,6 +687,7 @@ def test_sut_env_missing_required_fields_is_invalid(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path, node=None, nproc=None),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     assert rc == 1
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -667,6 +713,7 @@ def test_sut_env_missing_fields_override_records_deviation(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path, node=None, nproc=None),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_sut_env=True,
         allow_missing_controller_marker=True,
     )
@@ -696,6 +743,7 @@ def test_simulator_nonzero_exit_is_invalid(tmp_path, plan_path, fast_run) -> Non
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     assert rc == 1
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -721,6 +769,7 @@ def test_warmup_failure_is_invalid_without_allow_flag(
         event_log_dir=_local_events(tmp_path, "nominal-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     assert rc == 1
     manifest = _manifest(base, "nominal-r01")
@@ -752,6 +801,7 @@ def test_warmup_failure_with_allow_flag_is_valid_with_deviation(
         event_log_dir=_local_events(tmp_path, "nominal-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_warmup_failure=True,
         allow_missing_controller_marker=True,
     )
@@ -780,6 +830,7 @@ def test_skip_warmup_on_nominal_is_invalid_without_authorization(
         event_log_dir=_local_events(tmp_path, "nominal-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     assert rc == 1
     manifest = _manifest(base, "nominal-r01")
@@ -809,6 +860,7 @@ def test_skip_warmup_with_allow_protocol_deviation_is_valid(
         event_log_dir=_local_events(tmp_path, "nominal-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_protocol_deviation=True,
         allow_missing_controller_marker=True,
     )
@@ -841,6 +893,7 @@ def test_skip_warmup_on_smoke_records_deviation_but_stays_valid(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
@@ -869,6 +922,7 @@ def test_collect_recovers_events_and_writes_sha256sums(
         event_log_dir=tmp_path / "empty-event-log",
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     run_dir = base / "raw" / run_id
@@ -920,6 +974,7 @@ def test_collect_still_failing_withholds_sha256sums(
         event_log_dir=tmp_path / "empty-event-log",
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     rc = run_mod.collect_run(
         run_id,
@@ -968,6 +1023,7 @@ def test_restart_cmd_executed_once_and_recorded(
         event_log_dir=_local_events(tmp_path, "controller_restart-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         restart_cmd=f'"{PY}" "{script.as_posix()}" "{marker.as_posix()}" {{run_id}}',
         restart_at_s=0.05,
         allow_missing_controller_marker=True,
@@ -999,6 +1055,7 @@ def test_controller_restart_run_without_fired_restart_is_invalid(
         event_log_dir=_local_events(tmp_path, "controller_restart-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         restart_cmd=f'"{PY}" -c "pass"',
         restart_at_s=60.0,
     )
@@ -1364,6 +1421,7 @@ def test_warmup_uses_distinct_run_id_and_same_seed(
         event_log_dir=_local_events(tmp_path, "nominal-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
@@ -1405,6 +1463,7 @@ def test_sent_events_collected_from_real_simulator_layout(
         event_log_dir=_local_events(tmp_path, run_id),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
@@ -1447,6 +1506,7 @@ def _sealed_valid_run(
         event_log_dir=_local_events(tmp_path, run_id),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     defaults.update(kwargs)
@@ -1629,8 +1689,20 @@ def test_collect_adds_missing_file_to_sealed_dir_with_history(
     assert manifest["resource_source"] == "sut-collector"
     history = manifest["collection_history"]
     assert len(history) == 1
-    assert history[0]["added_files"] == ["resources.csv"]
+    # The manual-path copy of the collector output (CSV and companions) is
+    # added with resources.csv, so the seal covers what was accounted for.
+    kept = "logs/collector/resources-from/resources-smoke_sequence-r01.csv"
+    assert history[0]["added_files"] == [
+        kept,
+        kept + ".diagnostics.log",
+        kept + ".lifecycle.csv",
+        "resources.csv",
+    ]
     assert history[0]["when_utc"]
+    # The expected services recorded by the run were applied by 'collect'.
+    assert manifest["collector"]["source"] == "--resources-from"
+    assert manifest["collector"]["expected_services"] == FIXTURE_SERVICES
+    assert manifest["collector"]["problems"] == []
     # The rewritten SHA256SUMS covers the addition and verifies cleanly.
     assert checksums.verify_sha256sums(run_dir) == []
 
@@ -1908,6 +1980,12 @@ def test_collector_hooks_run_in_order_and_produce_ingested_resources(
         name: 40 for name in SIX_SERVICES
     }
     assert collector["unexpected_services"] == []
+    assert collector["source"] == "--collector-fetch-cmd"
+    # The helper the fetch hook ran ('python <script>': the script) is
+    # identified by its sha256.
+    hook_script = tmp_path / "collector_hook.py"
+    assert collector["fetch_helper_path"] == hook_script.as_posix()
+    assert collector["fetch_helper_sha256"] == checksums.sha256_file(hook_script)
     assert manifest["config"]["cli"]["expect_services"] == SIX_SERVICES
 
     # The CSV and its two companions sit in logs/collector/, their record
@@ -1972,6 +2050,7 @@ def test_collector_fetch_cmd_and_resources_from_are_mutually_exclusive(
         base_dir=tmp_path / "results",
         no_tls=True,
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         collector_fetch_cmd=fetch_tpl,
     )
     assert rc == 2
@@ -1983,7 +2062,10 @@ def test_no_collector_hooks_preserves_todays_behaviour(
     tmp_path, plan_path, fast_run
 ) -> None:
     """Without hooks a pre-fetched --resources-from still works and the
-    manifest records an empty hook list (backward compatibility)."""
+    manifest records an empty hook list (backward compatibility). The
+    manual path is accounted for like the fetch hook's output: the CSV and
+    its companions are copied into logs/collector/resources-from/, sealed,
+    and inspected against --expect-services."""
     base = tmp_path / "results"
     rc = run_mod.execute_run(
         plan_path,
@@ -1994,13 +2076,64 @@ def test_no_collector_hooks_preserves_todays_behaviour(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
     assert manifest["collector_hooks"] == []
-    assert manifest["collector"] == {"expected_services": None, "hooks_in_use": False}
     assert manifest["validity"] == "valid"
+    collector = manifest["collector"]
+    assert collector["hooks_in_use"] is False
+    assert collector["source"] == "--resources-from"
+    assert collector["source_path"] == str(tmp_path / "resources.csv")
+    assert collector["expected_services"] == FIXTURE_SERVICES
+    assert collector["problems"] == []
+    assert collector["rows_per_expected_service"] == {"egw-controller": 40}
+    assert collector["deployed_sha256"] == "cd" * 32
+    assert "fetch_helper_sha256" not in collector
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    kept = "logs/collector/resources-from/resources-smoke_sequence-r01.csv"
+    sealed = _sealed_names(run_dir)
+    for suffix in ("", ".diagnostics.log", ".lifecycle.csv"):
+        assert collector["files"][
+            {"": "csv", ".diagnostics.log": "diagnostics",
+             ".lifecycle.csv": "lifecycle"}[suffix]
+        ]["path"] == kept + suffix
+        assert kept + suffix in sealed
+        assert (run_dir / (kept + suffix)).read_bytes() == Path(
+            f"{tmp_path / 'resources.csv'}{suffix}"
+        ).read_bytes()
+
+
+def test_local_resources_have_no_collector_output_to_account_for(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """--local-resources (dev only) samples the load generator: there is no
+    collector output to account for, so no inspection runs (the run is
+    invalid for being local-dev anyway)."""
+    monkeypatch.setattr(run_mod, "ResourceSampler", _StubSampler)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        local_resources=True,
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["resource_source"] == "local-dev"
+    assert manifest["collector"] == {
+        "expected_services": None,
+        "hooks_in_use": False,
+        "source": None,
+    }
+    assert not any("collector output not accounted for" in r for r in manifest["validity_reasons"])
 
 
 # ---------------------------------------------------------------------------
@@ -2258,6 +2391,11 @@ def test_the_real_fetch_script_as_the_fetch_hook_under_a_base_dir_with_spaces(
     assert "logs/collector/resources-nominal-r01.csv" in sealed
     assert "logs/collector/resources-nominal-r01.csv.diagnostics.log" in sealed
     assert fetch_hook["stdout_file"] in sealed
+    # The fetch script that ran is identified by its sha256.
+    assert manifest["collector"]["fetch_helper_path"] == FETCH_SCRIPT.as_posix()
+    assert manifest["collector"]["fetch_helper_sha256"] == checksums.sha256_file(
+        FETCH_SCRIPT
+    )
     if lifecycle_on_guest:
         assert rc == 0, manifest["validity_reasons"]
         assert fetch_hook["returncode"] == 0
@@ -2297,20 +2435,392 @@ def test_invalid_expect_services_are_refused_before_anything_is_written(
     assert not (tmp_path / "results").exists()
 
 
-def test_expect_services_without_collector_hooks_is_refused(
-    tmp_path, plan_path, fast_run, capsys
-) -> None:
+# --- the manual path (--resources-from) is accounted for like the hooks ----
+
+
+def _manual_run(
+    tmp_path: Path,
+    plan_path: Path,
+    resources: Path | None,
+    *,
+    expect_services: list[str] | None = FIXTURE_SERVICES,
+    run_id: str = "smoke_sequence-r01",
+) -> tuple[int, Path, dict]:
+    """One run fed by --resources-from; returns (rc, run_dir, manifest)."""
+    base = tmp_path / "results"
     rc = run_mod.execute_run(
         plan_path,
-        "nominal-r01",
-        base_dir=tmp_path / "results",
+        run_id,
+        base_dir=base,
         no_tls=True,
-        resources_from=_resources_file(tmp_path),
-        expect_services=SIX_SERVICES,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, run_id),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=resources,
+        expect_services=expect_services,
+        allow_missing_controller_marker=True,
+    )
+    return rc, base / "raw" / run_id, _manifest(base, run_id)
+
+
+def test_manual_path_without_expect_services_is_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """A timed run whose SUT resources come from the collector, by hook or
+    by --resources-from, must say which services it expects."""
+    rc, run_dir, manifest = _manual_run(
+        tmp_path, plan_path, _resources_file(tmp_path), expect_services=None
+    )
+    assert rc == 1
+    assert manifest["validity"] == "invalid"
+    assert "--expect-services was not given" in _reasons(run_dir)
+    # The CSV itself still passed the unchanged ingest: only the accounting
+    # is missing, and the run directory is sealed as it is.
+    assert manifest["resource_source"] == "sut-collector"
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_manual_path_without_companions_is_invalid_and_seals_what_arrived(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, manifest = _manual_run(
+        tmp_path, plan_path, _resources_file(tmp_path, companions=False)
+    )
+    assert rc == 1
+    reasons = _reasons(run_dir)
+    assert "resources-smoke_sequence-r01.csv.diagnostics.log is absent" in reasons
+    assert "resources-smoke_sequence-r01.csv.lifecycle.csv is absent" in reasons
+    kept = "logs/collector/resources-from/resources-smoke_sequence-r01.csv"
+    assert manifest["collector"]["files"]["csv"]["path"] == kept
+    assert kept in _sealed_names(run_dir)
+    assert not (run_dir / (kept + ".diagnostics.log")).exists()
+
+
+def test_manual_path_expected_service_without_rows_is_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    resources = _resources_file(tmp_path)
+    expected = ["egw-controller", "egw-mongodb-1"]
+    _write_companions(resources, expected)
+    rc, run_dir, manifest = _manual_run(
+        tmp_path, plan_path, resources, expect_services=expected
+    )
+    assert rc == 1
+    collector = manifest["collector"]
+    assert collector["rows_per_expected_service"] == {
+        "egw-controller": 40,
+        "egw-mongodb-1": 0,
+    }
+    assert collector["problems"] == [
+        "expected service 'egw-mongodb-1' has no rows in the fetched collector "
+        "CSV resources-smoke_sequence-r01.csv"
+    ]
+
+
+def test_manual_path_self_test_marker_is_copied_and_invalidates(
+    tmp_path, plan_path, fast_run
+) -> None:
+    resources = _resources_file(tmp_path)
+    Path(f"{resources}.self-test").write_text("self_test=1\n", "utf-8")
+    rc, run_dir, manifest = _manual_run(tmp_path, plan_path, resources)
+    assert rc == 1
+    assert manifest["collector"]["self_test_present"] is True
+    assert "NOT a measurement" in _reasons(run_dir)
+    assert (
+        "logs/collector/resources-from/resources-smoke_sequence-r01.csv.self-test"
+        in _sealed_names(run_dir)
+    )
+
+
+def test_manual_path_run_then_collect_is_accounted_like_the_fetch_hook(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The experiments README's manual path: the run records the expected
+    services, the collector output is fetched afterwards and handed to
+    'collect', which copies, inspects and seals it."""
+    rc, run_dir, manifest = _manual_run(tmp_path, plan_path, None)
+    assert rc == 1  # no SUT resources yet: incomplete, not sealed
+    assert manifest["collector"]["expected_services"] == FIXTURE_SERVICES
+    assert not (run_dir / checksums.SUMS_FILENAME).exists()
+
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=run_dir.parent.parent,
+        plan_path=plan_path,
+        resources_from=_resources_file(tmp_path, name="fetched.csv"),
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    collector = manifest["collector"]
+    assert collector["source"] == "--resources-from"
+    assert collector["source_path"] == str(tmp_path / "fetched.csv")
+    assert collector["problems"] == []
+    assert collector["deployed_sha256"] == "cd" * 32
+    # The record the run left is kept in the audit trail.
+    assert manifest["collect_history"][-1]["previous_collector"]["source"] is None
+    sealed = _sealed_names(run_dir)
+    assert "logs/collector/resources-from/resources-smoke_sequence-r01.csv.lifecycle.csv" in sealed
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_collect_of_a_file_without_companions_is_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _manifest_before = _manual_run(tmp_path, plan_path, None)
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=run_dir.parent.parent,
+        plan_path=plan_path,
+        resources_from=_resources_file(tmp_path, companions=False),
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    assert manifest["validity"] == "invalid"
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "resources-smoke_sequence-r01.csv.diagnostics.log is absent" in reasons
+
+
+def test_collect_supplies_expected_services_for_a_run_that_recorded_none(
+    tmp_path, plan_path, fast_run
+) -> None:
+    resources = _resources_file(tmp_path)
+    rc, run_dir, _before = _manual_run(
+        tmp_path, plan_path, resources, expect_services=None
+    )
+    assert rc == 1
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=run_dir.parent.parent,
+        plan_path=plan_path,
+        resources_from=resources,
+        expect_services=FIXTURE_SERVICES,
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["collector"]["expected_services"] == FIXTURE_SERVICES
+    # Identical copies: nothing was added to the sealed directory.
+    assert "collection_history" not in manifest
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_collect_never_changes_recorded_expected_services(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    resources = _resources_file(tmp_path)
+    rc, run_dir, _before = _manual_run(tmp_path, plan_path, resources)
+    assert rc == 0
+    before = (run_dir / "manifest.json").read_bytes()
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=run_dir.parent.parent,
+        plan_path=plan_path,
+        resources_from=resources,
+        expect_services=["egw-controller", "egw-mongodb-1"],
+        event_log_dir=tmp_path / "unused-event-log",
     )
     assert rc == 2
-    assert "cannot be used without them" in capsys.readouterr().err
-    assert not (tmp_path / "results").exists()
+    assert "cannot change them" in capsys.readouterr().err
+    assert (run_dir / "manifest.json").read_bytes() == before
+
+
+def test_collect_expect_services_requires_resources_from(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    rc, run_dir, _before = _manual_run(
+        tmp_path, plan_path, _resources_file(tmp_path), expect_services=None
+    )
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=run_dir.parent.parent,
+        plan_path=plan_path,
+        expect_services=FIXTURE_SERVICES,
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 2
+    assert "give both, or neither" in capsys.readouterr().err
+
+
+def test_collect_refuses_a_different_manual_copy_before_writing_anything(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    """A companion that differs from the copy the run kept is different
+    evidence: refused, and nothing is added to the run directory."""
+    resources = _resources_file(tmp_path)
+    rc, run_dir, _before = _manual_run(tmp_path, plan_path, resources)
+    assert rc == 0
+    files_before = sorted(p.as_posix() for p in run_dir.rglob("*"))
+    _write_companions(resources, missing="egw-controller")
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=run_dir.parent.parent,
+        plan_path=plan_path,
+        resources_from=resources,
+        event_log_dir=tmp_path / "unused-event-log",
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert (
+        "refusing to overwrite logs/collector/resources-from/"
+        "resources-smoke_sequence-r01.csv.diagnostics.log"
+    ) in err
+    assert sorted(p.as_posix() for p in run_dir.rglob("*")) == files_before
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+# --- a hook that exceeds its timeout takes its whole process group down ----
+
+SLOW_HOOK = """\
+import subprocess, sys, time
+started, late = sys.argv[1], sys.argv[2]
+# A child in the hook's process group (as ssh/scp are for the fetch script)
+# that would write after the hook's timeout.
+subprocess.Popen([
+    sys.executable, "-c",
+    "import pathlib, sys, time; pathlib.Path(sys.argv[1]).write_text('child');"
+    " time.sleep(4); pathlib.Path(sys.argv[2]).write_text('late')",
+    started, late,
+])
+print("hook started", flush=True)
+time.sleep(60)
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
+def test_a_timed_out_hook_is_ended_with_its_whole_process_group(tmp_path) -> None:
+    script = _write_script(tmp_path, "slow_hook.py", SLOW_HOOK)
+    started = tmp_path / "child-started.txt"
+    late = tmp_path / "logs" / "late-write.txt"
+    t0 = time.monotonic()
+    record = run_mod.execute_collector_hook(
+        "fetch",
+        f'"{PY}" "{script.as_posix()}" "{started.as_posix()}" "{late.as_posix()}"',
+        "r",
+        duration_s=1,
+        dest=tmp_path / "x.csv",
+        log_dir=tmp_path / "logs",
+        timeout_s=2.0,
+        kill_grace_s=0.5,
+    )
+    assert time.monotonic() - t0 < 15
+    assert record["returncode"] is None
+    assert record["timed_out"] is True
+    assert "timed out after 2 s" in record["error"]
+    assert "process group" in record["error"]
+    assert started.is_file()  # the child ran before the timeout ...
+    time.sleep(max(0.0, t0 + 7.0 - time.monotonic()))
+    assert not late.exists()  # ... and was killed with the hook
+    assert (tmp_path / "logs" / "hook-fetch.stdout.txt").read_text(
+        encoding="utf-8"
+    ).strip() == "hook started"
+    # A timed-out hook is a validity reason naming the flag and the timeout.
+    reasons = " ".join(run_mod.collector_hook_failures([record]))
+    assert "--collector-fetch-cmd" in reasons and "timed out" in reasons
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
+def test_a_fetch_hook_timeout_leaves_nothing_writing_into_the_sealed_run(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The defect: on a timeout only the hook process was killed, and its
+    children kept writing into logs/collector/ after the seal."""
+    monkeypatch.setattr(run_mod, "FETCH_TIMEOUT_S", 2.0)
+    monkeypatch.setattr(run_mod, "HOOK_KILL_GRACE_S", 0.5)
+    script = _write_script(tmp_path, "slow_hook.py", SLOW_HOOK)
+    _record, start_tpl, stop_tpl, _fetch = _collector_hooks(tmp_path)
+    fetch_tpl = (
+        f'"{PY}" "{script.as_posix()}" "{(tmp_path / "child-started.txt").as_posix()}" '
+        '"{dest}.late"'
+    )
+    base = tmp_path / "results"
+    t0 = time.monotonic()
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        expect_services=FIXTURE_SERVICES,
+        allow_missing_controller_marker=True,
+        allow_missing_resources=True,
+    )
+    assert rc == 1
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    manifest = _manifest(base, "smoke_sequence-r01")
+    fetch = manifest["collector_hooks"][-1]
+    assert fetch["hook"] == "fetch" and fetch["timed_out"] is True
+    assert "timed out" in " ".join(manifest["validity_reasons"])
+    assert (tmp_path / "child-started.txt").is_file()
+    time.sleep(max(0.0, t0 + 8.0 - time.monotonic()))
+    late = run_dir / "logs" / "collector" / "resources-smoke_sequence-r01.csv.late"
+    assert not late.exists()
+    # Sealed (resources were explicitly allowed missing) and still intact.
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+# --- the fetch helper that ran is identified by its sha256 ------------------
+
+
+def test_identify_hook_helper(tmp_path) -> None:
+    script = tmp_path / "helper dir" / "fetch-collector-output.sh"
+    script.parent.mkdir()
+    script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    digest = checksums.sha256_file(script)
+    quoted = f'"{script.as_posix()}"'
+    assert run_mod.identify_hook_helper(f"sh {quoted} vm /tmp/x.csv /d") == {
+        "path": script.as_posix(),
+        "sha256": digest,
+    }
+    assert run_mod.identify_hook_helper(f"/bin/dash {quoted} a")["sha256"] == digest
+    assert run_mod.identify_hook_helper(f"{quoted} a b")["sha256"] == digest
+    # Not a local file: named, but not hashed (PATH is never searched).
+    assert run_mod.identify_hook_helper("scp vm:/tmp/x.csv /d") == {
+        "path": "scp",
+        "sha256": None,
+    }
+    assert run_mod.identify_hook_helper("sh -c 'scp vm:/x /d'") == {
+        "path": None,
+        "sha256": None,
+    }
+    missing = tmp_path / "nope.sh"
+    assert run_mod.identify_hook_helper(f'sh "{missing.as_posix()}"')["sha256"] is None
+
+
+def test_a_fetch_helper_that_is_not_a_local_file_is_warned_about(
+    tmp_path, plan_path, fast_run
+) -> None:
+    _record, start_tpl, stop_tpl, _fetch = _collector_hooks(tmp_path)
+    base = tmp_path / "results"
+    run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=f'"{PY}" -c "import sys; sys.exit(0)" "{{dest}}"',
+        expect_services=FIXTURE_SERVICES,
+        allow_missing_controller_marker=True,
+    )
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["collector"]["fetch_helper_path"] is None
+    assert manifest["collector"]["fetch_helper_sha256"] is None
+    assert any(
+        "cannot be identified" in w and "--collector-fetch-cmd" in w
+        for w in manifest["warnings"]
+    )
 
 
 def test_format_collector_template_substitutes_expect_services() -> None:
@@ -2479,6 +2989,7 @@ def test_controller_marker_recorded_and_deadline_is_controller_domain(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         controller_url="http://127.0.0.1:8000",
     )
     assert rc == 0
@@ -2514,6 +3025,7 @@ def test_missing_controller_marker_invalidates_timed_run(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
     )
     assert rc == 1
     manifest = _manifest(base, "smoke_sequence-r01")
@@ -2545,6 +3057,7 @@ def test_allow_missing_controller_marker_records_the_deviation(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 0
@@ -2576,6 +3089,7 @@ def test_controller_marker_poll_failure_is_recorded_not_raised(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         controller_url="http://127.0.0.1:8000",
         allow_missing_controller_marker=True,
     )
@@ -2636,6 +3150,7 @@ def test_controller_marker_is_polled_before_the_samplers_are_joined(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         controller_url="http://127.0.0.1:8000",
     )
     assert rc == 0
@@ -2656,6 +3171,7 @@ def test_controller_marker_lag_is_recorded_in_the_manifest(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         controller_url="http://127.0.0.1:8000",
     )
     assert rc == 0
@@ -2695,6 +3211,7 @@ def test_a_late_controller_marker_poll_is_warned_and_recorded_as_a_deviation(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         controller_url="http://127.0.0.1:8000",
     )
     assert rc == 0
@@ -2741,6 +3258,7 @@ def test_missing_sent_events_invalidates_and_withholds_the_seal(
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 1
@@ -2772,6 +3290,7 @@ def test_controller_metrics_are_mandatory_where_the_protocol_mandates_them(
         event_log_dir=_local_events(tmp_path, run_id),
         sut_env_from=_sut_env_file(tmp_path),
         resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
         allow_missing_controller_marker=True,
     )
     assert rc == 1

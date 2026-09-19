@@ -33,9 +33,11 @@ Sprint P5 additions (report 5.3/5.4): ``run`` and ``campaign`` accept the
 SUT collector hooks ``--collector-start-cmd`` / ``--collector-stop-cmd`` /
 ``--collector-fetch-cmd`` (executed before the warm-up, after the measured
 run and after the confirmation window respectively), so a fresh campaign
-produces its own ``resources.csv`` instead of requiring a pre-fetched one
-(with ``--expect-services``, the fetched collector output is also accounted
-for per service, companion file and collector identity);
+produces its own ``resources.csv`` instead of requiring a pre-fetched one.
+The collector's output — fetched by the hook or given with
+``--resources-from`` to ``run``, ``campaign`` or ``collect`` — is accounted
+for per service (``--expect-services``), companion file and collector
+identity before the run directory is sealed;
 ``--allow-missing-controller-marker`` authorizes a timed run whose end was
 not stamped in the controller's clock domain; ``campaign`` verifies the
 SHA256SUMS of every sealed run before skipping it on resume and exits 1
@@ -115,11 +117,18 @@ def _add_collection_arguments(
         "--resources-from",
         default=None,
         help="path of the resources.csv produced ON the ARM VM by "
-        "deployment/scripts/collect-resources.sh and fetched here. The "
-        "file is content-validated before ingestion (exact "
+        "deployment/scripts/collect-resources.sh and fetched here, with "
+        "the collector's companions beside it (<file>.diagnostics.log and "
+        "<file>.lifecycle.csv, plus <file>.self-test if the collector wrote "
+        "one; deployment/scripts/fetch-collector-output.sh fetches all of "
+        "them). The file is content-validated before ingestion (exact "
         "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host header; at least "
         "30 sample rows; every host value matching the sut_environment "
-        "node/hostname); a rejected file is treated as missing. Timed runs "
+        "node/hostname); a rejected file is treated as missing. The file "
+        "and its companions are copied into logs/collector/resources-from/ "
+        "and accounted for like the fetch hook's output (a missing "
+        "companion, a self-test marker, no --expect-services or an expected "
+        "service without rows marks a timed run 'invalid'). Timed runs "
         "without SUT resources are marked validity 'invalid'"
         + (
             ". May contain a {run_id} placeholder substituted per run, "
@@ -127,6 +136,25 @@ def _add_collection_arguments(
             if resources_template
             else ""
         ),
+    )
+    parser.add_argument(
+        "--expect-services",
+        type=_expect_services_arg,
+        default=None,
+        metavar="NAME,NAME,...",
+        help="the services (container names) the SUT collector must account "
+        "for, e.g. 'egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,"
+        "egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1'. Names use "
+        "only A-Z a-z 0-9 _ . - (as in collect-resources.sh). Substituted "
+        "into the collector hooks as {expect_services}, so the start hook "
+        "passes the SAME list to the collector (--expect-services "
+        "{expect_services}); give the collector the same list when it is "
+        "started by hand. Each name must have rows in the collector's CSV "
+        "(fetch hook or --resources-from) and must not be missing from its "
+        "inventory; a timed run whose SUT resources come from the collector "
+        "without this flag is marked validity 'invalid'. On 'collect' it "
+        "supplies the list for a run that recorded none (never changes a "
+        "recorded one) and requires --resources-from",
     )
     parser.add_argument(
         "--allow-missing-sut-env",
@@ -175,23 +203,10 @@ def _add_collector_hook_arguments(parser: argparse.ArgumentParser) -> None:
     exit marks the run validity 'invalid' naming the hook. The fetched
     output is then accounted for (manifest ``collector``): a missing
     companion, a self-test marker or an expected service without rows marks
-    the run invalid as well.
+    the run invalid as well. ``--expect-services`` is a collection argument
+    (:func:`_add_collection_arguments`): the manual ``--resources-from``
+    path is accounted for in the same way.
     """
-    parser.add_argument(
-        "--expect-services",
-        type=_expect_services_arg,
-        default=None,
-        metavar="NAME,NAME,...",
-        help="the services (container names) the SUT collector must account "
-        "for, e.g. 'egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,"
-        "egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1'. Names use "
-        "only A-Z a-z 0-9 _ . - (as in collect-resources.sh). Substituted "
-        "into the hooks as {expect_services}, so the start hook passes the "
-        "SAME list to the collector (--expect-services {expect_services}). "
-        "Each name must have rows in the fetched CSV and must not be missing "
-        "from the collector's inventory. Requires the collector hooks; a run "
-        "with hooks but without this flag is marked validity 'invalid'",
-    )
     parser.add_argument(
         "--collector-start-cmd",
         default=None,
@@ -628,6 +643,7 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_missing_controller_marker=args.allow_missing_controller_marker,
+        expect_services=args.expect_services,
     )
 
 

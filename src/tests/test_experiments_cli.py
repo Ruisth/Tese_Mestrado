@@ -217,7 +217,8 @@ def test_p5_flags_default_to_off() -> None:
 
 
 # ---------------------------------------------------------------------------
-# run/campaign: --expect-services (collector output accounting)
+# run/campaign/collect: --expect-services (collector output accounting, on
+# the hooks' output and on the manual --resources-from path alike)
 # ---------------------------------------------------------------------------
 
 
@@ -227,8 +228,15 @@ SIX_SERVICES = (
 )
 
 
-@pytest.mark.parametrize("command", [["run", "--run-id", "nominal-r01"], ["campaign"]])
-def test_run_and_campaign_parse_expect_services_into_a_list(command) -> None:
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["run", "--run-id", "nominal-r01"],
+        ["campaign"],
+        ["collect", "--run-id", "nominal-r01"],
+    ],
+)
+def test_run_campaign_and_collect_parse_expect_services_into_a_list(command) -> None:
     args = cli.build_parser().parse_args([*command, "--expect-services", SIX_SERVICES])
     assert args.expect_services == SIX_SERVICES.split(",")
     defaults = cli.build_parser().parse_args(command)
@@ -252,7 +260,7 @@ def test_expect_services_rejects_names_the_collector_would_refuse(
     assert "--expect-services" in capsys.readouterr().err
 
 
-def test_expect_services_is_forwarded_by_run_and_campaign(monkeypatch) -> None:
+def test_expect_services_is_forwarded_by_run_campaign_and_collect(monkeypatch) -> None:
     seen: dict[str, object] = {}
 
     def fake_execute_run(plan, run_id, **kwargs):
@@ -263,11 +271,23 @@ def test_expect_services_is_forwarded_by_run_and_campaign(monkeypatch) -> None:
         seen["campaign"] = kwargs.get("expect_services")
         return 0
 
+    def fake_collect_run(run_id, **kwargs):
+        seen["collect"] = kwargs.get("expect_services")
+        return 0
+
     monkeypatch.setattr(cli, "execute_run", fake_execute_run)
     monkeypatch.setattr(cli, "run_campaign", fake_run_campaign)
+    monkeypatch.setattr(cli, "collect_run", fake_collect_run)
     assert cli.main(["run", "--run-id", "nominal-r01", "--expect-services", SIX_SERVICES]) == 0
     assert cli.main(["campaign", "--expect-services", SIX_SERVICES]) == 0
-    assert seen == {"run": SIX_SERVICES.split(","), "campaign": SIX_SERVICES.split(",")}
+    assert cli.main(
+        [
+            "collect", "--run-id", "nominal-r01", "--resources-from", "r.csv",
+            "--expect-services", SIX_SERVICES,
+        ]
+    ) == 0
+    expected = SIX_SERVICES.split(",")
+    assert seen == {"run": expected, "campaign": expected, "collect": expected}
 
 
 def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:
