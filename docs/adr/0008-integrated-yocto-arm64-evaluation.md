@@ -128,11 +128,11 @@ vocabulary: without an independent reconstruction the wording stays *versioned*
 and *repeatable build by the author*. Nothing here closes a gate, admits a
 claim or turns a reported confirmation into a documented decision.
 
-**One statement of fact corrected.** The paragraph of facts above was written
-in this change and said that none of the nine integration/recovery test families
-had been run. It was not a record that stood on `dev`, so it is corrected in
-place rather than preserved and superseded, and this note says what changed:
-later on 2026-09-18 the nine families were exercised once — seven passed, and tests 1 and 6 carry a failing harness
+**One statement of fact corrected.** The statement about the nine
+integration/recovery test families in the paragraph of facts above was written
+in this change and is corrected there rather than preserved and superseded,
+because it never stood on `dev`. What happened: later on 2026-09-18 the nine
+families were exercised once — seven passed, and tests 1 and 6 carry a failing harness
 part, because the resource sampler under test cannot reach the harness's
 minimum sample count under emulation. That record is held outside the
 repository and unsealed, the battery is **not complete**, nothing has been

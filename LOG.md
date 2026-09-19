@@ -1852,7 +1852,12 @@ is unchanged.
   `docs/adr/0008-integrated-yocto-arm64-evaluation.md` and
   `docs/setup/qemu_integrated_gateway.md` the statements were written in this
   change, so they are corrected in place and a dated note of 2026-09-19 records
-  the correction; no wording that stood on `dev` was removed. Elsewhere the dated
+  the correction. In the ADR, two sentences that did stand on `dev` — that the
+  six-container stack had not been deployed, and that the first bounded
+  functional test had not run — were overtaken by the events of 2026-09-18 and
+  are not carried forward; both facts are restated correctly in the same
+  paragraph, which keeps verbatim that sealing is not acceptance and that no
+  gate and no claim is accepted. Elsewhere the dated
   sentences are kept where
   they stand and superseded by a dated note.
 - **Also unchanged and still true.** The August G0 email draft at

@@ -18,8 +18,9 @@ terminology policy and the local evidence copy. All of that is **reported by the
 student**, undated, and is not a documented supervisor decision. Item 3 below is
 also overtaken: the 95-run campaign and the 24-hour soak are now a target to
 attempt under QEMU, subject to the pilot's feasibility check. One statement of
-fact in item 6 is also out of date and must not be sent as written: "None of the
-nine integration/recovery test families has been run" is superseded — later on
+fact in item 6 was written in this change, is wrong, and is corrected there rather
+than preserved: the draft said "None of the nine integration/recovery test
+families has been run" — later on
 2026-09-18 the nine were exercised once, seven passed, and tests 1 and 6 carry a
 failing harness part from the resource sampler under emulation. That record is
 held outside the repository and unsealed, so the battery is **not complete** and
@@ -30,13 +31,13 @@ nothing has been measured; the sentence that replaces it must say both halves.
 with a dated QEMU-only execution amendment, and that adopted text at the
 canonical path is the plan in force. The student's adoption settles execution
 only: the title, the research-question wording, the thresholds and the scope of
-the evaluation are not agreed with the supervisors. The student reported that a
-supervisor advised proceeding with QEMU tests; that is student-reported advice,
-not approval. *(Superseded on 2026-09-19: the student reports supervisor
-approval to proceed with the QEMU tests, recorded at D008 and D014 of the
-decision log; reported by the student, undated, with no message and no
-supervisor name, and not a documented supervisor decision. The wording above is
-kept as the record of what the memo said.)* The August memo stays unmodified at
+the evaluation are not agreed with the supervisors. The student reports supervisor approval to
+proceed with the QEMU tests, recorded at D008 and D014 of the decision log:
+reported by the student, undated, with no message and no supervisor name, and
+not a documented supervisor decision. *(Written in this change and corrected
+here on 2026-09-19; the earlier draft of this paragraph called it
+student-reported advice rather than approval. It is not preserved memo
+wording.)* The August memo stays unmodified at
 [`docs/governance/supervisor_alignment_memo.md`](../supervisor_alignment_memo.md).
 
 The original Theme 1 objective is to develop/test a custom Yocto distribution
@@ -94,12 +95,13 @@ particular:
    admits no claim and closes no gate. Two defects were found by the run and
    fixed. A memory-cgroup OOM killed the twin service's JVM during the power-off
    of that session; the corrective work is open, and no stability is claimed.
-   **None of the nine integration/recovery test families has been run, and
-   nothing has been measured.** *(Superseded on 2026-09-19 and not to be sent
-   as written: later on 2026-09-18 the nine families were exercised once, seven
-   passed and tests 1 and 6 carry a failing harness part; the battery is not
-   complete and nothing has been measured. The wording above is kept as the
-   record of what the memo said; see the banner at the head of this memo.)* Emulated runs give functional and integration
+   **The nine integration/recovery test families were exercised once on
+   2026-09-18: seven passed, and tests 1 and 6 carry a failing harness part from
+   the resource sampler under emulation. That record is held outside the
+   repository and unsealed, so the battery is not complete and nothing has been
+   measured.** *(Written in this change and corrected here on 2026-09-19; the
+   earlier draft sentence said none of the nine families had been run. It is not
+   preserved memo wording.)* Emulated runs give functional and integration
    evidence only and support no ARM64 hardware performance conclusion; the
    maximum latency observed in the flow above is an emulated observation and not
    a performance result. **The request to you (D014, reworded as a standing
