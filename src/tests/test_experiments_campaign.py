@@ -442,20 +442,46 @@ def test_campaign_no_cooldown_skips_sleep_and_records_deviation_on_following_run
 # ---------------------------------------------------------------------------
 
 
+#: The six Compose container names of the gateway stack (runbook 6.1).
+SIX_SERVICES = [
+    "egw-mosquitto-1",
+    "egw-mongodb-1",
+    "egw-ditto-policies-1",
+    "egw-ditto-things-1",
+    "egw-ditto-gateway-1",
+    "egw-controller-1",
+]
+
+# The fetch hook writes what collect-resources.sh leaves beside its CSV: the
+# CSV (40 instants of every service in {expect_services}), the diagnostics
+# with a start line declaring that list and a clean inventory, and the
+# lifecycle file.
 HOOK_SCRIPT = """\
 import sys
 from pathlib import Path
 
-record, label, run_id, duration_s, dest, mode, rc = sys.argv[1:8]
+record, label, run_id, duration_s, dest, mode, rc, expect = sys.argv[1:9]
 with Path(record).open("a", encoding="utf-8") as fh:
-    fh.write(label + " " + run_id + " " + duration_s + "\\n")
+    fh.write(" ".join((label, run_id, duration_s, expect or "-")) + "\\n")
 if mode == "write":
+    services = expect.split(",") if expect else ["egw-controller"]
     rows = ["ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"]
     for i in range(40):
-        rows.append(
-            "2026-09-07T10:00:%02dZ,egw-controller,10.0,1024,1.0,sut-vm" % i
-        )
+        for name in services:
+            rows.append(
+                "2026-09-07T10:00:%02dZ,%s,10.0,1024,1.0,sut-vm" % (i, name)
+            )
     Path(dest).write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+    Path(dest + ".diagnostics.log").write_text(
+        "2026-09-07T09:59:59Z start: collector_sha256=" + "ab" * 32
+        + " host=sut-vm; expected services: " + (expect or "none declared") + "\\n"
+        + "2026-09-07T10:00:41Z inventory: observed=" + ",".join(sorted(services))
+        + " expected=" + (expect or "none-declared") + " missing=none unnamed_ids=0\\n",
+        encoding="utf-8",
+    )
+    Path(dest + ".lifecycle.csv").write_text(
+        "ts_utc,event,container_id,name\\n", encoding="utf-8"
+    )
 sys.exit(int(rc))
 """
 
@@ -471,12 +497,14 @@ def _hook_templates(tmp_path: Path, *, fetch_rc: int = 0):
         return (
             f'"{py}" "{script.as_posix()}" "{record.as_posix()}" {label} '
             '{run_id} {duration_s} "{dest}" ' + f"{mode} {rc}"
+            + ' "{expect_services}"'
         )
 
     return record, dict(
         collector_start_cmd=tpl("start", "noop", 0),
         collector_stop_cmd=tpl("stop", "noop", 0),
         collector_fetch_cmd=tpl("fetch", "write", fetch_rc),
+        expect_services=SIX_SERVICES,
     )
 
 
@@ -499,9 +527,11 @@ def test_campaign_drives_the_collector_hooks_per_run(
         for line in record.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    # Three hooks per simulator run, in order, each seeing its own run_id.
+    # Three hooks per simulator run, in order, each seeing its own run_id
+    # and the --expect-services list passed through by the campaign.
     assert [entry[0] for entry in labels] == ["start", "stop", "fetch"] * 3
     assert [entry[1] for entry in labels[:3]] == ["smoke-r01"] * 3
+    assert {entry[3] for entry in labels} == {",".join(SIX_SERVICES)}
     for rid in SIM_RUN_IDS:
         manifest = _manifest(fake_env.base, rid)
         assert [h["hook"] for h in manifest["collector_hooks"]] == [
@@ -513,6 +543,33 @@ def test_campaign_drives_the_collector_hooks_per_run(
         assert manifest["resource_source"] == "sut-collector"
         assert manifest["validity"] == "valid"
         assert (fake_env.base / "raw" / rid / "resources.csv").is_file()
+        collector = manifest["collector"]
+        assert collector["expected_services"] == SIX_SERVICES
+        assert collector["problems"] == []
+        assert collector["rows_per_expected_service"] == {
+            name: 40 for name in SIX_SERVICES
+        }
+        collector_dir = fake_env.base / "raw" / rid / "logs" / "collector"
+        assert (collector_dir / f"resources-{rid}.csv.diagnostics.log").is_file()
+        assert (collector_dir / f"resources-{rid}.csv.lifecycle.csv").is_file()
+
+
+def test_campaign_without_expect_services_marks_hooked_runs_invalid(
+    plan_path, fake_env, tmp_path
+) -> None:
+    """The expected services are data the campaign must pass on: hooks
+    without them never report complete collection."""
+    _record, hooks = _hook_templates(tmp_path)
+    hooks.pop("expect_services")
+    kwargs = dict(fake_env.kwargs)
+    kwargs.pop("resources_from")
+    rc = campaign_mod.run_campaign(
+        plan_path, only_conditions=["smoke_sequence"], **kwargs, **hooks
+    )
+    assert rc == 1
+    manifest = _manifest(fake_env.base, "smoke-r01")
+    assert manifest["validity"] == "invalid"
+    assert "--expect-services was not given" in " ".join(manifest["validity_reasons"])
 
 
 def test_campaign_stops_when_a_collector_hook_fails(

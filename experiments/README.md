@@ -128,10 +128,11 @@ python -m egw_experiments campaign \
     --username egw-simulator --ca-cert ca.crt \
     --controller-url http://127.0.0.1:8000 \
     --sut-env-from sut_environment.json \
-    --fetch-events-cmd 'scp vm:/opt/egw/src/deployment/data/events/{run_id}/events.jsonl {dest}' \
-    --collector-start-cmd "ssh vm 'systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/src/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s}'" \
+    --fetch-events-cmd 'scp vm:/opt/egw/src/deployment/data/events/{run_id}/events.jsonl "{dest}"' \
+    --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 \
+    --collector-start-cmd "ssh vm 'systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/src/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s} --expect-services {expect_services}'" \
     --collector-stop-cmd  "ssh vm 'systemctl stop egw-resources-{run_id}'" \
-    --collector-fetch-cmd 'scp vm:/tmp/resources-{run_id}.csv {dest}' \
+    --collector-fetch-cmd 'sh src/deployment/scripts/fetch-collector-output.sh vm /tmp/resources-{run_id}.csv "{dest}"' \
     --restart-cmd 'ssh vm docker compose -f /opt/egw/src/deployment/compose.yaml restart controller'
 ```
 
@@ -154,9 +155,21 @@ Behaviour:
   through exactly the same validated ingest as `--resources-from`, which
   stays available for manual/pre-fetched flows and is mutually exclusive
   with `--collector-fetch-cmd`. Every hook's command, exit code and
-  start/end timestamps land in the manifest's `collector_hooks`; a hook
+  start/end timestamps land in the manifest's `collector_hooks` (the full
+  output in `logs/collector/hook-<hook>.stdout.txt`/`.stderr.txt`); a hook
   exiting non-zero marks the run `validity: "invalid"` with a reason
-  naming the flag — never a silent warning.
+  naming the flag — never a silent warning. `--expect-services` names the
+  services the collector must account for and reaches the start hook as
+  `{expect_services}`. `src/deployment/scripts/fetch-collector-output.sh`
+  (run from the repository root in the examples; it runs on the harness
+  host) fetches the CSV with its `.diagnostics.log` and `.lifecycle.csv`
+  companions (and a `.self-test` marker, if any), each checked against the
+  VM's sha256. Right after the fetch, before sealing, the harness records
+  them in the manifest's `collector` and marks the run invalid when a
+  companion is missing, a self-test marker is present, `--expect-services`
+  is missing or differs from the collector's own list, the collector's
+  inventory names a missing service or is absent, or an expected service
+  has no rows.
 - **Resumable, with integrity verified** (sprint P5, report 5.4). A run
   whose raw directory is already sealed (`SHA256SUMS` present) AND
   `validity: "valid"` is skipped with a log line — but only after its
@@ -224,10 +237,11 @@ python -m egw_experiments run --run-id nominal-r01 \
     --username egw-simulator --ca-cert ca.crt \
     --controller-url http://127.0.0.1:8000 \
     --sut-env-from sut_environment.json \
-    --fetch-events-cmd 'scp vm:/opt/egw/src/deployment/data/events/{run_id}/events.jsonl {dest}' \
-    --collector-start-cmd "ssh vm 'systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/src/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s}'" \
+    --fetch-events-cmd 'scp vm:/opt/egw/src/deployment/data/events/{run_id}/events.jsonl "{dest}"' \
+    --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 \
+    --collector-start-cmd "ssh vm 'systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/src/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s} --expect-services {expect_services}'" \
     --collector-stop-cmd  "ssh vm 'systemctl stop egw-resources-{run_id}'" \
-    --collector-fetch-cmd 'scp vm:/tmp/resources-{run_id}.csv {dest}'
+    --collector-fetch-cmd 'sh src/deployment/scripts/fetch-collector-output.sh vm /tmp/resources-{run_id}.csv "{dest}"'
 ```
 
 The manual equivalent (no hooks) still works — start the collector by hand
@@ -252,7 +266,9 @@ the run end and IMMEDIATELY polls the controller's confirmation marker
 (below) — before the samplers are stopped and before any hook; stops the
 samplers; executes `--collector-stop-cmd`; waits the 60 s confirmation
 window (plan 7.3);
-executes `--collector-fetch-cmd`; fetches `events.jsonl` via the
+executes `--collector-fetch-cmd` and records the fetched collector output in
+the manifest's `collector` (files, collector sha256, inventory, rows per
+expected service, problems); fetches `events.jsonl` via the
 `--fetch-events-cmd` template (`{run_id}`/`{dest}` placeholders, 3 attempts
 with exponential backoff; env fallback `EGW_FETCH_EVENTS_CMD`; without a
 template, a LOCAL `--event-log-dir` lookup for dev only); ingests the

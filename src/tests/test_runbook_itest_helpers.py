@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -29,6 +30,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+from egw_experiments import run as run_mod
 
 if sys.platform == "win32":
     pytest.skip("runbook shell text is host-side bash for Linux/WSL: not run on win32", allow_module_level=True)
@@ -169,6 +172,11 @@ if [ "$1" = -m ] && [ "$2" = egw_experiments.itest_reconcile ]; then
   echo "itest_reconcile stub: $sub exit=$rc"
   if [ "$sub" = snap ] && [ "$rc" = 0 ]; then echo '{"stub": true}' > "$prefix.twins.$label.json"; fi
   exit "$rc"
+fi
+if [ "$1" = -m ] && [ "$2" = egw_experiments ] && [ "$3" = run ]; then
+  # harness_run: every argument kept exactly, NUL-separated
+  for a in "$@"; do printf '%s\0' "$a"; done > "$S/harness_argv"
+  exit "$(cat "$S/harness_rc" 2>/dev/null || echo 0)"
 fi
 echo "python stub: unexpected arguments: $*" >&2; exit 97
 """
@@ -393,6 +401,48 @@ def test_helper_file_sourced_with_an_empty_password_prints_stop_and_is_not_repor
     assert r.value("RC") != "0", r.out
     assert r.starting("STOP: MOSQUITTO_SIMULATOR_PASSWORD is empty"), r.out
     assert "helpers loaded, reconcile helper importable" not in r.lines
+
+
+SIX_SERVICES = "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1"
+
+
+def harness_argv(bench: Bench) -> list[str]:
+    return [a.decode("utf-8") for a in (bench.state / "harness_argv").read_bytes().split(b"\0")[:-1]]
+
+
+def test_harness_run_hands_the_six_services_to_the_collector_and_fetches_its_companions(bench: Bench) -> None:
+    """The hooks of harness_run, split the way the harness splits them (shlex, no shell)."""
+    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'), EGW_CLONE=str(ROOT))
+    assert r.value("RC") == "0", r.out
+    argv = harness_argv(bench)
+    assert argv[:4] == ["-m", "egw_experiments", "run", "--run-id"]
+    opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
+    assert opts["--expect-services"] == SIX_SERVICES
+    run_mod.parse_expected_services(opts["--expect-services"])  # the harness accepts the list
+    assert "--expect-services {expect_services}" in opts["--collector-start-cmd"]
+
+    dest = "/home/op/Projeto Mestrado/raw/smoke_sequence-r01/logs/collector/resources-smoke_sequence-r01.csv"
+    start = shlex.split(run_mod.format_collector_template(
+        opts["--collector-start-cmd"], "smoke_sequence-r01", duration_s=150, dest=dest,
+        expect_services=SIX_SERVICES.split(",")))
+    assert start[0] == "ssh" and start[1] == "egw-tcg"
+    assert start[2].endswith(f"--duration 150 --expect-services {SIX_SERVICES}")
+    fetch = shlex.split(run_mod.format_collector_template(
+        opts["--collector-fetch-cmd"], "smoke_sequence-r01", duration_s=150, dest=dest,
+        expect_services=SIX_SERVICES.split(",")))
+    script = ROOT / "src" / "deployment" / "scripts" / "fetch-collector-output.sh"
+    assert fetch == ["sh", str(script), "egw-tcg", "/tmp/resources-smoke_sequence-r01.csv", dest]
+    assert script.is_file()
+    # The events fetch quotes its destination as well.
+    events = shlex.split(run_mod.format_cmd_template(opts["--fetch-events-cmd"], "smoke_sequence-r01", "/a b/events.jsonl"))
+    assert events[-1] == "/a b/events.jsonl"
+
+
+def test_harness_run_exit_non_zero_prints_stop(bench: Bench) -> None:
+    bench.set("harness_rc", 1)
+    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'), EGW_CLONE=str(ROOT))
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: harness_run smoke_sequence-r01: egw_experiments run exited non-zero"), r.out
 
 
 # --------------------------------------------------------------------------

@@ -38,7 +38,9 @@ Behaviour:
   ``--collector-stop-cmd`` (after the measured run) and
   ``--collector-fetch-cmd`` (after the confirmation window) are passed
   through per run, so a fresh campaign produces its own resources.csv
-  instead of requiring a pre-fetched one (sprint P5, report 5.3);
+  instead of requiring a pre-fetched one (sprint P5, report 5.3), and so is
+  ``--expect-services`` (the services every run's collector output must
+  account for; the ``{expect_services}`` placeholder of the hooks);
 - cooldowns: the plan's ``cooldown_s`` is honored by the run wiring itself
   (``execute_run`` sleeps the remaining cooldown after the confirmation
   window). ``--no-cooldown`` suppresses it and records a protocol
@@ -206,6 +208,7 @@ def run_campaign(
     collector_start_cmd: str | None = None,
     collector_stop_cmd: str | None = None,
     collector_fetch_cmd: str | None = None,
+    expect_services: list[str] | None = None,
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
     allow_warmup_failure: bool = False,
@@ -446,6 +449,7 @@ def run_campaign(
             collector_start_cmd=collector_start_cmd,
             collector_stop_cmd=collector_stop_cmd,
             collector_fetch_cmd=collector_fetch_cmd,
+            expect_services=expect_services,
             allow_missing_sut_env=allow_missing_sut_env,
             allow_missing_resources=allow_missing_resources,
             allow_warmup_failure=allow_warmup_failure,

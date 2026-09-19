@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 import textwrap
 import time
@@ -1696,30 +1698,99 @@ def test_external_reingest_refused_mentions_sealed(
 # ---------------------------------------------------------------------------
 
 
+#: The six Compose container names of the gateway stack (runbook 6.1).
+SIX_SERVICES = [
+    "egw-mosquitto-1",
+    "egw-mongodb-1",
+    "egw-ditto-policies-1",
+    "egw-ditto-things-1",
+    "egw-ditto-gateway-1",
+    "egw-controller-1",
+]
+
+#: sha256 the fake collector writes into its diagnostics' start line.
+FAKE_COLLECTOR_SHA256 = "ab" * 32
+
+# The fake hook stands for all three collector hooks. The fetch hook in mode
+# "write[+option...]" writes what collect-resources.sh leaves beside its CSV
+# (the CSV, .diagnostics.log with the start/inventory/stop lines,
+# .lifecycle.csv) for every service of {expect_services} (a lone
+# 'egw-controller' when none is given). Options remove or alter one piece:
+# nodiag, nolife, nostart, noinv, selftest, drop:<name>, extra:<name> (rows of
+# one more service), missing:<names>, declared:<names>, host:<name>.
 HOOK_SCRIPT = """\
 import sys
 from pathlib import Path
 
 record, label, run_id, duration_s, dest, mode, rc = sys.argv[1:8]
+expect = sys.argv[8] if len(sys.argv) > 8 else ""
 with Path(record).open("a", encoding="utf-8") as fh:
-    fh.write(label + " " + run_id + " " + duration_s + "\\n")
-if mode == "write":
+    fh.write(" ".join((label, run_id, duration_s, expect or "-")) + "\\n")
+print(label + " hook stdout")
+sys.stderr.write(label + " hook stderr\\n")
+flags = mode.split("+")
+if flags[0] == "write":
+    opts = {}
+    for flag in flags[1:]:
+        key, _, value = flag.partition(":")
+        opts[key] = value
+    services = expect.split(",") if expect else ["egw-controller"]
+    drop = set(opts.get("drop", "").split(",")) - {""}
+    host = opts.get("host") or "sut-vm"
+    row_names = services + ([opts["extra"]] if opts.get("extra") else [])
     rows = ["ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"]
     for i in range(40):
-        rows.append(
-            "2026-09-07T10:00:%02dZ,egw-controller,10.0,1024,1.0,sut-vm" % i
-        )
+        for name in row_names:
+            if name not in drop:
+                rows.append(
+                    "2026-09-07T10:00:%02dZ,%s,10.0,1024,1.0,%s" % (i, name, host)
+                )
     Path(dest).write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+    diag = []
+    if "nostart" not in opts:
+        diag.append(
+            "2026-09-07T09:59:59Z start: collector_sha256=" + "ab" * 32
+            + " host=sut-vm source=cgroup interval=1s duration=" + duration_s
+            + "s pacing: fake; timestamps: fake; expected services: "
+            + (opts.get("declared") or expect or "none declared")
+        )
+    if "noinv" not in opts:
+        diag.append(
+            "2026-09-07T10:00:41Z inventory: observed=" + ",".join(sorted(services))
+            + " expected=" + (expect or "none-declared")
+            + " missing=" + (opts.get("missing") or "none") + " unnamed_ids=0"
+        )
+        diag.append("2026-09-07T10:00:41Z stop: samples=41 utc_gap_seconds=0")
+    if "nodiag" not in opts:
+        Path(dest + ".diagnostics.log").write_text(
+            "\\n".join(diag) + "\\n", encoding="utf-8"
+        )
+    if "nolife" not in opts:
+        life = ["ts_utc,event,container_id,name"]
+        for i, name in enumerate(services):
+            life.append("2026-09-07T09:59:59Z,named,%012d,%s" % (i, name))
+        Path(dest + ".lifecycle.csv").write_text(
+            "\\n".join(life) + "\\n", encoding="utf-8"
+        )
+    if "selftest" in opts:
+        Path(dest + ".self-test").write_text("self_test=1\\n", encoding="utf-8")
 sys.exit(int(rc))
 """
 
 
-def _collector_hooks(tmp_path: Path, *, stop_rc: int = 0, fetch_rc: int = 0):
+def _collector_hooks(
+    tmp_path: Path,
+    *,
+    stop_rc: int = 0,
+    fetch_rc: int = 0,
+    fetch_mode: str = "write",
+):
     """(record_path, start_tpl, stop_tpl, fetch_tpl) for the three hooks.
 
-    Every hook appends '<label> <run_id> <duration_s>' to the record file, so
-    the ORDER and the placeholder substitution are both observable; the fetch
-    hook additionally writes an ingestible collector CSV to {dest}.
+    Every hook appends '<label> <run_id> <duration_s> <expect_services>' to
+    the record file, so the ORDER and the placeholder substitution are both
+    observable; the fetch hook additionally writes the collector's CSV to
+    {dest} and its companions beside it (see HOOK_SCRIPT for ``fetch_mode``).
     """
     script = _write_script(tmp_path, "collector_hook.py", HOOK_SCRIPT)
     record = tmp_path / "collector-hooks.txt"
@@ -1728,14 +1799,58 @@ def _collector_hooks(tmp_path: Path, *, stop_rc: int = 0, fetch_rc: int = 0):
         return (
             f'"{PY}" "{script.as_posix()}" "{record.as_posix()}" {label} '
             '{run_id} {duration_s} "{dest}" ' + f"{mode} {rc}"
+            + ' "{expect_services}"'
         )
 
     return (
         record,
         tpl("start", "noop", 0),
         tpl("stop", "noop", stop_rc),
-        tpl("fetch", "write", fetch_rc),
+        tpl("fetch", fetch_mode, fetch_rc),
     )
+
+
+def _hooked_run(
+    tmp_path: Path,
+    plan_path: Path,
+    *,
+    run_id: str = "nominal-r01",
+    base: Path | None = None,
+    expect_services: list[str] | None = SIX_SERVICES,
+    **hook_options: Any,
+) -> tuple[int, Path, Path]:
+    """Execute one run with the three fake collector hooks.
+
+    Returns (exit code, run directory, record file)."""
+    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(
+        tmp_path, **hook_options
+    )
+    base = base if base is not None else tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        run_id,
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, run_id),
+        sut_env_from=_sut_env_file(tmp_path),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        expect_services=expect_services,
+        allow_missing_controller_marker=True,
+    )
+    return rc, base / "raw" / run_id, record
+
+
+def _sealed_names(run_dir: Path) -> set[str]:
+    return {
+        line.split("  ", 1)[1]
+        for line in (run_dir / checksums.SUMS_FILENAME)
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    }
 
 
 def _hook_labels(record: Path) -> list[str]:
@@ -1751,25 +1866,14 @@ def test_collector_hooks_run_in_order_and_produce_ingested_resources(
 ) -> None:
     """The collector is started BEFORE the warm-up, stopped AFTER the
     measured run and fetched AFTER the confirmation window; the fetched CSV
-    goes through the EXISTING validated ingest path (report 5.3)."""
-    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path)
-    base = tmp_path / "results"
-    rc = run_mod.execute_run(
-        plan_path,
-        "nominal-r01",
-        base_dir=base,
-        no_tls=True,
-        post_run_wait_s=0.0,
-        event_log_dir=_local_events(tmp_path, "nominal-r01"),
-        sut_env_from=_sut_env_file(tmp_path),
-        collector_start_cmd=start_tpl,
-        collector_stop_cmd=stop_tpl,
-        collector_fetch_cmd=fetch_tpl,
-        allow_missing_controller_marker=True,
-    )
+    goes through the EXISTING validated ingest path (report 5.3), and its
+    companions are accounted for and sealed with it."""
+    rc, run_dir, record = _hooked_run(tmp_path, plan_path)
+    base = run_dir.parent.parent
     assert rc == 0
     assert _hook_labels(record) == ["start", "stop", "fetch"]
     manifest = _manifest(base, "nominal-r01")
+    assert manifest["manifest_version"] == run_mod.MANIFEST_VERSION == "1.4"
     hooks = manifest["collector_hooks"]
     assert [h["hook"] for h in hooks] == ["start", "stop", "fetch"]
     for hook in hooks:
@@ -1777,33 +1881,75 @@ def test_collector_hooks_run_in_order_and_produce_ingested_resources(
         assert hook["started_utc"] and hook["finished_utc"]
         assert "{run_id}" not in hook["command"]
         assert "nominal-r01" in hook["command"]
-    # {duration_s} covers warm-up + measured window + confirmation window.
-    recorded = record.read_text(encoding="utf-8").splitlines()[0].split()
-    assert int(recorded[2]) >= 600 + 120
+        assert "{expect_services}" not in hook["command"]
+        assert ",".join(SIX_SERVICES) in hook["command"]
+    # {duration_s} covers warm-up + measured window + confirmation window,
+    # and every hook saw the same expected list the harness enforces.
+    recorded = [
+        line.split() for line in record.read_text(encoding="utf-8").splitlines()
+    ]
+    assert int(recorded[0][2]) >= 600 + 120
+    assert {line[3] for line in recorded} == {",".join(SIX_SERVICES)}
     assert manifest["resource_source"] == "sut-collector"
     assert manifest["validity"] == "valid"
-    assert (base / "raw" / "nominal-r01" / "resources.csv").is_file()
+    assert (run_dir / "resources.csv").is_file()
+
+    collector = manifest["collector"]
+    assert collector["expected_services"] == SIX_SERVICES
+    assert collector["hooks_in_use"] is True
+    assert collector["problems"] == []
+    assert collector["deployed_sha256"] == FAKE_COLLECTOR_SHA256
+    assert collector["declared_expected_services"] == ",".join(SIX_SERVICES)
+    assert collector["inventory"].endswith("missing=none unnamed_ids=0")
+    assert collector["inventory_missing"] == []
+    assert collector["stop_line"].endswith("stop: samples=41 utc_gap_seconds=0")
+    assert collector["self_test_present"] is False
+    assert collector["rows_per_expected_service"] == {
+        name: 40 for name in SIX_SERVICES
+    }
+    assert collector["unexpected_services"] == []
+    assert manifest["config"]["cli"]["expect_services"] == SIX_SERVICES
+
+    # The CSV and its two companions sit in logs/collector/, their record
+    # matches the bytes on disk, and the seal covers them.
+    csv_rel = "logs/collector/resources-nominal-r01.csv"
+    sealed = _sealed_names(run_dir)
+    for key, suffix in (
+        ("csv", ""),
+        ("diagnostics", ".diagnostics.log"),
+        ("lifecycle", ".lifecycle.csv"),
+    ):
+        entry = collector["files"][key]
+        assert entry["path"] == csv_rel + suffix
+        assert entry["present"] is True
+        assert entry["sha256"] == checksums.sha256_file(run_dir / entry["path"])
+        assert entry["size"] == (run_dir / entry["path"]).stat().st_size
+        assert entry["path"] in sealed
+    assert collector["files"]["self_test"]["present"] is False
+    assert checksums.verify_sha256sums(run_dir) == []
+
+    # The full output of every hook is kept, sealed, and named in the
+    # manifest; the 500-character tail stays for a quick read.
+    for hook in hooks:
+        label = hook["hook"]
+        assert hook["stdout_file"] == f"logs/collector/hook-{label}.stdout.txt"
+        assert hook["stderr_file"] == f"logs/collector/hook-{label}.stderr.txt"
+        assert (run_dir / hook["stdout_file"]).read_text(
+            encoding="utf-8"
+        ).strip() == f"{label} hook stdout"
+        assert (run_dir / hook["stderr_file"]).read_text(
+            encoding="utf-8"
+        ).strip() == f"{label} hook stderr"
+        assert hook["stderr_tail"] == f"{label} hook stderr"
+        assert hook["stdout_file"] in sealed and hook["stderr_file"] in sealed
 
 
 def test_collector_hook_nonzero_exit_invalidates_run_naming_the_hook(
     tmp_path, plan_path, fast_run
 ) -> None:
     """A hook that fails is never a silent warning (report 5.3)."""
-    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path, stop_rc=3)
-    base = tmp_path / "results"
-    rc = run_mod.execute_run(
-        plan_path,
-        "nominal-r01",
-        base_dir=base,
-        no_tls=True,
-        post_run_wait_s=0.0,
-        event_log_dir=_local_events(tmp_path, "nominal-r01"),
-        sut_env_from=_sut_env_file(tmp_path),
-        collector_start_cmd=start_tpl,
-        collector_stop_cmd=stop_tpl,
-        collector_fetch_cmd=fetch_tpl,
-        allow_missing_controller_marker=True,
-    )
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, stop_rc=3)
+    base = run_dir.parent.parent
     assert rc == 1
     manifest = _manifest(base, "nominal-r01")
     assert manifest["validity"] == "invalid"
@@ -1851,7 +1997,440 @@ def test_no_collector_hooks_preserves_todays_behaviour(
         allow_missing_controller_marker=True,
     )
     assert rc == 0
-    assert _manifest(base, "smoke_sequence-r01")["collector_hooks"] == []
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["collector_hooks"] == []
+    assert manifest["collector"] == {"expected_services": None, "hooks_in_use": False}
+    assert manifest["validity"] == "valid"
+
+
+# ---------------------------------------------------------------------------
+# Collector output accounting (work order 2026-09-19, 2.C): the six expected
+# services and the collector's companions, fetched and checked before sealing
+# ---------------------------------------------------------------------------
+
+
+def _reasons(run_dir: Path) -> str:
+    return " ".join(
+        json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))[
+            "validity_reasons"
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    ("fetch_mode", "absent_suffix"),
+    [("write+nolife", ".lifecycle.csv"), ("write+nodiag", ".diagnostics.log")],
+)
+def test_a_missing_companion_invalidates_the_run_and_keeps_the_other_files(
+    tmp_path, plan_path, fast_run, fetch_mode, absent_suffix
+) -> None:
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode=fetch_mode)
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "nominal-r01")
+    assert manifest["validity"] == "invalid"
+    assert f"resources-nominal-r01.csv{absent_suffix} is absent" in _reasons(run_dir)
+    assert any(
+        w.startswith("collector output problem:") and absent_suffix in w
+        for w in manifest["warnings"]
+    )
+    collector_dir = run_dir / "logs" / "collector"
+    kept = {".diagnostics.log", ".lifecycle.csv"} - {absent_suffix}
+    assert (collector_dir / "resources-nominal-r01.csv").is_file()
+    for suffix in kept:
+        assert (collector_dir / f"resources-nominal-r01.csv{suffix}").is_file()
+    assert not (collector_dir / f"resources-nominal-r01.csv{absent_suffix}").exists()
+    # The CSV itself still passed the unchanged ingest, so the run directory
+    # is complete and sealed: invalid, but verifiable as it arrived.
+    assert manifest["resource_source"] == "sut-collector"
+    assert manifest["missing_mandatory_artifacts"] == []
+    sealed = _sealed_names(run_dir)
+    assert "logs/collector/resources-nominal-r01.csv" in sealed
+    for suffix in kept:
+        assert f"logs/collector/resources-nominal-r01.csv{suffix}" in sealed
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_a_failed_fetch_with_a_missing_companion_names_both_and_keeps_what_arrived(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The fetch script's exit code AND the absent file are both reasons."""
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode="write+nodiag", fetch_rc=3
+    )
+    assert rc == 1
+    reasons = _reasons(run_dir)
+    assert "--collector-fetch-cmd failed with exit code 3" in reasons
+    assert "resources-nominal-r01.csv.diagnostics.log is absent" in reasons
+    collector_dir = run_dir / "logs" / "collector"
+    assert (collector_dir / "resources-nominal-r01.csv").is_file()
+    assert (collector_dir / "resources-nominal-r01.csv.lifecycle.csv").is_file()
+    assert (collector_dir / "hook-fetch.stdout.txt").is_file()
+
+
+def test_an_expected_service_without_rows_invalidates_although_the_inventory_saw_it(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The collector counts a service as observed when it is only in the
+    lifecycle file, so 'missing=none' does not prove rows: the harness counts
+    the rows of every expected service itself."""
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode="write+drop:egw-mongodb-1"
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "nominal-r01")
+    collector = manifest["collector"]
+    assert collector["inventory_missing"] == []
+    assert collector["rows_per_expected_service"]["egw-mongodb-1"] == 0
+    assert collector["rows_per_expected_service"]["egw-controller-1"] == 40
+    assert "expected service 'egw-mongodb-1' has no rows" in _reasons(run_dir)
+    # The other five services still pass the unchanged ingest validation.
+    assert manifest["resource_source"] == "sut-collector"
+
+
+def test_a_self_test_marker_invalidates_the_run(tmp_path, plan_path, fast_run) -> None:
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+selftest")
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["self_test_present"] is True
+    assert collector["files"]["self_test"]["present"] is True
+    assert "NOT a measurement" in _reasons(run_dir)
+    assert "logs/collector/resources-nominal-r01.csv.self-test" in _sealed_names(run_dir)
+
+
+def test_an_inventory_naming_a_missing_service_invalidates_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode="write+missing:egw-ditto-things-1"
+    )
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["inventory_missing"] == ["egw-ditto-things-1"]
+    assert "never observed: egw-ditto-things-1" in _reasons(run_dir)
+
+
+def test_a_collector_that_did_not_stop_cleanly_invalidates_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+noinv")
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["inventory"] is None
+    assert collector["stop_line"] is None
+    assert "did not stop cleanly" in _reasons(run_dir)
+
+
+def test_diagnostics_without_a_start_line_leave_the_collector_hash_unknown(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+nostart")
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["deployed_sha256"] is None
+    assert collector["start_line_count"] == 0
+    assert "no 'start:' line" in _reasons(run_dir)
+
+
+def test_a_collector_given_another_service_list_invalidates_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode="write+declared:egw-controller-1"
+    )
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["declared_expected_services"] == "egw-controller-1"
+    assert "declares expected services 'egw-controller-1'" in _reasons(run_dir)
+
+
+def test_collector_hooks_without_expect_services_invalidate_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, record = _hooked_run(tmp_path, plan_path, expect_services=None)
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "nominal-r01")
+    assert manifest["collector"]["expected_services"] is None
+    assert manifest["collector"]["rows_per_expected_service"] is None
+    assert "--expect-services was not given" in _reasons(run_dir)
+    # {expect_services} renders empty when unset.
+    assert {line.split()[3] for line in record.read_text("utf-8").splitlines()} == {"-"}
+
+
+def test_unexpected_services_in_the_csv_are_only_a_warning(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode="write+extra:egw-extra-1"
+    )
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "nominal-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["collector"]["problems"] == []
+    assert manifest["collector"]["unexpected_services"] == ["egw-extra-1"]
+    assert any(
+        "outside --expect-services" in w and "egw-extra-1" in w
+        for w in manifest["warnings"]
+    )
+
+
+def test_collector_hooks_work_under_a_base_dir_with_spaces(
+    tmp_path, plan_path, fast_run
+) -> None:
+    base = tmp_path / "results with spaces" / "Projeto Mestrado"
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, base=base)
+    assert rc == 0
+    manifest = _manifest(base, "nominal-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["collector"]["problems"] == []
+    assert "logs/collector/resources-nominal-r01.csv.lifecycle.csv" in _sealed_names(run_dir)
+
+
+FETCH_SCRIPT = run_mod.SRC_DIR / "deployment" / "scripts" / "fetch-collector-output.sh"
+
+# ssh/scp stand-ins for the real fetch script: the "guest" is this machine.
+FAKE_GUEST_SSH = """#!/bin/sh
+while [ $# -gt 1 ]; do shift; done
+exec sh -c "$1"
+"""
+FAKE_GUEST_SCP = """#!/bin/sh
+src=
+dst=
+for a in "$@"; do src=$dst; dst=$a; done
+cp "${src#*:}" "$dst"
+"""
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or shutil.which("sh") is None,
+    reason="fetch-collector-output.sh is POSIX sh for the harness host",
+)
+@pytest.mark.parametrize("lifecycle_on_guest", [True, False])
+def test_the_real_fetch_script_as_the_fetch_hook_under_a_base_dir_with_spaces(
+    tmp_path, plan_path, fast_run, monkeypatch, lifecycle_on_guest
+) -> None:
+    """The runbook's fetch hook, end to end: the repository's script copies
+    the CSV and its companions into logs/collector/ under a base directory
+    whose path holds spaces, the harness accounts for them and seals them.
+    Without the lifecycle companion on the guest the script exits 3 and the
+    run is invalid for both reasons, with what arrived still sealed."""
+    guest = tmp_path / "guest"
+    guest.mkdir()
+    remote = guest / "resources-nominal-r01.csv"
+    script = _write_script(tmp_path, "guest_collector.py", HOOK_SCRIPT)
+    subprocess.run(
+        [sys.executable, str(script), str(tmp_path / "guest-record.txt"), "fetch",
+         "nominal-r01", "840", str(remote), "write", "0", ",".join(SIX_SERVICES)],
+        check=True, capture_output=True,
+    )
+    if not lifecycle_on_guest:
+        Path(f"{remote}.lifecycle.csv").unlink()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, text in (("ssh", FAKE_GUEST_SSH), ("scp", FAKE_GUEST_SCP)):
+        (bin_dir / name).write_text(text, encoding="utf-8")
+        (bin_dir / name).chmod(0o755)
+    monkeypatch.setenv("EGW_FETCH_SSH", str(bin_dir / "ssh"))
+    monkeypatch.setenv("EGW_FETCH_SCP", str(bin_dir / "scp"))
+    _record, start_tpl, stop_tpl, _fetch = _collector_hooks(tmp_path)
+    fetch_tpl = (
+        f'sh "{FETCH_SCRIPT.as_posix()}" guest {remote.as_posix()} "{{dest}}"'
+    )
+    base = tmp_path / "Projeto Mestrado" / "results dir"
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        expect_services=SIX_SERVICES,
+        allow_missing_controller_marker=True,
+    )
+    run_dir = base / "raw" / "nominal-r01"
+    manifest = _manifest(base, "nominal-r01")
+    fetch_hook = manifest["collector_hooks"][-1]
+    fetch_out = (run_dir / fetch_hook["stdout_file"]).read_text(encoding="utf-8")
+    sealed = _sealed_names(run_dir)
+    assert "logs/collector/resources-nominal-r01.csv" in sealed
+    assert "logs/collector/resources-nominal-r01.csv.diagnostics.log" in sealed
+    assert fetch_hook["stdout_file"] in sealed
+    if lifecycle_on_guest:
+        assert rc == 0, manifest["validity_reasons"]
+        assert fetch_hook["returncode"] == 0
+        assert manifest["validity"] == "valid"
+        assert manifest["collector"]["problems"] == []
+        assert sum(line.endswith(" verified") for line in fetch_out.splitlines()) == 3
+        assert "logs/collector/resources-nominal-r01.csv.lifecycle.csv" in sealed
+    else:
+        assert rc == 1
+        assert fetch_hook["returncode"] == 3
+        assert "lifecycle.csv absent (mandatory)" in fetch_out
+        reasons = " ".join(manifest["validity_reasons"])
+        assert "--collector-fetch-cmd failed with exit code 3" in reasons
+        assert "resources-nominal-r01.csv.lifecycle.csv is absent" in reasons
+
+
+@pytest.mark.parametrize(
+    "value",
+    [["egw controller"], ["egw-controller-1", "egw-controller-1"], [], ["a;b"]],
+)
+def test_invalid_expect_services_are_refused_before_anything_is_written(
+    tmp_path, plan_path, fast_run, capsys, value
+) -> None:
+    _record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path)
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=tmp_path / "results",
+        no_tls=True,
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        expect_services=value,
+    )
+    assert rc == 2
+    assert "--expect-services" in capsys.readouterr().err
+    assert not (tmp_path / "results").exists()
+
+
+def test_expect_services_without_collector_hooks_is_refused(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    rc = run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=tmp_path / "results",
+        no_tls=True,
+        resources_from=_resources_file(tmp_path),
+        expect_services=SIX_SERVICES,
+    )
+    assert rc == 2
+    assert "cannot be used without them" in capsys.readouterr().err
+    assert not (tmp_path / "results").exists()
+
+
+def test_format_collector_template_substitutes_expect_services() -> None:
+    template = "collect {run_id} {duration_s} \"{dest}\" --expect-services {expect_services}"
+    rendered = run_mod.format_collector_template(
+        template, "nominal-r01", duration_s=840, dest="/r/x.csv",
+        expect_services=SIX_SERVICES,
+    )
+    assert rendered == (
+        'collect nominal-r01 840 "/r/x.csv" --expect-services '
+        + ",".join(SIX_SERVICES)
+    )
+    unset = run_mod.format_collector_template(
+        template, "nominal-r01", duration_s=840, dest="/r/x.csv"
+    )
+    assert unset.endswith("--expect-services ")
+    # Any other brace construct survives untouched.
+    assert run_mod.format_collector_template(
+        "echo {other} {expect_services}", "r", duration_s=1, dest="d",
+        expect_services=["a"],
+    ) == "echo {other} a"
+
+
+def test_a_rejected_fetched_csv_is_reported_under_the_fetch_hook_not_resources_from(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode="write+host:other-vm"
+    )
+    assert rc == 1
+    warnings = _manifest(run_dir.parent.parent, "nominal-r01")["warnings"]
+    rejected = [w for w in warnings if "REJECTED" in w]
+    assert len(rejected) == 1
+    assert rejected[0].startswith("--collector-fetch-cmd output ")
+    assert "--resources-from" not in rejected[0]
+
+
+def test_collect_keeps_the_collector_problems_of_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """'collect' recomputes validity but cannot re-fetch the collector
+    output: the problems recorded at run time must survive it."""
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+selftest")
+    assert rc == 1
+    rc = run_mod.collect_run(
+        "nominal-r01", base_dir=run_dir.parent.parent, plan_path=plan_path
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "nominal-r01")
+    assert manifest["validity"] == "invalid"
+    assert "NOT a measurement" in " ".join(manifest["validity_reasons"])
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_compute_validity_applies_collector_problems_to_timed_runs_only() -> None:
+    common = dict(
+        sut_env_present=True,
+        allow_missing_sut_env=False,
+        resource_source="sut-collector",
+        allow_missing_resources=False,
+        restart_required=False,
+        restart_ok=False,
+        collector_problems=["x is absent"],
+    )
+    validity, reasons = run_mod.compute_validity(timed=True, **common)
+    assert validity == "invalid"
+    assert reasons == [
+        "collector output not accounted for: x is absent; this run's CPU/RAM "
+        "evidence cannot be trusted"
+    ]
+    assert run_mod.compute_validity(timed=False, **common) == ("valid", [])
+
+
+def _write_collector_files(directory: Path, diagnostics: str) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    csv_path = directory / "resources-r.csv"
+    csv_path.write_text(
+        RESOURCES_HEADER + "\n2026-09-07T10:00:00Z,a,1.0,1,1.0,sut-vm\n", "utf-8"
+    )
+    Path(f"{csv_path}.diagnostics.log").write_text(diagnostics, "utf-8")
+    Path(f"{csv_path}.lifecycle.csv").write_text("ts_utc,event,container_id,name\n", "utf-8")
+    return csv_path
+
+
+def test_inspection_flags_two_collectors_and_an_unusable_hash(tmp_path) -> None:
+    start = (
+        "2026-09-07T09:59:59Z start: collector_sha256={sha} host=h source=cgroup "
+        "interval=1s duration=0s pacing: p; timestamps: t; expected services: a\n"
+    )
+    inventory = (
+        "2026-09-07T10:00:01Z inventory: observed=a expected=a missing=none "
+        "unnamed_ids=0\n"
+    )
+    csv_path = _write_collector_files(
+        tmp_path / "two",
+        start.format(sha="c" * 64) + inventory + start.format(sha="d" * 64) + inventory,
+    )
+    two = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert two["start_line_count"] == 2
+    assert two["deployed_sha256"] == "c" * 64
+    assert any("2 'start:' lines" in p for p in two["problems"])
+
+    csv_path = _write_collector_files(
+        tmp_path / "unavailable", start.format(sha="unavailable") + inventory
+    )
+    unusable = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert unusable["deployed_sha256"] is None
+    assert any("no usable collector_sha256" in p for p in unusable["problems"])
+    # Paths are basenames when no run directory is given.
+    assert unusable["files"]["csv"]["path"] == "resources-r.csv"
+
+
+def test_inspection_of_a_missing_csv_reports_it_once(tmp_path) -> None:
+    missing = run_mod.inspect_collector_outputs(tmp_path / "resources-r.csv", ["a"])
+    assert missing["files"]["csv"]["present"] is False
+    assert missing["rows_per_expected_service"] is None
+    problems = missing["problems"]
+    assert any("collector CSV resources-r.csv is absent" in p for p in problems)
+    assert not any("has no rows" in p for p in problems)
+    assert sum("is absent" in p for p in problems) == 3  # csv + two companions
 
 
 # ---------------------------------------------------------------------------

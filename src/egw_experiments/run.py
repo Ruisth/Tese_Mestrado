@@ -155,6 +155,22 @@ code and start/end timestamps are recorded in the manifest
 (``collector_hooks``); a hook exiting non-zero makes the run INVALID with a
 reason naming the flag — never a silent warning.
 
+Collector output accounting (2026-09-19): ``--expect-services NAME,...``
+names the services the collector must account for; the same list reaches the
+start hook through the ``{expect_services}`` placeholder. The fetch hook
+(``src/deployment/scripts/fetch-collector-output.sh``) puts the collector's
+CSV and its ``.diagnostics.log`` / ``.lifecycle.csv`` companions (and a
+``.self-test`` marker, if any) in ``logs/collector/``. Right after the fetch
+hook, and before anything is sealed, :func:`inspect_collector_outputs` records
+per file presence, size and sha256, the deployed collector's hash, the
+collector's service inventory and the rows per expected service in the
+manifest (``collector``). Every ``collector.problems`` entry (a missing
+companion, a self-test marker, no expected services, an expected service
+without rows, an inventory naming a missing service, a collector that did not
+stop cleanly, ...) makes a timed run INVALID. The full stdout and stderr of
+every hook are kept as ``logs/collector/hook-<hook>.stdout.txt`` /
+``.stderr.txt``.
+
 Mandatory artefacts (sprint P5, report 5.4): each condition kind declares
 the evidence a completed run MUST carry (simulator: manifest.json,
 sent_events.jsonl, events.jsonl, resources.csv, plus
@@ -166,9 +182,11 @@ incomplete run must never look like sealed evidence.
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -227,6 +245,16 @@ FETCH_TIMEOUT_S = 300.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.4 (collector output accounting, 2026-09-19; additive, no reader change
+# needed): adds 'collector' ({expected_services, hooks_in_use} and, when a
+# collector hook is configured, the inspection of logs/collector/: 'files'
+# (csv/diagnostics/lifecycle/self_test: path, present, size, sha256),
+# 'deployed_sha256', 'start_line_count', 'declared_expected_services',
+# 'inventory', 'inventory_missing', 'stop_line', 'self_test_present',
+# 'rows_per_expected_service', 'unexpected_services', 'problems'); every
+# 'collector_hooks' record gains 'stdout_file'/'stderr_file' (the hook's full
+# output under logs/collector/); 'config.cli' gains 'expect_services'.
+# 'collector.problems' are validity reasons of a timed run.
 # 1.3 (sprint P5.4, additive within the version — no reader change needed):
 # 'controller_marker' gains 'lag_s'/'lag_tolerance_s' and 'controller_metrics'
 # gains 'invalid_values'/'last_invalid_value'.
@@ -236,7 +264,7 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 # moves to the CONTROLLER clock domain (or null when unavailable).
 # 1.2 (work order P1): adds 'deviations', 'sut_environment_missing_fields',
 # 'allow_warmup_failure', 'allow_protocol_deviation'; hardens validity.
-MANIFEST_VERSION = "1.3"
+MANIFEST_VERSION = "1.4"
 
 MANIFEST_FILENAME = "manifest.json"
 
@@ -323,6 +351,27 @@ COLLECTOR_DURATION_MARGIN_S = 60
 #: it means a rejected collector file is still inspectable next to the run it
 #: belongs to (the validated copy lands at <run_dir>/resources.csv).
 COLLECTOR_FETCH_SUBDIR = "collector"
+
+#: What the SUT collector writes beside its CSV (collect-resources.sh, "Files
+#: written beside <output.csv>"), as {key: (suffix, mandatory)}. The fetch hook
+#: (src/deployment/scripts/fetch-collector-output.sh) copies them next to the
+#: fetched CSV in logs/collector/, so the run's SHA256SUMS covers them. A
+#: ``.self-test`` marker is optional: it exists only when the collector ran on
+#: substituted inputs, and its presence makes the output NOT a measurement.
+COLLECTOR_OUTPUT_FILES: dict[str, tuple[str, bool]] = {
+    "csv": ("", True),
+    "diagnostics": (".diagnostics.log", True),
+    "lifecycle": (".lifecycle.csv", True),
+    "self_test": (".self-test", False),
+}
+
+#: Characters of one service (container) name, the same set the collector
+#: accepts for --expect-services (collect-resources.sh, argument checks).
+SERVICE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+#: A diagnostics line of the collector is "<UTC second>Z <message>".
+_DIAG_LINE_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ (.*)$")
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 #: Conditions on which --skip-warmup invalidates the run unless explicitly
 #: authorized with --allow-protocol-deviation (work order P1 fix 5). These
@@ -708,18 +757,69 @@ def poll_controller_marker(
 # ---------------------------------------------------------------------------
 
 
+def parse_expected_services(value: str) -> list[str]:
+    """Parse ``--expect-services NAME,NAME,...`` into a list of names.
+
+    Each name must use only the characters the collector itself accepts
+    (``A-Za-z0-9_.-``, :data:`SERVICE_NAME_RE`); an empty element (``a,,b``,
+    a trailing comma, an empty value) and a repeated name are refused. Raises
+    ``ValueError`` with a message naming the offending element.
+    """
+    names = value.split(",")
+    return validate_expected_services(names)
+
+
+def validate_expected_services(names: list[str]) -> list[str]:
+    """Check a list of expected service names; returns it unchanged.
+
+    Raises ``ValueError`` when the list is empty, holds an empty or repeated
+    name, or a name with a character outside ``A-Za-z0-9_.-``.
+    """
+    if not names:
+        raise ValueError("--expect-services names no service")
+    seen: set[str] = set()
+    for name in names:
+        if not isinstance(name, str) or not SERVICE_NAME_RE.match(name):
+            raise ValueError(
+                f"--expect-services: invalid service name {name!r} (only "
+                "A-Z a-z 0-9 _ . - are allowed, as in collect-resources.sh; "
+                "names are separated by single commas)"
+            )
+        if name in seen:
+            raise ValueError(f"--expect-services: {name!r} is given twice")
+        seen.add(name)
+    return list(names)
+
+
 def format_collector_template(
-    template: str, run_id: str, *, duration_s: int, dest: str | Path
+    template: str,
+    run_id: str,
+    *,
+    duration_s: int,
+    dest: str | Path,
+    expect_services: list[str] | None = None,
 ) -> str:
-    """Substitute ``{run_id}``, ``{dest}`` and ``{duration_s}`` literally.
+    """Substitute ``{run_id}``, ``{dest}``, ``{duration_s}`` and
+    ``{expect_services}`` literally.
 
     Same plain-replacement rule as :func:`format_cmd_template` (any other
     brace construct in the operator's command survives untouched);
     ``{dest}`` is always rendered with forward slashes so POSIX splitting
-    never eats Windows backslashes.
+    never eats Windows backslashes. ``{expect_services}`` is the
+    ``--expect-services`` list joined with commas (empty when unset), so the
+    start hook hands the collector the same list the harness enforces.
     """
     out = format_cmd_template(template, run_id, Path(dest).as_posix())
+    out = out.replace("{expect_services}", ",".join(expect_services or []))
     return out.replace("{duration_s}", str(duration_s))
+
+
+def _as_bytes(data: bytes | str | None) -> bytes:
+    if data is None:
+        return b""
+    if isinstance(data, str):
+        return data.encode("utf-8", errors="replace")
+    return data
 
 
 def execute_collector_hook(
@@ -729,6 +829,8 @@ def execute_collector_hook(
     *,
     duration_s: int,
     dest: str | Path,
+    expect_services: list[str] | None = None,
+    log_dir: str | Path | None = None,
     timeout_s: float = FETCH_TIMEOUT_S,
 ) -> dict[str, Any]:
     """Execute one collector hook and return its manifest record.
@@ -737,9 +839,19 @@ def execute_collector_hook(
     finished_utc, returncode}`` (plus ``stderr_tail``/``error`` when
     applicable). A non-zero (or absent) return code is NEVER a silent
     warning: the caller turns it into a validity reason naming the hook.
+
+    With ``log_dir`` the hook's FULL stdout and stderr are written, byte for
+    byte, to ``<log_dir>/hook-<hook>.stdout.txt`` and ``.stderr.txt``
+    whenever the command ran (also when it timed out); the record then
+    carries their paths as ``stdout_path``/``stderr_path``. The 500-character
+    ``stderr_tail`` stays in the record for a quick read of the manifest.
     """
     cmd_str = format_collector_template(
-        template, run_id, duration_s=duration_s, dest=dest
+        template,
+        run_id,
+        duration_s=duration_s,
+        dest=dest,
+        expect_services=expect_services,
     )
     record: dict[str, Any] = {
         "hook": hook,
@@ -749,20 +861,33 @@ def execute_collector_hook(
         "started_utc": utc_now_iso(),
         "returncode": None,
     }
+    stdout: bytes | None = None
+    stderr: bytes | None = None
     try:
         proc = subprocess.run(
             shlex.split(cmd_str, posix=True),
             capture_output=True,
-            text=True,
             timeout=timeout_s,
             check=False,
         )
         record["returncode"] = proc.returncode
-        stderr_tail = (proc.stderr or "").strip()
+        stdout, stderr = _as_bytes(proc.stdout), _as_bytes(proc.stderr)
+    except subprocess.TimeoutExpired as exc:
+        record["error"] = str(exc)
+        stdout, stderr = _as_bytes(exc.stdout), _as_bytes(exc.stderr)
+    except (OSError, ValueError) as exc:
+        record["error"] = str(exc)
+    if stderr is not None:
+        stderr_tail = stderr.decode("utf-8", errors="replace").strip()
         if stderr_tail:
             record["stderr_tail"] = stderr_tail[-500:]
-    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-        record["error"] = str(exc)
+    if log_dir is not None and stdout is not None and stderr is not None:
+        log_dir = Path(log_dir)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        for stream, data in (("stdout", stdout), ("stderr", stderr)):
+            path = log_dir / f"hook-{hook}.{stream}.txt"
+            path.write_bytes(data)
+            record[f"{stream}_path"] = str(path)
     record["finished_utc"] = utc_now_iso()
     return record
 
@@ -787,6 +912,255 @@ def collector_hook_failures(
             "prescribes, so this run's CPU/RAM evidence cannot be trusted"
         )
     return reasons
+
+
+def _diagnostic_message(line: str) -> str:
+    """The message of one collector diagnostics line (timestamp removed)."""
+    match = _DIAG_LINE_RE.match(line)
+    return match.group(1) if match else line
+
+
+def _inventory_fields(message: str) -> dict[str, str]:
+    """``key=value`` fields of an ``inventory:`` message (values hold no
+    spaces: service names are limited to ``A-Za-z0-9_.-``)."""
+    fields: dict[str, str] = {}
+    for token in message[len("inventory:"):].split():
+        key, sep, value = token.partition("=")
+        if sep:
+            fields[key] = value
+    return fields
+
+
+def inspect_collector_outputs(
+    collector_dest: str | Path,
+    expect_services: list[str] | None,
+    *,
+    run_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """Account for the SUT collector's fetched output (collector hooks).
+
+    ``collector_dest`` is the fetched CSV (``logs/collector/resources-
+    <run_id>.csv``); its companions sit beside it with the suffixes of
+    :data:`COLLECTOR_OUTPUT_FILES`. Nothing is modified: the files are read
+    and hashed where the fetch hook put them, BEFORE the run directory is
+    sealed. Returns the manifest's ``collector`` record:
+
+    - ``files``: per key (``csv``, ``diagnostics``, ``lifecycle``,
+      ``self_test``) ``{path, present, size, sha256}`` (``path`` relative to
+      ``run_dir`` when given);
+    - ``deployed_sha256``: the ``collector_sha256`` of the diagnostics'
+      ``start:`` line (the collector that actually ran on the guest), else
+      None; ``start_line_count``;
+    - ``declared_expected_services``: the start line's ``expected services:``
+      value as the collector wrote it;
+    - ``inventory``: the last ``inventory:`` line, raw, and
+      ``inventory_missing``: its ``missing=`` names (``[]`` for ``none``);
+      ``stop_line``: the last ``stop:`` line, raw;
+    - ``self_test_present``;
+    - ``rows_per_expected_service``: data rows of each expected service in
+      the fetched CSV's ``container`` column; ``unexpected_services``: the
+      other names found there (a warning only);
+    - ``problems``: every reason why the output cannot be accounted for.
+      The caller turns each into a validity reason of a timed run.
+
+    The ingest validation of the CSV (header, instants, coverage, gaps) is
+    NOT repeated here; it stays in :func:`ingest_resources`.
+    """
+    collector_dest = Path(collector_dest)
+    run_dir = Path(run_dir) if run_dir is not None else None
+    problems: list[str] = []
+    files: dict[str, dict[str, Any]] = {}
+    for key, (suffix, _mandatory) in COLLECTOR_OUTPUT_FILES.items():
+        path = collector_dest.with_name(collector_dest.name + suffix)
+        shown = (
+            path.relative_to(run_dir).as_posix()
+            if run_dir is not None and path.is_relative_to(run_dir)
+            else path.name
+        )
+        present = path.is_file()
+        files[key] = {
+            "path": shown,
+            "present": present,
+            "size": path.stat().st_size if present else None,
+            "sha256": sha256_file(path) if present else None,
+        }
+
+    csv_name = collector_dest.name
+    if not files["csv"]["present"]:
+        problems.append(
+            f"collector CSV {csv_name} is absent from logs/{COLLECTOR_FETCH_SUBDIR}/"
+            ": the fetch hook did not deliver the collector's output"
+        )
+    for key, (suffix, mandatory) in COLLECTOR_OUTPUT_FILES.items():
+        if key != "csv" and mandatory and not files[key]["present"]:
+            problems.append(
+                f"mandatory collector companion {csv_name}{suffix} is absent: "
+                "without it the collector's rows cannot be explained or "
+                "attributed (fetch it with "
+                "src/deployment/scripts/fetch-collector-output.sh)"
+            )
+    self_test_present = bool(files["self_test"]["present"])
+    if self_test_present:
+        problems.append(
+            f"{csv_name}.self-test is present: the collector ran in self-test "
+            "mode on substituted inputs, so this output is NOT a measurement"
+        )
+    if not expect_services:
+        problems.append(
+            "--expect-services was not given: the services the collector must "
+            "account for are unknown, so a service without a single row would "
+            "go unnoticed"
+        )
+
+    # Diagnostics: the deployed collector's hash, the expected set it was
+    # given, its inventory and closing summary.
+    deployed_sha256: str | None = None
+    declared: str | None = None
+    inventory: str | None = None
+    inventory_missing: list[str] | None = None
+    stop_line: str | None = None
+    start_lines = 0
+    if files["diagnostics"]["present"]:
+        diag_path = collector_dest.with_name(csv_name + ".diagnostics.log")
+        first_start: str | None = None
+        for raw in diag_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines():
+            line = raw.rstrip("\r")
+            message = _diagnostic_message(line)
+            if message.startswith("start: "):
+                start_lines += 1
+                if first_start is None:
+                    first_start = message
+            elif message.startswith("inventory:"):
+                inventory = line
+                fields = _inventory_fields(message)
+                missing = fields.get("missing")
+                inventory_missing = (
+                    None
+                    if missing is None
+                    else [] if missing == "none" else missing.split(",")
+                )
+            elif message.startswith("stop: "):
+                stop_line = line
+        if first_start is None:
+            problems.append(
+                "the collector diagnostics hold no 'start:' line: the sha256 "
+                "of the collector that ran on the guest is unknown"
+            )
+        else:
+            match = re.search(r"\bcollector_sha256=(\S+)", first_start)
+            candidate = match.group(1) if match else None
+            if candidate is not None and _SHA256_HEX_RE.match(candidate):
+                deployed_sha256 = candidate
+            else:
+                problems.append(
+                    "the collector's 'start:' line carries no usable "
+                    f"collector_sha256 ({candidate!r}): the sha256 of the "
+                    "collector that ran on the guest is unknown"
+                )
+            _, sep, value = first_start.rpartition("expected services: ")
+            declared = value.strip() if sep else None
+            declared_set = (
+                set()
+                if declared in (None, "", "none declared")
+                else set(declared.split(","))
+            )
+            if expect_services and declared_set != set(expect_services):
+                problems.append(
+                    "the collector's 'start:' line declares expected services "
+                    f"{declared!r}, the harness expects "
+                    f"{','.join(expect_services)!r}: the start hook did not "
+                    "pass --expect-services {expect_services} to the collector"
+                )
+        if start_lines > 1:
+            problems.append(
+                f"the collector diagnostics hold {start_lines} 'start:' lines: "
+                "more than one collector wrote this output (a run_id reused "
+                "within one guest boot appends to the same files)"
+            )
+        if inventory is None:
+            problems.append(
+                "the collector diagnostics hold no 'inventory:' line: the "
+                "collector did not stop cleanly (it writes the inventory when "
+                "the stop hook's SIGTERM ends it)"
+            )
+        elif inventory_missing:
+            problems.append(
+                "the collector's inventory reports expected service(s) never "
+                "observed: " + ", ".join(inventory_missing)
+            )
+        elif inventory_missing is None:
+            problems.append(
+                "the collector's 'inventory:' line has no 'missing=' field: "
+                f"{inventory!r}"
+            )
+
+    # Rows per expected service in the fetched CSV ('container' column).
+    rows_per_service: dict[str, int] | None = None
+    unexpected: list[str] = []
+    if files["csv"]["present"]:
+        counts: dict[str, int] = {}
+        container_col: int | None = None
+        read_error: str | None = None
+        try:
+            with open(
+                collector_dest, "r", encoding="utf-8", errors="replace", newline=""
+            ) as fh:
+                reader = csv.reader(fh)
+                header = next(reader, None)
+                if header is not None and "container" in header:
+                    container_col = header.index("container")
+                    for row in reader:
+                        if len(row) <= container_col:
+                            continue
+                        name = row[container_col].strip()
+                        if name:
+                            counts[name] = counts.get(name, 0) + 1
+        except (OSError, csv.Error) as exc:
+            read_error = str(exc)
+        if read_error is not None:
+            problems.append(
+                f"collector CSV {csv_name} could not be read to count the rows "
+                f"per service: {read_error}"
+            )
+        elif container_col is None:
+            problems.append(
+                f"collector CSV {csv_name} has no 'container' column: the rows "
+                "cannot be attributed to services"
+            )
+        elif expect_services:
+            rows_per_service = {name: counts.get(name, 0) for name in expect_services}
+            for name, rows in rows_per_service.items():
+                if rows == 0:
+                    problems.append(
+                        f"expected service {name!r} has no rows in the fetched "
+                        f"collector CSV {csv_name}"
+                    )
+            unexpected = sorted(set(counts) - set(expect_services))
+
+    return {
+        "files": files,
+        "deployed_sha256": deployed_sha256,
+        "start_line_count": start_lines,
+        "declared_expected_services": declared,
+        "inventory": inventory,
+        "inventory_missing": inventory_missing,
+        "stop_line": stop_line,
+        "self_test_present": self_test_present,
+        "rows_per_expected_service": rows_per_service,
+        "unexpected_services": unexpected,
+        "problems": problems,
+    }
+
+
+def collector_problem_reasons(problems: list[str] | None) -> list[str]:
+    """Validity reasons for the ``collector.problems`` of a run."""
+    return [
+        f"collector output not accounted for: {problem}; this run's CPU/RAM "
+        "evidence cannot be trusted"
+        for problem in problems or []
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -885,6 +1259,7 @@ def ingest_resources(
     expected_window_s: float | None = None,
     expected_window_start_utc: str | None = None,
     expected_window_end_utc: str | None = None,
+    source_label: str = "--resources-from",
 ) -> bool:
     """Validate and copy the fetched SUT resources.csv into the run dir.
 
@@ -904,13 +1279,15 @@ def ingest_resources(
     rules then apply). Returns True only on a successful, validated copy.
     An existing ``resources.csv`` is never overwritten with different
     content (raises :class:`SealedRunError`); an identical re-copy is a
-    no-op (work order P1 item 11).
+    no-op (work order P1 item 11). ``source_label`` names where the file
+    came from in the warnings (``--resources-from`` or the output of the
+    ``--collector-fetch-cmd`` hook).
     """
     if resources_from is None:
         return False
     src = Path(resources_from)
     if not src.is_file():
-        warnings.append(f"--resources-from file not found: {src}")
+        warnings.append(f"{source_label} file not found: {src}")
         return False
     expected_host = sut_env_node(read_sut_environment(run_dir))
     problems = validate_resources_csv(
@@ -922,7 +1299,7 @@ def ingest_resources(
     )
     if problems:
         warnings.append(
-            f"--resources-from {src} REJECTED (SUT resources treated as "
+            f"{source_label} {src} REJECTED (SUT resources treated as "
             "missing): " + "; ".join(problems)
         )
         return False
@@ -955,6 +1332,7 @@ def compute_validity(
     allow_missing_controller_marker: bool = False,
     collector_hooks: list[dict[str, Any]] | None = None,
     missing_artifacts: list[str] | None = None,
+    collector_problems: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -988,6 +1366,14 @@ def compute_validity(
       start/stop/fetch hook is never a silent warning;
     - the mandatory artefacts of the condition kind must be present
       (report 5.4): a run missing one is INVALID and is not sealed.
+
+    Collector output accounting (2026-09-19): every ``collector_problems``
+    entry (:func:`inspect_collector_outputs`) is a reason of a timed run —
+    a missing companion, a self-test marker, no ``--expect-services``, an
+    expected service without rows, an inventory naming a missing service, a
+    collector that did not stop cleanly. No allow flag suppresses them. They
+    do NOT withhold SHA256SUMS: the fetched files are sealed as they are, so
+    the invalid run's evidence stays verifiable.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -1072,6 +1458,7 @@ def compute_validity(
                 "the legacy event-derived deadline)"
             )
         reasons.extend(collector_hook_failures(collector_hooks))
+        reasons.extend(collector_problem_reasons(collector_problems))
     if missing_artifacts:
         reasons.append(
             "mandatory artefact(s) missing from the run directory: "
@@ -1551,6 +1938,7 @@ def execute_run(
     collector_start_cmd: str | None = None,
     collector_stop_cmd: str | None = None,
     collector_fetch_cmd: str | None = None,
+    expect_services: list[str] | None = None,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
@@ -1571,7 +1959,13 @@ def execute_run(
     confirmation window, ``collector_fetch_cmd`` AFTER the confirmation
     window, producing the local resources.csv that then goes through the
     EXISTING validated ingest path. Each template accepts the ``{run_id}``,
-    ``{duration_s}`` and ``{dest}`` placeholders.
+    ``{duration_s}``, ``{dest}`` and ``{expect_services}`` placeholders.
+
+    ``expect_services`` (``--expect-services``) names the services the
+    collector must account for; it requires at least one collector hook
+    (exit 2 otherwise, before anything is written). Whenever a collector
+    hook is configured, :func:`inspect_collector_outputs` runs right after
+    the fetch hook and its ``problems`` invalidate the timed run.
     """
     plan_path = Path(plan_path)
     try:
@@ -1638,6 +2032,28 @@ def execute_run(
             file=sys.stderr,
         )
         return 2
+    collector_hooks_in_use = any(
+        (collector_start_cmd, collector_stop_cmd, collector_fetch_cmd)
+    )
+    if expect_services is not None:
+        try:
+            expect_services = (
+                parse_expected_services(expect_services)
+                if isinstance(expect_services, str)
+                else validate_expected_services(list(expect_services))
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if not collector_hooks_in_use:
+            print(
+                "error: --expect-services is enforced against the output the "
+                "collector hooks fetch (--collector-start-cmd / "
+                "--collector-stop-cmd / --collector-fetch-cmd); it cannot be "
+                "used without them.",
+                file=sys.stderr,
+            )
+            return 2
 
     if fetch_events_cmd is None:
         fetch_events_cmd = os.environ.get(FETCH_EVENTS_CMD_ENV) or None
@@ -1769,7 +2185,17 @@ def execute_run(
             run_id,
             duration_s=collector_window_s,
             dest=collector_dest,
+            expect_services=expect_services,
+            log_dir=collector_dest.parent,
         )
+        # The full hook output is kept beside the fetched files (sealed with
+        # them); the manifest names it relative to the run directory.
+        for stream in ("stdout", "stderr"):
+            path = record.pop(f"{stream}_path", None)
+            if path is not None:
+                record[f"{stream}_file"] = (
+                    Path(path).relative_to(run_dir).as_posix()
+                )
         collector_hooks.append(record)
         if record.get("returncode") != 0:
             print(
@@ -1779,7 +2205,7 @@ def execute_run(
                 flush=True,
             )
 
-    if collector_start_cmd or collector_fetch_cmd:
+    if collector_hooks_in_use:
         collector_dest.parent.mkdir(parents=True, exist_ok=True)
     # Started BEFORE the warm-up so the collector covers the whole run.
     _run_collector_hook("start", collector_start_cmd)
@@ -1952,15 +2378,55 @@ def execute_run(
         time.sleep(post_run_wait_s)
 
     # Collector fetch hook: AFTER the confirmation window, producing the
-    # local CSV that goes through the EXISTING validated ingest path below.
+    # local CSV that goes through the EXISTING validated ingest path below,
+    # with the collector's companions beside it in logs/collector/.
     _run_collector_hook("fetch", collector_fetch_cmd)
     resources_ingest_from: str | Path | None = resources_from
+    resources_source_label = "--resources-from"
     if collector_fetch_cmd:
+        resources_source_label = "--collector-fetch-cmd output"
         if collector_dest.is_file():
             resources_ingest_from = collector_dest
         else:
             warnings.append(
                 f"--collector-fetch-cmd produced no file at {collector_dest}"
+            )
+
+    # Collector output accounting (2026-09-19), right after the fetch and
+    # long before the seal: which files arrived, which collector produced
+    # them, whether it stopped cleanly and whether every expected service
+    # has rows. Every problem is a validity reason of the timed run.
+    collector_record: dict[str, Any] = {
+        "expected_services": expect_services,
+        "hooks_in_use": collector_hooks_in_use,
+    }
+    collector_problems: list[str] = []
+    if collector_hooks_in_use:
+        inspection = inspect_collector_outputs(
+            collector_dest, expect_services, run_dir=run_dir
+        )
+        if not collector_fetch_cmd:
+            inspection["problems"].insert(
+                0,
+                "collector hooks are configured without --collector-fetch-cmd: "
+                "the collector's CSV and companions were not fetched into "
+                f"logs/{COLLECTOR_FETCH_SUBDIR}/",
+            )
+        collector_record.update(inspection)
+        collector_problems = list(inspection["problems"])
+        for problem in collector_problems:
+            warnings.append(f"collector output problem: {problem}")
+        if inspection["unexpected_services"]:
+            warnings.append(
+                "collector CSV holds rows of services outside "
+                "--expect-services (not a validity problem): "
+                + ", ".join(inspection["unexpected_services"])
+            )
+        for problem in collector_problems:
+            print(
+                f"[harness] collector output problem: {problem}",
+                file=sys.stderr,
+                flush=True,
             )
 
     # Simulator outputs: sent_events.jsonl to the run root (the analysis
@@ -2006,6 +2472,7 @@ def execute_run(
         expected_window_s=measured_window_s,
         expected_window_start_utc=measured_start_utc,
         expected_window_end_utc=measured_end_utc,
+        source_label=resources_source_label,
     ):
         resource_source = "sut-collector"
     elif local_resources:
@@ -2138,6 +2605,7 @@ def execute_run(
         allow_missing_controller_marker=allow_missing_controller_marker,
         collector_hooks=collector_hooks,
         missing_artifacts=missing_artifacts,
+        collector_problems=collector_problems,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -2181,6 +2649,10 @@ def execute_run(
         # SUT collector hooks (sprint P5, report 5.3): every hook's command,
         # exit code and start/end timestamps, in execution order.
         "collector_hooks": collector_hooks,
+        # Collector output accounting (manifest 1.4): what the fetch hook
+        # delivered, which collector produced it, its inventory, the rows
+        # per expected service and the problems that invalidate the run.
+        "collector": collector_record,
         # Mandatory evidence of this condition kind that is absent (report
         # 5.4). Non-empty => validity 'invalid' AND no SHA256SUMS.
         "missing_mandatory_artifacts": missing_artifacts,
@@ -2232,6 +2704,7 @@ def execute_run(
                 "collector_start_cmd": collector_start_cmd,
                 "collector_stop_cmd": collector_stop_cmd,
                 "collector_fetch_cmd": collector_fetch_cmd,
+                "expect_services": expect_services,
             },
         },
         "started_utc": started_utc,
@@ -2292,7 +2765,10 @@ def execute_run(
     # report 5.4): an incomplete run directory must never look like sealed
     # evidence, so any missing mandatory artefact (events.jsonl among them)
     # withholds the seal. The 'collect' subcommand re-attempts collection
-    # and writes it then.
+    # and writes it then. Collector output problems invalidate the run but
+    # do not withhold the seal: the files in logs/collector/ (fetched output,
+    # companions, full hook output) are sealed exactly as they arrived, so
+    # the reasons recorded in the manifest stay verifiable.
     if not missing_artifacts:
         write_sha256sums(run_dir)
     else:
@@ -2565,6 +3041,15 @@ def collect_run(
     collector_hooks = manifest.get("collector_hooks")
     if not isinstance(collector_hooks, list):
         collector_hooks = []
+    # The collector output was inspected at run time, right after the fetch
+    # hook; 'collect' cannot re-fetch it (guest /tmp does not survive a
+    # power-off), so its problems are re-applied as recorded, never dropped.
+    collector_record = manifest.get("collector")
+    collector_problems = (
+        [str(p) for p in collector_record.get("problems") or []]
+        if isinstance(collector_record, dict)
+        else []
+    )
     missing_artifacts = missing_mandatory_artifacts(
         run_dir,
         manifest.get("condition_id"),
@@ -2592,6 +3077,7 @@ def collect_run(
         allow_missing_controller_marker=allow_missing_controller_marker,
         collector_hooks=collector_hooks,
         missing_artifacts=missing_artifacts,
+        collector_problems=collector_problems,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons

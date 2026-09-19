@@ -33,7 +33,9 @@ Sprint P5 additions (report 5.3/5.4): ``run`` and ``campaign`` accept the
 SUT collector hooks ``--collector-start-cmd`` / ``--collector-stop-cmd`` /
 ``--collector-fetch-cmd`` (executed before the warm-up, after the measured
 run and after the confirmation window respectively), so a fresh campaign
-produces its own ``resources.csv`` instead of requiring a pre-fetched one;
+produces its own ``resources.csv`` instead of requiring a pre-fetched one
+(with ``--expect-services``, the fetched collector output is also accounted
+for per service, companion file and collector identity);
 ``--allow-missing-controller-marker`` authorizes a timed run whose end was
 not stamped in the controller's clock domain; ``campaign`` verifies the
 SHA256SUMS of every sealed run before skipping it on resume and exits 1
@@ -72,6 +74,7 @@ from .run import (
     SUT_ENV_FILE_ENV,
     collect_run,
     execute_run,
+    parse_expected_services,
 )
 
 
@@ -87,7 +90,7 @@ def _add_collection_arguments(
         default=None,
         help="command template that fetches the controller's events.jsonl "
         "from the VM; {run_id} and {dest} are substituted, e.g. "
-        "'scp vm:/opt/egw/data/events/{run_id}/events.jsonl {dest}'. "
+        "'scp vm:/opt/egw/data/events/{run_id}/events.jsonl \"{dest}\"'. "
         "Executed after the confirmation window with 3 attempts and "
         f"exponential backoff (default: env {FETCH_EVENTS_CMD_ENV}). "
         "Without it the runner falls back to the local --event-log-dir "
@@ -151,25 +154,53 @@ def _add_collection_arguments(
     )
 
 
+def _expect_services_arg(value: str) -> list[str]:
+    """argparse type of ``--expect-services``: NAME,NAME,... -> list."""
+    try:
+        return parse_expected_services(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
 def _add_collector_hook_arguments(parser: argparse.ArgumentParser) -> None:
     """SUT collector hooks shared by ``run`` and ``campaign`` (sprint P5,
     report 5.3: a fresh campaign must produce its own resources.csv instead
     of requiring one that already exists).
 
     Every template accepts the ``{run_id}``, ``{duration_s}`` (warm-up +
-    measured window + confirmation window + margin) and ``{dest}``
-    placeholders; each hook's command, exit code and start/end timestamps
-    are recorded in the manifest (``collector_hooks``) and a non-zero exit
-    marks the run validity 'invalid' naming the hook.
+    measured window + confirmation window + margin), ``{dest}`` and
+    ``{expect_services}`` placeholders; each hook's command, exit code,
+    start/end timestamps and full output are recorded (``collector_hooks``
+    in the manifest, ``logs/collector/hook-<hook>.*.txt``) and a non-zero
+    exit marks the run validity 'invalid' naming the hook. The fetched
+    output is then accounted for (manifest ``collector``): a missing
+    companion, a self-test marker or an expected service without rows marks
+    the run invalid as well.
     """
+    parser.add_argument(
+        "--expect-services",
+        type=_expect_services_arg,
+        default=None,
+        metavar="NAME,NAME,...",
+        help="the services (container names) the SUT collector must account "
+        "for, e.g. 'egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,"
+        "egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1'. Names use "
+        "only A-Z a-z 0-9 _ . - (as in collect-resources.sh). Substituted "
+        "into the hooks as {expect_services}, so the start hook passes the "
+        "SAME list to the collector (--expect-services {expect_services}). "
+        "Each name must have rows in the fetched CSV and must not be missing "
+        "from the collector's inventory. Requires the collector hooks; a run "
+        "with hooks but without this flag is marked validity 'invalid'",
+    )
     parser.add_argument(
         "--collector-start-cmd",
         default=None,
         help="command template started BEFORE the warm-up to launch the "
         "SUT-side resource collector, e.g. \"ssh vm 'systemd-run --unit "
         "egw-resources-{run_id} --collect sh "
-        "/opt/egw/src/deployment/scripts/collect-resources.sh "
-        "/tmp/resources-{run_id}.csv --duration {duration_s}'\"",
+        "/opt/egw/deployment/scripts/collect-resources.sh "
+        "/tmp/resources-{run_id}.csv --duration {duration_s} "
+        "--expect-services {expect_services}'\"",
     )
     parser.add_argument(
         "--collector-stop-cmd",
@@ -182,10 +213,14 @@ def _add_collector_hook_arguments(parser: argparse.ArgumentParser) -> None:
         "--collector-fetch-cmd",
         default=None,
         help="command template executed AFTER the confirmation window that "
-        "must write the collector's resources.csv to {dest}, e.g. "
-        "'scp vm:/tmp/resources-{run_id}.csv {dest}'. The fetched file goes "
-        "through the same validated ingest as --resources-from (mutually "
-        "exclusive with it)",
+        "must write the collector's CSV to {dest} and its companions beside "
+        "it ({dest}.diagnostics.log and {dest}.lifecycle.csv, plus "
+        "{dest}.self-test if the collector wrote one), e.g. 'sh "
+        "<clone>/src/deployment/scripts/fetch-collector-output.sh vm "
+        "/tmp/resources-{run_id}.csv \"{dest}\"' (quote \"{dest}\": the "
+        "template is split without a shell). The fetched CSV goes through the "
+        "same validated ingest as --resources-from (mutually exclusive with "
+        "it); a missing companion invalidates the run",
     )
 
 
@@ -527,6 +562,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         collector_start_cmd=args.collector_start_cmd,
         collector_stop_cmd=args.collector_stop_cmd,
         collector_fetch_cmd=args.collector_fetch_cmd,
+        expect_services=args.expect_services,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
     )
@@ -571,6 +607,7 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         collector_start_cmd=args.collector_start_cmd,
         collector_stop_cmd=args.collector_stop_cmd,
         collector_fetch_cmd=args.collector_fetch_cmd,
+        expect_services=args.expect_services,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
