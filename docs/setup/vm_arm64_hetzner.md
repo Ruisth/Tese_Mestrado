@@ -1,6 +1,6 @@
 # ARM64 measurement VM checklist (provider not yet secured)
 
-> **2026-09-16 integrated-Yocto planning amendment (proposal).** This older distribution/provider setup guide is not a native Yocto boot procedure. The proposed [plan v2.0, section 4](../governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md), a proposal, not in force, describes the custom-image route and its prerequisites; [plan v1.2](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) remains the plan in force until the student decides after consulting the supervisors. Old prices/availability are not current evidence.
+> **Deferred with the native route on 2026-09-18.** This older distribution/provider setup guide is not a native Yocto boot procedure. Under [plan v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), **adopted by the student on 2026-09-18 with the QEMU-only execution amendment**, the integrated system is evaluated under QEMU/TCG: no native ARM64 host is secured, none is requested, and no allocation or spending is authorised. This file is retained only as a checklist for future native work that a new budget decision (D012) would have to authorise — see R28 in [`../g0/risks.md`](../g0/risks.md) and [`../adr/0007-three-tier-platform-model.md`](../adr/0007-three-tier-platform-model.md). Old prices and availability are not current evidence.
 
 Checklist to provision the temporary native-ARM64 instance used for the entire
 experimental campaign (plan 5.1). This document gives instructions only; account
@@ -46,8 +46,9 @@ Target: a **non-burstable native-ARM64** measurement VM of
 resource envelope selected for feasibility, cost and experimental control**
 (it originates in the plan of 2026-08-07, sized around a Hetzner CAX21-class
 instance) — it is not a C2DTA requirement and does not claim to represent all
-edge hardware; the paper's own evaluation ran on an x86 VM with 16 GB/32
-CPUs and sizes no ARM64 host. **The envelope is fixed, not
+edge hardware; the paper reports a host server with 16 GB and 32 CPUs and does
+not specify its evaluation hardware instruction-set architecture, so none is
+attributed to it here, and that platform sizes no ARM64 host. **The envelope is fixed, not
 operator-discretionary: the official campaign runs on 4 vCPU / 8 GiB /
 >= 80 GB as the normative plan specifies.** Adopting a different profile is a
 plan change — it requires a dated plan revision before provisioning (and the

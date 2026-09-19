@@ -55,6 +55,41 @@ Changing any of these breaks a checksum, a reference or a running system:
 A historical record that contains Portuguese stays intact. It may be
 accompanied by an English summary; it is never edited in place.
 
+## Authorised terminology for wearable data (recorded 2026-09-19)
+
+This is the **single place** in the repository where this policy is written
+down. The plan points at it from section 3.6, and decision D009 in
+[`supervisor_decision_log.csv`](supervisor_decision_log.csv) records it. The
+student **reports** that the recommended wording is authorised; that is a
+supervisor confirmation reported by the student, not a documented supervisor
+decision, and no date, message or supervisor name was reported with it. It
+creates no scope, interface or contract requirement.
+
+**In active explanatory prose and diagram labels** — background, architecture,
+workload and evaluation passages — use **wearable data**, **wearable event
+data**, **sensor measurements** or **device events**, choosing by meaning rather
+than by habit. Define the concept once and keep it consistent.
+
+**Never a blind global replacement.** These keep their exact wording, and an
+edit that changes any of them is a defect:
+
+| Preserved exactly | Why |
+|---|---|
+| The literal MQTT topic `c2dt/{egw_id}/{device_uuid}/telemetry` | It is the versioned contract term; renaming it breaks the contract |
+| API paths, schema and envelope field names, `src/CONTRACTS.md` | Machine-readable interfaces |
+| Bibliographic titles, citations and quotations | Sources are quoted as published |
+| Sealed evidence, `docs/evidence/**`, raw results and captured logs | Editing them breaks checksums |
+| Historical plans, proposals, dated snapshots and `LOG.md` entries | History is never rewritten |
+| The approved dissertation title and the meaning of the research questions | Approved wording is not paraphrased away |
+
+Where a legacy contract name appears in prose, identify it as a literal name —
+for example, "the `/telemetry` topic, the contract term retained from the
+interface" — rather than renaming it or hiding it.
+
+**Apply it as prose is edited**, at the next appropriate documentation change,
+never as a sweep across the repository. An unrelated file is not opened merely
+to substitute a word.
+
 ## Identifiers that must survive translation unchanged
 
 Gate names (`G0`–`G7`), claim identifiers (`C01`–`C15`), risk identifiers
@@ -81,11 +116,13 @@ docs/g0/riscos.md                -> docs/g0/risks.md                [done 2026-0
 thesis/latex/imagens/            -> thesis/latex/images/            [pending]
 ```
 
-The Portuguese integrated plan v1.0 is preserved byte-for-byte under
-`docs/governance/archive/`. The rebased English plan v1.1 at
-`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` is normative from
-2026-08-13 and records every intentional change; historical evidence is never
-rewritten to match it.
+The Portuguese integrated plan v1.0 and the English plan v1.2 are preserved
+byte-for-byte under `docs/governance/archive/`, the latter with its verified
+SHA-256 as archived on 2026-09-18. The English plan at
+`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` was normative as v1.1 from
+2026-08-13 and is normative as **version 2.0 from 2026-09-18**, when the student
+adopted it with the QEMU-only execution amendment; each version records every
+intentional change, and historical evidence is never rewritten to match it.
 
 ## Status of the migration, stated plainly
 

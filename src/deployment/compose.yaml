@@ -145,7 +145,18 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          # DEVIATION from the 512M of the other services, measured on the
+          # emulated guest on 2026-09-18: with -XX:MaxRAMPercentage=50 the heap
+          # is half the limit and the rest of the JVM (metaspace, code cache,
+          # thread stacks, direct buffers, GC structures) took about 231 MiB, so
+          # at 512M the three Ditto containers sat at 94-95 % when idle and
+          # ditto-things reached 98.1 % after a 672-message run - about 10 MiB
+          # from the limit. During the power-off of that session the kernel
+          # killed the ditto-things JVM (memory-cgroup OOM, anon-rss 508 MiB):
+          # Ditto's coordinated shutdown allocates, and there was nothing left.
+          # 768M keeps the same heap ratio with roughly 150 MiB of headroom; the
+          # six services then cap at 3,200 MiB of the guest's 8 GiB.
+          memory: 768M
     logging: *default-logging
 
   ditto-things:
@@ -169,7 +180,18 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          # DEVIATION from the 512M of the other services, measured on the
+          # emulated guest on 2026-09-18: with -XX:MaxRAMPercentage=50 the heap
+          # is half the limit and the rest of the JVM (metaspace, code cache,
+          # thread stacks, direct buffers, GC structures) took about 231 MiB, so
+          # at 512M the three Ditto containers sat at 94-95 % when idle and
+          # ditto-things reached 98.1 % after a 672-message run - about 10 MiB
+          # from the limit. During the power-off of that session the kernel
+          # killed the ditto-things JVM (memory-cgroup OOM, anon-rss 508 MiB):
+          # Ditto's coordinated shutdown allocates, and there was nothing left.
+          # 768M keeps the same heap ratio with roughly 150 MiB of headroom; the
+          # six services then cap at 3,200 MiB of the guest's 8 GiB.
+          memory: 768M
     logging: *default-logging
 
   ditto-gateway:
@@ -204,7 +226,18 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          # DEVIATION from the 512M of the other services, measured on the
+          # emulated guest on 2026-09-18: with -XX:MaxRAMPercentage=50 the heap
+          # is half the limit and the rest of the JVM (metaspace, code cache,
+          # thread stacks, direct buffers, GC structures) took about 231 MiB, so
+          # at 512M the three Ditto containers sat at 94-95 % when idle and
+          # ditto-things reached 98.1 % after a 672-message run - about 10 MiB
+          # from the limit. During the power-off of that session the kernel
+          # killed the ditto-things JVM (memory-cgroup OOM, anon-rss 508 MiB):
+          # Ditto's coordinated shutdown allocates, and there was nothing left.
+          # 768M keeps the same heap ratio with roughly 150 MiB of headroom; the
+          # six services then cap at 3,200 MiB of the guest's 8 GiB.
+          memory: 768M
     logging: *default-logging
 
   controller:
