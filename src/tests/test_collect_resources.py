@@ -5,7 +5,7 @@ POSIX shell available on the host — and, when ``EGW_TEST_BUSYBOX_DIR`` names a
 directory of wrappers for the gateway image's own busybox (``sh``, ``awk`` and
 the applets the script calls; ``tools/test/make-busybox-wrappers.sh`` builds
 them), under that busybox too, which is the shell and awk the guest actually
-runs. Four cases are host-shell only, because they put a fake ``awk`` or
+runs. Seven cases are host-shell only, because they put a fake ``awk`` or
 ``docker`` ahead of the real one on PATH or run two collectors side by side. Nothing here needs Docker, a container or a cgroup:
 the collector is pointed at a synthetic ``/sys/fs/cgroup`` tree, a synthetic
 ``/proc/uptime`` and, for one-shot samples, a synthetic wall-clock second with
@@ -946,6 +946,86 @@ def test_auto_switches_to_cgroup_when_the_containers_appear(tree: Tree, shell: s
     assert len(tree.rows()) == 1
 
 
+DOCKER_STATS_LINES = (
+    '{"Name":"egw-controller-1","CPUPerc":"1.50%","MemUsage":"10MiB / 768MiB","MemPerc":"1.30%"}\n'
+    '{"Name":"egw-mosquitto-1","CPUPerc":"0.25%","MemUsage":"2.5MiB / 256MiB","MemPerc":"0.98%"}\n'
+)
+
+
+def fake_docker(tree: Tree) -> dict[str, str]:
+    """A ``docker`` whose ``stats`` prints two containers and whose other commands fail."""
+    bin_dir = tree.root / "bin"
+    stats = tree.root / "stats.jsonl"
+    write(stats, DOCKER_STATS_LINES)
+    write(bin_dir / "docker", f"#!/bin/sh\n[ \"$1\" = stats ] && exec cat '{stats}'\nexit 1\n")
+    (bin_dir / "docker").chmod(0o755)
+    return {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+
+@pytest.mark.parametrize("shell", HOST_SHELLS)
+def test_docker_samples_follow_the_same_stamp_rules(tree: Tree, shell: str) -> None:
+    """The docker source withholds a second already stamped and counts the seconds it skipped."""
+    env = fake_docker(tree)
+
+    def docker_sample(stamp: int) -> subprocess.CompletedProcess[str]:
+        return tree.one(shell, "--source", "docker", stamp=stamp, env=env, no_docker=False)
+
+    assert docker_sample(BASE_EPOCH).returncode == 0
+    assert docker_sample(BASE_EPOCH).returncode == 0  # the same second again
+    assert docker_sample(BASE_EPOCH - 3).returncode == 0  # a clock stepped back
+    result = docker_sample(BASE_EPOCH + 4)
+
+    assert result.returncode == 0, result.stderr
+    rows = tree.rows()
+    assert [row["ts_utc"] for row in rows] == [utc(BASE_EPOCH)] * 2 + [utc(BASE_EPOCH + 4)] * 2
+    assert (rows[0]["container"], rows[0]["cpu_pct"], rows[0]["mem_bytes"]) == ("egw-controller-1", "1.50", str(10 * MIB))
+    lines = tree.diagnostics()
+    assert sum("sample withheld" in line for line in lines) == 2
+    assert any("no sample in the 3 second(s) before this one" in line for line in lines)
+    assert "skipped_seconds=3" in [line for line in lines if " stop: " in line][-1]
+
+
+@pytest.mark.parametrize("shell", HOST_SHELLS)
+def test_the_inventory_counts_the_services_docker_sampled(tree: Tree, shell: str) -> None:
+    """With the docker source the names are only in the CSV; they are observed all the same."""
+    env = fake_docker(tree)
+
+    result = tree.one(
+        shell,
+        "--source",
+        "docker",
+        "--expect-services",
+        "egw-controller-1,egw-mosquitto-1,egw-mongodb-1",
+        env=env,
+        no_docker=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    inventory = [line for line in tree.diagnostics() if " inventory: " in line]
+    assert len(inventory) == 1
+    assert "observed=egw-controller-1,egw-mosquitto-1 " in inventory[0]
+    assert "missing=egw-mongodb-1 " in inventory[0]
+
+
+@pytest.mark.parametrize("shell", HOST_SHELLS)
+def test_the_clean_up_after_the_containers_go_stamps_no_second(tree: Tree, shell: str) -> None:
+    """auto: the pass that records the disappearance runs once and cannot withhold a docker sample."""
+    tree.set_container(SCOPE_ID, usage_usec=0)
+    tree.set_name(SCOPE_ID, "egw-controller")
+    assert tree.one(shell, stamp=BASE_EPOCH).returncode == 0
+    shutil.rmtree(tree.dir_for(SCOPE_ID, systemd_driver=True))
+
+    env = fake_docker(tree)
+    result = tree.one(shell, stamp=BASE_EPOCH + 1, env=env, no_docker=False)
+    assert result.returncode == 0, result.stderr
+    assert tree.one(shell, stamp=BASE_EPOCH + 2, env=env, no_docker=False).returncode == 0
+
+    disappeared = [event for event in tree.lifecycle() if event[0] == "disappeared"]
+    assert disappeared == [("disappeared", SCOPE_ID, "egw-controller")]
+    assert [row["ts_utc"] for row in tree.rows()] == [utc(BASE_EPOCH + 1)] * 2 + [utc(BASE_EPOCH + 2)] * 2
+    assert not any("sample withheld" in line for line in tree.diagnostics())
+
+
 # --------------------------------------------------------------------------
 # Timestamps
 # --------------------------------------------------------------------------
@@ -1040,8 +1120,11 @@ def test_an_early_and_a_late_failure_in_one_run_are_both_kept(tree: Tree, shell:
     cpu = tree.dir_for(SCOPE_ID, systemd_driver=True) / "cpu.stat"
 
     def breaker() -> None:
-        # Break cpu.stat around the second and again around the sixth sample.
-        for delay, broken in ((1.5, True), (1.0, False), (3.0, True), (1.0, False)):
+        # Break cpu.stat around the second and again around the sixth sample,
+        # each time for two seconds: under emulation and load one sample can
+        # take longer than a second, and a one-second window can fall between
+        # two samples.
+        for delay, broken in ((1.5, True), (2.0, False), (2.0, True), (2.0, False)):
             time.sleep(delay)
             write(cpu, "user_usec 1\n" if broken else "usage_usec 500\nuser_usec 1\n")
 

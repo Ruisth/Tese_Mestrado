@@ -1959,26 +1959,39 @@ is unchanged.
   text said — and that the 30-instant rule is counted over the whole file. The
   README records, by exact version, what ran where. `tools/test/make-busybox-wrappers.sh`
   builds the wrappers that run the tests under the image's own busybox.
+- **Action — the pull request's review.** Three findings, all taken. A sample
+  withheld because the clock stepped back now asks for a recalibration too, as a
+  sample in the wrong second already did. The seconds such a step re-enters
+  stay without rows either way, because they were stamped already and the
+  timestamps never go back; the gap is counted and diagnosed. The `docker
+  stats` source now follows the same stamp rules: the second its call starts
+  in, withheld if not after the last one stamped, every skipped second
+  counted, a recalibration when it misses its second. The pass that records
+  the disappearance of every container stamps no second, so it cannot
+  withhold a docker sample in the same second, and it runs once. The service
+  inventory reads the CSV as well as the lifecycle file, so names that only
+  the docker source reports count as observed.
 - **Branch history.** The branch first merged `dev` at `40aae52`. Its own draft
   edits to the governance records, which described the review findings as
   unrepaired and the guest as never exercised, were dropped in favour of `dev`'s
   text. The governance records are updated by entry `#C035`'s change.
-- **Verified, and where.** `src/tests/test_collect_resources.py`: 210 cases on
+- **Verified, and where.** `src/tests/test_collect_resources.py`: 219 cases on
   WSL2 Ubuntu 24.04 (Python 3.12.3, pytest 9.1.1), against a synthetic cgroup
   tree, under sh, dash, bash **and the gateway image's own busybox 1.36.1** (its
   `sh` and `awk`, sha256 `ebb5f78d…`, under the build's `qemu-aarch64` user
-  emulator; four cases stay host-shell only, because they put a fake `awk` or
+  emulator; seven cases stay host-shell only, because they put a fake `awk` or
   `docker` ahead of the real one or run two collectors side by side). They
   cover:
   - the exact arithmetic, including the long-uptime precision at 12,345.67,
     123,456.30 and 1,234,567.89 s;
   - an empty and a missing `memory.max`, and `inactive_file` above the usage;
   - a withheld second, a clock stepped back, and the seconds-without-a-sample
-    count;
+    count, from the cgroup source and from a fake `docker stats`;
   - a dying sampler process; two failures within one continuous run; an awk
     without `systime()` stamped by `date`;
   - the lifecycle of a restart and of a container whose first reads fail; the
-    inventory; the recorded collector hash;
+    single pass that records every container's disappearance; the inventory,
+    including docker-sourced names; the recorded collector hash;
   - UTC formatting against the calendar, including leap days and the 2100
     boundary, under a non-UTC time zone;
   - real-time pacing that never stamps a second twice and records every skipped
@@ -1990,7 +2003,8 @@ is unchanged.
   the end: 19 recalibrations, one for each 0.5 s step of the WSL2 wall clock,
   18 seconds without a sample, all counted, 58-60 distinct instants in every
   full minute, and `validate_resources_csv` passed with the collector's start
-  and stop as the window.
+  and stop as the window. Repeated after the review fixes above, it gave the
+  same figures, with no sample withheld.
   ShellCheck is not installed on this host; its error-level gate runs in CI.
 - **What is NOT shown.** This version has **not run on the emulated guest**. Under
   the busybox emulation the shell and awk are the guest's, but the kernel,

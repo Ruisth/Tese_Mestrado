@@ -104,15 +104,19 @@
 #     /proc/uptime and the wall clock is calibrated after the first sample, by
 #     watching the same clock the stamps come from (awk systime(), or `date +%s`
 #     when awk has none) cross a second boundary, and again when a sample lands
-#     in a second other than the one it aimed at — at most once every 10 s, since
-#     a calibration costs up to a second of clock reads. A wall clock that is
-#     stepped or slewed (NTP, a hypervisor's time sync) costs a recalibration and
-#     at most a skipped second, which is counted; it never turns this pacing off;
+#     in a second other than the one it aimed at, or is withheld — at most once
+#     every 10 s, since a calibration costs up to a second of clock reads. A
+#     wall clock slewed or stepped by a fraction of a second (NTP, a
+#     hypervisor's time sync) costs a recalibration and at most one skipped
+#     second; a step of D whole seconds leaves D seconds without rows (after a
+#     backward step they were stamped already, and timestamps never go back).
+#     Either is counted and diagnosed; neither turns this pacing off;
 #   - awk keeps the last stamped second in the state file and WITHHOLDS a
 #     sample stamped with that second or an earlier one (a clock stepped
 #     back, or two samples in one second), with a diagnostic; every second
 #     left without a sample is counted and written to the diagnostics, in
-#     every mode, so the closing summary's skipped-second count is measured.
+#     every mode and from either source, so the closing summary's
+#     skipped-second count is measured.
 # Without a fractional sleep the collector paces on whole seconds and says
 # so; the withholding and the counting still apply.
 #
@@ -147,12 +151,16 @@
 # --expect-services NAME,NAME,... names the services the run must observe
 # (for the gateway stack, the six Compose container names). When the
 # collector stops, it writes one "inventory:" line to the diagnostics: every
-# name observed, the expected names, the expected names never observed, and
+# name observed (in the lifecycle file or, with the docker source, in the
+# CSV), the expected names, the expected names never observed, and
 # how many container ids never resolved to a name. The collector records; whether a missing service
 # invalidates a run is the harness's and the protocol's decision.
 #
 # `--source docker` restores the old docker-stats loop, for a host whose
-# cgroup v2 tree is not visible. `auto` (the default) re-evaluates the source
+# cgroup v2 tree is not visible, under the same stamp rules: a sample is
+# stamped with the second its call starts in, withheld if that second is not
+# after the last one stamped, and a slow call shows up as counted seconds
+# without a sample. `auto` (the default) re-evaluates the source
 # ON EVERY SAMPLE and records every change. `--no-docker` forbids the CLI.
 #
 # Runs until SIGTERM/SIGINT, until --duration expires or until
@@ -488,9 +496,9 @@ cgroup_discover() {
 # yet primed.
 #
 # Exit status: 0 clean; 10 a diagnostic was written; 11 the sample was
-# withheld (state untouched); 12 rows written but the sample landed in a
-# second other than EXPECT (the shell recalibrates); 3 no usable clock or
-# uptime (reason in ERRF, no rows).
+# withheld (state untouched; the shell recalibrates); 12 rows written but the
+# sample landed in a second other than EXPECT (the shell recalibrates); 3 no
+# usable clock or uptime (reason in ERRF, no rows).
 AWK_CGROUP="$AWK_UTC"'
 function warn(msg) {
     print TS " " msg >> DIAG
@@ -611,8 +619,9 @@ BEGIN {
     close(STATE)
 
     # A second already stamped, or an earlier one, is never stamped again:
-    # the sample is withheld and the state left as it was.
-    if (LAST != "" && stamp <= LAST) {
+    # the sample is withheld and the state left as it was. The clean-up pass
+    # stamps nothing, so it is never withheld.
+    if (CLEANUP != 1 && LAST != "" && stamp <= LAST) {
         warn("sample withheld: it fell in second " TS ", not after the last stamped second " utc(LAST) " (a clock stepped back, or two samples in one second)")
         exit 11
     }
@@ -686,14 +695,20 @@ BEGIN {
     for (id in SEEN) {
         if (!(id in PRESENT)) life("disappeared", id, PREV_NAME[id])
     }
-    if (LAST != "" && stamp - LAST > INTERVAL) {
+    if (CLEANUP != 1 && LAST != "" && stamp - LAST > INTERVAL) {
         gap = stamp - LAST - INTERVAL
         SKIPPED += gap
         warn("no sample in the " gap " second(s) before this one (previous sample in " utc(LAST) ")")
     }
     # Written to a temporary file the shell moves into place: a collector
-    # killed mid-write must not leave a truncated state line behind.
-    printf("#last\t%d\t%d\n%s", stamp, SKIPPED, state) > STATETMP
+    # killed mid-write must not leave a truncated state line behind. The
+    # clean-up pass keeps the last stamped second and the count as they were.
+    if (CLEANUP == 1) {
+        if (LAST != "") printf("#last\t%d\t%d\n", LAST, SKIPPED) > STATETMP
+        else printf("") > STATETMP
+    } else {
+        printf("#last\t%d\t%d\n%s", stamp, SKIPPED, state) > STATETMP
+    }
     close(STATETMP)
     if (EXPECT != "" && stamp != EXPECT + 0) {
         warn("clock phase: aimed at second " utc(EXPECT + 0) " and sampled in " TS "; recalibrating")
@@ -707,8 +722,13 @@ BEGIN {
 
 # docker stats parser, kept for --source docker: every line is a flat JSON
 # object with "Name":"...", "CPUPerc":"1.23%", "MemUsage":"126.4MiB /
-# 7.628GiB", "MemPerc":"1.61%".
-AWK_DOCKER='
+# 7.628GiB", "MemPerc":"1.61%". It follows the cgroup program's stamp rules
+# and exit statuses (0, 10, 11, 12): the sample's second (EPOCH, from the
+# shell) is formatted in UTC by arithmetic, a second not after the last
+# stamped one is withheld, every second without a sample is counted in the
+# state file's "#last" line, and a sample outside the aimed second asks for
+# a recalibration. The state's other lines are carried through unchanged.
+AWK_DOCKER="$AWK_UTC"'
 function field(line, name,    re, v) {
     re = "\"" name "\":\"[^\"]*\""
     if (match(line, re) == 0) return ""
@@ -738,19 +758,63 @@ function bytes(s,    n, u, mult) {
     else if (u != "")    return ""
     return sprintf("%.0f", n * mult)
 }
+BEGIN {
+    stamp = EPOCH + 0
+    TS = utc(stamp)
+    LAST = ""
+    SKIPPED = 0
+    other = ""
+    while ((getline line < STATE) > 0) {
+        split(line, a, "\t")
+        if (a[1] == "#last") {
+            if (a[2] ~ /^[0-9]+$/) LAST = a[2] + 0
+            if (a[3] ~ /^[0-9]+$/) SKIPPED = a[3] + 0
+            continue
+        }
+        other = other line "\n"
+    }
+    close(STATE)
+    if (LAST != "" && stamp <= LAST) {
+        print TS " sample withheld: it fell in second " TS ", not after the last stamped second " utc(LAST) " (a clock stepped back, or two samples in one second)" >> DIAG
+        WITHHELD = 1
+    }
+}
+WITHHELD { next }
 {
     name = field($0, "Name")
     if (name == "") next
     printf "%s,%s,%s,%s,%s,%s\n", TS, name, pct(field($0, "CPUPerc")), \
         bytes(field($0, "MemUsage")), pct(field($0, "MemPerc")), HOST
 }
+END {
+    if (WITHHELD) exit 11
+    if (LAST != "" && stamp - LAST > INTERVAL) {
+        gap = stamp - LAST - INTERVAL
+        SKIPPED += gap
+        print TS " no sample in the " gap " second(s) before this one (previous sample in " utc(LAST) ")" >> DIAG
+        WARNED = 1
+    }
+    printf("#last\t%d\t%d\n%s", stamp, SKIPPED, other) > STATETMP
+    close(STATETMP)
+    if (EXPECT != "" && stamp != EXPECT + 0) {
+        print TS " clock phase: aimed at second " utc(EXPECT + 0) " and sampled in " TS "; recalibrating" >> DIAG
+        exit 12
+    }
+    if (WARNED) exit 10
+}
 '
 
 # The inventory, once, when the collector stops: expected services against
-# the names the lifecycle file recorded, and ids that never got a name.
+# the names observed, and ids that never got a name. The lifecycle file holds
+# the cgroup source's names; the docker source's names are only in the CSV,
+# so its rows count too (a 12-hex-digit label is an id without a name).
 AWK_INVENTORY='
 BEGIN { FS = "," }
-NR > 1 && ($2 == "appeared" || $2 == "named") {
+FILENAME == CSV {
+    if (FNR > 1 && $2 != "" && $2 !~ /^[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]$/) seen[$2] = 1
+    next
+}
+FNR > 1 && ($2 == "appeared" || $2 == "named") {
     ids[$3] = 1
     if ($4 != "") { seen[$4] = 1; named[$3] = 1 }
 }
@@ -906,21 +970,12 @@ diag "start: collector_sha256=$SELF_HASH host=$HOST source=$SOURCE interval=${IN
 echo "collecting container resources into $OUT (source: $SOURCE, one sample every ${INTERVAL}s, duration: ${DURATION}s, 0 = until SIGTERM)" >&2
 echo "pacing: $PACING; diagnostics: $DIAG_FILE; lifecycle: $LIFE_FILE" >&2
 
-# One cgroup sample: one awk process, then a rename of the state file (a
-# second, short process). The status decides what happens to the state and
-# whether the phase must be recalibrated.
+# After one sampler process (the cgroup program or the docker-stats parser,
+# which share the state file and the exit statuses): the status decides what
+# happens to the state and whether the phase must be recalibrated.
 RECAL=0
-sample_cgroup() {
-    : > "$ERR_FILE"
-    awk -v EPOCH="$1" -v USE_SYSTIME="$USE_SYSTIME" -v EXPECT="$2" \
-        -v INTERVAL="$INTERVAL" -v HOST="$HOST" \
-        -v STATE="$STATE_FILE" -v STATETMP="$STATE_FILE.tmp" \
-        -v LIST="$LIST_FILE" -v NAMES="$NAMES_FILE" -v DIAG="$DIAG_FILE" \
-        -v LIFE="$LIFE_FILE" -v ERRF="$ERR_FILE" -v UPTIME="$UPTIME_FILE" \
-        -v MEMINFO="$MEMINFO_FILE" -v DOCKERROOT="$DOCKER_ROOT" \
-        "$AWK_CGROUP" >> "$OUT"
-    _rc=$?
-    case $_rc in
+settle() {
+    case $1 in
         0 | 10)
             [ -f "$STATE_FILE.tmp" ] && mv "$STATE_FILE.tmp" "$STATE_FILE"
             ;;
@@ -929,7 +984,13 @@ sample_cgroup() {
             RECAL=1
             ;;
         11)
+            # Withheld, usually because the wall clock stepped back: the phase
+            # is stale, so recalibrate (at most once every 10 s). The seconds
+            # the step re-enters were stamped already and are never stamped
+            # again, so they stay without rows whatever the phase; the next
+            # accepted sample counts them.
             rm -f "$STATE_FILE.tmp"
+            RECAL=1
             ;;
         3)
             rm -f "$STATE_FILE.tmp"
@@ -939,11 +1000,27 @@ sample_cgroup() {
             ;;
         *)
             rm -f "$STATE_FILE.tmp"
-            diag "sample $((samples + 1)): the sampler process exited with status $_rc; no rows written for this sample"
+            diag "sample $((samples + 1)): the $2 exited with status $1; no rows written for this sample"
             ;;
     esac
-    [ "$_rc" -ne 0 ] && new_diag=1
+    [ "$1" -ne 0 ] && new_diag=1
     return 0
+}
+
+# One cgroup sample: one awk process, then a rename of the state file (a
+# second, short process). With a third argument of 1 it is only the clean-up
+# pass after every container has gone: it records the disappearances and
+# stamps no second.
+sample_cgroup() {
+    : > "$ERR_FILE"
+    awk -v EPOCH="$1" -v USE_SYSTIME="$USE_SYSTIME" -v EXPECT="$2" \
+        -v CLEANUP="${3:-0}" -v INTERVAL="$INTERVAL" -v HOST="$HOST" \
+        -v STATE="$STATE_FILE" -v STATETMP="$STATE_FILE.tmp" \
+        -v LIST="$LIST_FILE" -v NAMES="$NAMES_FILE" -v DIAG="$DIAG_FILE" \
+        -v LIFE="$LIFE_FILE" -v ERRF="$ERR_FILE" -v UPTIME="$UPTIME_FILE" \
+        -v MEMINFO="$MEMINFO_FILE" -v DOCKERROOT="$DOCKER_ROOT" \
+        "$AWK_CGROUP" >> "$OUT"
+    settle $? "sampler process"
 }
 
 last_names=
@@ -1061,27 +1138,35 @@ while [ "$stop" -eq 0 ]; do
         _stamp=$STAMP_EPOCH
         [ -z "$_stamp" ] && [ "$USE_SYSTIME" -eq 0 ] && _stamp=$(date +%s)
         sample_cgroup "$_stamp" "$expect"
-    elif [ -s "$STATE_FILE" ]; then
+    elif [ -s "$STATE_FILE" ] && grep -q -v '^#last' "$STATE_FILE"; then
         # The containers that were being sampled are gone: one pass over an
-        # empty list records their disappearance and clears the state.
+        # empty list records their disappearance and clears their state. It
+        # stamps no second, so a docker sample in this second still counts.
         : > "$LIST_FILE"
         _stamp=$STAMP_EPOCH
         [ -z "$_stamp" ] && [ "$USE_SYSTIME" -eq 0 ] && _stamp=$(date +%s)
-        sample_cgroup "$_stamp" ""
+        sample_cgroup "$_stamp" "" 1
     fi
     if [ "$this" = docker ]; then
+        # Stamped before the call, the second the sample was aimed at: a
+        # slow call (seconds under emulation) then shows up as counted
+        # seconds without a sample before the next one.
+        _stamp=$STAMP_EPOCH
+        [ -z "$_stamp" ] && _stamp=$(date +%s)
         # --format json is JSON-lines on Docker >= 23; older CLIs accept
         # the equivalent '{{json .}}' template.
-        ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
         lines=$(docker stats --no-stream --format json 2>/dev/null)
         if [ -z "$lines" ]; then
             lines=$(docker stats --no-stream --format '{{json .}}' 2>/dev/null)
         fi
         if [ -n "$lines" ]; then
-            printf '%s\n' "$lines" | awk -v TS="$ts" -v HOST="$HOST" "$AWK_DOCKER" >> "$OUT" \
-                || { diag "sample $((samples + 1)): the docker-stats parser failed; no rows"; new_diag=1; }
+            printf '%s\n' "$lines" | awk -v EPOCH="$_stamp" -v EXPECT="$expect" \
+                -v INTERVAL="$INTERVAL" -v HOST="$HOST" -v STATE="$STATE_FILE" \
+                -v STATETMP="$STATE_FILE.tmp" -v DIAG="$DIAG_FILE" \
+                "$AWK_DOCKER" >> "$OUT"
+            settle $? "docker-stats parser"
         else
-            echo "$ts docker stats returned nothing; no row" >> "$DIAG_FILE"
+            diag "sample $((samples + 1)): docker stats returned nothing; no rows"
             new_diag=1
         fi
     fi
@@ -1106,7 +1191,7 @@ done
 
 # The service inventory, and the closing summary with the measured count of
 # seconds that had no sample (kept by awk in the state file).
-awk -v EXPECT="$EXPECT_SERVICES" "$AWK_INVENTORY" "$LIFE_FILE" 2> /dev/null | while IFS= read -r _line; do
+awk -v EXPECT="$EXPECT_SERVICES" -v CSV="$OUT" "$AWK_INVENTORY" "$LIFE_FILE" "$OUT" 2> /dev/null | while IFS= read -r _line; do
     diag "$_line"
 done
 skipped=unknown

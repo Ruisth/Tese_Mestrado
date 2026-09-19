@@ -417,8 +417,11 @@ sh scripts/collect-resources.sh /tmp/resources-<run_id>.csv --duration 900 \
 guest one `docker stats --no-stream` call cost 3-5 s idle and about 21 s under
 load (2026-09-18) and 3-4 s idle (2026-09-19), which is why the previous
 collector could not reach the harness's 30 distinct instants. `--source docker`
-keeps that old path for a host whose cgroup tree is not visible; `auto` (the
-default) re-checks the source on every sample and records every change.
+keeps that old path for a host whose cgroup tree is not visible, under the same
+stamp rules below: a sample is stamped with the second its call starts in, so a
+slow call shows up as counted seconds without a sample, and the names it reports
+count in the inventory. `auto` (the default) re-checks the source on every sample
+and records every change.
 
 **Columns.** `cpu_pct` is docker's single-CPU basis (100 × CPU time / elapsed
 time, over 100 for a multi-threaded container) — CPU time the *guest* accounts
@@ -446,9 +449,12 @@ nothing else:
   into a second; the offset between the two clocks is calibrated after the first
   sample by watching the clock the stamps come from (`systime()`, or `date +%s`
   when awk has none) cross a boundary, and again when a sample lands in a second
-  it did not aim at — at most once every 10 s, since a calibration costs up to a
-  second of clock reads. A stepped or slewed wall clock costs a recalibration and
-  at most a skipped second, which is counted; it never turns this pacing off;
+  it did not aim at, or is withheld — at most once every 10 s, since a
+  calibration costs up to a second of clock reads. A wall clock slewed or stepped
+  by a fraction of a second costs a recalibration and at most one skipped second;
+  a step of D whole seconds leaves D seconds without rows (after a backward step
+  they were stamped already, and timestamps never go back). Either is counted and
+  diagnosed; neither turns this pacing off;
 - the last stamped second is kept in the state file: a sample in that second or
   an earlier one (a clock stepped back) is **withheld** with a diagnostic, never
   written, and every second left without a sample is counted and written down.
@@ -460,7 +466,7 @@ and counting still apply.
 
 | File | Holds |
 |---|---|
-| `<csv>.diagnostics.log` | Every diagnostic, one timestamped line each: the collector's own `sha256` and host at start, the pacing mode and each calibration, source changes, withheld samples, seconds without a sample, unreadable inputs, a sampler process that failed, the service inventory (`inventory: observed=… expected=… missing=… unnamed_ids=…`, every name observed whether or not `--expect-services` was given) and a closing summary with the measured count of seconds without a sample |
+| `<csv>.diagnostics.log` | Every diagnostic, one timestamped line each: the collector's own `sha256` and host at start, the pacing mode and each calibration, source changes, withheld samples, seconds without a sample, unreadable inputs, a sampler process that failed, the service inventory (`inventory: observed=… expected=… missing=… unnamed_ids=…`, every name observed — in the lifecycle file, or in the CSV for the docker source — whether or not `--expect-services` was given) and a closing summary with the measured count of seconds without a sample |
 | `<csv>.lifecycle.csv` | `ts_utc,event,container_id,name`: each container cgroup appearing, disappearing, resetting its CPU counter (a recreated cgroup) and first resolving to a name — the id-to-service mapping and the record of a restart |
 | `<csv>.self-test` | Only in a `--self-test` run, naming every substituted input |
 
@@ -496,7 +502,7 @@ one described above:
 |---|---|---|
 | `f17bdd8c…` — an intermediate version, never committed; it slept a whole interval after each sample | Guest, idle and under the harness (00:03-00:24 UTC) | Idle: 40 samples, 39 distinct instants, a CSV that passed `validate_resources_csv` at its production thresholds. Under the harness: a median of 1.0 s between samples but 0.84 distinct instants per second over 600 s (a second skipped about every five, from the interval-plus-cost period); neither run was ingested — `smoke_sequence-r02` held 25 instants where 30 are required, `controller_restart-r02` had a 6 s gap on the deliberately restarted controller |
 | `b7aeddba…` — commit `aa7440d`; it paced on whole seconds of `/proc/uptime` | Guest, idle only (00:26 UTC) | 30 samples in 29 s gave 26 distinct instants: two samples sharing a second |
-| This version | Not on the guest. Under `src/tests/test_collect_resources.py`: 210 cases under sh, dash, bash **and the gateway image's own busybox 1.36.1** (all but four host-shell-only cases) (its `sh` and `awk`, sha256 `ebb5f78d…`, run under the build's `qemu-aarch64` user emulator with [`tools/test/make-busybox-wrappers.sh`](../../tools/test/make-busybox-wrappers.sh)) | Exact arithmetic; the long-uptime precision; the `memory.max` rule; withheld and counted seconds; the diagnostics, lifecycle and inventory; real-time pacing that never stamps a second twice and records every second it skips, under that busybox too; and a 33-sample run that passes `validate_resources_csv` with its production thresholds and a measured window, under dash and under that busybox. **It has not yet run on the guest**, whose kernel supplies the real cgroup files; under the busybox emulation the kernel, `/proc` and the cgroup trees are the build host's |
+| This version | Not on the guest. Under `src/tests/test_collect_resources.py`: 219 cases under sh, dash, bash **and the gateway image's own busybox 1.36.1** (all but seven host-shell-only cases) (its `sh` and `awk`, sha256 `ebb5f78d…`, run under the build's `qemu-aarch64` user emulator with [`tools/test/make-busybox-wrappers.sh`](../../tools/test/make-busybox-wrappers.sh)) | Exact arithmetic; the long-uptime precision; the `memory.max` rule; withheld and counted seconds, from either source; the diagnostics, lifecycle and inventory, including docker-sourced names; real-time pacing that never stamps a second twice and records every second it skips, under that busybox too; and a 33-sample run that passes `validate_resources_csv` with its production thresholds and a measured window, under dash and under that busybox. **It has not yet run on the guest**, whose kernel supplies the real cgroup files; under the busybox emulation the kernel, `/proc` and the cgroup trees are the build host's |
 
 Nothing has been measured.
 
