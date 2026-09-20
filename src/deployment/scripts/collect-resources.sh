@@ -212,15 +212,22 @@
 # its collector hooks and records every hook's exit code in the manifest:
 #
 #   python -m egw_experiments campaign ... \
+#     --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 \
 #     --collector-start-cmd "ssh vm 'systemd-run --unit egw-resources-{run_id} \
 #         --collect sh /opt/egw/deployment/scripts/collect-resources.sh \
 #         /tmp/resources-{run_id}.csv --duration {duration_s} \
-#         --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1'" \
+#         --expect-services {expect_services}'" \
 #     --collector-stop-cmd  "ssh vm 'systemctl stop egw-resources-{run_id}'" \
-#     --collector-fetch-cmd 'scp vm:/tmp/resources-{run_id}.csv {dest}'
+#     --collector-fetch-cmd 'sh <clone>/src/deployment/scripts/fetch-collector-output.sh vm /tmp/resources-{run_id}.csv "{dest}"'
 #
-# The fetch hook above collects the CSV alone; fetch the two companion files
-# as well (`scp 'vm:/tmp/resources-<run_id>.csv*' .`) until the harness does.
+# The harness hands this script the same list it enforces ({expect_services}).
+# The fetch hook runs on the harness host and copies the CSV together with
+# its .diagnostics.log and .lifecycle.csv (and a .self-test marker, if any),
+# each checked against the guest's sha256. The harness then records which
+# files arrived, the collector_sha256 of the start line and the inventory,
+# and marks the run invalid when a companion is missing, a self-test marker
+# is present, the inventory names a missing service, no inventory was written
+# (no clean stop) or an expected service has no rows.
 #
 # Timed runs WITHOUT this collector's output are marked validity 'invalid'
 # by the harness (override only with --allow-missing-resources).

@@ -217,6 +217,96 @@ def test_p5_flags_default_to_off() -> None:
 
 
 # ---------------------------------------------------------------------------
+# run/campaign/collect: --expect-services (collector output accounting, on
+# the hooks' output and on the manual --resources-from path alike)
+# ---------------------------------------------------------------------------
+
+
+SIX_SERVICES = (
+    "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,"
+    "egw-ditto-gateway-1,egw-controller-1"
+)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["run", "--run-id", "nominal-r01"],
+        ["campaign"],
+        ["collect", "--run-id", "nominal-r01"],
+    ],
+)
+def test_run_campaign_and_collect_parse_expect_services_into_a_list(command) -> None:
+    args = cli.build_parser().parse_args([*command, "--expect-services", SIX_SERVICES])
+    assert args.expect_services == SIX_SERVICES.split(",")
+    defaults = cli.build_parser().parse_args(command)
+    assert defaults.expect_services is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "egw-controller-1,", "egw controller", "egw-controller-1;rm", "a,,b", "a,a"],
+)
+def test_expect_services_rejects_names_the_collector_would_refuse(
+    value, capsys, monkeypatch
+) -> None:
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(
+            ["run", "--run-id", "nominal-r01", "--expect-services", value]
+        )
+    assert exc.value.code == 2
+    assert "--expect-services" in capsys.readouterr().err
+
+
+def test_expect_services_is_forwarded_by_run_campaign_and_collect(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen["run"] = kwargs.get("expect_services")
+        return 0
+
+    def fake_run_campaign(plan, **kwargs):
+        seen["campaign"] = kwargs.get("expect_services")
+        return 0
+
+    def fake_collect_run(run_id, **kwargs):
+        seen["collect"] = kwargs.get("expect_services")
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    monkeypatch.setattr(cli, "run_campaign", fake_run_campaign)
+    monkeypatch.setattr(cli, "collect_run", fake_collect_run)
+    assert cli.main(["run", "--run-id", "nominal-r01", "--expect-services", SIX_SERVICES]) == 0
+    assert cli.main(["campaign", "--expect-services", SIX_SERVICES]) == 0
+    assert cli.main(
+        [
+            "collect", "--run-id", "nominal-r01", "--resources-from", "r.csv",
+            "--expect-services", SIX_SERVICES,
+        ]
+    ) == 0
+    expected = SIX_SERVICES.split(",")
+    assert seen == {"run": expected, "campaign": expected, "collect": expected}
+
+
+def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:
+    # A wide terminal keeps argparse from wrapping inside hyphenated paths;
+    # no colour codes (argparse >= 3.14 may colour its help).
+    monkeypatch.setenv("COLUMNS", "10000")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["run", "--help"])
+    assert exc.value.code == 0
+    flat = " ".join(capsys.readouterr().out.split())
+    assert "/opt/egw/deployment/scripts/collect-resources.sh" in flat
+    assert "/opt/egw/src/deployment" not in flat
+    assert '"{dest}"' in flat
+    assert "{expect_services}" in flat
+
+
+# ---------------------------------------------------------------------------
 # analyze: identity completeness needs the plan on the OFFICIAL command
 # ---------------------------------------------------------------------------
 

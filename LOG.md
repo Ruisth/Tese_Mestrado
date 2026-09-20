@@ -2410,3 +2410,167 @@ is unchanged.
   G3. No jump to the 95 runs or the 24-hour soak. The resource-sampler change
   (`#C034`) proceeds under its own review, and D007 is still owed before
   `exp-v1`.
+
+---
+
+## Entry #C036 — Local test outputs, the collector's six services before the seal, and the first valid harness run on the emulated guest
+
+- **Date:** 2026-09-19
+- **Request:** the project-management work order of 2026-09-19 (held outside
+  this repository), packages A to C and its first checkpoint: a clean
+  execution baseline, a local `output_test` folder in which every test attempt
+  is exported with verified checksums at completion and on failure, the
+  collector's expected services and companions accounted for in the executable
+  workflow before the seal, then a live preflight, a smartwatch slice and the
+  nominal instrumentation entry. The 95 runs and the 24-hour soak are not part
+  of it, and the acceptance proposal of `#C035` stays unadopted.
+- **Action — baseline.** A clean clone of `dev` for execution
+  (`/home/ruisth/egw-exec/repo`, with its own virtual environment from
+  `src/requirements.lock`) and a clean worktree for development; the old
+  Windows working tree is preserved untouched. The OS image is not rebuilt: its
+  build inputs (`src/yocto/kas`, `meta-egw`) did not change from `03e333e` to
+  `fb1690d`, nor did the controller image's (`0dfa531`), so the identified
+  kernel, rootfs and controller archive are reused; each guest session records
+  how the Yocto checkout, the clean clone and the deployed tree differ.
+- **Action — local outputs.** `egw_experiments.local_export`
+  ([`docs/setup/local_test_outputs.md`](docs/setup/local_test_outputs.md)):
+  one package per attempt under `output_test/runs/<date>/<run_id>/`, never
+  replacing an earlier one, with every copied file re-read and compared by
+  SHA-256, raw capsules copied byte for byte with their own seals, secrets and
+  private keys excluded with redacted derivatives, special files listed and
+  never read, instrumentation validity, system outcome and copy verification
+  kept apart, and an index regenerated from the packages on disk. The session
+  drivers of [`tools/session/`](tools/session/README.md) run the bounded
+  checks and export every attempt on every exit path.
+- **Action — the collector in the executable workflow.** `--expect-services`
+  with the six Compose names reaches the collector through the start hook;
+  `src/deployment/scripts/fetch-collector-output.sh` fetches the CSV with its
+  `.diagnostics.log` and `.lifecycle.csv` companions (and a `.self-test`
+  marker), each checked against the guest's own sha256; before the seal the
+  manifest records the deployed collector hash, the fetch helper's hash, the
+  inventory and the rows of every expected service, and a missing companion, a
+  self-test marker, a missing or different expected set, a missing service or
+  an expected service without rows makes a timed run invalid. The manual path
+  (`--resources-from`) is accounted for the same way. A timed-out hook's whole
+  process group is killed. No ingest threshold and no delivery rule changed.
+- **Review.** One static review of the branch, with an adversarial
+  verification of each finding, confirmed 26 defects: the export's recovery
+  could mark a still-running attempt interrupted and freeze that verdict, a
+  secret in an attempt field could reach the summary, an unscanned package
+  looked scanned, and smaller ones in the export and the harness. All were
+  fixed with tests before this entry.
+- **Verified, and where.** Unit suite in WSL2 Ubuntu 24.04 (Python 3.12.3):
+  1,364 passed and 53 skipped at `fe954a9` (the busybox variants of the
+  collector tests, which need the wrapper environment); 1,369 passed at
+  `03958c2`, the head reviewed on 2026-09-19, and 1,765 passed with 64 skipped
+  after the corrections of 2026-09-20 below. Each count belongs to the commit
+  beside it. Every attempt below is a package in
+  `C:\Users\ruimf\Documents\Projeto Mestrado\output_test` with a verified seal,
+  listed in its `INDEX.md`:
+  - export checks: one passing test module and one deliberately failing test,
+    both exported, the failure kept as a failure;
+  - fifteen historical packages backfilled (the 2026-09-18 capsules, the
+    invalid r01 and r02 harness runs, the unclosed session `sampler-01`, the
+    collector capsule), copied as preserved and indexed as historical;
+  - one guest session: boot to SSH in 34 s after an ext4 journal recovery on
+    both disks, the stack stopped before power-off, no memory-cgroup OOM, the
+    G1 artefacts unchanged;
+  - **live preflight — valid, pass:** the stack started through the 5.5
+    interlock; the clone's collector (`d3b219bc…`) replaced `b7aeddba…` on the
+    guest; a 45 s run gave 45 distinct instants for each of the six services,
+    no UTC gap, no withheld sample, inventory `missing=none`, and
+    `validate_resources_csv` passed; the deployed tree equals the clone except
+    `README.md`;
+  - **smartwatch slice — valid, pass:** `itest-slice-01`, seed 20260920 (a fresh
+    twin): 60 sent, 60 delivered, 0 lost, 0 late, `check` and `delta` 0, twin
+    `accepted_count` from absent to 60, marker lag 0.148 s;
+  - **nominal entry `nominal-r01` — instrumentation valid, system fail:** the
+    first harness run on the emulated guest that the harness itself marks
+    valid and seals, with `resources.csv` ingested (720 rows for each of the
+    six services), the companions and hook outputs sealed, the controller
+    marker lag 0.019 s and collector hash `11444c0a…` (the clone at `fe954a9`).
+    At the controller-clock deadline 3,794 of 6,720 valid messages were
+    delivered and 2,926 were lost at the deadline (85 of them confirmed late
+    before the harness fetch); after the drain all 6,720 had an `accepted`
+    outcome, 2,926 of them late. Latency p50 264 s. This is a system result on
+    ARM64 EMULATED (QEMU/TCG): the controller processes about 5 to 6 messages
+    per second against 11.2 offered.
+- **What is not shown.** No gate is decided and no claim moves: the preflight,
+  the slice and the nominal entry are engineering diagnostics, not acceptance
+  runs under an adopted rule. The nominal outcome is not a capacity
+  measurement. The controller's restart recovery (package D) and the final
+  battery (package E) have not started. `output_test` is a local copy, neither
+  published evidence nor a backup.
+- **Provenance of the live observations** (corrected here on 2026-09-20, after
+  the project review: the earlier draft of this pull request described them as
+  one commit). The export checks, the guest session, the live preflight and the
+  smartwatch slice ran from `a3b0d56`; only the nominal entry ran from
+  `fe954a9`. `tools/session/` did not exist in the repository at either commit:
+  it was versioned at `d7b7a72`, **after** every live command. What ran were the
+  working copies in `/home/ruisth/egw-exec/drivers`, whose concatenated sha256
+  each attempt records (`identities.drivers_sha256`: `8be60f66…` for the export
+  checks, `ca0eb1f6…` for the session and the preflight, `aab9fff5…` for the
+  slice, `9e3a334b…` for the nominal entry, as `slice.sh` and then `nominal.sh`
+  were added). The seven drivers that existed when the session opened were
+  byte-identical throughout it, and the copies preserved inside the guest-session
+  package equal those working copies file by file. The versioned drivers differ
+  from them substantially — between 6 and 229 changed lines per file — first
+  because every workstation path became overridable and then because of the
+  corrections below, so the observations of 2026-09-19 were not produced by the
+  drivers this pull request versions.
+- **Corrections after the project review of 2026-09-19** (made on 2026-09-20,
+  before any merge; three commits). The review asked for five: the export
+  destination is now confined physically (a symbolic link, a Windows junction,
+  another reparse point or a hard link at an owned path is refused instead of
+  written through, and every generated file is written through a temporary file
+  and one rename); a console capture that fails is recorded with its byte
+  counts, exits 74 and cannot be finished as valid, and one rule now decides
+  that verdict for the attempt, the package, the summary and the index; the
+  preflight and the harness both require a usable start, inventory and closing
+  record with an ordered window, and reconcile the closing record with the CSV
+  only where it contradicts itself, leaving spacing and coverage to
+  `validate_resources_csv` against the protocol's own tolerance; a registered
+  source keeps its own name, so a linked, dangling or relative root is listed
+  and never read; and every driver derives its exit status from the verdicts it
+  recorded (0 pass, 1 a valid negative result, 2 a prerequisite, 3 invalid
+  instrumentation or a mandatory step, 4 an export that could not be verified,
+  5 a controlled stop, 130 interrupted), skipping what depends on a failed
+  prerequisite. Six adversarial reviews of the corrections themselves, each
+  with reproductions, found 84 further defects — among them a hard link that
+  defeated the confinement, a capture failure that could be lost, an export
+  check that read any non-zero code as the intended failure, a tree comparison
+  that looked in one direction only, and, twice, a correction of ours that
+  would have invalidated runs the protocol accepts. All were fixed with tests.
+  The known limitations that remain are recorded in the pull request. No
+  acceptance threshold, delivery rule, deadline or ingest limit was changed, and
+  regenerating the index from the twenty-one existing packages reproduces them
+  unchanged: no earlier verdict moved.
+- **One more correction, after the project review of 2026-09-20.** The review
+  held the pull request for a semantic defect of the work above, introduced by
+  this developer: an OOM kill or a restart the run positively showed made the
+  driver record the instrumentation invalid, which would discard exactly the
+  negative results this dissertation has to analyse. Observing the system fail
+  is a result; failing to observe is an invalid measurement. Every step after
+  the harness now falls into one of three groups — evidence that is missing,
+  unreadable or incomparable (the measurement is invalid, naming the
+  requirement), a fault the run showed (the system outcome fails, the
+  measurement stays as valid as the evidence says) and a post-window
+  observation that could not be made (recorded as incomplete, leaving the
+  sealed window's verdict alone, with nothing claiming eventual delivery or a
+  complete tail) — and a fault that also breaks the clock domain the
+  confirmation deadline rests on gives that specific invalidity with the fault
+  kept as a fact. Four further review rounds of that correction found fifteen
+  defects in it, all fixed with tests, three of which were the same error
+  reversed: a comparison that crashed, or a record left incomplete by a lost
+  console capture, could have been written up as a failure of the guest; a
+  clean pass could be claimed on incomplete evidence; and the new health rule
+  would have failed the very preflight of 2026-09-19 that passed, whose record
+  reads `egw-controller-1 running starting`. A criterion that rejects the
+  evidence already held is as wrong as one that admits what it should not.
+- **Decisions and next steps:** none taken here. The next packages are the
+  bounded recovery ADR and fix (D), then the coordinated battery on one
+  unchanged candidate (E). The authorship rule of 2026-09-19 (author and
+  committer both `Ruisth` for every commit, merges included) is not met by a
+  merge made on GitHub, whose committer is `GitHub`; the repository ruleset
+  requires pull requests and has no bypass actor, so a compliant merge
+  procedure needs a decision by the student on the ruleset.

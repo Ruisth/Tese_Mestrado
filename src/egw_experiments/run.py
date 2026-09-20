@@ -155,6 +155,30 @@ code and start/end timestamps are recorded in the manifest
 (``collector_hooks``); a hook exiting non-zero makes the run INVALID with a
 reason naming the flag — never a silent warning.
 
+Collector output accounting (2026-09-19): ``--expect-services NAME,...``
+names the services the collector must account for; the same list reaches the
+start hook through the ``{expect_services}`` placeholder. The fetch hook
+(``src/deployment/scripts/fetch-collector-output.sh``) puts the collector's
+CSV and its ``.diagnostics.log`` / ``.lifecycle.csv`` companions (and a
+``.self-test`` marker, if any) in ``logs/collector/``. Right after the fetch
+hook, and before anything is sealed, :func:`inspect_collector_outputs` records
+per file presence, size and sha256, the deployed collector's hash, the
+collector's service inventory and the rows per expected service in the
+manifest (``collector``). Every ``collector.problems`` entry (a missing
+companion, a self-test marker, no expected services, an expected service
+without rows, an inventory naming a missing service, a collector that did not
+stop cleanly, a closing record that cannot account for its own samples, ...)
+makes a timed run INVALID. What the collector documents as harmless, and what
+the ingest validation judges on the real instants, is recorded in
+``collector.observations`` instead and is never a reason (2026-09-20). The manual path is accounted
+for in the same way: a ``--resources-from`` file (``run``, ``campaign`` or
+``collect``) and the companions beside it are copied into
+``logs/collector/resources-from/`` and inspected. The full stdout and stderr
+of every hook are kept as ``logs/collector/hook-<hook>.stdout.txt`` /
+``.stderr.txt``; a hook that exceeds its timeout is ended with its whole
+process group, so none of its children writes after the seal. The sha256 of
+the helper the fetch hook runs is recorded (``collector.fetch_helper_sha256``).
+
 Mandatory artefacts (sprint P5, report 5.4): each condition kind declares
 the evidence a completed run MUST carry (simulator: manifest.json,
 sent_events.jsonl, events.jsonl, resources.csv, plus
@@ -166,11 +190,14 @@ incomplete run must never look like sealed evidence.
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
+import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -204,7 +231,7 @@ from .protocol import (
     PROTOCOL_VERSION,
     TIMED_CONDITION_IDS,
 )
-from .resources import ResourceSampler, validate_resources_csv
+from .resources import ResourceSampler, parse_csv_timestamp, validate_resources_csv
 
 # Repository root: <repo>/src/egw_experiments/run.py -> parents[2] == <repo>
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -223,10 +250,31 @@ FETCH_ATTEMPTS = 3
 FETCH_BACKOFF_BASE_S = 2.0
 FETCH_TIMEOUT_S = 300.0
 
+#: Seconds a collector hook's process group is given to exit after SIGTERM
+#: (sent when the hook exceeds its timeout) before SIGKILL. A hook runs in a
+#: session of its own, so the whole group is signalled: the ssh/scp children
+#: of fetch-collector-output.sh must never outlive the hook and write into
+#: logs/collector/ after the inspection and the seal.
+HOOK_KILL_GRACE_S = 5.0
+
 # Environment variables consulted when the corresponding CLI flag is absent.
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.4 (collector output accounting, 2026-09-19; additive, no reader change
+# needed): adds 'collector' ({expected_services, hooks_in_use, source} and,
+# when the SUT resources come from a collector hook or --resources-from, the
+# inspection of the collector's output in logs/collector/: 'files'
+# (csv/diagnostics/lifecycle/self_test: path, present, size, sha256),
+# 'deployed_sha256', 'start_line_count', 'declared_expected_services',
+# 'inventory', 'inventory_missing', 'stop_line', 'stop_line_count',
+# 'self_test_present',
+# 'rows_per_expected_service', 'unexpected_services', 'problems'; with a
+# fetch hook also 'fetch_helper_path'/'fetch_helper_sha256'; with
+# --resources-from also 'source_path'); every 'collector_hooks' record gains
+# 'stdout_file'/'stderr_file' (the hook's full output under logs/collector/)
+# and, when it exceeded its timeout, 'timed_out'; 'config.cli' gains
+# 'expect_services'. 'collector.problems' are validity reasons of a timed run.
 # 1.3 (sprint P5.4, additive within the version — no reader change needed):
 # 'controller_marker' gains 'lag_s'/'lag_tolerance_s' and 'controller_metrics'
 # gains 'invalid_values'/'last_invalid_value'.
@@ -236,7 +284,7 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 # moves to the CONTROLLER clock domain (or null when unavailable).
 # 1.2 (work order P1): adds 'deviations', 'sut_environment_missing_fields',
 # 'allow_warmup_failure', 'allow_protocol_deviation'; hardens validity.
-MANIFEST_VERSION = "1.3"
+MANIFEST_VERSION = "1.4"
 
 MANIFEST_FILENAME = "manifest.json"
 
@@ -323,6 +371,31 @@ COLLECTOR_DURATION_MARGIN_S = 60
 #: it means a rejected collector file is still inspectable next to the run it
 #: belongs to (the validated copy lands at <run_dir>/resources.csv).
 COLLECTOR_FETCH_SUBDIR = "collector"
+
+#: What the SUT collector writes beside its CSV (collect-resources.sh, "Files
+#: written beside <output.csv>"), as {key: (suffix, mandatory)}. The fetch hook
+#: (src/deployment/scripts/fetch-collector-output.sh) copies them next to the
+#: fetched CSV in logs/collector/, so the run's SHA256SUMS covers them. A
+#: ``.self-test`` marker is optional: it exists only when the collector ran on
+#: substituted inputs, and its presence makes the output NOT a measurement.
+COLLECTOR_OUTPUT_FILES: dict[str, tuple[str, bool]] = {
+    "csv": ("", True),
+    "diagnostics": (".diagnostics.log", True),
+    "lifecycle": (".lifecycle.csv", True),
+    "self_test": (".self-test", False),
+}
+
+#: Sub-directory of logs/collector/ receiving a copy of the --resources-from
+#: file and of the companions beside it (the manual path), under the same
+#: name the fetch hook uses, so they are sealed with the run like the fetched
+#: output — without ever touching what a fetch hook put in logs/collector/.
+RESOURCES_FROM_SUBDIR = "resources-from"
+
+#: Characters of one service (container) name, the same set the collector
+#: accepts for --expect-services (collect-resources.sh, argument checks).
+SERVICE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 #: Conditions on which --skip-warmup invalidates the run unless explicitly
 #: authorized with --allow-protocol-deviation (work order P1 fix 5). These
@@ -413,20 +486,35 @@ def ingest_copy(src: str | Path, dest: str | Path, run_dir: str | Path) -> bool:
     if dest.is_file():
         if sha256_file(src) == sha256_file(dest):
             return True
-        sealed_note = (
-            f"this run directory is sealed ({SUMS_FILENAME} present)"
-            if run_dir_is_sealed(run_dir)
-            else "raw run evidence is write-once"
-        )
-        raise SealedRunError(
-            f"refusing to overwrite {dest.name} in {run_dir}: the existing "
-            f"raw file's content differs from {src}; {sealed_note}. "
-            "Recording different evidence requires a NEW run identity: "
-            "repeat the run under a new versioned run_id and document the "
-            "exclusion of the old one (plan 5.8)."
-        )
+        raise overwrite_refusal(dest, src, run_dir)
     shutil.copyfile(src, dest)
     return True
+
+
+def overwrite_refusal(
+    dest: str | Path, src: str | Path, run_dir: str | Path
+) -> SealedRunError:
+    """The :class:`SealedRunError` refusing to replace ``dest`` with ``src``.
+
+    ``dest`` is named by its path inside the run directory (``resources.csv``,
+    ``logs/collector/...``)."""
+    dest = Path(dest)
+    try:
+        shown = dest.relative_to(run_dir).as_posix()
+    except ValueError:
+        shown = dest.name
+    sealed_note = (
+        f"this run directory is sealed ({SUMS_FILENAME} present)"
+        if run_dir_is_sealed(run_dir)
+        else "raw run evidence is write-once"
+    )
+    return SealedRunError(
+        f"refusing to overwrite {shown} in {run_dir}: the existing "
+        f"raw file's content differs from {src}; {sealed_note}. "
+        "Recording different evidence requires a NEW run identity: "
+        "repeat the run under a new versioned run_id and document the "
+        "exclusion of the old one (plan 5.8)."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -708,18 +796,125 @@ def poll_controller_marker(
 # ---------------------------------------------------------------------------
 
 
+def parse_expected_services(value: str) -> list[str]:
+    """Parse ``--expect-services NAME,NAME,...`` into a list of names.
+
+    Each name must use only the characters the collector itself accepts
+    (``A-Za-z0-9_.-``, :data:`SERVICE_NAME_RE`); an empty element (``a,,b``,
+    a trailing comma, an empty value) and a repeated name are refused. Raises
+    ``ValueError`` with a message naming the offending element.
+    """
+    names = value.split(",")
+    return validate_expected_services(names)
+
+
+def validate_expected_services(names: list[str]) -> list[str]:
+    """Check a list of expected service names; returns it unchanged.
+
+    Raises ``ValueError`` when the list is empty, holds an empty or repeated
+    name, or a name with a character outside ``A-Za-z0-9_.-``.
+    """
+    if not names:
+        raise ValueError("--expect-services names no service")
+    seen: set[str] = set()
+    for name in names:
+        if not isinstance(name, str) or not SERVICE_NAME_RE.match(name):
+            raise ValueError(
+                f"--expect-services: invalid service name {name!r} (only "
+                "A-Z a-z 0-9 _ . - are allowed, as in collect-resources.sh; "
+                "names are separated by single commas)"
+            )
+        if name in seen:
+            raise ValueError(f"--expect-services: {name!r} is given twice")
+        seen.add(name)
+    return list(names)
+
+
 def format_collector_template(
-    template: str, run_id: str, *, duration_s: int, dest: str | Path
+    template: str,
+    run_id: str,
+    *,
+    duration_s: int,
+    dest: str | Path,
+    expect_services: list[str] | None = None,
 ) -> str:
-    """Substitute ``{run_id}``, ``{dest}`` and ``{duration_s}`` literally.
+    """Substitute ``{run_id}``, ``{dest}``, ``{duration_s}`` and
+    ``{expect_services}`` literally.
 
     Same plain-replacement rule as :func:`format_cmd_template` (any other
     brace construct in the operator's command survives untouched);
     ``{dest}`` is always rendered with forward slashes so POSIX splitting
-    never eats Windows backslashes.
+    never eats Windows backslashes. ``{expect_services}`` is the
+    ``--expect-services`` list joined with commas (empty when unset), so the
+    start hook hands the collector the same list the harness enforces.
     """
     out = format_cmd_template(template, run_id, Path(dest).as_posix())
+    out = out.replace("{expect_services}", ",".join(expect_services or []))
     return out.replace("{duration_s}", str(duration_s))
+
+
+def _as_bytes(data: bytes | str | None) -> bytes:
+    if data is None:
+        return b""
+    if isinstance(data, str):
+        return data.encode("utf-8", errors="replace")
+    return data
+
+
+def _signal_hook_group(proc: subprocess.Popen, *, kill: bool) -> None:
+    """SIGTERM (or SIGKILL) the hook's whole process group.
+
+    The hook was started in a session of its own, so its process group id is
+    its pid and every child it did not move elsewhere (the ssh and scp of
+    fetch-collector-output.sh) is a member. Where process groups do not
+    exist (Windows), only the hook process itself can be signalled.
+    """
+    if os.name == "posix":
+        sig = signal.SIGKILL if kill else signal.SIGTERM
+        try:
+            os.killpg(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass  # the group is already gone
+        return
+    try:
+        if kill:
+            proc.kill()
+        else:
+            proc.terminate()
+    except OSError:
+        pass
+
+
+def _stop_hook_process_group(
+    proc: subprocess.Popen, grace_s: float
+) -> tuple[bytes | None, bytes | None]:
+    """End a hook that exceeded its timeout, children included.
+
+    SIGTERM to the group, ``grace_s`` seconds to exit, then SIGKILL to the
+    group. Returns the output read so far (``communicate`` keeps what it read
+    across its timeouts). A descendant that left the group (for example a
+    daemonised ssh ControlMaster) could keep the pipes open after the
+    SIGKILL; reading is then abandoned after one more grace period.
+    """
+    _signal_hook_group(proc, kill=False)
+    try:
+        return proc.communicate(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_hook_group(proc, kill=True)
+    partial: tuple[bytes | str | None, bytes | str | None]
+    try:
+        return proc.communicate(timeout=grace_s)
+    except subprocess.TimeoutExpired as exc:
+        partial = (exc.stdout, exc.stderr)
+    for stream in (proc.stdout, proc.stderr):
+        if stream is not None:
+            stream.close()
+    try:
+        proc.wait(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        pass
+    return _as_bytes(partial[0]), _as_bytes(partial[1])
 
 
 def execute_collector_hook(
@@ -729,7 +924,10 @@ def execute_collector_hook(
     *,
     duration_s: int,
     dest: str | Path,
-    timeout_s: float = FETCH_TIMEOUT_S,
+    expect_services: list[str] | None = None,
+    log_dir: str | Path | None = None,
+    timeout_s: float | None = None,
+    kill_grace_s: float | None = None,
 ) -> dict[str, Any]:
     """Execute one collector hook and return its manifest record.
 
@@ -737,9 +935,32 @@ def execute_collector_hook(
     finished_utc, returncode}`` (plus ``stderr_tail``/``error`` when
     applicable). A non-zero (or absent) return code is NEVER a silent
     warning: the caller turns it into a validity reason naming the hook.
+
+    The hook runs without a shell, with stdin from the null device, in a
+    session (and so a process group) of its own. When it exceeds
+    ``timeout_s`` (default :data:`FETCH_TIMEOUT_S`) the WHOLE group gets
+    SIGTERM and, ``kill_grace_s`` seconds later (default
+    :data:`HOOK_KILL_GRACE_S`), SIGKILL: a child left running (the ssh/scp of
+    the fetch script) must not write into logs/collector/ after the
+    inspection and the seal. The record then carries ``timed_out: true``,
+    ``returncode: null`` and an ``error`` saying so.
+
+    With ``log_dir`` the hook's FULL stdout and stderr are written, byte for
+    byte, to ``<log_dir>/hook-<hook>.stdout.txt`` and ``.stderr.txt``
+    whenever the command ran (also when it timed out); the record then
+    carries their paths as ``stdout_path``/``stderr_path``. The 500-character
+    ``stderr_tail`` stays in the record for a quick read of the manifest.
     """
+    timeout_s = FETCH_TIMEOUT_S if timeout_s is None else float(timeout_s)
+    kill_grace_s = (
+        HOOK_KILL_GRACE_S if kill_grace_s is None else float(kill_grace_s)
+    )
     cmd_str = format_collector_template(
-        template, run_id, duration_s=duration_s, dest=dest
+        template,
+        run_id,
+        duration_s=duration_s,
+        dest=dest,
+        expect_services=expect_services,
     )
     record: dict[str, Any] = {
         "hook": hook,
@@ -749,20 +970,43 @@ def execute_collector_hook(
         "started_utc": utc_now_iso(),
         "returncode": None,
     }
+    stdout: bytes | None = None
+    stderr: bytes | None = None
+    proc: subprocess.Popen | None = None
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             shlex.split(cmd_str, posix=True),
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
         )
-        record["returncode"] = proc.returncode
-        stderr_tail = (proc.stderr or "").strip()
+    except (OSError, ValueError) as exc:
+        record["error"] = str(exc)
+    if proc is not None:
+        try:
+            out, err = proc.communicate(timeout=timeout_s)
+            record["returncode"] = proc.returncode
+        except subprocess.TimeoutExpired:
+            out, err = _stop_hook_process_group(proc, kill_grace_s)
+            record["timed_out"] = True
+            record["error"] = (
+                f"timed out after {timeout_s:g} s; the hook's process group "
+                f"was terminated (SIGTERM, then SIGKILL after {kill_grace_s:g} "
+                "s)"
+            )
+        stdout, stderr = _as_bytes(out), _as_bytes(err)
+    if stderr is not None:
+        stderr_tail = stderr.decode("utf-8", errors="replace").strip()
         if stderr_tail:
             record["stderr_tail"] = stderr_tail[-500:]
-    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-        record["error"] = str(exc)
+    if log_dir is not None and stdout is not None and stderr is not None:
+        log_dir = Path(log_dir)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        for stream, data in (("stdout", stdout), ("stderr", stderr)):
+            path = log_dir / f"hook-{hook}.{stream}.txt"
+            path.write_bytes(data)
+            record[f"{stream}_path"] = str(path)
     record["finished_utc"] = utc_now_iso()
     return record
 
@@ -787,6 +1031,1110 @@ def collector_hook_failures(
             "prescribes, so this run's CPU/RAM evidence cannot be trusted"
         )
     return reasons
+
+
+def _inventory_fields(message: str) -> dict[str, str]:
+    """``key=value`` fields of an ``inventory:`` message (values hold no
+    spaces: service names are limited to ``A-Za-z0-9_.-``)."""
+    fields: dict[str, str] = {}
+    for token in message[len("inventory:"):].split():
+        key, sep, value = token.partition("=")
+        if sep:
+            fields[key] = value
+    return fields
+
+
+def _stop_samples(message: str) -> int | None:
+    """The ``samples=`` count of a ``stop:`` message, else None.
+
+    The collector's closing summary opens with ``samples=<n>``; the later
+    ``withheld_samples=`` field is a different count and never matches."""
+    match = re.search(r"(?<![\w.-])samples=(\d+)(?:\s|$)", message)
+    return int(match.group(1)) if match else None
+
+
+#: The other figures of the collector's closing summary, in the order
+#: ``collect-resources.sh`` writes them, with what each counts in the
+#: collector's own words (the two counts it keeps, the time the withheld
+#: samples cost, and the samples whose cost it cannot measure). EVERY one of
+#: them is recorded in the manifest, always. Only what really means the
+#: evidence cannot be accounted for is a problem:
+#:
+#: - a figure the collector could not compute (``unknown``) or does not state:
+#:   its closing record cannot be read;
+#: - :data:`_UNMEASURED_COUNTERS` above zero: elapsed time in NEITHER count,
+#:   i.e. withheld samples whose cost no accepted sample has measured;
+#: - ``withheld_elapsed_s`` above zero while ``withheld_samples`` reads zero:
+#:   the record contradicts itself (see the fabricated zeros below).
+#:
+#: ``utc_gap_seconds`` and ``withheld_samples`` above zero are recorded and
+#: reported, never a verdict of their own (2026-09-20):
+#: ``collect-resources.sh:117-120`` says a wall clock stepped FORWARD adds to
+#: ``utc_gap_seconds`` "although no time passed unsampled", and a withheld
+#: sample is the pacing artefact the collector recalibrates after (two samples
+#: in one wall-clock second). The authority on the spacing of the evidence is
+#: :func:`~egw_experiments.resources.validate_resources_csv`, which reads the
+#: REAL instants of the CSV and judges them against the protocol's
+#: :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S` -- not a counter compared
+#: with zero.
+#:
+#: What the collector really writes when it cannot read its own state
+#: (``collect-resources.sh:1303-1342``, AWK_SUMMARY and the defaults around
+#: it), since the rule must not rest on a premise the collector does not hold:
+#:
+#: - the closing awk could not run at all: the shell's defaults leave all five
+#:   figures ``unknown``;
+#: - it ran but found no ``#last`` line: the first four read ``unknown`` and
+#:   ``withheld_open_at_stop`` reads 0 (it is 0 from BEGIN);
+#: - it ran and the ``#last`` line is there but a field is not a number: ONLY
+#:   ``utc_gap_seconds`` degrades to ``unknown``; ``withheld_samples`` and
+#:   ``withheld_runs_unmeasured`` fall back to 0, ``withheld_elapsed_s`` to
+#:   0.00 and ``withheld_open_at_stop`` stays 0
+#:   (``collect-resources.sh:396-398`` documents the same fallback for a line
+#:   an older collector wrote).
+#:
+#: A zero in the withheld figures is therefore NOT proof that nothing was
+#: withheld, which is why ``withheld_elapsed_s`` is read here too: a figure
+#: above zero while the count reads zero is a contradiction inside the record.
+_CLOSING_COUNTERS = {
+    "utc_gap_seconds": (
+        "second(s) of UTC, beyond one interval, in which no sample was stamped"
+    ),
+    "withheld_samples": (
+        "sample(s) withheld (each fell in a second that is not after the last "
+        "stamped one -- a clock stepped back, or two samples in one second -- "
+        "so no rows were written for it)"
+    ),
+    "withheld_elapsed_s": (
+        "second(s) of elapsed time without an accepted sample, beyond one "
+        "interval and the forward UTC gaps, that finished runs of withheld "
+        "samples cost"
+    ),
+    "withheld_runs_unmeasured": (
+        "run(s) of withheld samples whose elapsed time could not be measured "
+        "(what they cost is in neither count)"
+    ),
+    "withheld_open_at_stop": (
+        "withheld sample(s) of a run still open when the collector stopped (no "
+        "accepted sample has measured it)"
+    ),
+}
+#: Written as a decimal figure of seconds, not as a count.
+_DECIMAL_COUNTERS = ("withheld_elapsed_s",)
+#: Above zero, these are elapsed time in neither count: a problem of their own.
+_UNMEASURED_COUNTERS = ("withheld_runs_unmeasured", "withheld_open_at_stop")
+#: What the protocol, not this inspection, judges about the two counters above
+#: zero. The same sentence is in ``tools/session/collector_check.py``, which
+#: applies this rule to the preflight's collector output: the two halves must
+#: not disagree about what an unusable closing record is.
+_JUDGED_ELSEWHERE = (
+    "the spacing of the real instants is judged by validate_resources_csv "
+    "against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it"
+)
+#: ``interval=1s``/``duration=45s`` of the ``start:`` record: seconds, with or
+#: without the collector's trailing unit.
+_SECONDS_RE = re.compile(r"^(\d+(?:\.\d+)?)s?$")
+#: One diagnostics record, matched as ``tools/session/collector_check.py``
+#: matches it: ``collect-resources.sh``'s ``diag()`` writes the UTC timestamp,
+#: a space and the message, so the keyword follows an optional leading token.
+#: The token is matched LOOSELY on purpose -- a record whose timestamp is
+#: malformed, or absent altogether, must be FOUND and reported, never read as
+#: an absent record and never allowed to switch off in silence the rules that
+#: depend on the collector's bounds (2026-09-20).
+_DIAG_RECORD_RE = re.compile(r"^(?:(\S+) )?(start|inventory|stop):(?: |$)")
+#: The strict leading UTC timestamp of a diagnostics record: the collector
+#: writes the bounds of its window through ``awk strftime``, and nothing else
+#: is a bound of a measured window.
+_DIAG_STAMP_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+#: A closing figure written as a count, and one written as a decimal.
+_COUNT_VALUE_RE = re.compile(r"^\d+$")
+_DECIMAL_VALUE_RE = re.compile(r"^\d+(?:\.\d+)?$")
+
+
+def _stop_counter(message: str, name: str) -> str | None:
+    """The ``<name>=<value>`` field of a ``stop:`` message, as written."""
+    match = re.search(rf"(?<![\w.-]){name}=(\S+)", message)
+    return match.group(1) if match else None
+
+
+def _declared_seconds(message: str, name: str) -> float | None:
+    """``interval=``/``duration=`` of a ``start:`` message, in seconds."""
+    match = _SECONDS_RE.match(_stop_counter(message, name) or "")
+    return float(match.group(1)) if match else None
+
+
+def _diagnostic_stamp(token: str | None) -> str | None:
+    """``token`` when it is a strictly valid UTC instant, else None.
+
+    The spelling must be the collector's own ``YYYY-MM-DDTHH:MM:SSZ`` AND a
+    real calendar instant; ``tools/session/collector_check.py`` reads the
+    records by the same rule, so a bound one half refuses is not a bound the
+    other accepts.
+    """
+    if token is None or not _DIAG_STAMP_RE.match(token):
+        return None
+    return token if parse_csv_timestamp(token) is not None else None
+
+
+#: The words both halves use for a record whose leading token is not the
+#: collector's own UTC timestamp. Such a record is a problem of its own: its
+#: bounds cannot be trusted, and the rules that rest on them must be reported
+#: as NOT run, never switched off in silence (2026-09-20).
+_UNSTAMPED_RECORD = (
+    "the '{kind}:' line carries no strictly valid leading UTC timestamp "
+    "(YYYY-MM-DDTHH:MM:SSZ): {token!r}"
+)
+
+
+def reconcile_closing_record(
+    *,
+    samples: int | None,
+    withheld: int | None,
+    instants_in_window: int | None,
+    csv_readable: bool,
+    window: tuple[str | None, str | None],
+    window_seconds: int | None,
+    interval_s: float | None,
+    duration_s: float | None,
+    record_lines: tuple[int | None, int | None, int | None],
+) -> dict[str, Any]:
+    """Read the collector's closing record against its CSV and its start record.
+
+    ONE rule for both halves of F3: this is what
+    :func:`inspect_collector_outputs` applies after a timed run and what
+    ``tools/session/collector_check.py`` applies to the preflight's output --
+    the same function, not two copies of the same words -- so the two cannot
+    disagree about what an unusable closing record is.
+
+    The reconciliation catches ONLY a record that contradicts itself
+    (2026-09-20):
+
+    - records that do not describe one clean run: the file positions given in
+      ``record_lines`` (the ``start:``, ``inventory:`` and ``stop:`` records,
+      1-based, None for a record that is absent) must increase in that order,
+      since the collector writes its start first, its inventory when the stop
+      hook's SIGTERM ends it and its closing record last
+      (``collect-resources.sh``); only the records that ARE there are
+      compared, an absent one being a problem of its own in each half;
+    - rounds that cannot have been taken: more stamped sampling rounds
+      (``samples`` less ``withheld_samples``) than the seconds of the
+      collector's own window can hold, since an accepted round stamps a
+      second strictly after the last stamped one;
+    - rows that cannot exist: more distinct instants inside that window than
+      the stamped sampling rounds the record accounts for, since a round
+      stamps at most one instant and a withheld round stamps none;
+    - a CSV with no instant at all inside that window while the record
+      accounts for stamped rounds.
+
+    Two shapes cannot be read at all, and block the reconciliation (which is
+    a problem of its own, below): a window whose stop is not after its start,
+    and a record stating more withheld rounds than rounds taken.
+
+    It invents NO coverage and NO spacing threshold of its own. Everything
+    else the record says -- withheld rounds, forward clock steps, the number
+    of rounds the declared interval implies, a rate or a window below what the
+    ``start:`` line declared, rounds that wrote no row -- is RECORDED and
+    REPORTED as an observation, never a reason to invalidate a run: the
+    spacing of the evidence is judged by
+    :func:`~egw_experiments.resources.validate_resources_csv` against the
+    protocol's :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S` and its
+    coverage by the protocol's own rule, both on the REAL instants of the
+    CSV. A threshold of this function's own would silently make the
+    acceptance stricter than the protocol in the half that seals the thesis
+    numbers, and both real capsules of 2026-09-19 sit on the boundary of such
+    a rule: the 45 s preflight closed with ``samples=46`` and carries 45
+    instants, ``nominal-r01`` with ``samples=721`` and 720 -- one round more
+    than the instants, because the collector's first round only primes each
+    container's CPU delta and writes no row (``collect-resources.sh:80-82``).
+
+    A reconciliation that could not be made is reported as NOT run, a problem
+    of its own: the figures are never left null beside an empty problem list.
+
+    Returns ``{problems, observations, state, records_in_order,
+    rounds_the_declared_interval_implies, declared_duration_shortfall_s}``.
+    ``records_in_order`` is the verdict on ``record_lines`` (None when fewer
+    than two records were found), so a caller that stops its own validation
+    on unusable bounds reads the same verdict rather than repeating the rule.
+    The last figure is the seconds by which the collection fell short of the
+    ``duration=`` it was asked for: a number a caller that DOES know what it
+    asked for can judge (the preflight starts its collector with an explicit
+    ``--duration`` and expects it to reach it), which nothing here can, since
+    the stop hook legitimately ends a timed run's collector early.
+    """
+    problems: list[str] = []
+    observations: list[str] = []
+    implied: int | None = None
+    shortfall: float | None = None
+    start_stamp, stop_stamp = window
+    window_text = f"{start_stamp}..{stop_stamp}"
+
+    # The FILE order of the three records, which is evidence in itself:
+    # collect-resources.sh writes the 'start:' record before the loop
+    # (:1064), the 'inventory:' record after it, when the stop hook's SIGTERM
+    # ends the collector (:1298), and the closing record last (:1342). Any
+    # other order is concatenated or edited evidence. Both halves get this
+    # rule from HERE, in one wording -- until 2026-09-20 they held two
+    # unequal copies of it, and a diagnostics whose inventory came before its
+    # start was refused by the preflight half and sealed by the harness half.
+    # Only the records that are there are compared: an absent record is a
+    # problem of its own in each half and says nothing about the order of the
+    # rest.
+    kinds = ("start", "inventory", "stop")
+    placed = [
+        (kind, at) for kind, at in zip(kinds, record_lines) if at is not None
+    ]
+    records_in_order: bool | None = None
+    if len(placed) > 1:
+        records_in_order = all(
+            first[1] < second[1] for first, second in zip(placed, placed[1:])
+        )
+        if not records_in_order:
+            where = ", ".join(
+                f"{kind} line {at}" if at is not None else f"{kind} absent"
+                for kind, at in zip(kinds, record_lines)
+            )
+            problems.append(
+                f"the diagnostics records are out of order ({where}): the "
+                "collector writes its 'start:' record first, its 'inventory:' "
+                "record when the stop hook ends it and its closing record "
+                "last, so these do not describe one clean collector run "
+                "(concatenated or edited evidence)"
+            )
+
+    # The rounds the stamped window can hold, which is arithmetic and not a
+    # threshold: an ACCEPTED round stamps a second strictly after the last
+    # stamped one (collect-resources.sh:422-427 withholds every sample that
+    # would fall in a second already stamped or earlier, and writes no rows
+    # for it), so a window of N seconds holds at most N + 1 stamped rounds --
+    # one per second, both bounds included -- and the closing record, written
+    # after the loop, may carry its own stamp into the second after the last
+    # round. The rounds that stamped no second are exactly the withheld ones,
+    # which the record itself counts, so they are subtracted rather than
+    # allowed for. The bound is the stamped SECONDS and not the declared
+    # interval, so a collector that paced FASTER than it declared is not
+    # punished by it (2026-09-20).
+    if window_seconds is not None and window_seconds > 0:
+        if samples is not None and withheld is not None:
+            stamped_rounds = samples - withheld
+            if stamped_rounds > window_seconds + 2:
+                problems.append(
+                    f"the closing record states samples={samples} less "
+                    f"withheld_samples={withheld} = {stamped_rounds} stamped "
+                    f"sampling round(s) inside its own {window_seconds} s "
+                    f"window {window_text}: an accepted round stamps a second "
+                    "strictly after the last one, so at most "
+                    f"{window_seconds + 1} of them can have been stamped "
+                    "there (one more for the closing record's own stamp), and "
+                    "the record cannot be true"
+                )
+        # What the start record asked of the collector, beside what its
+        # closing record and its own window say. The collector's own window is
+        # the only length these two records can prove, so the rounds its
+        # declared interval implies are counted over THAT window, one per
+        # interval plus the priming round. None of this is a verdict here.
+        if interval_s:
+            implied = int(window_seconds / interval_s) + 1
+            if samples is not None:
+                if samples > implied + 1:
+                    # One round of slack: the closing record is written after
+                    # the loop, so its stamp can fall in the second after the
+                    # last round. Beyond that the two records disagree -- a
+                    # sampling round that stamps no second still counts here
+                    # (a withheld sample, collect-resources.sh:422-427), and a
+                    # wall clock stepped BACK shortens the stamped window
+                    # while the rounds go on, so this figure is recorded. What
+                    # cannot be true whatever the interval is the count of
+                    # STAMPED rounds above, which subtracts them.
+                    observations.append(
+                        f"the closing record states samples={samples}, more "
+                        f"rounds than its own {window_seconds} s window at "
+                        f"the interval={interval_s:g}s the 'start:' line "
+                        f"declares allows ({implied}): a sampling round that "
+                        "stamped no second (a withheld sample, or one lost "
+                        "to a clock stepped back) is counted there and in no "
+                        "window, so this is recorded, not judged here: "
+                        f"{_JUDGED_ELSEWHERE}"
+                    )
+                elif samples * 2 <= implied:
+                    observations.append(
+                        f"the collector took {samples} sampling round(s) "
+                        f"where the interval={interval_s:g}s it declares "
+                        f"implies about {implied} over its own "
+                        f"{window_seconds} s window: it did not reach its "
+                        "declared rate. Recorded, not judged here: "
+                        f"{_JUDGED_ELSEWHERE}"
+                    )
+    if (
+        window_seconds is not None
+        and window_seconds > 0
+        and duration_s
+        and window_seconds < duration_s
+    ):
+        # True of both halves, which is why it is worded here: the stop hook's
+        # SIGTERM ends the collector after the measured run (nominal-r01 of
+        # 2026-09-19 declared duration=840s and closed a 722 s window). What
+        # the instants must satisfy is judged by validate_resources_csv over
+        # the window it is GIVEN -- the window the run measured for a timed
+        # run, the collector's OWN window in the preflight check, where a
+        # collection that ended early is therefore validated against itself
+        # and this figure is the only trace of it. Neither half can tell the
+        # two apart, so the shortfall is returned as a number for a caller
+        # that knows what it asked the collector for.
+        shortfall = duration_s - window_seconds
+        observations.append(
+            f"the collector's window is {window_seconds} s, "
+            f"{duration_s - window_seconds:g} s shorter than the "
+            f"duration={duration_s:g}s the 'start:' line declares: the stop "
+            "hook ends the collector with SIGTERM after the measured run, "
+            "before its declared duration, so this is recorded, not judged "
+            "here (the coverage is judged by validate_resources_csv over the "
+            "window it is given, which in the preflight check is the "
+            "collector's own)"
+        )
+
+    # The closing record against the CSV. Every term of the relation is
+    # stated by collect-resources.sh:
+    #
+    # - samples= counts every sampling round the loop completed (:1287,
+    #   incremented at the end of each round, withheld rounds included);
+    # - a WITHHELD sample writes no rows at all (:422-427 and :716, :862: a
+    #   second not after the last stamped one is never stamped), so the
+    #   withheld_samples of the closing record stamp no instant;
+    # - the collector's FIRST round only primes each container's CPU delta
+    #   and writes no row either (:80-82, "--max-samples N yields at most
+    #   N-1 rows per container").
+    #
+    # A round therefore stamps AT MOST one instant, which is the only thing
+    # proved here. A shortfall means rounds that wrote no row (a sample whose
+    # inputs could not be read, :76-79, :1100, :1274); it is recorded, and
+    # what it costs the evidence is judged on the real instants.
+    blockers: list[str] = []
+    if start_stamp is None or stop_stamp is None:
+        blockers.append(
+            "the collector's window is not bounded by two strictly valid UTC "
+            "timestamps"
+        )
+    else:
+        # A stop that is not after the start bounds no window at all: the
+        # length derived from it would be negative or zero, and every rule
+        # that rests on it would be arithmetic about nothing. Both halves get
+        # the rule from here, in one wording (2026-09-20).
+        start_at = parse_csv_timestamp(start_stamp)
+        stop_at = parse_csv_timestamp(stop_stamp)
+        if start_at is not None and stop_at is not None and start_at >= stop_at:
+            blockers.append(
+                f"the collector's start {start_stamp} is not earlier than its "
+                f"stop {stop_stamp}: the measured window is reversed or empty"
+            )
+    if not csv_readable or instants_in_window is None:
+        blockers.append("the CSV's instants could not be read")
+    if samples is None:
+        blockers.append("the closing record states no integer samples= count")
+    if withheld is None:
+        blockers.append(
+            "the closing record states no integer withheld_samples= count"
+        )
+    elif samples is not None and withheld > samples:
+        # A withheld sample IS a completed round, and samples= counts every
+        # round the loop completed (collect-resources.sh:1287), so
+        # withheld_samples <= samples holds of every record that can be read
+        # at all. The two counters come from different places -- the shell
+        # loop and the closing awk's state line -- so a record that breaks the
+        # invariant is one whose state file was not read (2026-09-20).
+        blockers.append(
+            f"the closing record states withheld_samples={withheld} against "
+            f"samples={samples}: more rounds withheld than taken, so the "
+            "record cannot be read"
+        )
+    if blockers:
+        state = "not run: " + "; ".join(blockers)
+        problems.append(
+            f"the closing record was NOT reconciled with the CSV ({state}): "
+            "the sampling round(s) the collector accounts for and the "
+            "distinct instant(s) the CSV carries inside its window were not "
+            "compared"
+        )
+        return {
+            "problems": problems,
+            "observations": observations,
+            "state": state,
+            "records_in_order": records_in_order,
+            "rounds_the_declared_interval_implies": implied,
+            "declared_duration_shortfall_s": shortfall,
+        }
+
+    # Past the blockers, every figure of the relation is a number, and the
+    # withheld rounds are never more than the rounds taken.
+    accounted = samples - withheld
+    if instants_in_window > accounted:
+        problems.append(
+            f"the CSV carries {instants_in_window} distinct instant(s) "
+            f"inside the collector's window {window_text}, more than the "
+            f"samples={samples} less withheld_samples={withheld} = "
+            f"{accounted} sampling round(s) its closing record accounts for: "
+            "a round stamps at most one instant and a withheld round stamps "
+            "none at all, so the CSV holds instants the collector did not "
+            "stamp"
+        )
+    elif accounted > 1 and instants_in_window == 0:
+        problems.append(
+            f"the closing record accounts for samples={samples} less "
+            f"withheld_samples={withheld} = {accounted} stamped sampling "
+            "round(s), and the CSV carries no instant at all inside the "
+            f"collector's window {window_text}: the record and the CSV "
+            "cannot both be true"
+        )
+    elif instants_in_window < accounted - 1:
+        observations.append(
+            f"the closing record accounts for samples={samples} less "
+            f"withheld_samples={withheld} = {accounted} stamped sampling "
+            f"round(s), and the CSV carries {instants_in_window} distinct "
+            f"instant(s) inside the collector's window {window_text}: "
+            f"{accounted - 1 - instants_in_window} round(s), beyond the "
+            "first one (which only primes each container's CPU delta), wrote "
+            f"no row at all. Recorded, not judged here: {_JUDGED_ELSEWHERE}"
+        )
+    return {
+        "problems": problems,
+        "observations": observations,
+        "state": "run",
+        "records_in_order": records_in_order,
+        "rounds_the_declared_interval_implies": implied,
+        "declared_duration_shortfall_s": shortfall,
+    }
+
+
+def inspect_collector_outputs(
+    collector_dest: str | Path,
+    expect_services: list[str] | None,
+    *,
+    run_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """Account for the SUT collector's fetched output (collector hooks).
+
+    ``collector_dest`` is the fetched CSV (``logs/collector/resources-
+    <run_id>.csv``, or the manual path's copy under
+    ``logs/collector/resources-from/``); its companions sit beside it with
+    the suffixes of :data:`COLLECTOR_OUTPUT_FILES`. Nothing is modified: the
+    files are read and hashed where they were put, BEFORE the run directory is
+    sealed. Returns the manifest's ``collector`` record:
+
+    - ``files``: per key (``csv``, ``diagnostics``, ``lifecycle``,
+      ``self_test``) ``{path, present, size, sha256}`` (``path`` relative to
+      ``run_dir`` when given);
+    - ``deployed_sha256``: the ``collector_sha256`` of the diagnostics'
+      ``start:`` line (the collector that actually ran on the guest), else
+      None; ``start_line_count``;
+    - ``declared_expected_services``: the start line's ``expected services:``
+      value as the collector wrote it;
+    - ``inventory``: the last ``inventory:`` line, raw, and
+      ``inventory_missing``: its ``missing=`` names (``[]`` for ``none``);
+      ``inventory_line_count``: more than one inventory makes the record
+      ambiguous, a problem of its own (2026-09-20);
+      ``stop_line``: the last ``stop:`` line, raw, and ``stop_line_count``.
+      The closing record must be unambiguous and in its place: an absent,
+      duplicated or misplaced ``stop:`` line, and one without an integer
+      ``samples=`` count, are problems of their own (2026-09-19). So is any
+      of the three records whose leading token is not the collector's own
+      strictly valid UTC timestamp: its bounds cannot be trusted, and the
+      rules that rest on them are reported as NOT run rather than switched
+      off in silence (2026-09-20);
+      ``stop_counters``: every other figure of the closing summary as the
+      collector wrote it (:data:`_CLOSING_COUNTERS`, None for one it does not
+      state), recorded always. What makes one of them a problem, and what is
+      recorded without being one, is :data:`_CLOSING_COUNTERS`: the rule is
+      the one ``tools/session/collector_check.py`` applies to the preflight's
+      collector output, word for word, so the two halves cannot disagree
+      about what an unusable closing record is (2026-09-20);
+    - ``declared_interval_s``, ``declared_duration_s``: what the ``start:``
+      line asked of the collector, and ``declared_duration_shortfall_s``:
+      the seconds by which its window fell short of that duration (an
+      observation here -- the stop hook ends a timed run's collector before
+      it -- and a number a caller that knows what it asked for can judge);
+      ``window_seconds`` and
+      ``rounds_the_declared_interval_implies``: its own window and the rounds
+      that interval implies over it. All three are null when the collector's
+      stop is not after its start: such a window measures nothing, and saying
+      so is a problem of its own (2026-09-20);
+    - ``samples``, ``distinct_instants_in_window``: the rounds the closing
+      record accounts for and the instants the CSV really carries inside the
+      collector's window, read against each other by
+      :func:`reconcile_closing_record` -- the same function the preflight
+      check calls -- and ``closing_record_reconciliation``: ``run``, or why
+      it could not be made (which is a problem of its own, so these figures
+      are never left null beside an empty problem list);
+    - ``self_test_present``;
+    - ``rows_per_expected_service``: data rows of each expected service in
+      the fetched CSV's ``container`` column; ``unexpected_services``: the
+      other names found there (a warning only);
+    - ``problems``: every reason why the output cannot be accounted for.
+      The caller turns each into a validity reason of a timed run;
+    - ``observations``: what the collector's record says without being a
+      verdict here -- the forward UTC gaps, the withheld samples, a rate or a
+      window below what the ``start:`` line declared, more rounds than that
+      window and interval imply, and rounds that wrote no row. These are the
+      facts the collector documents as harmless, or that the protocol judges
+      elsewhere on the real instants: they are recorded, never a reason.
+
+    The ingest validation of the CSV (header, instants, coverage, gaps) is
+    NOT repeated here; it stays in :func:`ingest_resources`, and it is the
+    authority on the spacing and the coverage of the evidence.
+    """
+    collector_dest = Path(collector_dest)
+    run_dir = Path(run_dir) if run_dir is not None else None
+    problems: list[str] = []
+    observations: list[str] = []
+    files: dict[str, dict[str, Any]] = {}
+    for key, (suffix, _mandatory) in COLLECTOR_OUTPUT_FILES.items():
+        path = collector_dest.with_name(collector_dest.name + suffix)
+        shown = (
+            path.relative_to(run_dir).as_posix()
+            if run_dir is not None and path.is_relative_to(run_dir)
+            else path.name
+        )
+        present = path.is_file()
+        files[key] = {
+            "path": shown,
+            "present": present,
+            "size": path.stat().st_size if present else None,
+            "sha256": sha256_file(path) if present else None,
+        }
+
+    csv_name = collector_dest.name
+    if not files["csv"]["present"]:
+        where = files["csv"]["path"].rpartition("/")[0] or collector_dest.parent.name
+        problems.append(
+            f"collector CSV {csv_name} is absent from {where}/: the "
+            "collector's output was not delivered (by the fetch hook or "
+            "--resources-from)"
+        )
+    for key, (suffix, mandatory) in COLLECTOR_OUTPUT_FILES.items():
+        if key != "csv" and mandatory and not files[key]["present"]:
+            problems.append(
+                f"mandatory collector companion {csv_name}{suffix} is absent: "
+                "without it the collector's rows cannot be explained or "
+                "attributed (fetch it with "
+                "src/deployment/scripts/fetch-collector-output.sh)"
+            )
+    self_test_present = bool(files["self_test"]["present"])
+    if self_test_present:
+        problems.append(
+            f"{csv_name}.self-test is present: the collector ran in self-test "
+            "mode on substituted inputs, so this output is NOT a measurement"
+        )
+    if not expect_services:
+        problems.append(
+            "--expect-services was not given: the services the collector must "
+            "account for are unknown, so a service without a single row would "
+            "go unnoticed"
+        )
+
+    # Diagnostics: the deployed collector's hash, the expected set it was
+    # given, its inventory and closing summary.
+    deployed_sha256: str | None = None
+    declared: str | None = None
+    inventory: str | None = None
+    inventory_missing: list[str] | None = None
+    stop_line: str | None = None
+    stop_counters: dict[str, str | None] = {}
+    samples: int | None = None
+    declared_interval_s: float | None = None
+    declared_duration_s: float | None = None
+    window_seconds: int | None = None
+    implied_rounds: int | None = None
+    withheld: float | None = None
+    # The bounds of the collector's own window, as it stamped them.
+    start_stamp: str | None = None
+    stop_stamp: str | None = None
+    start_lines = 0
+    inventory_lines = 0
+    stop_lines = 0
+    # Where each record sits in the file (1-based, as
+    # tools/session/collector_check.py numbers them): the collector writes the
+    # start first and the closing summary last, so their order is evidence,
+    # and :func:`reconcile_closing_record` judges it for both halves.
+    start_at: int | None = None
+    inventory_at: int | None = None
+    stop_at: int | None = None
+    if files["diagnostics"]["present"]:
+        diag_path = collector_dest.with_name(csv_name + ".diagnostics.log")
+        first_start: str | None = None
+        stop_message: str | None = None
+        # The leading token of each record as it was written, so a record
+        # whose timestamp is not the collector's own can be named.
+        start_token: str | None = None
+        inventory_token: str | None = None
+        stop_token: str | None = None
+        inventory_stamp: str | None = None
+        # The FIRST record of each kind is the one kept and reported, in both
+        # halves: ``one_record`` in tools/session/collector_check.py keeps
+        # ``found[0]``, and until 2026-09-20 this loop overwrote its record on
+        # every match and kept the LAST, so a diagnostics holding two
+        # collectors gave the two halves two different windows for the same
+        # bytes (both refuse such a capsule over the duplicate count, but the
+        # figures they reported about it disagreed).
+        for index, raw in enumerate(
+            diag_path.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines(),
+            start=1,
+        ):
+            line = raw.rstrip("\r").strip()
+            match = _DIAG_RECORD_RE.match(line)
+            if match is None:
+                continue
+            token, kind = match.group(1), match.group(2)
+            # The message always begins at the keyword, whatever the token
+            # before it was.
+            message = line[match.start(2):]
+            if kind == "start":
+                start_lines += 1
+                if first_start is None:
+                    first_start = message
+                    start_at = index
+                    start_token = token
+                    start_stamp = _diagnostic_stamp(token)
+            elif kind == "inventory":
+                inventory_lines += 1
+                if inventory is None:
+                    inventory = line
+                    inventory_at = index
+                    inventory_token = token
+                    inventory_stamp = _diagnostic_stamp(token)
+                    fields = _inventory_fields(message)
+                    missing = fields.get("missing")
+                    inventory_missing = (
+                        None
+                        if missing is None
+                        else [] if missing == "none" else missing.split(",")
+                    )
+            else:  # 'stop': the closing record
+                stop_lines += 1
+                if stop_line is None:
+                    stop_line = line
+                    stop_message = message
+                    stop_at = index
+                    stop_token = token
+                    stop_stamp = _diagnostic_stamp(token)
+        if first_start is None:
+            problems.append(
+                "the collector diagnostics hold no 'start:' line: the sha256 "
+                "of the collector that ran on the guest is unknown"
+            )
+        else:
+            match = re.search(r"\bcollector_sha256=(\S+)", first_start)
+            candidate = match.group(1) if match else None
+            if candidate is not None and _SHA256_HEX_RE.match(candidate):
+                deployed_sha256 = candidate
+            else:
+                problems.append(
+                    "the collector's 'start:' line carries no usable "
+                    f"collector_sha256 ({candidate!r}): the sha256 of the "
+                    "collector that ran on the guest is unknown"
+                )
+            _, sep, value = first_start.rpartition("expected services: ")
+            declared = value.strip() if sep else None
+            declared_set = (
+                set()
+                if declared in (None, "", "none declared")
+                else set(declared.split(","))
+            )
+            if expect_services and declared_set != set(expect_services):
+                problems.append(
+                    "the collector's 'start:' line declares expected services "
+                    f"{declared!r}, the harness expects "
+                    f"{','.join(expect_services)!r}: the start hook did not "
+                    "pass the same --expect-services to the collector, so its "
+                    "inventory's missing= was judged against another set"
+                )
+            # What the start record asked of the collector: its closing
+            # record is read against these below.
+            declared_interval_s = _declared_seconds(first_start, "interval")
+            declared_duration_s = _declared_seconds(first_start, "duration")
+            if start_stamp is None:
+                problems.append(
+                    _UNSTAMPED_RECORD.format(kind="start", token=start_token)
+                )
+        if start_lines > 1:
+            problems.append(
+                f"the collector diagnostics hold {start_lines} 'start:' lines: "
+                "more than one collector wrote this output (a run_id reused "
+                "within one guest boot appends to the same files)"
+            )
+        if inventory is None:
+            problems.append(
+                "the collector diagnostics hold no 'inventory:' line: the "
+                "collector did not stop cleanly (it writes the inventory when "
+                "the stop hook's SIGTERM ends it)"
+            )
+        elif inventory_missing:
+            problems.append(
+                "the collector's inventory reports expected service(s) never "
+                "observed: " + ", ".join(inventory_missing)
+            )
+        elif inventory_missing is None:
+            problems.append(
+                "the collector's 'inventory:' line has no 'missing=' field: "
+                f"{inventory!r}"
+            )
+        if inventory_lines > 1:
+            problems.append(
+                f"the collector diagnostics hold {inventory_lines} "
+                "'inventory:' lines: the inventory is ambiguous (more than "
+                "one collector wrote this output)"
+            )
+        if inventory is not None and inventory_stamp is None:
+            problems.append(
+                _UNSTAMPED_RECORD.format(kind="inventory", token=inventory_token)
+            )
+        if stop_line is None:
+            problems.append(
+                "the collector diagnostics hold no 'stop:' line: the closing "
+                "record is incomplete, so neither the number of samples the "
+                "collector kept nor the end of its window is known"
+            )
+        else:
+            if stop_lines > 1:
+                problems.append(
+                    f"the collector diagnostics hold {stop_lines} 'stop:' "
+                    "lines: the closing record is ambiguous (more than one "
+                    "collector wrote this output)"
+                )
+            if stop_stamp is None:
+                problems.append(
+                    _UNSTAMPED_RECORD.format(kind="stop", token=stop_token)
+                )
+            samples = _stop_samples(stop_message or "")
+            if samples is None:
+                problems.append(
+                    "the collector's 'stop:' line carries no integer "
+                    f"'samples=' count: {stop_line!r}"
+                )
+            # What the collector could and could not measure, in its own
+            # words. Every figure is recorded; a figure it did not state, or
+            # stated as 'unknown', leaves the closing record as unreadable as
+            # a missing 'samples=' count. See _CLOSING_COUNTERS for what is a
+            # problem and what is recorded without being one.
+            read: dict[str, float] = {}
+            for name, counts in _CLOSING_COUNTERS.items():
+                value = _stop_counter(stop_message or "", name)
+                stop_counters[name] = value
+                decimal = name in _DECIMAL_COUNTERS
+                pattern = _DECIMAL_VALUE_RE if decimal else _COUNT_VALUE_RE
+                if value is None:
+                    problems.append(
+                        f"the collector's 'stop:' line has no '{name}=' "
+                        f"field: the collector's own count of {counts} is "
+                        "not stated, so its closing record is incomplete"
+                    )
+                elif not pattern.match(value):
+                    problems.append(
+                        f"the collector's 'stop:' line carries {name}="
+                        f"{value}: the collector could not read its own "
+                        "state file when it closed (it then writes "
+                        f"'unknown'), so its count of {counts} is unknown "
+                        "and its closing record cannot be read"
+                    )
+                else:
+                    read[name] = float(value) if decimal else int(value)
+            for name in _UNMEASURED_COUNTERS:
+                if read.get(name):
+                    problems.append(
+                        f"the collector reports {name}={stop_counters[name]}:"
+                        f" {stop_counters[name]} {_CLOSING_COUNTERS[name]}, "
+                        "so that time is accounted for nowhere and the "
+                        "evidence cannot be added up"
+                    )
+            if read.get("utc_gap_seconds"):
+                observations.append(
+                    "the collector reports utc_gap_seconds="
+                    f"{stop_counters['utc_gap_seconds']}: "
+                    f"{stop_counters['utc_gap_seconds']} "
+                    f"{_CLOSING_COUNTERS['utc_gap_seconds']}. A wall clock "
+                    "stepped forward adds to it although no time passed "
+                    "unsampled (collect-resources.sh), so it is recorded, "
+                    f"not judged here: {_JUDGED_ELSEWHERE}"
+                )
+            if read.get("withheld_samples"):
+                observations.append(
+                    "the collector reports withheld_samples="
+                    f"{stop_counters['withheld_samples']} "
+                    f"({stop_counters['withheld_elapsed_s']} s of elapsed "
+                    f"time): {stop_counters['withheld_samples']} "
+                    f"{_CLOSING_COUNTERS['withheld_samples']}. The collector "
+                    "recalibrates its phase after one, so it is recorded, "
+                    f"not judged here: {_JUDGED_ELSEWHERE}, and what the "
+                    "withheld samples cost is a problem of its own when it "
+                    "is in neither count"
+                )
+            if read.get("withheld_elapsed_s") and read.get("withheld_samples") == 0:
+                problems.append(
+                    "the collector reports withheld_elapsed_s="
+                    f"{stop_counters['withheld_elapsed_s']} while "
+                    "withheld_samples=0: the closing record contradicts "
+                    "itself, and the zero is what its closing awk writes "
+                    "when it cannot read the withheld count in its state "
+                    "file (collect-resources.sh:1303-1330), so the samples "
+                    "that cost that elapsed time are unaccounted for"
+                )
+            withheld = read.get("withheld_samples")
+
+    # Rows per expected service in the fetched CSV ('container' column), and
+    # the instants behind them ('ts_utc'), which the closing record is
+    # reconciled with below.
+    rows_per_service: dict[str, int] | None = None
+    unexpected: list[str] = []
+    instants: set[str] = set()
+    csv_ok = False
+    if files["csv"]["present"]:
+        counts: dict[str, int] = {}
+        container_col: int | None = None
+        read_error: str | None = None
+        try:
+            with open(
+                collector_dest, "r", encoding="utf-8", errors="replace", newline=""
+            ) as fh:
+                reader = csv.reader(fh)
+                header = next(reader, None)
+                if header is not None and "container" in header:
+                    container_col = header.index("container")
+                    ts_col = header.index("ts_utc") if "ts_utc" in header else None
+                    for row in reader:
+                        if ts_col is not None and len(row) > ts_col:
+                            instants.add(row[ts_col].strip())
+                        if len(row) <= container_col:
+                            continue
+                        name = row[container_col].strip()
+                        if name:
+                            counts[name] = counts.get(name, 0) + 1
+                    csv_ok = ts_col is not None
+        except (OSError, csv.Error) as exc:
+            read_error = str(exc)
+            csv_ok = False
+        if read_error is not None:
+            problems.append(
+                f"collector CSV {csv_name} could not be read to count the rows "
+                f"per service: {read_error}"
+            )
+        elif container_col is None:
+            problems.append(
+                f"collector CSV {csv_name} has no 'container' column: the rows "
+                "cannot be attributed to services"
+            )
+        elif expect_services:
+            rows_per_service = {name: counts.get(name, 0) for name in expect_services}
+            for name, rows in rows_per_service.items():
+                if rows == 0:
+                    problems.append(
+                        f"expected service {name!r} has no rows in the fetched "
+                        f"collector CSV {csv_name}"
+                    )
+            unexpected = sorted(set(counts) - set(expect_services))
+        if read_error is None and container_col is not None and not csv_ok:
+            # The rows are there but nothing says WHEN: the instants cannot be
+            # placed in the collector's window, so the reconciliation below is
+            # reported as not run rather than quietly skipped (2026-09-20).
+            problems.append(
+                f"collector CSV {csv_name} has no 'ts_utc' column: its rows "
+                "cannot be placed in the collector's window"
+            )
+
+    # The collector's own window, then its closing record against that window,
+    # the interval and duration the 'start:' line declared, and the instants
+    # the CSV really carries. The rule is :func:`reconcile_closing_record`,
+    # the ONE function tools/session/collector_check.py calls on the
+    # preflight's output (2026-09-20): only a record that contradicts itself
+    # is a problem -- rounds the stamped window cannot hold, instants that no
+    # round could have stamped, or no instant at all beside stamped rounds --
+    # and everything else it says (withheld rounds, forward clock steps, an
+    # implied number of rounds, rounds that wrote no row, a window shorter
+    # than the declared duration) is recorded and reported as an observation,
+    # never a reason to invalidate a run. The spacing and the coverage of the
+    # evidence are judged on the REAL instants by the ingest validation,
+    # against the protocol's own thresholds.
+    start_at_utc = parse_csv_timestamp(start_stamp) if start_stamp else None
+    stop_at_utc = parse_csv_timestamp(stop_stamp) if stop_stamp else None
+    in_window: int | None = None
+    if start_at_utc is not None and stop_at_utc is not None:
+        # A stop that is not after the start measures nothing: no length is
+        # recorded from it (and none derived: the rounds the interval implies
+        # and the shortfall stay null), and the reconciliation refuses it in
+        # the words both halves share (2026-09-20).
+        measured = int((stop_at_utc - start_at_utc).total_seconds())
+        window_seconds = measured if measured > 0 else None
+        if csv_ok:
+            parsed = [parse_csv_timestamp(value) for value in instants]
+            in_window = sum(
+                1
+                for at in parsed
+                if at is not None and start_at_utc <= at <= stop_at_utc
+            )
+    reconciliation = reconcile_closing_record(
+        samples=samples,
+        withheld=None if withheld is None else int(withheld),
+        instants_in_window=in_window,
+        csv_readable=csv_ok,
+        window=(start_stamp, stop_stamp),
+        window_seconds=window_seconds,
+        interval_s=declared_interval_s,
+        duration_s=declared_duration_s,
+        record_lines=(start_at, inventory_at, stop_at),
+    )
+    problems += reconciliation["problems"]
+    observations += reconciliation["observations"]
+    implied_rounds = reconciliation["rounds_the_declared_interval_implies"]
+
+    return {
+        "files": files,
+        "deployed_sha256": deployed_sha256,
+        "start_line_count": start_lines,
+        "declared_expected_services": declared,
+        "declared_interval_s": declared_interval_s,
+        "declared_duration_s": declared_duration_s,
+        "inventory": inventory,
+        "inventory_missing": inventory_missing,
+        "inventory_line_count": inventory_lines,
+        "stop_line": stop_line,
+        "stop_line_count": stop_lines,
+        "stop_counters": stop_counters,
+        "samples": samples,
+        "window": [start_stamp, stop_stamp],
+        "window_seconds": window_seconds,
+        "rounds_the_declared_interval_implies": implied_rounds,
+        "distinct_instants": len(instants),
+        "distinct_instants_in_window": in_window,
+        "closing_record_reconciliation": reconciliation["state"],
+        "declared_duration_shortfall_s": (
+            reconciliation["declared_duration_shortfall_s"]
+        ),
+        "self_test_present": self_test_present,
+        "rows_per_expected_service": rows_per_service,
+        "unexpected_services": unexpected,
+        "observations": observations,
+        "problems": problems,
+    }
+
+
+def collector_problem_reasons(problems: list[str] | None) -> list[str]:
+    """Validity reasons for the ``collector.problems`` of a run."""
+    return [
+        f"collector output not accounted for: {problem}; this run's CPU/RAM "
+        "evidence cannot be trusted"
+        for problem in problems or []
+    ]
+
+
+#: Programs that run the script given as their first argument
+#: (``sh <script> ...``, ``python3 <script> ...``).
+_SCRIPT_INTERPRETER_RE = re.compile(
+    r"^(?:sh|bash|dash|ash|ksh|zsh|python(?:\d+(?:\.\d+)*)?t?)(?:\.exe)?$",
+    re.IGNORECASE,
+)
+
+
+def identify_hook_helper(command: str) -> dict[str, Any]:
+    """The local program a rendered hook command runs, and its sha256.
+
+    For ``sh <script> ...`` (or another shell, or ``python <script> ...``)
+    the helper is the script; otherwise it is the command's first word. A
+    bare program name such as ``scp`` is NOT looked up on PATH: only a path
+    naming a readable local regular file is hashed. Returns ``{"path",
+    "sha256"}``; ``sha256`` is None when the helper cannot be identified
+    (``path`` is then what the command names, or None for ``sh -c ...``).
+    """
+    try:
+        argv = shlex.split(command, posix=True)
+    except ValueError:
+        argv = []
+    path_text: str | None = argv[0] if argv else None
+    if (
+        argv
+        and _SCRIPT_INTERPRETER_RE.match(Path(argv[0]).name)
+        and len(argv) > 1
+    ):
+        path_text = None if argv[1].startswith("-") else argv[1]
+    digest: str | None = None
+    if path_text:
+        candidate = Path(path_text)
+        try:
+            if candidate.is_file():
+                digest = sha256_file(candidate)
+        except OSError:
+            digest = None
+    return {"path": path_text, "sha256": digest}
+
+
+def resources_from_copy_plan(
+    src: str | Path, run_dir: str | Path, run_id: str
+) -> tuple[Path, list[tuple[Path, Path]]]:
+    """Where the manual path keeps its copy of the collector output.
+
+    Returns ``(dest_csv, pairs)``: ``dest_csv`` is
+    ``logs/collector/resources-from/resources-<run_id>.csv`` and ``pairs``
+    lists ``(source, destination)`` for the ``--resources-from`` file and
+    every companion that exists beside it (the suffixes of
+    :data:`COLLECTOR_OUTPUT_FILES`).
+    """
+    src = Path(src)
+    dest_csv = (
+        Path(run_dir)
+        / "logs"
+        / COLLECTOR_FETCH_SUBDIR
+        / RESOURCES_FROM_SUBDIR
+        / f"resources-{run_id}.csv"
+    )
+    pairs = [
+        (Path(f"{src}{suffix}"), Path(f"{dest_csv}{suffix}"))
+        for suffix, _mandatory in COLLECTOR_OUTPUT_FILES.values()
+        if Path(f"{src}{suffix}").is_file()
+    ]
+    return dest_csv, pairs
+
+
+def resources_from_copy_conflicts(
+    pairs: list[tuple[Path, Path]],
+) -> list[tuple[Path, Path]]:
+    """The ``(source, destination)`` pairs whose destination already holds
+    DIFFERENT content (raw evidence is write-once)."""
+    return [
+        (source, dest)
+        for source, dest in pairs
+        if dest.is_file() and sha256_file(source) != sha256_file(dest)
+    ]
+
+
+def copy_resources_from_outputs(
+    pairs: list[tuple[Path, Path]], run_dir: str | Path
+) -> None:
+    """Copy the manual-path collector output into the run directory.
+
+    Refuses with :class:`SealedRunError` BEFORE copying anything when a
+    destination holds different content; identical files are left as they
+    are (an idempotent re-collection adds nothing).
+    """
+    conflicts = resources_from_copy_conflicts(pairs)
+    if conflicts:
+        source, dest = conflicts[0]
+        raise overwrite_refusal(dest, source, run_dir)
+    for source, dest in pairs:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        ingest_copy(source, dest, run_dir)
+
+
+def collector_warnings(record: dict[str, Any]) -> list[str]:
+    """Manifest warnings for one collector record: every problem, plus the
+    services found outside the expected list (a warning only)."""
+    out = [
+        f"collector output problem: {problem}"
+        for problem in record.get("problems") or []
+    ]
+    unexpected = record.get("unexpected_services") or []
+    if unexpected:
+        out.append(
+            "collector CSV holds rows of services outside --expect-services "
+            "(not a validity problem): " + ", ".join(unexpected)
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -885,6 +2233,7 @@ def ingest_resources(
     expected_window_s: float | None = None,
     expected_window_start_utc: str | None = None,
     expected_window_end_utc: str | None = None,
+    source_label: str = "--resources-from",
 ) -> bool:
     """Validate and copy the fetched SUT resources.csv into the run dir.
 
@@ -904,13 +2253,15 @@ def ingest_resources(
     rules then apply). Returns True only on a successful, validated copy.
     An existing ``resources.csv`` is never overwritten with different
     content (raises :class:`SealedRunError`); an identical re-copy is a
-    no-op (work order P1 item 11).
+    no-op (work order P1 item 11). ``source_label`` names where the file
+    came from in the warnings (``--resources-from`` or the output of the
+    ``--collector-fetch-cmd`` hook).
     """
     if resources_from is None:
         return False
     src = Path(resources_from)
     if not src.is_file():
-        warnings.append(f"--resources-from file not found: {src}")
+        warnings.append(f"{source_label} file not found: {src}")
         return False
     expected_host = sut_env_node(read_sut_environment(run_dir))
     problems = validate_resources_csv(
@@ -922,7 +2273,7 @@ def ingest_resources(
     )
     if problems:
         warnings.append(
-            f"--resources-from {src} REJECTED (SUT resources treated as "
+            f"{source_label} {src} REJECTED (SUT resources treated as "
             "missing): " + "; ".join(problems)
         )
         return False
@@ -955,6 +2306,7 @@ def compute_validity(
     allow_missing_controller_marker: bool = False,
     collector_hooks: list[dict[str, Any]] | None = None,
     missing_artifacts: list[str] | None = None,
+    collector_problems: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -988,6 +2340,37 @@ def compute_validity(
       start/stop/fetch hook is never a silent warning;
     - the mandatory artefacts of the condition kind must be present
       (report 5.4): a run missing one is INVALID and is not sealed.
+
+    Collector output accounting (2026-09-19): every ``collector_problems``
+    entry (:func:`inspect_collector_outputs`) is a reason of a timed run —
+    a missing companion, a self-test marker, no ``--expect-services``, an
+    expected service without rows, an inventory naming a missing service, a
+    collector that did not stop cleanly, a closing ``stop:`` record that is
+    absent, duplicated, misplaced or without its sample count. Of the
+    closing record's other figures (2026-09-20): one the collector could not
+    compute (``unknown``) or does not state, elapsed time in neither count
+    (``withheld_runs_unmeasured``, ``withheld_open_at_stop`` above zero), a
+    ``withheld_elapsed_s`` above zero while ``withheld_samples`` reads zero,
+    a record whose leading token is not a strictly valid UTC timestamp, a
+    reconciliation with the CSV that could not be made (its bounds unusable,
+    its window reversed or empty, more rounds withheld than taken, or the
+    CSV's instants unreadable), and a record that contradicts itself — more
+    stamped rounds than the seconds of the collector's own window can hold,
+    more distinct instants inside that window than the rounds the record
+    accounts for, or no instant at all beside stamped rounds. What is NOT a
+    reason, and is recorded in
+    ``collector.observations`` instead: a forward ``utc_gap_seconds`` (a wall
+    clock stepped forward adds to it although no time passed unsampled),
+    ``withheld_samples`` on their own, a window shorter than the declared
+    duration, a rate below the declared interval, more rounds than that
+    window and interval imply, and rounds that wrote no row — the spacing and
+    the coverage of the evidence are judged on the real instants, by the
+    ingest validation against the protocol's
+    :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S`, not against a
+    threshold of the inspection's own (2026-09-20). No allow flag suppresses
+    the reasons. They
+    do NOT withhold SHA256SUMS: the fetched files are sealed as they are, so
+    the invalid run's evidence stays verifiable.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -1072,6 +2455,7 @@ def compute_validity(
                 "the legacy event-derived deadline)"
             )
         reasons.extend(collector_hook_failures(collector_hooks))
+        reasons.extend(collector_problem_reasons(collector_problems))
     if missing_artifacts:
         reasons.append(
             "mandatory artefact(s) missing from the run directory: "
@@ -1551,6 +2935,7 @@ def execute_run(
     collector_start_cmd: str | None = None,
     collector_stop_cmd: str | None = None,
     collector_fetch_cmd: str | None = None,
+    expect_services: list[str] | None = None,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
@@ -1571,7 +2956,18 @@ def execute_run(
     confirmation window, ``collector_fetch_cmd`` AFTER the confirmation
     window, producing the local resources.csv that then goes through the
     EXISTING validated ingest path. Each template accepts the ``{run_id}``,
-    ``{duration_s}`` and ``{dest}`` placeholders.
+    ``{duration_s}``, ``{dest}`` and ``{expect_services}`` placeholders.
+
+    ``expect_services`` (``--expect-services``) names the services the
+    collector must account for (an invalid list is refused with exit 2
+    before anything is written). Whenever the SUT resources come from the
+    collector — a fetch hook, ``--resources-from`` (the manual path, whose
+    file and companions are first copied to
+    ``logs/collector/resources-from/``) or start/stop hooks without a fetch
+    hook — :func:`inspect_collector_outputs` runs right after the fetch
+    point and its ``problems`` invalidate the timed run; a missing
+    ``expect_services`` is one of them. ``--local-resources`` (dev only)
+    is not inspected.
     """
     plan_path = Path(plan_path)
     try:
@@ -1638,6 +3034,19 @@ def execute_run(
             file=sys.stderr,
         )
         return 2
+    collector_hooks_in_use = any(
+        (collector_start_cmd, collector_stop_cmd, collector_fetch_cmd)
+    )
+    if expect_services is not None:
+        try:
+            expect_services = (
+                parse_expected_services(expect_services)
+                if isinstance(expect_services, str)
+                else validate_expected_services(list(expect_services))
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
     if fetch_events_cmd is None:
         fetch_events_cmd = os.environ.get(FETCH_EVENTS_CMD_ENV) or None
@@ -1769,7 +3178,17 @@ def execute_run(
             run_id,
             duration_s=collector_window_s,
             dest=collector_dest,
+            expect_services=expect_services,
+            log_dir=collector_dest.parent,
         )
+        # The full hook output is kept beside the fetched files (sealed with
+        # them); the manifest names it relative to the run directory.
+        for stream in ("stdout", "stderr"):
+            path = record.pop(f"{stream}_path", None)
+            if path is not None:
+                record[f"{stream}_file"] = (
+                    Path(path).relative_to(run_dir).as_posix()
+                )
         collector_hooks.append(record)
         if record.get("returncode") != 0:
             print(
@@ -1779,7 +3198,7 @@ def execute_run(
                 flush=True,
             )
 
-    if collector_start_cmd or collector_fetch_cmd:
+    if collector_hooks_in_use:
         collector_dest.parent.mkdir(parents=True, exist_ok=True)
     # Started BEFORE the warm-up so the collector covers the whole run.
     _run_collector_hook("start", collector_start_cmd)
@@ -1952,15 +3371,87 @@ def execute_run(
         time.sleep(post_run_wait_s)
 
     # Collector fetch hook: AFTER the confirmation window, producing the
-    # local CSV that goes through the EXISTING validated ingest path below.
+    # local CSV that goes through the EXISTING validated ingest path below,
+    # with the collector's companions beside it in logs/collector/. The
+    # helper it runs is identified by its sha256 first (manifest 1.4).
+    fetch_helper: dict[str, Any] | None = None
+    if collector_fetch_cmd:
+        fetch_helper = identify_hook_helper(
+            format_collector_template(
+                collector_fetch_cmd,
+                run_id,
+                duration_s=collector_window_s,
+                dest=collector_dest,
+                expect_services=expect_services,
+            )
+        )
+        if fetch_helper["sha256"] is None:
+            warnings.append(
+                "the helper run by --collector-fetch-cmd "
+                f"({fetch_helper['path']!r}) is not a readable local file, "
+                "so its sha256 is not recorded and the fetch helper that ran "
+                "cannot be identified"
+            )
     _run_collector_hook("fetch", collector_fetch_cmd)
     resources_ingest_from: str | Path | None = resources_from
+    resources_source_label = "--resources-from"
     if collector_fetch_cmd:
+        resources_source_label = "--collector-fetch-cmd output"
         if collector_dest.is_file():
             resources_ingest_from = collector_dest
         else:
             warnings.append(
                 f"--collector-fetch-cmd produced no file at {collector_dest}"
+            )
+
+    # Collector output accounting (2026-09-19), right after the fetch and
+    # long before the seal: which files arrived, which collector produced
+    # them, whether it stopped cleanly and whether every expected service
+    # has rows. Every problem is a validity reason of the timed run. The
+    # manual path (--resources-from) is accounted for exactly like the fetch
+    # hook: its file and the companions beside it are copied (write-once)
+    # into logs/collector/resources-from/ so the seal covers them, then
+    # inspected. --local-resources (dev only) has no collector output.
+    collector_record: dict[str, Any] = {
+        "expected_services": expect_services,
+        "hooks_in_use": collector_hooks_in_use,
+        "source": None,
+    }
+    collector_problems: list[str] = []
+    inspect_target: Path | None = None
+    if collector_fetch_cmd:
+        collector_record["source"] = "--collector-fetch-cmd"
+        collector_record["fetch_helper_path"] = fetch_helper["path"]
+        collector_record["fetch_helper_sha256"] = fetch_helper["sha256"]
+        inspect_target = collector_dest
+    elif resources_from is not None:
+        collector_record["source"] = "--resources-from"
+        collector_record["source_path"] = str(resources_from)
+        inspect_target, copy_pairs = resources_from_copy_plan(
+            resources_from, run_dir, run_id
+        )
+        copy_resources_from_outputs(copy_pairs, run_dir)
+    elif collector_hooks_in_use:
+        inspect_target = collector_dest
+    if inspect_target is not None:
+        inspection = inspect_collector_outputs(
+            inspect_target, expect_services, run_dir=run_dir
+        )
+        if collector_record["source"] is None:
+            inspection["problems"].insert(
+                0,
+                "collector hooks are configured without --collector-fetch-cmd "
+                "or --resources-from: the collector's CSV and companions were "
+                f"not fetched into logs/{COLLECTOR_FETCH_SUBDIR}/",
+            )
+        collector_record.update(inspection)
+        collector_problems = list(inspection["problems"])
+        warnings.extend(collector_warnings(collector_record))
+        for problem in collector_problems:
+            print(
+                f"[harness] collector output problem: {problem}",
+                file=sys.stderr,
+                flush=True,
             )
 
     # Simulator outputs: sent_events.jsonl to the run root (the analysis
@@ -2006,6 +3497,7 @@ def execute_run(
         expected_window_s=measured_window_s,
         expected_window_start_utc=measured_start_utc,
         expected_window_end_utc=measured_end_utc,
+        source_label=resources_source_label,
     ):
         resource_source = "sut-collector"
     elif local_resources:
@@ -2138,6 +3630,7 @@ def execute_run(
         allow_missing_controller_marker=allow_missing_controller_marker,
         collector_hooks=collector_hooks,
         missing_artifacts=missing_artifacts,
+        collector_problems=collector_problems,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -2181,6 +3674,10 @@ def execute_run(
         # SUT collector hooks (sprint P5, report 5.3): every hook's command,
         # exit code and start/end timestamps, in execution order.
         "collector_hooks": collector_hooks,
+        # Collector output accounting (manifest 1.4): what the fetch hook
+        # delivered, which collector produced it, its inventory, the rows
+        # per expected service and the problems that invalidate the run.
+        "collector": collector_record,
         # Mandatory evidence of this condition kind that is absent (report
         # 5.4). Non-empty => validity 'invalid' AND no SHA256SUMS.
         "missing_mandatory_artifacts": missing_artifacts,
@@ -2232,6 +3729,7 @@ def execute_run(
                 "collector_start_cmd": collector_start_cmd,
                 "collector_stop_cmd": collector_stop_cmd,
                 "collector_fetch_cmd": collector_fetch_cmd,
+                "expect_services": expect_services,
             },
         },
         "started_utc": started_utc,
@@ -2292,7 +3790,10 @@ def execute_run(
     # report 5.4): an incomplete run directory must never look like sealed
     # evidence, so any missing mandatory artefact (events.jsonl among them)
     # withholds the seal. The 'collect' subcommand re-attempts collection
-    # and writes it then.
+    # and writes it then. Collector output problems invalidate the run but
+    # do not withhold the seal: the files in logs/collector/ (fetched output,
+    # companions, full hook output) are sealed exactly as they arrived, so
+    # the reasons recorded in the manifest stay verifiable.
     if not missing_artifacts:
         write_sha256sums(run_dir)
     else:
@@ -2342,6 +3843,7 @@ def collect_run(
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
     allow_missing_controller_marker: bool = False,
+    expect_services: list[str] | None = None,
 ) -> int:
     """Re-attempt evidence collection for an EXISTING run directory.
 
@@ -2361,6 +3863,17 @@ def collect_run(
     rewrites SHA256SUMS. Existing raw files are NEVER overwritten with
     different content (SealedRunError => exit 2); identical re-copies are
     no-ops, so re-running collect is idempotent.
+
+    Collector output accounting (manifest 1.4): ``resources_from`` is the
+    manual path, accounted for exactly as in ``run``. The file and the
+    companions beside it are copied (write-once) into
+    ``logs/collector/resources-from/`` and inspected, and the new
+    inspection replaces the manifest's ``collector`` record (the previous
+    one is kept in the ``collect_history`` entry). The expected services
+    are the ones the run recorded; ``expect_services`` may supply them when
+    the run recorded none, never change them (exit 2), and is only
+    accepted together with ``resources_from``. Without ``resources_from``
+    the problems recorded at run time are re-applied unchanged.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -2378,6 +3891,53 @@ def collect_run(
     except (OSError, json.JSONDecodeError) as exc:
         print(f"error: cannot read {manifest_path}: {exc}", file=sys.stderr)
         return 2
+
+    # Expected services (manifest 1.4): fixed by the run. 'collect' may
+    # supply them for a run that recorded none, never change them, and only
+    # together with the --resources-from output it accounts for.
+    recorded_collector = manifest.get("collector")
+    recorded_expected = (
+        recorded_collector.get("expected_services")
+        if isinstance(recorded_collector, dict)
+        else None
+    ) or ((manifest.get("config") or {}).get("cli") or {}).get("expect_services")
+    if not (
+        isinstance(recorded_expected, list)
+        and recorded_expected
+        and all(isinstance(name, str) for name in recorded_expected)
+    ):
+        recorded_expected = None
+    if expect_services is not None:
+        try:
+            expect_services = (
+                parse_expected_services(expect_services)
+                if isinstance(expect_services, str)
+                else validate_expected_services(list(expect_services))
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if resources_from is None:
+            print(
+                "error: --expect-services on 'collect' applies to the "
+                "--resources-from output it accounts for; give both, or "
+                "neither.",
+                file=sys.stderr,
+            )
+            return 2
+        if recorded_expected and set(recorded_expected) != set(expect_services):
+            print(
+                f"error: run {run_id!r} recorded the expected services "
+                f"{','.join(recorded_expected)!r}; 'collect' cannot change "
+                f"them to {','.join(expect_services)!r}.",
+                file=sys.stderr,
+            )
+            return 2
+    effective_expected: list[str] | None = (
+        list(recorded_expected)
+        if recorded_expected
+        else expect_services
+    )
 
     # Sealed-raw rules (work order P1 item 11): once SHA256SUMS exists the
     # directory is sealed. Adding a genuinely MISSING file is allowed only
@@ -2509,8 +4069,24 @@ def collect_run(
     expected_window_end_utc = (
         measured_window.get("end") if isinstance(measured_window, dict) else None
     )
+    previous_collector: dict[str, Any] | None = None
     if resources_from is not None:
+        src = Path(resources_from)
+        dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
         try:
+            # Refuse BEFORE anything is written: a manual-path copy that
+            # differs from the one already kept is different evidence (the
+            # resources.csv refusal is named first when it applies too).
+            conflicts = resources_from_copy_conflicts(copy_pairs)
+            if conflicts:
+                existing = run_dir / "resources.csv"
+                if (
+                    src.is_file()
+                    and existing.is_file()
+                    and sha256_file(existing) != sha256_file(src)
+                ):
+                    raise overwrite_refusal(existing, src, run_dir)
+                raise overwrite_refusal(conflicts[0][1], conflicts[0][0], run_dir)
             if ingest_resources(
                 run_dir,
                 resources_from,
@@ -2521,9 +4097,36 @@ def collect_run(
             ):
                 manifest["resource_source"] = "sut-collector"
                 actions.append("ingested resources.csv (sut-collector)")
+            copy_resources_from_outputs(copy_pairs, run_dir)
         except SealedRunError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
+        # The manual path is accounted for exactly as in 'run'. A source that
+        # does not exist (a mistyped path) leaves the recorded accounting
+        # alone: ingest_resources has already warned about it.
+        if src.is_file():
+            previous_collector = (
+                recorded_collector if isinstance(recorded_collector, dict) else None
+            )
+            collector_record: dict[str, Any] = {
+                "expected_services": effective_expected,
+                "hooks_in_use": bool(
+                    previous_collector and previous_collector.get("hooks_in_use")
+                ),
+                "source": "--resources-from",
+                "source_path": str(src),
+            }
+            collector_record.update(
+                inspect_collector_outputs(
+                    dest_csv, effective_expected, run_dir=run_dir
+                )
+            )
+            manifest["collector"] = collector_record
+            warnings.extend(collector_warnings(collector_record))
+            actions.append(
+                f"accounted for the collector output of --resources-from {src} "
+                f"({len(collector_record['problems'])} problem(s))"
+            )
     resource_source = manifest.get("resource_source") or (
         "sut-collector" if (run_dir / "resources.csv").is_file() else "none"
     )
@@ -2565,6 +4168,17 @@ def collect_run(
     collector_hooks = manifest.get("collector_hooks")
     if not isinstance(collector_hooks, list):
         collector_hooks = []
+    # The collector output was inspected at run time, right after the fetch
+    # hook; 'collect' cannot re-fetch it (guest /tmp does not survive a
+    # power-off), so its problems are re-applied as recorded, never dropped
+    # — unless --resources-from was accounted for just above, whose record
+    # has replaced the run's.
+    current_collector = manifest.get("collector")
+    collector_problems = (
+        [str(p) for p in current_collector.get("problems") or []]
+        if isinstance(current_collector, dict)
+        else []
+    )
     missing_artifacts = missing_mandatory_artifacts(
         run_dir,
         manifest.get("condition_id"),
@@ -2592,6 +4206,7 @@ def collect_run(
         allow_missing_controller_marker=allow_missing_controller_marker,
         collector_hooks=collector_hooks,
         missing_artifacts=missing_artifacts,
+        collector_problems=collector_problems,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons
@@ -2646,7 +4261,11 @@ def collect_run(
     history = manifest.get("collect_history")
     if not isinstance(history, list):
         history = []
-    history.append({"utc": utc_now_iso(), "actions": actions})
+    entry: dict[str, Any] = {"utc": utc_now_iso(), "actions": actions}
+    if manifest.get("collector") is not recorded_collector:
+        # The collector record this pass replaced, kept for the audit trail.
+        entry["previous_collector"] = previous_collector
+    history.append(entry)
     manifest["collect_history"] = history
 
     # Sealed-dir additions (work order P1 item 11b): the only legitimate
