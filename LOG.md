@@ -2460,8 +2460,11 @@ is unchanged.
   looked scanned, and smaller ones in the export and the harness. All were
   fixed with tests before this entry.
 - **Verified, and where.** Unit suite in WSL2 Ubuntu 24.04 (Python 3.12.3):
-  1,364 passed, 53 skipped (the busybox variants of the collector tests, which
-  need the wrapper environment). Every attempt below is a package in
+  1,364 passed and 53 skipped at `fe954a9` (the busybox variants of the
+  collector tests, which need the wrapper environment); 1,369 passed at
+  `03958c2`, the head reviewed on 2026-09-19, and 1,765 passed with 64 skipped
+  after the corrections of 2026-09-20 below. Each count belongs to the commit
+  beside it. Every attempt below is a package in
   `C:\Users\ruimf\Documents\Projeto Mestrado\output_test` with a verified seal,
   listed in its `INDEX.md`:
   - export checks: one passing test module and one deliberately failing test,
@@ -2498,6 +2501,50 @@ is unchanged.
   measurement. The controller's restart recovery (package D) and the final
   battery (package E) have not started. `output_test` is a local copy, neither
   published evidence nor a backup.
+- **Provenance of the live observations** (corrected here on 2026-09-20, after
+  the project review: the earlier draft of this pull request described them as
+  one commit). The export checks, the guest session, the live preflight and the
+  smartwatch slice ran from `a3b0d56`; only the nominal entry ran from
+  `fe954a9`. `tools/session/` did not exist in the repository at either commit:
+  it was versioned at `d7b7a72`, **after** every live command. What ran were the
+  working copies in `/home/ruisth/egw-exec/drivers`, whose concatenated sha256
+  each attempt records (`identities.drivers_sha256`: `8be60f66…` for the export
+  checks, `ca0eb1f6…` for the session and the preflight, `aab9fff5…` for the
+  slice, `9e3a334b…` for the nominal entry, as `slice.sh` and then `nominal.sh`
+  were added). The seven drivers that existed when the session opened were
+  byte-identical throughout it, and the copies preserved inside the guest-session
+  package equal those working copies file by file. The versioned drivers differ
+  from them substantially — between 6 and 229 changed lines per file — first
+  because every workstation path became overridable and then because of the
+  corrections below, so the observations of 2026-09-19 were not produced by the
+  drivers this pull request versions.
+- **Corrections after the project review of 2026-09-19** (made on 2026-09-20,
+  before any merge; three commits). The review asked for five: the export
+  destination is now confined physically (a symbolic link, a Windows junction,
+  another reparse point or a hard link at an owned path is refused instead of
+  written through, and every generated file is written through a temporary file
+  and one rename); a console capture that fails is recorded with its byte
+  counts, exits 74 and cannot be finished as valid, and one rule now decides
+  that verdict for the attempt, the package, the summary and the index; the
+  preflight and the harness both require a usable start, inventory and closing
+  record with an ordered window, and reconcile the closing record with the CSV
+  only where it contradicts itself, leaving spacing and coverage to
+  `validate_resources_csv` against the protocol's own tolerance; a registered
+  source keeps its own name, so a linked, dangling or relative root is listed
+  and never read; and every driver derives its exit status from the verdicts it
+  recorded (0 pass, 1 a valid negative result, 2 a prerequisite, 3 invalid
+  instrumentation or a mandatory step, 4 an export that could not be verified,
+  5 a controlled stop, 130 interrupted), skipping what depends on a failed
+  prerequisite. Six adversarial reviews of the corrections themselves, each
+  with reproductions, found 84 further defects — among them a hard link that
+  defeated the confinement, a capture failure that could be lost, an export
+  check that read any non-zero code as the intended failure, a tree comparison
+  that looked in one direction only, and, twice, a correction of ours that
+  would have invalidated runs the protocol accepts. All were fixed with tests.
+  The known limitations that remain are recorded in the pull request. No
+  acceptance threshold, delivery rule, deadline or ingest limit was changed, and
+  regenerating the index from the twenty-one existing packages reproduces them
+  unchanged: no earlier verdict moved.
 - **Decisions and next steps:** none taken here. The next packages are the
   bounded recovery ADR and fix (D), then the coordinated battery on one
   unchanged candidate (E). The authorship rule of 2026-09-19 (author and
