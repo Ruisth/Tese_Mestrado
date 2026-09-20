@@ -178,9 +178,14 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         csv_path.write_text("\n".join(lines) + "\n", "utf-8")
         Path(f"{csv_path}.diagnostics.log").write_text(
             f"2026-09-07T09:59:59Z start: collector_sha256={'cd' * 32} "
-            "host=sut-vm; expected services: egw-controller\n"
+            "host=sut-vm interval=1s duration=42s; expected services: "
+            "egw-controller\n"
             "2026-09-07T10:00:41Z inventory: observed=egw-controller "
-            "expected=egw-controller missing=none unnamed_ids=0\n",
+            "expected=egw-controller missing=none unnamed_ids=0\n"
+            "2026-09-07T10:00:41Z stop: samples=41 utc_gap_seconds=0 "
+            "withheld_samples=0 withheld_elapsed_s=0.00 "
+            "withheld_runs_unmeasured=0 withheld_open_at_stop=0 "
+            "calibrations=1 pacing=wall-clock\n",
             "utf-8",
         )
         Path(f"{csv_path}.lifecycle.csv").write_text(
@@ -507,8 +512,8 @@ SIX_SERVICES = [
 
 # The fetch hook writes what collect-resources.sh leaves beside its CSV: the
 # CSV (40 instants of every service in {expect_services}), the diagnostics
-# with a start line declaring that list and a clean inventory, and the
-# lifecycle file.
+# with a start line declaring that list, a clean inventory and the closing
+# summary, and the lifecycle file.
 HOOK_SCRIPT = """\
 import sys
 from pathlib import Path
@@ -527,9 +532,14 @@ if mode == "write":
     Path(dest).write_text("\\n".join(rows) + "\\n", encoding="utf-8")
     Path(dest + ".diagnostics.log").write_text(
         "2026-09-07T09:59:59Z start: collector_sha256=" + "ab" * 32
-        + " host=sut-vm; expected services: " + (expect or "none declared") + "\\n"
+        + " host=sut-vm interval=1s duration=42s; expected services: "
+        + (expect or "none declared") + "\\n"
         + "2026-09-07T10:00:41Z inventory: observed=" + ",".join(sorted(services))
-        + " expected=" + (expect or "none-declared") + " missing=none unnamed_ids=0\\n",
+        + " expected=" + (expect or "none-declared") + " missing=none unnamed_ids=0\\n"
+        + "2026-09-07T10:00:41Z stop: samples=41 utc_gap_seconds=0 "
+        + "withheld_samples=0 withheld_elapsed_s=0.00 "
+        + "withheld_runs_unmeasured=0 withheld_open_at_stop=0 "
+        + "calibrations=1 pacing=wall-clock\\n",
         encoding="utf-8",
     )
     Path(dest + ".lifecycle.csv").write_text(

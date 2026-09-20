@@ -163,6 +163,15 @@ def _sut_env_file(tmp_path: Path, **overrides) -> Path:
 #: ``expect_services`` and write the companions beside the CSV.
 FIXTURE_SERVICES = ["egw-controller"]
 
+#: The closing summary of a collector that accounted for every sampling
+#: round: the sample count and the four counters of what it could not
+#: measure, all of them zero (collect-resources.sh, the closing ``diag``).
+CLEAN_STOP = (
+    "stop: samples=41 utc_gap_seconds=0 withheld_samples=0 "
+    "withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 "
+    "withheld_open_at_stop=0 calibrations=1 pacing=wall-clock"
+)
+
 
 def _write_companions(
     csv_path: Path,
@@ -172,7 +181,8 @@ def _write_companions(
 ) -> None:
     """The .diagnostics.log and .lifecycle.csv collect-resources.sh writes
     beside its CSV: a start line naming the collector's sha256 and the
-    expected services, a clean inventory and a stop line."""
+    expected services, a clean inventory and a closing summary with every
+    counter the collector keeps."""
     listed = ",".join(services)
     Path(f"{csv_path}.diagnostics.log").write_text(
         f"2026-09-07T09:59:59Z start: collector_sha256={'cd' * 32} "
@@ -180,7 +190,7 @@ def _write_companions(
         f"fixture; timestamps: fixture; expected services: {listed}\n"
         f"2026-09-07T10:00:41Z inventory: observed={','.join(sorted(services))} "
         f"expected={listed} missing={missing} unnamed_ids=0\n"
-        "2026-09-07T10:00:41Z stop: samples=41 utc_gap_seconds=0\n",
+        f"2026-09-07T10:00:41Z {CLEAN_STOP}\n",
         "utf-8",
     )
     Path(f"{csv_path}.lifecycle.csv").write_text(
@@ -1788,8 +1798,14 @@ FAKE_COLLECTOR_SHA256 = "ab" * 32
 # (the CSV, .diagnostics.log with the start/inventory/stop lines,
 # .lifecycle.csv) for every service of {expect_services} (a lone
 # 'egw-controller' when none is given). Options remove or alter one piece:
-# nodiag, nolife, nostart, noinv, selftest, drop:<name>, extra:<name> (rows of
-# one more service), missing:<names>, declared:<names>, host:<name>.
+# nodiag, nolife, nostart, noinv (neither the inventory nor the closing
+# summary: the collector never got that far), nostop (the inventory is there,
+# the closing summary is not), dupstop (two closing summaries), badstop (a
+# closing summary without its sample count), badcounters (every figure
+# 'unknown'), withheld (3 samples withheld, their cost stated), unmeasured
+# (elapsed time in neither count), earlystop (the closing summary before the
+# start line), selftest, drop:<name>, extra:<name> (rows of one more service),
+# missing:<names>, declared:<names>, host:<name>.
 HOOK_SCRIPT = """\
 import sys
 from pathlib import Path
@@ -1819,6 +1835,29 @@ if flags[0] == "write":
                 )
     Path(dest).write_text("\\n".join(rows) + "\\n", encoding="utf-8")
     diag = []
+    # The closing summary, with the figures of what the collector could and
+    # could not measure: zero by default, 'unknown' when its last awk could
+    # not read the state file ('badcounters'), a run of withheld samples
+    # ('withheld': 3 of the 44 rounds, so the 40 instants still reconcile) and
+    # elapsed time no accepted sample measured ('unmeasured').
+    counters = "unknown" if "badcounters" in opts else "0"
+    stop = (
+        "2026-09-07T10:00:41Z stop: samples=%s utc_gap_seconds=%s "
+        "withheld_samples=%s withheld_elapsed_s=%s "
+        "withheld_runs_unmeasured=%s withheld_open_at_stop=%s calibrations=1 "
+        "pacing=wall-clock"
+        % (
+            "unknown" if "badstop" in opts else ("44" if "withheld" in opts else "41"),
+            counters,
+            "3" if "withheld" in opts else counters,
+            "2.00" if "withheld" in opts else ("unknown" if "badcounters" in opts
+                                               else "0.00"),
+            "2" if "unmeasured" in opts else counters,
+            "1" if "unmeasured" in opts else counters,
+        )
+    )
+    if "earlystop" in opts:
+        diag.append(stop)
     if "nostart" not in opts:
         diag.append(
             "2026-09-07T09:59:59Z start: collector_sha256=" + "ab" * 32
@@ -1827,12 +1866,18 @@ if flags[0] == "write":
             + (opts.get("declared") or expect or "none declared")
         )
     if "noinv" not in opts:
-        diag.append(
+        inventory = (
             "2026-09-07T10:00:41Z inventory: observed=" + ",".join(sorted(services))
             + " expected=" + (expect or "none-declared")
             + " missing=" + (opts.get("missing") or "none") + " unnamed_ids=0"
         )
-        diag.append("2026-09-07T10:00:41Z stop: samples=41 utc_gap_seconds=0")
+        diag.append(inventory)
+        if "dupinv" in opts:
+            diag.append(inventory)
+        if not {"nostop", "earlystop"} & set(opts):
+            diag.append(stop)
+            if "dupstop" in opts:
+                diag.append(stop)
     if "nodiag" not in opts:
         Path(dest + ".diagnostics.log").write_text(
             "\\n".join(diag) + "\\n", encoding="utf-8"
@@ -1974,7 +2019,29 @@ def test_collector_hooks_run_in_order_and_produce_ingested_resources(
     assert collector["declared_expected_services"] == ",".join(SIX_SERVICES)
     assert collector["inventory"].endswith("missing=none unnamed_ids=0")
     assert collector["inventory_missing"] == []
-    assert collector["stop_line"].endswith("stop: samples=41 utc_gap_seconds=0")
+    assert collector["inventory_line_count"] == 1
+    assert collector["stop_line"].endswith("calibrations=1 pacing=wall-clock")
+    assert collector["stop_line_count"] == 1
+    # The collector accounted for every sampling round it took: 41 rounds,
+    # the first of which only primes the CPU deltas, and the 40 instants the
+    # CSV carries inside its window.
+    assert collector["stop_counters"] == {
+        "utc_gap_seconds": "0",
+        "withheld_samples": "0",
+        "withheld_elapsed_s": "0.00",
+        "withheld_runs_unmeasured": "0",
+        "withheld_open_at_stop": "0",
+    }
+    assert collector["samples"] == 41
+    assert collector["distinct_instants_in_window"] == 40
+    # The collector is given the whole run's duration and ended by the stop
+    # hook before it: recorded, never a problem (the real nominal-r01 of
+    # 2026-09-19 declared duration=840s and closed a 722 s window).
+    assert [
+        observation
+        for observation in collector["observations"]
+        if "shorter than the duration=" not in observation
+    ] == []
     assert collector["self_test_present"] is False
     assert collector["rows_per_expected_service"] == {
         name: 40 for name in SIX_SERVICES
@@ -2250,7 +2317,99 @@ def test_a_collector_that_did_not_stop_cleanly_invalidates_the_run(
     collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
     assert collector["inventory"] is None
     assert collector["stop_line"] is None
+    assert collector["stop_line_count"] == 0
     assert "did not stop cleanly" in _reasons(run_dir)
+    assert "no 'stop:' line" in _reasons(run_dir)
+
+
+def test_an_inventory_without_the_closing_record_invalidates_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """F3 (project review of 2026-09-19): the case that used to pass.
+
+    The collector wrote its inventory, every expected service has rows and the
+    start hash is the wanted one, but the closing summary is missing: the end
+    of the measured window and the number of samples kept are unknown, so the
+    output cannot be accounted for.
+    """
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+nostop")
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["inventory_missing"] == []
+    assert collector["rows_per_expected_service"] == {name: 40 for name in SIX_SERVICES}
+    assert collector["stop_line"] is None
+    assert collector["stop_line_count"] == 0
+    assert "no 'stop:' line" in _reasons(run_dir)
+
+
+@pytest.mark.parametrize(
+    "option, expected",
+    [
+        ("dupstop", "2 'stop:' lines"),
+        ("badstop", "no integer 'samples=' count"),
+        ("earlystop",
+         "records are out of order (start line 2, inventory line 3, stop "
+         "line 1)"),
+        # The closing record's own accounting: a figure the collector could
+        # not compute ('unknown': it could not read its state file when it
+        # closed) and elapsed time in neither count are problems of their own
+        # (2026-09-20).
+        ("badcounters", "carries utc_gap_seconds=unknown"),
+        ("unmeasured", "the collector reports withheld_runs_unmeasured=2"),
+        ("unmeasured", "the collector reports withheld_open_at_stop=1"),
+    ],
+)
+def test_an_unusable_closing_record_invalidates_the_run(
+    tmp_path, plan_path, fast_run, option: str, expected: str
+) -> None:
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, fetch_mode=f"write+{option}"
+    )
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["stop_line"] is not None
+    assert collector["stop_line_count"] == (2 if option == "dupstop" else 1)
+    assert expected in _reasons(run_dir)
+
+
+def test_withheld_samples_do_not_invalidate_a_measured_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """P1 of the review of 2026-09-20, end to end: the collector withheld 3 of
+    its 44 rounds (two samples in one wall-clock second, the artefact it
+    recalibrates after) and says what they cost. The run's CPU/RAM evidence is
+    the 40 instants the CSV carries, which the ingest validates as it always
+    does, so the run is valid and the count is recorded in the manifest."""
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+withheld")
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "nominal-r01")
+    assert manifest["validity"] == "valid"
+    collector = manifest["collector"]
+    assert collector["problems"] == []
+    assert collector["stop_counters"]["withheld_samples"] == "3"
+    assert collector["stop_counters"]["withheld_elapsed_s"] == "2.00"
+    assert any(
+        "the collector reports withheld_samples=3 (2.00 s of elapsed time)"
+        in observation
+        for observation in collector["observations"]
+    ), collector["observations"]
+
+
+def test_a_second_inventory_line_invalidates_the_run(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """Two inventories are as ambiguous as two closing records (2026-09-20).
+
+    Everything else is in order: the start hash is the wanted one, the CSV
+    holds rows for every expected service and the closing record accounts for
+    its samples, so the second inventory is the whole difference.
+    """
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path, fetch_mode="write+dupinv")
+    assert rc == 1
+    collector = _manifest(run_dir.parent.parent, "nominal-r01")["collector"]
+    assert collector["inventory_line_count"] == 2
+    assert collector["stop_line_count"] == 1
+    assert "2 'inventory:' lines" in _reasons(run_dir)
 
 
 def test_diagnostics_without_a_start_line_leave_the_collector_hash_unknown(
@@ -2894,12 +3053,27 @@ def test_compute_validity_applies_collector_problems_to_timed_runs_only() -> Non
     assert run_mod.compute_validity(timed=False, **common) == ("valid", [])
 
 
-def _write_collector_files(directory: Path, diagnostics: str) -> Path:
+#: The diagnostics stamps of the inspection fixtures: the collector's own
+#: window, which its closing record and its CSV are read against.
+INSPECTION_START = "2026-09-07T09:59:59Z"
+INSPECTION_STOP = "2026-09-07T10:00:41Z"
+
+
+def _write_collector_files(
+    directory: Path, diagnostics: str, *, instants: int = 40
+) -> Path:
+    """One fetched collector output whose CSV carries ``instants`` instants.
+
+    The default is the shape of a clean capsule beside :data:`CLEAN_STOP`:
+    41 sampling rounds, of which the first only primes each container's CPU
+    delta, so 40 instants are stamped inside the collector's window.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     csv_path = directory / "resources-r.csv"
-    csv_path.write_text(
-        RESOURCES_HEADER + "\n2026-09-07T10:00:00Z,a,1.0,1,1.0,sut-vm\n", "utf-8"
-    )
+    rows = [RESOURCES_HEADER]
+    for second in range(instants):
+        rows.append(f"2026-09-07T10:00:{second:02d}Z,a,1.0,1,1.0,sut-vm")
+    csv_path.write_text("\n".join(rows) + "\n", "utf-8")
     Path(f"{csv_path}.diagnostics.log").write_text(diagnostics, "utf-8")
     Path(f"{csv_path}.lifecycle.csv").write_text("ts_utc,event,container_id,name\n", "utf-8")
     return csv_path
@@ -2907,16 +3081,24 @@ def _write_collector_files(directory: Path, diagnostics: str) -> Path:
 
 def test_inspection_flags_two_collectors_and_an_unusable_hash(tmp_path) -> None:
     start = (
-        "2026-09-07T09:59:59Z start: collector_sha256={sha} host=h source=cgroup "
-        "interval=1s duration=0s pacing: p; timestamps: t; expected services: a\n"
+        f"{INSPECTION_START} start: collector_sha256={{sha}} host=h source=cgroup "
+        "interval=1s duration=45s pacing: p; timestamps: t; expected services: a\n"
     )
     inventory = (
-        "2026-09-07T10:00:01Z inventory: observed=a expected=a missing=none "
+        f"{INSPECTION_STOP} inventory: observed=a expected=a missing=none "
         "unnamed_ids=0\n"
     )
+    # The closing record each collector writes: complete here, so the only
+    # problems left are the ones this case is about.
+    stop = f"{INSPECTION_STOP} {CLEAN_STOP}\n"
     csv_path = _write_collector_files(
         tmp_path / "two",
-        start.format(sha="c" * 64) + inventory + start.format(sha="d" * 64) + inventory,
+        start.format(sha="c" * 64)
+        + inventory
+        + stop
+        + start.format(sha="d" * 64)
+        + inventory
+        + stop,
     )
     two = run_mod.inspect_collector_outputs(csv_path, ["a"])
     assert two["start_line_count"] == 2
@@ -2924,13 +3106,690 @@ def test_inspection_flags_two_collectors_and_an_unusable_hash(tmp_path) -> None:
     assert any("2 'start:' lines" in p for p in two["problems"])
 
     csv_path = _write_collector_files(
-        tmp_path / "unavailable", start.format(sha="unavailable") + inventory
+        tmp_path / "unavailable", start.format(sha="unavailable") + inventory + stop
     )
     unusable = run_mod.inspect_collector_outputs(csv_path, ["a"])
     assert unusable["deployed_sha256"] is None
+    assert unusable["problems"] == [
+        p for p in unusable["problems"] if "'stop:'" not in p
+    ]
     assert any("no usable collector_sha256" in p for p in unusable["problems"])
     # Paths are basenames when no run directory is given.
     assert unusable["files"]["csv"]["path"] == "resources-r.csv"
+
+
+#: The start and inventory records of the inspection fixtures, as
+#: collect-resources.sh writes them.
+INSPECTION_START_LINE = (
+    f"{INSPECTION_START} start: collector_sha256=" + "c" * 64 + " host=h "
+    "source=cgroup interval=1s duration=42s pacing: p; timestamps: t; "
+    "expected services: a\n"
+)
+INSPECTION_INVENTORY_LINE = (
+    f"{INSPECTION_STOP} inventory: observed=a expected=a missing=none "
+    "unnamed_ids=0\n"
+)
+#: Every figure of a clean closing record, in the collector's own words.
+CLEAN_COUNTERS = {
+    "utc_gap_seconds": "0",
+    "withheld_samples": "0",
+    "withheld_elapsed_s": "0.00",
+    "withheld_runs_unmeasured": "0",
+    "withheld_open_at_stop": "0",
+}
+
+
+def test_inspection_reads_a_complete_set_of_diagnostics_records(tmp_path) -> None:
+    """The positive case: one start, one inventory and one closing summary, in
+    that order, whose counters account for every sampling round, leave the
+    diagnostics without a single problem."""
+    csv_path = _write_collector_files(
+        tmp_path / "complete",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} {CLEAN_STOP}\n",
+    )
+    complete = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert complete["problems"] == []
+    assert complete["observations"] == []
+    assert complete["deployed_sha256"] == "c" * 64
+    assert complete["stop_line_count"] == 1
+    assert complete["inventory_line_count"] == 1
+    assert complete["stop_line"].endswith("calibrations=1 pacing=wall-clock")
+    assert complete["stop_counters"] == CLEAN_COUNTERS
+    # 41 rounds, none withheld: the 40 instants of the CSV are all of them
+    # but the priming round, so the record and the CSV agree.
+    assert complete["samples"] == 41
+    assert complete["distinct_instants_in_window"] == 40
+    assert complete["window"] == [INSPECTION_START, INSPECTION_STOP]
+    assert complete["window_seconds"] == 42
+    assert complete["declared_interval_s"] == 1.0
+    assert complete["declared_duration_s"] == 42.0
+    assert complete["rounds_the_declared_interval_implies"] == 43
+
+
+def test_inspection_rejects_a_closing_line_that_states_no_counter(tmp_path) -> None:
+    """A closing record that states none of the figures beside its sample
+    count -- the shape collect-resources.sh:396-398 documents for a line an
+    older collector wrote, and the shape of a truncated or rewritten record.
+
+    The half that seals the measured runs requires the complete closing record
+    exactly as ``tools/session/collector_check.py`` does, and in the same
+    words: a timed run whose collector cannot say how many samples it withheld
+    is not accounted for (2026-09-20).
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "bare",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=41\n",
+    )
+    bare = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert bare["stop_counters"] == dict.fromkeys(CLEAN_COUNTERS)
+    for name in CLEAN_COUNTERS:
+        assert any(
+            f"the collector's 'stop:' line has no '{name}=' field" in problem
+            and "its closing record is incomplete" in problem
+            for problem in bare["problems"]
+        ), bare["problems"]
+
+
+@pytest.mark.parametrize(
+    "diagnostics, expected",
+    [
+        # The closing summary never arrived: the collector was killed, or the
+        # fetch caught the file before it was written.
+        ("start\ninventory", "no 'stop:' line"),
+        # Two collectors appended to the same files within one guest boot.
+        ("start\ninventory\nstop\nstop", "2 'stop:' lines"),
+        # 'samples=' is the count the closing summary exists to carry.
+        ("start\ninventory\nbadstop", "no integer 'samples=' count"),
+        # Concatenated or edited evidence: the records are out of order. The
+        # whole chain is compared -- start, then inventory, then the closing
+        # record -- by the function both halves call, so the order this half
+        # seals is the order the preflight half refuses (2026-09-20).
+        ("stop\nstart\ninventory",
+         "records are out of order (start line 2, inventory line 3, stop "
+         "line 1)"),
+        ("start\nstop\ninventory",
+         "records are out of order (start line 1, inventory line 3, stop "
+         "line 2)"),
+        ("inventory\nstart\nstop",
+         "records are out of order (start line 2, inventory line 1, stop "
+         "line 3)"),
+        # Two inventories: the harness keeps the FIRST one, as the preflight
+        # half does (2026-09-20), so the service that one says was never
+        # observed is reported and not lost to the second.
+        ("start\nmissinginv\ninventory\nstop", "2 'inventory:' lines"),
+        ("start\nmissinginv\ninventory\nstop",
+         "reports expected service(s) never observed: a"),
+        # The closing record cannot account for its own samples: the collector
+        # writes 'unknown' when its last awk cannot read the state file.
+        ("start\ninventory\nunknownstop", "carries utc_gap_seconds=unknown"),
+        ("start\ninventory\nunknownstop", "carries withheld_open_at_stop=unknown"),
+        # Elapsed time in neither count: samples no accepted sample measured.
+        ("start\ninventory\nunmeasuredstop", "the collector reports "
+                                             "withheld_runs_unmeasured=2"),
+        ("start\ninventory\nunmeasuredstop", "the collector reports "
+                                             "withheld_open_at_stop=1"),
+        ("start\ninventory\nunmeasuredstop", "accounted for nowhere"),
+        # The fabricated zero: the elapsed figure the closing awk kept is
+        # above zero while the count it could not read reads 0.
+        ("start\ninventory\ncontradictorystop",
+         "withheld_elapsed_s=11.50 while withheld_samples=0"),
+        # A record whose leading token is not the collector's own timestamp:
+        # its bounds cannot be trusted, so it is a problem of its own and the
+        # rules that rest on it are reported as NOT run (2026-09-20).
+        ("start\ninventory\nunstampedstop",
+         "the 'stop:' line carries no strictly valid leading UTC timestamp"),
+        ("start\ninventory\nunstampedstop",
+         "the closing record was NOT reconciled with the CSV"),
+        ("unstampedstart\ninventory\nstop",
+         "the 'start:' line carries no strictly valid leading UTC timestamp"),
+        ("start\nunstampedinventory\nstop",
+         "the 'inventory:' line carries no strictly valid leading UTC "
+         "timestamp"),
+    ],
+)
+def test_inspection_rejects_an_unusable_closing_record(
+    tmp_path, diagnostics: str, expected: str
+) -> None:
+    """An incomplete or ambiguous record is a problem of its own (F3, project
+    review of 2026-09-19): the harness never accepts a collector output whose
+    window has no usable end, whose inventory is ambiguous, or whose closing
+    summary cannot account for the samples it took (2026-09-20)."""
+    lines = {
+        "start": INSPECTION_START_LINE.rstrip("\n"),
+        "inventory": INSPECTION_INVENTORY_LINE.rstrip("\n"),
+        "missinginv": f"{INSPECTION_STOP} inventory: observed=none "
+                      "expected=a missing=a unnamed_ids=0",
+        "stop": f"{INSPECTION_STOP} {CLEAN_STOP}",
+        "badstop": f"{INSPECTION_STOP} stop: samples=unknown "
+                   "utc_gap_seconds=0 withheld_samples=3 "
+                   "withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 "
+                   "withheld_open_at_stop=0",
+        "unknownstop": f"{INSPECTION_STOP} stop: samples=41 "
+                       "utc_gap_seconds=unknown withheld_samples=unknown "
+                       "withheld_elapsed_s=unknown "
+                       "withheld_runs_unmeasured=unknown "
+                       "withheld_open_at_stop=unknown calibrations=1 "
+                       "pacing=wall-clock",
+        "unmeasuredstop": f"{INSPECTION_STOP} stop: samples=41 "
+                          "utc_gap_seconds=7 withheld_samples=0 "
+                          "withheld_elapsed_s=0.00 withheld_runs_unmeasured=2 "
+                          "withheld_open_at_stop=1 calibrations=1 "
+                          "pacing=wall-clock",
+        "contradictorystop": f"{INSPECTION_STOP} stop: samples=41 "
+                             "utc_gap_seconds=0 withheld_samples=0 "
+                             "withheld_elapsed_s=11.50 "
+                             "withheld_runs_unmeasured=0 "
+                             "withheld_open_at_stop=0 calibrations=1 "
+                             "pacing=wall-clock",
+        "manystop": f"{INSPECTION_STOP} stop: samples=600 "
+                    "utc_gap_seconds=0 withheld_samples=0 "
+                    "withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 "
+                    "withheld_open_at_stop=0 calibrations=1 "
+                    "pacing=wall-clock",
+        # Records the collector did not stamp: a line assembled by hand, or
+        # one whose timestamp was rewritten after the fetch.
+        "unstampedstart": INSPECTION_START_LINE.rstrip("\n")[
+            len(INSPECTION_START) + 1:
+        ],
+        "unstampedinventory": "2026-09-07T10:00:61Z inventory: observed=a "
+                              "expected=a missing=none unnamed_ids=0",
+        "unstampedstop": CLEAN_STOP,
+    }
+    csv_path = _write_collector_files(
+        tmp_path / diagnostics.replace("\n", "-"),
+        "".join(lines[key] + "\n" for key in diagnostics.split("\n")),
+    )
+    inspection = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert any(expected in problem for problem in inspection["problems"]), (
+        inspection["problems"]
+    )
+    # The hash and the inventory were still read: the closing record is the
+    # only thing wrong. Where a kind of record occurs twice, the FIRST one is
+    # the one read, in both halves (2026-09-20), so the capsule whose first
+    # inventory names a service never observed reports that service.
+    assert inspection["deployed_sha256"] == "c" * 64
+    assert inspection["inventory_missing"] == (
+        ["a"] if "missinginv" in diagnostics else []
+    )
+
+
+def test_inspection_records_rounds_that_wrote_no_row(tmp_path) -> None:
+    """The samples-vs-CSV rule in the half that seals the timed runs
+    (2026-09-20, corrected the same day): 43 rounds, none withheld, and 40
+    instants inside the collector's window.
+
+    Two rounds beyond the priming one wrote no row at all
+    (``collect-resources.sh:1100``, ``:1274``, ``:684``, ``:711``: a round
+    whose inputs could not be read is counted and writes nothing). That is
+    RECORDED, never a verdict of this function's own: the shortfall costs
+    spacing and coverage, and those are judged on the real instants by the
+    ingest validation, against MAX_SAMPLE_GAP_S and the protocol's coverage
+    rule. A threshold here would silently accept less than the protocol
+    does -- and both real capsules of 2026-09-19 sit one lost round from it.
+
+    The rounds are a count the collector could have written: 43 stamped
+    rounds fit in its own 42 s window, which is what the rule above them is
+    about (2026-09-20).
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "short",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=43 utc_gap_seconds=0 "
+        "withheld_samples=0 withheld_elapsed_s=0.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+    )
+    short = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert short["problems"] == []
+    assert run_mod.collector_problem_reasons(short["problems"]) == []
+    assert short["closing_record_reconciliation"] == "run"
+    assert any(
+        "the closing record accounts for samples=43 less withheld_samples=0 = "
+        "43 stamped sampling round(s), and the CSV carries 40 distinct "
+        f"instant(s) inside the collector's window {INSPECTION_START}.."
+        f"{INSPECTION_STOP}: 2 round(s)" in observation
+        and "wrote no row at all" in observation
+        for observation in short["observations"]
+    ), short["observations"]
+
+
+def test_a_lost_round_leaves_a_real_capsule_valid(tmp_path) -> None:
+    """P1 of the review of 2026-09-20, on the geometry of nominal-r01.
+
+    The real capsule closed with ``samples=721`` and carries 720 instants:
+    exactly the one-round allowance of the rule as it was written. The very
+    next run that loses one round anywhere in 720 -- one failed ``docker
+    stats`` poll -- would have been sealed INVALID although every spacing is
+    2 s and the coverage 99.9 %, far inside what the protocol accepts. It is
+    recorded and the run stands.
+    """
+    start, stop = "2026-09-19T20:00:45Z", "2026-09-19T20:12:47Z"
+    begin = datetime.strptime(start, "%Y-%m-%dT%H:%M:%SZ")
+    rows = [RESOURCES_HEADER]
+    for offset in range(1, 721):
+        if offset == 300:  # the round whose poll returned nothing
+            continue
+        stamp = (begin + timedelta(seconds=offset)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows.append(f"{stamp},a,1.0,1,1.0,sut-vm")
+    directory = tmp_path / "lost-round"
+    directory.mkdir(parents=True)
+    csv_path = directory / "resources-r.csv"
+    csv_path.write_text("\n".join(rows) + "\n", "utf-8")
+    Path(f"{csv_path}.diagnostics.log").write_text(
+        f"{start} start: collector_sha256=" + "c" * 64 + " host=h source=auto "
+        "interval=1s duration=840s pacing: wall-clock seconds; timestamps: "
+        "awk systime(); expected services: a\n"
+        f"{stop} inventory: observed=a expected=a missing=none unnamed_ids=0\n"
+        f"{stop} stop: samples=721 utc_gap_seconds=1 withheld_samples=0 "
+        "withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 "
+        "withheld_open_at_stop=0 calibrations=1 pacing=wall-clock\n",
+        "utf-8",
+    )
+    Path(f"{csv_path}.lifecycle.csv").write_text(
+        "ts_utc,event,container_id,name\n", "utf-8"
+    )
+    lost = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert lost["problems"] == []
+    assert lost["distinct_instants_in_window"] == 719
+    assert any("wrote no row at all" in o for o in lost["observations"])
+    # The rule that IS the authority on the spacing and the coverage.
+    assert resources_mod.validate_resources_csv(
+        str(csv_path),
+        expected_host="sut-vm",
+        expected_window_start_utc=start,
+        expected_window_end_utc=stop,
+    ) == []
+
+
+def test_withheld_samples_never_invalidate_a_run(tmp_path) -> None:
+    """P1 of the review of 2026-09-20: a withheld round must not invalidate a
+    run through the count of the rounds the window implies either.
+
+    A withheld sample IS a completed sampling round that stamps no second
+    (``collect-resources.sh:422-427``), and ``samples=`` counts it
+    (``:1287``), so the count legitimately exceeds what the stamped window
+    allows by exactly the withheld count. Eight of them on a 42 s window at
+    interval=1s: recorded, and the run stands.
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "withheld-eight",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=49 utc_gap_seconds=0 "
+        "withheld_samples=8 withheld_elapsed_s=6.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+    )
+    withheld = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert withheld["problems"] == []
+    assert run_mod.collector_problem_reasons(withheld["problems"]) == []
+    observed = " | ".join(withheld["observations"])
+    assert (
+        "the closing record states samples=49, more rounds than its own 42 s "
+        "window at the interval=1s the 'start:' line declares allows (43)"
+    ) in observed, observed
+    assert "a sampling round that stamped no second" in observed
+
+
+@pytest.mark.parametrize(
+    "samples, withheld, elapsed",
+    [
+        # No round withheld: the raw count and the accounted one are equal.
+        (20, 0, "0.00"),
+        # The case the bound of 2026-09-20 let through until today: 42 rounds
+        # less the 3 withheld are 39 stamped ones, and the CSV carries 40
+        # instants -- one more than any round of this run can have stamped,
+        # since a withheld round stamps none at all.
+        (42, 3, "2.00"),
+    ],
+)
+def test_inspection_rejects_more_instants_than_sampling_rounds(
+    tmp_path, samples: int, withheld: int, elapsed: str
+) -> None:
+    """Rows that cannot exist: a round stamps at most one instant and a
+    withheld round stamps none, so a CSV with more distinct instants inside
+    the window than the rounds the record ACCOUNTS FOR holds instants of
+    another collector's run, or edited evidence."""
+    csv_path = _write_collector_files(
+        tmp_path / f"many-instants-{withheld}",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples={samples} utc_gap_seconds=0 "
+        f"withheld_samples={withheld} withheld_elapsed_s={elapsed} "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+    )
+    excess = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert any(
+        "the CSV carries 40 distinct instant(s) inside the collector's window "
+        f"{INSPECTION_START}..{INSPECTION_STOP}, more than the samples="
+        f"{samples} less withheld_samples={withheld} = {samples - withheld} "
+        "sampling round(s) its closing record accounts for: a round stamps at "
+        "most one instant and a withheld round stamps none at all, so the CSV "
+        "holds instants the collector did not stamp"
+        in problem
+        for problem in excess["problems"]
+    ), excess["problems"]
+
+
+def test_inspection_rejects_more_rounds_than_the_stamped_window_can_hold(
+    tmp_path,
+) -> None:
+    """A closing record that cannot be true (P2 of the review of 2026-09-20).
+
+    600 rounds, none of them withheld, inside a stamped window of 42 s. An
+    accepted round stamps a second strictly after the last stamped one
+    (``collect-resources.sh:422-427`` withholds every other sample and writes
+    no rows for it), so at most 43 rounds can have been stamped there, and
+    the closing record counts every round it withheld: with
+    ``withheld_samples=0`` no mechanism is left by which 600 rounds can have
+    been taken in that window. The half that seals the timed runs refuses the
+    record instead of going on to trust its other figures.
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "impossible-rounds",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=600 utc_gap_seconds=0 "
+        "withheld_samples=0 withheld_elapsed_s=0.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+    )
+    impossible = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert any(
+        "the closing record states samples=600 less withheld_samples=0 = 600 "
+        f"stamped sampling round(s) inside its own 42 s window "
+        f"{INSPECTION_START}..{INSPECTION_STOP}: an accepted round stamps a "
+        "second strictly after the last one, so at most 43 of them can have "
+        "been stamped there (one more for the closing record's own stamp), "
+        "and the record cannot be true" in problem
+        for problem in impossible["problems"]
+    ), impossible["problems"]
+    # A timed run carrying this record is invalid, not merely annotated.
+    assert run_mod.collector_problem_reasons(impossible["problems"]) != []
+    # The declared interval is a different matter, and stays an observation.
+    assert any(
+        "more rounds than its own 42 s window at the interval=1s" in observation
+        for observation in impossible["observations"]
+    ), impossible["observations"]
+
+
+def test_inspection_refuses_more_rounds_withheld_than_taken(tmp_path) -> None:
+    """P3 of the review of 2026-09-20: a withheld sample IS a completed round.
+
+    ``samples=`` counts every round the loop completed, withheld ones
+    included (``collect-resources.sh:1287``), so ``withheld_samples <=
+    samples`` holds of every record that can be read at all. A record that
+    breaks it is refused and the reconciliation is reported as NOT run: until
+    today the negative difference silently switched off both rules that rest
+    on it, and a CSV with no instant at all inside the collector's window was
+    sealed with an empty problem list.
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "withheld-above-samples",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=41 utc_gap_seconds=0 "
+        "withheld_samples=45 withheld_elapsed_s=40.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+    )
+    rows = [RESOURCES_HEADER] + [
+        f"2026-09-07T11:00:{second:02d}Z,a,1.0,1,1.0,sut-vm"
+        for second in range(40)
+    ]
+    csv_path.write_text("\n".join(rows) + "\n", "utf-8")
+    unreadable = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert unreadable["closing_record_reconciliation"] == (
+        "not run: the closing record states withheld_samples=45 against "
+        "samples=41: more rounds withheld than taken, so the record cannot be "
+        "read"
+    )
+    assert any(
+        "the closing record was NOT reconciled with the CSV" in problem
+        and "more rounds withheld than taken" in problem
+        for problem in unreadable["problems"]
+    ), unreadable["problems"]
+
+
+def test_inspection_refuses_a_window_whose_stop_is_not_after_its_start(
+    tmp_path,
+) -> None:
+    """P3 of the review of 2026-09-20: the rule the preflight half had alone.
+
+    A wall clock stepped back between the two records leaves a stop that is
+    not after the start. Such a window measures nothing: the harness used to
+    seal its arithmetic (a negative ``window_seconds``, a negative count of
+    implied rounds and a shortfall computed from both) while
+    ``tools/session/collector_check.py`` refused the same output, which is a
+    disagreement between the two halves about one collector.
+    """
+    reversed_stop = "2026-09-07T09:59:34Z"
+    csv_path = _write_collector_files(
+        tmp_path / "reversed-window",
+        INSPECTION_START_LINE
+        + f"{reversed_stop} inventory: observed=a expected=a missing=none "
+        "unnamed_ids=0\n"
+        + f"{reversed_stop} {CLEAN_STOP}\n",
+    )
+    reversed_window = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert reversed_window["window"] == [INSPECTION_START, reversed_stop]
+    assert reversed_window["window_seconds"] is None
+    assert reversed_window["rounds_the_declared_interval_implies"] is None
+    assert reversed_window["declared_duration_shortfall_s"] is None
+    assert reversed_window["closing_record_reconciliation"] == (
+        f"not run: the collector's start {INSPECTION_START} is not earlier "
+        f"than its stop {reversed_stop}: the measured window is reversed or "
+        "empty"
+    )
+    assert any(
+        "the measured window is reversed or empty" in problem
+        for problem in reversed_window["problems"]
+    ), reversed_window["problems"]
+    # The same, with the two records stamped in the same second: a window of
+    # no length at all, which one instant on the bound used to hide.
+    csv_path = _write_collector_files(
+        tmp_path / "zero-window",
+        INSPECTION_START_LINE
+        + f"{INSPECTION_START} inventory: observed=a expected=a missing=none "
+        "unnamed_ids=0\n"
+        + f"{INSPECTION_START} {CLEAN_STOP}\n",
+    )
+    empty_window = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert empty_window["window_seconds"] is None
+    assert empty_window["closing_record_reconciliation"].startswith(
+        "not run: the collector's start"
+    )
+    assert any(
+        "the measured window is reversed or empty" in problem
+        for problem in empty_window["problems"]
+    ), empty_window["problems"]
+
+
+def test_inspection_rejects_a_csv_with_no_instant_in_the_window(tmp_path) -> None:
+    """The other contradiction: the record accounts for stamped rounds and the
+    CSV carries no instant at all inside the collector's window."""
+    csv_path = _write_collector_files(
+        tmp_path / "no-instants",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} {CLEAN_STOP}\n",
+    )
+    rows = [RESOURCES_HEADER] + [
+        f"2026-09-07T11:00:{second:02d}Z,a,1.0,1,1.0,sut-vm"
+        for second in range(40)
+    ]
+    csv_path.write_text("\n".join(rows) + "\n", "utf-8")
+    empty = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert any(
+        "the closing record accounts for samples=41 less withheld_samples=0 = "
+        "41 stamped sampling round(s), and the CSV carries no instant at all "
+        f"inside the collector's window {INSPECTION_START}..{INSPECTION_STOP}"
+        in problem
+        for problem in empty["problems"]
+    ), empty["problems"]
+
+
+def test_inspection_reports_a_reconciliation_it_could_not_make(tmp_path) -> None:
+    """P2 of the review of 2026-09-20: a rule that cannot run is reported, not
+    switched off.
+
+    A CSV without a ``ts_utc`` column carries rows nothing can place in the
+    collector's window. The preflight check calls that UNCHECKED; the half
+    that seals the measured runs used to leave
+    ``distinct_instants_in_window: null`` beside ``problems: []``, i.e. the
+    collector output recorded as fully accounted for.
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "no-ts",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} {CLEAN_STOP}\n",
+    )
+    csv_path.write_text("container,cpu_pct,mem_bytes,mem_pct,host\na,1.0,1,1.0,sut-vm\n", "utf-8")
+    blind = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert blind["distinct_instants_in_window"] is None
+    assert blind["closing_record_reconciliation"] == (
+        "not run: the CSV's instants could not be read"
+    )
+    assert any(
+        "has no 'ts_utc' column" in problem for problem in blind["problems"]
+    ), blind["problems"]
+    assert any(
+        "the closing record was NOT reconciled with the CSV (not run: the "
+        "CSV's instants could not be read)" in problem
+        for problem in blind["problems"]
+    ), blind["problems"]
+
+
+# ---------------------------------------------------------------------------
+# What the collector documents as harmless is recorded, never a verdict
+# (P1 of the review of 2026-09-20)
+# ---------------------------------------------------------------------------
+def test_a_forward_clock_step_leaves_a_timed_run_valid(tmp_path) -> None:
+    """``utc_gap_seconds`` is not a measure of lost evidence.
+
+    collect-resources.sh:117-120 says in the collector's own words that a wall
+    clock stepped FORWARD adds to this count 'although no time passed
+    unsampled'. The CSV here is the clean one with one second missing: the
+    widest spacing is 2 s, far inside MAX_SAMPLE_GAP_S, so the run's CPU/RAM
+    evidence is intact and inside the protocol's declared tolerance. The count
+    is recorded in the manifest, in the collector's words, and the run stands.
+    """
+    rows = [RESOURCES_HEADER]
+    for second in range(41):
+        if second != 20:
+            rows.append(f"2026-09-07T10:00:{second:02d}Z,a,1.0,1,1.0,sut-vm")
+    directory = tmp_path / "stepped"
+    directory.mkdir(parents=True)
+    csv_path = directory / "resources-r.csv"
+    csv_path.write_text("\n".join(rows) + "\n", "utf-8")
+    Path(f"{csv_path}.diagnostics.log").write_text(
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=41 utc_gap_seconds=1 "
+        "withheld_samples=0 withheld_elapsed_s=0.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+        "utf-8",
+    )
+    Path(f"{csv_path}.lifecycle.csv").write_text(
+        "ts_utc,event,container_id,name\n", "utf-8"
+    )
+    stepped = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert stepped["problems"] == []
+    assert run_mod.collector_problem_reasons(stepped["problems"]) == []
+    assert stepped["stop_counters"]["utc_gap_seconds"] == "1"
+    observed = " | ".join(stepped["observations"])
+    assert "the collector reports utc_gap_seconds=1" in observed
+    assert "although no time passed unsampled" in observed
+    assert "validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S" in observed
+    # The same CSV, judged by the rule that IS the authority on the spacing.
+    assert resources_mod.validate_resources_csv(
+        str(csv_path),
+        expected_host="sut-vm",
+        expected_window_start_utc=INSPECTION_START,
+        expected_window_end_utc=INSPECTION_STOP,
+    ) == []
+
+
+def test_withheld_samples_alone_leave_a_timed_run_valid(tmp_path) -> None:
+    """A withheld sample is the pacing artefact the collector recalibrates
+    after (two samples in one wall-clock second): it writes no rows and costs
+    elapsed time that the record states, so it is recorded, not a verdict.
+
+    44 rounds less the 3 withheld are the 40 instants the CSV carries plus the
+    priming round.
+    """
+    csv_path = _write_collector_files(
+        tmp_path / "withheld",
+        INSPECTION_START_LINE
+        + INSPECTION_INVENTORY_LINE
+        + f"{INSPECTION_STOP} stop: samples=44 utc_gap_seconds=0 "
+        "withheld_samples=3 withheld_elapsed_s=2.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 "
+        "pacing=wall-clock\n",
+    )
+    withheld = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert withheld["problems"] == []
+    assert withheld["stop_counters"]["withheld_samples"] == "3"
+    assert withheld["stop_counters"]["withheld_elapsed_s"] == "2.00"
+    assert any(
+        "the collector reports withheld_samples=3 (2.00 s of elapsed time)"
+        in observation
+        for observation in withheld["observations"]
+    ), withheld["observations"]
+
+
+#: The figures the collector really wrote on this machine on 2026-09-19,
+#: copied from the two capsules the campaign holds: the 45 s preflight and the
+#: 120+600 s nominal run. Each closed with one round more than the instants of
+#: its CSV, because the first round only primes the CPU deltas. A rule that
+#: refuses either of these refuses the evidence the thesis rests on.
+REAL_CAPSULES = {
+    "preflight-45s": ("2026-09-19T19:37:55Z", "2026-09-19T19:38:40Z", "45s", 46, 45),
+    "nominal-r01": ("2026-09-19T20:00:45Z", "2026-09-19T20:12:47Z", "840s", 721, 720),
+}
+
+
+@pytest.mark.parametrize("name", sorted(REAL_CAPSULES))
+def test_a_real_capsule_of_2026_09_19_is_accounted_for(tmp_path, name: str) -> None:
+    """The regression that binds the rule to the evidence: neither the 45 s
+    preflight nor the 120+600 s nominal run may be refused by the half that
+    seals the measured runs either."""
+    start, stop, duration, samples, instants = REAL_CAPSULES[name]
+    begin = datetime.strptime(start, "%Y-%m-%dT%H:%M:%SZ")
+    rows = [RESOURCES_HEADER]
+    for offset in range(1, instants + 1):
+        stamp = (begin + timedelta(seconds=offset)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows.append(f"{stamp},a,1.0,1,1.0,sut-vm")
+    directory = tmp_path / name
+    directory.mkdir(parents=True)
+    csv_path = directory / "resources-r.csv"
+    csv_path.write_text("\n".join(rows) + "\n", "utf-8")
+    Path(f"{csv_path}.diagnostics.log").write_text(
+        f"{start} start: collector_sha256=" + "c" * 64 + " host=h source=auto "
+        f"interval=1s duration={duration} pacing: wall-clock seconds; "
+        "timestamps: awk systime(); expected services: a\n"
+        f"{stop} inventory: observed=a expected=a missing=none unnamed_ids=0\n"
+        f"{stop} stop: samples={samples} utc_gap_seconds=0 withheld_samples=0 "
+        "withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 "
+        "withheld_open_at_stop=0 calibrations=1 pacing=wall-clock\n",
+        "utf-8",
+    )
+    Path(f"{csv_path}.lifecycle.csv").write_text(
+        "ts_utc,event,container_id,name\n", "utf-8"
+    )
+    real = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert real["problems"] == []
+    assert real["samples"] == samples
+    assert real["distinct_instants_in_window"] == instants
+    assert real["samples"] - real["distinct_instants_in_window"] == 1
 
 
 def test_inspection_of_a_missing_csv_reports_it_once(tmp_path) -> None:
