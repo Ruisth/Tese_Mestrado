@@ -5,6 +5,11 @@
 # The controlled stop is what this driver is for: the stack stop, a readable
 # dmesg for the OOM record, the power-off and "no qemu-system-aarch64 left"
 # are all mandatory, and any of them failing ends the driver with exit 5.
+# Finding an OOM in that record is not one of those failures: the close read
+# the system correctly and the SYSTEM is what failed, so the session is sealed
+# with the instrumentation not-applicable and the outcome fail (exit 1, the
+# valid negative result). Only a dmesg that could not be read at all - the OOM
+# state of the boot is then UNKNOWN, which is not "no OOM" - keeps the 5.
 # A step whose own command ran while its mandatory console capture was lost
 # (74) is never recorded as that step having failed: its own exit code is kept
 # in commands.jsonl, and when no qemu-system-aarch64 process is left the close
@@ -24,14 +29,19 @@ S=$SESSION
 # here marks the session attempt interrupted and exports it (130), instead of
 # leaving the whole session's evidence unexported and current_session dangling.
 trap 'driver_interrupt "$S"' INT TERM
-# Two lists, because they are two different facts. 'fails' is the controlled
-# stop itself failing (code 5); 'incomplete' is a step whose own command ran
-# while its mandatory console capture was lost (74, common.sh interface 1), or
-# a record of the close that could not be kept. A lost capture is never
-# written down as the step having failed, so a stack that WAS stopped and a
-# guest that WAS powered off are never sealed as "the controlled stop failed".
+# Three lists, because they are three different facts. 'fails' is the
+# controlled stop itself failing (code 5); 'incomplete' is a step whose own
+# command ran while its mandatory console capture was lost (74, common.sh
+# interface 1), or a record of the close that could not be kept; 'observed' is
+# what the session's own records SHOW the system doing - a memory-cgroup OOM in
+# this boot - which is a system outcome of that session (a valid negative
+# result, code 1) and not a failure of the close or of its record. A lost
+# capture is never written down as the step having failed, so a stack that WAS
+# stopped and a guest that WAS powered off are never sealed as "the controlled
+# stop failed".
 fails=()
 incomplete=()
+observed=()
 hx "$S" tunnel-down 'tunnel_down || true'
 tunnel_rc=$?
 [ "$tunnel_rc" -ne "$EXIT_CAPTURE_LOST" ] || incomplete+=("$(capture_note tunnel-down)")
@@ -42,11 +52,20 @@ case "$stop_rc" in
     "$EXIT_CAPTURE_LOST") incomplete+=("$(capture_note stack-stop)") ;;
     *) fails+=("the stack was not stopped (exit $stop_rc)") ;;
 esac
-gx "$S" oom-before-poweroff "if KMSG=\$(sudo -n dmesg 2>/dev/null); then printf '%s\n' \"\$KMSG\" | grep -i 'memory cgroup out of memory' || echo 'no memory-cgroup OOM in this boot'; else echo 'dmesg could not be read: the OOM state of this boot is UNKNOWN, which is not \"no OOM\"'; exit 1; fi"
+# The OOM record of this boot, read before the power-off takes it with it. The
+# guest command separates the three cases instead of passing either way: none
+# found (0), found (3: a fact about the system, kept in the verdict), and a
+# dmesg that cannot be read (1: the OOM state is UNKNOWN, which is not "no
+# OOM", and is an evidence failure of the controlled close as it has always
+# been).
+gx "$S" oom-before-poweroff "if KMSG=\$(sudo -n dmesg 2>/dev/null); then N=\$(printf '%s\n' \"\$KMSG\" | grep -ci 'memory cgroup out of memory' || true); printf '%s\n' \"\$KMSG\" | grep -i 'memory cgroup out of memory' || echo 'no memory-cgroup OOM in this boot'; echo \"memory-cgroup OOM lines: \$N\"; [ \"\$N\" = 0 ] || exit 3; else echo 'dmesg could not be read: the OOM state of this boot is UNKNOWN, which is not \"no OOM\"'; exit 1; fi"
 oom_rc=$?
 case "$oom_rc" in
     0) ;;
     "$EXIT_CAPTURE_LOST") incomplete+=("$(capture_note oom-before-poweroff)") ;;
+    # The kernel OOM-killed something in this boot: the close read that
+    # correctly, so the record is sound and the SYSTEM is what failed.
+    3) observed+=("the kernel reports memory-cgroup OOM line(s) in this boot (oom-before-poweroff exit 3): a service was OOM-killed during this session; see console/") ;;
     *) fails+=("the OOM state of this boot could not be read before the power-off (exit $oom_rc)") ;;
 esac
 ex "$S" session-close bash "$S/scripts/session_close.sh" "$S"
@@ -113,8 +132,13 @@ else
     rm -f "$EXEC/current_session"
 fi
 
+# What the session's records SHOW the system doing is stated first, in every
+# branch: it is never lost behind a verdict about the close itself.
+seen=""
+[ "${#observed[@]}" -eq 0 ] || seen="observed system fault(s) during this session: $(printf '%s; ' "${observed[@]}")"
+
 if [ "${#fails[@]}" -ne 0 ]; then
-    note="the controlled stop failed: $(printf '%s; ' "${fails[@]}")"
+    note="${seen}the controlled stop failed: $(printf '%s; ' "${fails[@]}")"
     [ "${#incomplete[@]}" -eq 0 ] || note="$note$(printf '%s; ' "${incomplete[@]}")"
     (cd "$REPO/src" && $LE finish --attempt "$S" --status failed --validity not-applicable --outcome fail \
         --reason "${note}see console/" \
@@ -133,9 +157,21 @@ elif [ "${#incomplete[@]}" -ne 0 ]; then
         seal_head="the stack was stopped and the power-off ran, but the record of the close is incomplete: "
         seal_next="read commands.jsonl for each step's own exit code; check for a qemu-system-aarch64 process by hand before the next boot: whether the guest is off was NOT established"
     fi
-    (cd "$REPO/src" && $LE finish --attempt "$S" --status failed --validity invalid --outcome inconclusive \
-        --reason "${seal_head}$(printf '%s; ' "${incomplete[@]}")see console/ and commands.jsonl" \
+    # A fault the session's records showed all the same is the system outcome;
+    # what is invalid is the record of the close, never that observation.
+    seal_outcome=inconclusive
+    [ "${#observed[@]}" -eq 0 ] || seal_outcome=fail
+    (cd "$REPO/src" && $LE finish --attempt "$S" --status failed --validity invalid --outcome "$seal_outcome" \
+        --reason "${seen}${seal_head}$(printf '%s; ' "${incomplete[@]}")see console/ and commands.jsonl" \
         --next-action "$seal_next")
+    driver_exit "$S"
+elif [ "${#observed[@]}" -ne 0 ]; then
+    # The close itself is complete and its record is sound: what failed is the
+    # system the session was running. The instrumentation stays not-applicable
+    # and the driver ends 1, the valid negative result, never 5.
+    (cd "$REPO/src" && $LE finish --attempt "$S" --status failed --validity not-applicable --outcome fail \
+        --reason "${seen}session closed: stack stopped before power-off, journal and final state kept; see console/" \
+        --next-action "read console/ for the OOM record of this boot: this is a system failure of the session, not a failed close")
     driver_exit "$S"
 else
     (cd "$REPO/src" && $LE finish --attempt "$S" --status finished --validity not-applicable --outcome pass \

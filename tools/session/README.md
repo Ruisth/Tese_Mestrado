@@ -22,6 +22,64 @@ valid run in which messages were late or lost is a system failure, not invalid
 evidence. `regen_helpers.py` regenerates `~/egw-tcg/itest-helpers.sh` from the
 runbook's section 6.1 heredoc, keeping the previous file beside it.
 
+**Observing the system fail is a result; failing to observe is an invalid
+measurement.** A positively observed fault — a container OOM-killed, restarted,
+replaced or gone, a service that is not healthy, a memory-cgroup OOM line, a
+drain that never went quiet — makes the **system outcome** `fail`, and the
+instrumentation stays as valid as the evidence itself says: that is a valid
+negative result (exit 1), which is exactly the observation the dissertation has
+to analyse. Such a fault makes the measurement **invalid** only when it breaks
+a stated evidence requirement, and then the reason names the requirement, not
+the fault: the harness manifest does not call the run valid, the clock domain
+the 60 s confirmation deadline rests on is not intact (`controller_marker.ok`
+false, or `confirmation_deadline_source` other than `controller-marker`),
+mandatory evidence is missing or unreadable, or a console capture was lost. The
+observed fault is then kept as a fact beside that invalidity and never turned
+into a successful system outcome. Each driver therefore sorts what it finds
+into three groups — **observed** (what the system did: the outcome fails),
+**mandatory** (evidence missing, unreadable or below a requirement: the
+instrumentation is invalid) and **incomplete** (an observation after the sealed
+measured window that could not be made: recorded, and the window's own validity
+untouched) — and the reason keeps them distinct, in that order. A post-window
+drain that does not complete is `incomplete`, never `mandatory`, and is
+`observed` as well only when the drain itself **gave up**: the `STOP: drained:
+no quiet window of … s within … s` its console record carries. That step
+reaches the controller through the tunnel, so its status alone observes nothing
+about the queue — a tunnel that dropped, a refused connection, a guest that is
+not answering, and the helper's other stop (a `/metrics` that is unreachable or
+not JSON) leave the tail simply unobserved. Either way the
+measured verdict stands and nothing claims eventual delivery or a complete tail.
+
+Two rules hold the three groups apart. **A clean pass needs complete
+evidence**: while anything is `incomplete` the outcome cannot be `pass`, so it
+becomes `inconclusive` (3) when the delivery row would otherwise pass and stays
+`fail` (1) when the system failed — and no verdict is ever derived from the
+output of a step that failed, so an accounting that did not complete leaves the
+delivery row and the clock domain unread and says so. **A fault that was
+positively observed is never erased by something else being indeterminate**:
+both are recorded, each in its own group. `guest_state_delta.py` prints its
+faults whatever its exit status is (0 nothing to report, 1 a fault observed, 2
+the records could not be compared, and 2 as well when the comparison itself
+failed — never the 1 Python leaves for an unhandled exception), ends every exit
+with the summary line `guest-state-delta: faults=N problems=M`, and the driver
+reads no verdict from a status that line does not carry and agree with: what a
+comparison that crashed left behind is a pair that could not be compared,
+mandatory evidence missing, and never a fault nobody observed. The driver keeps
+a fault the comparison printed beside the part of it that could not be
+completed; an `unknown` field is the opposite case and is a problem, never an
+observation. `stack-health` in `preflight.sh` ends 3 for a stack it saw
+failing, 1 for a state it could not determine and 4 for both, where the
+prerequisite verdict stays what it is and the fault is recorded all the same. A
+service container the daemon itself answers `No such object` for is a fault (it
+answered: the container is gone), while an inspect that failed for any other
+reason, or did not answer, determines nothing about that container. Of the
+health field only `unhealthy` is a fault: the state must be `running`, and
+`starting` (a healthcheck that has not concluded) and `none` (no healthcheck
+declared) are judged by that state alone and recorded as the word they are —
+readiness is the `/ready` gate of `controller-health`, not this step. An
+observation that stops the steps after it says so in the reason, and never that
+the preflight's own evidence is complete.
+
 The drivers call five helpers of their own, all hashed into every attempt's
 `drivers_sha256` and copied into the session's `scripts/drivers/`:
 `driver_status.py` (the exit statuses), `deployed_vs_clone.py` (the deployed
@@ -37,10 +95,18 @@ is the only trace an in-place `docker restart` leaves, since Docker increments
 `RestartCount` from the restart policy — one that is gone after the run, one
 that was replaced — a recreated container object carries a new id and starts
 again at restart count 0, so the OOM and restart history goes with the old
-object — a record that names a container twice or without its id and start
-instant, and a record that does not name every expected service are all
-problems); `collector_check.py` and `nominal_account.py` belong to the
-collector and the accounting.
+object — are the **faults** it reports, while a record that names a container
+twice or without its id and start instant, and a *before* record that does not
+name every expected service, are the **problems** that leave the pair
+uncomparable; an expected service the *before* record does not name is a gap in
+that service's baseline and never also a fault about it, while one the *after*
+record names and nobody expected is a container that appeared during the run;
+in the *after* record that same silence is the fault "gone after
+the run", unless that record names no container at all — one nobody could read
+shows nothing, and no container is reported gone out of it); `collector_check.py`
+and `nominal_account.py` belong to the collector and the accounting, the second
+of which is told by the driver whether the post-drain log was fetched, because
+a transfer that died mid-way leaves a file that is not a complete tail.
 
 Every attempt records the identity of the clean clone (`repo_identity` in
 `common.sh`): the commit, how many lines are dirty, the export tool's sha256
@@ -139,15 +205,30 @@ part of the evidence: when one fails the attempt stays `invalid` and the driver
 exits 3, and the remaining steps still record what can be observed. An
 **informational** step never changes the verdict.
 
+A step that positively **observes** the system is none of those three: when it
+sees a fault, the evidence is sound and it is the *system outcome* that fails
+(`valid` + `fail`, exit 1), while the steps that depended on a healthy system
+are still skipped — which the reason says, rather than calling that record
+complete — and the driver still ends non-zero. A step after the sealed
+measured window whose observation could not be made is **incomplete**: it is
+recorded, in the reason and in `post_window_observations`, and changes neither
+verdict of that window.
+
+| Driver | Observed (system outcome `fail`, exit 1) | Incomplete (recorded, no verdict changed) |
+|---|---|---|
+| `preflight.sh` | `stack-health` exit 3: a service not running, one reported `unhealthy` or one not there at all, a container OOM-killed, or a memory-cgroup OOM line in this boot (`starting` and `none` are judged by the state alone); exit 4 records the same fault beside a state it could not determine, whose prerequisite verdict stands. The reason names the steps that were then not run | — |
+| `nominal.sh` | the faults `guest_state_delta.py` printed (a container OOM-killed, restarted — by its count or by the instant it last started — replaced, gone, or a memory-cgroup OOM line), whether it could complete the comparison (exit 1) or not (exit 2, where the comparison is `mandatory` as well), and a `post-drain` whose own record says it gave up without a quiet window | the `post-drain`, `fetch-post-drain-events`, `fetch-warmup-events`, `after-snapshots`, `identity-accounting`, and a delivery row that was not read or does not carry `sent_valid`, `delivered_unique`, `lost` and `late_confirmations` as whole numbers (the outcome is then `inconclusive`, unless a fault was observed: a failure is not lowered to undecided) |
+| `guest_session_close.sh` | `oom-before-poweroff` exit 3: the kernel reports memory-cgroup OOM line(s) in this boot | — |
+
 | Driver | Prerequisites | Mandatory | Informational |
 |---|---|---|---|
 | `export_checks.sh` | the two attempts can be created, the clone's identity is readable **and recorded in the attempt** (outcome `not-run`, 2) | both checks judged on what they produced: the passing one needs pytest's own code 0 **and** a JUnit report in which at least one case was EXECUTED — collected less skipped less errors, because pytest also exits 0 when every case it collected was skipped (1 when the module fails with pytest's code 1; any other code, or nothing executed, means nothing was checked — invalid, 3), the deliberate failure needs the test file written, exactly one failed test in the report (`junit_one_failure.py`) and pytest's own code 1; both packages export (4 otherwise) | — |
 | `backfill.sh` | — | every capsule reaches `output_test` as a verified package (4 otherwise) | — |
 | `guest_session_open.sh` | no session open, no `qemu-system-aarch64` running, the attempt, its fields and the clone's identity, the record of the open session in `$EXEC/current_session` (written and read back **before** the boot), the session's own directories and the guest scripts copied into it, the driver copies kept with the session, the identities read before the boot (every artefact, binary and checkout it names, not only the last one read), the boot | the guest state after the boot (recorded on the still-open attempt as invalid instrumentation), every command that record is made of — `systemctl is-system-running`, `docker ps -a` (the six-container stack is what the session is for) and `df` — not only the `dmesg` that ends it, and the writing of each of those verdicts, and of the qemu pid, on the attempt: a `local_export set` that failed leaves the record saying nothing, so the driver ends 3 and names what is missing instead of deriving 0 from an `attempt.json` that never received it | the venv freeze, `uptime`, `free`, the journal grep, `timedatectl` |
-| `preflight.sh` | the attempt's fields and the clone's identity, stack-start interlock, deployed tree listing and `deployed_vs_clone.py` in both directions with the listing's own exclusions (only `README.md` may differ), controller readiness, stack health (six services running and healthy, none OOMKilled, a readable `dmesg`), broker-secret check, SUT environment capture and fetch | collector copy and install (the installed hash must equal the clone's), the live collector run, the fetch through `fetch-collector-output.sh`, `collector_check.py`, the collector's own window against the `duration=` its own `start:` line declares (`collector_shortfall.py`, run as a step of its own so that its stdout, stderr and exit code are in `console/` and `commands.jsonl`: `collector_check.py` validates a collection against that same window, so a collection that ended early reads clean there and only this comparison sees it — the `--duration 45` the driver passed is not compared with the declaration, so a collector that declares some other duration is not seen), the clock observations — both of them lists of commands, each judged on all of them | — |
+| `preflight.sh` | the attempt's fields and the clone's identity, stack-start interlock, deployed tree listing and `deployed_vs_clone.py` in both directions with the listing's own exclusions (only `README.md` may differ), controller readiness, a stack health the step could **determine** at all (a docker that does not answer at all, a health state that is not available, or a `dmesg` that cannot be read — exit 1, and exit 4 when it saw a fault as well; a stack it saw failing, a service container included that docker answers for by not holding it, is exit 3, in the observed table above), broker-secret check, SUT environment capture and fetch | collector copy and install (the installed hash must equal the clone's), the live collector run, the fetch through `fetch-collector-output.sh`, `collector_check.py`, the collector's own window against the `duration=` its own `start:` line declares (`collector_shortfall.py`, run as a step of its own so that its stdout, stderr and exit code are in `console/` and `commands.jsonl`: `collector_check.py` validates a collection against that same window, so a collection that ended early reads clean there and only this comparison sees it — the `--duration 45` the driver passed is not compared with the declaration, so a collector that declares some other duration is not seen), the clock observations — both of them lists of commands, each judged on all of them | — |
 | `slice.sh` | a run id and a seed, the open session, the attempt's fields, identity and source, `pre` | simulator and marker, the `after` state, the twin read-back, `check` (0 required; 3 = no marker, 1 = not carried out), `delta` (0 and 4 are results, anything else is not), the verdict script (only 0 and 1 are verdicts; 2 = nothing to judge) | — |
-| `nominal.sh` | a plan run id, the open session, the plan's seed, a fresh raw directory, the attempt's fields, identity and source, the collector copy and sync (the deployed hash must equal the clone's), the guest state **before** the run, `pre` | the harness run (its manifest decides validity), the post-drain, the post-drain and warm-up event fetches, the after-snapshots **and their copy into `analysis/snapshots/`**, the identity accounting, the guest state after, and `guest_state_delta.py --expect` over the pair (an OOM kill, a restart during the run — its count, or the instant it last started, for one restarted in place — a container that is gone or was replaced, a record that does not hold the six expected services or that names one twice or without its id and start instant, or a memory-cgroup OOM line is a verdict) | — |
-| `guest_session_close.sh` | an open session | the stack stop, a readable `dmesg` for the OOM record, the power-off (`guest/session_close.sh`, which also checks the sealed G1 artefacts) and no `qemu-system-aarch64` left — each failure gives 5, while a `pgrep` that could not answer at all is not a failed stop but an undecided close (3, below); the record of the artefacts after the power-off (the rootfs hash **and** the data-disk listing, each judged, not only the last command of the step), the boot journal and the final guest state that `guest/session_close.sh` keeps (exit 3: the guest IS off and the record of the close is not complete), and any of these steps whose console capture was lost (74), leave the session closed but its record incomplete: invalid, inconclusive, 3 | the tunnel teardown (a lost console capture of it is still named) |
+| `nominal.sh` | a plan run id, the open session, the plan's seed, a fresh raw directory, the attempt's fields, identity and source, the collector copy and sync (the deployed hash must equal the clone's), the guest state **before** the run, `pre` | the harness run (its manifest decides validity), **the copy of the before/after snapshots into `analysis/snapshots/`**, the guest state after, `guest_state_delta.py --expect` when it cannot compare the two records at all (exit 2: a record that does not hold the six expected services in the *before* state, or that names one twice or without its id and start instant — any fault it saw all the same is kept in the observed table above), the clock domain the 60 s confirmation deadline rests on (`controller_marker.ok`, `confirmation_deadline_source`, read only when the accounting that carries them succeeded), and any of these steps whose console capture was lost (74) | — |
+| `guest_session_close.sh` | an open session | the stack stop, a `dmesg` that can be read at all for the OOM record (an OOM it *finds* is exit 3 of that step: the record is sound and the system failed — outcome `fail`, exit 1), the power-off (`guest/session_close.sh`, which also checks the sealed G1 artefacts) and no `qemu-system-aarch64` left — each failure gives 5, while a `pgrep` that could not answer at all is not a failed stop but an undecided close (3, below); the record of the artefacts after the power-off (the rootfs hash **and** the data-disk listing, each judged, not only the last command of the step), the boot journal and the final guest state that `guest/session_close.sh` keeps (exit 3: the guest IS off and the record of the close is not complete), and any of these steps whose console capture was lost (74), leave the session closed but its record incomplete: invalid, inconclusive, 3 | the tunnel teardown (a lost console capture of it is still named) |
 
 `$EXEC/current_session` is removed only when no `qemu-system-aarch64` process
 remains: a guest still running is never recorded as a closed session. That test

@@ -39,6 +39,14 @@ does not carry the field, leaves the package's state unknown, which is not
 ``stop failed`` is 1 only for a session close whose controlled stop or
 power-off failed.
 
+Observing the system fail is a result; failing to observe is an invalid
+measurement. An attempt whose instrumentation is ``valid`` (or
+``not-applicable``) and whose system outcome is ``fail`` therefore derives 1,
+the valid negative result, for **every** driver, the session close included:
+only its own controlled stop or power-off failing raises that to 5. A fault a
+driver observed never becomes 3 by itself; 3 is for evidence that is missing,
+unreadable or below a stated requirement.
+
 ``--stop`` is the second form: a driver that ends before an attempt exists (a
 prerequisite of the attempt itself, or an interruption before it was created)
 or that owns no attempt at all still prints the contracted final line, with no

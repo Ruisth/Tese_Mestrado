@@ -10,6 +10,20 @@
 # steps after it are skipped and named as not run, outcome not-run, exit 2) or
 # a MANDATORY instrumentation step (its failure leaves the run invalid, exit 3).
 # README.md, "Exit statuses", lists which is which.
+#
+# One step, 'stack-health', positively OBSERVES the stack's state, and there
+# observing a failure is a result, not a broken check: it ends 3 when it ran
+# and found a service not running, one reported 'unhealthy' or one not there at
+# all (the daemon's own 'No such object'), a container OOM-killed or a
+# memory-cgroup OOM in this boot, 1
+# when it could not determine the state (an inspect that failed for any other
+# reason, or did not answer, determines nothing about that container; a health
+# of 'starting' or 'none' is neither, and is judged by the state alone),
+# and 4 when it did BOTH. Exit 3 leaves this driver's own evidence valid, fails
+# the SYSTEM outcome, skips the steps that depend on a healthy stack and ends
+# the driver with 1; exit 1 is the prerequisite failure it has always been
+# (outcome not-run, exit 2); exit 4 keeps that prerequisite verdict and records
+# the fault it saw all the same, so no observed fault leaves the record.
 set -u
 . "$(dirname "$0")/common.sh"
 . "$(dirname "$0")/guest_common.sh"
@@ -30,6 +44,7 @@ STEPS=(stack-start-interlock collector-copy collector-install deployed-tree-hash
        collector-duration)
 prerequisite=()   # failures that mean the preflight did not run
 mandatory=()      # failed mandatory instrumentation: the run is invalid
+observed=()       # faults this check positively SAW: the system outcome fails
 skipped=()        # steps not run after a failed prerequisite
 
 # stop_after NAME: record every step after NAME as not run.
@@ -115,11 +130,24 @@ GOTSHA=\$(sha256sum /opt/egw/deployment/scripts/collect-resources.sh | cut -d' '
     hx "$A" controller-health 'for p in health ready metrics; do printf "%s: " $p; curl -s -m 30 -o /tmp/egw-pf-$p.json -w "%{http_code}\n" "$CTRL/$p"; cat /tmp/egw-pf-$p.json; echo; done; wait_ready 300 && echo "READY"'
     prereq controller-health $? "controller not ready" || return
 
-    # All six expected services running and healthy, none OOMKilled. A dmesg
-    # that cannot be read leaves the OOM state of this boot UNKNOWN, which is
-    # not "no OOM": it fails the step.
+    # All six expected services running, none reported unhealthy and none
+    # OOMKilled. The state must be 'running'; of the health field only
+    # 'unhealthy' is a fault, while 'starting' (the healthcheck has not
+    # concluded) and 'none' (no healthcheck declared) are judged by the state
+    # alone. The step separates what it SAW from what it could not see: a
+    # service that is not running or is reported unhealthy, a container the
+    # daemon says it does not hold, one OOM-killed or
+    # a memory-cgroup OOM line in this boot is the stack failing (exit 3),
+    # while a state it could not determine at all - an inspect that failed for
+    # any other reason or did not answer, a dmesg that cannot be read, which
+    # leaves the OOM state of this boot UNKNOWN and is not "no OOM" - is the
+    # check not having run (exit 1).
+    # Neither determination erases the other: when the step both saw a fault
+    # and could not determine some other state it ends 4, and the driver
+    # records BOTH.
     gx "$A" stack-health "cd /opt/egw/deployment || exit 1
-rc=0
+unknown=0
+unhealthy=0
 $DC ps --format '{{.Name}} {{.State}} {{.Health}}'
 echo '## the six expected services'
 SERVICES=$EXPECT_SERVICES
@@ -127,14 +155,53 @@ IFS=,
 set -- \$SERVICES
 unset IFS
 for s in \"\$@\"; do
-    st=\$(docker inspect -f '{{.State.Status}}' \"\$s\" 2>/dev/null) || st=absent
+    # 'docker inspect' fails both for a container that is NOT THERE and for a
+    # docker that did not answer at all, and the two are not the same
+    # observation: only the daemon's own 'No such object' says the container is
+    # gone, and an inspect that failed for any other reason determines nothing
+    # about it - not even for a container 'docker ps -a' listed a moment ago.
+    if st=\$(docker inspect -f '{{.State.Status}}' \"\$s\" 2>/tmp/egw-pf-inspect.err); then
+        :
+    elif grep -qiE 'no such (object|container)' /tmp/egw-pf-inspect.err; then
+        st=absent
+    else
+        st=indeterminate
+    fi
     hl=\$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \"\$s\" 2>/dev/null) || hl=unknown
     om=\$(docker inspect -f '{{.State.OOMKilled}}' \"\$s\" 2>/dev/null) || om=unknown
     rs=\$(docker inspect -f '{{.RestartCount}}' \"\$s\" 2>/dev/null) || rs=unknown
     echo \"\$s status=\$st health=\$hl OOMKilled=\$om restarts=\$rs\"
-    [ \"\$st\" = running ] || rc=1
-    [ \"\$hl\" = healthy ] || rc=1
-    [ \"\$om\" = false ] || rc=1
+    case \"\$st\" in
+        running) ;;
+        absent)
+            # A service the daemon itself says it does not hold is a container
+            # that is GONE: docker answered, and the stack failing is what it
+            # answered. The health, OOM and restart fields such a container has
+            # none of follow from that and add no unknown of their own.
+            unhealthy=1
+            continue
+            ;;
+        indeterminate | \"\")
+            # An inspect that failed for another reason, or that answered
+            # nothing at all: NOTHING about this container was determined -
+            # neither that it is unhealthy, nor that it is gone.
+            unknown=1
+            continue
+            ;;
+        *) unhealthy=1 ;;
+    esac
+    # 'starting' is a healthcheck that has not concluded and 'none' is a
+    # container that declares none: neither says this service is failing, so
+    # both are judged by the state alone and recorded as the word they are.
+    # Readiness is the /ready gate of 'controller-health', not this one. Only
+    # 'unhealthy' is a fault; anything else (an inspect that failed, an empty
+    # answer) determined nothing about this container.
+    case \"\$hl\" in
+        healthy | starting | none) ;;
+        unhealthy) unhealthy=1 ;;
+        *) unknown=1 ;;
+    esac
+    case \"\$om\" in false) ;; true) unhealthy=1 ;; *) unknown=1 ;; esac
 done
 echo '## every container'
 for c in \$(docker ps -a --format '{{.Names}}'); do echo \"\$c OOMKilled=\$(docker inspect -f '{{.State.OOMKilled}}' \$c) restarts=\$(docker inspect -f '{{.RestartCount}}' \$c)\"; done
@@ -142,15 +209,35 @@ echo '## memory-cgroup OOM lines this boot'
 if KMSG=\$(sudo -n dmesg 2>/dev/null); then
     N=\$(printf '%s\n' \"\$KMSG\" | grep -ci 'memory cgroup out of memory' || true)
     echo \"memory-cgroup OOM lines: \$N\"
-    [ \"\$N\" = 0 ] || rc=1
+    [ \"\$N\" = 0 ] || unhealthy=1
 else
     echo 'dmesg could not be read: the OOM state of this boot is UNKNOWN, which is not \"no OOM\"'
-    rc=1
+    unknown=1
 fi
 echo '## storage'; df -h / /var/lib/docker /tmp; free -m
 echo '## docker stats (one sample; slow under TCG)'; docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.MemPerc}} {{.CPUPerc}}'
-exit \$rc"
-    prereq stack-health $? "the stack is not healthy, a container was OOMKilled, or the OOM state is unknown" || return
+[ \"\$unhealthy\" -eq 0 ] || [ \"\$unknown\" -eq 0 ] || exit 4
+[ \"\$unknown\" -eq 0 ] || exit 1
+[ \"\$unhealthy\" -eq 0 ] || exit 3
+exit 0"
+    health_rc=$?
+    # What the step SAW is kept whatever else it could not determine: a fault
+    # it positively observed never disappears behind an indeterminate reading
+    # of something else (exit 4 is both, and its fault is recorded here while
+    # the part it could not determine goes on as the prerequisite it is).
+    case "$health_rc" in
+        3 | 4) observed+=("the stack is not healthy, a container was OOM-killed or is not there at all, or the kernel reports a memory-cgroup OOM in this boot (stack-health exit $health_rc)") ;;
+    esac
+    if [ "$health_rc" -eq 3 ]; then
+        # The check RAN and saw the stack failing: its own evidence is valid
+        # and it is the SYSTEM outcome that fails. The steps that depend on a
+        # healthy stack are still skipped, and the driver still ends non-zero.
+        stop_after stack-health
+        return
+    fi
+    determined=$health_rc
+    [ "$health_rc" -ne 4 ] || determined=1
+    prereq stack-health "$determined" "the stack is not healthy, a container was OOMKilled, or the OOM state is unknown" || return
 
     gx "$A" broker-secrets-check "cd /opt/egw/deployment && sh scripts/prepare-broker-secrets.sh --check --acl; rc=\$?; echo \"check exit=\$rc\"; exit \$rc"
     prereq broker-secrets-check $? "broker secrets check failed" || return
@@ -196,14 +283,36 @@ exit \$rc"
 
 [ "${#prerequisite[@]}" -eq 0 ] && steps
 
+# What the check SAW is stated first and never disappears behind a verdict
+# about the check itself: a fault this driver observed is a system outcome.
+seen=""
+[ "${#observed[@]}" -eq 0 ] || seen="observed system fault(s): $(printf '%s; ' "${observed[@]}")"
 if [ "${#prerequisite[@]}" -ne 0 ]; then
     (cd "$REPO/src" && $LE finish --attempt "$A" --status failed --validity invalid --outcome not-run \
-        --reason "prerequisite failed: $(printf '%s; ' "${prerequisite[@]}")not run: ${skipped[*]}" \
+        --reason "${seen}prerequisite failed: $(printf '%s; ' "${prerequisite[@]}")not run: ${skipped[*]}" \
         --next-action "STOP: fix before any longer test; the preflight did not run as a check")
 elif [ "${#mandatory[@]}" -ne 0 ]; then
-    (cd "$REPO/src" && $LE finish --attempt "$A" --status failed --validity invalid --outcome inconclusive \
-        --reason "the preflight ran, but mandatory instrumentation failed: $(printf '%s; ' "${mandatory[@]}")${skipped[*]:+not run: ${skipped[*]}}" \
+    # The instrumentation is what is invalid here; a fault that was observed
+    # all the same is kept as the system outcome, never as 'inconclusive'.
+    seen_outcome=inconclusive
+    [ "${#observed[@]}" -eq 0 ] || seen_outcome=fail
+    (cd "$REPO/src" && $LE finish --attempt "$A" --status failed --validity invalid --outcome "$seen_outcome" \
+        --reason "${seen}the preflight ran, but mandatory instrumentation failed: $(printf '%s; ' "${mandatory[@]}")${skipped[*]:+not run: ${skipped[*]}}" \
         --next-action "STOP: read console/ and analysis/collector/; the instrumentation is not usable")
+elif [ "${#observed[@]}" -ne 0 ]; then
+    # A sound observation of a stack that is not in a state to measure: a valid
+    # negative result (exit 1), not broken instrumentation. The observation
+    # itself stops the steps that depend on a healthy stack, so what is written
+    # down is what was observed AND which steps were not run: an evidence
+    # record that stops early is not a complete one, and never says it is.
+    if [ "${#skipped[@]}" -eq 0 ]; then
+        stated="the preflight's own evidence is complete: this is the stack's state as it was observed"
+    else
+        stated="this is the stack's state as it was observed, and the steps after it were not run: ${skipped[*]}"
+    fi
+    (cd "$REPO/src" && $LE finish --attempt "$A" --status failed --validity valid --outcome fail \
+        --reason "${seen}${stated}" \
+        --next-action "STOP: fix the stack before any longer test; this is a measured system failure, not invalid instrumentation")
 else
     (cd "$REPO/src" && $LE finish --attempt "$A" --status finished --validity valid --outcome pass \
         --reason "stack up through the interlock; dev collector deployed and live-checked with six services" \

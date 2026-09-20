@@ -94,6 +94,18 @@ wait_ready() {
 
 drained() {
     stub_fails drained && { stop "drained: no quiet window"; return 1; }
+    # The drain AFTER the measured window is the one nominal.sh runs with its
+    # own limit: these three fail only that one, and never the 'drained' of the
+    # precondition, which runs before the harness. They are the three ways the
+    # step ends non-zero, and only the first says anything about the queue:
+    # the helper's own give-up (the runbook's wording), the helper's OTHER stop
+    # (a /metrics it could not read, which is what a dropped tunnel or a
+    # stopped controller leaves), and the step dying in the transport.
+    if [ "${DRAIN_LIMIT_S:-}" = 1500 ]; then
+        stub_fails post-drain && { stop "drained: no quiet window of ${DRAIN_QUIET_S:-130} s within ${DRAIN_LIMIT_S:-900} s (last reading: 4 2026-09-19T20:00:00Z 60 0 0 0 0) - do not take snapshots, do not start a run"; return 1; }
+        stub_fails post-drain-unreachable && { stop "drained: GET $CTRL/metrics failed or was not valid JSON (tunnel of 5.7 down? controller stopped?)"; return 1; }
+        stub_fails post-drain-dropped && { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; return 255; }
+    fi
     echo "drained: queue_depth 0 and identical counters (stub observation)"
 }
 
@@ -225,21 +237,50 @@ print(f"collector check: {len(problems)} problem(s)")
 sys.exit(1 if problems else 0)
 '''
 
-NOMINAL_ACCOUNT_STUB = '''"""Stub of nominal_account.py: writes analysis/accounting.json."""
+NOMINAL_ACCOUNT_STUB = '''"""Stub of nominal_account.py: writes analysis/accounting.json.
+
+Like the real one it copies from the harness manifest the two things the 60 s
+confirmation deadline rests on: the controller marker it was measured from
+(EGW_STUB_CONTROLLER_MARKER) and the source of the deadline in the harness row
+(EGW_STUB_DEADLINE_SOURCE), and it HONOURS the fourth argument, which is what
+the driver knows about its own fetch of the post-drain log: only 'fetched', and
+only with the log on disk, publishes a tail. A stub that ignored it would
+report a tail whatever the driver said, nonsense and nothing included.
+"""
 import json
 import os
 import sys
 
 raw, events, analysis = sys.argv[1:4]
+told = sys.argv[4] if len(sys.argv) > 4 else "missing"
+if told not in ("fetched", "not-fetched", "unknown"):
+    print(f"STOP: nominal.sh must say whether the post-drain log was fetched; it said {told!r}",
+          file=sys.stderr)
+    sys.exit(1)
 if f",{os.environ.get('EGW_STUB_FAIL', '')}," .find(",accounting,") >= 0:
     print("STOP: the accounting could not be produced", file=sys.stderr)
     sys.exit(1)
 row = json.loads(os.environ.get("EGW_STUB_HARNESS_ROW")
                  or '{"sent_valid": 6720, "delivered_unique": 6720, "lost": 0, "late_confirmations": 0}')
+row.setdefault("confirmation_deadline_source",
+               os.environ.get("EGW_STUB_DEADLINE_SOURCE", "controller-marker"))
+marker = json.loads(os.environ.get("EGW_STUB_CONTROLLER_MARKER")
+                    or '{"ok": true, "monotonic_ns": 1000000000000, "lag_s": 0.4}')
+fetched = told == "fetched" and os.path.isfile(events)
 os.makedirs(analysis, exist_ok=True)
 with open(os.path.join(analysis, "accounting.json"), "w", encoding="utf-8") as fh:
-    json.dump({"harness_row": row, "after_drain": "every published identity accounted"}, fh, indent=2)
-print(f"accounting written for {raw} against {events}")
+    json.dump({"harness_row": row, "controller_marker": marker,
+               "after_drain": "every published identity accounted" if fetched else None,
+               "after_drain_fetch": told,
+               "after_drain_note": None if fetched else
+                                   "no figure of that tail is claimed here"}, fh, indent=2)
+print(f"accounting written for {raw} against {events} (fetch reported as {told})")
+# The accounting that FAILS AFTER writing its file, as one killed by the host
+# while it prints, or one whose own final work fails, leaves it: the file on
+# disk looks complete and the step still exited non-zero.
+if f",{os.environ.get('EGW_STUB_FAIL', '')}," .find(",accounting-late,") >= 0:
+    print("STOP: the accounting failed after writing accounting.json", file=sys.stderr)
+    sys.exit(1)
 '''
 
 # --------------------------------------------------------------------------
@@ -520,8 +561,17 @@ def state(name):
 
 
 def health(name):
+    """What the container's healthcheck says. Only 'unhealthy' is the service
+    failing: 'starting' is a healthcheck that has not concluded and 'none' a
+    container that declares none, and neither says anything about the service,
+    which is then judged by its state alone. The live preflight of 2026-09-19
+    recorded 'egw-controller-1 running starting' and passed."""
     if fails("service-unhealthy") and name == SERVICES[1]:
+        return "unhealthy"
+    if fails("health-starting") and name == SERVICES[5]:
         return "starting"
+    if fails("no-healthcheck") and name == SERVICES[5]:
+        return "none"
     return "healthy"
 
 
@@ -555,14 +605,24 @@ def container_id(name):
 def started_at(name):
     """When the container last started. A container restarted IN PLACE keeps
     its object (same id) and its RestartCount, which Docker increments from the
-    restart POLICY: the instant it started again is the only thing that moves."""
+    restart POLICY: the instant it started again is the only thing that moves.
+
+    'state-unreadable' is an inspect that ANSWERS NOTHING after the run, as a
+    docker under pressure does: the field is then unknown, which is not a
+    state, and the record of the guest after the run is not usable."""
+    if fails("state-unreadable") and midrun():
+        return ""
     moved = ((fails("service-restarted-in-place") and name == SERVICES[4])
              or (fails("service-recreated") and name == SERVICES[3])) and midrun()
     return "2026-09-19T20:31:07.100000000Z" if moved else "2026-09-19T19:58:00.100000000Z"
 
 
 def listed():
-    """The containers 'docker ps' reports: one may be gone after the run."""
+    """The containers 'docker ps' reports: one may never have been there at
+    all ('service-absent': docker answers 'No such object' for it, as it does
+    for a container that was removed), and one may be gone after the run."""
+    if fails("service-absent"):
+        return tuple(name for name in SERVICES if name != SERVICES[2])
     if fails("service-gone") and midrun():
         return tuple(name for name in SERVICES if name != SERVICES[3])
     return SERVICES
@@ -600,8 +660,14 @@ if command == "ps":
 if command == "inspect":
     template = args[args.index("-f") + 1] if "-f" in args else ""
     name = args[-1]
-    if name not in SERVICES:
+    if name not in listed():
         print(f"Error: No such object: {name}", file=sys.stderr)
+        sys.exit(1)
+    if fails("inspect-unanswered") and name == SERVICES[4]:
+        # 'docker ps -a' holds this container and the inspect still fails, as a
+        # daemon under pressure makes it: this is NOT the daemon saying the
+        # container is gone, and nothing about it is determined by it.
+        print("Error response from daemon: context deadline exceeded", file=sys.stderr)
         sys.exit(1)
     if ".State.Health" in template:
         print(health(name))
@@ -749,7 +815,7 @@ os.makedirs(os.path.join(raw, "logs", "collector"), exist_ok=True)
 # that is gone), which is what the two guest-state records are compared for.
 if any(f",{token}," in f",{os.environ.get('EGW_STUB_FAIL', '')},"
        for token in ("service-restarted", "service-recreated", "service-gone",
-                     "service-restarted-in-place")):
+                     "service-restarted-in-place", "state-unreadable")):
     open(os.environ["EGW_STUB_LOG"] + ".midrun", "w", encoding="utf-8").close()
 # The controller's own event log, on the guest, for the measured run and its
 # warm-up: what the driver fetches after the drain.
@@ -1190,6 +1256,11 @@ STATUS_CASES = [
      "exported", "1", 130),
     ({"status": "failed", "instrumentation_validity": "not-applicable", "system_outcome": "fail"},
      "exported", "1", 5),
+    # The same verdicts with a controlled stop that did NOT fail: a session
+    # whose own records showed the system failing is a valid negative result,
+    # so 'valid' (or 'not-applicable') plus 'fail' gives 1 for every driver.
+    ({"status": "failed", "instrumentation_validity": "not-applicable", "system_outcome": "fail"},
+     "exported", "0", 1),
     # The open guest session: nothing is exported, and that is not a failure.
     ({"status": "running", "instrumentation_validity": "unknown", "system_outcome": "unknown"},
      "deferred", "0", 0),
@@ -1518,7 +1589,7 @@ def test_collector_shortfall_fails_closed_on_a_missing_report(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# guest_state_delta.py: an OOM kill or a restart during the run is a verdict
+# guest_state_delta.py: what the system did, and what the records cannot say
 # --------------------------------------------------------------------------
 
 FIRST_ID = "a" * 64
@@ -1553,20 +1624,26 @@ def _delta(tmp_path: Path, before: str, after: str, *options: str) -> subprocess
                           capture_output=True, text=True)
 
 
+def _group(stdout: str, group: str) -> str:
+    """What the comparison printed under one of its two headings."""
+    faults, _, problems = stdout.partition("## problems")
+    return problems if group == "problems" else faults
+
+
 def test_guest_state_delta_accepts_an_unchanged_guest(tmp_path):
     result = _delta(tmp_path, _guest_state(), _guest_state())
     assert result.returncode == 0, report(result)
-    assert "0 problem(s)" in result.stdout
+    assert "0 fault(s), 0 problem(s)" in result.stdout
+    assert "guest-state-delta: faults=0 problems=0" in result.stdout
 
 
 @pytest.mark.parametrize("before, after, says", [
     (_guest_state(), _guest_state(oomkilled="true"), "was OOM-killed"),
     (_guest_state(restarts="0"), _guest_state(restarts="3"), "restarted during the run (0 -> 3)"),
     (_guest_state(oom_lines="0"), _guest_state(oom_lines="2"), "memory-cgroup OOM lines"),
-    (_guest_state(), _guest_state() + "container new-1 oomkilled=false restarts=0\n",
+    (_guest_state(), _guest_state()
+     + f"container new-1 oomkilled=false restarts=0 id={'d' * 64} started={BOOT_START}\n",
      "no restart baseline"),
-    (_guest_state(), "nothing was recorded\n", "names no container"),
-    (_guest_state(), _guest_state(oom_lines="many"), "no readable memory-cgroup OOM count"),
     # The other direction and the other sense: what the 'after' record alone
     # cannot show, because OOMKilled and RestartCount belong to the container
     # OBJECT and a recreated object starts again at false and 0.
@@ -1581,8 +1658,24 @@ def test_guest_state_delta_accepts_an_unchanged_guest(tmp_path):
     # restart POLICY: the instant it started again is the only thing that moves.
     (_guest_state(), _guest_state(started=LATER_START),
      f"was restarted during the run: it started again at {LATER_START}"),
-    # Without those two fields, or with them 'unknown', neither a replacement
-    # nor a restart in place can be seen: the pair must not read as unchanged.
+    (_guest_state(oomkilled="true"), _guest_state(),
+     "was OOM-killed before the run and is not after it"),
+])
+def test_guest_state_delta_reports_what_the_system_did(tmp_path, before, after, says):
+    # A fault the pair SHOWS is a result, not a broken comparison: it ends 1,
+    # which nominal.sh reads as a system outcome and not as invalid evidence.
+    result = _delta(tmp_path, before, after)
+    assert result.returncode == 1, report(result)
+    assert says in _group(result.stdout, "faults"), result.stdout
+    assert "PROBLEM:" not in result.stdout, "nothing here leaves the pair uncomparable"
+
+
+@pytest.mark.parametrize("before, after, says", [
+    (_guest_state(), "nothing was recorded\n", "names no container"),
+    (_guest_state(), _guest_state(oom_lines="many"), "no readable memory-cgroup OOM count"),
+    # Without the id and the start instant, or with them 'unknown', neither a
+    # replacement nor a restart in place can be seen: the pair must not read as
+    # unchanged, and it must not read as a run in which nothing happened either.
     (_guest_state(fields=False), _guest_state(fields=False),
      "does not name the id of egw-controller-1"),
     (_guest_state(ident="unknown"), _guest_state(ident="unknown"),
@@ -1594,8 +1687,6 @@ def test_guest_state_delta_accepts_an_unchanged_guest(tmp_path):
     (_guest_state(), _guest_state(oomkilled="true")
      + f"container egw-controller-1 oomkilled=false restarts=0 id={FIRST_ID} started={BOOT_START}\n",
      "names egw-controller-1 more than once"),
-    (_guest_state(oomkilled="true"), _guest_state(),
-     "was OOM-killed before the run and is not after it"),
     (_guest_state(), "egw-controller-1 Up 3 minutes (healthy)\n"
      "container egw-controller-1 oomkilled= restarts=\n"
      "container egw-mongodb-1 oomkilled=false restarts=0\nmemory-cgroup OOM lines: 0\n",
@@ -1603,27 +1694,158 @@ def test_guest_state_delta_accepts_an_unchanged_guest(tmp_path):
     (_guest_state(oom_lines="2"), _guest_state(oom_lines="0"),
      "the record of this boot is not consistent"),
 ])
-def test_guest_state_delta_reports_the_run(tmp_path, before, after, says):
+def test_guest_state_delta_reports_what_the_records_cannot_say(tmp_path, before, after, says):
+    # A pair that cannot be compared ends 2: no measurement of the guest's
+    # state was made, which is never "no fault was observed".
     result = _delta(tmp_path, before, after)
-    assert result.returncode == 1, report(result)
-    assert says in result.stdout
+    assert result.returncode == 2, report(result)
+    assert says in _group(result.stdout, "problems"), result.stdout
+
+
+@pytest.mark.parametrize("after, says", [
+    (_guest_state(started="unknown"), "does not name the started of egw-controller-1"),
+    (_guest_state(ident="unknown"), "does not name the id of egw-controller-1"),
+])
+def test_guest_state_delta_reads_no_fault_out_of_a_field_it_could_not_read(tmp_path, after, says):
+    # 'docker inspect' answered nothing after the run, so the record carries
+    # the word 'unknown' where the id or the instant it last started belongs.
+    # That is what the records do not let anyone say - never an instant that
+    # differs from the one before, which would be a restart or a replacement
+    # the run never showed. An indeterminate reading is not an observation.
+    result = _delta(tmp_path, _guest_state(), after)
+    assert result.returncode == 2, report(result)
+    assert says in _group(result.stdout, "problems"), result.stdout
+    assert "FAULT:" not in result.stdout, "nothing was observed here"
+    assert "guest-state-delta: faults=0" in result.stdout
+
+
+def test_guest_state_delta_prints_a_fault_it_saw_even_when_it_cannot_compare(tmp_path):
+    # An unreadable OOM count does not take away the OOM kill the pair showed:
+    # the fault is a fact, and it is printed beside the problem.
+    result = _delta(tmp_path, _guest_state(), _guest_state(oomkilled="true", oom_lines="many"))
+    assert result.returncode == 2, report(result)
+    assert "FAULT: egw-controller-1 was OOM-killed (OOMKilled=true)" in result.stdout
+    assert "guest-state-delta: faults=1 problems=2" in result.stdout
 
 
 def test_guest_state_delta_wants_every_expected_container(tmp_path):
     # A record that holds fewer containers than the caller expects leaves the
-    # state of the missing ones unknown, which is not "nothing happened".
+    # state of the missing ones unknown, which is not "nothing happened". In
+    # the 'before' record that is a problem; in the 'after' record it is the
+    # fault that the container is gone.
     expected = "--expect", "egw-controller-1,egw-mongodb-1"
     assert _delta(tmp_path, _guest_state(), _guest_state(), *expected).returncode == 0
     result = _delta(tmp_path, _guest_state(names=("egw-controller-1",)),
                     _guest_state(names=("egw-controller-1",)), *expected)
-    assert result.returncode == 1, report(result)
+    assert result.returncode == 2, report(result)
     assert "names 1 of the 2 expected containers (missing: egw-mongodb-1)" in result.stdout
     assert result.stdout.count("expected containers") == 2, "both records are checked"
+    assert "FAULT: the guest state after the run names 1 of the 2" in result.stdout
+    assert "PROBLEM: the guest state before the run names 1 of the 2" in result.stdout
+    # One record that names them all and one that does not: the container is
+    # gone, and that is a fault on its own, with nothing left uncomparable.
+    gone = _delta(tmp_path, _guest_state(), _guest_state(names=("egw-controller-1",)), *expected)
+    assert gone.returncode == 1, report(gone)
+    assert "guest-state-delta: faults=2 problems=0" in gone.stdout
+
+
+def test_guest_state_delta_missing_baseline_is_not_also_a_fault(tmp_path):
+    # The BEFORE record does not name a container the caller expects, and the
+    # AFTER record does. That is one gap in the baseline - the record does not
+    # say what that container's state was when the run started - and it must
+    # not ALSO be written down as something positively observed about it, which
+    # would turn a record that does not say into a fact about the system.
+    expected = "--expect", "egw-controller-1,egw-mongodb-1"
+    result = _delta(tmp_path, _guest_state(names=("egw-controller-1",)), _guest_state(), *expected)
+    assert result.returncode == 2, report(result)
+    problems = _group(result.stdout, "problems")
+    assert ("the guest state before the run names 1 of the 2 expected containers "
+            "(missing: egw-mongodb-1)") in problems
+    assert "egw-mongodb-1 is not named in the guest state before the run" in problems
+    assert "FAULT:" not in result.stdout, result.stdout
+    assert "guest-state-delta: faults=0 problems=2" in result.stdout
+    # A container nobody expected, which only the AFTER record names, is one
+    # that appeared during the run: that is still a fault the pair showed.
+    new = _delta(tmp_path, _guest_state(), _guest_state()
+                 + f"container new-1 oomkilled=false restarts=0 id={'d' * 64} started={BOOT_START}\n",
+                 *expected)
+    assert new.returncode == 1, report(new)
+    assert "FAULT: new-1 was not running before the run" in new.stdout
+    assert "guest-state-delta: faults=1 problems=0" in new.stdout
+
+
+#: The helper run as its own script, with the reading of a record made to fail
+#: in a way that is NOT an OSError - as a defect in the comparison, or an
+#: interpreter that cannot go on, would: the status Python leaves for an
+#: unhandled exception is 1, which is the status of a fault the pair SHOWED.
+CRASHING_COMPARISON = '''"""guest_state_delta.py as __main__, with a record it cannot open at all."""
+import builtins
+import sys
+import traceback  # noqa: F401 - imported before the patch below, so it stays usable
+
+script, arguments = sys.argv[1], sys.argv[2:]
+source = builtins.open(script, encoding="utf-8").read()
+real = builtins.open
+
+
+def guarded(file, *positional, **named):
+    if str(file).endswith(".txt"):
+        raise ValueError("the record could not be opened at all")
+    return real(file, *positional, **named)
+
+
+builtins.open = guarded
+sys.argv = [script, *arguments]
+exec(compile(source, script, "exec"), {"__name__": "__main__", "__file__": script})
+'''
+
+
+def test_guest_state_delta_that_crashed_is_not_a_fault_it_saw(tmp_path):
+    # A crash of the comparison is a pair that was NOT COMPARED (2), never the
+    # 1 of a fault it observed: a caller reading that 1 would record a system
+    # fault nobody saw and hide the evidence failure behind it.
+    record = _write(tmp_path / "before.txt", _guest_state())
+    result = subprocess.run([sys.executable, str(_write(tmp_path / "crash.py", CRASHING_COMPARISON)),
+                             str(SESSION_DIR / "guest_state_delta.py"), str(record), str(record)],
+                            capture_output=True, text=True)
+    assert result.returncode == 2, report(result)
+    assert "the comparison itself failed (ValueError:" in result.stdout
+    assert "FAULT:" not in result.stdout, "nothing was compared, so nothing was observed"
+    # Every exit carries the summary line, which is what tells a status this
+    # helper reached from one Python left behind after it.
+    assert result.stdout.rstrip().endswith("guest-state-delta: faults=0 problems=1")
+
+
+def test_guest_state_delta_invents_no_fault_out_of_a_record_it_could_not_read(tmp_path):
+    # The record of the guest state after the run could not be read at all. A
+    # record nobody read shows nothing: it is not every expected container
+    # "gone after the run", which would be six positively observed faults out
+    # of an evidence failure.
+    expected = "--expect", "egw-controller-1,egw-mongodb-1"
+    result = subprocess.run([sys.executable, str(SESSION_DIR / "guest_state_delta.py"), *expected,
+                             str(_write(tmp_path / "before.txt", _guest_state())),
+                             str(tmp_path / "absent.txt")], capture_output=True, text=True)
+    assert result.returncode == 2, report(result)
+    assert "FAULT:" not in result.stdout, "a record nobody could read observed nothing"
+    assert "guest-state-delta: faults=0" in result.stdout
+    assert "the guest state after the run could not be read" in result.stdout
+    assert "no container of the pair could be compared" in result.stdout
+
+
+def test_guest_state_delta_invents_no_fault_out_of_an_empty_record(tmp_path):
+    # The same for a record the guest command left empty: the containers the
+    # 'before' record names are not reported gone out of it.
+    result = _delta(tmp_path, _guest_state(), "", "--expect", "egw-controller-1,egw-mongodb-1")
+    assert result.returncode == 2, report(result)
+    assert "FAULT:" not in result.stdout, result.stdout
+    assert "guest-state-delta: faults=0" in result.stdout
+    assert "the guest state after the run names no container" in result.stdout
+    assert "PROBLEM: the guest state after the run names 0 of the 2 expected containers" in result.stdout
 
 
 def test_guest_state_delta_refuses_an_unknown_option(tmp_path):
     result = _delta(tmp_path, _guest_state(), _guest_state(), "--all")
-    assert result.returncode == 1, report(result)
+    assert result.returncode == 2, report(result)
     assert "UNKNOWN OPTION --all" in result.stderr
 
 
@@ -1631,7 +1853,7 @@ def test_guest_state_delta_fails_closed_on_a_missing_record(tmp_path):
     result = subprocess.run([sys.executable, str(SESSION_DIR / "guest_state_delta.py"),
                              str(tmp_path / "absent.txt"), str(tmp_path / "absent.txt")],
                             capture_output=True, text=True)
-    assert result.returncode == 1, report(result)
+    assert result.returncode == 2, report(result)
     assert "could not be read" in result.stdout
 
 
@@ -1730,10 +1952,14 @@ def test_preflight_prerequisite_stops_the_driver(bench):
 
 
 def test_preflight_unreadable_dmesg_is_not_no_oom(bench):
+    # A dmesg that cannot be read leaves the OOM state of this boot UNKNOWN,
+    # which is not "no OOM" and is not a stack seen failing either: the step
+    # could not DETERMINE the state, so the check did not run (exit 1 -> 2).
     result = bench.run("preflight.sh", EGW_STUB_FAIL="dmesg")
     assert result.returncode == 2, report(result)
     verdicts = bench.verdicts("live-preflight")
     assert verdicts["system_outcome"] == "not-run"
+    assert "observed system fault(s)" not in verdicts["reason"]
     assert "OOM state is unknown" in verdicts["reason"]
     # The health check is the last step attempted: the rest is named as not run.
     assert bench.commands("live-preflight")[-1] == "stack-health"
@@ -1741,10 +1967,112 @@ def test_preflight_unreadable_dmesg_is_not_no_oom(bench):
     assert "not run: broker-secrets-check" in verdicts["reason"]
 
 
-def test_preflight_oomkilled_service_fails_the_health_prerequisite(bench):
-    result = bench.run("preflight.sh", EGW_STUB_FAIL="service-oomkilled")
+@pytest.mark.parametrize("failure, says", [
+    ("service-oomkilled", "OOMKilled=true"),
+    ("service-down", "status=exited"),
+    ("service-unhealthy", "health=unhealthy"),
+    ("oom", "memory-cgroup OOM lines: 1"),
+])
+def test_preflight_stack_it_saw_failing_is_a_system_failure(bench, failure, says):
+    # The health step RAN and saw the stack failing: what it observed is sound,
+    # so this is a measured system failure (valid, fail, exit 1), not a check
+    # that did not run and not invalid instrumentation. The steps that
+    # depend on a healthy stack are still skipped, and the driver still ends
+    # non-zero, so nothing longer starts on the strength of it.
+    result = bench.run("preflight.sh", EGW_STUB_FAIL=failure)
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "observed system fault(s):" in verdicts["reason"]
+    assert "stack-health exit 3" in verdicts["reason"]
+    assert says in _console(bench, "live-preflight", "stack-health")
+    assert "not run: broker-secrets-check" in verdicts["reason"]
+    assert "broker-secrets-check" not in bench.commands("live-preflight")
+    assert bench.package("live-preflight") is not None
+
+
+def test_preflight_observed_fault_does_not_claim_a_complete_preflight(bench):
+    # The observation itself stops the steps that depend on a healthy stack, so
+    # the record must not say in one breath that the stack failed and that this
+    # preflight's own evidence is complete: what is written down is what was
+    # observed and which steps were not run.
+    result = bench.run("preflight.sh", EGW_STUB_FAIL="service-unhealthy")
+    assert result.returncode == 1, report(result)
+    reason = bench.verdicts("live-preflight")["reason"]
+    assert "the preflight's own evidence is complete" not in reason, reason
+    assert "the steps after it were not run: broker-secrets-check" in reason
+    assert "collector-check" in reason
+
+
+@pytest.mark.parametrize("state, records", [
+    # The healthcheck of a service that is running has not concluded. This is
+    # the live preflight of 2026-09-19, whose stack-health record reads
+    # 'egw-controller-1 running starting' and which passed: a rule that failed
+    # it would be a rule that calls a healthy stack a fault.
+    ("health-starting", "health=starting"),
+    # A container that declares no healthcheck at all answers 'none', which is
+    # the absence of a question, not a bad answer.
+    ("no-healthcheck", "health=none"),
+])
+def test_preflight_health_that_has_not_concluded_is_judged_by_the_state(bench, state, records):
+    result = bench.run("preflight.sh", EGW_STUB_FAIL=state)
+    assert result.returncode == 0, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    assert "observed system fault(s)" not in verdicts["reason"]
+    assert "prerequisite failed" not in verdicts["reason"]
+    # It is recorded as the word it is: judged by the state, never hidden.
+    assert f"egw-controller-1 status=running {records}" in _console(bench, "live-preflight",
+                                                                   "stack-health")
+    assert "collector-check" in bench.commands("live-preflight")
+
+
+def test_preflight_service_that_is_not_there_is_a_fault_not_an_unknown(bench):
+    # docker ANSWERED: it does not hold that container. The stack is missing a
+    # service, which is an observation of it failing and not a state nobody
+    # could read - and it is what nominal.sh's own comparison calls the fault
+    # "gone after the run" for the identical system state.
+    result = bench.run("preflight.sh", EGW_STUB_FAIL="service-absent")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "observed system fault(s):" in verdicts["reason"]
+    assert "stack-health exit 3" in verdicts["reason"]
+    assert "egw-ditto-policies-1 status=absent" in _console(bench, "live-preflight", "stack-health")
+    assert bench.package("live-preflight") is not None
+
+
+def test_preflight_inspect_that_did_not_answer_is_not_a_container_that_is_gone(bench):
+    # 'docker ps -a' holds the container and the inspect then fails for another
+    # reason than the daemon's own "No such object": nothing about that
+    # container was determined. Reading it as absent would record a service
+    # GONE - a fault of the system - that nobody observed, so this is the check
+    # not having run (exit 1 -> 2) and not a stack seen failing.
+    result = bench.run("preflight.sh", EGW_STUB_FAIL="inspect-unanswered")
     assert result.returncode == 2, report(result)
-    assert bench.verdicts("live-preflight")["system_outcome"] == "not-run"
+    verdicts = bench.verdicts("live-preflight")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "not-run")
+    assert "observed system fault(s)" not in verdicts["reason"]
+    assert "prerequisite failed" in verdicts["reason"]
+    assert "egw-ditto-gateway-1 status=indeterminate" in _console(bench, "live-preflight",
+                                                                 "stack-health")
+    assert "status=absent" not in _console(bench, "live-preflight", "stack-health")
+
+
+def test_preflight_fault_it_saw_survives_a_reading_it_could_not_make(bench):
+    # A container the kernel really did OOM-kill, in a run whose dmesg cannot
+    # be read: the step saw one thing and could not determine another, and
+    # neither erases the other (exit 4). The prerequisite verdict is the one it
+    # has always been - the OOM state of this boot is unknown, so the check did
+    # not run - and the fault it positively saw is in the reason all the same.
+    result = bench.run("preflight.sh", EGW_STUB_FAIL="service-oomkilled,dmesg")
+    assert result.returncode == 2, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "not-run")
+    assert verdicts["reason"].startswith("observed system fault(s):")
+    assert "stack-health exit 4" in verdicts["reason"]
+    assert "prerequisite failed" in verdicts["reason"]
+    assert "OOMKilled=true" in _console(bench, "live-preflight", "stack-health")
 
 
 def test_preflight_mandatory_fetch_hash_failure_is_invalid(bench):
@@ -2059,13 +2387,19 @@ def test_nominal_passes_when_every_message_is_in_time(bench):
 
 
 def test_nominal_failed_accounting_never_becomes_not_run(bench):
+    # The accounting is the analysis AFTER the sealed window: one that could
+    # not be produced leaves the delivery unjudged (inconclusive, exit 3) and
+    # is recorded as an incomplete observation. It does not make the window
+    # the harness already sealed invalid, and it is never 'not-run'.
     _plan(bench)
     result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="accounting")
     assert result.returncode == 3, report(result)
     verdicts = bench.verdicts("nominal-instrumentation-120-600")
-    assert verdicts["system_outcome"] != "not-run"
-    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert verdicts["instrumentation_validity"] == "valid"
     assert "the identity accounting could not be produced" in verdicts["reason"]
+    assert "post-window observation(s) incomplete:" in verdicts["reason"]
+    assert "evidence requirement(s) not met" not in verdicts["reason"]
     assert "harness-run" in bench.commands("nominal-instrumentation-120-600")
     assert bench.package("nominal-instrumentation-120-600") is not None
 
@@ -2139,7 +2473,16 @@ exec /bin/mkdir "$@"
     assert "after-snapshots" in bench.commands("nominal-instrumentation-120-600")
 
 
-@pytest.mark.parametrize("failure, says", [
+# --------------------------------------------------------------------------
+# nominal.sh: a system that failed is not a measurement that failed
+#
+# The five verifications of the project manager's follow-up of 2026-09-20,
+# section 4, all on this stub bench and with no guest run.
+# --------------------------------------------------------------------------
+
+#: A fault the measured run positively SHOWS, and the sentence the comparison
+#: of the two guest-state records prints for it.
+OBSERVED_FAULTS = [
     ("service-oomkilled", "was OOM-killed"),
     ("service-restarted", "restarted during the run"),
     ("oom", "memory-cgroup OOM lines"),
@@ -2153,19 +2496,469 @@ exec /bin/mkdir "$@"
     # same on both sides: without the instant it last started, the two records
     # are identical and the run reads as untouched.
     ("service-restarted-in-place", "it started again at"),
+]
+
+
+@pytest.mark.parametrize("failure, says", OBSERVED_FAULTS)
+def test_nominal_observed_fault_with_complete_evidence_is_a_valid_negative(bench, failure, says):
+    # Verification 1. A container OOM-killed, restarted, replaced or lost
+    # while the window was being measured is what the run OBSERVED: the
+    # evidence is complete and trustworthy and the SYSTEM is what failed.
+    # Declaring the instrumentation invalid here would discard exactly the
+    # negative result this work has to analyse.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL=failure)
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "observed system fault(s): a container was OOM-killed or restarted" in verdicts["reason"]
+    assert "evidence requirement(s) not met" not in verdicts["reason"]
+    assert says in result.stdout
+    assert "NOMINAL nominal-r01: validity=valid outcome=fail" in result.stdout
+    assert "observed=1 mandatory=0 incomplete=0" in result.stdout
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+@pytest.mark.parametrize("overrides, says", [
+    # The controller marker the confirmation deadline is measured from was
+    # never read: there is no clock domain to judge a 60 s window in.
+    ({"EGW_STUB_CONTROLLER_MARKER": '{"ok": false, "error": "GET /metrics failed"}'},
+     "controller_marker.ok is False"),
+    # The deadline did not come from that marker at all.
+    ({"EGW_STUB_DEADLINE_SOURCE": "event-derived-legacy"},
+     "confirmation_deadline_source is event-derived-legacy, not controller-marker"),
 ])
-def test_nominal_oom_or_restart_during_the_run_is_invalid(bench, failure, says):
-    # A container that was OOM-killed, restarted, replaced or lost while the
-    # window was being measured makes those measurements unusable: it is a
-    # verdict, not a note.
+def test_nominal_observed_fault_with_a_broken_clock_domain_is_invalid(bench, overrides, says):
+    # Verification 2. The same class of fault, and a real defect of the clock
+    # domain the deadline rests on: THAT is invalid instrumentation, the reason
+    # names the requirement rather than the fault, and the fault is kept as a
+    # fact - never as a successful system outcome.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="service-oomkilled", **overrides)
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "fail")
+    assert "observed system fault(s): a container was OOM-killed or restarted" in verdicts["reason"]
+    assert "evidence requirement(s) not met: the clock domain the confirmation deadline rests on " \
+           "is not intact" in verdicts["reason"]
+    assert says in verdicts["reason"]
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+def test_nominal_observed_fault_with_a_lost_capture_is_invalid(bench):
+    # Verification 2, the mandatory-capture variant: the console record of a
+    # step is incomplete, so the evidence requirement is what failed. The fault
+    # the run showed is still recorded and the outcome is still a failure.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="service-oomkilled",
+                       **bench.fail_capture_of("post-drain"))
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "fail")
+    assert "observed system fault(s): a container was OOM-killed or restarted" in verdicts["reason"]
+    assert "the console capture of 'post-drain' failed" in verdicts["reason"]
+
+
+def test_nominal_a_guest_state_record_that_is_not_trusted_shows_no_fault(bench):
+    # The guest answered, but the console capture of that answer failed, so the
+    # record may hold part of it. What the comparison then reports about the
+    # containers was not established: it is named as evidence that failed, with
+    # the sentences it printed, and never as a fault the run showed.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="service-oomkilled",
+                       **bench.fail_capture_of("guest-state-after"))
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "observed system fault(s)" not in verdicts["reason"]
+    assert "was not established" in verdicts["reason"]
+    assert "was OOM-killed" in verdicts["reason"]
+
+
+def test_nominal_drain_that_timed_out_keeps_the_measured_verdict(bench):
+    # Verification 3. The harness sealed the measured window; only the drain
+    # after it never went quiet. The drain GAVE UP - it watched the queue for
+    # its whole limit and reported so - which is a fault the run showed and an
+    # observation that is incomplete, never a reason to discard the window, and
+    # nothing claims eventual delivery or a complete tail.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="post-drain")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert ("observed system fault(s): the drain after the run did not report a quiet window "
+            "(post-drain exit 1)") in verdicts["reason"]
+    assert "evidence requirement(s) not met" not in verdicts["reason"]
+    assert ("post-window observation(s) incomplete: the drain after the run did not complete, "
+            "so no eventual delivery and no complete tail is claimed") in verdicts["reason"]
+    assert verdicts["post_window_observations"].startswith("incomplete: the drain after the run")
+    # The fault is read from what the drain itself reported, so the record the
+    # package keeps holds that sentence.
+    assert "no quiet window of 130 s within 1500 s" in _console(
+        bench, "nominal-instrumentation-120-600", "post-drain", "stderr")
+    # The precondition's own drain, before the harness, is untouched: the run
+    # was measured, which is why its verdict is kept.
+    assert "harness-run" in bench.commands("nominal-instrumentation-120-600")
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+@pytest.mark.parametrize("failure, records", [
+    # The drain's OTHER stop: it could not read /metrics at all, which is what
+    # a tunnel that dropped, a refused connection or a controller that is no
+    # longer there leaves. Nothing was observed about the queue.
+    ("post-drain-unreachable", "GET http://127.0.0.1:8000/metrics failed"),
+    # The step died in the transport, before any reading: the queue was never
+    # watched at all.
+    ("post-drain-dropped", "Connection refused"),
+])
+def test_nominal_drain_that_observed_nothing_is_not_a_fault(bench, failure, records):
+    # The post-drain step runs over the tunnel, so its status alone says
+    # nothing about the queue. A step that ended non-zero without the drain's
+    # own give-up observed NOTHING, and writing it into the evidence as "the
+    # drain did not report a quiet window" would record, as a fault of the
+    # gateway, a dropped connection: the tail is simply unobserved, which is an
+    # incomplete post-window observation and leaves the sealed window intact.
     _plan(bench)
     result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL=failure)
     assert result.returncode == 3, report(result)
     verdicts = bench.verdicts("nominal-instrumentation-120-600")
-    assert verdicts["instrumentation_validity"] == "invalid"
-    assert "OOM-killed or restarted" in verdicts["reason"]
-    assert says in result.stdout
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid",
+                                                                                 "inconclusive")
+    assert "observed system fault(s)" not in verdicts["reason"], verdicts["reason"]
+    assert "did not report a quiet window" not in verdicts["reason"], verdicts["reason"]
+    assert "evidence requirement(s) not met" not in verdicts["reason"]
+    assert ("post-window observation(s) incomplete: the drain after the run did not complete, "
+            "so no eventual delivery and no complete tail is claimed") in verdicts["reason"]
+    assert records in _console(bench, "nominal-instrumentation-120-600", "post-drain", "stderr")
+    assert "harness-run" in bench.commands("nominal-instrumentation-120-600")
     assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+def test_nominal_guest_state_after_that_cannot_be_read_is_invalid(bench):
+    # Verification 4. 'docker inspect' answers nothing after the run, so the
+    # record of the guest state after it is not usable and the two records
+    # cannot be compared: mandatory evidence is missing, the instrumentation is
+    # invalid, and a PASS cannot be asserted on it.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="state-unreadable")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive", "a pass is not asserted on missing evidence"
+    assert "evidence requirement(s) not met" in verdicts["reason"]
+    assert "the guest state after the run was not recorded" in verdicts["reason"]
+    assert "the two guest states could not be compared (guest-state-delta exit 2)" in verdicts["reason"]
+    assert "observed system fault(s)" not in verdicts["reason"], "nothing was observed here"
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+def test_nominal_fault_survives_a_comparison_that_could_not_be_made(bench):
+    # The pair of records shows a container the kernel OOM-killed AND is
+    # missing the instant another one last started, so the comparison itself
+    # could not be completed (exit 2). Both are recorded, each in its own
+    # group: the fault the run positively showed never disappears because
+    # something else was indeterminate.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01",
+                       EGW_STUB_FAIL="service-oomkilled,state-unreadable")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "fail")
+    assert "observed system fault(s): a container was OOM-killed or restarted" in verdicts["reason"]
+    assert "egw-ditto-policies-1 was OOM-killed (OOMKilled=true)" in verdicts["reason"], (
+        "the package's own record names what was seen, not only that something was")
+    assert ("evidence requirement(s) not met: the guest state after the run was not recorded"
+            in verdicts["reason"])
+    assert "the two guest states could not be compared (guest-state-delta exit 2)" in verdicts["reason"]
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+#: A comparison that fails before it judges anything: Python's own status for
+#: an unhandled exception is 1, which is the status of a fault the pair SHOWED.
+DELTA_THAT_CRASHED = '''"""A guest_state_delta.py that crashes: no verdict, and Python's exit 1."""
+print("## faults: what the system did during the measured run")
+raise RuntimeError("the comparison itself failed")
+'''
+
+#: One that ends 1 while its own summary line says it saw nothing: what it
+#: printed is not a verdict it reached either.
+DELTA_THAT_DISAGREES = '''"""A guest_state_delta.py whose summary does not agree with its status."""
+print("## faults: what the system did during the measured run")
+print("none")
+print("guest-state-delta: faults=0 problems=0")
+raise SystemExit(1)
+'''
+
+
+@pytest.mark.parametrize("helper", [DELTA_THAT_CRASHED, DELTA_THAT_DISAGREES],
+                         ids=["crashed", "summary-disagrees"])
+def test_nominal_comparison_it_cannot_trust_is_not_an_observed_fault(bench, helper):
+    # The comparison exited 1 without reaching a verdict of its own. Read as
+    # "a fault was observed", that would record an OOM kill or a restart that
+    # nobody saw and bury the evidence failure behind it: a status whose
+    # summary line is absent or disagrees is a pair that could NOT be compared,
+    # which is mandatory evidence missing.
+    _plan(bench)
+    _write(bench.drivers / "guest_state_delta.py", helper)
+    result = bench.run("nominal.sh", "nominal-r01")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid",
+                                                                                 "inconclusive")
+    assert "observed system fault(s)" not in verdicts["reason"], "nothing was observed here"
+    assert ("evidence requirement(s) not met: the two guest states could not be compared "
+            "(guest-state-delta exit 1: the comparison itself failed") in verdicts["reason"]
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+def _argv(bench: Bench, slug: str, step: str) -> list[str]:
+    """The argv commands.jsonl recorded for one step of an attempt."""
+    path = bench.attempt(slug) / "commands.jsonl"
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    found = [record for record in records if record["name"] == step]
+    assert found, f"{step} is not in commands.jsonl"
+    return found[-1]["argv"]
+
+
+@pytest.mark.parametrize("overrides, told, tail, code", [
+    ({}, "fetched", "every published identity accounted", 0),
+    ({"EGW_STUB_SCP_FAIL": "/nominal-r01/events.jsonl"}, "not-fetched", None, 3),
+])
+def test_nominal_tells_the_accounting_whether_the_tail_was_fetched(bench, overrides, told, tail,
+                                                                   code):
+    # Whether the post-drain log was fetched is what THIS driver knows, and the
+    # accounting is told it: a transfer that died mid-way leaves a file behind,
+    # and a file on disk read as a complete tail publishes a tail nobody
+    # observed. What it is told is what it acts on - the accounting publishes no
+    # figure of a tail it was not told was fetched - so this is what the driver
+    # passing the wrong thing would change in the package.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", **overrides)
+    assert result.returncode == code, report(result)
+    assert _argv(bench, "nominal-instrumentation-120-600", "identity-accounting")[-1] == told
+    written = json.loads((bench.attempt("nominal-instrumentation-120-600") / "analysis"
+                          / "accounting.json").read_text(encoding="utf-8"))
+    assert (written["after_drain_fetch"], written["after_drain"]) == (told, tail)
+
+
+def test_nominal_tells_the_accounting_when_the_fetch_result_could_not_be_read(bench):
+    # The console record of the fetch was lost, so its own result is not
+    # readable here: the driver says as much rather than either claim, and no
+    # figure of that tail is published from the file it left.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01",
+                       **bench.fail_capture_of("fetch-post-drain-events"))
+    assert result.returncode == 3, report(result)
+    assert _argv(bench, "nominal-instrumentation-120-600", "identity-accounting")[-1] == "unknown"
+
+
+def test_nominal_reads_no_verdict_from_an_accounting_that_failed(bench):
+    # The accounting wrote a complete-looking accounting.json and then exited
+    # non-zero. A verdict is never derived from the output of a step that
+    # failed: the delivery row and the clock domain the 60 s deadline rests on
+    # are unknown, so they are not read, and the run is not sealed as a pass on
+    # bytes nobody can vouch for.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="accounting-late")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid",
+                                                                                 "inconclusive")
+    assert ("the identity accounting did not complete, so the delivery row and the clock domain "
+            "were not read") in verdicts["reason"]
+    assert "the identity accounting could not be produced (exit 1)" in verdicts["reason"]
+    assert "sent_valid 6720" not in verdicts["reason"], "no figure is read out of that file"
+    assert "evidence requirement(s) not met" not in verdicts["reason"], (
+        "the sealed window is not invalidated by an analysis made after it")
+
+
+def test_nominal_pass_needs_complete_post_window_evidence(bench):
+    # The delivery row itself passes, but the warm-up event log was never
+    # fetched: a post-window observation is missing, so a clean pass cannot be
+    # asserted. The measured window's own validity is untouched, the outcome is
+    # inconclusive (exit 3, so nothing dependent proceeds) and the reason names
+    # what is missing.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_SCP_FAIL=".warmup")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid",
+                                                                                 "inconclusive")
+    assert "the warm-up event log was not fetched" in verdicts["reason"]
+    assert "post-window observation(s) incomplete:" in verdicts["reason"]
+    assert "evidence requirement(s) not met" not in verdicts["reason"]
+    assert "observed system fault(s)" not in verdicts["reason"]
+    assert bench.package("nominal-instrumentation-120-600") is not None
+
+
+def test_nominal_observed_fault_outranks_a_delivery_row_that_could_not_be_read(bench):
+    # A container was OOM-killed during the run and the accounting could not be
+    # produced. The fault is the system outcome - a failure that was observed
+    # is not lowered to "undecided" because something else was not read - and
+    # the reason says that the delivery figures were not read.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01", EGW_STUB_FAIL="service-oomkilled,accounting")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "observed system fault(s): a container was OOM-killed or restarted" in verdicts["reason"]
+    assert ("the identity accounting did not complete, so the delivery row and the clock domain "
+            "were not read") in verdicts["reason"]
+    assert "evidence requirement(s) not met" not in verdicts["reason"]
+
+
+def test_nominal_delivery_row_without_its_four_figures_is_not_a_pass(bench):
+    # A row that carries no sent_valid and no delivered_unique satisfied
+    # "delivered == sent" through two absent counts. The four figures must be
+    # whole numbers before any pass: anything else leaves the delivery
+    # unjudged, with the fields that are missing named.
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01",
+                       EGW_STUB_HARNESS_ROW=json.dumps({"lost": 0, "late_confirmations": 0}))
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid",
+                                                                                 "inconclusive")
+    assert ("the row does not carry sent_valid, delivered_unique as whole numbers, so the "
+            "delivery was not judged") in verdicts["reason"]
+    assert "the delivery of the measured window was not judged" in verdicts["reason"]
+    # What the delivery row says is stated ONCE, at the end of the reason: the
+    # incomplete group carries the consequence, not a second copy of it.
+    assert verdicts["reason"].count("delivery at the harness fetch:") == 1, verdicts["reason"]
+
+
+def _account_capsule(tmp_path: Path) -> Path:
+    """A sealed raw run directory with three published identities, one of which
+    the harness fetch confirmed before the deadline."""
+    raw = tmp_path / "raw" / "nominal-r01"
+    _write(raw / "manifest.json", json.dumps({"run_id": "nominal-r01", "validity": "valid",
+                                              "confirmation_deadline_monotonic_ns": 10 ** 12}))
+    _write(raw / "sent_events.jsonl", "".join(
+        json.dumps({"message_id": f"m-{i}", "device_uuid": "stub-device",
+                    "device_type": "smartwatch", "seq": i, "run_id": "nominal-r01"}) + "\n"
+        for i in range(3)))
+    _write(raw / "events.jsonl", json.dumps(
+        {"message_id": "m-0", "run_id": "nominal-r01", "outcome": "accepted",
+         "ditto_ack_monotonic_ns": 5 * 10 ** 11}) + "\n")
+    return raw
+
+
+def _account(raw: Path, post: Path, out: Path, *told: str) -> subprocess.CompletedProcess:
+    """The real accounting helper; `told` is what the driver says about its own
+    fetch of the post-drain log ('fetched', 'not-fetched', or nothing at all)."""
+    return subprocess.run(
+        [sys.executable, str(SESSION_DIR / "nominal_account.py"), str(raw), str(post), str(out), *told],
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}, capture_output=True, text=True)
+
+
+def test_nominal_account_does_not_invent_a_tail_it_did_not_fetch(tmp_path):
+    # The real accounting helper, on a capsule whose post-drain log was never
+    # fetched: a log that is not there is not an empty one, so every figure of
+    # that tail is null and named as not fetched. Counting each published
+    # identity as "no outcome" against it would publish a tail nobody observed,
+    # and that count is exactly what this dissertation reports.
+    raw = _account_capsule(tmp_path)
+    result = _account(raw, tmp_path / "never-fetched.jsonl", tmp_path / "analysis")
+    assert result.returncode == 0, report(result)
+    written = json.loads((tmp_path / "analysis" / "accounting.json").read_text(encoding="utf-8"))
+    for field in ("after_drain", "after_drain_per_device", "events_records_after_drain",
+                  "accepted_without_ack_instant_after_drain"):
+        assert written[field] is None, field
+    assert "was not fetched" in written["after_drain_note"]
+    assert "after the drain: the post-drain event log was not fetched" in result.stdout
+    # What WAS fetched is still accounted for, unchanged.
+    assert written["at_harness_fetch"]["accepted_in_time"] == 1
+    assert written["events_records_at_fetch"] == 1
+
+
+def test_nominal_account_does_not_report_as_fetched_a_tail_that_is_not_there(tmp_path):
+    # The driver says its fetch succeeded and the log is not at the path it
+    # names - a file removed, a path that never was, a transfer that reported
+    # success and wrote nothing. What is published is what was FOUND: reporting
+    # 'fetched' beside a tail of nulls would say that a log was read and that
+    # nothing was in it.
+    raw = _account_capsule(tmp_path)
+    result = _account(raw, tmp_path / "never-arrived.jsonl", tmp_path / "analysis", "fetched")
+    assert result.returncode == 0, report(result)
+    written = json.loads((tmp_path / "analysis" / "accounting.json").read_text(encoding="utf-8"))
+    assert written["after_drain_fetch"] == "not-found"
+    assert "is not there" in written["after_drain_note"]
+    for field in ("after_drain", "after_drain_per_device", "events_records_after_drain",
+                  "accepted_without_ack_instant_after_drain"):
+        assert written[field] is None, field
+    assert "no tail after the drain was found" in result.stdout
+
+
+def test_nominal_account_does_not_read_a_partial_tail_as_a_complete_one(tmp_path):
+    # A transfer that died mid-way leaves a file behind, and the file being on
+    # disk is not the fact that it was fetched: the driver's own fetch is what
+    # says so. A partial tail read as the whole of it would publish, as "no
+    # outcome after the drain", identities whose records simply never arrived.
+    raw = _account_capsule(tmp_path)
+    post = _write(tmp_path / "events.post-drain.jsonl", json.dumps(
+        {"message_id": "m-1", "run_id": "nominal-r01", "outcome": "accepted",
+         "ditto_ack_monotonic_ns": 2 * 10 ** 12}) + "\n")
+    result = _account(raw, post, tmp_path / "analysis", "not-fetched")
+    assert result.returncode == 0, report(result)
+    written = json.loads((tmp_path / "analysis" / "accounting.json").read_text(encoding="utf-8"))
+    for field in ("after_drain", "after_drain_per_device", "events_records_after_drain",
+                  "accepted_without_ack_instant_after_drain"):
+        assert written[field] is None, field
+    assert written["after_drain_fetch"] == "not-fetched"
+    assert "may be a partial tail" in written["after_drain_note"]
+    assert "may be a partial tail" in result.stdout
+    # The same file, once the driver says its own fetch succeeded, IS the tail.
+    complete = _account(raw, post, tmp_path / "fetched", "fetched")
+    assert complete.returncode == 0, report(complete)
+    tail = json.loads((tmp_path / "fetched" / "accounting.json").read_text(encoding="utf-8"))
+    assert tail["after_drain"] == {"accepted_late": 1, "no_outcome": 2}
+    assert tail["after_drain_note"] is None
+    # A caller that says nothing claims nothing: the log is reported as it was
+    # found, and the record says that is what these figures are.
+    unstated = _account(raw, post, tmp_path / "unstated")
+    assert unstated.returncode == 0, report(unstated)
+    silent = json.loads((tmp_path / "unstated" / "accounting.json").read_text(encoding="utf-8"))
+    assert silent["after_drain_fetch"] == "unstated"
+    assert "as it was found on disk" in silent["after_drain_note"]
+    # A fetch whose own result could not be read establishes nothing either.
+    lost = _account(raw, post, tmp_path / "unknown", "unknown")
+    assert lost.returncode == 0, report(lost)
+    unread = json.loads((tmp_path / "unknown" / "accounting.json").read_text(encoding="utf-8"))
+    assert unread["after_drain"] is None
+    assert "could not be established" in unread["after_drain_note"]
+
+
+def _documented_path(bench: Bench, path: str):
+    """One of the five documented driver paths: (driver, arguments, overrides)."""
+    late = json.dumps({"sent_valid": 6720, "delivered_unique": 6720, "lost": 0,
+                       "late_confirmations": 2926})
+    if path == "clean-pass":
+        return "nominal.sh", ("nominal-r01",), {}
+    if path == "valid-negative-delivery":
+        return "nominal.sh", ("nominal-r01",), {"EGW_STUB_HARNESS_ROW": late}
+    if path == "lost-capture":
+        return "nominal.sh", ("nominal-r01",), bench.fail_capture_of("harness-run")
+    if path == "failed-export":
+        shutil.rmtree(bench.out)
+        bench.out.write_text("not a directory\n", encoding="utf-8")
+        return "nominal.sh", ("nominal-r01",), {}
+    return "guest_session_close.sh", (), {"EGW_STUB_FAIL": "session-close"}
+
+
+@pytest.mark.parametrize("path, expected", [
+    ("clean-pass", 0),
+    ("valid-negative-delivery", 1),
+    ("lost-capture", 3),
+    ("failed-export", 4),
+    ("failed-controlled-stop", 5),
+])
+def test_the_documented_driver_paths_keep_their_codes(bench, path, expected):
+    # Verification 5: the classification above moves nothing else. Each of the
+    # five documented paths still ends with the code README.md gives it.
+    _plan(bench)
+    driver, arguments, overrides = _documented_path(bench, path)
+    result = bench.run(driver, *arguments, **overrides)
+    assert result.returncode == expected, report(result)
 
 
 def test_nominal_records_every_expected_container_in_both_states(bench):
@@ -2184,7 +2977,7 @@ def test_nominal_records_every_expected_container_in_both_states(bench):
             assert f"container {service} oomkilled=false restarts=0 id=" in state, (label, service)
         assert state.count(" started=2026-") == len(EXPECT_SERVICES), label
         assert "unknown" not in state, label
-    assert "guest state before/after: 0 problem(s)" in result.stdout
+    assert "guest-state-delta: faults=0 problems=0" in result.stdout
 
 
 def test_nominal_package_without_a_declared_artefact_is_not_a_pass(bench):
@@ -2237,9 +3030,9 @@ def test_nominal_with_an_unusable_git_does_not_run(bench):
     assert "harness-run" not in bench.commands("nominal-instrumentation-120-600")
 
 
-def _console(bench: Bench, slug: str, step: str) -> str:
+def _console(bench: Bench, slug: str, step: str, stream: str = "stdout") -> str:
     """What one step of an attempt printed, as the package keeps it."""
-    found = sorted((bench.attempt(slug) / "console").glob(f"*-{step}.stdout.txt"))
+    found = sorted((bench.attempt(slug) / "console").glob(f"*-{step}.{stream}.txt"))
     assert found, f"no console record of {step}"
     return found[-1].read_text(encoding="utf-8")
 
@@ -2374,9 +3167,59 @@ def test_session_close_pgrep_that_cannot_answer_keeps_the_session(bench):
 
 
 def test_session_close_unreadable_dmesg_ends_five(bench):
+    # The OOM state of the boot could not be read at all: that is an evidence
+    # failure of the controlled close, and it keeps the 5 it has always had.
     result = bench.run("guest_session_close.sh", EGW_STUB_FAIL="dmesg")
     assert result.returncode == 5, report(result)
-    assert "OOM state of this boot could not be read" in bench.verdicts("guest-session")["reason"]
+    verdicts = bench.verdicts("guest-session")
+    assert "OOM state of this boot could not be read" in verdicts["reason"]
+    assert "observed system fault(s)" not in verdicts["reason"]
+
+
+def test_session_close_observed_oom_is_a_system_failure_not_a_failed_close(bench):
+    # The close read the record correctly and it says the kernel OOM-killed
+    # something in this boot. The session IS closed and its record is complete:
+    # what failed is the system, which is a valid negative result (1), never a
+    # failed controlled stop (5) and never invalid instrumentation (3).
+    result = bench.run("guest_session_close.sh", EGW_STUB_FAIL="oom")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts("guest-session")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == (
+        "not-applicable", "fail")
+    assert "observed system fault(s) during this session:" in verdicts["reason"]
+    assert "memory-cgroup OOM line(s) in this boot" in verdicts["reason"]
+    assert "the controlled stop failed" not in verdicts["reason"]
+    assert "journal and final state kept" in verdicts["reason"]
+    record = _console(bench, "guest-session", "oom-before-poweroff")
+    assert "Memory cgroup out of memory" in record
+    assert "memory-cgroup OOM lines: 1" in record
+    assert "no memory-cgroup OOM in this boot" not in record
+    assert bench.package("guest-session") is not None
+    assert not (bench.exec_dir / "current_session").exists(), "the guest IS off"
+
+
+def test_session_close_observed_oom_with_an_incomplete_record_is_invalid(bench):
+    # The OOM was observed AND the record of the close is incomplete: the
+    # instrumentation is what is invalid (3), while the fault stays the system
+    # outcome and is never softened into 'inconclusive'.
+    result = bench.run("guest_session_close.sh", EGW_STUB_FAIL="oom,session-close-record")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("guest-session")
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "fail"
+    assert "memory-cgroup OOM line(s) in this boot" in verdicts["reason"]
+    assert "a record of the close was not kept" in verdicts["reason"]
+
+
+def test_session_close_failed_stop_outranks_an_observed_oom(bench):
+    # When the controlled stop itself failed, that is what the session is
+    # sealed with (5), and the observed OOM is still named in the reason.
+    result = bench.run("guest_session_close.sh", EGW_STUB_FAIL="oom,session-close")
+    assert result.returncode == 5, report(result)
+    verdicts = bench.verdicts("guest-session")
+    assert verdicts["system_outcome"] == "fail"
+    assert "memory-cgroup OOM line(s) in this boot" in verdicts["reason"]
+    assert "the controlled stop failed" in verdicts["reason"]
 
 
 def test_session_close_interrupted_marks_and_exports_the_session(bench):
