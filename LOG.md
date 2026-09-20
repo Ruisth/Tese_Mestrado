@@ -2545,6 +2545,28 @@ is unchanged.
   acceptance threshold, delivery rule, deadline or ingest limit was changed, and
   regenerating the index from the twenty-one existing packages reproduces them
   unchanged: no earlier verdict moved.
+- **One more correction, after the project review of 2026-09-20.** The review
+  held the pull request for a semantic defect of the work above, introduced by
+  this developer: an OOM kill or a restart the run positively showed made the
+  driver record the instrumentation invalid, which would discard exactly the
+  negative results this dissertation has to analyse. Observing the system fail
+  is a result; failing to observe is an invalid measurement. Every step after
+  the harness now falls into one of three groups — evidence that is missing,
+  unreadable or incomparable (the measurement is invalid, naming the
+  requirement), a fault the run showed (the system outcome fails, the
+  measurement stays as valid as the evidence says) and a post-window
+  observation that could not be made (recorded as incomplete, leaving the
+  sealed window's verdict alone, with nothing claiming eventual delivery or a
+  complete tail) — and a fault that also breaks the clock domain the
+  confirmation deadline rests on gives that specific invalidity with the fault
+  kept as a fact. Four further review rounds of that correction found fifteen
+  defects in it, all fixed with tests, three of which were the same error
+  reversed: a comparison that crashed, or a record left incomplete by a lost
+  console capture, could have been written up as a failure of the guest; a
+  clean pass could be claimed on incomplete evidence; and the new health rule
+  would have failed the very preflight of 2026-09-19 that passed, whose record
+  reads `egw-controller-1 running starting`. A criterion that rejects the
+  evidence already held is as wrong as one that admits what it should not.
 - **Decisions and next steps:** none taken here. The next packages are the
   bounded recovery ADR and fix (D), then the coordinated battery on one
   unchanged candidate (E). The authorship rule of 2026-09-19 (author and
