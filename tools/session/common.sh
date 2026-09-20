@@ -32,6 +32,15 @@ EXIT_INTERRUPTED=130   # interrupted: marked interrupted and exported
 # this way is never recorded as the step itself having failed.
 EXIT_CAPTURE_LOST=74
 
+# The wrappers of guest_common.sh (gx, gcp, hx) answer with this when the step
+# NEVER REACHED what it was to run: the session helpers could not be loaded,
+# ssh could not connect, or the host preamble of runbook 6.1 failed. The step's
+# own command never ran, so nothing it would have observed was observed: a
+# driver records such a status as the guest (or the host preamble) not
+# answering, never as the system reporting a fault. The same number is written
+# into the wrappers' own one-line shells, which cannot see this variable.
+EXIT_NOT_REACHED=97
+
 # driver_files: every file the drivers are made of, in a fixed order (the shell
 # drivers, the Python helpers they call, the guest scripts they copy). Printed
 # one per line; non-zero when one of them is not a readable file.
@@ -159,14 +168,41 @@ capture_note() {
 }
 
 # step_note NAME RC TEXT: what is recorded for a step that did not end 0. A
-# lost console capture is named as such instead of blaming the step; anything
-# else keeps the driver's own text.
+# lost console capture is named as such instead of blaming the step; a step
+# that never reached the guest keeps the driver's own text and says that
+# nothing was observed, so that "the guest did not answer" is never read as
+# "the guest answered something the gate does not accept"; anything else keeps
+# the driver's own text alone.
 step_note() {
     if [ "$2" -eq "$EXIT_CAPTURE_LOST" ]; then
         capture_note "$1"
+    elif [ "$2" -eq "$EXIT_NOT_REACHED" ]; then
+        printf '%s; %s' "$3" "$(not_reached_note "$1")"
     else
         printf '%s' "$3"
     fi
+}
+
+# not_reached_note NAME: how a step that never reached what it was to run is
+# written into the evidence - the guest it never spoke to, or the host helpers
+# of runbook 6.1 it could not load. Its command never ran, so nothing it would
+# have observed was observed, and no fault is read from it.
+not_reached_note() {
+    printf "'%s' never ran: it did not reach the guest, or the host helpers it needs, at all (exit %s), so nothing it would have observed was observed" \
+        "$1" "$EXIT_NOT_REACHED"
+}
+
+# headline ATTEMPT TEXT: one short sentence naming what the operator has to act
+# on, kept on the attempt and printed on the driver's own final line beside the
+# code. The line the operator reads must say WHICH thing happened, not only
+# which code it derives: 'the controller is stuck starting' and 'the controller
+# was never reached' are both exit 1 or 3, and they call for different actions.
+headline() {
+    local text
+    text=$(printf '%s' "$2" | tr '\n\r\t' '   ' | tr -s ' ')
+    text=${text# }
+    [ "${#text}" -le 200 ] || text="${text:0:197}..."
+    (cd "$REPO/src" && $LE set --attempt "$1" "headline=$text") > /dev/null || return 1
 }
 
 # driver_exit_open ATTEMPT: the end of guest_session_open.sh. The session

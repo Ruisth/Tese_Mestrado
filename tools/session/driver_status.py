@@ -47,6 +47,12 @@ only its own controlled stop or power-off failing raises that to 5. A fault a
 driver observed never becomes 3 by itself; 3 is for evidence that is missing,
 unreadable or below a stated requirement.
 
+An attempt may also carry a ``headline``: one sentence, written by the driver,
+naming what the operator has to act on. Two runs that derive the same code can
+call for different actions — a controller stuck ``starting`` and a controller
+that was never reached are both non-zero — so the final line carries that
+sentence, quoted, at its end. It never changes the derived code.
+
 ``--stop`` is the second form: a driver that ends before an attempt exists (a
 prerequisite of the attempt itself, or an interruption before it was created)
 or that owns no attempt at all still prints the contracted final line, with no
@@ -214,8 +220,27 @@ def main(argv):
         line += f" capture_failures={len(captures)}"
     if stop_failed:
         line += " controlled_stop=failed"
+    note = headline(attempt)
+    if note:
+        line += f" headline={note}"
     print(line)
     return code
+
+
+def headline(attempt):
+    """The one sentence a driver put on the attempt for this final line.
+
+    Two runs that derive the same code can need different actions — a
+    controller stuck ``starting`` and a controller that was never reached both
+    end the gate non-zero — so a driver may record a ``headline`` naming which
+    of them happened, and it is printed here. It is a sentence, never a verdict
+    of its own: a headline that is not usable text is simply not printed, and
+    it never changes the code.
+    """
+    note = attempt.get("headline")
+    if not isinstance(note, str) or not note.strip():
+        return ""
+    return json.dumps(" ".join(note.split())[:200])
 
 
 if __name__ == "__main__":
