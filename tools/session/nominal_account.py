@@ -9,6 +9,11 @@ reports that row unchanged (compute_run_metrics), then follows each published
 identity to the log fetched after the drain, so that "lost at the deadline"
 can be told apart from "confirmed later" and from "no outcome at all".
 Nothing here changes a count of the harness row.
+
+An accepted record whose ack instant the controller never emitted is counted
+in its own bucket, ACCEPTED_NO_ACK: a missing ditto_ack_monotonic_ns is not an
+instant, least of all the earliest one, so such an identity is never counted as
+confirmed in time (2026-09-20).
 """
 import json
 import sys
@@ -39,6 +44,24 @@ at_fetch = [r for r in load(raw / "events.jsonl") if r.get("run_id") == run_id]
 after = [r for r in load(post) if r.get("run_id") == run_id]
 
 
+#: Accepted, with no instant to judge the acceptance by.
+ACCEPTED_NO_ACK = "accepted_no_ack_time"
+
+
+def ack_instants(events):
+    """The ditto_ack_monotonic_ns readings of ``events`` that are real instants.
+
+    An absent, null or non-numeric reading is no instant at all: it is dropped
+    here rather than read as 0, the earliest instant there is, which would
+    count the identity as confirmed before any deadline."""
+    values = []
+    for e in events:
+        value = e.get("ditto_ack_monotonic_ns")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values.append(value)
+    return values
+
+
 def classify(events):
     by_id = defaultdict(list)
     for e in events:
@@ -49,8 +72,13 @@ def classify(events):
         outs = by_id.get(s["message_id"], [])
         acc = [e for e in outs if e.get("outcome") == "accepted"]
         if acc:
-            ack = min(e.get("ditto_ack_monotonic_ns") or 0 for e in acc)
-            key = "accepted_in_time" if deadline is not None and ack <= deadline else "accepted_late"
+            acks = ack_instants(acc)
+            if not acks:
+                key = ACCEPTED_NO_ACK
+            elif deadline is not None and min(acks) <= deadline:
+                key = "accepted_in_time"
+            else:
+                key = "accepted_late"
         elif outs:
             key = "other_outcome:" + ",".join(sorted({e.get("outcome", "?") for e in outs}))
         else:
@@ -80,8 +108,21 @@ report = {
     "at_harness_fetch_per_device": fetch_devices,
     "after_drain": drain_counts,
     "after_drain_per_device": drain_devices,
+    # Named on their own, so that a bucket of zero is stated and not simply
+    # absent from the counts above.
+    "accepted_without_ack_instant_at_fetch": fetch_counts.get(ACCEPTED_NO_ACK, 0),
+    "accepted_without_ack_instant_after_drain": drain_counts.get(ACCEPTED_NO_ACK, 0),
+    "accepted_without_ack_instant_note": (
+        "accepted identities whose ditto_ack_monotonic_ns the controller did not emit: "
+        "there is no instant to compare with the deadline, so they are counted neither "
+        "in time nor late"),
     "events_records_at_fetch": len(at_fetch),
     "events_records_after_drain": len(after),
 }
 (out / "accounting.json").write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
 print(json.dumps(report, indent=2, default=str))
+for where, counts in (("at the harness fetch", fetch_counts), ("after the drain", drain_counts)):
+    print(f"{run_id} {where}: {len(valid)} published valid identities -> "
+          + (", ".join(f"{key}={counts[key]}" for key in sorted(counts)) or "nothing")
+          + f"; accepted with no ack instant (never counted as confirmed in time): "
+          + str(counts.get(ACCEPTED_NO_ACK, 0)))

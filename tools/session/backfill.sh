@@ -2,11 +2,31 @@
 # Work order 2.B item 11: copy the preserved earlier iterations into
 # output_test as HISTORICAL packages, without rerunning, modifying their seals
 # or upgrading their validity. Each keeps its original identity (path).
+#
+# Nothing is run here, so there is no test verdict to report and this driver
+# owns no attempt: it ends through driver_stop, which prints the same final
+# line as every other driver with no run id and the three verdicts unknown. It
+# exits 0 when every capsule reached output_test as a verified package, 4 when
+# any backfill failed, and 130 when it was interrupted with none of the
+# capsules already done having failed (README.md, "Exit statuses": 4 > 130);
+# each capsule is exported by the export tool as it is copied, so an interrupt
+# leaves the capsules already done exported.
 set -u
 . "$(dirname "$0")/common.sh"
 EC=/home/ruisth/yocto/evidence-candidates
 RAW=/home/ruisth/egw-tcg/pilot/results/raw
 fails=0
+
+# interrupted: the INT/TERM handler. A capsule that did not reach output_test
+# as a verified package is not withdrawn by the signal that stopped the rest,
+# and it is the more serious of the two facts (README.md: 4 > 130), so the
+# interrupt is reported through that precedence and never as a plain 130.
+interrupted() {
+    [ "$fails" -eq 0 ] || driver_stop "$EXIT_EXPORT" \
+        "interrupted; $fails capsule(s) did not reach output_test as a verified package, and the remaining ones were not backfilled"
+    driver_stop "$EXIT_INTERRUPTED" "interrupted: the remaining capsules were not backfilled"
+}
+trap interrupted INT TERM
 
 bf() {  # bf SOURCE NAME SCENARIO DATE VALIDITY OUTCOME NOTE
     (cd "$REPO/src" && $LE backfill --source "$1" --attempts-root "$ATTEMPTS" --dest-root "$OUT" \
@@ -45,4 +65,5 @@ bf /home/ruisth/egw-tcg/itest "egw-tcg-itest-host-dir-2026-09-19" "ad-hoc integr
 bf /home/ruisth/egw-tcg/itest-replay "egw-tcg-itest-replay-2026-09-18" "test 4 replay (itest-dup-01)" 2026-09-18 \
     unknown unknown "replay output of test 4 (itest-dup-01); not in any capsule"
 echo "backfill failures: $fails"
-exit "$fails"
+[ "$fails" -eq 0 ] || driver_stop "$EXIT_EXPORT" "$fails capsule(s) did not reach output_test as a verified package"
+driver_stop "$EXIT_PASS" "every capsule reached output_test as a verified package"
