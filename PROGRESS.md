@@ -38,6 +38,13 @@ deadline and 2,926 were confirmed later after the drain. It is not an official
 campaign result or a physical capacity measurement. The battery remains
 incomplete; G0/G1 retain their existing acceptance and G2–G7 are not changed.
 No tests were executed or acceptance operations resumed by this update.
+*(Marker added 2026-09-21: the two sentences above describe this documentary
+update and stay true of it. The student's G2 decision, also of 2026-09-21,
+accepts G2 in the bounded functional scope recorded in the 2026-09-21 G2 update
+note and in the gate-status block below; the nominal diagnostic of 2026-09-19
+and the incomplete battery are untouched by that decision. The G2 decision that
+the SUP-05 row above says is to be reported separately is reported in that note;
+the row itself, like the rest of this table, keeps the scope of this update.)*
 
 
 > **This file is the single source of state for the project.** The backlog
@@ -124,6 +131,55 @@ restart that appears to discard the in-memory queue. Test acceptance stays
 paused at the student's request; nothing here resumes it, runs a test, admits
 evidence, closes G2–G7 or admits a claim.
 
+Updated: 2026-09-21 — **G2 is accepted in a bounded functional scope**
+([LOG `#C039`](LOG.md)). The student (Rui Duarte) decided on 2026-09-21 to close
+G2 for *one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow, and
+stored-twin persistence across one declared, quiescent whole-stack service
+restart, on the identified Yocto ARM64 guest **emulated with QEMU/TCG on an
+x86-64 host*** — and for nothing else
+([decision record](docs/governance/decisions/2026-09-21-g2-closure.md); G2 row
+of the [gate-decision log](docs/governance/gate_decision_log.md), whose previous
+state is kept under "Superseded row states"). The evidence is the published
+capsule `docs/evidence/g2-complete-flow/` — the seven attempts of the guest
+session of 2026-09-20/21, the failed preflight among them and kept, executed at
+commit `b7e0c83` — reviewed at pull request 40, head `2d70143`. **The decision
+is the student's own**: a sealed capsule, a green pull request and a merge are
+none of them that decision, and the project manager's registration time of the
+record is neither the time at which the experiment ran, nor a supervisor
+approval, nor a merge. The approval is given with the qualifications of the
+review, and it retains these **four qualifications**: (1) the architecture of
+the five registry images is established by the separately dated record of
+2026-09-18 and exact image-id/digest correspondence, not by architecture fields
+captured during G2, and a later changed image needs its own verification;
+(2) post-restart readiness rests on the exit status of a hash-identified helper
+whose success requires HTTP 200, with **no response body retained** — disclosed
+indirect evidence accepted for this gate, and future planned runs should capture
+the status and the body explicitly; (3) anonymous access was disabled **in
+configuration**, a refusal was **not exercised** in this session and no
+intentionally invalid payload was offered, so neither absence is presented as a
+passed negative test, and exercised negative cases remain G3 work; and (4) the
+original attempts, the failed preflight included, retain their original bytes,
+timestamps, provenance and outcomes, with post-session driver fixes **not**
+credited as having run during the accepted session. Section 6 of the
+[acceptance proposal](docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md)
+also discloses sixteen residual limitations of the demonstration itself (among
+them one device, sixty messages at about 1 msg/s, one restart with the queue
+empty, one guest and one repetition, an emulated platform on a shared host, a
+wearable that publishes from the host through port-forwards, an image
+architecture read on 2026-09-18 and a controller image whose Python dependencies
+are `UNLOCKED`); the approval does not mention them, so they are neither
+accepted nor waived by it and remain disclosed limitations of the evidence.
+**It admits no claim and accepts no other gate**: the nine
+integration/recovery families, in-flight restart recovery, the nominal
+11.2 msg/s workload that failed its deadline on 2026-09-19, the soak, the
+official campaign, the freezes and G3–G7 stay exactly as the blocks below record
+them, and no native, performance, capacity, efficiency or stability conclusion
+follows from G2. **Open question for the student:** this file still records —
+in the 2026-09-19 note above, in the G3 bullet of the gate-status block, in the
+row of the nine-families record and in the critical-path row of those
+families — that test acceptance is paused at his request; the decision record does not say whether that pause is
+lifted for the G3 battery, and nothing here resolves it.
+
 Addendum 2026-09-18, controller observability only: `GET /metrics` gains the
 additive progress counters `received`, `in_progress` and `processing_errors`
 ([ADR 0010](docs/adr/0010-controller-progress-counters.md), status Proposed;
@@ -153,11 +209,18 @@ dependency of the claim, while the wording stays *versioned* and
 exists. C02 has the preliminary two-boot seal and the new strict
 five-boot G1 set; the predefined later `data-v1` identities and the formal
 claim admission remain separate — the gate decision admitted no claim. The remaining **13 still have no admissible experimental
-evidence**. **Gates G1 and G0 are the accepted gates** — G1 on 2026-08-14,
-functional platform layer only, and G0 on 2026-09-19, project initiation and
-baseline alignment only; accepting either validated no claim — and G2–G7
-remain undecided *(corrected 2026-09-19 with the G0 decision; this sentence
-previously read "Gate G1 is the only accepted gate")*.
+evidence**. **Gates G1, G0 and G2 are the accepted gates** — G1 on 2026-08-14,
+functional platform layer only, G0 on 2026-09-19, project initiation and
+baseline alignment only, and G2 on 2026-09-21, bounded functional scope only —
+one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow and
+stored-twin persistence across one declared, quiescent whole-stack service
+restart, on the identified guest emulated with QEMU/TCG on an x86-64 host, with
+the qualifications of its
+[decision record](docs/governance/decisions/2026-09-21-g2-closure.md); accepting
+any of them validated no claim — and G3–G7 remain undecided *(corrected 2026-09-19
+with the G0 decision; this sentence previously read "Gate G1 is the only
+accepted gate", and read "Gates G1 and G0 are the accepted gates … G2–G7 remain
+undecided" until the G2 decision of 2026-09-21)*.
 
 ## Adopted scope and forecast — plan v2.0, adopted 2026-09-18 (QEMU-only execution amendment)
 
@@ -197,7 +260,7 @@ scope and evidence.
 | Original G1 Yocto/QEMU platform | Existing build and five strict boots; original G1 acceptance preserved | No relabelling as a native integrated gateway |
 | Integrated QEMU/TCG profile (ARM64 emulated on the x86-64 WSL2 workstation) | Ordered first by the project review once no native ARM64 virtual machine could be obtained on 2026-09-17. In pull request #28 (merged into `dev` on 2026-09-18) the integrated image was built (commit `03e333e`) and booted twice under QEMU/TCG (commit `3209b17`) on 2026-09-18 with every build and boot acceptance check passing. The same day an isolated MongoDB 7.0.39 test passed on that guest (start, write/read, restart, persistence across a guest power cycle); the build, boot and MongoDB records were sealed as technical evidence in `docs/evidence/integrated-qemu/` (pull request #29, merged into `dev` on 2026-09-18). Pull requests #32 (broker secret hand-over and ACL probe) and #31 (controller progress counters) were merged into `dev` the same day; merging validates no stack and accepts no gate. Later the same day the six-container stack was **deployed inside the guest** and the first bounded end-to-end functional test (one smartwatch, 1 Hz, 60 s) **ran**: 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. Maximum latency 12,286 ms — **emulated, informational, never a performance result**. The record of that run is **a locally hash-sealed candidate (all 51 `SHA256SUMS` entries verify), outside the published evidence package and not admitted**, so it supports no claim. Two defects it exposed were fixed on `dev`: the controller was attached to the wrong Compose network (`9ffd365`) and the host shell inherited a relative schema directory (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session (512 MiB container limit); the corrective change (768 MiB for the three Ditto services and a graceful stop of the stack before power-off) is merged into `dev` through pull request #34 (`d0c9238`), and only bounded observations follow from it (see the Ditto-resources risk in [`docs/g0/risks.md`](docs/g0/risks.md)). No general or prolonged stability is claimed, no official campaign has been completed or admitted (the diagnostic measurements, such as the latency above, are not accepted campaign results or native performance evidence), and sealing is not acceptance | Incorporate the locally hash-sealed first-flow record into the published evidence package; re-measure the Ditto memory footprint under the limits of pull request #34 before any stability statement; complete the nine integration/recovery test families of the runbook (**exercised once on 2026-09-18**: functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 were not run and the timed harness parts of tests 1 and 6 are invalid; that record is a locally hash-sealed candidate archive held outside the repository and not admitted, so the battery is not complete — *corrected 2026-09-19: the earlier "seven passed" overstated it*). Functional and integration evidence only, never native ARM64 performance evidence (adopted plan, evidence classes) |
 | Native Yocto VM target — **future work under the adopted plan** | Not implemented or boot-verified; AWS custom AMI route documented as a candidate. The student confirmed on 2026-09-16 that no ARM64 VM and no benchmarks existed; no provider allocation is assumed. On 2026-09-17 no native ARM64 virtual machine could be obtained (cloud attempts failed). The QEMU-only amendment of 2026-09-18 removes the native target from mandatory scope: it is **documented, unverified future work**, it blocks no gate of the adopted plan, and no allocation, spending or native build is requested | Nothing is required of it for this dissertation. If native work is ever authorised: platform-specific image, native boot, image identity, network/storage/reboot, each with its own protocol and data. Latency, throughput, saturation and resource-capacity results stay outside the adopted scope and are recorded as an explicit limitation |
-| Services on Yocto (G2) | Controller/simulator/Compose code exists; a bounded integrated trace was produced inside the emulated guest on 2026-09-18 (row above) — **emulated, a locally hash-sealed candidate outside the published evidence package, not admitted**, so no acceptance evidence exists and G2 stays Not decided | Sealed, identity-reconciled MQTT/TLS → controller → Ditto → API evidence from the guest, labelled emulated; the nine integration/recovery families |
+| Services on Yocto (G2) | Controller/simulator/Compose code exists; a bounded integrated trace was produced inside the emulated guest on 2026-09-18 (row above) — **emulated, a locally hash-sealed candidate outside the published evidence package, not admitted**. *(Updated 2026-09-21; this cell previously ended "so no acceptance evidence exists and G2 stays Not decided".)* The later session of 2026-09-20/21, executed at `b7e0c83`, was published as the capsule `docs/evidence/g2-complete-flow/`, and on that evidence **the student accepted G2 on 2026-09-21 in a bounded functional scope**: one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow and stored-twin persistence across one declared, quiescent whole-stack service restart, on the identified guest, **emulated (QEMU/TCG) on an x86-64 host**, with the four qualifications its approval retains ([decision record](docs/governance/decisions/2026-09-21-g2-closure.md), section 5); the residual limitations disclosed in section 6 of the acceptance proposal remain, neither accepted nor waived by it. The candidate of 2026-09-18 keeps the status this cell gives it and is not admitted by that decision | Nothing further is required for the accepted G2 scope, which covers the identified candidate only: a later changed image needs its own verification. Still owed downstream and unaffected by the acceptance: the nine integration/recovery families and in-flight restart recovery (G3); the nominal 11.2 msg/s workload, which failed its delivery deadline on 2026-09-19; exercised invalid-payload, duplicate-replay and transport-refusal cases; an explicitly captured readiness status and body in future planned runs; and a locked set of controller Python dependencies before the experimental freeze *(updated 2026-09-21; previously "Sealed, identity-reconciled MQTT/TLS → controller → Ditto → API evidence from the guest, labelled emulated; the nine integration/recovery families")* |
 | Experimental pipeline | Tools and historical unit checks exist; no valid integrated pilot or campaign | Guest-bound provenance, runtime verification, pilot and frozen protocol |
 | Dissertation | Chapters 1–2 imported from the supplied Word manuscript on 2026-09-17; Chapters 3–6 are empty structure (see the update note above) | Architecture and RQ sections revised to the adopted integrated, emulation-bounded scope; evidence-based results; full review and final format. The title and the RQs are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries. D001's two-layer wording was never sent and is superseded as a live request |
 | Supervisor agreement | **Reported confirmed by the student**, recorded on 2026-09-18 and published here on 2026-09-19 (LOG #C033), and recorded as reported rather than as documented decisions: the state-of-the-art material sent; approval to proceed with the QEMU tests; the title, verbatim *Blockchain-powered Personal AI – Digital Twin Edge Gateway*; the research questions with RQ3 evaluated in QEMU; the local-core scope; a scoping review as the review method; an attempt at the historical 95-run quantity under QEMU; no second operator; the review schedule of Chapters 1–4 on 2026-10-01, full draft on 2026-10-08 and feedback 2026-10-09 to 2026-10-14; the mandatory institutional template; a mandatory AI-use declaration; an optional article; the authorised wearable-data terminology; and a local evidence copy. No date, message or supervisor name was reported for any of them. **Still outstanding:** the reduced alignment package. The student's adoption of the plan is **not** a supervisor decision and is not recorded as one | Replies recorded in the decision log for the rows that stay open: D007 (thresholds and the other numerical criteria), the open part of D014 (only the wording of the native-evidence limitation and of claims about emulated timing and resource figures; the QEMU evaluation scope of RQ3 is reported approved — reported by the student, undated, not a documented supervisor decision — and is not re-requested) *(corrected 2026-09-19; previously listed the academic use of emulated results under D014 as open)*, the authenticity of the local template copy with the cover and metadata (inside D004), and the operational storage semantics (inside D010). D012 stays deferred with the native route; no allocation or spending is requested. The unresolved parts of D011 and D013 — the approved verbatim RQ wording, which lives in the student manuscript, and the dates after the feedback window — are tracked in their rows, not re-requested. *Since the G0 decision of 2026-09-19 these replies are no longer G0 conditions: D007 is owed at G4 before `exp-v1`, the template authenticity at G7, and any genuinely unsettled method or claim detail is tracked specifically at G4/G6 rather than through a blanket D014 blocker; nothing here is marked as sent* |
@@ -230,7 +293,14 @@ recorded. As at 2026-08-14 exactly one gate is closed: G1 is `Complete`
 (accepted 2026-08-14, decision in the gate log); every other "Accepted at
 gate" field is `Pending`, `In progress` or `Blocked`. *Since 2026-09-19 G0 is
 closed too (accepted for project initiation and baseline alignment; decision in
-the gate log), and the G0 block below mirrors it.*
+the gate log), and the G0 block below mirrors it. Since 2026-09-21 G2 is closed
+as well, accepted by the student in the bounded functional scope — one bounded
+flow and stored-twin persistence across one declared, quiescent whole-stack
+service restart, on the emulated guest — with the qualifications of its
+decision (gate log); the cells it touches record that bounded acceptance and
+nothing wider, and no cell it does not touch changes: the Thing Descriptions
+row, whose deliverable that scope does not cover, keeps its "G2–G3 — Pending"
+as written.*
 
 ## Maturity scale M0–M5 (audit §2.3)
 
@@ -249,7 +319,13 @@ reaches M5 for its functional scope (M4 does not apply — the gate is
 functional and involves no experimental evaluation). The plan requires M3–M5
 for most claims and gates. *G0's acceptance of 2026-09-19 concerns project
 initiation and baseline alignment only; it moves no deliverable's maturity
-level, so the G0 block below keeps its M values.*
+level, so the G0 block below keeps its M values. G2's acceptance of 2026-09-21
+is functional and bounded — one bounded flow and stored-twin persistence across
+one declared, quiescent whole-stack service restart, on the emulated guest. It
+accepts a slice of each deliverable it touches, never a deliverable's
+whole functional scope, so unlike G1 it lifts no deliverable to M5, and M4 does
+not apply to it, because no experimental evaluation is accepted; the M values
+below are unchanged by it.*
 
 ## State per deliverable
 
@@ -259,7 +335,7 @@ level, so the G0 block below keeps its M values.*
 |---|---|---|---|---|
 | Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#25 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten inventoried bundles verify, plus one **unversioned post-PR-#25 handover bundle** (`egw-20260814-post-pr25-merge.bundle`, SHA-256 `53014902…`, complete history to the PR #25 merge `2dafae1`) — the current handover artefact, deliberately kept out of the provenance inventory per the management order. A verified off-machine copy is still pending: it stays open until destination-side hash verification and the restore drill are completed | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment (gate log). The verified off-machine copy is **not** covered by that acceptance: it is reallocated to an active resilience action owned by the student, retained in the risk register and the backlog and required at G7 — neither verified nor waived *(updated 2026-09-19; previously "G0 — In progress")* | M2 |
 | Normative plan (v1.1, since bumped to v1.2), provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept a gate. Plan v2.0 was first published as a proposal under `docs/governance/proposals/` (documentation pull requests of 2026-09-18; LOG #C028) and was **adopted by the student on 2026-09-18 with the QEMU-only execution amendment** (LOG #C032), replacing v1.2 at the canonical path; v1.2 is preserved unmodified in `docs/governance/archive/`. Adoption is a student decision: it records no supervisor approval and accepts no gate | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment, the v2.0 baseline being published (gate log; *updated 2026-09-19, previously "G0 — In progress"*); G1 — Complete (accepted 2026-08-14, gate log) | M2 |
-| Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated | G2 — Pending | M2 |
+| Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated *(marker added 2026-09-21: save for one comparison — in the bounded flow of the session of 2026-09-20/21, published as `docs/evidence/g2-complete-flow/`, the twin read through the API was compared field for field against section 4 of the contract and matched, with no automated schema validation of the response recorded; no wider real integration is demonstrated, and the sealed suite is unchanged)* | G2 — Complete **for the bounded functional scope accepted on 2026-09-21** (gate log): in the accepted bounded flow the twin read through the API was compared against section 4 of the contract and matched, with no automated schema validation of the response recorded. Nothing wider is accepted; G3 — Pending *(updated 2026-09-21; previously "G2 — Pending")* | M2 |
 | Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; its formal claim admission is the one step still outstanding, the second-operator requirement of D006 being reported waived), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence** — all `Pending — no evidence`, C13 included: the 24-hour soak returns as a **target to attempt** under QEMU inside the 95-run composition, subject to the pilot's feasibility check, superseding its earlier deferral out of scope. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package. The decision log now carries mixed statuses (2026-09-19): `proposed_not_sent` for D001, D007, D008 and D012, `confirmed_reported_by_student` for D002 and D009, and `partly_confirmed_reported_by_student` for the rest, each naming its confirmed and its unresolved part; `sent_at` and `response_at` are empty everywhere. The title and the RQ wording published in [`docs/g0/scope_and_rqs.md`](docs/g0/scope_and_rqs.md) v2.0 are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment (gate log). This covers the scope document and the matrix as an instrument, not any claim — **0 of 15 are accepted** — and maintaining the matrix continues through G6 *(updated 2026-09-19; previously "G0 — Pending")* | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Complete: accepted on 2026-09-19 (gate log); both documents are maintained at every state change *(updated 2026-09-19; previously "G0 — Pending")* | M1 |
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **installed, exercised and captured**: WSL2 with Ubuntu 24.04.4 LTS is operational, with the build directory on ext4, and produced both Yocto evidence sets. The 2026-08-14 capsule records the kernel, OS, kas/Python/Git versions, filesystem type, capacity and the separate build/driver commits in `environment.txt` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap) | G0 — Complete: accepted on 2026-09-19 (gate log) *(updated 2026-09-19; previously "G0 — Pending")* | M2 |
@@ -283,11 +359,11 @@ gate.
 | Record of the first end-to-end flow in the guest (2026-09-18) | produced 2026-09-18 — **a locally hash-sealed candidate held outside the repository (all 51 `SHA256SUMS` entries verify); not in `docs/evidence/` and not admitted** | integration (emulated), locally hash-sealed, not admitted — six containers deployed inside the Yocto guest; one smartwatch at 1 Hz for 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0; maximum latency 12,286 ms, **emulated and informational, never a performance result**. The run exposed and led to two fixes on `dev` (controller on the wrong Compose network, `9ffd365`; relative schema directory inherited by the host shell, `dc6d8bb`, `22fb0a9`), and a memory-cgroup OOM killed the `ditto-things` JVM during the power-off of that session at the 512 MiB container limit; the corrective change was made separately and is merged into `dev` through pull request #34 (`d0c9238`), with general or prolonged stability not demonstrated | none — a candidate outside the published evidence package admits no claim and closes no gate; it becomes admissible only once incorporated into the published evidence package and admitted by a dated decision | M2 (emulated, not admitted) |
 | Record of the nine integration/recovery test families (2026-09-18) — *row added 2026-09-19 with the verified per-test account, which corrects the earlier "seven passed" summaries* | produced 2026-09-18 — a **locally hash-sealed candidate archive held outside the repository** (all 312 `SHA256SUMS` entries verify), **not incorporated into or admitted by the project evidence record** and not in `docs/evidence/`; an outer archive seal does not make a nested invalid run valid | integration (emulated), per test: **(1)** smoke/harness artefacts — three ad-hoc repetitions recorded; the timed harness runs `r01` (nested in the archive) and `r02` (held separately, unsealed) are **invalid** (resources not ingested). **(2)** three wearables — functional result shown: 672 valid, 672 delivered in time, 0 lost, 0 late (600/12/60 per device), with the last acknowledgement 3.1 s before the deadline; an earlier 672-message preflight run had 378 late. **(3)** invalid payloads — rejection behaviour shown: 67 intended-invalid rejected, 0 accepted, 0 valid rejected; but 132 of 1,277 valid events were confirmed late, so it is not a zero-late run. **(4)** duplicates and sequence — duplicate handling shown (672 duplicates, 0 double-accepted); the required sequence-reset sub-check `itest-dup-02` was **not run**, because the runbook states it in prose and the extraction tooling took only fenced code blocks (the same cause dropped the runbook's Ditto repetition of test 7). The post-replay "IMPLAUSIBLE controller confirmation marker" warning is explained — the deliberate replay comes after the window and the guard uses the maximum received time over all records — and the in-window figures are unaffected. **(5)** disconnect/reconnect — **fails its stated deadline criterion**: 2,016 valid events all eventually accepted, 1,690 within the deadline and **326 late**, against a runbook requiring `lost = 0` and `late_confirmations = 0`; three deliberate disconnects and 165 buffered events observed; the ad-hoc reconciliation also warns that the harness-layout simulator manifest is absent although the appended totals show them, so two validation paths disagree. **(6)** controller restart — timed harness runs **invalid** (resource gap and controller-metrics outage); recovery and delivery not accepted. **(7)** MongoDB fault — bounded retry and fault behaviour shown, not lossless delivery: 62 failed after three attempts, 3,298 accepted, 1,012 of them late; the runbook's repeat of the fault for Ditto (`itest-ditto-fault-01`, `SVC=ditto-things`) was **not run**, for the cause given under (4), so test 7 demonstrated the MongoDB fault only. **(8)** guest reboot — reboot and persistence shown: boot id changed, twin counters persisted, a fresh 336-event run reconciled with 0 lost and 0 late; the controller's own counters restart at 0, as expected. **(9)** TLS and authorisation — the tested checks passed (wrong CA, wrong password and plaintext refused; ACL probe PASS; anonymous refusal rc=5); not a general security assurance. No official campaign has been completed or admitted — the figures above are diagnostic measurements, not accepted campaign results or native performance evidence — and the battery is **not complete** | none — closes no gate and admits no claim; test acceptance is paused at the student's request | M2 (emulated, not admitted) |
 | Diagnostic findings from the invalid timed attempts of 2026-09-19 (`smoke_sequence-r02`, `controller_restart-r02`) — *row added 2026-09-19* | recorded 2026-09-19; both runs are **invalid** (resources not ingested), so their counts are diagnostic, never campaign results. The guest-side event logs and container logs were not read | integration (emulated), diagnostic, counted against the manifests' controller deadlines by exact message ID: smoke 336 published, 236 in time, 15 late, 85 without an accepted record in the fetched log (all 85 a pure backlog, accepted later according to the controller counters); restart 6,720 published, 3,795 in time, 24 late, 2,901 without a record. **Delivery backlog under QEMU/TCG:** the controller — a single consumer processing messages sequentially against Ditto — sustained about 3-8 acknowledgements per second against a publishing rate of 11.2 msg/s; its queue grew by 4.7-10.6 per second; latency p50 50-86 s and p95 69-157 s (emulated, informational); the broker kept up (median transit 2-14 ms). **Controller-restart queue finding:** of the restart run's 2,901 messages without a record, about 765 fit the backlog but about 2,136 do not — 1,765 were published before the restart and about 371 during the outage. The MQTT client acknowledges on enqueue, the queue is in memory and the client uses a clean session with a fixed client id, so messages queued or published while no session existed would not survive a restart. This bears directly on C12 and RQ2 and is a design and data-path issue, not only emulator speed; it needs confirmation from the guest-side logs after resumption and a separate design decision. Missing fetched records are not proof of permanent loss | none — invalid runs admit nothing; the deadline semantics are unchanged, and a lower future workload needs an explicit prospective QEMU protocol decision, never a deadline moved after observing lateness | M2 (emulated, diagnostic) |
-| Minimal ARM64 compose (Mosquitto TLS, Ditto 3.9.4, MongoDB, controller) | yes | static — `docker compose config` (syntactic validation, no persisted log); arm64 digests verified documentally on 2026-08-07. On 2026-09-18 the six services were deployed from this configuration inside the emulated Yocto guest, so operational `.env`, certificates and secrets existed for that run; that record is the locally hash-sealed, not admitted candidate evidence above and is not held in the repository | G2 — Pending (no native prerequisite; the gate now depends on sealed, identity-reconciled evidence from the emulated guest) | M2 |
+| Minimal ARM64 compose (Mosquitto TLS, Ditto 3.9.4, MongoDB, controller) | yes | static — `docker compose config` (syntactic validation, no persisted log); arm64 digests verified documentally on 2026-08-07. On 2026-09-18 the six services were deployed from this configuration inside the emulated Yocto guest, so operational `.env`, certificates and secrets existed for that run; that record is the locally hash-sealed, not admitted candidate evidence above and is not held in the repository | G2 — Complete **for the bounded functional scope accepted on 2026-09-21** (gate log): in the session of 2026-09-20/21, published as `docs/evidence/g2-complete-flow/`, the six services of this configuration were deployed inside the emulated guest and were observed healthy at the gate snapshot and again after the declared restart — point-in-time readings, with no interval of sustained health claimed. No native prerequisite; no wider deployment, capacity or stability result is accepted, and the record of 2026-09-18 stays unadmitted. G3 — Pending *(updated 2026-09-21; previously "G2 — Pending (no native prerequisite; the gate now depends on sealed, identity-reconciled evidence from the emulated guest)")* | M2 |
 | Broker secret hand-over and ACL probe (`scripts/prepare-broker-secrets.sh`, `scripts/probe-acl.sh`, step 3b of `validate-config.sh`) | written 2026-09-18 — **whether either script was executed during the first-flow session of 2026-09-18 is not recorded in this repository**; verify against the run record before restating it either way | unit (stubs) — `src/tests/test_probe_acl_verdict.py`: 94 cases of the probe's verdict logic under dash and bash with a stub `docker` (Linux only; skipped on Windows); `sh -n` on every script. Mosquitto 2 opens `password_file` and `keyfile` after dropping to uid 1883, so both are handed to that uid with mode 0600 and the read is proved in a one-shot container; the probe proves the ACL with known traffic and answers PASS, FAIL or INCONCLUSIVE, never PASS on an execution error or an incomplete broker-log collection | none — accepts no gate | M2 |
 | Prebuilt controller image in the deployment and versioned reconciliation helper (`compose.yaml` without `build:` and with `pull_policy: never`, `scripts/build-controller-image.sh`, `scripts/verify-controller-image.sh`, step 7 of `validate-config.sh`, `src/egw_experiments/itest_reconcile.py`; LOG `#C030`) | written 2026-09-18 and **exercised the same day**: the controller image was built, loaded into the emulated guest and run there for the first end-to-end flow, and the reconciliation helper exited 0 by identity (locally hash-sealed candidate evidence, not admitted, row above). The controller image still has **unlocked Python dependencies** (`pip install .`); such an image is not admissible for thesis measurements and this must be resolved before the protocol freeze | unit (stubs and fakes) — `src/tests/test_deployment_prebuilt_controller.py` (35 cases: 7 read the compose decision as text on every platform, 28 run both scripts with a stub `docker` under dash and bash on Linux) and `src/tests/test_experiments_itest_reconcile.py` (106 cases, fakes only, unmodified `compute_run_metrics`, the confirmation window imported and never redefined, every `$REC` line extracted from the runbook and parsed); `docker compose config` accepts the file and the resolved model differs from the previous one only in the controller's `build`/`pull_policy`; runbook Sections 4 to 7 follow the route (five external images pulled by pinned digest inside the guest, controller loaded from a checksummed archive and compared with its identity record, the deployment tree and the harness checked out at that image's commit). ShellCheck not run locally | none — accepts no gate | M2 |
-| MQTT→Ditto controller | yes | unit — tests with fakes (part of the current sealed suite of 701 tests); the progress counters of `GET /metrics` added on 2026-09-18 (`received`, `in_progress`, `processing_errors`, ADR 0010) are unit-verified by tests **outside the sealed suite** — accounting identity, single-snapshot reading, fault and cancellation paths, all with fakes. On 2026-09-18 the controller ran against a real Mosquitto broker and a real Ditto inside the emulated ARM64 guest for the first bounded flow (locally hash-sealed candidate evidence, not admitted, row above). Real controller restarts were exercised in the guest — test 6 of 2026-09-18 and the invalid timed attempt `controller_restart-r02` of 2026-09-19 — but their timed harness runs are invalid, recovery and delivery are **not accepted**, and the diagnostic counts suggest the restart discards the controller's in-memory queue (rows above) *(corrected 2026-09-19; this cell previously read "no real restart has been exercised")*; the progress counters remain unit-verified only | G2 — Pending | M2 |
-| Unified simulator (3 wearables, 6 scenarios) | yes | unit — determinism verified; `dropout-reconnect` induces a real MQTT disconnection with buffering and ordered redelivery (audit §7.3 correction completed on 2026-08-08; covers C10 at unit level) | G2–G3 — Pending | M2 |
+| MQTT→Ditto controller | yes | unit — tests with fakes (part of the current sealed suite of 701 tests); the progress counters of `GET /metrics` added on 2026-09-18 (`received`, `in_progress`, `processing_errors`, ADR 0010) are unit-verified by tests **outside the sealed suite** — accounting identity, single-snapshot reading, fault and cancellation paths, all with fakes. On 2026-09-18 the controller ran against a real Mosquitto broker and a real Ditto inside the emulated ARM64 guest for the first bounded flow (locally hash-sealed candidate evidence, not admitted, row above). Real controller restarts were exercised in the guest — test 6 of 2026-09-18 and the invalid timed attempt `controller_restart-r02` of 2026-09-19 — but their timed harness runs are invalid, recovery and delivery are **not accepted**, and the diagnostic counts suggest the restart discards the controller's in-memory queue (rows above) *(corrected 2026-09-19; this cell previously read "no real restart has been exercised")*; the progress counters remain unit-verified only *(marker added 2026-09-21: save for the bounded G2 session of 2026-09-20/21, published as `docs/evidence/g2-complete-flow/`, in which `/metrics` was read live in the emulated guest — every counter and the queue at zero before the run, and `received` moving 0 → 60 for the same controller process — and whose declared, quiescent whole-stack restart also started a new controller process; that is the bounded evidence accepted at G2, not a wider verification of the counters and not in-flight restart recovery)* | G2 — Complete **for the bounded functional scope accepted on 2026-09-21** (gate log): in the published session of 2026-09-20/21 the controller carried one smartwatch at 1 Hz for 60 s against a real broker and a real Ditto inside the emulated guest, and the stored twin survived one declared, quiescent whole-stack restart. **In-flight restart recovery is not accepted** and stays open, as do the timed harness runs called invalid above; G3 — Pending *(updated 2026-09-21; previously "G2 — Pending")* | M2 |
+| Unified simulator (3 wearables, 6 scenarios) | yes | unit — determinism verified; `dropout-reconnect` induces a real MQTT disconnection with buffering and ordered redelivery (audit §7.3 correction completed on 2026-08-08; covers C10 at unit level) | G2 — Complete **for the bounded functional scope accepted on 2026-09-21** (gate log): one smartwatch at 1 Hz for 60 s, published from the WSL2 host to the guest through port-forwards. The other two wearable types and the remaining scenarios were not exercised; G3 — Pending *(updated 2026-09-21; previously "G2–G3 — Pending")* | M2 |
 | WoT TD 1.1 Thing Descriptions | yes | unit — `tests/test_things.py` cross-checks TD↔schema; real integration not demonstrated | G2–G3 — Pending | M2 |
 | Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); PR #13 rejects resource samples from a different UTC window, enforces at least 90% coverage and the protocol gap cap per container, makes simulator run directories write-once, propagates QEMU pipeline failures and makes `systemd=running` plus zero failed units strict boot assertions. After the PR #17 campaign-path regression and PR #18 PTY regression, the current evidence branch passed `718` tests locally on 2026-08-14; this is **not** a new test-evidence seal, so the canonical sealed figure remains 701. Live proof of the harness and the hashed runtime lock for the controller image are now owed by the **emulated guest**, before the protocol freeze | G4 — Pending (the harness sits outside G1's accepted functional scope) | M2 |
 | `experiments/results/` evidence structure | yes | static — `raw/processed/figures` directories created; zero data (experimental evidence M0) | G5 — Pending | M1 |
@@ -303,7 +379,7 @@ evidence of real execution (QEMU build/boot — produced for G1 on 2026-08-11 �
 deployment in the emulated Yocto guest, a sealed end-to-end trace, campaign
 data); what remains still depends on the external actions below.
 
-## Gate status as at 2026-09-19
+## Gate status as at 2026-09-21
 
 Factual record after the adoption of plan v2.0 with the QEMU-only execution
 amendment. **The adoption closes no gate and admits no claim**; gate outcomes
@@ -312,6 +388,14 @@ are recorded solely in
 *Corrected in place on 2026-09-19 (previously "as at 2026-09-18"): the G0
 bullet records the G0 decision of that date, and the G3 bullet replaces the
 overstated account of the integration battery ([LOG `#C035`](LOG.md)).*
+*Updated in place on 2026-09-21 (previously "as at 2026-09-19"): the G2 bullet
+records the student's G2 decision of that date and the bounded functional scope
+it accepts ([LOG `#C039`](LOG.md)); the state that bullet replaces is kept in
+the gate log under "Superseded row states". No other bullet changes, apart from
+a dated marker in the G0 bullet where it said that G2 remained pending, and one
+in the G3 bullet recording, as an open question for the student, that the
+decision record does not say whether the pause on test acceptance is lifted for
+the G3 battery.*
 
 - **G0 — Accepted on 2026-09-19**, authority: the student (Rui Duarte), with
   the project manager's concurrence; scope: **project initiation and baseline
@@ -322,7 +406,10 @@ overstated account of the integration battery ([LOG `#C035`](LOG.md)).*
   quantitative rule, technical gate, scientific claim or unseen evidence is
   accepted with it. The residual obligations are reallocated:
   - integration defects, missing sub-checks, timely delivery and admissible
-    run evidence — G2/G3, which remain pending;
+    run evidence — G2/G3, which remain pending *(marker added 2026-09-21: G2
+    has since been accepted, in the bounded functional scope of its bullet
+    below only; whatever of this obligation lies outside that scope stays with
+    G3)*;
   - the D007 thresholds, prospective fault-window rules, loads and durations,
     the feasibility of the 95-run attempt and the frozen protocol — G4, before
     `exp-v1`, with the required supervisor decision;
@@ -346,10 +433,59 @@ overstated account of the integration battery ([LOG `#C035`](LOG.md)).*
   route**.
 - **G1 — Accepted on 2026-08-14**, functional platform layer only, unchanged by
   the adoption. It validates no claim.
-- **G2 — Not decided.** Native deployment is outside the adopted scope. A
-  bounded end-to-end flow ran inside the emulated Yocto guest on 2026-09-18;
-  its record is a locally hash-sealed candidate held outside the published evidence package and not admitted, so
-  no acceptance evidence exists.
+- **G2 — Accepted on 2026-09-21**, authority: the student (Rui Duarte); scope:
+  **one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow, and
+  stored-twin persistence across one declared, quiescent whole-stack service
+  restart, on the identified Yocto ARM64 guest emulated with QEMU/TCG on an
+  x86-64 host** — and nothing else
+  ([decision record](docs/governance/decisions/2026-09-21-g2-closure.md)). The
+  evidence is the published capsule `docs/evidence/g2-complete-flow/`, the seven
+  attempts of the guest session of 2026-09-20/21 executed at commit `b7e0c83`,
+  reviewed at pull request 40, head `2d70143`: 60 valid messages at 1 Hz for
+  60 s confirmed within the controller-clock deadline with nothing lost, late,
+  duplicated or unaccounted; twin
+  `org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84`, run `itest-g2-01`, seed
+  `20260921`, final sequence 59 and persisted accepted count 60, intact across
+  the declared restart with the queue quiescent and no intervening publication;
+  six services healthy, the recorded initial health and readiness with the
+  counters at zero, the identified images and the demonstrated TLS publication
+  path — the six services observed healthy at the gate snapshot and again after
+  the declared restart, point-in-time readings with no interval of sustained
+  health claimed. The student's approval is the decision — **a merge is not the
+  decision**, and neither is a sealed capsule or a green pull request. The
+  approval is given with the qualifications of the review; **four
+  qualifications are retained:**
+  - the architecture of the five registry images is established by the
+    separately dated record of 2026-09-18 and exact image-id/digest
+    correspondence, not by architecture fields captured during G2; a later
+    changed image needs its own verification;
+  - post-restart readiness rests on the exit status of a hash-identified helper
+    whose success requires HTTP 200; **no response body was retained**; this
+    disclosed indirect evidence is accepted for this gate, and future planned
+    runs should capture the status and the body explicitly;
+  - anonymous access was disabled **in configuration**; a refusal was **not
+    exercised** in this session, and no intentionally invalid payload was
+    offered; neither absence is presented as a passed negative test, and
+    exercised negative cases remain G3 work;
+  - the original attempts, the failed preflight included, retain their original
+    bytes, timestamps, provenance and outcomes, and post-session driver fixes
+    are **not** credited as having run during the accepted session.
+
+  Section 6 of the acceptance proposal also discloses sixteen residual
+  limitations of the demonstration itself. The approval does not mention them:
+  they are neither accepted nor waived by it and remain disclosed limitations
+  of the evidence. Among them: one device of one type; sixty messages at about
+  1 msg/s; one restart with the queue empty; one guest, one session, one
+  repetition, so no reproducibility; an emulated platform on a shared host that
+  also carried the load generator; a wearable that publishes from the host
+  through port-forwards, so "inside the guest" describes the six services and
+  the stored twin and not the device; an image architecture read on 2026-09-18;
+  and a controller image whose Python dependencies are `UNLOCKED`. **No claim is
+  admitted and no other gate is accepted**, and no native ARM64 or physical-gateway performance, timing, capacity,
+  efficiency or long-term-stability conclusion follows. *Previously "G2 — Not decided",
+  resting on the bounded flow of 2026-09-18 whose record is a locally
+  hash-sealed candidate held outside the published evidence package and not
+  admitted; that record keeps that status and is not admitted by this decision.*
 - **G3 — Not decided.** The nine integration/recovery test families were
   exercised once on 2026-09-18. Functional results were demonstrated for tests
   2 and 8 and for the tested checks of test 9, and the specific behaviours of
@@ -364,7 +500,10 @@ overstated account of the integration battery ([LOG `#C035`](LOG.md)).*
   invalid timed attempts of 2026-09-19 are open — the delivery backlog under
   QEMU/TCG and the controller restart that appears to discard the in-memory
   queue (bears on C12 and RQ2) — and test acceptance is paused at the student's
-  request. *(Corrected 2026-09-19: this bullet previously said that seven
+  request *(marker added 2026-09-21: the
+  [G2 decision record](docs/governance/decisions/2026-09-21-g2-closure.md) does
+  not say whether this pause is lifted for the G3 battery; that is an open
+  question for the student, and nothing here resolves it)*. *(Corrected 2026-09-19: this bullet previously said that seven
   passed and that only tests 1 and 6 carried a failing harness part.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
@@ -385,7 +524,8 @@ overstated account of the integration battery ([LOG `#C035`](LOG.md)).*
 > Dated snapshot, kept as written. Its native prerequisites and its August
 > windows were superseded on 2026-09-18 by the adopted plan v2.0 with the
 > QEMU-only execution amendment; read the current gate-status block above
-> (dated 2026-09-19 since the G0 decision) for the current position.
+> (dated 2026-09-19 after the G0 decision, and 2026-09-21 since the G2
+> decision) for the current position.
 > Historical records are not rewritten.
 >
 > **Forward pointer added 2026-09-19.** Its statements that the alignment email
