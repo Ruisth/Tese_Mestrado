@@ -2989,8 +2989,7 @@ is unchanged.
   `PROGRESS.md` still records that test acceptance is paused at his request,
   and the decision record does not say whether that pause is lifted for the G3
   battery; nothing in this transcription resolves it. Next: his answer to that
-  question; his decision on a merge procedure that meets the
-  author-and-committer rule; then the downstream work this decision leaves
+  question; then the downstream work this decision leaves
   open — the controller's backlog and in-flight recovery, the G3 families with
   their exercised negative cases, a readiness step that records the status and
   the body, and a locked set of controller Python dependencies — with D007
