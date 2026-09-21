@@ -2914,6 +2914,11 @@ is unchanged.
   grants no merge-policy exception,
   protection bypass, history rewrite or further unbounded guest or test
   execution.
+- **Which plan the criteria come from.** The acceptance proposal assessed G2
+  against section 4.3 of plan version 2.0. Version 2.1, in force since
+  2026-09-21, is an additive amendment (the requirements and platform matrix
+  and the deliverables SUP-01 to SUP-07); its section 4.3 is byte-identical to
+  version 2.0's, so the criteria assessed are the criteria in force.
 - **Where it is recorded.**
   [`docs/governance/decisions/2026-09-21-g2-closure.md`](docs/governance/decisions/2026-09-21-g2-closure.md)
   (new) is the durable transcription of the decision, readable from a clean
