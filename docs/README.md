@@ -2,8 +2,8 @@
 
 EGW project documentation. The normative source for scope, schedule and gates is
 [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-(**version 2.0**, adopted by the student on 2026-09-18 with the QEMU-only
-execution amendment). Internal technical contracts:
+(**version 2.1**, requirements and delivery amendment of 2026-09-21,
+retaining the QEMU-only execution baseline adopted on 2026-09-18). Internal technical contracts:
 [`../src/CONTRACTS.md`](../src/CONTRACTS.md).
 The single source of operational state for every deliverable is
 [`../PROGRESS.md`](../PROGRESS.md); formal gate decisions are recorded solely
@@ -13,9 +13,22 @@ only), **G0 as Accepted** (2026-09-19, project initiation and baseline
 alignment only; [decision record](governance/decisions/2026-09-19-g0-closure.md))
 and every other gate as Not decided *(G0 added on 2026-09-19)*.
 
-## Adopted revision — plan v2.0, adopted 2026-09-18 (QEMU-only execution amendment)
+## Requirements and platform selection added on 2026-09-21
 
-The adopted text is at the canonical path named above. The texts under
+- [Gateway requirements and initial platform matrix](academic/gateway_requirements_and_platform_selection.md):
+  18 requirements, source/criterion/test links, Pi 5 versus i.MX95 screening,
+  Pi 4 exclusion and a conditional initial reference target.
+- [Plan v2.1](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), section 4.1.1:
+  SUP-01–SUP-07 with owners, dates, dependencies and acceptance criteria.
+- [Preserved v2.0](governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_2026-09-19.md):
+  exact source revision before this additive amendment.
+
+## Execution baseline retained from version 2.0
+
+The current version 2.1 at the canonical path retains the execution decisions
+below. The original adopted text is preserved in
+[the version 2.0 archive](governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_2026-09-19.md).
+The texts under
 [`governance/proposals/`](governance/proposals/README.md) are kept as the
 record of what was proposed; where they differ from the canonical text, the
 canonical text governs.

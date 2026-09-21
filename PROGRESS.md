@@ -1,5 +1,45 @@
 # PROGRESS — single source of state per deliverable
 
+## Current documentary update — 2026-09-21
+
+At the student's request, [plan v2.1](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+adds requirements, initial platform selection and seven supervisor deliverables.
+Prepared from the integrated dev baseline ccd5fd6 in an isolated worktree;
+the older dirty Windows checkout and original Word are preserved. Integration
+into dev remains subject to the repository workflow. Historical dated entries
+below retain their original scope.
+
+| Deliverable | Implemented | Verified / current state | Acceptance and next step |
+|---|---|---|---|
+| SUP-01 — Requirements matrix | yes | 18 source-linked requirements prepared; documentary review only | In progress: confirm fit with the retained scope and D007/protocol before G4; no requirement is marked experimentally satisfied by writing the matrix |
+| SUP-02 — Initial platform comparison | yes | Primary sources checked on 2026-09-21; Pi 5 8 GB recommended provisionally, i.MX95 EVK retained as alternative, Pi 4 excluded for MongoDB 7 | In progress: initial engineering recommendation for discussion; no native build, boot, procurement or approval recorded |
+| SUP-03 — V1 architecture packet | partial | Existing diagram and the new matrix's reuse/control inventory are inputs | In progress: consolidate the diagram and component/dependency/control boundary by 2026-09-23 |
+| SUP-04 — RQ/manuscript revision map | partial | Crosswalk prepared in the matrix; current RQ numbering/title preserved | In progress: prepare exact manuscript changes and discuss academic wording; no RQs changed by this update |
+| SUP-05 — Demonstrator evidence packet | partial | Local flow and persistence candidates inspected; consolidated admission packet not produced by this update | In progress: incorporate eligible records and report the G2 decision separately; no gate/claim accepted |
+| SUP-06 — Literature-to-decision chart | partial | Hardware primary-source checks recorded; full scoping-review chart and reconciled searches still required | In progress: integrate into existing selection/synthesis dates, not a second review |
+| SUP-07 — Requirements-to-results reconciliation | no | No frozen campaign result reconciliation produced | Pending: complete from admitted analysis by 2026-10-05 |
+
+**Latest bounded engineering evidence inspected for planning.** The local
+output_test packages for 2026-09-20 include smartwatch slice
+20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02 and
+20260920T233212Z_g2-twin-persistence-restart_attempt01: their summaries report
+valid instrumentation and a pass, with verified local exports. The first
+accounts for 60 events without loss/late confirmation; the second preserves
+twin state across a controlled down/up with no intervening publication.
+Both identify clean execution revision b7e0c83 and ARM64 emulation under
+QEMU/TCG. Their local location follows the
+[local-output convention](docs/setup/local_test_outputs.md); they have not
+been incorporated or admitted by this documentation change. Persistence of
+stored state is not proof of lossless in-flight recovery.
+
+The valid-instrumentation nominal diagnostic of 2026-09-19, already recorded
+in LOG #C036, remains a negative system result: 3,794 of 6,720 events met the
+deadline and 2,926 were confirmed later after the drain. It is not an official
+campaign result or a physical capacity measurement. The battery remains
+incomplete; G0/G1 retain their existing acceptance and G2–G7 are not changed.
+No tests were executed or acceptance operations resumed by this update.
+
+
 > **This file is the single source of state for the project.** The backlog
 > ([`docs/g0/backlog.md`](docs/g0/backlog.md)) holds only actions, expected
 > evidence, dependencies and cut rules — it holds no state. The formal record of
