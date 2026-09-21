@@ -1,5 +1,26 @@
 # Actionable backlog by gate (G0→G7)
 
+**2026-09-21 addition — plan v2.1.** The seven supervisor deliverables below
+extend the adopted QEMU execution path. References to the 2026-09-18 v2.0
+baseline retain their historical meaning; the current plan owns the schedule.
+
+## Supervisor deliverables added on 2026-09-21
+
+Dates, ownership and exit criteria are in the
+[plan, section 4.1.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+Operational state is recorded only in PROGRESS.
+
+| ID | Action / expected evidence | Dependency and scope control |
+|---|---|---|
+| SUP-01 | Review and maintain the [requirements matrix](../academic/gateway_requirements_and_platform_selection.md), linking each criterion to a component and test | Contracts and feedback; preserve D007 distinctions and keep documentary selection separate from test success |
+| SUP-02 | Review the initial SoC decision and close documentary gaps needed for discussion | SUP-01 and primary sources; no procurement or native porting added |
+| SUP-03 | Consolidate V1 architecture, external dependencies, provenance and consumer-control inventory | Existing diagram and C2DTA mapping; no new SSI, UI, blockchain or radio feature |
+| SUP-04 | Prepare exact RQ/manuscript alignment changes for the new requirements/selection/evaluation sequence | SUP-01–SUP-03; current wording and QEMU boundary remain until an explicit aligned revision |
+| SUP-05 | Assemble the bounded demonstrator packet from eligible existing evidence, with limitations and negative nominal result | G2 evidence criteria; repeat only when missing evidence or material changes require it; acceptance remains separate |
+| SUP-06 | Link literature searches/readings to platform, Yocto, integration and evaluation decisions | Existing scoping-review allocation; reconcile local records with dev without calling syntax trials selection searches |
+| SUP-07 | Reconcile requirements with admitted results or explicit limitations | Frozen protocol and analysis; preserve negative results and keep untested physical properties unverified |
+
+
 > **Plan v2.0 adopted 2026-09-18 (QEMU-only execution amendment).** The
 > student adopted [plan v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
 > as the execution baseline on 2026-09-18. The **live actions are those of the
@@ -19,7 +40,7 @@
 
 > **This file owns actions only**: required work, expected evidence,
 > dependencies and cut rules. The versioned schedule and scope authority is
-> the [integrated development plan v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+> the [integrated development plan v2.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
 > The current state of every deliverable and gate lives exclusively in
 > [`../../PROGRESS.md`](../../PROGRESS.md); do not record completion,
 > implementation status, execution results or evidence counts here.

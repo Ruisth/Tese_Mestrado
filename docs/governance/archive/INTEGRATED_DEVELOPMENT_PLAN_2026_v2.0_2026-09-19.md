@@ -1,18 +1,4 @@
-# Integrated Yocto ARM64 Edge Gateway Dissertation Plan — version 2.1
-
-
-**Amendment of 2026-09-21 — requirements and supervisor deliverables.** At the
-student's request, version 2.1 adds the [requirements and platform matrix](../academic/gateway_requirements_and_platform_selection.md)
-and the seven deliverables in section 4.1.1. The email supplied in the
-conversation asks for requirements, an initial SoC choice, a manageable V1 and
-a literature review supporting implementation. Raspberry Pi 5 with 8 GB is the
-initial documentary recommendation; it is not a purchased, ported or validated
-platform. This amendment retains QEMU-only execution, the current title and RQ
-numbering, the 95-attempt target, the existing gates and the submission dates.
-The supervisor's example RQs are mapped for discussion, not silently adopted.
-No gate, claim, threshold, procurement or native execution is approved here.
-The dated preparation of these documents is an action; the new milestone dates
-remain targets. Integration into dev follows the repository review workflow.
+# Integrated Yocto ARM64 Edge Gateway Dissertation Plan — version 2.0 (adopted 2026-09-18, QEMU-only execution amendment)
 
 > **Status: NORMATIVE FOR PROJECT EXECUTION.** This document controls scope,
 > evidence boundaries, gates, cut rules and delivery targets from 2026-09-18,
@@ -55,11 +41,13 @@ remain targets. Integration into dev follows the repository review workflow.
 > [G0 decision record](decisions/2026-09-19-g0-closure.md)). It admits no
 > evidence and no claim, and it closes no other gate.
 
-**Version:** 2.1 — 2026-09-21, additive requirements and delivery amendment
-requested by the student. The QEMU execution amendment adopted on 2026-09-18
-and the governance update of 2026-09-19 remain the execution/evidence basis.
-**Supersedes:** version 2.0, adopted 2026-09-18 and updated 2026-09-19;
-its byte-exact archive is linked below. Earlier version history is retained.
+**Version:** 2.0 — adopted 2026-09-18 (text of 2026-09-16 with the QEMU-only
+execution amendment of 2026-09-18), amended on 2026-09-19 to record the
+supervisor confirmations reported by the student, the 95-run attempt target and
+the authorised terminology, and updated on 2026-09-19 by the governance and
+acceptance update above (section 9)  
+**Supersedes:** version 1.2 — 2026-08-14 (which superseded
+version 1.1 — 2026-08-13, which superseded version 1.0 — 2026-08-07)  
 **Planned submission:** 2026-10-20  
 **Final delivery deadline:** 2026-10-31; 2026-10-21 to 2026-10-31 is a
 contingency window for essential corrections only, never the default delivery
@@ -68,11 +56,6 @@ period
 discussing them with the supervisors — a first-party statement; no
 administrative document has been checked (D013)  
 **Repository language:** British English; Portuguese is retained where required
-
-The complete version 2.0 at dev revision ccd5fd6 is preserved byte for
-byte in [the version 2.0 archive](archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_2026-09-19.md),
-SHA-256 **dcbccda1477d1dd4ddce6fb451457e9ec37ff608045eae141bd998f0907b4d1a**. Version 2.1
-adds documentary selection and traceability, not a new native execution branch.
 
 The unchanged Portuguese version 1.0 is archived at
 [`archive/PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026_v1.0_pt.md`](archive/PLANO_DESENVOLVIMENTO_INTEGRADO_EDGE_GATEWAY_2026_v1.0_pt.md)
@@ -455,7 +438,6 @@ achieved milestones, and no gate is accepted by it.**
 | Work package | Target / acceptance boundary |
 |---|---|
 | Governance publication | Next focused documentation pull request; parallel to ongoing bounded tests |
-| Supervisor feedback deliverables SUP-01–SUP-07 | Requirements and initial platform decision on 2026-09-21 to 2026-09-22; V1/RQ/evidence preparation through 2026-09-25; literature and results reconciliation within the existing review and analysis windows. Owners, dependencies and exit criteria are in section 4.1.1 |
 | Scoping-review protocol alignment | Target 2026-09-21; dated method, scope, eligibility and charting plan, preserving the real preliminary-search history |
 | Scoping-review search and selection | Target 2026-09-26; logged searches and exports, deduplication and documented screening; re-estimate from the actual corpus size at the 2026-09-21 checkpoint |
 | Scoping-review charting and synthesis | Target 2026-09-30; evidence chart, selection flow, synthesis and bibliography, feeding the chapters sent on 2026-10-01 |
@@ -489,46 +471,6 @@ campaign still requires a reviewed, frozen protocol. No destructive storage
 cleanup, remote expenditure or unlimited unattended run is authorised by the
 adoption of this plan, and the existing test-operation safeguards remain in
 force.
-
-### 4.1.1 Requirements and supervisor deliverables added on 2026-09-21
-
-The [matrix](../academic/gateway_requirements_and_platform_selection.md) is the
-working specification for SUP-01 and SUP-02. These deliverables respond to the
-four points of the supplied supervisor email while bounded implementation
-continues. They are not new administrative prerequisites for running or
-presenting the first flow. Rui owns delivery; supervisor input is requested
-only for the academic wording and genuinely unresolved protocol/claim details.
-No meeting date or supervisor response time is assumed.
-
-| ID and deliverable | Owner and target | Dependencies | Exit criterion and hand-off |
-|---|---|---|---|
-| SUP-01 — Requirements and verification matrix | Rui; 2026-09-21 to 2026-09-22 | Supplied feedback, current contracts, runbook and scope | Every requirement has an ID, source/authority, criterion, component and evidence/gate. Contract values, emulator settings, documentary hardware conditions and D007 proposals are distinguished. Use REQ-01–REQ-18 in the matrix; reconcile with the protocol before G4 |
-| SUP-02 — Initial SoC reference decision | Rui; 2026-09-22 | SUP-01 and primary platform/BSP sources | Compare two viable candidates and one justified exclusion; name an initial target and unresolved cost/BSP/resource checks; distinguish it from QEMU and any future cloud. A documentary decision is sufficient for this deliverable; no purchase or port is required |
-| SUP-03 — V1 architecture and consumer-control boundary | Rui; 2026-09-23, before the next discussion where possible | SUP-01; existing architecture and C2DTA traceability | One readable diagram identifies the local stack, external generator/tools, build dependencies and shared physical host. Inventory reuse/adaptation/development, included technical controls and deferred consumer functions. No SSI, UI, blockchain or physical-radio implementation is added |
-| SUP-04 — RQ and manuscript revision map | Rui prepares by 2026-09-24; academic wording discussed with supervisors | SUP-01–SUP-03; current manuscript and supplied example RQs | Map requirements/selection/evaluation to the current questions and affected sections 1.1–1.4, 2.1, 2.4 and 2.7–2.9. Record proposed replacement wording separately from reported approved wording; retain the title and current RQ numbering until an explicit aligned revision. Reconcile the manuscript's native-VM promises with the actual QEMU scope before Chapters 1–4 on 2026-10-01 |
-| SUP-05 — Demonstrator and evidence packet | Rui; 2026-09-25, aligned with the existing integration window | Valid existing flow/persistence records, deployed identities and applicable G2 criteria | Present one trace from wearable to twin, before/after persistence checks, current limitations and the nominal negative result. Incorporate eligible records with verified provenance; repeat only for material changes or missing checks. A packet is not gate acceptance, campaign data or proof of native performance |
-| SUP-06 — Literature-to-decision chart | Rui; selection by 2026-09-26, synthesis by 2026-09-30 | SUP-01/SUP-02 and existing scoping-review work | For platform, Yocto, integration/recovery and evaluation, record the supporting source, reading/verification depth, requirement and resulting decision. Reconcile local search records with dev, preserving preliminary/syntax trials as such; no fabricated selection history. This replaces duplicated generic reading within the existing review allocation |
-| SUP-07 — Requirements-to-results reconciliation | Rui; 2026-10-05, before the full draft of 2026-10-08 | Frozen protocol, admitted dataset/analysis and SUP-01 | Give each applicable requirement a result and evidence reference, unmet criterion or explicit unverified limitation. Physical capabilities remain documentary/unverified without native tests; negative results stay visible. Feed G5/G6 and the conclusions, without admitting a claim automatically |
-
-**Effort control.** The matrix and platform screening are prepared as this
-change's documentary outputs. Budget at most one to two focused working days
-for their review and the linked V1/RQ preparation before the next discussion;
-this is a planning time box, not logged time or a new remaining-effort estimate.
-SUP-05, SUP-06 and SUP-07 refine already scheduled evidence, literature and
-analysis work; do not add their entire effort again. Re-estimate the genuinely
-incremental work at the 2026-09-22 checkpoint and preserve the implementation
-and writing windows. If the comparison expands, retain the initial decision
-with explicit limitations instead of launching an unplanned procurement study.
-
-**Change boundary.** Choosing a documentary SoC target does not reactivate G1B,
-D012 procurement, physical porting or native performance claims. The new email
-does not explicitly withdraw the reported QEMU evaluation approval. Address
-any ambiguity about the relationship between the chosen SoC and the final
-claims through SUP-04, without reopening previously settled questions as
-blanket blockers. Existing D007 and gate-specific obligations still apply.
-The public contracts, fault/confirmation rules and 95-attempt target are
-unchanged. New milestone slippage is reported with remaining effort and an
-updated forecast; it is not silently absorbed into the contingency window.
 
 ### 4.2 Gate set and current state
 
@@ -1147,13 +1089,3 @@ establish candidate mechanisms, not this project's successful execution.
   The alignment package and the verified off-machine copy are not recorded as
   performed. (e) Section 2 and sections 3.1 and 3.5 restate the first-flow record of 2026-09-18 as a locally hash-sealed candidate, outside the published evidence package and not admitted, replace "nothing has been measured" by the boundary that no official campaign has been completed or admitted, and record the memory and graceful-stop correction of the `ditto-things` teardown incident as merged through pull request #34, with general or prolonged stability not demonstrated. Nothing in this update admits evidence, accepts a claim, decides
   G2–G7 or turns a reported confirmation into a documented supervisor decision.
-
-
-### Version 2.1 change record — 2026-09-21
-
-Added the requirements/platform matrix and SUP-01–SUP-07 at the student's
-request following the supplied supervisor email. Archived version 2.0 exactly;
-added initial physical-platform screening and a crosswalk for discussion, while
-retaining the current QEMU execution/evidence boundary and dates. PROGRESS,
-backlog and the documentation index identify the new artefacts and work. This
-revision performs no build, experiment, hardware allocation or gate decision.

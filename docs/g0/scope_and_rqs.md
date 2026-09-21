@@ -1,9 +1,17 @@
 # G0 - Scope and research questions (integrated Yocto ARM64 gateway, evaluated under QEMU)
 
+**2026-09-21 cross-reference:** plan v2.1 adds the
+[requirements/platform matrix](../academic/gateway_requirements_and_platform_selection.md)
+and SUP-04 for the supervisor's proposed requirements–selection–evaluation
+sequence. The current title and RQ numbering below are preserved; the matrix
+contains a crosswalk for discussion, not an approved replacement wording.
+
+
 > Scope document under the versioned integrated plan
 > ([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
-> **v2.0, adopted by the student on 2026-09-18 with the QEMU-only execution
-> amendment**). The archived v1.0 and v1.2 remain historical. This document
+> **v2.1, 2026-09-21, retaining the QEMU-only execution baseline adopted in
+> v2.0 on 2026-09-18**). The scope text itself remains version 2.0; the new
+> matrix/crosswalk does not rewrite its RQs. Archived plans remain historical. This document
 > states the scientific scope for gate G0; it neither accepts the gate nor
 > records a supervisor decision. Any approved change requires a plan update and
 > an entry in the LOG.
