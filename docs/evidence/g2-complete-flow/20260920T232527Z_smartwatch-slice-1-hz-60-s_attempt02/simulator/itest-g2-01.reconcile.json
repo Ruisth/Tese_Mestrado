@@ -1,0 +1,33 @@
+{
+  "run_id": "itest-g2-01",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 60,
+  "sent_valid": 60,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 60,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 60,
+  "latency_count": 60,
+  "latency_ms_p50": 274.224781,
+  "latency_ms_p95": 8114.720044299998,
+  "latency_ms_max": 9999.049811,
+  "marker_lag_s": 0.184,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 60,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}

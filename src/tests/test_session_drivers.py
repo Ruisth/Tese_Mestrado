@@ -63,7 +63,13 @@ MOSQUITTO_SIMULATOR_PASSWORD=stub-simulator-password
 
 TUNNEL_SH = """# shellcheck shell=bash
 tunnel_check() { [ "${EGW_STUB_TUNNEL:-up}" = up ]; }
-tunnel_up() { echo "stub: tunnel up"; }
+tunnel_up() {
+    # A tunnel of 5.7 that cannot be opened at all: the host preamble then
+    # FAILS, so every host step that needed it never ran.
+    [ "${EGW_STUB_TUNNEL:-up}" != broken ] \
+        || { echo "stub: the tunnel could not be opened" >&2; return 1; }
+    echo "stub: tunnel up"
+}
 tunnel_down() { echo "stub: tunnel down"; }
 """
 
@@ -88,12 +94,29 @@ stub_fails() {
 }
 
 wait_ready() {
-    stub_fails wait_ready && { stop "wait_ready: /ready never answered 200"; return 1; }
+    # The helper's own give-up, in the runbook's wording: it polled and never
+    # got 200 within the limit, which is the one observation it can make.
+    stub_fails wait_ready \
+        && { stop "wait_ready: /ready answered '503', not 200, for ${1:-60} s (tunnel of 5.7 down? stack not healthy?)"; return 1; }
+    # The same give-up with curl's code for a request nobody answered: the
+    # tunnel dropped during the wait, so the controller said nothing at all.
+    stub_fails wait_ready-000 \
+        && { stop "wait_ready: /ready answered '000', not 200, for ${1:-60} s (tunnel of 5.7 down? stack not healthy?)"; return 1; }
+    # The step dying in the transport instead: nothing was observed about
+    # /ready, and no give-up was reported.
+    stub_fails wait_ready-dropped \
+        && { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; return 255; }
     echo "stub: /ready 200"
 }
 
 drained() {
     stub_fails drained && { stop "drained: no quiet window"; return 1; }
+    # A quiet window that is still being waited out, so that a driver can be
+    # interrupted while its first step is in progress.
+    if [ -n "${EGW_STUB_QUIESCE_HANG_S:-}" ]; then
+        : > "$EGW_STUB_LOG.quiescehang"
+        sleep "$EGW_STUB_QUIESCE_HANG_S"
+    fi
     # The drain AFTER the measured window is the one nominal.sh runs with its
     # own limit: these three fail only that one, and never the 'drained' of the
     # precondition, which runs before the harness. They are the three ways the
@@ -160,6 +183,19 @@ harness_run() {
 SESSION_COMMON = """# shellcheck shell=bash
 # Stub of the session's SSH helpers: the guest is this machine, reached through
 # the ssh/scp stubs that are first on PATH.
+#
+# 'session-helpers-gone' is the session helper that is no longer loadable once
+# the stack has been restarted, as a session directory that was removed or a
+# file that was truncated leaves it: sourcing this file then FAILS, so the
+# wrapper around it never runs anything on the guest at all.
+case ",${EGW_STUB_FAIL:-}," in
+    *,session-helpers-gone,*)
+        if [ -e "${EGW_STUB_LOG:-}.restarted" ]; then
+            echo "${E:-the session}/scripts/session_common.sh: the session helpers are not there" >&2
+            return 1
+        fi
+        ;;
+esac
 gssh() { ssh -o BatchMode=yes egw@127.0.0.1 "$@"; }
 gscp() { scp -q "$@"; }
 log()  { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
@@ -287,17 +323,142 @@ if f",{os.environ.get('EGW_STUB_FAIL', '')}," .find(",accounting-late,") >= 0:
 # Host stubs first on PATH
 # --------------------------------------------------------------------------
 
-CURL_STUB = """#!/bin/sh
-# stub curl: the controller behind the tunnel of runbook 5.7.
-out=/dev/stdout
-for arg in "$@"; do
-    case "$prev" in -o) out=$arg ;; esac
-    prev=$arg
-done
-printf '{"queue_depth": 0, "started_at": "2026-09-19T20:00:00Z", "accepted": 60, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}\\n' > "$out"
-case "$*" in *-w*) printf '200\\n' ;; esac
-exit 0
+CURL_STUB = '''#!/usr/bin/env python3
+"""Stub curl: the controller and Ditto behind the tunnels of runbook 5.7.
+
+Every endpoint answers for itself, so a driver that reads /health, /ready,
+/metrics and a twin sees four different bodies. What the tests steer is the
+HTTP code of each one, the controller PROCESS the counters belong to (a new
+`started_at` and zero counters once the stack has been restarted) and the
+stored twin state that comes back after that restart.
+
+Its failure modes are curl's own: without `-f` any HTTP answer is exit 0 and
+the body is written, with `-f` an error answer is exit 22 and nothing is
+written, and a connection that was not made is exit 7 with the code `000`.
 """
+import json
+import os
+import sys
+
+VALUE_OPTIONS = {"-o", "--output", "-w", "--write-out", "-m", "--max-time", "-H", "--header",
+                 "-X", "-d", "--data", "-A", "-e", "--connect-timeout"}
+failures = f",{os.environ.get('EGW_STUB_FAIL', '')},"
+
+
+def fails(token):
+    return f",{token}," in failures
+
+
+def marker(suffix):
+    return os.environ.get("EGW_STUB_LOG", "") + suffix
+
+
+def restarted():
+    """True once the stack has been taken down and brought up again."""
+    return os.path.exists(marker(".restarted"))
+
+
+def run_id():
+    return "itest-g2-01"
+
+
+def metrics():
+    started = "2026-09-19T20:00:00Z"
+    accepted = int(os.environ.get("EGW_STUB_METRICS_ACCEPTED", "0"))
+    if restarted():
+        # /metrics is per process: a restarted controller is a new process
+        # with a new start instant and counters that begin again at zero.
+        if not fails("started-at-unchanged"):
+            started = "2026-09-19T21:11:00Z"
+        accepted = 3 if fails("late-counters") else 0
+    body = {"queue_depth": 0, "started_at": started, "accepted": accepted,
+            "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}
+    body.update(json.loads(os.environ.get("EGW_STUB_METRICS_EXTRA") or "{}"))
+    return json.dumps(body), os.environ.get("EGW_STUB_METRICS_CODE", "200")
+
+
+def twin():
+    if fails("twin-unreadable"):
+        return "{this is not JSON", "200"
+    # The persistence defect itself: the volume did not hold the thing, so
+    # Ditto answers 404 for it. 'twin-gone-before' is the same answer from the
+    # start, when there is no stored state to demonstrate the survival of.
+    if fails("twin-gone-before") or (restarted() and fails("twin-gone")):
+        return json.dumps({"status": 404, "error": "things:thing.notfound",
+                           "message": "The Thing with ID 'org.c2dta:stub-device' "
+                                      "could not be found."}), "404"
+    # The reading that was NOT made after the restart: nothing answered at all.
+    if restarted() and fails("twin-unreachable"):
+        return "", "000"
+    count = 1 if (restarted() and fails("twin-changed")) else 60
+    body = {"thingId": "org.c2dta:stub-device",
+            "attributes": {"device_type": "smartwatch", "egw_id": "egw-01",
+                           "schema_version": "1.0"},
+            "features": {"ingestion": {"properties": {
+                "last_run_id": os.environ.get("EGW_STUB_TWIN_RUN_ID") or run_id(),
+                "last_seq": 59, "accepted_count": count}}}}
+    if restarted() and fails("twin-stateless"):
+        # The thing came back and the state this run stored in it did not.
+        body["features"] = {}
+    return json.dumps(body), "200"
+
+
+output = None
+write_out = None
+fail_on_error = False
+url = ""
+args = sys.argv[1:]
+index = 0
+while index < len(args):
+    arg = args[index]
+    if arg in VALUE_OPTIONS:
+        value = args[index + 1] if index + 1 < len(args) else ""
+        if arg in ("-o", "--output"):
+            output = value
+        elif arg in ("-w", "--write-out"):
+            write_out = value
+        index += 2
+        continue
+    if arg.startswith("-"):
+        if arg == "--fail" or (not arg.startswith("--") and "f" in arg[1:]):
+            fail_on_error = True
+        index += 1
+        continue
+    url = arg
+    index += 1
+
+if url.endswith("/health"):
+    body = os.environ.get("EGW_STUB_HEALTH_BODY") or json.dumps({"status": "ok"})
+    code = os.environ.get("EGW_STUB_HEALTH_CODE", "200")
+elif url.endswith("/ready"):
+    body = json.dumps({"status": "ready", "mqtt": "subscribed", "ditto": "reachable"})
+    code = os.environ.get("EGW_STUB_READY_CODE", "200")
+elif url.endswith("/metrics"):
+    body, code = metrics()
+elif "/api/2/things/" in url:
+    body, code = twin()
+else:
+    body, code = json.dumps({"stub": url}), "200"
+if fails("curl-down"):
+    body, code = "", "000"
+
+if code == "000":
+    if output:
+        open(output, "w", encoding="utf-8").close()
+    status = 7
+elif fail_on_error and not code.startswith("2"):
+    status = 22
+else:
+    if output:
+        with open(output, "w", encoding="utf-8") as fh:
+            fh.write(body)
+    else:
+        sys.stdout.write(body)
+    status = 0
+if write_out:
+    sys.stdout.write(write_out.replace("%{http_code}", code).replace(chr(92) + "n", chr(10)))
+sys.exit(status)
+'''
 
 GIT_STUB = """#!/bin/sh
 # stub git: the clone the drivers run from is a worktree whose .git file names
@@ -446,6 +607,10 @@ for source in positional[:-1]:
     if corrupt and corrupt in path:
         with open(target, "ab") as fh:
             fh.write(b"x")
+    # A transfer that SUCCEEDED and brought nothing, as a truncated copy does.
+    empty = os.environ.get("EGW_STUB_SCP_EMPTY")
+    if empty and empty in path:
+        open(target, "w", encoding="utf-8").close()
 sys.exit(0)
 '''
 
@@ -505,6 +670,21 @@ esac
 exit 0
 """
 
+OPENSSL_STUB = """#!/bin/sh
+# stub openssl (present in the guest image, runbook 5.3): the CA's own subject,
+# expiry and fingerprint. No private material is ever read or printed.
+case ",${EGW_STUB_FAIL:-}," in
+    *,openssl,*)
+        echo "unable to load certificate" >&2
+        exit 1
+        ;;
+esac
+echo "subject=CN = EGW dev CA"
+echo "notAfter=Sep 18 12:00:00 2027 GMT"
+echo "SHA256 Fingerprint=AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+exit 0
+"""
+
 GUEST_TOOL_STUB = '''#!/usr/bin/env python3
 """Stub of the guest's own deployment tools (they need a real stack)."""
 import json
@@ -560,19 +740,47 @@ def state(name):
     return "running"
 
 
+def polls(suffix):
+    """How many times this stub has been asked one thing, counted on disk so
+    that a wait which polls can be answered differently on each sample."""
+    path = os.environ.get("EGW_STUB_LOG", "") + suffix
+    seen = 0
+    try:
+        with open(path, encoding="utf-8") as fh:
+            seen = int(fh.read() or 0)
+    except (OSError, ValueError):
+        seen = 0
+    seen += 1
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(str(seen))
+    return seen
+
+
 def health(name):
     """What the container's healthcheck says. Only 'unhealthy' is the service
     failing: 'starting' is a healthcheck that has not concluded and 'none' a
     container that declares none, and neither says anything about the service,
     which is then judged by its state alone. The live preflight of 2026-09-19
-    recorded 'egw-controller-1 running starting' and passed."""
+    recorded 'egw-controller-1 running starting' and passed.
+
+    G2 is stricter and waits for 'healthy': 'health-transition' is a service
+    whose check concludes on the third sample, which is what such a wait has
+    to be able to show."""
     if fails("service-unhealthy") and name == SERVICES[1]:
         return "unhealthy"
     if fails("health-starting") and name == SERVICES[5]:
         return "starting"
     if fails("no-healthcheck") and name == SERVICES[5]:
         return "none"
+    if fails("health-transition") and name == SERVICES[5]:
+        return "starting" if polls(".healthpolls") <= 2 else "healthy"
     return "healthy"
+
+
+def restarted():
+    """True once 'compose down' has been run: from there on every container
+    object is a new one and the controller process is a new process."""
+    return os.path.exists(os.environ.get("EGW_STUB_LOG", "") + ".restarted")
 
 
 def midrun():
@@ -597,8 +805,12 @@ def restarts(name):
 
 
 def container_id(name):
-    """The container object's own id: a recreated container has a new one."""
+    """The container object's own id: a recreated container has a new one, and
+    so does every container after a 'down' and 'up -d'. 'ids-unchanged' is the
+    restart that was issued and did not replace the objects."""
     suffix = "b" if (fails("service-recreated") and name == SERVICES[3] and midrun()) else "a"
+    if restarted() and not fails("ids-unchanged"):
+        suffix = "c"
     return f"{SERVICES.index(name):02d}" + suffix * 62
 
 
@@ -612,6 +824,8 @@ def started_at(name):
     state, and the record of the guest after the run is not usable."""
     if fails("state-unreadable") and midrun():
         return ""
+    if restarted() and not fails("not-later"):
+        return "2026-09-19T21:11:00.500000000Z"
     moved = ((fails("service-restarted-in-place") and name == SERVICES[4])
              or (fails("service-recreated") and name == SERVICES[3])) and midrun()
     return "2026-09-19T20:31:07.100000000Z" if moved else "2026-09-19T19:58:00.100000000Z"
@@ -648,6 +862,41 @@ if command == "stop":
     for name in SERVICES:
         print(f"Container {name}  Stopped")
     sys.exit(0)
+if command == "down":
+    # A driver of this repository never removes a volume: the stored state is
+    # what the persistence check reads back, so the stub refuses -v loudly
+    # instead of quietly destroying it.
+    if "-v" in args or "--volumes" in args:
+        print("stub: 'down -v' removes the named volumes and no driver may ask for it",
+              file=sys.stderr)
+        sys.exit(1)
+    if fails("docker-down"):
+        print("stub: 'down' failed", file=sys.stderr)
+        sys.exit(1)
+    open(os.environ["EGW_STUB_LOG"] + ".restarted", "w", encoding="utf-8").close()
+    if fails("late-records"):
+        # The controller logged another record of this run after the restart:
+        # the quiet the persistence check rests on was not held.
+        events = os.path.join(os.environ["EGW_STUB_GUEST_ROOT"], "opt", "egw", "deployment",
+                              "data", "events", os.environ.get("EGW_STUB_TWIN_RUN_ID", ""))
+        if os.path.isdir(events):
+            with open(os.path.join(events, "events.jsonl"), "a", encoding="utf-8") as fh:
+                fh.write('{"message_id": "m-late", "outcome": "accepted"}\\n')
+    for name in SERVICES:
+        print(f"Container {name}  Removed")
+    sys.exit(0)
+if command == "image" and len(args) > 1 and args[1] == "inspect":
+    # An inspect that does not ANSWER reads no identity at all; an image BUILT
+    # on the guest answers with no repo digest, which the caller's template
+    # renders as 'none'. The two are not the same record.
+    if fails("no-repo-digest"):
+        print("Error: No such image", file=sys.stderr)
+        sys.exit(1)
+    if fails("locally-built-image"):
+        print("none")
+        sys.exit(0)
+    print("stub/controller@sha256:" + "f" * 64)
+    sys.exit(0)
 if command == "ps":
     template = args[args.index("--format") + 1] if "--format" in args else "{{.Name}}"
     for name in listed():
@@ -669,7 +918,11 @@ if command == "inspect":
         # container is gone, and nothing about it is determined by it.
         print("Error response from daemon: context deadline exceeded", file=sys.stderr)
         sys.exit(1)
-    if ".State.Health" in template:
+    if ".Config.Image" in template:
+        print(f"stub/{name}:1")
+    elif ".Image" in template:
+        print("sha256:" + "e" * 64)
+    elif ".State.Health" in template:
         print(health(name))
     elif ".State.OOMKilled" in template:
         print(oomkilled(name))
@@ -731,10 +984,10 @@ print(f"Running as unit: {sys.argv[sys.argv.index('--unit') + 1]}.service")
 # --------------------------------------------------------------------------
 
 REC_STUB = '''#!/usr/bin/env python3
-"""Stub of egw_experiments.itest_reconcile: mark, wait, check, delta, snap.
+"""Stub of egw_experiments.itest_reconcile: mark, wait, check, delta, snap, same.
 
 Its exit codes are the real ones: 0 carried out, 1 not carried out, 3 check:
-not a protocol check, 4 delta: MISMATCH or queue not empty.
+not a protocol check, 4 delta: MISMATCH or queue not empty, same: DIFFERENT.
 """
 import json
 import os
@@ -748,9 +1001,14 @@ command = sys.argv[1]
 
 
 def prefix_of():
-    if command == "snap":
+    if command in ("snap", "same"):
         return sys.argv[sys.argv.index("--prefix") + 1]
     return sys.argv[2].rstrip("/")
+
+
+def devices_of(label):
+    with open(prefix_of() + f".twins.{label}.json", encoding="utf-8") as fh:
+        return json.load(fh)["devices"]
 
 
 def write(suffix, body):
@@ -767,7 +1025,17 @@ elif command == "wait":
     write(".window-closed.json", {"monotonic_ns": 2 * 10 ** 12})
 elif command == "snap":
     label = sys.argv[sys.argv.index("--label") + 1]
-    write(f".twins.{label}.json", {"devices": {"stub-device": {"ingestion": 60}}})
+    # A twin whose stored state did not come back unchanged after a restart:
+    # the snapshot taken then differs from the one taken before it.
+    count = 1 if (label == "post-restart" and ",twin-changed," in failures) else 60
+    write(f".twins.{label}.json", {"devices": {"stub-device": {"ingestion": count}}})
+elif command == "same":
+    before, after = sys.argv[-2], sys.argv[-1]
+    left, right = devices_of(before), devices_of(after)
+    for device in left:
+        state = "identical" if left[device] == right.get(device) else "DIFFERENT"
+        print(f"{device}: {state} {left[device]}")
+    sys.exit(0 if left == right else 4)
 elif command == "check":
     row = json.loads(os.environ.get("EGW_STUB_RECONCILE") or json.dumps(DEFAULT_ROW))
     write(".reconcile.json", {"row": row})
@@ -1058,6 +1326,10 @@ class Bench:
         self.bin = tmp_path / "bin"
         self.guest_bin = tmp_path / "gbin"
         self.log = tmp_path / "stub.log"
+        # What a fixture has set up for this bench (the run id a completed
+        # slice left behind, say): part of every environment, and still
+        # overridable per run.
+        self.extra: dict[str, str] = {}
         for directory in (self.attempts, self.out, self.home, self.bin, self.guest_bin):
             directory.mkdir(parents=True, exist_ok=True)
 
@@ -1093,7 +1365,8 @@ class Bench:
         for name, text in (("sudo", SUDO_STUB), ("sleep", SLEEP_STUB), ("dmesg", DMESG_STUB),
                            ("timedatectl", TIMEDATECTL_STUB), ("systemctl", SYSTEMCTL_STUB),
                            ("journalctl", JOURNALCTL_STUB), ("docker", DOCKER_STUB),
-                           ("systemd-run", SYSTEMD_RUN_STUB), ("guest_tool", GUEST_TOOL_STUB)):
+                           ("systemd-run", SYSTEMD_RUN_STUB), ("guest_tool", GUEST_TOOL_STUB),
+                           ("openssl", OPENSSL_STUB)):
             _write(self.guest_bin / name, text, executable=True)
 
         # The fake guest: the clone's deployment tree, as it is deployed.
@@ -1101,6 +1374,15 @@ class Bench:
         shutil.copytree(REPO_ROOT / "src" / "deployment", deployment)
         (deployment / "data" / "events").mkdir(parents=True, exist_ok=True)
         _write(deployment / ".env", "STUB=1\n")
+        # The TLS material and the broker password file, which the clone does
+        # not hold (they are generated on the guest, runbook 5.3 and 5.4) and
+        # which the deployed-tree listing never lists. Only their modes are
+        # ever recorded; the bytes here stand for bytes nothing may read.
+        self.certs = deployment / "mosquitto" / "config" / "certs"
+        for name, mode in (("ca.crt", 0o644), ("server.crt", 0o644), ("server.key", 0o600)):
+            _write(self.certs / name, f"stub {name}, never read by any driver\n").chmod(mode)
+        _write(deployment / "mosquitto" / "config" / "passwd",
+               "egw-simulator:stub-hash\n").chmod(0o600)
         _write(self.guest_root / "opt" / "egw" / "images"
                / "egw-controller-0.1.0-arm64.identity.txt", "sha256:stub\n")
         (self.guest_root / "var" / "lib" / "docker").mkdir(parents=True, exist_ok=True)
@@ -1154,6 +1436,7 @@ class Bench:
             "EGW_DATA_DISK": str(self.tmp / "yocto" / "egw-data.img"),
             "EGW_IMAGES_DIR": str(self.images),
         })
+        environment.update(self.extra)
         for key, value in overrides.items():
             if value is None:
                 environment.pop(key, None)
@@ -2360,6 +2643,954 @@ def test_slice_lost_capture_of_pre_names_the_capture(bench):
     assert "the console capture of 'pre' failed" in verdicts["reason"]
     assert "precondition failed" not in verdicts["reason"]
     assert bench.package("smartwatch-slice-1-hz-60-s") is not None
+
+
+# --------------------------------------------------------------------------
+# The readiness wait the two G2 drivers share (guest_common.sh)
+# --------------------------------------------------------------------------
+
+GATE = "g2-gate-preconditions"
+PERSIST = "g2-twin-persistence-restart"
+# Long enough to be a bounded wait, short enough that a bench that polls ends:
+# 0 s means one sample and then the limit, which is what a stack that is not
+# at the gate has to answer with.
+NOW = {"EGW_HEALTH_LIMIT_S": "0", "EGW_HEALTH_STEP_S": "1"}
+
+
+def _ssh_log(bench: Bench) -> str:
+    """Every ssh and scp command the stubs were given, or nothing at all when
+    a driver stopped before it reached the guest."""
+    try:
+        return bench.log.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _wait_script(bench: Bench, limit: str = "0", step: str = "1") -> str:
+    """The guest command healthy_wait_script builds, as the drivers build it."""
+    result = subprocess.run(
+        ["bash", "-c", 'cd "$1" && . ./common.sh && . ./guest_common.sh '
+                       '&& healthy_wait_script "$2" "$3"',
+         "_", str(bench.drivers), limit, step],
+        env=bench.env(), capture_output=True, text=True)
+    assert result.returncode == 0, report(result)
+    return result.stdout
+
+
+def _wait(bench: Bench, limit: str = "0", **overrides) -> subprocess.CompletedProcess:
+    """That same guest command, run against the docker stub as the guest runs
+    it: under /bin/sh, with no bash feature available to it."""
+    script = bench.tmp / "healthy_wait.sh"
+    script.write_text(_wait_script(bench, limit), encoding="utf-8")
+    environment = bench.env(**overrides)
+    environment["PATH"] = f"{bench.guest_bin}{os.pathsep}{environment['PATH']}"
+    return subprocess.run(["sh", str(script)], env=environment, capture_output=True,
+                          text=True, timeout=300)
+
+
+def test_healthy_wait_is_written_once_and_used_by_both_drivers():
+    # One implementation of the stricter G2 wait, in guest_common.sh: the two
+    # drivers call it, and neither carries a poll of its own.
+    shared = (SESSION_DIR / "guest_common.sh").read_text(encoding="utf-8")
+    assert shared.count("healthy_wait_script()") == 1
+    for driver in ("gate_health.sh", "persistence.sh"):
+        text = (SESSION_DIR / driver).read_text(encoding="utf-8")
+        assert "healthy_wait " in text, driver
+        assert "healthy_wait_script" not in text, f"{driver} must not build the wait itself"
+        assert ".State.Health" not in text, f"{driver} must not poll health on its own"
+
+
+def test_healthy_wait_passes_when_every_service_is_healthy(bench):
+    result = _wait(bench, "1800")
+    assert result.returncode == 0, report(result)
+    assert "ALL HEALTHY: the 6 expected services" in result.stdout
+    for service in EXPECT_SERVICES:
+        assert f"{service}=running/healthy" in result.stdout
+
+
+@pytest.mark.parametrize("failure, says", [
+    ("health-starting", "egw-controller-1(status=running health=starting)"),
+    ("service-unhealthy", "egw-mongodb-1(status=running health=unhealthy)"),
+    ("no-healthcheck", "egw-controller-1(status=running health=none)"),
+    ("service-down", "egw-mosquitto-1(status=exited"),
+    ("service-absent", "egw-ditto-policies-1(the daemon does not hold this container)"),
+])
+def test_healthy_wait_names_a_service_that_is_not_healthy(bench, failure, says):
+    # G2 asks for 'healthy'. A check that has not concluded, one that fails,
+    # a container that declares none and one the daemon does not hold are all
+    # the system's own state: exit 1, with the service named.
+    result = _wait(bench, "0", EGW_STUB_FAIL=failure)
+    assert result.returncode == 1, report(result)
+    assert "NOT HEALTHY" in result.stdout
+    assert says in result.stdout
+
+
+def test_healthy_wait_that_could_not_determine_a_state_is_not_a_failure(bench):
+    # An inspect that failed for any other reason determines NOTHING about
+    # that container: 2, never the 1 of a service that is not healthy.
+    result = _wait(bench, "0", EGW_STUB_FAIL="inspect-unanswered")
+    assert result.returncode == 2, report(result)
+    assert "NOT DETERMINED" in result.stdout
+    assert "egw-ditto-gateway-1(its status could not be read)" in result.stdout
+    assert "NOT HEALTHY" not in result.stdout
+
+
+def test_healthy_wait_keeps_both_what_it_saw_and_what_it_could_not_read(bench):
+    result = _wait(bench, "0", EGW_STUB_FAIL="inspect-unanswered,service-unhealthy")
+    assert result.returncode == 4, report(result)
+    assert "NOT HEALTHY" in result.stdout and "NOT DETERMINED" in result.stdout
+
+
+def test_healthy_wait_keeps_every_sample_so_a_transition_is_visible(bench):
+    # The health check concludes on the third sample: the record holds the
+    # samples before it, each with its instant, and not only the answer.
+    result = _wait(bench, "1800", EGW_STUB_FAIL="health-transition")
+    assert result.returncode == 0, report(result)
+    samples = [line for line in result.stdout.splitlines() if " sample " in line]
+    assert len(samples) >= 3, result.stdout
+    assert "egw-controller-1=running/starting" in samples[0]
+    assert "egw-controller-1=running/healthy" in samples[-1]
+    assert samples[0].startswith("20") and "Z sample 1:" in samples[0]
+
+
+def test_healthy_wait_refuses_a_limit_that_is_not_seconds(bench):
+    result = subprocess.run(
+        ["bash", "-c", 'cd "$1" && . ./common.sh && . ./guest_common.sh '
+                       '&& healthy_seconds EGW_HEALTH_LIMIT_S 1800',
+         "_", str(bench.drivers)],
+        env=bench.env(EGW_HEALTH_LIMIT_S="soon"), capture_output=True, text=True)
+    assert result.returncode == 1, report(result)
+    assert result.stdout == "", "a limit that was not read is never replaced by the default"
+    assert "is not a whole number of seconds" in result.stderr
+
+
+# --------------------------------------------------------------------------
+# gate_health.sh: the gate's precondition snapshot
+# --------------------------------------------------------------------------
+
+def test_gate_health_passes_and_exports(bench):
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 0, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    assert bench.package(GATE) is not None
+    # The five steps of the gate, each with its own record.
+    for step in ("services-healthy", "controller-endpoints", "endpoints-verdict",
+                 "counters-verdict", "container-identities", "tls-configuration"):
+        assert step in bench.commands(GATE), step
+    environment = bench.attempt(GATE) / "environment"
+    assert json.loads((environment / "health.json").read_text(encoding="utf-8"))["status"] == "ok"
+    assert json.loads((environment / "ready.json").read_text(encoding="utf-8"))["status"] == "ready"
+    assert json.loads((environment / "metrics.json").read_text(encoding="utf-8"))["accepted"] == 0
+    identities = (environment / "container_identities.txt").read_text(encoding="utf-8")
+    for service in EXPECT_SERVICES:
+        assert f"identity {service} image=stub/{service}:1" in identities
+        assert "repo_digest=stub/controller@sha256:" in identities
+    assert (environment / "egw-controller-build-identity.txt").read_text(encoding="utf-8")
+    tls = (environment / "tls_configuration.txt").read_text(encoding="utf-8")
+    assert "listener 8883" in tls and "allow_anonymous false" in tls
+    assert "SHA256 Fingerprint=" in tls
+    assert "600 " in tls and "server.key" in tls, "the mode of the private material is recorded"
+    assert "stub server.key" not in tls, "a private key is never read into the evidence"
+
+
+def test_gate_health_does_not_start_or_change_anything(bench):
+    assert bench.run("gate_health.sh").returncode == 0
+    log = _ssh_log(bench)
+    for forbidden in (" up -d", " down", " restart", " stop", "systemd-run", "sudo "):
+        assert forbidden not in log, f"gate_health.sh must not run{forbidden}"
+    source = (SESSION_DIR / "gate_health.sh").read_text(encoding="utf-8")
+    for forbidden in ("$DC", "$SIM", "up -d", "down"):
+        assert forbidden not in source, f"gate_health.sh must not carry {forbidden}"
+
+
+@pytest.mark.parametrize("failure, says", [
+    ("health-starting", "egw-controller-1(status=running health=starting)"),
+    ("service-unhealthy", "egw-mongodb-1(status=running health=unhealthy)"),
+])
+def test_gate_health_service_that_never_becomes_healthy_is_a_system_failure(bench, failure, says):
+    # A health check that has not concluded passes the engineering preflight
+    # and is NOT the gate: the stack answered, so this is a valid negative
+    # result (1), never invalid instrumentation.
+    result = bench.run("gate_health.sh", EGW_STUB_FAIL=failure, **NOW)
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert says in verdicts["reason"]
+    assert verdicts["reason"].startswith("the first thing that was not as G2 requires:")
+    assert bench.package(GATE) is not None
+
+
+def test_gate_health_state_it_could_not_determine_is_invalid_not_a_failure(bench):
+    result = bench.run("gate_health.sh", EGW_STUB_FAIL="inspect-unanswered", **NOW)
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert "could not be determined at all" in verdicts["reason"]
+
+
+def test_gate_health_ready_that_answers_503_is_the_systems_answer(bench):
+    result = bench.run("gate_health.sh", EGW_STUB_READY_CODE="503")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "/ready answered 503, not 200" in verdicts["reason"]
+
+
+def test_gate_health_health_body_that_is_not_ok_is_the_systems_answer(bench):
+    result = bench.run("gate_health.sh", EGW_STUB_HEALTH_BODY='{"status": "degraded"}')
+    assert result.returncode == 1, report(result)
+    assert "not ok" in bench.verdicts(GATE)["reason"]
+
+
+def test_gate_health_body_that_cannot_be_read_is_invalid(bench):
+    # A 200 whose body is not readable is not an answer this gate can record:
+    # nothing is concluded from it, and it is never read as a system failure.
+    result = bench.run("gate_health.sh", EGW_STUB_HEALTH_BODY="{not json")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert "endpoints-verdict exit 2" in verdicts["reason"]
+
+
+def test_gate_health_counter_that_is_not_zero_names_the_controlled_lifecycle(bench):
+    result = bench.run("gate_health.sh", EGW_STUB_METRICS_ACCEPTED="60")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "accepted=60" in verdicts["reason"]
+    action = verdicts["next_action"]
+    assert "restart the controller through the documented lifecycle" in action
+    assert "with the queue empty" in action
+    assert "never delete data and never edit a counter" in action
+
+
+def test_gate_health_metrics_without_a_started_at_is_invalid(bench):
+    # A counter baseline that belongs to no identified process is not a
+    # baseline: it is nothing to conclude from, not a zero that was read.
+    result = bench.run("gate_health.sh", EGW_STUB_METRICS_EXTRA='{"started_at": ""}')
+    assert result.returncode == 3, report(result)
+    assert "counters-verdict exit 2" in bench.verdicts(GATE)["reason"]
+
+
+def test_gate_health_broker_that_allows_anonymous_is_not_the_gate(bench):
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace("allow_anonymous false",
+                                                             "allow_anonymous true"),
+                    encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "allow_anonymous=true" in verdicts["reason"]
+
+
+def test_gate_health_listener_on_another_port_is_not_the_publishing_path(bench):
+    # The gate's TLS claim is about the port the smartwatch publishes on. A
+    # broker listening somewhere else may be a healthy broker; it is not the
+    # path this gate says carries the flow.
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace("listener 8883", "listener 1883"),
+                    encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "listener=1883(expected 8883)" in verdicts["reason"]
+
+
+def test_gate_health_broker_that_states_no_tls_version_is_not_the_gate(bench):
+    # A listener with certificates but no stated version leaves what would be
+    # negotiated to a default nobody recorded: the gate records the version or
+    # it does not hold.
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text("\n".join(line for line in conf.read_text(encoding="utf-8").splitlines()
+                              if not line.strip().startswith("tls_version")) + "\n",
+                    encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "tls_version(absent)" in verdicts["reason"]
+
+
+def test_gate_health_records_the_material_the_broker_names(bench):
+    # The certificate and the key the gate records must be the ones the broker
+    # reads. A configuration naming other files must not be recorded with the
+    # metadata of files nobody uses: the paths are translated from the broker's
+    # own configuration and refused when they are not in the deployed tree.
+    config = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config"
+    (config / "certs" / "other-ca.crt").write_text(
+        (config / "certs" / "ca.crt").read_text(encoding="utf-8"), encoding="utf-8")
+    conf = config / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace(
+        "cafile /mosquitto/config/certs/ca.crt",
+        "cafile /mosquitto/config/certs/other-ca.crt"), encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 0, report(result)
+    tls = (bench.attempt(GATE) / "environment" / "tls_configuration.txt").read_text(encoding="utf-8")
+    assert "cafile /mosquitto/config/certs/other-ca.crt -> mosquitto/config/certs/other-ca.crt" in tls
+    assert "other-ca.crt" in tls.split("## modes")[1], "the mode recorded is that of the file the broker names"
+
+
+def test_gate_health_material_outside_the_deployed_tree_is_not_recordable(bench):
+    # A broker told to read a certificate from somewhere this tree does not
+    # hold: the gate cannot say what it reads, and says so instead of recording
+    # the files it would have guessed.
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace(
+        "certfile /mosquitto/config/certs/server.crt",
+        "certfile /etc/ssl/elsewhere/server.crt"), encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "tls-configuration exit 2" in verdicts["reason"]
+
+
+def test_gate_health_ca_fingerprint_that_could_not_be_read_is_invalid(bench):
+    result = bench.run("gate_health.sh", EGW_STUB_FAIL="openssl")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "tls-configuration exit 2" in verdicts["reason"]
+
+
+def test_gate_health_identity_that_was_not_recorded_is_invalid(bench):
+    result = bench.run("gate_health.sh", EGW_STUB_SSH_REFUSE="{{.Config.Image}}")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "identities of the six running containers were not recorded" in verdicts["reason"]
+
+
+def test_gate_health_guest_that_cannot_be_reached_is_invalid(bench):
+    # Nothing was observed about the stack: that is an invalid snapshot, and
+    # never "the services are not healthy".
+    result = bench.run("gate_health.sh", EGW_STUB_SSH_REFUSE="docker", **NOW)
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "the readiness wait did not answer" in verdicts["reason"]
+    assert "NOT HEALTHY" not in verdicts["reason"]
+
+
+def test_gate_health_lost_capture_of_the_wait_names_the_capture(bench):
+    result = bench.run("gate_health.sh", **bench.fail_capture_of("services-healthy"))
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert "the console capture of 'services-healthy' failed" in verdicts["reason"]
+    assert bench.package(GATE) is not None
+
+
+def test_gate_health_with_an_argument_is_a_prerequisite(bench):
+    result = bench.run("gate_health.sh", "itest-g2-01")
+    assert result.returncode == 2, report(result)
+    assert "DRIVER RESULT none: exit=2" in result.stdout
+    assert "usage: gate_health.sh (no arguments)" in result.stderr
+    assert not list(bench.attempts.glob(f"*_{GATE}_*"))
+
+
+def test_gate_health_without_a_session_prints_the_final_line(bench):
+    (bench.exec_dir / "current_session").unlink()
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 2, report(result)
+    assert "DRIVER RESULT none: exit=2" in result.stdout
+
+
+def test_gate_health_with_an_unusable_limit_reads_nothing(bench):
+    result = bench.run("gate_health.sh", EGW_HEALTH_LIMIT_S="half an hour")
+    assert result.returncode == 2, report(result)
+    assert "EGW_HEALTH_LIMIT_S is not a whole number of seconds" in result.stdout
+    assert not list(bench.attempts.glob(f"*_{GATE}_*"))
+
+
+def test_gate_health_export_failure_outranks_the_verdict(bench):
+    result = bench.run("gate_health.sh", **bench.python_stub(PY_EXPORT_FAILS_ONCE))
+    assert result.returncode == 4, report(result)
+    assert "EXPORT FAILED" in result.stderr
+
+
+def test_gate_health_controller_that_was_never_reached_did_not_answer(bench):
+    # curl writes an empty body and prints the code 000 when it never reached
+    # the controller (its own exit 7). A reading that was not made is not an
+    # answer: the snapshot is invalid, and the stack is NOT recorded as having
+    # answered something the gate does not accept.
+    result = bench.run("gate_health.sh", EGW_STUB_FAIL="curl-down")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) \
+        == ("invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert "/health was not read (curl exit 7, HTTP code 000)" in reason
+    assert "/ready was not read (curl exit 7, HTTP code 000)" in reason
+    assert "/metrics was not read (curl exit 7, HTTP code 000)" in reason
+    assert "the controller was not reached" in reason
+    for invented in ("answered 000, not 200", "the controller's endpoints are not at the gate",
+                     "the controller's counter baseline is not the gate's"):
+        assert invented not in reason, invented
+    # The three readings are kept as they were made: code and curl status.
+    codes = (bench.attempt(GATE) / "environment" / "http_codes.txt").read_text(encoding="utf-8")
+    assert codes.split() == ["health", "000", "7", "ready", "000", "7", "metrics", "000", "7"]
+
+
+def test_gate_health_endpoint_that_answered_503_is_still_the_systems_answer(bench):
+    # The other side of the same rule: a code the controller itself answered is
+    # its answer, and that stays a valid negative result.
+    result = bench.run("gate_health.sh", EGW_STUB_READY_CODE="503")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "/ready answered 503, not 200" in verdicts["reason"]
+    assert "was not read" not in verdicts["reason"]
+
+
+def test_gate_health_step_that_never_reached_the_guest_is_not_a_fault(bench):
+    # The ssh wrapper itself fails (the session's helpers are gone): no guest
+    # command ran, so nothing was observed about the services or the broker.
+    # A step that never reached the guest is never read as the guest reporting
+    # a fault.
+    (bench.session / "scripts" / "session_common.sh").unlink()
+    result = bench.run("gate_health.sh", **NOW)
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) \
+        == ("invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert "docker inspect" not in _ssh_log(bench), "nothing ran on the guest"
+    assert "the readiness wait did not answer because it never reached the guest" in reason
+    assert "never ran: it did not reach the guest" in reason
+    for invented in ("not every expected service reached",
+                     "the publishing path's configuration is not the gate's"):
+        assert invented not in reason, invented
+
+
+def test_gate_health_host_step_whose_preamble_failed_never_ran(bench):
+    # The other wrapper: the tunnels of 5.7 could not be opened, so the host
+    # preamble of runbook 6.1 failed and the reading of the three endpoints
+    # never ran. A step that never ran observed nothing about the controller.
+    result = bench.run("gate_health.sh", EGW_STUB_TUNNEL="broken")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) \
+        == ("invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert "the controller's endpoints were not read (controller-endpoints exit 97)" in reason
+    assert "'controller-endpoints' never ran" in reason
+    assert "the controller's endpoints are not at the gate" not in reason
+
+
+def test_gate_health_build_identity_that_is_empty_on_the_guest_is_no_identity(bench):
+    identity = (bench.guest_root / "opt" / "egw" / "images"
+                / "egw-controller-0.1.0-arm64.identity.txt")
+    identity.write_text("", encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "identities of the six running containers were not recorded" in verdicts["reason"]
+    assert "the controller build identity are recorded" not in verdicts["reason"]
+
+
+def test_gate_health_build_identity_that_arrived_empty_is_no_identity(bench):
+    # The fetch itself succeeded and what reached environment/ holds nothing,
+    # as a truncated transfer leaves it: an identity that was not read is not
+    # an identity, and this gate records the controller image that was built.
+    result = bench.run("gate_health.sh", EGW_STUB_SCP_EMPTY="identity.txt")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "egw-controller-build-identity.txt is EMPTY" in verdicts["reason"]
+    kept = (bench.attempt(GATE) / "environment" / "egw-controller-build-identity.txt")
+    assert kept.stat().st_size == 0
+    assert "the controller build identity are recorded" not in verdicts["reason"]
+
+
+def test_gate_health_repo_digest_that_could_not_be_read_is_no_identity(bench):
+    # 'docker image inspect' that did not answer read no identity, and a
+    # literal in its place would pass a gate that recorded nothing.
+    result = bench.run("gate_health.sh", EGW_STUB_FAIL="no-repo-digest")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "identities of the six running containers were not recorded" in verdicts["reason"]
+    identities = (bench.attempt(GATE) / "environment" / "container_identities.txt")
+    kept = identities.read_text(encoding="utf-8")
+    assert "repo_digest=NOT-READ" in kept
+    assert "none-recorded" not in kept
+
+
+def test_gate_health_image_built_on_the_guest_has_no_repo_digest_and_passes(bench):
+    # An image built on the guest carries no repo digest at all. That is a fact
+    # about the image, read from an inspect that ANSWERED, and it is recorded
+    # as 'none' without failing the gate.
+    result = bench.run("gate_health.sh", EGW_STUB_FAIL="locally-built-image")
+    assert result.returncode == 0, report(result)
+    identities = (bench.attempt(GATE) / "environment"
+                  / "container_identities.txt").read_text(encoding="utf-8")
+    assert "repo_digest=none" in identities
+    assert "NOT-READ" not in identities
+
+
+@pytest.mark.parametrize("overrides, says", [
+    ({}, "the gate's preconditions hold"),
+    ({"EGW_STUB_FAIL": "health-starting", **NOW},
+     "egw-controller-1(status=running health=starting)"),
+    ({"EGW_STUB_HEALTH_CODE": "000", "EGW_STUB_READY_CODE": "000"},
+     "/health was not read (curl exit 7, HTTP code 000)"),
+])
+def test_gate_health_final_line_names_which_thing_it_was(bench, overrides, says):
+    # The one line the operator reads has to tell a controller that is stuck
+    # 'starting' from a controller that was never reached: both end non-zero,
+    # and they call for different actions.
+    result = bench.run("gate_health.sh", **overrides)
+    final = result.stdout.strip().splitlines()[-1]
+    assert final.startswith("DRIVER RESULT "), report(result)
+    assert " headline=" in final, final
+    assert says in final, final
+
+
+# --------------------------------------------------------------------------
+# persistence.sh: runbook 6.5 on the run the G2 slice produced
+# --------------------------------------------------------------------------
+
+G2_RUN = "itest-g2-01"
+
+
+def _slice_done(bench: Bench, run: str = G2_RUN, records: int = 60) -> str:
+    """What a completed slice leaves behind: the run directory with its
+    published identities, the 'after' pair the 'persist-before' snapshot is
+    taken like, and the controller's event log of that run on the guest."""
+    itest = bench.home / "egw-tcg" / "itest"
+    _write(itest / run / "sent_events.jsonl", "".join(
+        json.dumps({"message_id": f"m-{n:04d}", "device_uuid": "stub-device",
+                    "device_type": "smartwatch", "seq": n, "run_id": run}) + "\n"
+        for n in range(records)))
+    _write(itest / f"{run}.metrics.after.json", json.dumps(
+        {"queue_depth": 0, "started_at": "2026-09-19T20:00:00Z", "accepted": records,
+         "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}))
+    _write(itest / f"{run}.twins.after.json", json.dumps(
+        {"label": "after", "devices": {"stub-device": {"ingestion": 60}}}))
+    _write(bench.guest_root / "opt" / "egw" / "deployment" / "data" / "events" / run
+           / "events.jsonl", "".join(
+        json.dumps({"message_id": f"m-{n:04d}", "run_id": run, "outcome": "accepted"}) + "\n"
+        for n in range(records)))
+    bench.extra["EGW_STUB_TWIN_RUN_ID"] = run
+    return run
+
+
+def test_persistence_passes_and_exports(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN)
+    assert result.returncode == 0, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    assert bench.package(PERSIST) is not None
+    assert "RESTART SHOWN" in result.stdout
+    assert "STATE PERSISTED" in result.stdout
+    # /metrics is per process: zero counters and a new started_at after the
+    # restart are expected, and are recorded as expected, never as loss.
+    assert "never persisted, so 0 again is expected" in result.stdout
+    assert "2026-09-19T20:00:00Z -> 2026-09-19T21:11:00Z" in result.stdout
+    environment = bench.attempt(PERSIST) / "environment"
+    for name in ("metrics.persist-before.json", "metrics.post-restart.json",
+                 "containers.persist-before.txt", "containers.post-restart.txt",
+                 "twin.persist-before.json", "twin.post-restart.json"):
+        assert (environment / name).read_text(encoding="utf-8"), name
+    itest = bench.home / "egw-tcg" / "itest"
+    assert (itest / f"{G2_RUN}.twins.persist-before.json").is_file()
+    assert (itest / f"{G2_RUN}.twins.post-restart.json").is_file()
+
+
+def test_persistence_never_removes_a_volume_and_never_republishes(bench):
+    _slice_done(bench)
+    assert bench.run("persistence.sh", G2_RUN).returncode == 0
+    log = _ssh_log(bench)
+    assert " down\n" in log and " up -d\n" in log, log
+    for forbidden in ("down -v", "--volumes", "volume rm", "volume prune"):
+        assert forbidden not in log, forbidden
+    # Nothing is published and no twin is written: the simulator is never
+    # started and every call through the API is a read. The driver's own
+    # commands are read, not its prose, which says what it never does.
+    code = [line for line in (SESSION_DIR / "persistence.sh").read_text(encoding="utf-8").splitlines()
+            if not line.lstrip().startswith("#")]
+    for forbidden in ("down -v", "--volumes", "volume rm", "$SIM", "-X PUT", "-X POST", "--data"):
+        assert not [line for line in code if forbidden in line], forbidden
+
+
+def test_persistence_started_at_that_did_not_change_was_not_a_restart(bench):
+    # An issued command is not a restart: without a new controller process the
+    # readback shows nothing, so this is inconclusive, never a pass.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="started-at-unchanged")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert "the restart was not shown" in verdicts["reason"]
+    assert "the controller started_at did not change" in verdicts["reason"]
+    assert "twin-state-same" not in bench.commands(PERSIST), "nothing is read from a restart that was not shown"
+
+
+def test_persistence_container_ids_that_did_not_change_were_not_a_restart(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="ids-unchanged")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert "the container id of egw-mosquitto-1 did not change" in verdicts["reason"]
+
+
+def test_persistence_containers_that_did_not_start_later_were_not_a_restart(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="not-later")
+    assert result.returncode == 3, report(result)
+    assert "did not start later than before the restart" in bench.verdicts(PERSIST)["reason"]
+
+
+def test_persistence_twin_that_changed_is_a_valid_negative(bench):
+    # A real persistence defect is a RESULT: the attempt keeps it, exported
+    # and verified, and it is not called invalid instrumentation.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="twin-changed")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "is not the state that came back" in verdicts["reason"]
+    assert "accepted_count" in verdicts["reason"]
+    assert bench.package(PERSIST) is not None
+
+
+def test_persistence_drained_that_failed_restarted_nothing(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="drained")
+    assert result.returncode == 2, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["system_outcome"] == "not-run"
+    assert "NOTHING was restarted" in verdicts["reason"]
+    assert "not run: metrics-before" in verdicts["reason"]
+    assert "restart-down-up" not in bench.commands(PERSIST)
+    assert "down" not in _ssh_log(bench)
+    assert bench.package(PERSIST) is not None
+
+
+def test_persistence_stack_that_does_not_come_back_is_a_system_failure(bench):
+    # The controller itself answered 503: that is the stack not coming back,
+    # and the code it answered is named. The six services are still asked
+    # directly over ssh, because that second channel is what can say what the
+    # guest is doing.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="wait_ready")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "answered /ready 503, not 200" in verdicts["reason"]
+    assert "the restart was issued" in verdicts["reason"]
+    assert "services-healthy-again" in bench.commands(PERSIST)
+
+
+def test_persistence_a_controller_nobody_reached_is_not_a_stack_that_failed(bench):
+    # wait_ready gave up with curl's code 000: the request was answered by
+    # nobody - the tunnel of 5.7 dropped during the hour it polls - so nothing
+    # was observed about the stack coming back. That is a record that could not
+    # be made, never the valid negative result this driver's strongest claim is.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="wait_ready-000")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert "NOT REACHED after the restart" in verdicts["reason"]
+    assert "answered /ready 000" not in verdicts["reason"]
+    assert "did not answer /ready 200 within" not in verdicts["reason"]
+    assert "services-healthy-again" in bench.commands(PERSIST), (
+        "the six services must still be asked over ssh, which is the second channel")
+
+
+def test_persistence_readiness_that_was_not_observed_is_not_a_failure(bench):
+    # The step died in the transport, so it reported nothing about /ready: a
+    # status alone never says the stack failed to come back.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="wait_ready-dropped")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert "readiness after the restart was NOT observed" in verdicts["reason"]
+    assert "did not answer /ready 200" not in verdicts["reason"]
+
+
+def test_persistence_services_that_do_not_become_healthy_again_are_a_failure(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="service-unhealthy", **NOW)
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "egw-mongodb-1(status=running health=unhealthy)" in verdicts["reason"]
+
+
+def test_persistence_records_that_nothing_was_published_between_the_snapshots(bench):
+    # The twin and the event log are read on both sides, and a log that grew
+    # means the quiet this demonstration rests on was not held.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="late-records")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "nothing is published between the two snapshots was not held" in verdicts["reason"]
+    assert "the event log of itest-g2-01 grew from 60 to 61 records" in verdicts["reason"]
+
+
+def test_persistence_new_process_that_already_counted_is_not_quiet(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="late-counters")
+    assert result.returncode == 3, report(result)
+    assert "already counted accepted=3" in bench.verdicts(PERSIST)["reason"]
+
+
+def test_persistence_twin_that_cannot_be_read_is_invalid(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="twin-unreadable")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "NOTHING was restarted" in verdicts["reason"]
+    assert "restart-down-up" not in bench.commands(PERSIST)
+
+
+def test_persistence_lost_capture_of_a_mandatory_step_is_invalid(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN,
+                       **bench.fail_capture_of("containers-before"))
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert "the console capture of 'containers-before' failed" in verdicts["reason"]
+    assert "restart-down-up" not in bench.commands(PERSIST)
+    assert bench.package(PERSIST) is not None
+
+
+def test_persistence_restart_that_ended_non_zero_was_not_shown(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="docker-down")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert "the restart was not shown" in verdicts["reason"]
+    assert "the restart was issued" in verdicts["reason"]
+
+
+def test_persistence_without_a_completed_slice_is_a_prerequisite(bench):
+    result = bench.run("persistence.sh", G2_RUN)
+    assert result.returncode == 2, report(result)
+    assert "DRIVER RESULT none: exit=2" in result.stdout
+    assert "persistence.sh runs on a run the slice completed" in result.stderr
+    assert "nothing was restarted" in result.stderr
+    assert not list(bench.attempts.glob(f"*_{PERSIST}_*"))
+
+
+def test_persistence_refuses_a_run_id_it_already_checked(bench):
+    _slice_done(bench)
+    _write(bench.home / "egw-tcg" / "itest" / f"{G2_RUN}.twins.persist-before.json", "{}")
+    result = bench.run("persistence.sh", G2_RUN)
+    assert result.returncode == 2, report(result)
+    assert "its records are write-once" in result.stderr
+    assert "down" not in _ssh_log(bench)
+
+
+def test_persistence_without_its_argument_is_a_prerequisite(bench):
+    result = bench.run("persistence.sh")
+    assert result.returncode == 2, report(result)
+    assert "usage: persistence.sh RUN" in result.stderr
+
+
+def test_persistence_export_failure_outranks_the_verdict(bench):
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, **bench.python_stub(PY_EXPORT_FAILS_ONCE))
+    assert result.returncode == 4, report(result)
+    assert "EXPORT FAILED" in result.stderr
+
+
+def test_persistence_interrupted_ends_and_does_not_continue(bench):
+    # Interrupted while the queue is still being watched: the attempt is
+    # marked interrupted and exported, and NOTHING is restarted after it.
+    _slice_done(bench)
+    hang = Path(str(bench.log) + ".quiescehang")
+    process = subprocess.Popen(["bash", str(bench.drivers / "persistence.sh"), G2_RUN],
+                               env=bench.env(EGW_STUB_QUIESCE_HANG_S="6"),
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    deadline = time.monotonic() + 120
+    while not hang.exists() and time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        time.sleep(0.05)
+    assert hang.exists(), "the quiesce step never started"
+    process.send_signal(signal.SIGTERM)
+    stdout, stderr = process.communicate(timeout=300)
+    assert process.returncode == 130, f"exit={process.returncode}\n{stdout}\n{stderr}"
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["status"] == "interrupted"
+    assert verdicts["system_outcome"] == "interrupted"
+    assert "restart-down-up" not in bench.commands(PERSIST)
+    assert "down" not in _ssh_log(bench)
+    assert bench.package(PERSIST) is not None
+
+
+def test_persistence_twin_that_vanished_is_the_result_it_is(bench):
+    # THE defect this driver exists to find: the restart is shown, the stack
+    # comes back and the API answers 404 for the thing, because the volume did
+    # not hold it. That is the system failing in front of the check - a valid
+    # negative RESULT, exit 1 - and never invalid instrumentation.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="twin-gone")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "the twin's stored state did not survive the restart" in verdicts["reason"]
+    assert "the API answered 404 for org.c2dta:stub-device after the restart" in verdicts["reason"]
+    assert "the twin was not read through the API after the restart" not in verdicts["reason"]
+    assert "RESTART SHOWN" in result.stdout, "the restart was shown before the twin was read"
+    assert "not run: events-after stored-state" in verdicts["reason"]
+    assert bench.package(PERSIST) is not None
+
+
+def test_persistence_twin_that_came_back_without_its_state_is_the_result_it_is(bench):
+    # The thing is there and the state this run stored in it is not: the same
+    # result, read from the body instead of from the code.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="twin-stateless")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "the twin's stored state did not survive the restart" in verdicts["reason"]
+    assert "carries no usable ingestion feature" in verdicts["reason"]
+
+
+def test_persistence_twin_that_could_not_be_read_after_the_restart_is_invalid(bench):
+    # The other side of the same rule: nothing answered at all, so no reading
+    # was made and nothing is concluded about the stored state.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="twin-unreachable")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) \
+        == ("invalid", "inconclusive")
+    assert "the twin was not read through the API after the restart" in verdicts["reason"]
+    assert "the API was not reached (curl exit 7, HTTP code 000)" in verdicts["reason"]
+    assert "did not survive" not in verdicts["reason"]
+
+
+def test_persistence_twin_that_is_not_there_before_the_restart_restarts_nothing(bench):
+    # There is no stored state whose survival a restart could demonstrate: the
+    # check does not run as a protocol check, and NOTHING is restarted.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="twin-gone-before")
+    assert result.returncode == 2, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["system_outcome"] == "not-run"
+    assert "the twin of itest-g2-01 is not there before the restart" in verdicts["reason"]
+    assert "NOTHING was restarted" in verdicts["reason"]
+    assert "restart-down-up" not in bench.commands(PERSIST)
+    assert "down" not in _ssh_log(bench)
+
+
+def test_persistence_step_that_never_reached_the_guest_is_not_the_stack_failing(bench):
+    # The ssh wrapper itself fails after the restart (the session's helpers are
+    # gone): the wait never ran on the guest, so nothing was observed about the
+    # six services. 'the guest did not answer' is not 'the stack did not come
+    # back', and a sentence with nothing after its colon is neither.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="session-helpers-gone", **NOW)
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) \
+        == ("invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert "the wait never reached the guest" in reason
+    assert "came back to 'running' and 'healthy'" not in reason
+    assert "not run: metrics-after" in reason
+
+
+def test_persistence_comparison_that_did_not_run_stops_the_check(bench):
+    # 'same' answered neither 0 nor 4: the two snapshots were not compared, so
+    # the steps after it cannot be trusted with a verdict and are not run.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="rec-same")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) \
+        == ("invalid", "inconclusive")
+    assert "the two twin snapshots were not compared" in verdicts["reason"]
+    assert "not run: twin-after events-after stored-state" in verdicts["reason"]
+    assert "twin-after" not in bench.commands(PERSIST)
+    assert "stored-state" not in bench.commands(PERSIST)
+
+
+def test_persistence_stack_left_down_is_named_in_the_reason_and_on_the_line(bench):
+    # 'down' came back and 'up -d' did not: the guest is left without its
+    # stack, and that is what the operator has to read first - in the reason,
+    # in the next action and on the one final line.
+    _slice_done(bench)
+    result = bench.run("persistence.sh", G2_RUN, EGW_STUB_FAIL="docker-up")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(PERSIST)
+    assert "THE STACK IS DOWN" in verdicts["reason"]
+    assert "did NOT bring it back up" in verdicts["reason"]
+    assert "no volume was removed" in verdicts["reason"]
+    assert verdicts["next_action"].startswith("STOP: FIRST bring the stack back")
+    assert "up -d" in verdicts["next_action"]
+    final = result.stdout.strip().splitlines()[-1]
+    assert "THE STACK IS DOWN" in final, final
+
+
+def test_persistence_interrupted_with_the_stack_down_says_so(bench):
+    # Interrupted in the one window this driver owns: between 'down' and a
+    # 'up -d' that came back. The attempt must say what state the guest is in
+    # and what to do about it - an interruption that recorded 'driver
+    # interrupted' and nothing else would leave an operator believing the
+    # stack is up.
+    _slice_done(bench)
+    hang = Path(str(bench.log) + ".hang")
+    process = subprocess.Popen(["bash", str(bench.drivers / "persistence.sh"), G2_RUN],
+                               env=bench.env(EGW_STUB_HANG_S="30"), start_new_session=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    deadline = time.monotonic() + 180
+    while not hang.exists() and time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        time.sleep(0.05)
+    assert hang.exists(), "the stack was never taken down"
+    # The operator's own interrupt reaches the whole group, as Ctrl-C does:
+    # ssh and the command it is waiting for die with it.
+    os.killpg(os.getpgid(process.pid), signal.SIGINT)
+    stdout, stderr = process.communicate(timeout=300)
+    assert process.returncode == 130, f"exit={process.returncode}\n{stdout}\n{stderr}"
+    verdicts = bench.verdicts(PERSIST)
+    assert verdicts["status"] == "interrupted"
+    assert "THE STACK" in verdicts["reason"], verdicts["reason"]
+    assert "NOTHING was restarted" not in verdicts["reason"]
+    assert verdicts["next_action"].startswith("FIRST bring the stack back")
+    final = stdout.strip().splitlines()[-1]
+    assert "headline=" in final and "interrupted" in final, final
+    assert "THE STACK" in final, final
+    assert bench.package(PERSIST) is not None
+
+
+def test_the_wrappers_answer_one_number_for_a_step_that_never_ran():
+    # gx, gcp and hx each load something before the step's own command runs.
+    # When that loading fails the step never ran, and all three say so with the
+    # one number common.sh names.
+    common = (SESSION_DIR / "common.sh").read_text(encoding="utf-8")
+    shared = (SESSION_DIR / "guest_common.sh").read_text(encoding="utf-8")
+    assert "EXIT_NOT_REACHED=97" in common
+    assert shared.count("exit 97") == 3, "gx, gcp and hx each answer 97"
+
+
+def test_readme_names_both_g2_drivers():
+    readme = (SESSION_DIR / "README.md").read_text(encoding="utf-8")
+    for driver in ("gate_health.sh", "persistence.sh"):
+        assert driver in readme, driver
+    assert "EGW_HEALTH_LIMIT_S" in readme
+    assert "EGW_READY_LIMIT_S" in readme
 
 
 def _plan(bench: Bench, run_id: str = "nominal-r01", seed: int = 7) -> None:

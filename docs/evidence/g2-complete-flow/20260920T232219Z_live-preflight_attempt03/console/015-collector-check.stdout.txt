@@ -1,0 +1,40 @@
+{
+  "run": "preflight-20260920T232219Z",
+  "deployed_sha256": "11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6",
+  "rows_per_service": {
+    "egw-ditto-things-1": 45,
+    "egw-mongodb-1": 45,
+    "egw-ditto-gateway-1": 45,
+    "egw-ditto-policies-1": 45,
+    "egw-controller-1": 45,
+    "egw-mosquitto-1": 45
+  },
+  "unexpected_names": [],
+  "distinct_instants": 45,
+  "distinct_instants_in_window": 45,
+  "window": [
+    "2026-09-20T23:23:27Z",
+    "2026-09-20T23:24:12Z"
+  ],
+  "window_seconds": 45,
+  "start_line": "2026-09-20T23:23:27Z start: collector_sha256=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 host=egw-qemu-integrated source=auto interval=1s duration=45s pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "stop_line": "2026-09-20T23:24:12Z stop: samples=46 utc_gap_seconds=0 withheld_samples=0 withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=1 pacing=wall-clock",
+  "inventory": "2026-09-20T23:24:12Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0",
+  "declared_expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "declared_interval_s": 1.0,
+  "declared_duration_s": 45.0,
+  "declared_duration_shortfall_s": null,
+  "rounds_the_declared_interval_implies": 46,
+  "samples": 46,
+  "closing_counters": {
+    "utc_gap_seconds": "0",
+    "withheld_samples": "0",
+    "withheld_elapsed_s": "0.00",
+    "withheld_runs_unmeasured": "0",
+    "withheld_open_at_stop": "0"
+  },
+  "closing_record_reconciliation": "run",
+  "resource_validation": "run",
+  "observations": [],
+  "problems": []
+}

@@ -1,0 +1,17 @@
+{
+  "label": "before",
+  "seed": 20260921,
+  "devices": {
+    "62da1188-4cd1-434b-a9c7-236a8c211f84": {
+      "device_type": "smartwatch",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    }
+  }
+}

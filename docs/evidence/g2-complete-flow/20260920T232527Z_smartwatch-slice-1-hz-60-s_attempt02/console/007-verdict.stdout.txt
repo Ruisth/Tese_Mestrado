@@ -1,0 +1,11 @@
+{
+  "confirmation_deadline_source": "controller-marker",
+  "sent_valid": 60,
+  "delivered_unique": 60,
+  "lost": 0,
+  "late_confirmations": 0,
+  "double_accepted": 0,
+  "intended_invalid_accepted": 0,
+  "marker_lag_s": 0.184
+}
+SLICE PASS check=0 delta=0 unaccounted=no

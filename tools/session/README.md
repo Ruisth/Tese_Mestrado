@@ -13,7 +13,9 @@ clone that holds this folder is the `REPO` whose commit every attempt records.
 | `backfill.sh` | the historical capsules copied on 2026-09-19 (a record of that run; workstation paths) | one `HIST_...` package each |
 | `guest_session_open.sh` | records the OS, launcher, QEMU, clone and image identities, boots the guest with `guest/`, records its state | `guest session` (open until closed) |
 | `preflight.sh` | runbook 5.5 interlock and `up -d`, installs the clone's collector, compares the deployed tree with the clone, health, OOM, storage, clocks, broker secrets, SUT environment with the emulation label, then a 45 s collector run with the six expected services, fetched with the repository's `fetch-collector-output.sh` (every mandatory file verified against the guest's own sha256) and checked | `live preflight` |
+| `gate_health.sh` | the G2 gate's precondition snapshot, and nothing else (it starts, changes and publishes nothing): the six services **running and healthy**, `/health` 200 with `{"status":"ok"}` and `/ready` 200, every `/metrics` counter and `queue_depth` 0 for an identified controller process, the six container identities with the controller build identity, and the publishing path's TLS material as configuration | `G2 gate preconditions` |
 | `slice.sh RUN SEED` | runbook 6.2-6.4: one smartwatch at 1 Hz for 60 s, isolated run id and unused seed, identity reconciliation, twin read-back, `check` and `delta` | `smartwatch slice 1 Hz 60 s` |
+| `persistence.sh RUN` | runbook 6.5 on the run the slice produced: quiesce, the state before, `compose down` then `up -d` with the volumes preserved, the restart **shown**, ready and healthy again, the `post-restart` snapshot, `same`, and an independent twin read — with nothing published between the two snapshots | `G2 twin persistence restart` |
 | `nominal.sh RUN_ID` | the pilot plan's nominal entry (120 s warm-up, 600 s measured) through `harness_run`, between two records of the guest's container state, then the drain, the post-drain and warm-up event logs, snapshots and an identity accounting (`nominal_account.py`) | `nominal instrumentation 120+600` |
 | `guest_session_close.sh` | stops the stack **before** power-off (runbook 3.3), keeps the journal and final state, powers off, checks the G1 artefacts of the sealed **non-integrated** build (`src/yocto/build`, which is what the G1 reference lists) | closes and exports `guest session` |
 
@@ -21,6 +23,30 @@ Each attempt reports instrumentation validity and system outcome separately: a
 valid run in which messages were late or lost is a system failure, not invalid
 evidence. `regen_helpers.py` regenerates `~/egw-tcg/itest-helpers.sh` from the
 runbook's section 6.1 heredoc, keeping the previous file beside it.
+
+The G2 closure session (work order of 2026-09-20, section 4) is one sitting:
+`guest_session_open.sh` → `preflight.sh` → `gate_health.sh` →
+`slice.sh <fresh run id> <unused seed>` → `persistence.sh <that run id>` →
+`guest_session_close.sh`.
+
+**The `running and healthy` wait is written once.** The engineering preflight
+passes with a health check that has not concluded, because there a container is
+judged by its state alone; G2 requires all six services `running` **and**
+`healthy`. That stricter wait lives in `guest_common.sh` as
+`healthy_wait_script` / `healthy_wait`, and `gate_health.sh` and
+`persistence.sh` both call it, so the gate and the check after the restart can
+never drift apart. It polls about every `EGW_HEALTH_STEP_S` seconds until
+`EGW_HEALTH_LIMIT_S` has passed and prints **every** sample with its instant, so
+a transition (`starting` → `healthy`) is visible in the console record rather
+than only its result. Its answer is one of four, and the two that are not a
+pass are never mixed: `0` all six running and healthy, `1` the limit passed and
+at least one of them was not (the system's own state: `valid` + `fail`, exit 1),
+`2` the state of at least one of them could **not be determined at all** (an
+inspect that failed for any other reason, a health field that could not be read:
+invalid instrumentation, exit 3) and `4` both, where each is recorded in its own
+group. Only the daemon's own `No such object` is a container that is gone; of
+the health field, `starting`, `unhealthy` and `none` are all simply not
+`healthy` here, are polled again and are recorded as the word they are.
 
 **Observing the system fail is a result; failing to observe is an invalid
 measurement.** A positively observed fault — a container OOM-killed, restarted,
@@ -191,6 +217,23 @@ reason names the capture, never the step, and a prerequisite whose capture was
 lost leaves the outcome `inconclusive` (code 3, because `capture_failures` is
 not empty), never `not-run`.
 
+A step run through one of the wrappers of `guest_common.sh` (`gx`, `gcp`, `hx`)
+answers **97** (`EXIT_NOT_REACHED`, `common.sh`) when it **never reached what
+it was to run**: the session's ssh helpers could not be loaded, `ssh` itself
+could not connect (its own 255), or the host preamble of runbook 6.1 failed.
+The step's command never ran there, so nothing it would have observed was
+observed: a driver records "the guest did not answer" (invalid instrumentation)
+and never reads a fault out of it. That is what tells a guest that did not
+answer from a guest that answered something the gate does not accept — the two
+used to arrive as the same status 1.
+
+An attempt may also carry a **`headline`**: one sentence, written by the
+driver, naming what the operator has to act on. Two runs can derive the same
+code and call for different actions — a controller stuck `starting` and a
+controller that was never reached are both non-zero — so `driver_status.py`
+prints that sentence, quoted, at the end of the final line. It never changes
+the derived code.
+
 **Zero never authorises a dependent test by itself.** A diagnostic command can
 exit 0 with `system_outcome=fail`, so the caller reads the verdicts on that
 line (or in `attempt.json`) before starting anything that depends on the
@@ -219,6 +262,8 @@ verdict of that window.
 | `preflight.sh` | `stack-health` exit 3: a service not running, one reported `unhealthy` or one not there at all, a container OOM-killed, or a memory-cgroup OOM line in this boot (`starting` and `none` are judged by the state alone); exit 4 records the same fault beside a state it could not determine, whose prerequisite verdict stands. The reason names the steps that were then not run | — |
 | `nominal.sh` | the faults `guest_state_delta.py` printed (a container OOM-killed, restarted — by its count or by the instant it last started — replaced, gone, or a memory-cgroup OOM line), whether it could complete the comparison (exit 1) or not (exit 2, where the comparison is `mandatory` as well), and a `post-drain` whose own record says it gave up without a quiet window | the `post-drain`, `fetch-post-drain-events`, `fetch-warmup-events`, `after-snapshots`, `identity-accounting`, and a delivery row that was not read or does not carry `sent_valid`, `delivered_unique`, `lost` and `late_confirmations` as whole numbers (the outcome is then `inconclusive`, unless a fault was observed: a failure is not lowered to undecided) |
 | `guest_session_close.sh` | `oom-before-poweroff` exit 3: the kernel reports memory-cgroup OOM line(s) in this boot | — |
+| `gate_health.sh` | a service that did not reach `running` and `healthy` within the limit (the shared wait's exit 1), `/health` or `/ready` **answering** anything other than 200 with `{"status":"ok"}` (a 503 is the system's answer), a `/metrics` counter or `queue_depth` that is not 0, and a broker whose configuration is not TLS with anonymous access refused. Each names the service, the code or the counter, and the reason names the **first** thing that was not as G2 requires, which is also the `headline` on the final line. A request that never reached the controller is not one of these: curl prints the code `000` and writes an empty body for its own 7 or 28, so each of the three readings keeps curl's status beside the code and a reading that was not made is invalid (3), never "the controller answered 000" | — |
+| `persistence.sh` | a `ready-again` whose own record carries `wait_ready`'s give-up (`STOP: wait_ready: /ready answered …, not 200, for … s`) and a stack that did not come back `healthy` — the steps after either are then not run, which the reason says — `$REC same` reporting DIFFERENT, a twin the API answers **404** for after the restart (the volume did not hold it) or one that comes back without the state this run stored in it, and a stored state that did not come back unchanged (`stored-state` exit 1). A `ready-again` that ended any other way (a preamble that failed, a transport that dropped) reported nothing about `/ready`, and a twin that could not be READ at all (the API not reached, another code, a body that is not JSON) is a reading that was not made: both are invalid (3), never the stack failing to come back or the state failing to survive | — |
 
 | Driver | Prerequisites | Mandatory | Informational |
 |---|---|---|---|
@@ -226,7 +271,18 @@ verdict of that window.
 | `backfill.sh` | — | every capsule reaches `output_test` as a verified package (4 otherwise) | — |
 | `guest_session_open.sh` | no session open, no `qemu-system-aarch64` running, the attempt, its fields and the clone's identity, the record of the open session in `$EXEC/current_session` (written and read back **before** the boot), the session's own directories and the guest scripts copied into it, the driver copies kept with the session, the identities read before the boot (every artefact, binary and checkout it names, not only the last one read), the boot | the guest state after the boot (recorded on the still-open attempt as invalid instrumentation), every command that record is made of — `systemctl is-system-running`, `docker ps -a` (the six-container stack is what the session is for) and `df` — not only the `dmesg` that ends it, and the writing of each of those verdicts, and of the qemu pid, on the attempt: a `local_export set` that failed leaves the record saying nothing, so the driver ends 3 and names what is missing instead of deriving 0 from an `attempt.json` that never received it | the venv freeze, `uptime`, `free`, the journal grep, `timedatectl` |
 | `preflight.sh` | the attempt's fields and the clone's identity, stack-start interlock, deployed tree listing and `deployed_vs_clone.py` in both directions with the listing's own exclusions (only `README.md` may differ), controller readiness, a stack health the step could **determine** at all (a docker that does not answer at all, a health state that is not available, or a `dmesg` that cannot be read — exit 1, and exit 4 when it saw a fault as well; a stack it saw failing, a service container included that docker answers for by not holding it, is exit 3, in the observed table above), broker-secret check, SUT environment capture and fetch | collector copy and install (the installed hash must equal the clone's), the live collector run, the fetch through `fetch-collector-output.sh`, `collector_check.py`, the collector's own window against the `duration=` its own `start:` line declares (`collector_shortfall.py`, run as a step of its own so that its stdout, stderr and exit code are in `console/` and `commands.jsonl`: `collector_check.py` validates a collection against that same window, so a collection that ended early reads clean there and only this comparison sees it — the `--duration 45` the driver passed is not compared with the declaration, so a collector that declares some other duration is not seen), the clock observations — both of them lists of commands, each judged on all of them | — |
+| `gate_health.sh` | no argument at all, the open session, `EGW_HEALTH_LIMIT_S` and `EGW_HEALTH_STEP_S` as whole seconds, every guest parameter writable into a guest command as the literal it is, the attempt, its fields and the clone's identity (outcome `not-run`, 2: nothing was read, and this driver changes nothing either way) | all five steps of the snapshot: the shared wait answering at all (97: it never reached the guest, so the state of the six services was not observed), the reading of the three endpoints, the two verdicts over what it kept (each `2` means there is nothing to judge, never the `1` of a system failure, and it names a reading that was not made), the six container identities **and their copy into `environment/`** — including a repo digest an image inspect could not read at all, which is `NOT-READ` and not `none` (an image built on the guest has no repo digest, which its inspect answers) — the fetch of the controller build identity **and its content**, empty being no identity, and the TLS record (`2`: a configuration, a CA fingerprint or a file mode that could not be read) | — |
 | `slice.sh` | a run id and a seed, the open session, the attempt's fields, identity and source, `pre` | simulator and marker, the `after` state, the twin read-back, `check` (0 required; 3 = no marker, 1 = not carried out), `delta` (0 and 4 are results, anything else is not), the verdict script (only 0 and 1 are verdicts; 2 = nothing to judge) | — |
+| `persistence.sh` | the run id, the open session, the bounded waits as whole seconds, every guest parameter writable as the literal it is, the `after` pair and `sent_events.jsonl` of a slice that completed, a run id whose `persist-before`/`post-restart` snapshots do not exist yet (they are write-once), the attempt's fields, identity and source, `quiesce` (`drained`), and a twin the API answers 404 for **before** the restart (there is no stored state whose survival a restart could demonstrate): each is outcome `not-run`, 2, and **nothing is restarted** | every record the demonstration is made of: the controller process, the container ids and start instants, the independent twin read and the event log count **before** the restart (their failure stops the driver before anything is restarted), the restart command itself, the records after it, `restart-shown` (exit 1 names what did not change, exit 2 means the records could not be judged — either way the persistence was NOT demonstrated: invalid, `inconclusive`, 3), the `post-restart` snapshot, a `same` that did not run at all (the sequence stops there: what follows could not be trusted with a verdict), the twin read after that could not be MADE and the event count after, and `stored-state` exit 3 (something WAS published between the two snapshots, so the requirement the comparison rests on was not held) | — |
+
+`persistence.sh` owns one window in which the guest has no stack at all:
+between `compose down` and a `compose up -d` that came back. Every ending of
+that driver — its interrupt handler included — reads from what the restart step
+itself reported which state the guest is in (`not-restarted`, `refused`,
+`down`, `up`, or not known because the step was cut short) and says it in the
+reason, in the next action and in the `headline` on the final line, so that a
+run which stopped in that window never leaves an operator believing the stack
+is up. No volume is ever removed, so the stored state is intact either way.
 | `nominal.sh` | a plan run id, the open session, the plan's seed, a fresh raw directory, the attempt's fields, identity and source, the collector copy and sync (the deployed hash must equal the clone's), the guest state **before** the run, `pre` | the harness run (its manifest decides validity), **the copy of the before/after snapshots into `analysis/snapshots/`**, the guest state after, `guest_state_delta.py --expect` when it cannot compare the two records at all (exit 2: a record that does not hold the six expected services in the *before* state, or that names one twice or without its id and start instant — any fault it saw all the same is kept in the observed table above), the clock domain the 60 s confirmation deadline rests on (`controller_marker.ok`, `confirmation_deadline_source`, read only when the accounting that carries them succeeded), and any of these steps whose console capture was lost (74) | — |
 | `guest_session_close.sh` | an open session | the stack stop, a `dmesg` that can be read at all for the OOM record (an OOM it *finds* is exit 3 of that step: the record is sound and the system failed — outcome `fail`, exit 1), the power-off (`guest/session_close.sh`, which also checks the sealed G1 artefacts) and no `qemu-system-aarch64` left — each failure gives 5, while a `pgrep` that could not answer at all is not a failed stop but an undecided close (3, below); the record of the artefacts after the power-off (the rootfs hash **and** the data-disk listing, each judged, not only the last command of the step), the boot journal and the final guest state that `guest/session_close.sh` keeps (exit 3: the guest IS off and the record of the close is not complete), and any of these steps whose console capture was lost (74), leave the session closed but its record incomplete: invalid, inconclusive, 3 | the tunnel teardown (a lost console capture of it is still named) |
 
@@ -277,6 +333,15 @@ the fetch (its absence never fails it) and a **problem** for
 | `EGW_DATA_DISK` | `/home/ruisth/yocto/egw-integrated/egw-data.img` | the guest's data disk |
 | `EGW_IMAGES_DIR` | `/home/ruisth/egw-images` | controller image archive and identity record |
 | `EGW_GUEST_KNOWN_HOSTS`, `EGW_G1_REFERENCE` | the 2026-09-18 capsules | the guest's pinned host key; the G1 artefact checksums |
+| `EGW_HEALTH_LIMIT_S` | `1800` | bounded wait for the six services `running` and `healthy` (`gate_health.sh`, `persistence.sh`) |
+| `EGW_HEALTH_STEP_S` | `15` | how often that wait takes a sample; every sample is kept |
+| `EGW_READY_LIMIT_S` | `3600` | bounded `wait_ready` after the restart (runbook 6.5: an hour is the upper bound for the JVM start-up under TCG) |
+| `EGW_DEPLOYED_DIR` | `/opt/egw/deployment` | the deployment tree on the guest |
+| `EGW_CONTROLLER_IDENTITY` | `/opt/egw/images/egw-controller-0.1.0-arm64.identity.txt` | the controller build identity recorded on the guest |
+
+Each of the three waits is read as whole seconds or not at all: a value that is
+not one stops the driver with 2 and is never silently replaced by the default,
+because the driver would then wait for something nobody asked for.
 
 The OS image is not rebuilt by any driver: the launcher runs from
 `EGW_YOCTO_CHECKOUT`, whose build directory holds the identified kernel and

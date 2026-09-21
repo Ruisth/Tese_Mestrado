@@ -1,0 +1,8 @@
+[2026-09-18T16:57:49Z] images-boot-01: guest up, is-system-running=running
+[2026-09-18T16:59:41Z] images-boot-01: guest script ssh exit=0 ; PULL RESULT: failed_checks=9
+[2026-09-18T16:59:47Z] images-boot-01: exit=0 finished=2026-09-18T16:59:46Z
+[2026-09-18T16:59:48Z] images-boot-01: session done: exit=1 finished=2026-09-18T16:59:48Z
+[2026-09-18T17:01:18Z] images-boot-02: guest up, is-system-running=running
+[2026-09-18T17:01:24Z] images-boot-02: guest script ssh exit=0 ; IDENTITY RESULT: failed_checks=0
+[2026-09-18T17:01:29Z] images-boot-02: exit=0 finished=2026-09-18T17:01:28Z
+[2026-09-18T17:01:31Z] images-boot-02: session done: exit=0 finished=2026-09-18T17:01:31Z

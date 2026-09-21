@@ -1,0 +1,7 @@
+stop exit=0
+egw-controller-1 Exited (0) 11 seconds ago
+egw-ditto-things-1 Exited (143) 6 seconds ago
+egw-ditto-gateway-1 Exited (143) 5 seconds ago
+egw-ditto-policies-1 Exited (143) 2 seconds ago
+egw-mongodb-1 Exited (0) 1 second ago
+egw-mosquitto-1 Exited (0) 9 seconds ago

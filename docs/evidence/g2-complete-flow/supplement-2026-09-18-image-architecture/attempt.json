@@ -1,0 +1,21 @@
+{
+  "created_utc": "2026-09-18T00:00:00.000000Z",
+  "date": "2026-09-18",
+  "emulated": true,
+  "ended_utc": null,
+  "expected_artefacts": [],
+  "historical": true,
+  "identities": {},
+  "instrumentation_validity": "unknown",
+  "next_action": "",
+  "original_identity": "/home/ruisth/yocto/evidence-candidates/2026-09-18-stack-images-provisioning",
+  "purpose": "engineering",
+  "reason": "candidate capsule; image identities; sealed locally; not admitted",
+  "run_id": "HIST_2026-09-18-stack-images-provisioning",
+  "scenario": "stack image provisioning",
+  "seed": null,
+  "started_utc": null,
+  "status": "finished",
+  "system_outcome": "unknown",
+  "workload": {}
+}

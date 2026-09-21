@@ -30,3 +30,8 @@ docs/evidence/word-import-2026-09-17/*.blg -text whitespace=-blank-at-eol,-blank
 # console transcripts keep the carriage returns and escape sequences of the
 # pseudo-terminal, and every file is covered by a SHA-256 manifest.
 docs/evidence/integrated-qemu/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+
+# Preserve the captured bytes of the G2 complete-flow capsule: the console
+# transcripts of the guest session keep the carriage returns of the
+# pseudo-terminal, and every file is covered by a SHA-256 manifest.
+docs/evidence/g2-complete-flow/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

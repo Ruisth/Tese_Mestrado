@@ -1,0 +1,25 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-09-20T23:22:05.688032Z",
+  "emulated": true,
+  "ended_utc": "2026-09-20T23:22:08.732190Z",
+  "expected_artefacts": [],
+  "historical": false,
+  "identities": {
+    "reason": "the deployed tree lacked src/deployment/scripts/fetch-collector-output.sh, which the clone has since pull request 38; runbook 5.1 copies that tree to the guest",
+    "repo_commit": "b7e0c83c3277f7469c05336f91949e7d1b89489a"
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "repeat the preflight",
+  "pid": 964,
+  "purpose": "engineering",
+  "reason": "the clone fetch helper was deployed to /opt/egw/deployment/scripts (runbook 5.1); the deployed tree now holds every file of the clone",
+  "run_id": "20260920T232205Z_deploy-the-clone-fetch-helper_attempt01",
+  "scenario": "deploy the clone fetch helper",
+  "seed": null,
+  "started_utc": "2026-09-20T23:22:05.759279Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {}
+}

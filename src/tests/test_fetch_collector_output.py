@@ -324,18 +324,24 @@ def test_the_harness_reads_what_the_real_collector_writes(bench: Bench) -> None:
     assert inspection["stop_line"] is not None
     assert inspection["rows_per_expected_service"] == {"egw-controller-1": 1, "egw-mosquitto-1": 1}
     assert inspection["self_test_present"] is True
-    # Two problems, both of them inherent in this capsule: the one a
-    # self-test run must always raise, and the one a collection that began
-    # and ended inside the same wall-clock second must raise -- its start and
-    # stop records carry the same stamp, so they bound no window and no
-    # closing record can be reconciled against it. The preflight half has
-    # refused that shape since it was written; the harness half now refuses
-    # it in the same words (2026-09-20).
-    assert len(inspection["problems"]) == 2, inspection["problems"]
-    assert "NOT a measurement" in inspection["problems"][0]
-    assert (
-        "the measured window is reversed or empty" in inspection["problems"][1]
-    ), inspection["problems"]
-    assert inspection["window_seconds"] is None
+    # The problem a self-test run must always raise, and then whichever of the
+    # two shapes this capsule has: a run that began and ended inside one
+    # wall-clock second carries the same stamp in its start and stop records,
+    # so they bound no window and nothing can be reconciled against them (the
+    # preflight half has refused that shape since it was written; the harness
+    # half refuses it in the same words since 2026-09-20), while the same run
+    # across a second boundary bounds a window and raises nothing more. Which
+    # of the two it is depends on how busy the machine is, so the test asserts
+    # the rule rather than the timing.
+    problems = inspection["problems"]
+    assert "NOT a measurement" in problems[0], problems
+    empty_window = [p for p in problems if "the measured window is reversed or empty" in p]
+    if inspection["window_seconds"] is None:
+        assert empty_window, problems
+        assert len(problems) == 2, problems
+    else:
+        assert not empty_window, problems
+        assert len(problems) == 1, problems
+        assert inspection["window_seconds"] >= 0
     for key in ("csv", "diagnostics", "lifecycle", "self_test"):
         assert inspection["files"][key]["present"] is True

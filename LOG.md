@@ -2609,3 +2609,225 @@ is unchanged.
   historical bytes. A separate documentary review identified only version-link
   ambiguity, corrected before publication. No application tests were required
   for this documentation-only change.
+
+---
+
+## Entry #C038 — The complete G2 flow inside the emulated guest, and the acceptance proposal it is presented with
+
+- **Date:** 2026-09-21
+- **Request:** the project-management work order of 2026-09-20 (held outside
+  this repository) and its five clauses — preparation, complete path,
+  persistence, evidence and acceptance: assemble the complete G2 candidate on a
+  clean identified baseline, establish the gate preconditions the plan asks for
+  rather than the weaker ones an engineering preflight accepts, run exactly one
+  bounded flow, prove stored-state persistence while nothing is in flight,
+  publish the capsule and put the gate to the student clause by clause. The
+  nine integration families, the nominal workload, the soak and the 95 runs are
+  not part of it.
+- **Action — the two drivers.** `tools/session/gate_health.sh` for the stricter
+  G2 preconditions and `tools/session/persistence.sh` for section 6.5 of the
+  runbook, versioned at `b7e0c83` on `feat/g2-session-drivers` above the merged
+  `dev` at `ccd5fd6`. Unlike the session of 2026-09-19, whose live observations
+  came from unversioned working copies, **six of the seven attempts of this
+  session record `repo_commit b7e0c83…` with `repo_dirty_lines: 0`**, read by
+  the driver itself: what ran is what the repository holds. The seventh, the
+  single-file deployment between the two preflights, was not run by a driver;
+  its identities were written by hand and name the commit without a dirty-line
+  count.
+- **Action — the session.** One guest session
+  (`20260920T231756Z_guest-session_attempt02`): identities read before the boot,
+  boot, state after the boot, the stack stopped before power-off, and the three
+  artefacts the G1 seal covers — `Image`, `egw-image-qemuarm64.rootfs.ext4` and
+  `egw-image-qemuarm64.rootfs.manifest` — each read back `OK` afterwards; every
+  command of the attempt exited 0. The
+  candidate is the image `egw-gateway-image-qemuarm64` of build
+  `20260918120819` (kernel
+  `Image-qemuarm64.bin` `4457ef38…`, rootfs archive `d4569c0e…`) under QEMU
+  8.2.7 TCG, `-machine virt -cpu cortex-a76 -smp 4 -m 8192`, with the six
+  container identities and the controller build identity `0dfa5314…`. **ARM64
+  EMULATED (QEMU/TCG) on an x86-64 host; never native ARM64, never KVM.**
+- **The preflight that failed, and why.**
+  `20260920T231844Z_live-preflight_attempt02` is recorded **`failed`, with the
+  instrumentation invalid and the system not run, and is kept**. The
+  two-directional comparison of the deployed tree against the clean clone found
+  `src/deployment/scripts/fetch-collector-output.sh` in the clone and not on the
+  guest — a file the clone has carried since pull request #38 — so the driver
+  stopped at that prerequisite and recorded the eleven checks after it as not
+  run, rather than reporting a preflight it could no longer trust. **The
+  six-container stack was started inside this failed attempt**, not inside the
+  one that repeated it: its first command ran the 5.5 interlock and `up -d`
+  between 23:18:44 and 23:21:18, creating and starting all six containers, and
+  the failure came four commands later. This is the one-directional comparison
+  corrected on 2026-09-20 doing its work: the earlier
+  form compared only the paths the guest listed, so a file the clone held and
+  the guest had never received was not a difference at all, and the preflight
+  would have passed.
+- **What was fixed, and how.**
+  `20260920T232205Z_deploy-the-clone-fetch-helper_attempt01` deployed that
+  single file in one command, whose argv the package seals: the session's own
+  `gscp` helper copied `src/deployment/scripts/fetch-collector-output.sh` from
+  the execution clone to `/tmp/fetch-collector-output.sh` on the guest, then
+  `gssh` ran `sudo cp`
+  of it into `/opt/egw/deployment/scripts/`, `sudo chmod 0755` and `sha256sum`
+  over the two guest paths. **That was a bounded single-file deployment made by
+  the developer between the two preflight attempts, not the runbook's
+  deployment step**: the attempt's own note cites runbook 5.1 as the provenance
+  of the deployed tree, but no step 5.1 was run. The two hashes the attempt
+  holds are **both hashes on the guest** — `/tmp/fetch-collector-output.sh` and
+  `/opt/egw/deployment/scripts/fetch-collector-output.sh`, each
+  `9ae07b0c…` — so what they show is that the copy which arrived equals the
+  file that was installed; the clone-side hash was printed outside the attempt
+  and is not in the package. The repeat ran under a new attempt identity,
+  `20260920T232219Z_live-preflight_attempt03`, whose sixteen commands all
+  exited 0: the 5.5 interlock re-run, its `up -d` finding all six containers
+  already `Running`, the clone's collector deployed and checked live (46 samples, 45 distinct instants, 45 rows for each of the six services,
+  no UTC gap, no withheld sample, `missing=none`, no problem), and the deployed
+  tree equal to the clone except `README.md`. The services had been started from
+  the tree as it stood before that copy; the file is an instrumentation helper
+  and not a service input, and the tree was equal to the clone before the gate
+  snapshot and before the flow.
+- **Results — the gate preconditions.**
+  `20260920T232447Z_g2-gate-preconditions_attempt01`, all seven commands exit
+  0: the six expected services **running and healthy** — the plan's condition, not the
+  `running starting` of the older snapshot — `/health` 200 `{"status":"ok"}`,
+  `/ready` 200 with MQTT connected and Ditto reachable, and `/metrics` 200 with
+  every counter and `queue_depth` at 0 for the controller process identified by
+  `started_at 2026-09-20T23:21:31.554Z`; the six container identities, **five of
+  which carry a pinned repository digest** — the controller's records
+  `repo_digest=none`, because that image was built locally and never pulled
+  from a registry, and it is identified instead by its image id and its build
+  record; the controller build identity verified against its record, and the
+  broker's TLS configuration recorded as configuration only (listener 8883,
+  `cafile`/`certfile`/`keyfile`, `tls_version tlsv1.2`, `allow_anonymous false`,
+  CA fingerprint `AA:34:ED:1E:…`, private material at mode 600, read as uid:gid
+  1883:1883). **Anonymous access is disabled in that configuration and its
+  refusal was not exercised in this session.** The attempt's console closes with
+  the sentence "anonymous access is refused"; that is the check reading the
+  setting, not an observed refusal, and it stands in the sealed package exactly
+  as it was written — the distinction is carried by the narrative, not by an
+  edit to the evidence. The driver was corrected afterwards, at the head of this
+  branch, to say in its own words that `allow_anonymous` is false, "which is the
+  configuration and not an exercised refusal"; that changes what future runs
+  record and nothing in this one. **An unexercised case is not a passed one**,
+  and exercised invalid-input rejection, duplicate replay and transport or
+  authorisation refusal are G3 conditions.
+- **Results — the flow.**
+  `20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02`, all seven commands
+  exit 0, run `itest-g2-01`, seed 20260921, one smartwatch at 1 Hz for 60 s over TLS to port
+  8883: 60 sent valid, 60 delivered unique, **lost 0, late 0, double-accepted 0,
+  intended-invalid accepted 0**, deadline from the controller marker, marker lag
+  0.184 s, nothing unaccounted. The twin
+  `org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84` did not exist before and came
+  out with `last_run_id itest-g2-01`, `last_seq 59`, `accepted_count 60`, its
+  fields matching section 4 of `src/CONTRACTS.md`; `/metrics accepted 0 -> 60`
+  and `received 0 -> 60` as well, with every other counter and `queue_depth` at
+  0. The latency block it also produced carries its own emulation label and is
+  not a performance result; its figures — p50 274.2 ms, p95 8 114.7 ms, max
+  9 999.0 ms over 60 confirmations at 1 msg/s — are written out in limitation
+  15 of the proposal so that the student reads them rather than passes them.
+- **Results — persistence.**
+  `20260920T233212Z_g2-twin-persistence-restart_attempt01`, all seventeen
+  commands exit 0: publication stopped and the queue drained (`queue_depth 0` and identical counters on 27
+  consecutive readings over 131 s, recorded as an observation and not as proof
+  that processing had finished); state saved; `compose down` then `up -d` with
+  **no volume removed**; the restart **shown**, controller
+  `started_at 23:21:31.554Z -> 23:37:38.535Z` and all six containers new objects
+  started later; all six healthy again at sample 2 of the poll that followed,
+  and readiness re-checked by `wait_ready 3600`, which exited 0 — **that exit
+  status is the whole of the evidence for the readiness half**, because the
+  helper requests `/ready` with the body discarded by construction, returns 0
+  **only** when the status is 200 and deliberately prints nothing when it
+  succeeds, so both console files of that command are empty. The helper's text
+  is bound to the attempt by hash (`f94cff6f…`, the same SHA-256 as the one the
+  runbook generates at revision `0fd75b9`), so what that 0 means is fixed by a
+  text the evidence names rather than assumed, and the six healthy containers
+  and the intact twin corroborate the recovery. **No response body was captured,
+  and none is reconstructed or inserted into the sealed attempt afterwards**: it
+  is a recording limitation of this attempt, disclosed as limitation 16 of the
+  proposal, to be repaired in future planned runs by recording the explicit HTTP
+  status and the `/ready` body — not by repeating this session. And, before
+  anything further was published, the same twin read back
+  identical, with the run's event log holding
+  60 records before and 60 after. The new controller process's counters are 0
+  again, which is expected of a per-process counter and is not loss.
+- **Published.** The capsule `docs/evidence/g2-complete-flow/` holds the seven
+  attempts, the failed preflight among them, each with its own seal and
+  manifest; the local packages are under `output_test/runs/2026-09-20/`, which
+  is a local copy and neither published evidence nor a backup.
+- **Published — the supplement of 2026-09-18, for one clause only.** Beside the
+  seven attempts the capsule carries
+  `docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/`: a
+  byte-for-byte copy of the already sealed local package of the stack image
+  provisioning of **2026-09-18**
+  (`output_test/runs/2026-09-18/HIST_2026-09-18-stack-images-provisioning`), its
+  32 files at the exact relative paths its own two seals record — 31 entries and
+  25 — so that both still verify in place, with one `README.md` added by this
+  repository and covered by the capsule's outer seal. **The seven attempt
+  packages were not altered or re-sealed**; only the outer `SHA256SUMS` was
+  written again so that it covers the supplement as well. It answers clause G2.3
+  and nothing else: `arch=arm64 os=linux` for each of the five registry images,
+  read from `guest/image-identities.txt` (`7419ce94…`, 2026-09-18 17:01:19 UTC,
+  20 checks, `failed_checks=0`), over the **same five full image ids and the
+  same five repository digests** as this session's gate snapshot. **Those fields
+  were recorded on 2026-09-18 and were not captured during the G2 session**, no
+  artefact of the seven packages holds them, and the bridge holds only for these
+  exact image ids: a later candidate that changes an image needs it reassessed
+  for that image. The earlier guest session of that day, whose pull transcript
+  ends `failed_checks=9` because the check template asked for a field the Ditto
+  image configurations do not carry, is kept in the package and is **not** read
+  as a pass. No flow, timing, persistence or health result of 2026-09-20 depends
+  on this directory, and none is imported from 2026-09-18.
+- **Why the supplement and the qualifications were added.** A project-management
+  review of this G2 package, recorded 2026-09-21 and held outside this
+  repository, found that the architecture question could be closed from evidence
+  that already existed and was already sealed, rather than by waiving the
+  requirement or running the guest again; that the missing readiness body is a
+  disclosed recording limitation with hash-linked exit-status evidence; and that
+  the unexercised negative cases belong to G3, with the wording about anonymous
+  access corrected because configuration is not an exercised refusal. The work
+  that followed is documentary: publication, traceability and wording. **No test
+  was repeated, no sealed record was rewritten and no gate was decided.**
+- **The proposal.**
+  [`docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md`](docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md)
+  sets the session against the normative G2 clauses and the conditions common to
+  G2–G7 one row at a time, with the exact evidence path for each. It resolves
+  G2.3 by the supplement, under the qualification stated there; it qualifies the
+  readiness half of the restart as indirect and as a disclosed recording
+  limitation; it records what holds **without being exercised** (no
+  intended-invalid payload was offered, and no refusal probe was run — anonymous
+  access is disabled in configuration and its refusal was not tested, which
+  belongs to G3); and it keeps the residual limitations of the demonstration
+  itself: one device, sixty messages, one restart, one guest, one repetition, an
+  emulated platform, a publisher that runs on the host and reaches the guest
+  through port-forwards, and a controller image whose Python dependencies are
+  still unlocked. Its closing section gives a clause-by-clause closure
+  recommendation, one bounded sentence of what the student would accept, and
+  what stays open — a recommendation, not a decision.
+- **What is not shown.** No gate is decided and no claim moves. **G2 remains
+  `Not decided`**, and stays so until the student records a dated decision with
+  an authority and a durable decision record; sealing a capsule, a green pull
+  request and this entry are none of them that decision. Nothing here accepts
+  the nine integration/recovery families, in-flight restart recovery, the
+  nominal 11.2 msg/s workload — which failed its delivery deadline on 2026-09-19
+  and **stays open** — the soak, the 95-run campaign, any native evidence or any
+  capacity figure.
+- **Verification.** Over the tree as this change leaves it:
+  `python tools/ci/verify_evidence.py` verified **909 artefacts across 24
+  evidence seals**; the capsule's outer seal lists **295 files** — the 261 of
+  the seven attempt packages, the capsule's own README and the supplement's 33 — and
+  verifies, as do the supplement's own two seals where they stand;
+  `python tools/ci/check_markdown_links.py` checked repository-local links in
+  **107 Markdown files**. These counts are read over this working tree and
+  supersede the earlier 820-across-22 and 262-file readings taken before the
+  supplement; they are not a substitute for the required checks running on the
+  final head, which is what clauses C3 and G2.12 wait on. No experiment was run,
+  no sealed package was altered or re-sealed, and no gate or claim moved.
+- **Decisions and next steps:** none taken here. The proposal is for the
+  student; the points it leaves to him are the capsule's evidence check, whether
+  the attempts of 2026-09-19 must be referenced from the capsule, whether the
+  unexercised sub-clauses are acceptable as unexercised at G2, whether the
+  architecture read on 2026-09-18 closes G2.3 on the strength of the matching
+  image ids, whether readiness may rest on a hash-identified exit status with no
+  captured body, and the wording of the scope he would be accepting. The
+  controller's backlog and in-flight recovery remain
+  the open downstream work, and D007 is still owed before `exp-v1`.

@@ -1,0 +1,3 @@
+down exit=0
+up exit=0
+RESTART ISSUED: every container object of the stack was destroyed and created again; no volume was removed

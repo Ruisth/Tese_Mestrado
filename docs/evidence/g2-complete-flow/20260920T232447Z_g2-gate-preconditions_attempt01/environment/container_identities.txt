@@ -1,0 +1,54 @@
+identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c image_id=sha256:5fef2509a20f85341b1e5c4dd7864e1a4a15fba155b88afa025cbcd5b5611ce9 repo_digest=eclipse-mosquitto@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c container_id=c63352d738f2f958888f2c2ac444f8c11674123a4369dadbeed2e006bedec127 started=2026-09-20T23:18:57.769116627Z
+identity egw-mongodb-1 image=docker.io/library/mongo:7.0.39@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d image_id=sha256:d58a07b4b2ecaff800c05ed786685d18dcbb5b31a801fdc57bdfb819a9f46c8f repo_digest=mongo@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d container_id=27667b7c7e28f39fb9732373b4e597e9c626e5ae3d38fdbce39fbb48a3634f46 started=2026-09-20T23:18:57.628888609Z
+identity egw-ditto-policies-1 image=docker.io/eclipse/ditto-policies:3.9.4@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb image_id=sha256:0e93f53bed2734b7ef83a59054b61077612cc40bbe47c4b6753d12eaefa3e99c repo_digest=eclipse/ditto-policies@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb container_id=7b5d53bd024caf4d51f754e3b79a61475051d55c8d3ab67d52aefd91f9a660f1 started=2026-09-20T23:19:00.602399002Z
+identity egw-ditto-things-1 image=docker.io/eclipse/ditto-things:3.9.4@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0 image_id=sha256:38fef6b7598be0513532c227271c124437a54eb759c2a05f34305832d91b7122 repo_digest=eclipse/ditto-things@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0 container_id=08664fd9671519530bfb422f3ca2263d9101ca3acd6814c6dee4f0b51f6f9ce2 started=2026-09-20T23:19:04.557458882Z
+identity egw-ditto-gateway-1 image=docker.io/eclipse/ditto-gateway:3.9.4@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b image_id=sha256:aeb24de31e2de444e767afe7bfbb8a70928c0527d8e6736bcb4813a5407fec7a repo_digest=eclipse/ditto-gateway@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b container_id=69b59d120eaeaa711c863d195b1c162e31b2a4aa313920100e45f61f0d4e81f5 started=2026-09-20T23:19:05.837398976Z
+identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:2e30d8fcf921828b7564305a06240e2de79679920c06c4f3a1bfa9f3ec1c7f21 repo_digest=none container_id=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 started=2026-09-20T23:21:18.324704262Z
+## the controller build identity recorded on the guest
+identity_format=1
+image_ref=egw-controller:0.1.0
+image_id=sha256:2e30d8fcf921828b7564305a06240e2de79679920c06c4f3a1bfa9f3ec1c7f21
+image_architecture=arm64
+image_os=linux
+builder_image_id=sha256:c3a238c6c62d6202b7fa428c6d4aaa8aae094d2b87d3330cd28e129c5f0c3ac5
+source_commit=0dfa53140996dfb1b95b9cb3a8d5721e85e4d4d9
+source_tree_state=clean
+source_tree_scope=src/ (the build context); files changed outside it: 0
+image_revision_label=0dfa53140996dfb1b95b9cb3a8d5721e85e4d4d9
+dockerfile_base_image=docker.io/library/python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+dockerfile_sha256=6d7febf1a79da321a8de11eef8ad31d492f11feb0800562cd97f8e60007d45b5
+archive_file=egw-controller-0.1.0-arm64.tar
+archive_sha256=3572f914ad4876253c7c66f032d29a126a1a29dd3516d89ad06c5513e766a3f4
+archive_size_bytes=50799616
+python_version=Python 3.12.13
+python_dependencies=UNLOCKED (pip install . without hashes; to be resolved before the experimental freeze)
+pip_freeze_sha256=720168115f127034132b536be1110bca60ff50c5e4189c04011a19d7a0c7f642
+docker_client_version=29.8.0
+docker_server_version=29.8.0
+buildx_version=github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6
+build_host=MINGW64_NT-10.0-26200 3.6.3-7674c51e.x86_64 x86_64
+built_utc=2026-09-18T18:47:31Z
+pip_freeze=annotated-doc==0.0.5
+pip_freeze=annotated-types==0.8.0
+pip_freeze=anyio==4.15.1
+pip_freeze=attrs==26.1.0
+pip_freeze=certifi==2026.7.22
+pip_freeze=click==8.5.0
+pip_freeze=egw @ file:///app
+pip_freeze=fastapi==0.141.1
+pip_freeze=h11==0.16.0
+pip_freeze=httpcore==1.0.9
+pip_freeze=httpx==0.28.1
+pip_freeze=idna==3.20
+pip_freeze=jsonschema==4.26.0
+pip_freeze=jsonschema-specifications==2025.9.1
+pip_freeze=paho-mqtt==2.1.0
+pip_freeze=pip==25.0.1
+pip_freeze=pydantic==2.13.5
+pip_freeze=pydantic_core==2.46.5
+pip_freeze=referencing==0.37.0
+pip_freeze=rpds-py==2026.6.3
+pip_freeze=starlette==1.6.0
+pip_freeze=typing-inspection==0.4.4
+pip_freeze=typing_extensions==4.16.0
+pip_freeze=uvicorn==0.53.0
