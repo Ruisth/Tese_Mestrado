@@ -2575,9 +2575,44 @@ is unchanged.
   requires pull requests and has no bypass actor, so a compliant merge
   procedure needs a decision by the student on the ruleset.
 
+
+## #C037 — Requirements matrix and supervisor deliverables — 2026-09-21
+
+- **Request:** after supplying the supervisor's implementation-focused email,
+  the student asked to create the matrix and add the deliverables to planning.
+- **Base and preservation:** fetched origin; dev/origin-dev resolved to
+  ccd5fd647a57842707999fa3f2492befa228e11b. Prepared the change on
+  docs/g0-supervisor-matrix in an isolated worktree. Preserved the older dirty
+  Windows checkout, the original manuscript and all experimental records.
+- **Delivered:** 18 requirements with sources, authority, criteria and test/gate
+  mappings; primary-source platform comparison and provisional Pi 5 8 GB
+  recommendation; i.MX95 EVK alternative and Pi 4 exclusion for MongoDB 7;
+  research-question crosswalk and V1 consumer-control inventory.
+- **Planning:** version 2.1 adds SUP-01–SUP-07 with owners, dates, dependencies
+  and exit criteria, in parallel with existing implementation/review work.
+  Updated PROGRESS, backlog, risk entries RS01–RS03 and documentation links.
+  Archived the source plan v2.0 exactly, SHA-256 dcbccda1477d1dd4ddce6fb451457e9ec37ff608045eae141bd998f0907b4d1a.
+- **Evidence:** inspected the local 2026-09-20 smartwatch/persistence summaries
+  for planning; recorded them as unadmitted engineering candidates in PROGRESS.
+  No experiment was run, record resealed, acceptance resumed, threshold changed
+  or claim/gate admitted. QEMU-only execution, title/RQ numbering, the
+  95-attempt target and delivery dates remain unchanged.
+- **Decision boundary:** the student's request authorises the documentary and
+  planning changes; it is not a supervisor approval of a board or revised RQs.
+  No spending, physical build or native evaluation was undertaken. Publication
+  and integration follow the repository review workflow.
+- **Verification:** repository-local links passed for 94 Markdown files;
+  evidence verification passed for 304 artefacts across 14 seals; the archived
+  v2.0 matches the source Git blob byte for byte; 18 unique requirement rows
+  and seven deliverables were checked against the plan/state/backlog IDs.
+  Active-document whitespace checks passed; the archive retains its exact
+  historical bytes. A separate documentary review identified only version-link
+  ambiguity, corrected before publication. No application tests were required
+  for this documentation-only change.
+
 ---
 
-## Entry #C037 — The complete G2 flow inside the emulated guest, and the acceptance proposal it is presented with
+## Entry #C038 — The complete G2 flow inside the emulated guest, and the acceptance proposal it is presented with
 
 - **Date:** 2026-09-21
 - **Request:** the project-management work order of 2026-09-20 (held outside

@@ -1,5 +1,13 @@
 # Tese_Mestrado — EGW: Digital Twin Edge Gateway (Theme 1, C2DTA)
 
+**Planning update 2026-09-21:** [plan v2.1](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+adds a [requirements and platform-selection matrix](docs/academic/gateway_requirements_and_platform_selection.md)
+and seven supervisor deliverables. The QEMU-only execution/evidence boundary,
+current title/RQ numbering and submission dates remain unchanged. The initial
+Pi 5 recommendation is documentary and conditional; native execution is future
+work. Dated v2.0 state below is retained as history; current state is in PROGRESS.
+
+
 > Consumer-Controlled Digital Twin Architecture — master's dissertation, ISCTE-IUL.
 > Workflow: feature branches and pull requests targeting `dev`; `main` receives
 > stable versions only, by pull request.
