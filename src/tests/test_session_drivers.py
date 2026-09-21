@@ -2887,6 +2887,69 @@ def test_gate_health_broker_that_allows_anonymous_is_not_the_gate(bench):
     assert "allow_anonymous=true" in verdicts["reason"]
 
 
+def test_gate_health_listener_on_another_port_is_not_the_publishing_path(bench):
+    # The gate's TLS claim is about the port the smartwatch publishes on. A
+    # broker listening somewhere else may be a healthy broker; it is not the
+    # path this gate says carries the flow.
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace("listener 8883", "listener 1883"),
+                    encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "listener=1883(expected 8883)" in verdicts["reason"]
+
+
+def test_gate_health_broker_that_states_no_tls_version_is_not_the_gate(bench):
+    # A listener with certificates but no stated version leaves what would be
+    # negotiated to a default nobody recorded: the gate records the version or
+    # it does not hold.
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text("\n".join(line for line in conf.read_text(encoding="utf-8").splitlines()
+                              if not line.strip().startswith("tls_version")) + "\n",
+                    encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 1, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    assert "tls_version(absent)" in verdicts["reason"]
+
+
+def test_gate_health_records_the_material_the_broker_names(bench):
+    # The certificate and the key the gate records must be the ones the broker
+    # reads. A configuration naming other files must not be recorded with the
+    # metadata of files nobody uses: the paths are translated from the broker's
+    # own configuration and refused when they are not in the deployed tree.
+    config = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config"
+    (config / "certs" / "other-ca.crt").write_text(
+        (config / "certs" / "ca.crt").read_text(encoding="utf-8"), encoding="utf-8")
+    conf = config / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace(
+        "cafile /mosquitto/config/certs/ca.crt",
+        "cafile /mosquitto/config/certs/other-ca.crt"), encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 0, report(result)
+    tls = (bench.attempt(GATE) / "environment" / "tls_configuration.txt").read_text(encoding="utf-8")
+    assert "cafile /mosquitto/config/certs/other-ca.crt -> mosquitto/config/certs/other-ca.crt" in tls
+    assert "other-ca.crt" in tls.split("## modes")[1], "the mode recorded is that of the file the broker names"
+
+
+def test_gate_health_material_outside_the_deployed_tree_is_not_recordable(bench):
+    # A broker told to read a certificate from somewhere this tree does not
+    # hold: the gate cannot say what it reads, and says so instead of recording
+    # the files it would have guessed.
+    conf = bench.guest_root / "opt" / "egw" / "deployment" / "mosquitto" / "config" / "mosquitto.conf"
+    conf.write_text(conf.read_text(encoding="utf-8").replace(
+        "certfile /mosquitto/config/certs/server.crt",
+        "certfile /etc/ssl/elsewhere/server.crt"), encoding="utf-8")
+    result = bench.run("gate_health.sh")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts(GATE)
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "tls-configuration exit 2" in verdicts["reason"]
+
+
 def test_gate_health_ca_fingerprint_that_could_not_be_read_is_invalid(bench):
     result = bench.run("gate_health.sh", EGW_STUB_FAIL="openssl")
     assert result.returncode == 3, report(result)

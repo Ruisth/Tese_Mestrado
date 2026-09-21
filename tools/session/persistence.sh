@@ -464,7 +464,13 @@ steps() {
             0) ;;
             "$EXIT_CAPTURE_LOST") mandatory+=("$(capture_note services-healthy-again)") ;;
             "$EXIT_NOT_REACHED") mandatory+=("the state of the six services after the restart was not observed because the wait never reached the guest (services-healthy-again exit $after_ready_rc)") ;;
-            1 | 4) observed+=("not every expected service came back to 'running' and 'healthy' within ${LIMIT} s:$(said services-healthy-again 'NOT HEALTHY[^:]*:')") ;;
+            1 | 4)
+                # 4 is both answers at once: a service seen failing AND one
+                # whose state could not be determined. Each goes to its own
+                # group, as the path below the normal readiness does.
+                observed+=("not every expected service came back to 'running' and 'healthy' within ${LIMIT} s:$(said services-healthy-again 'NOT HEALTHY[^:]*:')")
+                [ "$after_ready_rc" -ne 4 ]                     || mandatory+=("the state of an expected service could not be determined at all after the restart:$(said services-healthy-again 'NOT DETERMINED[^:]*:')")
+                ;;
             *) mandatory+=("the state of the six services after the restart was not observed (services-healthy-again exit $after_ready_rc)") ;;
         esac
         stop_after ready-again

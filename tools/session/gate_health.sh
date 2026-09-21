@@ -64,6 +64,12 @@ STEP=$(healthy_seconds EGW_HEALTH_STEP_S 15) \
 # container identities (runbook 4.5 / 5.5 interlock).
 CTRL_IDENTITY=${EGW_CONTROLLER_IDENTITY:-/opt/egw/images/egw-controller-0.1.0-arm64.identity.txt}
 DEPLOYED=${EGW_DEPLOYED_DIR:-/opt/egw/deployment}
+# The port the smartwatch publishes on: the gate's TLS claim is about THAT
+# listener, not about any listener the broker happens to carry.
+TLS_PORT=${EGW_MQTT_TLS_PORT:-8883}
+case $TLS_PORT in
+    '' | *[!0-9]*) driver_stop "$EXIT_PREREQUISITE" "EGW_MQTT_TLS_PORT is not a port number; nothing was read" ;;
+esac
 # Every parameter that is written into a guest script is checked ONCE, here,
 # before anything is read: a value that could not be written as the literal it
 # is would make the guest run something other than what this driver says.
@@ -374,15 +380,19 @@ fi
 # --- 5. the publishing path's TLS material, as configuration ---------------
 # tls_script: the broker's own configuration, the CA's fingerprint and the
 # modes of the private material. It reads no private byte: the key files are
-# named and their modes recorded, never their contents. It answers 0 (TLS with
-# anonymous access refused), 1 (the configuration is not that: the system
-# answering) or 2 (the record could not be made).
+# named and their modes recorded, never their contents. What it JUDGES is the
+# gate's own claim: a TLS listener on the port the flow publishes on, with a
+# certificate authority, a certificate and a key named, a negotiated version
+# stated, and anonymous access refused. What the certificate paths point at is
+# the deployed tree's content, which preflight.sh compares with the clean clone
+# file by file. It answers 0 (the configuration is that), 1 (it is not: the
+# system answering) or 2 (the record could not be made).
 tls_script() {
     printf "DEPLOYED='%s'\n" "$DEPLOYED"
+    printf "TLS_PORT='%s'\n" "$TLS_PORT"
     cat << 'GUEST_TLS'
 cd "$DEPLOYED" || { echo "STOP: $DEPLOYED could not be entered"; exit 2; }
 CONF=mosquitto/config/mosquitto.conf
-CERTS=mosquitto/config/certs
 [ -r "$CONF" ] || { echo "STOP: $CONF could not be read"; exit 2; }
 setting() {
     sed -n "s/^[[:space:]]*$1[[:space:]][[:space:]]*//p" "$CONF" | tail -n 1
@@ -395,18 +405,60 @@ for k in listener cafile certfile keyfile; do
     v=$(setting "$k")
     [ -n "$v" ] || bad="$bad $k(absent)"
 done
+# The gate's claim is about the path the flow publishes on, so the listener
+# must be THAT port, and the version the broker will negotiate must be stated
+# rather than left to a default nobody recorded. What the certificate paths
+# point at is the deployed tree's own content, which the preflight compares
+# with the clean clone file by file; this step judges the listener, the
+# material's presence, the version and the refusal of anonymous access.
+port=$(setting listener | cut -d' ' -f1)
+[ "$port" = "$TLS_PORT" ] || bad="$bad listener=${port:-absent}(expected $TLS_PORT)"
+tlsv=$(setting tls_version)
+[ -n "$tlsv" ] || bad="$bad tls_version(absent)"
 an=$(setting allow_anonymous)
 [ "$an" = false ] || bad="$bad allow_anonymous=${an:-absent}"
-echo '## the CA of the publishing path (the certificate, never its private material)'
-openssl x509 -in "$CERTS/ca.crt" -noout -subject -enddate -fingerprint -sha256 \
-    || { echo "STOP: the fingerprint of $CERTS/ca.crt could not be read"; exit 2; }
-echo '## modes and ownership of the private material (never a byte of it)'
-for f in "$CERTS/ca.crt" "$CERTS/server.crt" "$CERTS/server.key" mosquitto/config/passwd; do
+# The certificate and the key this gate records must be the ones the BROKER
+# reads, not paths this script decided on: a configuration naming other files
+# would otherwise be recorded with the metadata of files nobody uses. Each
+# configured path is a path inside the broker's own container, whose
+# /mosquitto is this deployed tree's mosquitto/, so each is translated back
+# into the tree and refused if it does not live there.
+deployed_path() {
+    case "$1" in
+        /mosquitto/*) printf '%s' "mosquitto/${1#/mosquitto/}" ;;
+        mosquitto/*) printf '%s' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+echo '## the files the broker itself names, translated into the deployed tree'
+for k in cafile certfile keyfile password_file acl_file; do
+    v=$(setting "$k")
+    [ -n "$v" ] || continue
+    if d=$(deployed_path "$v"); then
+        echo "$k $v -> $d"
+        [ -e "$d" ] || { echo "STOP: $d, the broker's $k, is not in the deployed tree"; exit 2; }
+    else
+        echo "STOP: the broker's $k is $v, which is not under /mosquitto: this record cannot say what the broker reads"
+        exit 2
+    fi
+done
+CA=$(deployed_path "$(setting cafile)") || {
+    echo 'STOP: the broker names no usable cafile, so the certificate authority of the publishing path cannot be recorded'
+    exit 2
+}
+echo '## the certificate authority the broker itself names (never its private material)'
+openssl x509 -in "$CA" -noout -subject -enddate -fingerprint -sha256 \
+    || { echo "STOP: the fingerprint of $CA could not be read"; exit 2; }
+echo '## modes and ownership of the material the broker names (never a byte of it)'
+for k in cafile certfile keyfile password_file acl_file; do
+    v=$(setting "$k")
+    [ -n "$v" ] || continue
+    f=$(deployed_path "$v") || continue
     [ -e "$f" ] || { echo "STOP: $f is not there, so its mode could not be recorded"; exit 2; }
     stat -c '%a %U:%G %s %n' "$f" || { echo "STOP: the mode of $f could not be read"; exit 2; }
 done
 [ -z "$bad" ] || { echo "NOT THE GATE: the publishing path is not TLS with anonymous access refused:$bad"; exit 1; }
-echo 'TLS AT THE GATE: the broker listener carries cafile, certfile and keyfile, and anonymous access is refused'
+echo "TLS AT THE GATE: the broker listens on $TLS_PORT with $tlsv and names a certificate authority, a certificate and a key that are in the deployed tree; allow_anonymous is false, which is the configuration and not an exercised refusal"
 exit 0
 GUEST_TLS
 }
