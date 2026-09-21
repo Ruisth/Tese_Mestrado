@@ -1,0 +1,1 @@
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 2026-09-20T23:21:31.554Z 60 0 0 0 0) - an observation, not proof that processing has finished

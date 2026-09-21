@@ -1,0 +1,3 @@
+health 200 0
+ready 200 0
+metrics 200 0

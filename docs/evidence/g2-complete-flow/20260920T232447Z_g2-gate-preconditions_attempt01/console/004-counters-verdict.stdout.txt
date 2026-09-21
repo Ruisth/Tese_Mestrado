@@ -1,0 +1,10 @@
+controller process started_at: 2026-09-20T23:21:31.554Z
+{
+  "accepted": 0,
+  "rejected": 0,
+  "duplicate": 0,
+  "failed": 0,
+  "dropped": 0,
+  "queue_depth": 0
+}
+COUNTER BASELINE AT ZERO: every counter and queue_depth is 0 for the process started at 2026-09-20T23:21:31.554Z

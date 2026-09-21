@@ -1,0 +1,17 @@
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "62da1188-4cd1-434b-a9c7-236a8c211f84": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-g2-01",
+        "last_seq": 59,
+        "last_message_id": "ad6d3d6f-be53-56d4-93d1-c16fa42706d1",
+        "last_ts": "2026-09-20T23:28:39.715Z",
+        "accepted_count": 60
+      }
+    }
+  }
+}

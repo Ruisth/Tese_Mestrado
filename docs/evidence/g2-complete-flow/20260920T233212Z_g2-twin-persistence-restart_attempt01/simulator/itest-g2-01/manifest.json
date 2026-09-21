@@ -1,0 +1,39 @@
+{
+  "protocol_version": "1.0",
+  "simulator_version": "0.1.0",
+  "scenario": "smoke",
+  "seed": 20260921,
+  "run_id": "itest-g2-01",
+  "egw_id": "egw-01",
+  "devices": [
+    {
+      "device_type": "smartwatch",
+      "device_uuid": "62da1188-4cd1-434b-a9c7-236a8c211f84"
+    }
+  ],
+  "rates_hz": {
+    "aggregate": 1.0,
+    "per_device": {
+      "smartwatch": 1.0
+    }
+  },
+  "duration_s": 60.0,
+  "qos": 1,
+  "broker": {
+    "host": "127.0.0.1",
+    "port": 8883,
+    "tls": true,
+    "ca_cert": "/home/ruisth/egw-tcg/ca.crt"
+  },
+  "git_commit": "b7e0c83c3277f7469c05336f91949e7d1b89489a",
+  "started_utc": "2026-09-20T23:27:40.713Z",
+  "finished_utc": "2026-09-20T23:28:39.718Z",
+  "completed": true,
+  "totals": {
+    "sent": 60,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "note": null
+}

@@ -1,0 +1,9 @@
+tunnel: no control socket at /home/ruisth/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+health: 200
+{"status":"ok"}
+ready: 200
+{"status":"ready","mqtt_connected":true,"ditto_ready":true}
+metrics: 200
+{"accepted":0,"rejected":0,"duplicate":0,"failed":0,"dropped":0,"received":0,"in_progress":0,"processing_errors":0,"started_at":"2026-09-20T23:21:31.554Z","uptime_s":76.227573232,"monotonic_ns":282312106575,"wall_utc":"2026-09-20T23:22:47.782Z","queue_depth":0}
+READY

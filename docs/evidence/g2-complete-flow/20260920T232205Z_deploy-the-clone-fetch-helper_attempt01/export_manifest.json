@@ -1,0 +1,74 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-09-20/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-09-20\\20260920T232205Z_deploy-the-clone-fetch-helper_attempt01"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-09-20T23:22:09.317548Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": "attempt.json",
+      "sha256": "9e37009afd258197756e5f5ac0bdb9d4232c3c161efdf3774acc8b464b3f23ad",
+      "size": 1003,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "d541e4efcd793a0517a5682d8f0fd877e4567522badfb4a117b7e21e4eb35084",
+      "size": 1110,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-deploy-fetch-helper.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01/console/001-deploy-fetch-helper.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-deploy-fetch-helper.stdout.txt",
+      "sha256": "432d78e086e913f85ea57d1ff2595cc289b6a710cc5a0b9bf7d95ac7dec80816",
+      "size": 217,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01/console/001-deploy-fetch-helper.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "6c3b9f0390341dfd18635526c002291b374ba88078d4f87034c71c820e21474e",
+      "size": 20,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01/sources.json",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20260920T232205Z_deploy-the-clone-fetch-helper_attempt01",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20260920T232205Z_deploy-the-clone-fetch-helper_attempt01",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

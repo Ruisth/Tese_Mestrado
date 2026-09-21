@@ -1,0 +1,21 @@
+## broker listener and TLS material, from mosquitto.conf (configuration, never secrets)
+listener 8883 0.0.0.0
+protocol mqtt
+cafile /mosquitto/config/certs/ca.crt
+certfile /mosquitto/config/certs/server.crt
+keyfile /mosquitto/config/certs/server.key
+require_certificate false
+tls_version tlsv1.2
+allow_anonymous false
+password_file /mosquitto/config/passwd
+acl_file /mosquitto/config/acl
+## the CA of the publishing path (the certificate, never its private material)
+subject=O=C2DTA EGW dev, CN=EGW Dev Root CA
+notAfter=Dec 21 18:56:14 2028 GMT
+sha256 Fingerprint=AA:34:ED:1E:B4:15:2D:1A:F3:A5:B1:9C:89:37:C6:C1:F9:00:E5:A6:CB:56:C4:BD:5B:E3:A2:A1:B0:B3:E6:DF
+## modes and ownership of the private material (never a byte of it)
+644 egw:egw 1911 mosquitto/config/certs/ca.crt
+644 egw:egw 1631 mosquitto/config/certs/server.crt
+600 UNKNOWN:UNKNOWN 1708 mosquitto/config/certs/server.key
+600 UNKNOWN:UNKNOWN 255 mosquitto/config/passwd
+TLS AT THE GATE: the broker listener carries cafile, certfile and keyfile, and anonymous access is refused

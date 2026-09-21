@@ -1,0 +1,39 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-09-20T23:32:12.019766Z",
+  "emulated": true,
+  "ended_utc": "2026-09-20T23:38:35.357124Z",
+  "expected_artefacts": [
+    "environment/metrics.persist-before.json",
+    "environment/containers.persist-before.txt",
+    "environment/twin.persist-before.json"
+  ],
+  "headline": "the twin's stored state survived the restart and the stack came back",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "e1c26c66628ebb959ee1a8b3238be799873042014f2ee2a96b831d6e32e9ee3f",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "b7e0c83c3277f7469c05336f91949e7d1b89489a",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "publish the G2 evidence capsule and present the gate for the decision; the acceptance itself stays with Rui",
+  "pid": 1640,
+  "purpose": "engineering",
+  "reason": "the restart was shown (a new controller process and six new container objects, each started later), the stack came back ready and healthy, and the twin's stored state is the same on both sides of it with nothing published between the two snapshots",
+  "run_id": "20260920T233212Z_g2-twin-persistence-restart_attempt01",
+  "scenario": "G2 twin persistence restart",
+  "seed": null,
+  "started_utc": "2026-09-20T23:32:12.132809Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "gate": "G2",
+    "itest_run_id": "itest-g2-01",
+    "procedure": "runbook 6.5: compose down then up -d, volumes preserved",
+    "publishes": "nothing: the simulator is never started",
+    "restarts": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+    "session": "20260920T231756Z_guest-session_attempt02"
+  }
+}

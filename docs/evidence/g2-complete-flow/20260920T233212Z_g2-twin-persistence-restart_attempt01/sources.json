@@ -1,0 +1,11 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-09-20T23:32:12.100990Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-g2-01",
+      "role": "the slice run directory and its sibling snapshots (runbook 6.1 helpers)",
+      "siblings_glob": "itest-g2-01.*"
+    }
+  ]
+}

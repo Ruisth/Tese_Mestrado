@@ -1,0 +1,2 @@
+9ae07b0c5e4b03385053d270e379b0bf767f34156839ad2c7a53a9aee2f3c7d4  /opt/egw/deployment/scripts/fetch-collector-output.sh
+9ae07b0c5e4b03385053d270e379b0bf767f34156839ad2c7a53a9aee2f3c7d4  /tmp/fetch-collector-output.sh

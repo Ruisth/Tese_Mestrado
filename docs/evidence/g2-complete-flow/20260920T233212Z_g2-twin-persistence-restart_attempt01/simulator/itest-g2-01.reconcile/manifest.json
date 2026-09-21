@@ -1,0 +1,23 @@
+{
+  "manifest_kind": "itest-adhoc-reconcile (NOT a harness run)",
+  "run_id": "itest-g2-01",
+  "scenario": "smoke",
+  "seed": 20260921,
+  "confirmation_window_s": 60,
+  "controller_marker": {
+    "url": "http://127.0.0.1:8000/metrics",
+    "polled_utc": "2026-09-20T23:28:39.780Z",
+    "ok": true,
+    "monotonic_ns": 634171027976,
+    "wall_utc": "2026-09-20T23:28:39.640Z",
+    "error": null,
+    "confirmation_window_s": 60,
+    "confirmation_deadline_monotonic_ns": 694171027976,
+    "poll_returned_utc": "2026-09-20T23:28:39.902Z",
+    "lag_s": 0.184,
+    "lag_tolerance_s": 2.0
+  },
+  "controller_monotonic_at_run_end_ns": 634171027976,
+  "confirmation_deadline_monotonic_ns": 694171027976,
+  "confirmation_deadline_clock_domain": "controller"
+}

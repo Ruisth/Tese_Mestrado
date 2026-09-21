@@ -1,0 +1,11 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-09-20T23:25:27.990215Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-g2-01",
+      "role": "ad-hoc run directory and its sibling files (runbook 6.1 helpers)",
+      "siblings_glob": "itest-g2-01.*"
+    }
+  ]
+}

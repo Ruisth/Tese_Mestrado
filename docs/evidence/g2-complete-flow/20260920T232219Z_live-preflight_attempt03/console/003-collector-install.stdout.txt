@@ -1,0 +1,2 @@
+previous=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6
+11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  /opt/egw/deployment/scripts/collect-resources.sh

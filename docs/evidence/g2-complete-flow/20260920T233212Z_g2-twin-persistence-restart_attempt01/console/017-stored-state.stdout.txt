@@ -1,0 +1,5 @@
+twin before the restart: org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84 {'last_run_id': 'itest-g2-01', 'last_seq': 59, 'accepted_count': 60}
+twin after the restart:  org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84 {'last_run_id': 'itest-g2-01', 'last_seq': 59, 'accepted_count': 60}
+event log records of itest-g2-01: 60 before, 60 after
+/metrics after the restart (per PROCESS, never persisted, so 0 again is expected and is not loss): {'accepted': 0, 'rejected': 0, 'duplicate': 0, 'failed': 0, 'dropped': 0, 'queue_depth': 0}
+STATE PERSISTED: org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84 came back from the volumes with last_run_id itest-g2-01, last_seq 59 and accepted_count 60, and nothing was published between the two reads

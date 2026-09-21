@@ -1,0 +1,23 @@
+NAME                   IMAGE                                                                                                                COMMAND                  SERVICE          CREATED         STATUS                        PORTS
+egw-controller-1       egw-controller:0.1.0                                                                                                 "uvicorn --factory e…"   controller       4 minutes ago   Exited (0) 17 seconds ago     
+egw-ditto-gateway-1    docker.io/eclipse/ditto-gateway:3.9.4@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b        "/usr/bin/tini -- sh…"   ditto-gateway    4 minutes ago   Exited (143) 11 seconds ago   
+egw-ditto-policies-1   docker.io/eclipse/ditto-policies:3.9.4@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb       "/usr/bin/tini -- sh…"   ditto-policies   4 minutes ago   Exited (143) 7 seconds ago    
+egw-ditto-things-1     docker.io/eclipse/ditto-things:3.9.4@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0         "/usr/bin/tini -- sh…"   ditto-things     4 minutes ago   Exited (143) 12 seconds ago   
+egw-mongodb-1          docker.io/library/mongo:7.0.39@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d               "docker-entrypoint.s…"   mongodb          4 minutes ago   Exited (0) 6 seconds ago      
+egw-mosquitto-1        docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c   "/docker-entrypoint.…"   mosquitto        4 minutes ago   Exited (0) 14 seconds ago     
+CONTAINER ID   IMAGE                          COMMAND                  CREATED         STATUS                        PORTS     NAMES
+ccc1ac031511   egw-controller:0.1.0           "uvicorn --factory e…"   4 minutes ago   Exited (0) 17 seconds ago               egw-controller-1
+69b2281e5412   eclipse/ditto-things:3.9.4     "/usr/bin/tini -- sh…"   4 minutes ago   Exited (143) 12 seconds ago             egw-ditto-things-1
+9e1b6d0bd09f   eclipse/ditto-gateway:3.9.4    "/usr/bin/tini -- sh…"   4 minutes ago   Exited (143) 11 seconds ago             egw-ditto-gateway-1
+8ec639e98dc5   eclipse/ditto-policies:3.9.4   "/usr/bin/tini -- sh…"   4 minutes ago   Exited (143) 7 seconds ago              egw-ditto-policies-1
+946354a51791   mongo:7.0.39                   "docker-entrypoint.s…"   4 minutes ago   Exited (0) 6 seconds ago                egw-mongodb-1
+5a263246881e   eclipse-mosquitto:2.0.22       "/docker-entrypoint.…"   4 minutes ago   Exited (0) 15 seconds ago               egw-mosquitto-1
+REPOSITORY               TAG       DIGEST                                                                    IMAGE ID       CREATED        SIZE
+egw-controller           0.1.0     <none>                                                                    2e30d8fcf921   2 days ago     166MB
+mongo                    <none>    sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d   d58a07b4b2ec   6 weeks ago    828MB
+eclipse/ditto-gateway    <none>    sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b   aeb24de31e2d   2 months ago   545MB
+eclipse/ditto-things     <none>    sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0   38fef6b7598b   2 months ago   543MB
+eclipse/ditto-policies   <none>    sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb   0e93f53bed27   2 months ago   539MB
+eclipse-mosquitto        <none>    sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c   5fef2509a20f   3 months ago   11.1MB
+Filesystem                Size      Used Available Use% Mounted on
+/dev/vdb                 31.2G      2.3G     27.3G   8% /var/lib/docker
