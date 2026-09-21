@@ -2831,3 +2831,166 @@ is unchanged.
   captured body, and the wording of the scope he would be accepting. The
   controller's backlog and in-flight recovery remain
   the open downstream work, and D007 is still owed before `exp-v1`.
+
+---
+
+## Entry #C039 — The student's G2 decision: accepted in a bounded functional scope, and where it is transcribed
+
+- **Date:** 2026-09-21
+- **Request:** the student, Rui Duarte, took the G2 decision on 2026-09-21,
+  immediately after the final project-management review of the G2 publication
+  at pull request 40 (head `2d70143`). His approval, issued in Portuguese, in
+  the faithful English translation carried by the source record: "I approve
+  the closure of G2 within the bounded functional scope and with the
+  qualifications of the review, without accepting any other gates or claims."
+  The source is the project-management acceptance record
+  `G2_ACCEPTANCE_DECISION_2026-09-21.md`, held outside this repository, whose
+  section 5 asks for the decision to be transcribed into a durable decision
+  record and the G2 row of the gate log, and for `PROGRESS.md` and the active
+  gate-status summaries to be synchronised. The project manager
+  registered that record at 2026-09-21 07:14:37 WEST: that is the time of the
+  registration, **not** the time at which any experiment ran, **not** a
+  supervisor approval and **not** a merge. The decision date, 2026-09-21, is
+  the student's own. His approval is the decision; the decision record is its
+  durable transcription, and this entry is the diary of that transcription and
+  is not the decision authority.
+- **What the decision accepts.** G2 — live vertical slice — **Accepted** on
+  2026-09-21, authority Student (Rui Duarte), for *one bounded smartwatch →
+  MQTT/TLS → controller → Ditto → API flow, and stored-twin persistence across
+  one declared, quiescent whole-stack service restart, on the identified Yocto
+  ARM64 guest **emulated with QEMU/TCG on an x86-64 host*** — and for nothing
+  else: one smartwatch at 1 Hz for 60 s, 60 valid messages confirmed within the
+  controller-clock deadline with nothing lost, late, duplicated or unaccounted;
+  twin `org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84`, run `itest-g2-01`,
+  seed `20260921`, final sequence 59 and persisted accepted count 60, intact
+  across the declared restart with the queue quiescent and no intervening
+  publication; and six services healthy, the recorded initial health and
+  readiness with the counters at zero, the identified images and the
+  demonstrated TLS publication path — the six services observed healthy at the
+  gate snapshot and again after the declared restart, point-in-time readings
+  with no interval of sustained health claimed. The evidence is the capsule
+  `docs/evidence/g2-complete-flow/` of `#C038` — the seven attempts of the
+  guest session of 2026-09-20/21, the failed preflight among them and kept —
+  executed at `b7e0c83c3277f7469c05336f91949e7d1b89489a`, with its architecture
+  supplement of 2026-09-18, reviewed at pull request 40, head
+  `2d70143533d2ed12cce4e0df585365f2d353518d`, tree
+  `99b0387f05bc33833aac7c5993c45a6c923a9ded`, where the six required checks
+  passed. The candidate is the image `egw-gateway-image-qemuarm64`, build stamp
+  `20260918120819`, under QEMU 8.2.7 TCG — **ARM64 emulated, never native ARM64
+  and never KVM**.
+- **The qualifications it keeps.** The approval is given "with the
+  qualifications of the review", which are the four the source record lists,
+  and those four are what it retains: (1) the architecture of the five registry
+  images is established by the separately dated record of 2026-09-18 and by
+  exact image-id and digest correspondence, not by architecture fields captured
+  during G2, and a later changed image needs its own verification;
+  (2) post-restart readiness rests on the exit status of a hash-identified
+  helper whose success requires HTTP 200, with no response body retained —
+  disclosed indirect evidence, accepted for this gate, and future planned runs
+  should capture the status and the body explicitly; (3) anonymous access was
+  disabled **in configuration**, a refusal was **not exercised** in this session
+  and no intentionally invalid payload was offered, so neither absence is
+  presented as a passed negative test, and exercised negative cases remain G3
+  work; (4) the original attempts, the failed preflight included, retain their
+  original bytes, timestamps, provenance and outcomes, and the post-session
+  driver fixes are **not** credited as having run during the accepted session.
+  Section 6 of the acceptance proposal also discloses sixteen residual
+  limitations of the demonstration itself. The approval does not mention them:
+  they are neither accepted nor waived by it, and they remain disclosed
+  limitations of the evidence, referenced as such wherever the decision is
+  transcribed.
+- **What it explicitly does not accept.** **No claim is admitted** — 0 of 15
+  claims are accepted, as before, and no C-claim changes state — and **no other
+  gate is accepted**. The nine G3 integration/recovery families, recovery with
+  messages in flight, the nominal 11.2 msg/s workload that **failed** its
+  delivery deadline on 2026-09-19, the 24-hour soak, the official campaign, the
+  reproducibility and experimental freezes and gates G3 to G7 stay open as
+  previously recorded; G0 and G1 stand as recorded. No native ARM64,
+  physical-gateway performance, capacity, efficiency or long-term-stability
+  conclusion follows from G2. The decision changes no deadline (target
+  submission 2026-10-20, latest deadline 2026-10-31), no experimental
+  threshold, no scope beyond G2 and no Git identity policy; it is not a
+  supervisor decision, cites none and changes no supervisor decision; and it
+  grants no merge-policy exception,
+  protection bypass, history rewrite or further unbounded guest or test
+  execution.
+- **Which plan the criteria come from.** The acceptance proposal assessed G2
+  against section 4.3 of plan version 2.0. Version 2.1, in force since
+  2026-09-21, is an additive amendment (the requirements and platform matrix
+  and the deliverables SUP-01 to SUP-07); its section 4.3 is byte-identical to
+  version 2.0's, so the criteria assessed are the criteria in force.
+- **Where it is recorded.**
+  [`docs/governance/decisions/2026-09-21-g2-closure.md`](docs/governance/decisions/2026-09-21-g2-closure.md)
+  (new) is the durable transcription of the decision, readable from a clean
+  checkout — the student's approval being the decision: the decision and its
+  source, the approval quoted in translation, the accepted scope verbatim, the
+  candidate's identities, the evidence references, the four qualifications, a
+  reference to the limitations the proposal discloses, the exclusions and what
+  the decision does not change. `docs/governance/gate_decision_log.md`: the G2
+  row reads **Accepted**, 2026-09-21, Student (Rui Duarte), citing that record
+  and this entry, with the scope, the four qualifications in full, a reference
+  to the disclosed limitations and the exclusions in its notes; the replaced
+  `Not decided` row is kept verbatim under "Superseded row states", after G0's,
+  with a dated preface; a dated marker on the paragraph about the prospective
+  criteria keeps that paragraph as written and says that the decision is not a
+  finding that the G2 criteria are met — the student accepted G2 in the bounded
+  scope with the qualifications; no other row changes. `PROGRESS.md`: a dated update note,
+  which also records the open question below on the pause of test acceptance;
+  the G2 bullet of the gate-status block, now dated 2026-09-21, with the state
+  it replaces kept in a closing note; the accepted-gates sentence; the
+  "Services on Yocto (G2)" row; the "Accepted at gate" cells of the contracts,
+  compose, controller and simulator rows, each bounded to the accepted scope
+  and each keeping its previous value; dated markers on the verification cells
+  of the contracts and controller rows where they would otherwise contradict
+  the accepted evidence beside them; and dated markers where earlier text had
+  said that G2 was unchanged or pending, and on the G3 bullet's pause of test
+  acceptance. The Thing Descriptions row, which the scope does not cover, is not
+  changed. No maturity level moves: the acceptance covers a slice of each
+  deliverable it touches, never a deliverable's whole functional scope. The
+  active gate-status summaries are synchronised as well: in `README.md`, a dated
+  note under the current-status heading, the G2 row of the status table, the
+  accepted-gates sentence (now three gates) and the closing pointer to the
+  decision records; in `docs/README.md`, the gate line and the governance index,
+  which now lists the new decision record. Each carries the same scope wording
+  and a pointer to the decision record, and each keeps the text it replaces in a
+  dated marker. Left as they were: section 4.2 of the adopted plan, which still
+  lists G2 to G7 as *Not decided*, because the plan is not edited by this
+  transcription and formal gate outcomes live solely in the gate log; the
+  acceptance proposal and entry `#C038`, which say that G2 remains
+  `Not decided`, because that was true when they were written and this decision
+  supersedes it; everything under `docs/evidence/` and in `output_test`. No
+  test, guest session, harness run or code change was made, and no supervisor
+  date, message or name is recorded or implied.
+- **Pull request 40 and its merge.** In the repository's history, pull request
+  40 is merged into `dev` as `bfaca4b`, whose tree is the reviewed tree
+  `99b0387…`. That merge is **not** the decision and dates nothing in it.
+- **The merge procedure recorded as open in `#C036`.** The student has stated
+  that the merges of pull requests into `dev` are his own, made manually through
+  the GitHub web interface, and that the `GitHub` committer field such a merge
+  carries is not to be treated as a departure from his authorship rule. That
+  closes the question `#C036` left open. The rule itself is unchanged for every
+  commit made on a branch: author and committer are the student's identity, with
+  no co-author or tool trailer.
+- **Verification.** Over the working tree as this change leaves it:
+  `python tools/ci/check_markdown_links.py` checked repository-local links in
+  **108 Markdown files**, the new decision record included, and
+  `python tools/ci/verify_evidence.py` verified **909 artefacts across 24
+  evidence seals**, unchanged. The superseded G2 row was compared with the row
+  at `2d70143` and is byte-identical, and every other gate row is unchanged.
+  The Thing Descriptions row of `PROGRESS.md` is byte-identical to its previous
+  text, and every table row this change touches in `PROGRESS.md`, `README.md`,
+  `docs/README.md` and the gate log keeps its table's column count. The GitHub
+  workflow result, not this entry, establishes whether the required checks pass
+  on the change that publishes it.
+- **Decisions and next steps.** Decided by the student on 2026-09-21: **G2
+  Accepted — bounded functional scope**, with the four qualifications and the
+  exclusions above. No other gate, claim or maturity level changes, and no
+  documented supervisor decision is created. **Open question for the student:**
+  `PROGRESS.md` still records that test acceptance is paused at his request,
+  and the decision record does not say whether that pause is lifted for the G3
+  battery; nothing in this transcription resolves it. Next: his answer to that
+  question; then the downstream work this decision leaves
+  open — the controller's backlog and in-flight recovery, the G3 families with
+  their exercised negative cases, a readiness step that records the status and
+  the body, and a locked set of controller Python dependencies — with D007
+  still owed before `exp-v1`.

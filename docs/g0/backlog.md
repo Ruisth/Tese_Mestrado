@@ -215,7 +215,16 @@ the gate; QEMU evidence never supports performance claims.
 | Regenerate the PlantUML sources and their SVGs together — `diagrams/two_layer_experimental_deployment.puml`, `diagrams/c2dta_five_layer_reference.puml` and both `.svg` files — **never as a standalone edit of one of the pair**, applying the corrections recorded in [`../../diagrams/README.md`](../../diagrams/README.md), and no later than the release candidate (G7) | Regenerated `.puml` sources and matching SVGs carrying the corrected wording; a note that no earlier rendering is invalidated | A machine with a PlantUML installation |
 | Complete institutional searches and full-text verification for claims used in Chapters 1–2 | Search exports, selection decisions and audited bibliography in `thesis/research/` | Institutional IEEE/ACM/Scopus or Web of Science access |
 
-## G2 — Live vertical slice (window of 15–23 August, elapsed)
+## G2 — Live vertical slice (window of 15–23 August, elapsed; gate accepted 2026-09-21)
+
+> **G2 accepted on 2026-09-21** — authority: the student (Rui Duarte); scope:
+> one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow, and
+> stored-twin persistence across one declared, quiescent whole-stack service
+> restart, on the identified Yocto ARM64 guest emulated with QEMU/TCG on an
+> x86-64 host, with the qualifications of the review
+> ([decision record](../governance/decisions/2026-09-21-g2-closure.md)). The
+> items below keep their own states: this acceptance admits no claim and moves
+> nothing that belongs to G3.
 
 **Cut rule:** require the six containers deployed **inside the integrated
 emulated guest** with TLS and an inspectable, identity-reconciled
