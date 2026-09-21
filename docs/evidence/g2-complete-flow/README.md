@@ -79,6 +79,47 @@ preflight that follows it is not a second opinion but the same check passing
 after a change that is itself on the record. Failed and inconclusive attempts
 stay next to the successful ones throughout this repository.
 
+## The supplement of 2026-09-18, and what it is for
+
+Beside the seven packages there is an eighth directory,
+[`supplement-2026-09-18-image-architecture/`](supplement-2026-09-18-image-architecture/README.md).
+It is **not** part of the session of 2026-09-20. It publishes, byte for byte and
+with its own two seals intact and verifying in place, the already sealed local
+package of the stack image provisioning of **2026-09-18**, in which the five
+external images were pulled inside the emulated guest and inspected there. The
+directory is that package under a name of its own: its 32 files keep the exact
+relative paths its seals record, and the single `README.md` added to it is the
+only file in it that the package did not contain.
+
+It is there for one question. The active plan requires every deployed image to
+be `linux/arm64`, and the five pinned digests are multi-architecture indexes, so
+a digest by itself does not say which image the guest resolved. The gate
+snapshot of the G2 session records each image's full image id and repository
+digest but **no `arch` or `os` field**: those fields were not captured during
+the G2 session. The record of 2026-09-18 carries them, and the full image ids
+and repository digests it holds are the same strings as those in
+`20260920T232447Z_g2-gate-preconditions_attempt01/environment/container_identities.txt`
+for all five images — which is what lets the architecture read on 2026-09-18 be
+read as the architecture of the images used on 2026-09-20. The supplement's own
+`README.md` gives the five-image crosswalk, names the file it cites
+(`guest/image-identities.txt`, 2026-09-18 17:01:19 UTC, 20 checks, none failed)
+and keeps visible the earlier session of that day, whose pull transcript ends
+`failed_checks=9` because the check template asked for a field the Ditto image
+configurations do not carry.
+
+What it establishes is that identity, and only that. It does not put those
+fields into the G2 session, it substitutes for no observation of 2026-09-20, and
+it holds only for these exact image ids: a later candidate that changes an image
+needs the bridge reassessed for it. Publishing it decides nothing, here or at
+the gate. The seven attempt packages were not altered or re-sealed to add it;
+only this directory's outer `SHA256SUMS` was written again, so that it covers
+the supplement's files as well. Before publication the supplement's files were
+searched for PEM and OpenSSH private-key blocks, password and secret strings,
+bearer and basic-authorisation values and URLs carrying inline credentials, and
+none was found; as with the sweep described below, no artefact here records that
+search. The package's own `export_manifest.json` records `excluded: []` for the
+29 files it copied, so nothing was held back from that copy on those grounds.
+
 ## What this capsule does not show
 
 One device, 60 messages, 60 seconds, one run: nothing here is a capacity,
@@ -122,8 +163,11 @@ report a file that is present here and covered by no seal; the completeness of
 the listing was settled when the seal was written, not by the check. The seven
 directories keep the names the export produced and are byte-for-byte copies of
 the local packages under `output_test/runs/2026-09-20/`, which remains a local
-copy and not admitted evidence; `.gitattributes` stores everything here without
-text conversion, because three captured files carry the carriage returns of the
+copy and not admitted evidence; the eighth directory, the supplement described
+above, is in the same way a byte-for-byte copy of the package under
+`output_test/runs/2026-09-18/`, with its own two seals untouched and the single
+`README.md` this repository adds inside it; `.gitattributes` stores everything
+here without text conversion, because three captured files carry the carriage returns of the
 pseudo-terminal and those bytes are part of the record. The shell scripts and
 Python drivers kept inside the session package are captured material, sealed and
 not linted.

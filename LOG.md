@@ -2700,7 +2700,17 @@ is unchanged.
   broker's TLS configuration recorded as configuration only (listener 8883,
   `cafile`/`certfile`/`keyfile`, `tls_version tlsv1.2`, `allow_anonymous false`,
   CA fingerprint `AA:34:ED:1E:…`, private material at mode 600, read as uid:gid
-  1883:1883).
+  1883:1883). **Anonymous access is disabled in that configuration and its
+  refusal was not exercised in this session.** The attempt's console closes with
+  the sentence "anonymous access is refused"; that is the check reading the
+  setting, not an observed refusal, and it stands in the sealed package exactly
+  as it was written — the distinction is carried by the narrative, not by an
+  edit to the evidence. The driver was corrected afterwards, at the head of this
+  branch, to say in its own words that `allow_anonymous` is false, "which is the
+  configuration and not an exercised refusal"; that changes what future runs
+  record and nothing in this one. **An unexercised case is not a passed one**,
+  and exercised invalid-input rejection, duplicate replay and transport or
+  authorisation refusal are G3 conditions.
 - **Results — the flow.**
   `20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02`, all seven commands
   exit 0, run `itest-g2-01`, seed 20260921, one smartwatch at 1 Hz for 60 s over TLS to port
@@ -2723,10 +2733,20 @@ is unchanged.
   **no volume removed**; the restart **shown**, controller
   `started_at 23:21:31.554Z -> 23:37:38.535Z` and all six containers new objects
   started later; all six healthy again at sample 2 of the poll that followed,
-  and readiness re-checked by `wait_ready`, which exited 0 — **that exit status
-  is the whole of the evidence for the readiness half**, because the helper
-  prints nothing when it succeeds and both console files of that command are
-  empty; and, before anything further was published, the same twin read back
+  and readiness re-checked by `wait_ready 3600`, which exited 0 — **that exit
+  status is the whole of the evidence for the readiness half**, because the
+  helper requests `/ready` with the body discarded by construction, returns 0
+  **only** when the status is 200 and deliberately prints nothing when it
+  succeeds, so both console files of that command are empty. The helper's text
+  is bound to the attempt by hash (`f94cff6f…`, the same SHA-256 as the one the
+  runbook generates at revision `0fd75b9`), so what that 0 means is fixed by a
+  text the evidence names rather than assumed, and the six healthy containers
+  and the intact twin corroborate the recovery. **No response body was captured,
+  and none is reconstructed or inserted into the sealed attempt afterwards**: it
+  is a recording limitation of this attempt, disclosed as limitation 16 of the
+  proposal, to be repaired in future planned runs by recording the explicit HTTP
+  status and the `/ready` body — not by repeating this session. And, before
+  anything further was published, the same twin read back
   identical, with the run's event log holding
   60 records before and 60 after. The new controller process's counters are 0
   again, which is expected of a per-process counter and is not loss.
@@ -2734,17 +2754,55 @@ is unchanged.
   attempts, the failed preflight among them, each with its own seal and
   manifest; the local packages are under `output_test/runs/2026-09-20/`, which
   is a local copy and neither published evidence nor a backup.
+- **Published — the supplement of 2026-09-18, for one clause only.** Beside the
+  seven attempts the capsule carries
+  `docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/`: a
+  byte-for-byte copy of the already sealed local package of the stack image
+  provisioning of **2026-09-18**
+  (`output_test/runs/2026-09-18/HIST_2026-09-18-stack-images-provisioning`), its
+  32 files at the exact relative paths its own two seals record — 31 entries and
+  25 — so that both still verify in place, with one `README.md` added by this
+  repository and covered by the capsule's outer seal. **The seven attempt
+  packages were not altered or re-sealed**; only the outer `SHA256SUMS` was
+  written again so that it covers the supplement as well. It answers clause G2.3
+  and nothing else: `arch=arm64 os=linux` for each of the five registry images,
+  read from `guest/image-identities.txt` (`7419ce94…`, 2026-09-18 17:01:19 UTC,
+  20 checks, `failed_checks=0`), over the **same five full image ids and the
+  same five repository digests** as this session's gate snapshot. **Those fields
+  were recorded on 2026-09-18 and were not captured during the G2 session**, no
+  artefact of the seven packages holds them, and the bridge holds only for these
+  exact image ids: a later candidate that changes an image needs it reassessed
+  for that image. The earlier guest session of that day, whose pull transcript
+  ends `failed_checks=9` because the check template asked for a field the Ditto
+  image configurations do not carry, is kept in the package and is **not** read
+  as a pass. No flow, timing, persistence or health result of 2026-09-20 depends
+  on this directory, and none is imported from 2026-09-18.
+- **Why the supplement and the qualifications were added.** A project-management
+  review of this G2 package, recorded 2026-09-21 and held outside this
+  repository, found that the architecture question could be closed from evidence
+  that already existed and was already sealed, rather than by waiving the
+  requirement or running the guest again; that the missing readiness body is a
+  disclosed recording limitation with hash-linked exit-status evidence; and that
+  the unexercised negative cases belong to G3, with the wording about anonymous
+  access corrected because configuration is not an exercised refusal. The work
+  that followed is documentary: publication, traceability and wording. **No test
+  was repeated, no sealed record was rewritten and no gate was decided.**
 - **The proposal.**
   [`docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md`](docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md)
   sets the session against the normative G2 clauses and the conditions common to
-  G2–G7 one row at a time, with the exact evidence path for each, and records
-  what is under-recorded (the architecture of the five registry images), what
-  holds without being exercised (no intended-invalid payload was offered, and
-  the transport refusals were not repeated in this session), and the residual
-  limitations of the demonstration itself: one device, sixty messages, one
-  restart, one guest, one repetition, an emulated platform, a publisher that
-  runs on the host and reaches the guest through port-forwards, and a controller
-  image whose Python dependencies are still unlocked.
+  G2–G7 one row at a time, with the exact evidence path for each. It resolves
+  G2.3 by the supplement, under the qualification stated there; it qualifies the
+  readiness half of the restart as indirect and as a disclosed recording
+  limitation; it records what holds **without being exercised** (no
+  intended-invalid payload was offered, and no refusal probe was run — anonymous
+  access is disabled in configuration and its refusal was not tested, which
+  belongs to G3); and it keeps the residual limitations of the demonstration
+  itself: one device, sixty messages, one restart, one guest, one repetition, an
+  emulated platform, a publisher that runs on the host and reaches the guest
+  through port-forwards, and a controller image whose Python dependencies are
+  still unlocked. Its closing section gives a clause-by-clause closure
+  recommendation, one bounded sentence of what the student would accept, and
+  what stays open — a recommendation, not a decision.
 - **What is not shown.** No gate is decided and no claim moves. **G2 remains
   `Not decided`**, and stays so until the student records a dated decision with
   an authority and a durable decision record; sealing a capsule, a green pull
@@ -2753,9 +2811,23 @@ is unchanged.
   nominal 11.2 msg/s workload — which failed its delivery deadline on 2026-09-19
   and **stays open** — the soak, the 95-run campaign, any native evidence or any
   capacity figure.
+- **Verification.** Over the tree as this change leaves it:
+  `python tools/ci/verify_evidence.py` verified **909 artefacts across 24
+  evidence seals**; the capsule's outer seal lists **295 files** — the 261 of
+  the seven attempt packages, the capsule's own README and the supplement's 33 — and
+  verifies, as do the supplement's own two seals where they stand;
+  `python tools/ci/check_markdown_links.py` checked repository-local links in
+  **107 Markdown files**. These counts are read over this working tree and
+  supersede the earlier 820-across-22 and 262-file readings taken before the
+  supplement; they are not a substitute for the required checks running on the
+  final head, which is what clauses C3 and G2.12 wait on. No experiment was run,
+  no sealed package was altered or re-sealed, and no gate or claim moved.
 - **Decisions and next steps:** none taken here. The proposal is for the
   student; the points it leaves to him are the capsule's evidence check, whether
   the attempts of 2026-09-19 must be referenced from the capsule, whether the
-  two unexercised sub-clauses are acceptable at G2, and the wording of the scope
-  he would be accepting. The controller's backlog and in-flight recovery remain
+  unexercised sub-clauses are acceptable as unexercised at G2, whether the
+  architecture read on 2026-09-18 closes G2.3 on the strength of the matching
+  image ids, whether readiness may rest on a hash-identified exit status with no
+  captured body, and the wording of the scope he would be accepting. The
+  controller's backlog and in-flight recovery remain
   the open downstream work, and D007 is still owed before `exp-v1`.
