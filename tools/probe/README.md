@@ -24,6 +24,7 @@ design, approves none of ADR 0011's implementation items and accepts no gate.
 | `guest/probe_recorder.sh` | the guest-side 1 s recorder of the probe broker's memory cgroup, its `memory.events`, the size of its `mosquitto.db` and its container state (BusyBox ash, root) |
 | `../session/broker_measure.sh` | the session driver: the stack stopped, the probe broker started on its own volume with measurement copies of the configuration, the phases P0–P8, every record kept, the probe's state read and the probe removed, the stack started and waited for, the verdict, the export |
 | `../../src/tests/test_broker_hold.py` | the cases: the clients against a fake paho client, `generate` with the real simulator loop and a fake clock, the verdict on hand-written records of a supporting run and of every refuting and inconclusive shape |
+| `local_check.py` | the local functional check: the real clients and the real verdict through the same phases against an isolated container of the pinned image on the workstation's Docker (x86-64), the attempt written in the driver's layout; a tool check, never evidence about the guest |
 | `../../src/tests/test_broker_measure_driver.py` | the driver's lifecycle on the drivers' stub bench (a fake guest with a stateful `docker`, a `systemd-run` that really runs the recorder, a stub of the probe tool whose verdict is the real one): P7 waits for the client, a client that does not end is ended, an interruption — also one landing while the stack is being stopped — restores, a name in use stops the driver, a failed restoration or a missing record never yields a pass |
 
 ## Two outputs, kept apart
@@ -187,14 +188,61 @@ recovery disks are never touched.
 
 ## Running it
 
-Local functional check (no guest; a tool check, not evidence):
+Local functional check (no guest; a tool check, not evidence). The dev TLS
+material comes from `src/deployment/scripts/generate-dev-tls.sh --cert-dir
+<dir>`, the password file from `mosquitto_passwd` inside the pinned image with
+throwaway passwords handed through the environment, the messages from
+`generate`; the two passwords are read from a `NAME=value` file and never
+reach a command line:
 
 ```bash
-# a pinned broker on Docker Desktop with the deployment's dev TLS and auth,
-# the measurement lines appended; then the clients against 127.0.0.1:8883
-python tools/probe/broker_hold.py generate --work-dir /tmp/gen --out /tmp/messages.jsonl
-MOSQUITTO_SIMULATOR_PASSWORD=... python tools/probe/broker_hold.py publish --messages /tmp/messages.jsonl --first 0 --count 50 --ca-cert ca.crt --record /tmp/p2.jsonl
+python tools/probe/broker_hold.py generate --work-dir <dir>/generate --out <dir>/messages.jsonl
+python tools/probe/local_check.py --image eclipse-mosquitto@sha256:<the pinned digest> \
+  --conf src/deployment/mosquitto/config/mosquitto.conf --acl src/deployment/mosquitto/config/acl \
+  --certs <dir>/certs --passwd <dir>/passwd --secrets-env <dir>/secrets.env \
+  --messages <dir>/messages.jsonl --out <dir>/attempts/<name> [--W 4999 --Q 1000 --A 4999 --B 1100 ...]
 ```
+
+It writes the attempt in the driver's layout and prints the verdict; the
+attempt is carried into `output_test` with `local_export backfill`, labelled
+as a local functional tool verification and never as QEMU evidence.
+
+### What the first local runs showed about the tool (2026-09-23, x86-64 image of the pinned digest)
+
+Observations of the workstation's broker that changed the tool, not
+statements about the guest:
+
+- the broker's store count (`$SYS/broker/store/messages/count`) includes its
+  own retained messages, the `$SYS` topics among them (51 on that broker
+  after P0), so every store figure is read relative to the baseline at the
+  end of P1, the subscriber's expected count in P7 is that difference, and
+  the store's return to its baseline is read at the end of P8, the final
+  readings, since the broker publishes a `$SYS` value only when it changed
+  and only every `sys_interval`;
+- the pinned 2.0.22 image publishes no `$SYS/broker/messages/inflight`; S2
+  rests on the subscriber's own records, as designed, and that figure stays
+  empty;
+- a subscriber killed without a DISCONNECT leaves an `OpenSSL Error … unexpected
+  eof while reading` line in the broker's log; an error line after the
+  listener opened is a session line, recorded and never read as a refused
+  configuration (R1 is an error line before the listener, or the container
+  refusing to run);
+- the broker logged `Outgoing messages are being dropped for client
+  egw-probe-hold.` when the queue filled in P5, at the deployed log types —
+  the line the ChangeLog records since 1.3, which gate item 1 left NOT
+  ESTABLISHED for 2.0.22; the verdict now keeps such lines as a figure;
+- with the subscriber away the queue counted **above** the held in-flight
+  window (store W + Q, dropped B − Q) on that broker; whether the guest's
+  arm64 variant does the same is what the guest measurement records.
+
+With the design's counts (W = 4,999, Q = 1,000, A = 4,999, B = 1,100 at
+11.2 msg/s) the tool ran end to end on that broker in 14.6 minutes and its
+verdict was *supports* (4,999 held, 5,999 held with the subscriber away and
+100 dropped, all 5,999 redelivered in order with DUP = 1 on the 4,999, peak
+memory 17.6 MiB, no OOM); with the redelivery client limited to 2 s it
+reported *inconclusive* and removed its container. The three attempts are in
+`output_test` as `HIST_2026-09-23-broker-probe-local-check-{smoke03,full01,fail01}`.
+None of it says anything about the emulated guest.
 
 On the guest, inside an open session, after the recovered bytes of r02 have
 been preserved and only with the student's explicit authorisation for one

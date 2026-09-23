@@ -3110,16 +3110,47 @@ is unchanged.
   `broker_verdict` keeps the observation; a broker that refuses its
   configuration is R1 with the guest restored; a publisher that is not exact
   is inconclusive, not a refutation. ShellCheck 0.11.0 at `--severity=error`:
-  clean. **Not verified here:** the clients against a real Mosquitto 2.0.22
-  (the local functional check on Docker Desktop is the next step, subject to
-  the student's authorisation; a tool check, not evidence).
+  clean.
+- **The local functional check (2026-09-23, the workstation's Docker, the
+  amd64 variant of the pinned digest `sha256:212f89e1…`; a tool check, not
+  QEMU evidence and not a measurement of the guest).** `tools/probe/local_check.py`
+  runs the real clients and the real verdict through the same phases against
+  an isolated container of the pinned image with the deployment's dev TLS,
+  throwaway passwords handed through the environment and the 6,099 messages
+  of `generate` (273 to 320 B; 5,445 of them, 89.3 %, from the one
+  `smart_clothing` device, as in `nominal-r01`). Three attempts, each carried
+  into `output_test` by `local_export backfill` as
+  `HIST_2026-09-23-broker-probe-local-check-{smoke03,full01,fail01}`,
+  labelled as local functional tool verifications: **smoke03** (W = 30, Q = 5,
+  A = 30, B = 10) — supports for those counts; **full01** (W = 4,999, Q = 1,000,
+  A = 4,999, B = 1,100 at 11.2 msg/s, the design's durations) — the broker
+  held 4,999 distinct deliveries with none acknowledged, held 5,999 with the
+  subscriber away (the queue counted **above** the in-flight window: store
+  W + Q, dropped B − Q = 100, the drop logged as `Outgoing messages are being
+  dropped for client egw-probe-hold.` at the deployed log types), redelivered
+  all 5,999 on the resumed session with DUP = 1 on the 4,999 and per-device
+  `seq` ascending, every acknowledgement succeeded, the store returned to its
+  baseline; peak memory 17.6 MiB against the 128 MiB limit (anon 6.3 MiB, about
+  763 B of anon per held message in P2 on that host), no OOM, no restart, the
+  recorder's 878 rows without a gap; 14.6 minutes from the container's start
+  to the end of P8; verdict **supports**, S1–S5 all holding; **fail01** (the
+  small counts with the redelivery client limited to 2 s) — P7 reaches its
+  limit, the verdict is **inconclusive** with no refutation made, and the
+  container and volume are removed. Two earlier smokes (`smoke01`, `smoke02`,
+  kept locally and not carried) showed what the tool had wrong and led to the
+  corrections of the same day: the store count includes the broker's own
+  retained messages (51 `$SYS` topics on that broker), so every store figure
+  is read relative to the baseline at the end of P1, the subscriber's expected
+  count in P7 is that difference and the store's return to its baseline is
+  read at the end of P8; the pinned 2.0.22 publishes no
+  `$SYS/broker/messages/inflight`; a subscriber killed without a DISCONNECT
+  leaves an `OpenSSL Error … unexpected eof` line, which is a session line
+  and not a refused configuration. What the check does not show: anything
+  about the emulated guest, its timing, its memory or the arm64 variant's
+  accounting of the queue; those are what the guest measurement records.
 - **Decisions and next steps.** No decision. Next, in the order the project
   manager's advice sets out and only with the student's authorisation: the
-  local functional check against an isolated pinned Mosquitto 2.0.22
-  (generate → hold → publish → kill → resume/ACK → discard → verdict, plus one
-  controlled observation failure, exported to `output_test` as a local tool
-  verification and not as QEMU evidence); the presentation of the final
-  commands, identities, checks, export paths, restoration steps and stop rules
-  (`tools/probe/README.md`); one explicitly authorised guest session; then the
-  implementation/scope decision on package D with the measurement's result,
-  the remaining hours and the full schedule.
+  presentation of the final commands, identities, checks, export paths,
+  restoration steps and stop rules (`tools/probe/README.md`); one explicitly
+  authorised guest session; then the implementation/scope decision on package
+  D with the measurement's result, the remaining hours and the full schedule.
