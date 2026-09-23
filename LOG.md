@@ -2993,3 +2993,228 @@ is unchanged.
   their exercised negative cases, a readiness step that records the status and
   the body, and a locked set of controller Python dependencies — with D007
   still owed before `exp-v1`.
+
+## Entry #C040 — The broker-hold measurement tool (ADR 0011, condition C3): the clients, the guest recorder, the session driver and their tests
+
+- **Date:** 2026-09-23. **Scope:** package D, stage 1 of the project manager's
+  staged advice of 2026-09-23 (`PM_PACKAGE_D_DECISION_ADVICE_2026-09-23.md`,
+  section 4): the scripts and deterministic local tests of the one bounded
+  broker-only measurement that ADR 0011 (a proposed record, not yet in this
+  repository) names as its condition C3. No production controller change, no
+  guest session and no measurement result are part of this entry.
+- **What.** `tools/probe/broker_hold.py` (the host-side clients `generate`,
+  `publish`, `hold`, `sysreader`, `discard`, and the `verdict` that applies the
+  design's S1–S5, R1–R6 and inconclusive rules to the records),
+  `tools/probe/guest/probe_recorder.sh` (the 1 s cgroup recorder of the probe
+  broker, BusyBox ash), `tools/session/broker_measure.sh` (the session driver:
+  the deployed stack stopped, a throwaway pinned broker on its own fresh volume
+  with measurement copies of `mosquitto.conf` and `acl`, the phases P0–P8, the
+  probe removed, the stack started and waited for with the G2 drivers' shared
+  wait, the verdict, the export; the interrupt handler restores the same way),
+  `tools/probe/README.md` (the phases, rules, stop rules, identities, export
+  paths and restoration — the session plan the student is asked to authorise
+  or not) and `src/tests/test_broker_hold.py`. The measurement's values (W =
+  4,999, Q = 1,000, expiry 1 h, A = 4,999, B = 1,100, 128 MiB) are **probe
+  settings**, not adopted production or campaign settings; the `$SYS` read is
+  a measurement-only grant in the measurement copy of the acl, never a change
+  to the deployed file. The clients read their passwords from the
+  environment; no secret is on a command line or in a record.
+- **Why.** The recovery option ADR 0011 recommends cannot run on today's
+  broker configuration (defaults of 20 in flight and 1,000 queued), and
+  whether the pinned broker honours a window of 4,999 within 128 MiB, keeps a
+  persistent session's held messages across a kill and redelivers them in
+  per-device order cannot be established from the documentation. The
+  measurement is the smallest feasibility test before any implementation is
+  decided; an inconclusive run is not passing, and a refutation is a result
+  that is recorded and never re-run away.
+- **Verification.** `src/tests/test_broker_hold.py`: 30 cases pass in the
+  execution venv (paho-mqtt 2.1.0, the repository's simulator): the holding
+  subscriber acknowledges nothing without `--ack` and each delivery after
+  recording it with `--ack`; the publisher publishes exactly its slice, in
+  order, at the generated cadence, and counts a missing PUBACK as not exact;
+  the `$SYS` reader refuses a subscription the broker does not grant;
+  `generate` reproduces the nominal three-device mix in order with gap-free
+  per-device `seq` and real sizes; the verdict supports only when S1–S5 all
+  hold, refutes on each of R1–R6, is inconclusive for each inconclusive shape
+  and lets a refutation stand when the run is also inconclusive. The recorder
+  was run under the image's own busybox through
+  `tools/test/make-busybox-wrappers.sh` (`wc -c` stands in for `stat`, which
+  the image's busybox does not offer). `bash -n` and ShellCheck 0.11.0 on the
+  two scripts: no error-severity finding. **Not verified here:** the driver
+  against a broker or the guest (no session was opened), and the clients
+  against a real Mosquitto 2.0.22 (Docker Desktop was not running on the
+  workstation when this entry was written; that local functional check is
+  the next step and is a tool check, not evidence).
+- **Corrections after the review of 2026-09-23** (the project manager's
+  `PM_REVIEW_PR43_BROKER_PROBE_2026-09-23.md`, findings PR43-01 to PR43-05,
+  all confirmed against the code of `d9b3563`). *PR43-01:* the background
+  clients were started inside a command substitution, so the driver could not
+  wait for them and could end P7 before the redelivery client had ended; each
+  client is now a child of the driver's shell, waited for with a bound
+  (`P7_LIMIT` plus a grace), its exit status recorded in `phases.jsonl`, and
+  ended by the driver only when the bound is reached, which is a stop rule
+  and never the broker's behaviour. *PR43-02:* an unreadable counter was read
+  as zero, a non-empty recorder sufficed for S4, the 128 MiB limit was a
+  figure and not a condition, the recorder's coverage of P2–P7 was not
+  required, and the guest clock offset was applied with the wrong sign
+  (subtracted where it must be added); the verdict now requires full coverage
+  of the window, readable and ordered counters, the container running with
+  the expected `memory.max`, and `docker inspect`'s `OOMKilled` read before
+  removal (`probe_state.json`), and carries host instants onto the guest clock
+  by adding the offset. *PR43-03:* a refutation could rest on records that
+  were missing (a short offer, a P7 at its limit, an empty log); every
+  refutation now rests on something observed and an absence makes the run
+  inconclusive, while an observed refutation stands when the run is also
+  inconclusive. *PR43-04:* P7's identities were counted and not reconciled
+  against the P2 and P5 populations; the SUBACK's granted QoS and the CONNACK's
+  `session_present` were figures and not conditions; and the PUBACK was
+  requested before the delivery's record was written. The verdict now
+  reconciles by identity (the P2 set in full, of P5 exactly the first queued
+  by the broker's own count, nothing unknown); the subscriber insists on QoS 1
+  and, in P7, on a resumed session; and the record is written first, the
+  PUBACK requested only then, its outcome recorded beside it, and nothing
+  acknowledged once a record has failed. *PR43-05:* the guest-state flags were
+  set only after a mutating command returned, there was no ownership guard on
+  the fixed container name, and a missing mandatory record did not change a
+  passing verdict. The intent is now recorded before each dispatch and the
+  restoration reads the guest back; the probe carries the attempt's label and
+  only a container with that label is removed; an existing container, volume,
+  directory or unit of the probe's names stops the driver before it touches
+  anything; every setup and restoration command is bounded by `timeout`; and
+  the attempt records `broker_verdict` and `restoration` as two outputs, with
+  a pass only when the observation supports, every record was made and the
+  guest is restored. The decision brief's categorical statement that test 6
+  fails "in every option" was replaced by what is established (the current
+  candidate failed; a changed candidate is unmeasured; recovery alone is not
+  evidence of meeting the deadline).
+- **Verification of the corrections.** `src/tests/test_broker_hold.py`: 55
+  cases pass, among them the record-before-PUBACK order (spied), no PUBACK for
+  a record that failed, a failed PUBACK recorded separately, a SUBACK not
+  granting QoS 1 refused, the offset carried with either sign, each of R1–R6
+  from observed evidence, eighteen inconclusive shapes (coverage head and
+  tail, unknown and disordered counters, the wrong limit, a missing probe
+  state, a short offer, P7 at its limit or without an end, a failed PUBACK,
+  no `$SYS`, no disconnection line, a stop rule, a missing log, an unrelated
+  identity, a subscriber that ended early), and four shapes in which a
+  missing record makes no refutation. `src/tests/test_broker_measure_driver.py`:
+  10 lifecycle cases pass on the drivers' stub bench, with a stateful
+  `docker`, a `systemd-run` that really runs the guest recorder and a stub of
+  the probe tool whose verdict is the real one — P7 ends after the client's
+  end record with its status captured (a client delayed 3 s is never ended by
+  the driver); a client that does not end is ended and the run is
+  inconclusive; an interruption in P3, and one that lands while `compose stop`
+  is in flight, reap the clients and start the stack again; a container of
+  the probe's name that exists stops the driver before it touches anything and
+  is not removed; a `compose start` that fails, a stack not healthy again and
+  a recorder CSV that could not be fetched never yield a pass while
+  `broker_verdict` keeps the observation; a broker that refuses its
+  configuration is R1 with the guest restored; a publisher that is not exact
+  is inconclusive, not a refutation. ShellCheck 0.11.0 at `--severity=error`:
+  clean.
+- **The local functional check (2026-09-23, the workstation's Docker, the
+  amd64 variant of the pinned digest `sha256:212f89e1…`; a tool check, not
+  QEMU evidence and not a measurement of the guest).** `tools/probe/local_check.py`
+  runs the real clients and the real verdict through the same phases against
+  an isolated container of the pinned image with the deployment's dev TLS,
+  throwaway passwords handed through the environment and the 6,099 messages
+  of `generate` (273 to 320 B; 5,445 of them, 89.3 %, from the one
+  `smart_clothing` device, as in `nominal-r01`). Three attempts, each carried
+  into `output_test` by `local_export backfill` as
+  `HIST_2026-09-23-broker-probe-local-check-{smoke03,full01,fail01}`,
+  labelled as local functional tool verifications: **smoke03** (W = 30, Q = 5,
+  A = 30, B = 10) — supports for those counts; **full01** (W = 4,999, Q = 1,000,
+  A = 4,999, B = 1,100 at 11.2 msg/s, the design's durations) — the broker
+  held 4,999 distinct deliveries with none acknowledged, held 5,999 with the
+  subscriber away (the queue counted **above** the in-flight window: store
+  W + Q, dropped B − Q = 100, the drop logged as `Outgoing messages are being
+  dropped for client egw-probe-hold.` at the deployed log types), redelivered
+  all 5,999 on the resumed session with DUP = 1 on the 4,999 and per-device
+  `seq` ascending, every acknowledgement succeeded, the store returned to its
+  baseline; peak memory 17,649,664 bytes, 16.83 MiB, against the 128 MiB limit
+  (anon 6,307,840 bytes, about 763 B of anon per held message in P2 on that
+  host), no OOM, no restart, the
+  recorder's 878 rows without a gap; 14.6 minutes from the container's start
+  to the end of P8; verdict **supports**, S1–S5 all holding; **fail01** (the
+  small counts with the redelivery client limited to 2 s) — P7 reaches its
+  limit, the broker verdict is **inconclusive** with no refutation made, and
+  the container and volume are removed: the tool's negative path passed its
+  check, which is not a successful broker measurement (the package's outer
+  `pass` is the tool check's). Two earlier smokes (`smoke01`, `smoke02`,
+  kept locally and not carried) showed what the tool had wrong and led to the
+  corrections of the same day: the store count includes the broker's own
+  retained messages (51 `$SYS` topics on that broker), so every store figure
+  is read relative to the baseline at the end of P1, the subscriber's expected
+  count in P7 is that difference and the store's return to its baseline is
+  read at the end of P8; the pinned 2.0.22 publishes no
+  `$SYS/broker/messages/inflight`; a subscriber killed without a DISCONNECT
+  leaves an `OpenSSL Error … unexpected eof` line, which is a session line
+  and not a refused configuration. What the check does not show: anything
+  about the emulated guest, its timing, its memory or the arm64 variant's
+  accounting of the queue; those are what the guest measurement records.
+- **Corrections after the follow-up review of 2026-09-23**
+  (`PM_REVIEW_PR43_FOLLOWUP_2026-09-23.md`, blockers B1 and B2, items C1 to
+  C3, all confirmed against `f62af8c`). *B1:* a recorder whose start was not
+  confirmed was left in the state `unknown`, which the restoration did not
+  handle, and the stop command's success could come from `tail` while
+  `systemctl stop` had failed; the restoration now handles every non-terminal
+  state by reading the unit's real state, stopping it when active and
+  declaring it stopped only when `systemctl is-active` answers inactive after
+  the stop, fetches the CSV as a separate step either way, and a session is
+  fully restored only when the recorder is verified stopped as well as the
+  stack healthy and the probe gone. *B2:* the setup's 300 s limit was checked
+  only after every setup command had returned, each with its own full bound,
+  and a stop rule reached in P4 still let P5 publish and P7 resume; the setup
+  now runs on one budget from one clock, each command bounded by what is left
+  and no step started once it is spent, and no later phase starts after any
+  stop rule — the partial observation is kept, the final readings and the
+  discard still run, the guest is restored. *C1:* an unreadable counter set
+  its aggregate to `None` and could erase an OOM observed in another row; the
+  observation and the completeness are now kept apart (R4 from what was
+  read, inconclusive from what was not), and rows without a readable epoch
+  give a structured inconclusive rather than an exception. *C2:* ownership is
+  the label being exactly this attempt's id, for the container and for the
+  volume; a resource of the probe's name with another label is left alone and
+  reported, and its records are not read as this attempt's. *C3:* the phase
+  table no longer expects `messages/inflight`, the preserved peak is given as
+  17,649,664 bytes (16.83 MiB), and the summaries keep the tool's passed
+  negative-path check apart from the broker verdict it reports.
+- **Verification of the follow-up.** `test_broker_hold.py`: 59 cases
+  (added: an observed OOM survives an unreadable sample elsewhere; rows
+  without a readable epoch are inconclusive). `test_broker_measure_driver.py`:
+  16 lifecycle cases (added: a recorder whose start was not confirmed is found,
+  stopped and fetched; a stop that failed is never declared stopped even with
+  a readable CSV and the session is not a pass; the setup budget is one budget
+  and no stage starts beyond it; a P4 stop rule ends the measurement before
+  P5 and P7 with the partial observation kept; a container whose label merely
+  contains the attempt id, and a volume whose label is not exactly it, are
+  left alone and reported). ShellCheck at `--severity=error`: clean; links:
+  108 files. **Offline reconciliation:** the corrected `verdict` re-run on
+  unmodified copies of the three preserved local records reproduces each
+  sealed verdict — `full01` supports, `fail01` inconclusive, `smoke03`
+  supports — with every figure equal and `full01`'s `verdict.json` byte for
+  byte identical (sha256 `b0bc63ce…`); the sealed packages were not touched
+  and no live run was repeated.
+- **Correction after the delta review of 2026-09-23 at `6e3f456`**
+  (`PM_PR43_DELTA_6e3f456_2026-09-23.md`, section 3). The setup's transfers
+  (the two measurement copies fetched, the recorder copied) ran outside the
+  setup budget, and a transfer that spent it left the next command a bound of
+  zero seconds — which `timeout` reads as no bound at all, so the probe or
+  the recorder could still start after the allowance had expired. Now every
+  setup transfer is guarded and bounded like the commands, the two bounded
+  dispatchers (`gxt`, `gcpt`) refuse a spent or unreadable allowance before
+  invoking anything, and a transfer the budget ends records the stop, keeps
+  what was observed and enters the restoration with nothing after it started.
+  The C1 regression is sharpened to the same counter (a positive `ev_oom` and
+  an unreadable `ev_oom`, in either order), the case the earlier aggregation
+  lost. Regressions: a configuration transfer that spends the budget starts no
+  probe; a recorder transfer that spends it starts no recorder and removes the
+  probe it owns; the dispatchers given `0`, an empty value or a non-number call
+  nothing and answer 124. `test_broker_measure_driver.py`: 19 cases;
+  `test_broker_hold.py`: 60. The sealed local records were not touched and
+  no live run was repeated.
+- **Decisions and next steps.** No decision. Next, in the order the project
+  manager's advice sets out and only with the student's authorisation: the
+  presentation of the final commands, identities, checks, export paths,
+  restoration steps and stop rules (`tools/probe/README.md`); one explicitly
+  authorised guest session; then the implementation/scope decision on package
+  D with the measurement's result, the remaining hours and the full schedule.
