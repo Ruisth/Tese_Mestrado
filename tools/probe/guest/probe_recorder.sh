@@ -90,17 +90,26 @@ while [ "$stopped" -eq 0 ]; do
     evmax=$(statfield "$CG/memory.events" max)
     evoom=$(statfield "$CG/memory.events" oom)
     evkill=$(statfield "$CG/memory.events" oom_kill)
-    # 'wc -c' rather than 'stat': every applet used here is one the image's
-    # busybox offers (tools/test/make-busybox-wrappers.sh lists them).
+    # 'wc -c' rather than 'stat', and the shell's own word splitting rather
+    # than 'tr': every applet used here is one the image's busybox offers
+    # (tools/test/make-busybox-wrappers.sh lists them).
     if [ -f "$DB" ]; then
-        db=$(wc -c < "$DB" 2> /dev/null | tr -d ' ') || db='?'
-        [ -n "$db" ] || db='?'
+        if db=$(wc -c < "$DB" 2> /dev/null); then
+            set -- $db
+            db=${1:-?}
+        else
+            db='?'
+        fi
     else
         db=0
     fi
+    # A stop that arrived while this sample was being taken interrupted one
+    # of its reads (the C3 attempt of 2026-09-23 ended with a 'docker inspect'
+    # cut short by the stop, and a row of '?'): a sample the stop interrupted
+    # is not an observation and is not written.
+    [ "$stopped" -eq 0 ] || break
     echo "$ts,$ep,$cur,$mx,$pk,$anon,$file,$af,$inf,$evmax,$evoom,$evkill,$db,$state,$restarts" >> "$OUT"
     samples=$((samples + 1))
-    [ "$stopped" -eq 0 ] || break
     sleep "$INTERVAL" &
     wait $! 2> /dev/null
 done

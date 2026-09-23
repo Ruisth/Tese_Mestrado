@@ -396,6 +396,13 @@ def ids():
 
 cmd = sys.argv[1]
 if cmd == "generate":
+    # like the real one, the simulator resolves its schemas from EGW_SCHEMA_DIR
+    # when that is set: a value meant for the guest (a path relative to the
+    # deployment tree) does not exist on the host and is a prerequisite failure
+    schema_dir = os.environ.get("EGW_SCHEMA_DIR")
+    if schema_dir is not None and not os.path.isdir(schema_dir):
+        print(f"STOP: [Errno 2] No such file or directory: '{schema_dir}/telemetry-envelope-v1.schema.json'", file=sys.stderr)
+        sys.exit(2)
     out = opt("--out")
     count = int(opt("--count"))
     with open(out, "w", encoding="utf-8") as fh:
@@ -544,6 +551,12 @@ class ProbeBench(Bench):
         for name, text in (("docker", DOCKER_STUB), ("systemd-run", SYSTEMD_RUN_STUB), ("systemctl", SYSTEMCTL_STUB)):
             _write(self.guest_bin / name, text, executable=True)
         self.probe = _write(tmp_path / "probe_stub.py", PROBE_STUB, executable=True)
+        # the secrets file of runbook 5.2 also carries the controller's GUEST
+        # settings, among them the schema directory relative to the deployment
+        # tree: a host step that sources it and then runs the simulator fails,
+        # which is what the C3 session of 2026-09-23 met on its first step
+        with open(self.home / "egw-tcg" / ".env", "a", encoding="utf-8") as fh:
+            fh.write("EGW_SCHEMA_DIR=src/schemas\nMOSQUITTO_CONTROLLER_PASSWORD=stub-controller-password\n")
         # the bench's scp, behind a wrapper that can be made slow
         (self.bin / "scp").rename(self.bin / "scp.real")
         _write(self.bin / "scp", '#!/bin/sh\n[ -z "${EGW_STUB_SCP_DELAY_S:-}" ] || sleep "$EGW_STUB_SCP_DELAY_S"\n'
@@ -660,6 +673,18 @@ def test_p7_ends_after_the_client_ended_and_captures_its_status(pbench):
     assert json.loads((env / "probe_state.json").read_text())["oom_killed"] is False
     exported = list((pbench.out / "runs").glob("*/*broker-hold-measurement*"))
     assert exported and (exported[0] / "SHA256SUMS").is_file(), "no verified package reached output_test"
+
+
+def test_generate_never_inherits_a_schema_directory_from_the_callers_environment(pbench):
+    # the documented host set-up exports the guest's EGW_SCHEMA_DIR in the
+    # caller's shell; the venv-only step must resolve the clone's schemas
+    # whatever was inherited (the stub's generate fails on a path that is
+    # not a directory, as the real one does)
+    result = pbench.run_driver(EGW_SCHEMA_DIR="/nonexistent/guest/deployment/schemas")
+    assert result.returncode == 0, report(result)
+    verdicts = pbench.probe_verdicts()
+    assert verdicts["broker_verdict"] == "supports" and verdicts["system_outcome"] == "pass"
+    assert (pbench.probe_attempt() / "environment" / "probe" / "messages.jsonl").stat().st_size > 0
 
 
 def test_a_client_that_does_not_end_is_ended_by_the_driver_and_the_run_is_inconclusive(pbench):
@@ -900,6 +925,17 @@ gxt 5 A step 'echo hi'; echo "gxt[5]=$?"
         assert f"gxt[{limit}]=124" in result.stdout and f"gcpt[{limit}]=124" in result.stdout, result.stdout
     assert "CALLED" in result.stdout and "gxt[5]=0" in result.stdout, result.stdout
     assert result.stderr.count("was NOT started") == 6
+
+
+def test_the_session_drivers_ask_qemu_procs_and_never_pgrep_for_qemu_themselves():
+    # the behaviour of qemu_procs on real processes is in
+    # test_qemu_process_guard.py; here, that both drivers go through it
+    import re
+    for name in ("guest_session_open.sh", "guest_session_close.sh"):
+        text = (REPO_ROOT / "tools" / "session" / name).read_text(encoding="utf-8")
+        code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+        assert not re.search(r"pgrep\b.*qemu", code), f"{name} still calls pgrep for qemu itself"
+        assert "qemu_procs" in code, f"{name} does not use qemu_procs"
 
 
 def _ssh_text(pbench: ProbeBench) -> str:

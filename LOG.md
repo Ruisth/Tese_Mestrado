@@ -3212,9 +3212,130 @@ is unchanged.
   nothing and answer 124. `test_broker_measure_driver.py`: 19 cases;
   `test_broker_hold.py`: 60. The sealed local records were not touched and
   no live run was repeated.
-- **Decisions and next steps.** No decision. Next, in the order the project
-  manager's advice sets out and only with the student's authorisation: the
-  presentation of the final commands, identities, checks, export paths,
-  restoration steps and stop rules (`tools/probe/README.md`); one explicitly
-  authorised guest session; then the implementation/scope decision on package
-  D with the measurement's result, the remaining hours and the full schedule.
+- **The first authorised C3 session (2026-09-23) and what stopped it on its
+  first host step.** With the student's explicit authorisation for one C3
+  diagnostic on the reviewed code (`f119887`, the tree PR #43 merged into
+  `dev` as `43ee9ce`), the session `20260923T165315Z_guest-session_attempt03`
+  was opened from the execution clone at `f119887` and the live preflight
+  `20260923T165407Z_live-preflight_attempt04` passed (valid, pass, exported).
+  `broker_measure.sh` then ended on its first host step, before anything on
+  the guest was touched: `20260923T165939Z_broker-hold-measurement-c3_attempt01`,
+  outcome not-run, exit 2, `restoration=untouched`, exported as an incomplete
+  package. The cause, read from the step's console record: the host preamble
+  sources the secrets file of runbook 5.2, which also carries the controller's
+  settings for the guest, among them `EGW_SCHEMA_DIR=src/schemas`, a path
+  relative to the deployment tree; the repository's simulator, run by
+  `generate` from `src/` of the clone, resolved the schemas from that value
+  and found no such file (`STOP: [Errno 2] … src/schemas/telemetry-envelope-v1.schema.json`).
+  The workstation's local check had not met it because it never sourced that
+  file. The guest was read back through the session's own helpers afterwards:
+  the six services running and healthy, no probe container, volume, directory
+  or recorder unit. **Correction:** `generate` runs with the venv only, from
+  the clone's root (`hv`), and never inherits the guest's settings; the other
+  host steps keep the secrets they need. The stub bench's secrets file now
+  carries the same guest-relative schema path and its `generate` fails on it
+  as the real one does, so the lifecycle cases would fail on the previous
+  driver; the real `generate` was also re-run on the host both ways (exit 2
+  with the sourced file from `src/`, exit 0 with the venv only from the clone
+  root). 19 lifecycle cases pass. No measurement was made and none is repeated
+  here: the session stays open, untouched, for the student's decision on
+  running the measurement with the corrected driver.
+- **The C3 measurement on the guest (2026-09-23): four attempts in one
+  session, the fourth complete.** After the student's authorisation to keep
+  correcting prerequisite and instrument defects and retrying in the same
+  session (`20260923T165315Z_guest-session_attempt03`, booted from `f119887`;
+  live preflight `20260923T165407Z_live-preflight_attempt04` valid, pass):
+  `attempt02` (`20260923T192226Z…`, code `4736aee`'s predecessor `b1493c7`)
+  ended in `probe-config` after the stack had been stopped — the provenance
+  line hashed the deployed `acl` without `sudo`, and on the guest that file is
+  readable by root only (runbook 5.4a); the measurement copies had been made,
+  nothing of the probe was created, the restoration started the stack again
+  (`compose start` 151 s, healthy again 48 s) and verified it; corrected by
+  hashing the deployed originals with `sudo`, verified read-only on the guest.
+  `attempt03` (`20260923T193227Z…`, code `4736aee`) ran P0–P8 in full: S1, S2,
+  S3 and S5 held, and the verdict was **inconclusive** on one row of the
+  recorder — the stop of the recorder unit arrived during the `docker
+  inspect` of its last sample, the interrupted read gave `?` for the
+  container's state and restart count, and that partial row was written;
+  corrected in the recorder (a sample the stop interrupted is not written;
+  `tr` no longer used), pinned by `src/tests/test_probe_recorder.py` under
+  `sh` and the image's own busybox, whose case ends the recorder's whole
+  process group inside a sample's `docker inspect`, as `systemctl stop` ends
+  the unit, and asserts the interrupted sample is not written. **`attempt04`
+  (`20260923T195448Z_broker-hold-measurement-c3_attempt04`, execution commit
+  `8e68017`, drivers sha256 `64c7c314…`, export tool `544c9b3d…`, clone
+  clean): the broker verdict is `supports` — every one of S1–S5 holds —
+  instrumentation valid, system outcome pass, restoration
+  `stack=healthy probe=removed recorder=stopped`, exported and verified
+  (81 entries).** The broker: the pinned image
+  `eclipse-mosquitto:2.0.22@sha256:212f89e1…` as the guest's engine holds it
+  (image id `sha256:5fef2509…`, container `19fb23a0…`, labelled with the
+  attempt; `memory.max` 134,217,728 in
+  `/sys/fs/cgroup/system.slice/docker-19fb23a0….scope`; `$SYS/broker/version`
+  `mosquitto version 2.0.22`), with the measurement copies
+  `mosquitto.measure.conf` sha256 `5ea34d9f…` and `acl.measure` `3b1cc2af…`
+  (the deployed originals `057c0919…` and `76804469…`), W = 4,999, Q = 1,000,
+  expiry 1 h, A = 4,999, B = 1,100 at 11.2 msg/s, the phases at the design's
+  durations (P0 61 s, P1 11 s, P2 446 s, P3 130 s, P4 2 s, P5 98 s, P6 70 s,
+  P7 33 s, P8 30 s), 1,100.0 s (18 min 20 s) between the attempt's recorded
+  start and end, the stack's stop (17.9 s) and restart (122.9 s, healthy
+  again in 49.1 s) included, and 18 min 37 s from the driver's invocation to
+  its exit with the export. What the records show: the subscriber held 4,999 distinct
+  deliveries with DUP = 0 and acknowledged nothing (S2); the store rose from
+  its baseline of 51 to 5,050 by the end of P3 and to 6,050 by the end of P6,
+  with no drop through P4 and 100 dropped in P5–P6 — the queue counted
+  **above** the in-flight window (store W + Q, dropped B − Q), and the broker
+  logged `Outgoing messages are being dropped for client egw-probe-hold.` at
+  the deployed log types (S3, N4); no OOM, no restart, the container running
+  throughout, the recorder's 635 rows covering P2–P7 with no unreadable value
+  and no interval over the 5 s limit (385 intervals of 1 s and 249 of 2 s: not
+  an unqualified 1 Hz), docker reporting `OOMKilled=false` and `RestartCount=0`
+  before removal; peak memory 12,750,848 bytes (12.16 MiB) against 128 MiB,
+  anon 6,111,232 and file 2,854,912 at the peak; about 771 B of anon per held
+  message in P2 and about 737 B per queued message in P5, figures of this one
+  run (S4); on the resumed session (`session_present` true) every one of the
+  5,999 held messages came back once, the 4,999 with DUP = 1, first copies in
+  ascending `seq` per device, all 5,999 acknowledgements succeeded, the 1,000
+  P5 messages redelivered being exactly the first 1,000 published and the
+  other 100 the ones the broker's own count dropped, the store back at 51 by
+  the end of P8 (S5); the broker started with the five added lines and logged
+  no configuration error (S1). The only error line in its log is the TLS
+  `unexpected eof` of the subscriber killed without a DISCONNECT, and the
+  only warnings are about the measurement acl's permissions. **What this
+  establishes:** the broker-side premise of option 5 holds on this guest for
+  this run, as ADR 0011's condition C3 asks; nothing more — not the
+  controller's recovery, not timely delivery at 11.2 msg/s, no gate and no
+  claim. The queue's accounting and the drop line settle two of gate item 1's
+  open points for 2.0.22 as pulled by this guest.
+- **The session's close, and a false reading of it.**
+  `guest_session_close.sh` stopped the stack, recorded no OOM in the boot,
+  powered the guest off (QEMU ended with exit 0 at 20:14:28Z), recorded the
+  root file system and the data disk afterwards and exported the session —
+  then ended 5 with "a qemu-system-aarch64 process is STILL running",
+  because its final check, `pgrep -af qemu-system-aarch64`, matched the
+  **calling shell**, whose own command line held that string (the wrapper
+  this session used to run the driver). No such process existed
+  (`pgrep -x`), the guest refused ssh, and the session was closed. The
+  exported package `20260923T165315Z_guest-session_attempt03` keeps its
+  recorded verdict (`controlled_stop=failed`) as every package does; this
+  entry and `~/egw-exec/notes/2026-09-23-current_session-cleared.txt` record
+  the correction, and `current_session` was cleared by hand after the check.
+  The sealed session spans 16:53:15–20:14:32 UTC (17:53–21:14 in Lisbon),
+  3 h 21 min including the waits between attempts; that is the session's
+  elapsed time, not its measured windows and not the attended engineering
+  effort. **The first correction was itself wrong:** `86fc50d` matched the
+  process by its exact name (`pgrep -x qemu-system-aarch64`), but the name
+  Linux keeps for a process is cut at 15 characters and this one has 19, so
+  that test can never see a running guest — a defect the project manager
+  found on inspection, after the measurement and never exercised in it. The
+  open and close drivers now ask `qemu_procs` (`guest_common.sh`), which
+  matches the executable at the start of the command line and keeps pgrep's
+  three answers apart (present, absent, indeterminate);
+  `src/tests/test_qemu_process_guard.py` shows it on real processes — a
+  `sleep` reached through a symbolic link named `qemu-system-aarch64`, a shell
+  whose command line merely holds the string, nothing, and a `pgrep` that is
+  not there — and shows the two obvious tests wrong on the same processes.
+- **Decisions and next steps.** No decision. The measurement's result goes
+  to the student and the project manager for the recovery and scope decision
+  on package D, with the remaining hours and the full schedule; option 5
+  stays a proposal, the qualifying G3 runs stay paused.

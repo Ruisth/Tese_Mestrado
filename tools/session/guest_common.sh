@@ -12,6 +12,22 @@ EXPECT_SERVICES=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-thi
 DC='docker compose --env-file .env --env-file images.lock.env'
 SESSION=$(cat "$EXEC/current_session" 2> /dev/null || true)
 
+# qemu_procs: the qemu-system-aarch64 processes of this host, one "pid
+# command line" per line on stdout, matched by the EXECUTABLE at the start of
+# the command line: '^(\S*/)?qemu-system-aarch64( |$)'. Neither of the two
+# obvious tests is right. 'pgrep -f qemu-system-aarch64' matches any shell
+# whose command line merely holds the string - the close of the C3 session
+# of 2026-09-23 took its own invoking shell for a running guest. 'pgrep -x
+# qemu-system-aarch64' can never match: the process name Linux keeps is cut
+# at 15 characters ('qemu-system-aar'), and the name has 19. The answer keeps
+# pgrep's own three states, which the drivers read apart: 0 present, 1 absent,
+# 2 or more (127 when pgrep is not on PATH) indeterminate - a pgrep that could
+# not answer is never read as "no guest".
+QEMU_EXE_RE='^(\S*/)?qemu-system-aarch64( |$)'
+qemu_procs() {
+    pgrep -af "$QEMU_EXE_RE"
+}
+
 # A STEP THAT NEVER REACHED WHAT IT WAS TO RUN IS NOT AN ANSWER.
 # The three wrappers below each load something before the step's own command
 # runs: gx and gcp the session's ssh helpers, hx the host preamble of runbook
