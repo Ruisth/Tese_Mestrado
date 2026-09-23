@@ -34,9 +34,9 @@ integration evidence only, and no gate or claim follows from it.
 > bounded functional scope, with the qualifications of the review (the G2 row
 > and the accepted-gates sentence below; [decision record](docs/governance/decisions/2026-09-21-g2-closure.md),
 > [LOG `#C039`](LOG.md)). The rest of this section keeps its 2026-09-19 scope.
-> The decision record does not say whether the pause on test acceptance
-> mentioned below is lifted for the G3 battery; that is an open question for
-> the student.
+> The pause on test acceptance mentioned below stays on the G3 qualifying
+> runs until the candidate is frozen after package D, by the student's
+> decision of 2026-09-21; bounded engineering diagnostics continue.
 
 The Yocto/QEMU functional foundation has been built and accepted. The service
 code, simulator and experimental tooling exist, and the first bounded

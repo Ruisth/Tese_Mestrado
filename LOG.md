@@ -2935,7 +2935,7 @@ is unchanged.
   criteria keeps that paragraph as written and says that the decision is not a
   finding that the G2 criteria are met — the student accepted G2 in the bounded
   scope with the qualifications; no other row changes. `PROGRESS.md`: a dated update note,
-  which also records the open question below on the pause of test acceptance;
+  which also records the student's answer on the pause of test acceptance;
   the G2 bullet of the gate-status block, now dated 2026-09-21, with the state
   it replaces kept in a closing note; the accepted-gates sentence; the
   "Services on Yocto (G2)" row; the "Accepted at gate" cells of the contracts,
@@ -2985,11 +2985,10 @@ is unchanged.
 - **Decisions and next steps.** Decided by the student on 2026-09-21: **G2
   Accepted — bounded functional scope**, with the four qualifications and the
   exclusions above. No other gate, claim or maturity level changes, and no
-  documented supervisor decision is created. **Open question for the student:**
-  `PROGRESS.md` still records that test acceptance is paused at his request,
-  and the decision record does not say whether that pause is lifted for the G3
-  battery; nothing in this transcription resolves it. Next: his answer to that
-  question; then the downstream work this decision leaves
+  documented supervisor decision is created. **The pause on test acceptance.**
+  The decision record did not say whether it is lifted for the G3 battery; asked,
+  the student decided on 2026-09-21 that it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix); bounded engineering diagnostics continue, as they have since the continuation of 2026-09-19, and the nine families then run as one qualifying battery on the frozen candidate.
+  Next: the downstream work this decision leaves
   open — the controller's backlog and in-flight recovery, the G3 families with
   their exercised negative cases, a readiness step that records the status and
   the body, and a locked set of controller Python dependencies — with D007
