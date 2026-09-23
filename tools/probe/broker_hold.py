@@ -26,19 +26,28 @@ monotonic instant; no secret ever reaches argv or a record):
   message of the slice was published and acknowledged.
 * ``hold``      — the holding subscriber ``egw-probe-hold`` (never the
   controller's id): MQTT 3.1.1, ``clean_session=False``, ``manual_ack=True``,
-  QoS 1 on the telemetry filter; records every delivery with its DUP flag and
-  acknowledges nothing unless ``--ack`` (phase P7).
+  QoS 1 on the telemetry filter, and it insists on a SUBACK that grants QoS 1;
+  records every delivery with its DUP flag BEFORE anything else happens to it,
+  and acknowledges nothing unless ``--ack`` (phase P7), where the PUBACK is
+  requested only after the delivery's record has reached the file and the
+  request's own outcome is recorded beside it.
 * ``sysreader`` — ``egw-probe-sys``, clean session, QoS 0 on ``$SYS/#``; records
   every value with its instant.
 * ``discard``   — ends the persistent session of ``egw-probe-hold`` by
   connecting once with a clean session (phase P8).
 * ``verdict``   — reads the records and applies S1–S5, R1–R6 and the
   inconclusive rules of the design; prints the verdict and writes it as JSON.
+  A refutation that rests on something the instrument DID observe (a drop
+  counter, an OOM, an order break, a session the broker did not keep) stands
+  even when another part of the attempt is incomplete; a refutation that would
+  rest only on records that are missing is never made — the run is
+  inconclusive instead.
 
 Exit statuses: 0 done (``verdict``: supports), 1 a valid negative
 (``publish``: not every message acknowledged; ``verdict``: refutes), 2 a
-prerequisite (a connection refused, a file missing, a bad argument), 3 the
-verdict is inconclusive.
+prerequisite (a connection refused, a SUBACK that does not grant the QoS
+asked, a file missing, a bad argument), 3 the verdict is inconclusive, or a
+client whose own record could not be written.
 """
 from __future__ import annotations
 
@@ -100,8 +109,16 @@ def parse_utc(text: str) -> float:
     return datetime.strptime(t, fmt).replace(tzinfo=timezone.utc).timestamp()
 
 
+class RecorderError(RuntimeError):
+    """A record that did not reach the file."""
+
+
 class Recorder:
-    """Append-only JSON Lines writer; every record carries both instants."""
+    """Append-only JSON Lines writer; every record carries both instants.
+
+    ``write`` returns only after the line was written and flushed to the file
+    object; a failure raises ``RecorderError`` and nothing is claimed for it.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -109,21 +126,28 @@ class Recorder:
         self._fh = open(self.path, "a", encoding="utf-8", newline="\n")
         self._lock = threading.Lock()
         self.count = 0
+        self.failed = False
 
     def write(self, event: str, **fields) -> dict:
         record = {"event": event, "t_utc": utc_now(), "t_mono_ns": time.monotonic_ns(), **fields}
         line = json.dumps(record, separators=(",", ":"), sort_keys=False)
         with self._lock:
-            self._fh.write(line + "\n")
-            self._fh.flush()
+            try:
+                self._fh.write(line + "\n")
+                self._fh.flush()
+            except (OSError, ValueError) as exc:
+                self.failed = True
+                raise RecorderError(f"the record {event!r} did not reach {self.path}: {exc}") from exc
             self.count += 1
         return record
 
     def close(self) -> None:
         with self._lock:
             if not self._fh.closed:
-                self._fh.flush()
-                self._fh.close()
+                try:
+                    self._fh.flush()
+                finally:
+                    self._fh.close()
 
 
 def read_jsonl(path: str | Path) -> list[dict]:
@@ -191,6 +215,16 @@ def _reason_text(reason_code) -> str:
         return f"{int(reason_code.value)}:{reason_code.getName()}"
     except Exception:  # a fake, or an int
         return str(reason_code)
+
+
+def _reason_value(reason_code) -> int | None:
+    try:
+        return int(reason_code.value)
+    except Exception:
+        try:
+            return int(reason_code)
+        except (TypeError, ValueError):
+            return None
 
 
 def _is_failure(reason_code) -> bool:
@@ -387,6 +421,9 @@ def cmd_publish(args, client_factory=make_paho_client) -> int:
     except (ConnectionError, OSError) as exc:
         print(f"STOP: publish: {exc}", file=sys.stderr)
         return EXIT_PREREQUISITE
+    except RecorderError as exc:
+        print(f"STOP: publish: {exc}", file=sys.stderr)
+        return EXIT_INCONCLUSIVE
     finally:
         recorder.close()
     print(f"published: first={summary['first']} count={summary['count']} published={summary['published']} "
@@ -401,6 +438,10 @@ def cmd_publish(args, client_factory=make_paho_client) -> int:
 # --------------------------------------------------------------------------
 # hold (the holding subscriber)
 # --------------------------------------------------------------------------
+
+class SubscriptionRefused(ConnectionError):
+    """The SUBACK did not grant the QoS the measurement declares."""
+
 
 def _parse_delivery(msg) -> dict:
     fields = {"topic": msg.topic, "mid": msg.mid, "dup": bool(msg.dup), "qos": int(msg.qos),
@@ -421,7 +462,7 @@ def _parse_delivery(msg) -> dict:
 def run_hold(*, client, recorder: Recorder, host: str, port: int, topic: str,
              ack: bool, stop_file: Path | None, expect: int | None, idle_s: float,
              limit_s: float, connect_timeout_s: float, poll_s: float = 0.2,
-             clock=time) -> dict:
+             clock=time, require_qos: int = 1) -> dict:
     """Subscribe and record until told to stop.
 
     Ends when ``stop_file`` appears, when ``limit_s`` has elapsed, or, if
@@ -429,11 +470,18 @@ def run_hold(*, client, recorder: Recorder, host: str, port: int, topic: str,
     ``idle_s`` seconds passed with no further one. The session is left in
     place by a clean DISCONNECT (a persistent session survives it); phase P4
     kills this process instead, from outside, so that no DISCONNECT is sent.
+
+    The order in ``on_message`` is the documented one: the delivery's record is
+    written FIRST; only then, with ``ack``, is the PUBACK requested, and the
+    request's own outcome is written as a separate ``ack`` record. A record
+    that cannot be written stops every acknowledgement from then on: nothing is
+    acknowledged that the file does not hold, and the client ends 3.
     """
     connected = threading.Event()
     subscribed = threading.Event()
-    state = {"received": 0, "acked": 0, "last_ns": None, "session_present": None,
-             "granted": None, "connect_reason": None, "disconnects": 0}
+    state = {"received": 0, "acked": 0, "ack_failed": 0, "last_ns": None, "session_present": None,
+             "granted": None, "granted_values": None, "connect_reason": None, "disconnects": 0,
+             "recorder_failed": False, "recorder_error": None}
     lock = threading.Lock()
 
     def on_connect(c, userdata, flags, reason_code, properties=None):
@@ -443,12 +491,12 @@ def run_hold(*, client, recorder: Recorder, host: str, port: int, topic: str,
         recorder.write("connect", session_present=state["session_present"], reason=state["connect_reason"])
         if not _is_failure(reason_code):
             connected.set()
-            c.subscribe(topic, qos=1)
+            c.subscribe(topic, qos=require_qos)
 
     def on_subscribe(c, userdata, mid, reason_code_list, properties=None):
-        granted = [_reason_text(r) for r in reason_code_list]
-        state["granted"] = granted
-        recorder.write("subscribe", topic=topic, granted=granted)
+        state["granted"] = [_reason_text(r) for r in reason_code_list]
+        state["granted_values"] = [_reason_value(r) for r in reason_code_list]
+        recorder.write("subscribe", topic=topic, granted=state["granted"], required_qos=require_qos)
         subscribed.set()
 
     def on_message(c, userdata, msg):
@@ -457,19 +505,47 @@ def run_hold(*, client, recorder: Recorder, host: str, port: int, topic: str,
             state["received"] += 1
             state["last_ns"] = time.monotonic_ns()
             n = state["received"]
-        acked_now = False
-        if ack:
+            failed_before = state["recorder_failed"]
+        # 1. the record, before anything is done with the delivery
+        try:
+            recorder.write("delivery", n=n, ack_requested=bool(ack and not failed_before), **fields)
+        except RecorderError as exc:
+            with lock:
+                state["recorder_failed"] = True
+                state["recorder_error"] = str(exc)
+            return  # nothing the file does not hold is acknowledged
+        if not ack or failed_before:
+            return
+        # 2. the PUBACK, requested only now, and its outcome recorded beside it
+        try:
             rc = c.ack(msg.mid, msg.qos)
-            acked_now = int(getattr(rc, "value", rc)) == 0
-            if acked_now:
-                with lock:
-                    state["acked"] += 1
-        recorder.write("delivery", n=n, acked=acked_now, **fields)
+            value = _reason_value(rc)
+            ok = value == 0
+        except Exception as exc:  # paho raises on a bad mid or a closed socket
+            value, ok = None, False
+            err = str(exc)
+        else:
+            err = None
+        with lock:
+            if ok:
+                state["acked"] += 1
+            else:
+                state["ack_failed"] += 1
+        try:
+            recorder.write("ack", n=n, mid=msg.mid, qos=int(msg.qos), rc=value, ok=ok,
+                           **({"error": err} if err else {}))
+        except RecorderError as exc:
+            with lock:
+                state["recorder_failed"] = True
+                state["recorder_error"] = str(exc)
 
     def on_disconnect(c, userdata, disconnect_flags, reason_code, properties=None):
         with lock:
             state["disconnects"] += 1
-        recorder.write("disconnect", reason=_reason_text(reason_code))
+        try:
+            recorder.write("disconnect", reason=_reason_text(reason_code))
+        except RecorderError:
+            pass
 
     client.on_connect = on_connect
     client.on_subscribe = on_subscribe
@@ -483,20 +559,30 @@ def run_hold(*, client, recorder: Recorder, host: str, port: int, topic: str,
     if not subscribed.wait(connect_timeout_s):
         client.loop_stop()
         raise ConnectionError(f"SUBSCRIBE to {topic} not acknowledged within {connect_timeout_s:.0f} s")
+    granted = state["granted_values"] or []
+    if len(granted) != 1 or granted[0] != require_qos:
+        client.disconnect()
+        client.loop_stop()
+        raise SubscriptionRefused(f"SUBACK for {topic} granted {state['granted']}, not QoS {require_qos}: "
+                                  "the measurement's declared subscription was not obtained")
     print(f"SUBSCRIBED: topic={topic} granted={state['granted']} session_present={state['session_present']} ack={ack}", flush=True)
     start = clock.monotonic()
     why = "limit"
     while True:
         now = clock.monotonic()
+        with lock:
+            received = state["received"]
+            last_ns = state["last_ns"]
+            recorder_failed = state["recorder_failed"]
+        if recorder_failed:
+            why = "recorder-failed"
+            break
         if stop_file is not None and stop_file.exists():
             why = "stop-file"
             break
         if now - start >= limit_s:
             why = "limit"
             break
-        with lock:
-            received = state["received"]
-            last_ns = state["last_ns"]
         if expect is not None and received >= expect and last_ns is not None \
                 and (time.monotonic_ns() - last_ns) / 1e9 >= idle_s:
             why = "expected-and-idle"
@@ -504,10 +590,14 @@ def run_hold(*, client, recorder: Recorder, host: str, port: int, topic: str,
         clock.sleep(poll_s)
     client.disconnect()
     client.loop_stop()
-    summary = {"received": state["received"], "acked": state["acked"], "why": why,
-               "session_present": state["session_present"], "granted": state["granted"],
+    summary = {"received": state["received"], "acked": state["acked"], "ack_failed": state["ack_failed"],
+               "why": why, "session_present": state["session_present"], "granted": state["granted"],
+               "recorder_failed": state["recorder_failed"], "recorder_error": state["recorder_error"],
                "span_s": round(clock.monotonic() - start, 3)}
-    recorder.write("end", **summary)
+    try:
+        recorder.write("end", **summary)
+    except RecorderError:
+        summary["recorder_failed"] = True
     return summary
 
 
@@ -526,10 +616,17 @@ def cmd_hold(args, client_factory=make_paho_client) -> int:
     except (ConnectionError, OSError) as exc:
         print(f"STOP: hold: {exc}", file=sys.stderr)
         return EXIT_PREREQUISITE
+    except RecorderError as exc:
+        print(f"STOP: hold: {exc}", file=sys.stderr)
+        return EXIT_INCONCLUSIVE
     finally:
         recorder.close()
-    print(f"hold end: received={summary['received']} acked={summary['acked']} why={summary['why']} "
-          f"session_present={summary['session_present']} span_s={summary['span_s']}")
+    print(f"hold end: received={summary['received']} acked={summary['acked']} ack_failed={summary['ack_failed']} "
+          f"why={summary['why']} session_present={summary['session_present']} span_s={summary['span_s']}")
+    if summary["recorder_failed"]:
+        print(f"STOP: hold: the record could not be written; nothing after that point was acknowledged: "
+              f"{summary['recorder_error']}", file=sys.stderr)
+        return EXIT_INCONCLUSIVE
     return EXIT_DONE
 
 
@@ -541,7 +638,7 @@ def run_sysreader(*, client, recorder: Recorder, host: str, port: int, stop_file
                   limit_s: float, connect_timeout_s: float, poll_s: float = 0.5, clock=time) -> dict:
     connected = threading.Event()
     subscribed = threading.Event()
-    state = {"received": 0, "version": None, "granted": None}
+    state = {"received": 0, "version": None, "granted": None, "granted_values": None, "recorder_failed": False}
     lock = threading.Lock()
 
     def on_connect(c, userdata, flags, reason_code, properties=None):
@@ -553,6 +650,7 @@ def run_sysreader(*, client, recorder: Recorder, host: str, port: int, stop_file
 
     def on_subscribe(c, userdata, mid, reason_code_list, properties=None):
         state["granted"] = [_reason_text(r) for r in reason_code_list]
+        state["granted_values"] = [_reason_value(r) for r in reason_code_list]
         recorder.write("subscribe", topic="$SYS/#", granted=state["granted"])
         subscribed.set()
 
@@ -566,7 +664,11 @@ def run_sysreader(*, client, recorder: Recorder, host: str, port: int, stop_file
         if msg.topic == SYS_VERSION and state["version"] is None:
             state["version"] = value
             print(f"SYS: {SYS_VERSION} = {value}", flush=True)
-        recorder.write("sys", topic=msg.topic, value=value)
+        try:
+            recorder.write("sys", topic=msg.topic, value=value)
+        except RecorderError:
+            with lock:
+                state["recorder_failed"] = True
 
     client.on_connect = on_connect
     client.on_subscribe = on_subscribe
@@ -579,20 +681,27 @@ def run_sysreader(*, client, recorder: Recorder, host: str, port: int, stop_file
     if not subscribed.wait(connect_timeout_s):
         client.loop_stop()
         raise ConnectionError(f"SUBSCRIBE to $SYS/# not acknowledged within {connect_timeout_s:.0f} s")
-    granted = state["granted"] or []
-    if any(g.startswith("128") or "Unspecified" in g or "NotAuthorized" in g for g in granted):
+    granted = state["granted_values"] or []
+    if len(granted) != 1 or granted[0] is None or granted[0] > 2:
         client.disconnect()
         client.loop_stop()
-        raise ConnectionError(f"SUBSCRIBE to $SYS/# refused: granted={granted} (the measurement acl must grant 'topic read $SYS/#')")
-    print(f"SUBSCRIBED: topic=$SYS/# granted={granted}", flush=True)
+        raise SubscriptionRefused(f"SUBSCRIBE to $SYS/# refused: granted={state['granted']} "
+                                  "(the measurement acl must grant 'topic read $SYS/#')")
+    print(f"SUBSCRIBED: topic=$SYS/# granted={state['granted']}", flush=True)
     start = clock.monotonic()
     while not stop_file.exists() and clock.monotonic() - start < limit_s:
+        with lock:
+            if state["recorder_failed"]:
+                break
         clock.sleep(poll_s)
     client.disconnect()
     client.loop_stop()
     summary = {"received": state["received"], "version": state["version"],
-               "span_s": round(clock.monotonic() - start, 3)}
-    recorder.write("end", **summary)
+               "recorder_failed": state["recorder_failed"], "span_s": round(clock.monotonic() - start, 3)}
+    try:
+        recorder.write("end", **summary)
+    except RecorderError:
+        summary["recorder_failed"] = True
     return summary
 
 
@@ -609,9 +718,15 @@ def cmd_sysreader(args, client_factory=make_paho_client) -> int:
     except (ConnectionError, OSError) as exc:
         print(f"STOP: sysreader: {exc}", file=sys.stderr)
         return EXIT_PREREQUISITE
+    except RecorderError as exc:
+        print(f"STOP: sysreader: {exc}", file=sys.stderr)
+        return EXIT_INCONCLUSIVE
     finally:
         recorder.close()
     print(f"sysreader end: received={summary['received']} version={summary['version']} span_s={summary['span_s']}")
+    if summary["recorder_failed"]:
+        print("STOP: sysreader: the record could not be written", file=sys.stderr)
+        return EXIT_INCONCLUSIVE
     return EXIT_DONE
 
 
@@ -655,6 +770,9 @@ def cmd_discard(args, client_factory=make_paho_client) -> int:
     except (ConnectionError, OSError) as exc:
         print(f"STOP: discard: {exc}", file=sys.stderr)
         return EXIT_PREREQUISITE
+    except RecorderError as exc:
+        print(f"STOP: discard: {exc}", file=sys.stderr)
+        return EXIT_INCONCLUSIVE
     finally:
         recorder.close()
     # A clean-session connect to a client id that held a persistent session
@@ -703,14 +821,18 @@ def _sys_series(sys_records: list[dict], topic: str) -> list[tuple[float, str]]:
 
 
 def _last_before(series: list[tuple[float, str]], t: float | None):
-    """The last value at or before ``t`` (or the last value at all)."""
+    """The last value at or before ``t`` (or the last value at all).
+
+    No tolerance past ``t``: a phase boundary is the driver's own instant, and
+    a value stamped after it belongs to the next phase.
+    """
     if not series:
         return None
     if t is None:
         return series[-1][1]
     chosen = None
     for ts, v in series:
-        if ts <= t + 0.5:
+        if ts <= t:
             chosen = v
         else:
             break
@@ -763,21 +885,46 @@ def _per_device_order_breaks(first_copies: dict[str, dict]) -> list[dict]:
     return breaks
 
 
-def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
+#: Recorder columns without which a sample says nothing about the limit.
+_REQUIRED_RECORDER_FIELDS = ("epoch", "mem_current", "mem_max", "anon", "file", "ev_oom", "ev_oom_kill",
+                             "state", "restarts")
+
+
+def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
                     publish_p2: list[dict], publish_p5: list[dict],
                     hold_p1: list[dict], hold_p7: list[dict],
                     sys_records: list[dict], recorder_rows: list[dict],
+                    probe_state: dict | None = None,
                     guest_offset_s: float = 0.0) -> dict:
-    """Apply the design's rules to the records. Pure: no I/O."""
+    """Apply the design's rules to the records. Pure: no I/O.
+
+    ``guest_offset_s`` is the guest clock minus the host clock, as the driver
+    records it; the phases are host instants and the recorder's ``epoch`` is
+    the guest's, so a host instant is carried onto the guest clock by ADDING
+    the offset. ``probe_state`` is the container's state as ``docker inspect``
+    reported it before removal (``oom_killed``, ``restart_count``,
+    ``exit_code``, ``status``): OOM evidence independent of the recorder.
+
+    Three kinds of statement come out of it, kept apart:
+
+    * a refutation from something observed (R1 an error line in a log that
+      was fetched, R3 a drop counter, R4 an OOM or a restart, R5 a session the
+      broker did not resume or fewer redelivered in a P7 that ran to its end,
+      R6 an order break) stands whatever else is missing;
+    * a refutation that would rest on records that are absent or on a phase
+      that did not complete is NOT made: the run is inconclusive;
+    * support needs every one of S1–S5 and no inconclusive reason at all.
+    """
     W = int(params.get("W", 4999))
     Q = int(params.get("Q", 1000))
     A = int(params.get("A", 4999))
     B = int(params.get("B", 1100))
     memory_max_expected = int(params.get("memory_max", 134217728))
     gap_limit_s = float(params.get("recorder_gap_limit_s", 5.0))
+    edge_tolerance_s = float(params.get("recorder_edge_tolerance_s", 3.0))
 
-    supports: dict[str, bool | None] = {}
-    refutes: dict[str, bool | None] = {}
+    supports: dict[str, bool] = {}
+    refutes: dict[str, bool] = {}
     inconclusive: list[str] = []
     figures: dict = {}
     notes: list[str] = []
@@ -790,26 +937,60 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
     p5_set = set(p5_ids)
     d1 = [r for r in hold_p1 if r.get("event") == "delivery"]
     d7 = [r for r in hold_p7 if r.get("event") == "delivery"]
+    a7 = [r for r in hold_p7 if r.get("event") == "ack"]
+    start_p0 = _phase_epoch(phases, "P0", "start")
+    end_p1 = _phase_epoch(phases, "P1", "end")
+    start_p2 = _phase_epoch(phases, "P2", "start")
     end_p2 = _phase_epoch(phases, "P2", "end")
     end_p3 = _phase_epoch(phases, "P3", "end")
     end_p4 = _phase_epoch(phases, "P4", "end")
-    end_p5 = _phase_epoch(phases, "P5", "end")
     end_p6 = _phase_epoch(phases, "P6", "end")
-    end_p1 = _phase_epoch(phases, "P1", "end")
-    start_p2 = _phase_epoch(phases, "P2", "start")
     start_p7 = _phase_epoch(phases, "P7", "start")
     end_p7 = _phase_epoch(phases, "P7", "end")
-    start_p0 = _phase_epoch(phases, "P0", "start")
 
-    # --- the publisher's exact counts (inconclusive otherwise) --------------
+    def _stop_rule(name: str) -> bool:
+        return bool(phases.get(name, {}).get("stop_rule_reached"))
+
+    # --- what the instrument itself completed --------------------------------
     p2_end = next((r for r in publish_p2 if r.get("event") == "end"), None)
     p5_end = next((r for r in publish_p5 if r.get("event") == "end"), None)
-    if len(p2_pub) != A or not p2_end or p2_end.get("unacked", 1) != 0 or len(p2_set) != A:
+    p2_exact = len(p2_pub) == A and bool(p2_end) and p2_end.get("unacked", 1) == 0 and len(p2_set) == A
+    p5_exact = len(p5_pub) == B and bool(p5_end) and p5_end.get("unacked", 1) == 0 and len(p5_set) == B
+    if not p2_exact:
         inconclusive.append(f"the publisher did not publish and get acknowledged exactly A={A} messages in P2 "
                             f"({len(p2_pub)} published, {len(p2_set)} distinct, unacked={p2_end.get('unacked') if p2_end else 'no end record'})")
-    if len(p5_pub) != B or not p5_end or p5_end.get("unacked", 1) != 0 or len(p5_set) != B:
+    if not p5_exact:
         inconclusive.append(f"the publisher did not publish and get acknowledged exactly B={B} messages in P5 "
                             f"({len(p5_pub)} published, {len(p5_set)} distinct, unacked={p5_end.get('unacked') if p5_end else 'no end record'})")
+    p1_subscribed = any(r.get("event") == "subscribe" for r in hold_p1)
+    p1_connect = next((r for r in hold_p1 if r.get("event") == "connect"), None)
+    p1_ended_early = any(r.get("event") == "end" for r in hold_p1)   # it is killed in P4: an end record means it stopped by itself
+    p1_complete = p1_subscribed and bool(phases.get("P4", {}).get("sigkill_at")) and not p1_ended_early \
+        and end_p3 is not None
+    if not p1_subscribed:
+        inconclusive.append("the holding subscriber's P1 records hold no subscription: nothing about the window was observed")
+    elif not p1_complete:
+        inconclusive.append("the holding subscriber did not hold from P1 to the kill in P4 (it ended by itself, or P3/P4 were not completed): "
+                            "the window's contents were not observed to the end of P3")
+    p7_end_rec = next((r for r in hold_p7 if r.get("event") == "end"), None)
+    p7_connect = next((r for r in hold_p7 if r.get("event") == "connect"), None)
+    p7_limit = bool(phases.get("P7", {}).get("limit_reached")) or (bool(p7_end_rec) and p7_end_rec.get("why") == "limit")
+    p7_recorder_failed = bool(p7_end_rec and p7_end_rec.get("recorder_failed")) or (
+        bool(p7_end_rec) and p7_end_rec.get("why") == "recorder-failed")
+    p7_complete = bool(p7_end_rec) and p7_end_rec.get("why") in ("expected-and-idle", "stop-file") \
+        and not p7_limit and not p7_recorder_failed and end_p7 is not None
+    if p7_limit:
+        inconclusive.append("P7 reached its limit")
+    if p7_recorder_failed:
+        inconclusive.append("the holding subscriber's record failed in P7; what it acknowledged after that is not on file")
+    if not p7_end_rec and not p7_limit:
+        inconclusive.append("the holding subscriber's P7 records have no end: P7 did not run to its end")
+    p7_ack_failed = sum(1 for r in a7 if not r.get("ok"))
+    if p7_ack_failed:
+        inconclusive.append(f"{p7_ack_failed} acknowledgement request(s) in P7 did not succeed; the redelivery was not exercised as declared")
+    for name in ("P2", "P5"):
+        if name in ("P2", "P5") and (phases.get(name, {}).get("start_utc") is None):
+            inconclusive.append(f"phase {name} has no recorded boundary")
 
     # --- $SYS -------------------------------------------------------------------
     store = _sys_series(sys_records, SYS_STORE)
@@ -819,7 +1000,8 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
     connected = _sys_series(sys_records, SYS_CONNECTED)
     disconnected = _sys_series(sys_records, SYS_DISCONNECTED)
     figures["broker_version"] = version[0][1] if version else None
-    if not store or not dropped:
+    sys_ok = bool(store) and bool(dropped)
+    if not sys_ok:
         inconclusive.append("$SYS could not be read: no store/messages/count or publish/messages/dropped values were recorded")
     store_p0 = _int(_last_before(store, start_p2)) if start_p2 else (_int(store[0][1]) if store else None)
     store_end_p2 = _int(_last_before(store, end_p2))
@@ -827,6 +1009,7 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
     store_end_p4 = _int(_last_before(store, end_p4))
     store_end_p6 = _int(_last_before(store, end_p6))
     store_end_p7 = _int(_last_before(store, end_p7))
+    dropped_p0 = _int(_last_before(dropped, start_p2)) if start_p2 else (_int(dropped[0][1]) if dropped else None)
     dropped_end_p4 = _int(_last_before(dropped, end_p4))
     dropped_end_p6 = _int(_last_before(dropped, end_p6))
     dropped_final = _int(dropped[-1][1]) if dropped else None
@@ -836,28 +1019,36 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
             iv = _int(v)
             if iv is not None and (inflight_max_p2p3 is None or iv > inflight_max_p2p3):
                 inflight_max_p2p3 = iv
+    drops_by_p4 = (dropped_end_p4 - dropped_p0) if (dropped_end_p4 is not None and dropped_p0 is not None) else None
+    drops_p5 = (dropped_end_p6 - dropped_end_p4) if (dropped_end_p6 is not None and dropped_end_p4 is not None) else None
     figures.update({
         "store_p0": store_p0, "store_end_p2": store_end_p2, "store_end_p3": store_end_p3,
         "store_end_p4": store_end_p4, "store_end_p6": store_end_p6, "store_end_p7": store_end_p7,
-        "dropped_end_p4": dropped_end_p4, "dropped_end_p6": dropped_end_p6, "dropped_final": dropped_final,
+        "dropped_p0": dropped_p0, "dropped_end_p4": dropped_end_p4, "dropped_end_p6": dropped_end_p6,
+        "dropped_final": dropped_final, "drops_through_p4": drops_by_p4, "drops_in_p5_p6": drops_p5,
         "inflight_max_p2_p3": inflight_max_p2p3,
         "clients_connected_last": _int(connected[-1][1]) if connected else None,
         "clients_disconnected_end_p4": _int(_last_before(disconnected, end_p4)),
     })
-    # any drop before the end of P4 is read against the P0 baseline of the counter
-    dropped_p0 = _int(_last_before(dropped, start_p2)) if start_p2 else (_int(dropped[0][1]) if dropped else None)
-    figures["dropped_p0"] = dropped_p0
-    drops_by_p4 = (dropped_end_p4 - dropped_p0) if (dropped_end_p4 is not None and dropped_p0 is not None) else None
-    figures["drops_through_p4"] = drops_by_p4
 
-    # --- S1: the broker started with the added lines and logged no error ------
-    started = any("mosquitto version" in ln and "starting" in ln for ln in broker_log)
+    # --- S1 / R1: the broker started with the added lines and logged no error --
+    log_lines = broker_log if broker_log is not None else []
+    log_available = broker_log is not None and len(log_lines) > 0
+    started = any("mosquitto version" in ln and "starting" in ln for ln in log_lines)
     # Mosquitto reports a configuration it refuses as 'Error: ...' (an unknown
     # variable, an invalid value) and exits; a broker that started and logs no
-    # such line accepted the five added lines.
-    config_errors = [ln.strip() for ln in broker_log if "Error" in ln or "Unknown configuration variable" in ln]
-    supports["S1"] = started and not config_errors
-    refutes["R1"] = (not started) or bool(config_errors)
+    # such line accepted the added lines.
+    config_errors = [ln.strip() for ln in log_lines if "Error" in ln or "Unknown configuration variable" in ln]
+    refused_noted = bool(phases.get("P0", {}).get("broker_refused"))
+    supports["S1"] = log_available and started and not config_errors
+    # R1 rests on something observed: an error line in a log that was fetched,
+    # or the driver having seen the container refuse to run. A log that is
+    # missing or empty establishes nothing either way.
+    refutes["R1"] = bool(config_errors) or refused_noted
+    if not log_available:
+        inconclusive.append("the probe broker's log is missing or empty: whether it accepted its configuration was not observed")
+    elif not started and not config_errors:
+        inconclusive.append("the probe broker's log holds no 'starting' line and no error line: its start was not observed")
     figures["broker_log_started"] = started
     figures["broker_log_error_lines"] = config_errors[:20]
 
@@ -865,50 +1056,68 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
     d1_first, d1_later = _first_copies_in_order(d1)
     d1_distinct = len(d1_first)
     d1_dup_before_kill = sum(1 for d in d1 if d.get("dup"))
-    d1_unknown = [d["message_id"] for d in d1_first.values() if d["message_id"] not in p2_set][:10]
-    # The window reached W: A distinct deliveries were held by the end of P3,
-    # every one of them a P2 message. $SYS's inflight peak is a figure beside
-    # it, not a second condition: it is sampled every sys_interval only.
-    supports["S2"] = d1_distinct >= A and not d1_unknown
-    refutes["R2"] = d1_distinct < A
-    figures.update({"p1_p3_distinct_deliveries": d1_distinct, "p1_p3_deliveries": len(d1),
-                    "p1_p3_dup_deliveries": d1_dup_before_kill, "p1_p3_unknown_ids": d1_unknown,
-                    "p1_p3_later_copies": len(d1_later)})
+    d1_unknown = [m for m in d1_first if m not in p2_set]
+    supports["S2"] = p1_complete and p2_exact and d1_distinct >= A and not d1_unknown
+    # R2 is an absence (fewer held than A): it is a refutation only when the
+    # publisher offered exactly A and the subscriber held to the end of P3.
+    refutes["R2"] = p1_complete and p2_exact and d1_distinct < A
     if d1_unknown:
-        notes.append("deliveries in P1-P3 carried message_ids the publisher did not publish in P2")
+        inconclusive.append(f"{len(d1_unknown)} delivery(ies) in P1-P3 carried message_ids this probe did not publish in P2 "
+                            f"(first: {d1_unknown[0]}): the population held is not the one offered")
+    figures.update({"p1_p3_distinct_deliveries": d1_distinct, "p1_p3_deliveries": len(d1),
+                    "p1_p3_dup_deliveries": d1_dup_before_kill, "p1_p3_unknown_ids": d1_unknown[:10],
+                    "p1_p3_later_copies": len(d1_later),
+                    "p1_session_present": p1_connect.get("session_present") if p1_connect else None})
 
-    # --- S3 / R3: no drop while held <= W; every first-4999 id redelivered in P7 --
+    # --- S3 / R3: no drop while held <= W; every P2 id redelivered in P7 --------
     d7_first, d7_later = _first_copies_in_order(d7)
+    d7_ids = set(d7_first)
     missing_p2_in_p7 = [m for m in p2_ids if m not in d7_first]
-    supports["S3"] = (drops_by_p4 == 0) and not missing_p2_in_p7
-    refutes["R3"] = (drops_by_p4 is not None and drops_by_p4 > 0) or (bool(p2_ids) and bool(missing_p2_in_p7) and bool(d7))
+    d7_unknown = [m for m in d7_first if m not in p2_set and m not in p5_set]
+    drop_observed = drops_by_p4 is not None and drops_by_p4 > 0
+    supports["S3"] = sys_ok and drops_by_p4 == 0 and p7_complete and p2_exact and not missing_p2_in_p7
+    # The counter is an observation; a missing redelivery is an absence that
+    # counts only when P7 ran to its end and P2 was offered in full.
+    refutes["R3"] = drop_observed or (p7_complete and p2_exact and bool(missing_p2_in_p7))
+    if d7_unknown:
+        inconclusive.append(f"{len(d7_unknown)} first copy(ies) in P7 carried message_ids this probe never published "
+                            f"(first: {d7_unknown[0]}): the population redelivered is not the one offered")
     figures.update({"p7_deliveries": len(d7), "p7_distinct": len(d7_first), "p7_later_copies": len(d7_later),
-                    "p2_ids_missing_in_p7": len(missing_p2_in_p7),
+                    "p7_unknown_ids": d7_unknown[:10], "p2_ids_missing_in_p7": len(missing_p2_in_p7),
                     "p7_dup_flag_on_first_copies_of_p2": sum(1 for m in p2_ids if m in d7_first and d7_first[m].get("dup")),
-                    "p7_session_present": next((r.get("session_present") for r in hold_p7 if r.get("event") == "connect"), None)})
+                    "p7_session_present": p7_connect.get("session_present") if p7_connect else None,
+                    "p7_acks_ok": sum(1 for r in a7 if r.get("ok")), "p7_acks_failed": p7_ack_failed})
 
-    # --- S4 / R4: memory held, no OOM, no restart ----------------------------
+    # --- S4 / R4: memory held within the expected limit, no OOM, no restart ----
     def _row_int(row, key):
-        return _int(row.get(key))
+        return _int(row.get(key)) if row else None
 
-    ooms = 0
-    oom_kills = 0
-    restarts_max = 0
+    ooms: int | None = 0
+    oom_kills: int | None = 0
+    restarts_max: int | None = 0
+    unknown_fields: dict[str, int] = defaultdict(int)
     not_running = 0
     peak = None
     peak_row = None
-    mem_max_seen = set()
+    mem_max_seen: set[int] = set()
     gaps = []
     prev_epoch = None
-    p2_epoch = (start_p2 - guest_offset_s) if start_p2 else None
-    p7_end_epoch = (end_p7 - guest_offset_s) if end_p7 else None
+    epochs: list[int] = []
+    p2_epoch = (start_p2 + guest_offset_s) if start_p2 is not None else None
+    p7_end_epoch = (end_p7 + guest_offset_s) if end_p7 is not None else None
     for row in recorder_rows:
+        for key in _REQUIRED_RECORDER_FIELDS:
+            if _row_int(row, key) is None and key != "state":
+                unknown_fields[key] += 1
         ep = _row_int(row, "epoch")
         o, ok_, rs = _row_int(row, "ev_oom"), _row_int(row, "ev_oom_kill"), _row_int(row, "restarts")
-        ooms = max(ooms, o or 0)
-        oom_kills = max(oom_kills, ok_ or 0)
-        restarts_max = max(restarts_max, rs or 0)
-        if row.get("state") not in (None, "", "running", "?"):
+        # a counter that could not be read is not a zero: it makes the
+        # figure unknown, and an unknown figure cannot support the limit
+        ooms = None if (o is None or ooms is None) else max(ooms, o)
+        oom_kills = None if (ok_ is None or oom_kills is None) else max(oom_kills, ok_)
+        restarts_max = None if (rs is None or restarts_max is None) else max(restarts_max, rs)
+        st = row.get("state")
+        if st != "running":
             not_running += 1
         mm = _row_int(row, "mem_max")
         if mm is not None:
@@ -919,32 +1128,64 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
         if cur is not None and (peak is None or cur > peak):
             peak, peak_row = cur, row
         if ep is not None:
+            epochs.append(ep)
+            if prev_epoch is not None and ep < prev_epoch:
+                unknown_fields["epoch-order"] += 1
             if prev_epoch is not None and p2_epoch is not None and p7_end_epoch is not None \
-                    and ep >= p2_epoch and prev_epoch <= p7_end_epoch and ep - prev_epoch > gap_limit_s:
+                    and ep >= p2_epoch - edge_tolerance_s and prev_epoch <= p7_end_epoch + edge_tolerance_s \
+                    and ep - prev_epoch > gap_limit_s:
                 gaps.append((prev_epoch, ep))
             prev_epoch = ep
+    coverage_ok = False
+    if epochs and p2_epoch is not None and p7_end_epoch is not None:
+        coverage_ok = min(epochs) <= p2_epoch + edge_tolerance_s and max(epochs) >= p7_end_epoch - edge_tolerance_s
     if not recorder_rows:
         inconclusive.append("the guest recorder produced no rows")
+    elif p2_epoch is None or p7_end_epoch is None:
+        inconclusive.append("the measured window P2-P7 has no recorded boundaries, so the recorder's coverage of it cannot be judged")
+    elif not coverage_ok:
+        inconclusive.append(f"the guest recorder does not cover the measured window P2-P7 from its start to its end "
+                            f"(rows from epoch {min(epochs)} to {max(epochs)}, window {p2_epoch:.0f} to {p7_end_epoch:.0f} on the guest clock)")
     if gaps:
         inconclusive.append(f"the guest recorder has {len(gaps)} gap(s) over {gap_limit_s:.0f} s inside P2-P7 (first: {gaps[0]})")
-    mem_ok = ooms == 0 and oom_kills == 0 and restarts_max == 0 and not_running == 0
-    supports["S4"] = bool(recorder_rows) and mem_ok
-    refutes["R4"] = ooms > 0 or oom_kills > 0 or restarts_max > 0
+    if unknown_fields:
+        inconclusive.append("the guest recorder has rows with unreadable or disordered values: "
+                            + ", ".join(f"{k}={v}" for k, v in sorted(unknown_fields.items())))
+    if not_running:
+        inconclusive.append(f"{not_running} recorder row(s) report the probe container in a state other than 'running' or unknown")
+    mem_max_ok = mem_max_seen == {memory_max_expected}
+    if recorder_rows and not mem_max_ok:
+        inconclusive.append(f"the probe container's memory.max reads {sorted(mem_max_seen)}, not the expected {memory_max_expected}")
+    # what docker itself reported about the container before removal
+    ps = probe_state or {}
+    oom_killed_flag = ps.get("oom_killed")
+    ps_restarts = _int(ps.get("restart_count"))
+    ps_status = ps.get("status")
+    counters_ok = ooms == 0 and oom_kills == 0 and restarts_max == 0
+    supports["S4"] = bool(recorder_rows) and coverage_ok and not gaps and not unknown_fields and not not_running \
+        and mem_max_ok and counters_ok and (oom_killed_flag is False) and (ps_restarts == 0) and ps_status == "running"
+    if oom_killed_flag is None:
+        inconclusive.append("the probe container's OOMKilled state was not read before its removal")
+    elif ps_status != "running" and not oom_killed_flag and not (ps_restarts or 0):
+        inconclusive.append(f"the probe container was '{ps_status}' before its removal, not running")
+    # R4 rests on OOM or restart evidence that WAS observed, by either source.
+    refutes["R4"] = bool(ooms) or bool(oom_kills) or bool(restarts_max) or oom_killed_flag is True or bool(ps_restarts)
     figures.update({
         "memory_max_values": sorted(mem_max_seen), "memory_max_expected": memory_max_expected,
-        "memory_max_as_expected": mem_max_seen == {memory_max_expected} if mem_max_seen else None,
+        "memory_max_as_expected": mem_max_ok if mem_max_seen else None,
         "oom_events": ooms, "oom_kill_events": oom_kills, "container_restarts": restarts_max,
+        "docker_oom_killed": oom_killed_flag, "docker_restart_count": ps_restarts, "docker_status": ps_status,
         "samples_not_running": not_running, "recorder_rows": len(recorder_rows), "recorder_gaps": len(gaps),
+        "recorder_unknown_fields": dict(unknown_fields), "recorder_covers_p2_p7": coverage_ok,
         "memory_peak_bytes": peak,
         "memory_peak_margin_bytes": (memory_max_expected - peak) if peak is not None else None,
-        "memory_peak_anon": _row_int(peak_row, "anon") if peak_row else None,
-        "memory_peak_file": _row_int(peak_row, "file") if peak_row else None,
+        "memory_peak_anon": _row_int(peak_row, "anon"), "memory_peak_file": _row_int(peak_row, "file"),
     })
 
     def _anon_at(t_host: float | None):
         if t_host is None:
             return None
-        target = t_host - guest_offset_s
+        target = t_host + guest_offset_s
         best = None
         for row in recorder_rows:
             ep = _row_int(row, "epoch")
@@ -952,7 +1193,7 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
                 best = row
             elif ep is not None and ep > target + 0.5:
                 break
-        return _row_int(best, "anon") if best else None
+        return _row_int(best, "anon")
 
     anon_p1, anon_p3, anon_p6 = _anon_at(end_p1), _anon_at(end_p3), _anon_at(end_p6)
     figures.update({"anon_end_p1": anon_p1, "anon_end_p3": anon_p3, "anon_end_p6": anon_p6})
@@ -963,31 +1204,50 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
         figures["anon_per_message_p5_bytes"] = round((anon_p6 - anon_p3) / (store_end_p6 - store_end_p4), 1)
 
     # --- P5 discrimination (recorded, a sizing finding) ------------------------
-    drops_p5 = (dropped_end_p6 - dropped_end_p4) if (dropped_end_p6 is not None and dropped_end_p4 is not None) else None
-    figures["drops_in_p5_p6"] = drops_p5
     if store_end_p6 == A + Q and drops_p5 == B - Q:
         figures["queue_accounting"] = "above the held in-flight messages (store W+Q, dropped B-Q)"
+        queued_expected = Q
     elif store_end_p6 == A and drops_p5 == B:
         figures["queue_accounting"] = "in total while the client is offline (store W, dropped B)"
+        queued_expected = 0
     else:
         figures["queue_accounting"] = f"other, recorded as observed (store {store_end_p6}, dropped in P5-P6 {drops_p5})"
+        queued_expected = (store_end_p6 - A) if (store_end_p6 is not None and store_end_p6 >= A) else None
 
     # --- S5 / R5 / R6: the session kept, everything held redelivered, in order --
+    # The populations, by identity: the P2 set must all come back; of the P5
+    # set exactly the first `queued_expected` published (FIFO) are held and come
+    # back; the rest of P5 were dropped by the broker (its own count says how
+    # many); nothing else may appear.
+    p5_redelivered = [m for m in p5_ids if m in d7_first]
+    p5_queued_expected_ids = p5_ids[:queued_expected] if queued_expected is not None else None
+    p5_population_ok = p5_queued_expected_ids is not None and p5_redelivered == p5_queued_expected_ids
     held_expected = store_end_p6
     redelivered_distinct = len(d7_first)
-    refutes["R5"] = held_expected is not None and bool(d7) and redelivered_distinct < held_expected
+    session_resumed = bool(p7_connect and p7_connect.get("session_present") is True)
+    # R5: a session the broker did not resume is observed in the CONNACK; a
+    # shortfall of redeliveries counts only when P7 ran to its end.
+    refutes["R5"] = (bool(p7_connect) and p7_connect.get("session_present") is False) or (
+        p7_complete and p5_exact and p2_exact and held_expected is not None and redelivered_distinct < held_expected)
     breaks = _per_device_order_breaks(d7_first)
     refutes["R6"] = bool(breaks)
     store_back = (store_end_p7 is not None and store_p0 is not None and store_end_p7 <= store_p0)
-    supports["S5"] = held_expected is not None and redelivered_distinct >= held_expected and not breaks and store_back
-    figures.update({"held_at_end_p6": held_expected, "p7_redelivered_distinct": redelivered_distinct,
-                    "p7_order_breaks": breaks[:10], "p7_order_breaks_count": len(breaks),
-                    "store_back_to_baseline": store_back})
+    supports["S5"] = p7_complete and session_resumed and held_expected is not None \
+        and redelivered_distinct >= held_expected and not missing_p2_in_p7 and p5_population_ok \
+        and not d7_unknown and not breaks and store_back
+    if p7_complete and p5_exact and not p5_population_ok and not d7_unknown:
+        notes.append(f"the P5 messages redelivered in P7 ({len(p5_redelivered)}) are not exactly the first "
+                     f"{queued_expected} published in P5 that the broker's count says it held")
     if not store_back and held_expected is not None and redelivered_distinct >= held_expected:
         notes.append("P7 redelivered everything held but the store did not return to its P0 value within P7")
+    figures.update({"held_at_end_p6": held_expected, "p7_redelivered_distinct": redelivered_distinct,
+                    "p5_redelivered": len(p5_redelivered), "p5_queued_expected": queued_expected,
+                    "p5_dropped_by_identity": len(p5_set - set(p5_redelivered)),
+                    "p7_order_breaks": breaks[:10], "p7_order_breaks_count": len(breaks),
+                    "store_back_to_baseline": store_back, "p7_session_resumed": session_resumed})
 
     # --- the disconnection line in P4 -----------------------------------------
-    disc_lines = [ln.strip() for ln in broker_log if HOLD_CLIENT_ID in ln and
+    disc_lines = [ln.strip() for ln in log_lines if HOLD_CLIENT_ID in ln and
                   ("closed its connection" in ln or "disconnect" in ln.lower() or "Socket error" in ln)]
     figures["p4_disconnection_lines"] = disc_lines[:5]
     p4 = phases.get("P4", {})
@@ -995,8 +1255,6 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
         inconclusive.append("the broker's disconnection line for egw-probe-hold never appeared in P4")
     if p4.get("limit_reached"):
         inconclusive.append("P4 reached its limit before the disconnection line")
-    if phases.get("P7", {}).get("limit_reached"):
-        inconclusive.append("P7 reached its limit")
     for name, p in phases.items():
         if p.get("stop_rule_reached"):
             inconclusive.append(f"a stop rule was reached in {name}: {p.get('stop_rule_reached')}")
@@ -1018,9 +1276,11 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str],
                             + ", ".join(k for k, v in supports.items() if not v))
     return {"result": result, "supports": supports, "refutes": refutes, "refuted": refuted,
             "inconclusive": inconclusive, "figures": figures, "notes": notes,
-            "params": {"W": W, "Q": Q, "A": A, "B": B, "memory_max": memory_max_expected},
-            "rule": "supports only if every one of S1-S5 holds; any of R1-R6 refutes option 5 as configured; "
-                    "an inconclusive run is not passing (ADR 0011, C3; gate item 1, section 7)"}
+            "params": {"W": W, "Q": Q, "A": A, "B": B, "memory_max": memory_max_expected,
+                       "guest_offset_s": guest_offset_s},
+            "rule": "supports only if every one of S1-S5 holds and nothing is inconclusive; any of R1-R6, "
+                    "each resting on something observed, refutes option 5 as configured; an inconclusive run "
+                    "is not passing (ADR 0011, C3; gate item 1, section 7)"}
 
 
 def cmd_verdict(args) -> int:
@@ -1030,13 +1290,19 @@ def cmd_verdict(args) -> int:
     params = json.loads(Path(args.params).read_text(encoding="utf-8")) if args.params else {}
     phases = _load_phases(args.phases) if args.phases and Path(args.phases).exists() else {}
     broker_log = Path(args.broker_log).read_text(encoding="utf-8", errors="replace").splitlines() \
-        if args.broker_log and Path(args.broker_log).exists() else []
+        if args.broker_log and Path(args.broker_log).exists() else None
     rows = _read_recorder_csv(args.recorder) if args.recorder and Path(args.recorder).exists() else []
+    probe_state = None
+    if args.probe_state and Path(args.probe_state).exists():
+        try:
+            probe_state = json.loads(Path(args.probe_state).read_text(encoding="utf-8"))
+        except ValueError:
+            probe_state = None
     verdict = compute_verdict(
         params=params, phases=phases, broker_log=broker_log,
         publish_p2=_opt(args.publish_p2), publish_p5=_opt(args.publish_p5),
         hold_p1=_opt(args.hold_p1), hold_p7=_opt(args.hold_p7),
-        sys_records=_opt(args.sys), recorder_rows=rows,
+        sys_records=_opt(args.sys), recorder_rows=rows, probe_state=probe_state,
         guest_offset_s=float(params.get("guest_offset_s", 0.0)),
     )
     out = Path(args.out)
@@ -1053,8 +1319,9 @@ def cmd_verdict(args) -> int:
     print(f"figures: store p0={f.get('store_p0')} end_p2={f.get('store_end_p2')} end_p6={f.get('store_end_p6')} "
           f"end_p7={f.get('store_end_p7')}; dropped through_p4={f.get('drops_through_p4')} in_p5_p6={f.get('drops_in_p5_p6')}; "
           f"inflight max P2-P3={f.get('inflight_max_p2_p3')}; P7 distinct={f.get('p7_redelivered_distinct')} "
-          f"order breaks={f.get('p7_order_breaks_count')}; memory peak={f.get('memory_peak_bytes')} "
-          f"margin={f.get('memory_peak_margin_bytes')} anon/msg P2={f.get('anon_per_message_p2_bytes')}; "
+          f"session_resumed={f.get('p7_session_resumed')} order breaks={f.get('p7_order_breaks_count')}; "
+          f"memory peak={f.get('memory_peak_bytes')} margin={f.get('memory_peak_margin_bytes')} "
+          f"anon/msg P2={f.get('anon_per_message_p2_bytes')}; docker oom_killed={f.get('docker_oom_killed')}; "
           f"queue accounting: {f.get('queue_accounting')}")
     return {"supports": EXIT_DONE, "refutes": EXIT_NEGATIVE, "inconclusive": EXIT_INCONCLUSIVE}[verdict["result"]]
 
@@ -1101,7 +1368,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("hold", help="the holding subscriber (persistent session, manual acknowledgement)")
     s.add_argument("--topic", default=TELEMETRY_FILTER)
-    s.add_argument("--ack", action="store_true", help="acknowledge each delivery after recording it (phase P7)")
+    s.add_argument("--ack", action="store_true", help="acknowledge each delivery after its record is on file (phase P7)")
     s.add_argument("--stop-file", default=None)
     s.add_argument("--expect", type=int, default=None, help="end once this many deliveries arrived and --idle passed")
     s.add_argument("--idle", type=float, default=30.0)
@@ -1129,6 +1396,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--hold-p7", required=True)
     s.add_argument("--sys", required=True)
     s.add_argument("--recorder", required=True)
+    s.add_argument("--probe-state", default=None, help="JSON of the container's state before removal (oom_killed, restart_count, status, exit_code)")
     s.add_argument("--out", required=True)
     s.set_defaults(func=cmd_verdict)
     return p
