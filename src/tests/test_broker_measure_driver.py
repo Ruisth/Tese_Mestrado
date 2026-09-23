@@ -675,6 +675,18 @@ def test_p7_ends_after_the_client_ended_and_captures_its_status(pbench):
     assert exported and (exported[0] / "SHA256SUMS").is_file(), "no verified package reached output_test"
 
 
+def test_generate_never_inherits_a_schema_directory_from_the_callers_environment(pbench):
+    # the documented host set-up exports the guest's EGW_SCHEMA_DIR in the
+    # caller's shell; the venv-only step must resolve the clone's schemas
+    # whatever was inherited (the stub's generate fails on a path that is
+    # not a directory, as the real one does)
+    result = pbench.run_driver(EGW_SCHEMA_DIR="/nonexistent/guest/deployment/schemas")
+    assert result.returncode == 0, report(result)
+    verdicts = pbench.probe_verdicts()
+    assert verdicts["broker_verdict"] == "supports" and verdicts["system_outcome"] == "pass"
+    assert (pbench.probe_attempt() / "environment" / "probe" / "messages.jsonl").stat().st_size > 0
+
+
 def test_a_client_that_does_not_end_is_ended_by_the_driver_and_the_run_is_inconclusive(pbench):
     result = pbench.run_driver(EGW_STUB_P7_HANG_S="60", EGW_PROBE_P7_LIMIT_S="1", EGW_PROBE_P7_GRACE_S="1")
     assert result.returncode == 3, report(result)

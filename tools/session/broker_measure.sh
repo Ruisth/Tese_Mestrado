@@ -253,11 +253,14 @@ $1"
 # of runbook 5.2 also carries the controller's settings for the GUEST, among
 # them EGW_SCHEMA_DIR as a path relative to the deployment tree; a step that
 # runs the repository's simulator on the host, as 'generate' does, resolves
-# the schemas from the clone and must not inherit that value.
+# the schemas from the CLONE, so the variable is set to the clone's schemas
+# here whatever the caller's shell exported (the documented host set-up
+# exports it before the drivers run), never merely left as inherited.
 hv() {
     local a=$1 name=$2
     shift 2
     ex "$a" "$name" bash -c "{ . $VENV/bin/activate ; } || { echo 'STOP: the venv could not be activated: the step never ran' >&2; exit 97; }
+export EGW_SCHEMA_DIR=\"$REPO/src/schemas\"
 $1"
 }
 # bg NAME ARGS...: one probe client in the background, a CHILD OF THIS SHELL
