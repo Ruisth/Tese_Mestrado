@@ -3212,6 +3212,34 @@ is unchanged.
   nothing and answer 124. `test_broker_measure_driver.py`: 19 cases;
   `test_broker_hold.py`: 60. The sealed local records were not touched and
   no live run was repeated.
+- **The first authorised C3 session (2026-09-23) and what stopped it on its
+  first host step.** With the student's explicit authorisation for one C3
+  diagnostic on the reviewed code (`f119887`, the tree PR #43 merged into
+  `dev` as `43ee9ce`), the session `20260923T165315Z_guest-session_attempt03`
+  was opened from the execution clone at `f119887` and the live preflight
+  `20260923T165407Z_live-preflight_attempt04` passed (valid, pass, exported).
+  `broker_measure.sh` then ended on its first host step, before anything on
+  the guest was touched: `20260923T165939Z_broker-hold-measurement-c3_attempt01`,
+  outcome not-run, exit 2, `restoration=untouched`, exported as an incomplete
+  package. The cause, read from the step's console record: the host preamble
+  sources the secrets file of runbook 5.2, which also carries the controller's
+  settings for the guest, among them `EGW_SCHEMA_DIR=src/schemas`, a path
+  relative to the deployment tree; the repository's simulator, run by
+  `generate` from `src/` of the clone, resolved the schemas from that value
+  and found no such file (`STOP: [Errno 2] … src/schemas/telemetry-envelope-v1.schema.json`).
+  The workstation's local check had not met it because it never sourced that
+  file. The guest was read back through the session's own helpers afterwards:
+  the six services running and healthy, no probe container, volume, directory
+  or recorder unit. **Correction:** `generate` runs with the venv only, from
+  the clone's root (`hv`), and never inherits the guest's settings; the other
+  host steps keep the secrets they need. The stub bench's secrets file now
+  carries the same guest-relative schema path and its `generate` fails on it
+  as the real one does, so the lifecycle cases would fail on the previous
+  driver; the real `generate` was also re-run on the host both ways (exit 2
+  with the sourced file from `src/`, exit 0 with the venv only from the clone
+  root). 19 lifecycle cases pass. No measurement was made and none is repeated
+  here: the session stays open, untouched, for the student's decision on
+  running the measurement with the corrected driver.
 - **Decisions and next steps.** No decision. Next, in the order the project
   manager's advice sets out and only with the student's authorisation: the
   presentation of the final commands, identities, checks, export paths,
