@@ -2994,3 +2994,62 @@ is unchanged.
   their exercised negative cases, a readiness step that records the status and
   the body, and a locked set of controller Python dependencies — with D007
   still owed before `exp-v1`.
+
+## Entry #C040 — The broker-hold measurement tool (ADR 0011, condition C3): the clients, the guest recorder, the session driver and their tests
+
+- **Date:** 2026-09-23. **Scope:** package D, stage 1 of the project manager's
+  staged advice of 2026-09-23 (`PM_PACKAGE_D_DECISION_ADVICE_2026-09-23.md`,
+  section 4): the scripts and deterministic local tests of the one bounded
+  broker-only measurement that ADR 0011 (a proposed record, not yet in this
+  repository) names as its condition C3. No production controller change, no
+  guest session and no measurement result are part of this entry.
+- **What.** `tools/probe/broker_hold.py` (the host-side clients `generate`,
+  `publish`, `hold`, `sysreader`, `discard`, and the `verdict` that applies the
+  design's S1–S5, R1–R6 and inconclusive rules to the records),
+  `tools/probe/guest/probe_recorder.sh` (the 1 s cgroup recorder of the probe
+  broker, BusyBox ash), `tools/session/broker_measure.sh` (the session driver:
+  the deployed stack stopped, a throwaway pinned broker on its own fresh volume
+  with measurement copies of `mosquitto.conf` and `acl`, the phases P0–P8, the
+  probe removed, the stack started and waited for with the G2 drivers' shared
+  wait, the verdict, the export; the interrupt handler restores the same way),
+  `tools/probe/README.md` (the phases, rules, stop rules, identities, export
+  paths and restoration — the session plan the student is asked to authorise
+  or not) and `src/tests/test_broker_hold.py`. The measurement's values (W =
+  4,999, Q = 1,000, expiry 1 h, A = 4,999, B = 1,100, 128 MiB) are **probe
+  settings**, not adopted production or campaign settings; the `$SYS` read is
+  a measurement-only grant in the measurement copy of the acl, never a change
+  to the deployed file. The clients read their passwords from the
+  environment; no secret is on a command line or in a record.
+- **Why.** The recovery option ADR 0011 recommends cannot run on today's
+  broker configuration (defaults of 20 in flight and 1,000 queued), and
+  whether the pinned broker honours a window of 4,999 within 128 MiB, keeps a
+  persistent session's held messages across a kill and redelivers them in
+  per-device order cannot be established from the documentation. The
+  measurement is the smallest feasibility test before any implementation is
+  decided; an inconclusive run is not passing, and a refutation is a result
+  that is recorded and never re-run away.
+- **Verification.** `src/tests/test_broker_hold.py`: 30 cases pass in the
+  execution venv (paho-mqtt 2.1.0, the repository's simulator): the holding
+  subscriber acknowledges nothing without `--ack` and each delivery after
+  recording it with `--ack`; the publisher publishes exactly its slice, in
+  order, at the generated cadence, and counts a missing PUBACK as not exact;
+  the `$SYS` reader refuses a subscription the broker does not grant;
+  `generate` reproduces the nominal three-device mix in order with gap-free
+  per-device `seq` and real sizes; the verdict supports only when S1–S5 all
+  hold, refutes on each of R1–R6, is inconclusive for each inconclusive shape
+  and lets a refutation stand when the run is also inconclusive. The recorder
+  was run under the image's own busybox through
+  `tools/test/make-busybox-wrappers.sh` (`wc -c` stands in for `stat`, which
+  the image's busybox does not offer). `bash -n` and ShellCheck 0.11.0 on the
+  two scripts: no error-severity finding. **Not verified here:** the driver
+  against a broker or the guest (no session was opened), and the clients
+  against a real Mosquitto 2.0.22 (Docker Desktop was not running on the
+  workstation when this entry was written; that local functional check is
+  the next step and is a tool check, not evidence).
+- **Decisions and next steps.** No decision. Next, in the order the project
+  manager's advice sets out and only with the student's authorisation: the
+  local functional check against an isolated pinned Mosquitto 2.0.22; the
+  presentation of the final commands, identities, checks, export paths,
+  restoration steps and stop rules (`tools/probe/README.md`); one explicitly
+  authorised guest session; then the implementation/scope decision on package
+  D with the measurement's result, the remaining hours and the full schedule.
