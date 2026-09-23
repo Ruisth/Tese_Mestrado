@@ -1009,6 +1009,11 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     store_end_p4 = _int(_last_before(store, end_p4))
     store_end_p6 = _int(_last_before(store, end_p6))
     store_end_p7 = _int(_last_before(store, end_p7))
+    # The broker publishes a $SYS value only when it changed, every
+    # sys_interval: the store's return to its baseline is read at the end of
+    # P8, the final readings, not at the instant P7's client ended.
+    end_p8 = _phase_epoch(phases, "P8", "end")
+    store_final = _int(_last_before(store, end_p8)) if end_p8 else (_int(store[-1][1]) if store else None)
     dropped_p0 = _int(_last_before(dropped, start_p2)) if start_p2 else (_int(dropped[0][1]) if dropped else None)
     dropped_end_p4 = _int(_last_before(dropped, end_p4))
     dropped_end_p6 = _int(_last_before(dropped, end_p6))
@@ -1024,6 +1029,7 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     figures.update({
         "store_p0": store_p0, "store_end_p2": store_end_p2, "store_end_p3": store_end_p3,
         "store_end_p4": store_end_p4, "store_end_p6": store_end_p6, "store_end_p7": store_end_p7,
+        "store_final": store_final,
         "dropped_p0": dropped_p0, "dropped_end_p4": dropped_end_p4, "dropped_end_p6": dropped_end_p6,
         "dropped_final": dropped_final, "drops_through_p4": drops_by_p4, "drops_in_p5_p6": drops_p5,
         "inflight_max_p2_p3": inflight_max_p2p3,
@@ -1036,11 +1042,25 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     log_available = broker_log is not None and len(log_lines) > 0
     started = any("mosquitto version" in ln and "starting" in ln for ln in log_lines)
     # Mosquitto reports a configuration it refuses as 'Error: ...' (an unknown
-    # variable, an invalid value) and exits; a broker that started and logs no
-    # such line accepted the added lines.
-    config_errors = [ln.strip() for ln in log_lines if "Error" in ln or "Unknown configuration variable" in ln]
+    # variable, an invalid value) BEFORE it opens its listener, and exits. An
+    # error line after the listener is open belongs to the session (the TLS
+    # 'unexpected eof' of a subscriber killed without a DISCONNECT, say) and
+    # is recorded, never read as a refused configuration.
+    listener_at = next((i for i, ln in enumerate(log_lines) if "listen socket" in ln), None)
+    config_errors = []
+    session_errors = []
+    for i, ln in enumerate(log_lines):
+        is_error = "Error" in ln or "Unknown configuration variable" in ln
+        if not is_error:
+            continue
+        if listener_at is None or i < listener_at:
+            config_errors.append(ln.strip())
+        else:
+            session_errors.append(ln.strip())
+    drop_lines = [ln.strip() for ln in log_lines if "being dropped for client" in ln]
+    warnings = [ln.strip() for ln in log_lines if "Warning: " in ln]
     refused_noted = bool(phases.get("P0", {}).get("broker_refused"))
-    supports["S1"] = log_available and started and not config_errors
+    supports["S1"] = log_available and started and listener_at is not None and not config_errors
     # R1 rests on something observed: an error line in a log that was fetched,
     # or the driver having seen the container refuse to run. A log that is
     # missing or empty establishes nothing either way.
@@ -1049,8 +1069,17 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
         inconclusive.append("the probe broker's log is missing or empty: whether it accepted its configuration was not observed")
     elif not started and not config_errors:
         inconclusive.append("the probe broker's log holds no 'starting' line and no error line: its start was not observed")
+    elif started and listener_at is None and not config_errors:
+        inconclusive.append("the probe broker's log shows it starting but never opening its listener, and no error line: not observed")
     figures["broker_log_started"] = started
+    figures["broker_log_listener_opened"] = listener_at is not None
     figures["broker_log_error_lines"] = config_errors[:20]
+    figures["broker_log_session_error_lines"] = session_errors[:20]
+    figures["broker_log_warning_lines"] = warnings[:20]
+    # the drop line the ChangeLog records since 1.3 ('Outgoing messages are
+    # being dropped for client ...'): whether 2.0.22 still logs it, at the
+    # deployed log types, is what gate item 1 left NOT ESTABLISHED
+    figures["broker_log_drop_lines"] = drop_lines[:20]
 
     # --- S2 / R2: the window reached W ----------------------------------------
     d1_first, d1_later = _first_copies_in_order(d1)
@@ -1202,17 +1231,23 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     if anon_p3 is not None and anon_p6 is not None and store_end_p6 is not None and store_end_p4 is not None \
             and store_end_p6 > store_end_p4:
         figures["anon_per_message_p5_bytes"] = round((anon_p6 - anon_p3) / (store_end_p6 - store_end_p4), 1)
+    figures["store_p2_p3_increment"] = (store_end_p3 - store_p0) if (store_end_p3 is not None and store_p0 is not None) else None
 
     # --- P5 discrimination (recorded, a sizing finding) ------------------------
-    if store_end_p6 == A + Q and drops_p5 == B - Q:
+    # The store count includes the broker's own retained messages (the $SYS
+    # topics among them), so every figure is read RELATIVE to the baseline at
+    # the end of P1, the last value before P2 started.
+    held_p6 = (store_end_p6 - store_p0) if (store_end_p6 is not None and store_p0 is not None) else None
+    figures["held_at_end_p6_relative"] = held_p6
+    if held_p6 == A + Q and drops_p5 == B - Q:
         figures["queue_accounting"] = "above the held in-flight messages (store W+Q, dropped B-Q)"
         queued_expected = Q
-    elif store_end_p6 == A and drops_p5 == B:
+    elif held_p6 == A and drops_p5 == B:
         figures["queue_accounting"] = "in total while the client is offline (store W, dropped B)"
         queued_expected = 0
     else:
-        figures["queue_accounting"] = f"other, recorded as observed (store {store_end_p6}, dropped in P5-P6 {drops_p5})"
-        queued_expected = (store_end_p6 - A) if (store_end_p6 is not None and store_end_p6 >= A) else None
+        figures["queue_accounting"] = f"other, recorded as observed (held above the baseline {held_p6}, dropped in P5-P6 {drops_p5})"
+        queued_expected = (held_p6 - A) if (held_p6 is not None and held_p6 >= A) else None
 
     # --- S5 / R5 / R6: the session kept, everything held redelivered, in order --
     # The populations, by identity: the P2 set must all come back; of the P5
@@ -1222,7 +1257,7 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     p5_redelivered = [m for m in p5_ids if m in d7_first]
     p5_queued_expected_ids = p5_ids[:queued_expected] if queued_expected is not None else None
     p5_population_ok = p5_queued_expected_ids is not None and p5_redelivered == p5_queued_expected_ids
-    held_expected = store_end_p6
+    held_expected = held_p6
     redelivered_distinct = len(d7_first)
     session_resumed = bool(p7_connect and p7_connect.get("session_present") is True)
     # R5: a session the broker did not resume is observed in the CONNACK; a
@@ -1231,7 +1266,7 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
         p7_complete and p5_exact and p2_exact and held_expected is not None and redelivered_distinct < held_expected)
     breaks = _per_device_order_breaks(d7_first)
     refutes["R6"] = bool(breaks)
-    store_back = (store_end_p7 is not None and store_p0 is not None and store_end_p7 <= store_p0)
+    store_back = (store_final is not None and store_p0 is not None and store_final <= store_p0)
     supports["S5"] = p7_complete and session_resumed and held_expected is not None \
         and redelivered_distinct >= held_expected and not missing_p2_in_p7 and p5_population_ok \
         and not d7_unknown and not breaks and store_back
@@ -1239,7 +1274,7 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
         notes.append(f"the P5 messages redelivered in P7 ({len(p5_redelivered)}) are not exactly the first "
                      f"{queued_expected} published in P5 that the broker's count says it held")
     if not store_back and held_expected is not None and redelivered_distinct >= held_expected:
-        notes.append("P7 redelivered everything held but the store did not return to its P0 value within P7")
+        notes.append("P7 redelivered everything held but the store had not returned to its baseline by the end of P8")
     figures.update({"held_at_end_p6": held_expected, "p7_redelivered_distinct": redelivered_distinct,
                     "p5_redelivered": len(p5_redelivered), "p5_queued_expected": queued_expected,
                     "p5_dropped_by_identity": len(p5_set - set(p5_redelivered)),
@@ -1317,7 +1352,7 @@ def cmd_verdict(args) -> int:
         print(f"note: {note}")
     f = verdict["figures"]
     print(f"figures: store p0={f.get('store_p0')} end_p2={f.get('store_end_p2')} end_p6={f.get('store_end_p6')} "
-          f"end_p7={f.get('store_end_p7')}; dropped through_p4={f.get('drops_through_p4')} in_p5_p6={f.get('drops_in_p5_p6')}; "
+          f"end_p7={f.get('store_end_p7')} final={f.get('store_final')}; dropped through_p4={f.get('drops_through_p4')} in_p5_p6={f.get('drops_in_p5_p6')}; "
           f"inflight max P2-P3={f.get('inflight_max_p2_p3')}; P7 distinct={f.get('p7_redelivered_distinct')} "
           f"session_resumed={f.get('p7_session_resumed')} order breaks={f.get('p7_order_breaks_count')}; "
           f"memory peak={f.get('memory_peak_bytes')} margin={f.get('memory_peak_margin_bytes')} "

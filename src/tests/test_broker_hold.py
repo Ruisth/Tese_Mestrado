@@ -740,6 +740,34 @@ def test_verdict_an_observed_refutation_stands_even_when_the_run_is_also_inconcl
     assert v["result"] == "refutes" and v["inconclusive"] and v["refuted"] == ["R4"]
 
 
+def test_verdict_reads_the_store_relative_to_the_brokers_own_retained_baseline():
+    # Mosquitto's store count includes its retained $SYS messages: a baseline
+    # of 51 before P2 is what the pinned image showed on the workstation
+    r = _supporting_records()
+    base = 51
+    shifted = []
+    for x in r["sys_records"]:
+        if x.get("event") == "sys" and x["topic"] == bh.SYS_STORE:
+            x = {**x, "value": str(int(x["value"]) + base)}
+        shifted.append(x)
+    r["sys_records"] = shifted
+    v = bh.compute_verdict(**r)
+    assert v["result"] == "supports", (v["inconclusive"], v["refuted"])
+    assert v["figures"]["store_p0"] == base and v["figures"]["held_at_end_p6_relative"] == A + Q
+    assert v["figures"]["queue_accounting"].startswith("above the held")
+
+
+def test_verdict_an_error_line_after_the_listener_opened_is_not_a_refused_configuration():
+    r = _supporting_records()
+    r["broker_log"] = list(BROKER_LOG)
+    r["broker_log"].insert(5, "2026-09-24T10:03:20: OpenSSL Error[0]: error:0A000126:SSL routines::unexpected eof while reading")
+    r["broker_log"].append("2026-09-24T10:03:21: Outgoing messages are being dropped for client egw-probe-hold.")
+    v = bh.compute_verdict(**r)
+    assert v["refutes"]["R1"] is False and v["supports"]["S1"] is True and v["result"] == "supports"
+    assert v["figures"]["broker_log_session_error_lines"] and v["figures"]["broker_log_error_lines"] == []
+    assert len(v["figures"]["broker_log_drop_lines"]) == 1
+
+
 def test_verdict_r1_when_the_broker_refuses_the_configuration():
     r = _supporting_records()
     r["broker_log"] = ["2026-09-24T10:00:00: Error: Invalid max_inflight_messages value (70000)."]

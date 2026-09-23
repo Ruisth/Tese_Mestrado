@@ -643,6 +643,8 @@ else
         missed "the holding subscriber did not subscribe within ${CLIENT_START_S} s: $(cat "$PR/hold_p1.stderr.txt" 2> /dev/null | tr '\n' ' ')"
     fi
     sleep "$P1_S"
+    STORE_BASE=$(sys_last '$SYS/broker/store/messages/count')
+    phase_note P1 store_baseline "\"$STORE_BASE\""
     phase_mark P1 end
 
     # --- P2: A published while the subscriber holds --------------------------
@@ -702,8 +704,16 @@ else
     # The client is waited for, with a bound, until it ENDS: P7 ends after the
     # client's own end record, never before, and its exit status is recorded.
     phase_mark P7 start
-    EXPECT=$STORE_P6
-    case "$EXPECT" in '' | *[!0-9]*) EXPECT=$A_COUNT ;; esac
+    # The store count includes the broker's own retained messages (the $SYS
+    # topics among them): what the subscriber has to receive back is the count
+    # ABOVE the baseline read before P2 started, never the absolute count.
+    EXPECT=$A_COUNT
+    case "$STORE_P6$STORE_BASE" in
+        *[!0-9]* | '') ;;
+        *) [ "$STORE_P6" -ge "$STORE_BASE" ] && EXPECT=$((STORE_P6 - STORE_BASE)) ;;
+    esac
+    [ "$EXPECT" -ge 1 ] || EXPECT=$A_COUNT
+    phase_note P7 expect "\"$EXPECT\""
     bg hold_p7 hold --ack --host "$BROKER_HOST" --port "$BROKER_PORT" --ca-cert "$CA" --stop-file "$PR/hold_p7.stop" --expect "$EXPECT" --idle 30 --limit "$P7_LIMIT" --record "$PR/hold_p7.jsonl"
     HOLD_PID=$BG_PID
     wait_line "$PR/hold_p7.stdout.txt" '^SUBSCRIBED:' "$CLIENT_START_S" \
