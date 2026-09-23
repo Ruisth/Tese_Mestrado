@@ -927,6 +927,18 @@ gxt 5 A step 'echo hi'; echo "gxt[5]=$?"
     assert result.stderr.count("was NOT started") == 6
 
 
+def test_the_session_drivers_look_for_qemu_by_its_process_name_never_by_command_line():
+    # the C3 session of 2026-09-23: the close driver's 'pgrep -f' matched the
+    # shell that invoked it, whose command line held the pattern, and reported
+    # a running guest where there was none
+    import re
+    for name in ("guest_session_open.sh", "guest_session_close.sh"):
+        text = (REPO_ROOT / "tools" / "session" / name).read_text(encoding="utf-8")
+        code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+        assert not re.search(r"pgrep\s+-[a-zA-Z]*f[a-zA-Z]*\s+qemu", code), f"{name} matches qemu by command line"
+        assert re.search(r"pgrep\s+-[a-zA-Z]*x[a-zA-Z]*\s+qemu-system-aarch64", code), f"{name} does not match qemu by its exact name"
+
+
 def _ssh_text(pbench: ProbeBench) -> str:
     try:
         return pbench.log.read_text(encoding="utf-8")

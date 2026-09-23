@@ -21,7 +21,10 @@ set -u
 if [ -n "$SESSION" ] && [ -d "$SESSION" ]; then
     driver_stop "$EXIT_PREREQUISITE" "a session is already open: $SESSION"
 fi
-if pgrep -f qemu-system-aarch64 > /dev/null; then
+# By the process NAME: a match on command lines would take the shell that
+# invoked this driver for a running guest when its command line holds the
+# pattern (guest_session_close.sh, the same check).
+if pgrep -x qemu-system-aarch64 > /dev/null; then
     driver_stop "$EXIT_PREREQUISITE" "a qemu-system-aarch64 process is already running"
 fi
 S=$(new_attempt "guest session" engineering) \
@@ -127,7 +130,7 @@ cp "$EXEC/venv-freeze.txt" "$S/environment/venv-freeze.txt"
 
 ex "$S" boot bash "$S/scripts/session_open.sh" "$S" "$RUN"
 rc=$?
-QPID=$(pgrep -f qemu-system-aarch64 | head -n 1)
+QPID=$(pgrep -x qemu-system-aarch64 | head -n 1)
 (cd "$REPO/src" && $LE set --attempt "$S" "pid=${QPID:-0}") || PID_UNRECORDED=1
 # A guest that is up and whose pid the attempt does not hold is judged here;
 # when the boot left no guest at all, the branch below records that instead.
