@@ -3130,13 +3130,16 @@ is unchanged.
   dropped for client egw-probe-hold.` at the deployed log types), redelivered
   all 5,999 on the resumed session with DUP = 1 on the 4,999 and per-device
   `seq` ascending, every acknowledgement succeeded, the store returned to its
-  baseline; peak memory 17.6 MiB against the 128 MiB limit (anon 6.3 MiB, about
-  763 B of anon per held message in P2 on that host), no OOM, no restart, the
+  baseline; peak memory 17,649,664 bytes, 16.83 MiB, against the 128 MiB limit
+  (anon 6,307,840 bytes, about 763 B of anon per held message in P2 on that
+  host), no OOM, no restart, the
   recorder's 878 rows without a gap; 14.6 minutes from the container's start
   to the end of P8; verdict **supports**, S1–S5 all holding; **fail01** (the
   small counts with the redelivery client limited to 2 s) — P7 reaches its
-  limit, the verdict is **inconclusive** with no refutation made, and the
-  container and volume are removed. Two earlier smokes (`smoke01`, `smoke02`,
+  limit, the broker verdict is **inconclusive** with no refutation made, and
+  the container and volume are removed: the tool's negative path passed its
+  check, which is not a successful broker measurement (the package's outer
+  `pass` is the tool check's). Two earlier smokes (`smoke01`, `smoke02`,
   kept locally and not carried) showed what the tool had wrong and led to the
   corrections of the same day: the store count includes the broker's own
   retained messages (51 `$SYS` topics on that broker), so every store figure
@@ -3148,6 +3151,49 @@ is unchanged.
   and not a refused configuration. What the check does not show: anything
   about the emulated guest, its timing, its memory or the arm64 variant's
   accounting of the queue; those are what the guest measurement records.
+- **Corrections after the follow-up review of 2026-09-23**
+  (`PM_REVIEW_PR43_FOLLOWUP_2026-09-23.md`, blockers B1 and B2, items C1 to
+  C3, all confirmed against `f62af8c`). *B1:* a recorder whose start was not
+  confirmed was left in the state `unknown`, which the restoration did not
+  handle, and the stop command's success could come from `tail` while
+  `systemctl stop` had failed; the restoration now handles every non-terminal
+  state by reading the unit's real state, stopping it when active and
+  declaring it stopped only when `systemctl is-active` answers inactive after
+  the stop, fetches the CSV as a separate step either way, and a session is
+  fully restored only when the recorder is verified stopped as well as the
+  stack healthy and the probe gone. *B2:* the setup's 300 s limit was checked
+  only after every setup command had returned, each with its own full bound,
+  and a stop rule reached in P4 still let P5 publish and P7 resume; the setup
+  now runs on one budget from one clock, each command bounded by what is left
+  and no step started once it is spent, and no later phase starts after any
+  stop rule — the partial observation is kept, the final readings and the
+  discard still run, the guest is restored. *C1:* an unreadable counter set
+  its aggregate to `None` and could erase an OOM observed in another row; the
+  observation and the completeness are now kept apart (R4 from what was
+  read, inconclusive from what was not), and rows without a readable epoch
+  give a structured inconclusive rather than an exception. *C2:* ownership is
+  the label being exactly this attempt's id, for the container and for the
+  volume; a resource of the probe's name with another label is left alone and
+  reported, and its records are not read as this attempt's. *C3:* the phase
+  table no longer expects `messages/inflight`, the preserved peak is given as
+  17,649,664 bytes (16.83 MiB), and the summaries keep the tool's passed
+  negative-path check apart from the broker verdict it reports.
+- **Verification of the follow-up.** `test_broker_hold.py`: 59 cases
+  (added: an observed OOM survives an unreadable sample elsewhere; rows
+  without a readable epoch are inconclusive). `test_broker_measure_driver.py`:
+  16 lifecycle cases (added: a recorder whose start was not confirmed is found,
+  stopped and fetched; a stop that failed is never declared stopped even with
+  a readable CSV and the session is not a pass; the setup budget is one budget
+  and no stage starts beyond it; a P4 stop rule ends the measurement before
+  P5 and P7 with the partial observation kept; a container whose label merely
+  contains the attempt id, and a volume whose label is not exactly it, are
+  left alone and reported). ShellCheck at `--severity=error`: clean; links:
+  108 files. **Offline reconciliation:** the corrected `verdict` re-run on
+  unmodified copies of the three preserved local records reproduces each
+  sealed verdict — `full01` supports, `fail01` inconclusive, `smoke03`
+  supports — with every figure equal and `full01`'s `verdict.json` byte for
+  byte identical (sha256 `b0bc63ce…`); the sealed packages were not touched
+  and no live run was repeated.
 - **Decisions and next steps.** No decision. Next, in the order the project
   manager's advice sets out and only with the student's authorisation: the
   presentation of the final commands, identities, checks, export paths,

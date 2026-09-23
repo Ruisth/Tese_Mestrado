@@ -103,7 +103,7 @@ offers; `wc -c` stands in for `stat`).
 | setup | `compose stop -t 60` of the deployed stack; measurement copies of `mosquitto.conf` (the deployed file plus `max_inflight_messages W`, `max_inflight_bytes 0`, `max_queued_messages Q`, `max_queued_bytes 0`, `persistent_client_expiration 1h`) and of `acl` (plus `topic read $SYS/#` under `user egw-controller`), both hashed; a throwaway container of the pinned image with `--memory 128m` on port 8883, the deployed `certs` and `passwd` read-only, a **fresh named volume**; the guest recorder started | the broker opens its listener; `memory.max` = 134,217,728 |
 | P0 (60 s) | the `$SYS` reader alone | `$SYS/broker/version` and the counters arrive |
 | P1 (10 s) | `egw-probe-hold` connects: MQTT 3.1.1, `clean_session=False`, `manual_ack=True`, QoS 1 on `c2dt/+/+/telemetry` | SUBACK granted QoS 1 |
-| P2 (446.3 s) | A = 4,999 real payloads published at the nominal cadence as `egw-simulator`; the subscriber records and acknowledges nothing | 4,999 distinct deliveries, DUP = 0; `messages/inflight` → 4,999; `dropped` = 0 |
+| P2 (446.3 s) | A = 4,999 real payloads published at the nominal cadence as `egw-simulator`; the subscriber records and acknowledges nothing | 4,999 distinct deliveries, DUP = 0, in the subscriber's own records (the observation S2 rests on: the pinned 2.0.22 publishes no `messages/inflight`); the store count rises by 4,999 above its baseline; `dropped` = 0 |
 | P3 (130 s) | hold, subscriber connected | no new delivery; memory flat apart from saves |
 | P4 (≤ 10 s) | SIGKILL of the subscriber process (no DISCONNECT); the broker's disconnection line awaited | `clients/disconnected` = 1; store still 4,999 |
 | P5 (98.2 s) | B = 1,100 published while the subscriber is away | store 5,999 and `dropped` + 100 if `Q` counts above the held window; store 4,999 and `dropped` + 1,100 if in total (recorded either way) |
@@ -239,10 +239,22 @@ With the design's counts (W = 4,999, Q = 1,000, A = 4,999, B = 1,100 at
 11.2 msg/s) the tool ran end to end on that broker in 14.6 minutes and its
 verdict was *supports* (4,999 held, 5,999 held with the subscriber away and
 100 dropped, all 5,999 redelivered in order with DUP = 1 on the 4,999, peak
-memory 17.6 MiB, no OOM); with the redelivery client limited to 2 s it
-reported *inconclusive* and removed its container. The three attempts are in
-`output_test` as `HIST_2026-09-23-broker-probe-local-check-{smoke03,full01,fail01}`.
-None of it says anything about the emulated guest.
+memory 17,649,664 bytes, 16.83 MiB, no OOM); with the redelivery client
+limited to 2 s it reported the broker verdict *inconclusive* and removed its
+container — the tool's negative path passed its check, which is not a
+successful broker measurement. The three attempts are in `output_test` as
+`HIST_2026-09-23-broker-probe-local-check-{smoke03,full01,fail01}`. None of
+it says anything about the emulated guest.
+
+Since then the driver also: reads the recorder unit's real state before
+declaring it stopped, and fetches its CSV either way; keeps one setup budget
+over every setup step and starts no stage beyond it; starts no later phase
+once a stop rule is reached (a P4 without the disconnection line publishes
+nothing in P5 and resumes no session), keeping the partial observation; and
+removes the probe container and volume only when their label is exactly
+this attempt's id. The verdict keeps an observed OOM or restart even when
+another sample is unreadable, and treats rows without a readable epoch as
+inconclusive.
 
 On the guest, inside an open session, after the recovered bytes of r02 have
 been preserved and only with the student's explicit authorisation for one
