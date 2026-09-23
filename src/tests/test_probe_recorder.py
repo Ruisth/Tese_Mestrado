@@ -26,11 +26,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RECORDER = REPO_ROOT / "tools" / "probe" / "guest" / "probe_recorder.sh"
 
 FAKE_DOCKER = """#!/bin/sh
-# stub docker: the probe container's id and state; an inspect can be slow
+# stub docker: the probe container's id and state. An inspect can be slow,
+# from the FAKE_INSPECT_DELAY_AFTER-th call on (counted on disk), and a slow
+# inspect ended by a signal, as 'systemctl stop' ends the whole unit, prints
+# nothing - which is what the recorder read as '?' on 2026-09-23.
 case "$*" in
     *"{{.Id}}"*) echo abc123 ;;
     *"{{.State.Status}} {{.RestartCount}}"*)
-        [ -z "${FAKE_INSPECT_DELAY_S:-}" ] || sleep "$FAKE_INSPECT_DELAY_S"
+        n=0
+        [ ! -f "$FAKE_INSPECT_COUNT" ] || n=$(cat "$FAKE_INSPECT_COUNT")
+        n=$((n + 1))
+        echo "$n" > "$FAKE_INSPECT_COUNT"
+        if [ -n "${FAKE_INSPECT_DELAY_S:-}" ] && [ "$n" -ge "${FAKE_INSPECT_DELAY_AFTER:-1}" ]; then
+            sleep "$FAKE_INSPECT_DELAY_S"
+        fi
         echo "running 0" ;;
     *) exit 1 ;;
 esac
@@ -69,6 +78,7 @@ def _env(tree: dict) -> dict:
     env["PATH"] = f"{tree['bin']}{os.pathsep}{busybox}" if busybox else f"{tree['bin']}{os.pathsep}{env['PATH']}"
     env["PROBE_CGROUP_ROOT"] = str(tree["cg"])
     env["PROBE_DOCKER_ROOT"] = str(tree["dk"])
+    env["FAKE_INSPECT_COUNT"] = str(tree["bin"].parent / "inspect.count")
     return env
 
 
@@ -96,22 +106,33 @@ def test_the_recorder_writes_one_row_per_interval_and_a_closing_line(tmp_path):
         assert "?" not in row
 
 
-def test_a_stop_that_interrupts_a_sample_leaves_no_partial_row(tmp_path):
-    # the C3 attempt of 2026-09-23: the stop arrived during the 'docker inspect'
-    # of a sample, the interrupted read gave '?' and a row of '?' was written
+def test_a_stop_that_interrupts_a_samples_read_leaves_no_partial_row(tmp_path):
+    # the C3 attempt of 2026-09-23: 'systemctl stop' ended the whole unit -
+    # the recorder AND the 'docker inspect' it was waiting for - so the
+    # interrupted read gave '?', and the previous recorder wrote that row.
+    # The unit is a process group here, ended the same way; the first sample
+    # completes, the second is interrupted inside its inspect.
     tree = _tree(tmp_path)
     out = tmp_path / "out.csv"
     env = _env(tree)
-    env["FAKE_INSPECT_DELAY_S"] = "3"      # every inspect sample is slow
-    proc = subprocess.Popen([*_shell(), str(RECORDER), "probe", str(out), "v1", "1", "1"], env=env)
-    time.sleep(1.5)                        # inside the first (slow) inspect
-    proc.send_signal(signal.SIGTERM)
+    env["FAKE_INSPECT_DELAY_S"] = "4"
+    env["FAKE_INSPECT_DELAY_AFTER"] = "2"  # the second inspect is the slow one
+    proc = subprocess.Popen([*_shell(), str(RECORDER), "probe", str(out), "v1", "1", "1"], env=env,
+                            start_new_session=True)
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if out.exists() and len(_rows(out)) >= 1:
+            break
+        time.sleep(0.1)
+    assert len(_rows(out)) == 1, "the first sample must have been written before the stop"
+    time.sleep(1.5)                        # inside the second sample's slow inspect
+    os.killpg(proc.pid, signal.SIGTERM)    # the unit, not only the shell
     assert proc.wait(timeout=20) == 0
     text = out.read_text(encoding="utf-8")
-    assert "# stop samples=" in text
-    for row in _rows(out):
-        assert "?" not in row, row
-        assert row[13] == "running" and row[14] == "0", row
+    rows = _rows(out)
+    assert "# stop samples=1" in text, text
+    assert len(rows) == 1, rows           # the interrupted sample was NOT written
+    assert "?" not in rows[0] and rows[0][13] == "running" and rows[0][14] == "0", rows[0]
 
 
 def test_the_recorder_refuses_a_container_it_cannot_find(tmp_path):

@@ -80,17 +80,18 @@ case "$close_rc" in
     *) fails+=("the controlled power-off failed (exit $close_rc)") ;;
 esac
 # Whether a qemu-system-aarch64 process is left is decided HERE, in the driver's
-# own shell, by the process NAME ('pgrep -x'): a match on full command lines
-# ('pgrep -f') would match any shell whose command line holds the pattern - the
-# artefacts step's own 'bash -c' and the local_export process above it, and,
-# as the C3 session of 2026-09-23 showed, the very shell that invoked this
-# driver - and would report a running guest where there is none. The driver's
-# own finding is passed into the record instead. pgrep answers 1 for "no match"
-# and 2 or more for a usage or fatal error (127 when it is not on PATH at all),
-# so only 1 is "no qemu process left": a pgrep that could not ANSWER is its own
-# state, never a closed guest, because the record must not assert what the
-# command did not establish.
-QEMU_LEFT=$(pgrep -ax qemu-system-aarch64)
+# own shell, by the executable at the start of the command line (qemu_procs,
+# guest_common.sh): a match on the whole command line would match any shell
+# whose command line holds the pattern - the artefacts step's own 'bash -c',
+# the local_export process above it and, as the C3 session of 2026-09-23
+# showed, the very shell that invoked this driver - and a match on the
+# process name can never see a name of 19 characters (Linux keeps 15). The
+# driver's own finding is passed into the record instead. pgrep answers 1 for
+# "no match" and 2 or more for a usage or fatal error (127 when it is not on
+# PATH at all), so only 1 is "no qemu process left": a pgrep that could not
+# ANSWER is its own state, never a closed guest, because the record must not
+# assert what the command did not establish.
+QEMU_LEFT=$(qemu_procs)
 pgrep_rc=$?
 case "$pgrep_rc" in
     0)
