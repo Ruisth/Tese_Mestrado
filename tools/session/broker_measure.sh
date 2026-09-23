@@ -199,12 +199,41 @@ set_field() { (cd "$REPO/src" && $LE set --attempt "$A" "$1") > /dev/null 2>&1 |
 # gxt LIMIT ATTEMPT NAME GUEST-COMMAND: gx with a bound. A guest command that
 # does not return within LIMIT seconds is ended by 'timeout' (124), so that a
 # setup or a restoration step never waits without end; the driver reads 124 as
-# "did not return", never as the guest's answer.
+# "did not return", never as the guest's answer. A LIMIT that is not a
+# positive number of seconds is an allowance already spent: the command is
+# NOT invoked at all ('timeout 0' would disable the bound, never enforce it)
+# and the same 124 is answered, with the reason on stderr.
+budget_spent() {
+    case "$1" in
+        '' | *[!0-9]* | 0) return 0 ;;
+    esac
+    return 1
+}
 gxt() {
     local limit=$1 a=$2 name=$3 rc
     shift 3
+    if budget_spent "$limit"; then
+        echo "STOP: no time left in the allowance: '$name' was NOT started" >&2
+        return 124
+    fi
     ex "$a" "$name" timeout -k 15 "$limit" env E="$SESSION" bash -c '. "$E/scripts/session_common.sh" || { echo "STOP: the session ssh helpers ($E/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest" >&2; exit 97; }
 gssh "$1"' _ "$1"
+    rc=$?
+    [ "$rc" -ne 255 ] || rc=$EXIT_NOT_REACHED
+    return "$rc"
+}
+# gcpt LIMIT ATTEMPT NAME SRC DEST: gcp with the same bound and the same
+# refusal of a spent allowance, so that a transfer never runs outside the
+# budget its stage has.
+gcpt() {
+    local limit=$1 a=$2 name=$3 rc
+    shift 3
+    if budget_spent "$limit"; then
+        echo "STOP: no time left in the allowance: '$name' was NOT started" >&2
+        return 124
+    fi
+    ex "$a" "$name" timeout -k 15 "$limit" env E="$SESSION" bash -c '. "$E/scripts/session_common.sh" || { echo "STOP: the session ssh helpers ($E/scripts/session_common.sh) could not be loaded: NOTHING was copied" >&2; exit 97; }
+gscp "$1" "$2"' _ "$1" "$2"
     rc=$?
     [ "$rc" -ne 255 ] || rc=$EXIT_NOT_REACHED
     return "$rc"
@@ -603,14 +632,28 @@ GUEST_PROBE_CONFIG
 gxt "$(setup_left)" "$A" probe-config "$(probe_config_script)"
 rc=$?
 [ "$rc" -eq 0 ] || abort "the measurement copies of mosquitto.conf and acl could not be made (probe-config exit $rc): $(said probe-config 'STOP: ')"
-setup_step probe-start || abort "the setup budget was spent before the probe broker was started; nothing else was started"
 IMAGE=$(said probe-config 'IMAGE=' | tr -d ' ')
 [ -n "$IMAGE" ] || abort "the pinned broker image could not be read from $DEPLOYED/images.lock.env"
 guest_literal "$IMAGE" || abort "the image reference is not a guest literal"
-gcp "$A" probe-config-fetch "egw@127.0.0.1:$PDIR/mosquitto.measure.conf" "$PR/mosquitto.measure.conf" \
-    || missed "the measurement mosquitto.conf was not fetched"
-gcp "$A" probe-acl-fetch "egw@127.0.0.1:$PDIR/acl.measure" "$PR/acl.measure" \
-    || missed "the measurement acl was not fetched"
+# The transfers of the setup are inside its budget like its commands: each is
+# guarded, bounded by what is left, and a transfer that the budget ends is
+# the setup ending (nothing after it is started).
+setup_step probe-config-fetch || abort "the setup budget was spent before the measurement copies could be fetched; nothing else was started"
+gcpt "$(setup_left)" "$A" probe-config-fetch "egw@127.0.0.1:$PDIR/mosquitto.measure.conf" "$PR/mosquitto.measure.conf"
+rc=$?
+if [ "$rc" -eq 124 ]; then
+    stoprule "the setup budget of ${SETUP_LIMIT} s was spent while the measurement mosquitto.conf was being fetched" setup
+    abort "the setup budget was spent during a transfer; nothing else was started"
+fi
+[ "$rc" -eq 0 ] || missed "the measurement mosquitto.conf was not fetched"
+setup_step probe-acl-fetch || abort "the setup budget was spent before the measurement acl could be fetched; nothing else was started"
+gcpt "$(setup_left)" "$A" probe-acl-fetch "egw@127.0.0.1:$PDIR/acl.measure" "$PR/acl.measure"
+rc=$?
+if [ "$rc" -eq 124 ]; then
+    stoprule "the setup budget of ${SETUP_LIMIT} s was spent while the measurement acl was being fetched" setup
+    abort "the setup budget was spent during a transfer; nothing else was started"
+fi
+[ "$rc" -eq 0 ] || missed "the measurement acl was not fetched"
 
 probe_start_script() {
     printf "PNAME='%s'\nPVOL='%s'\nPDIR='%s'\nDEPLOYED='%s'\nIMAGE='%s'\nMEMORY='%s'\nPORT='%s'\nLABEL='%s'\n" \
@@ -645,6 +688,7 @@ docker inspect -f '{{.State.Status}}' "$PNAME" | grep -q running || { echo 'STOP
 docker logs "$PNAME" 2>&1 | grep -q 'listen socket on port 8883' || { echo 'STOP: the probe broker did not open its listener within 60 s'; exit 1; }
 GUEST_PROBE_START
 }
+setup_step probe-start || abort "the setup budget was spent before the probe broker was started; nothing else was started"
 PROBE_STATE=creating
 gxt "$(setup_left)" "$A" probe-start "$(probe_start_script)"
 rc=$?
@@ -665,9 +709,16 @@ fi
 MEMMAX=$(said probe-start 'memory.max=' | cut -d' ' -f1)
 [ "$MEMMAX" = "$MEMORY_MAX" ] || missed "the probe broker's memory.max reads '$MEMMAX', not $MEMORY_MAX"
 
+setup_step recorder-copy || abort "the setup budget was spent before the recorder could be copied; nothing else was started"
+gcpt "$(setup_left)" "$A" recorder-copy "$RECORDER" "egw@127.0.0.1:$PDIR/probe_recorder.sh"
+rc=$?
+if [ "$rc" -eq 124 ]; then
+    stoprule "the setup budget of ${SETUP_LIMIT} s was spent while the recorder was being copied" setup
+    abort "the setup budget was spent during a transfer; the recorder was NOT started"
+fi
+[ "$rc" -eq 0 ] || abort "the guest recorder could not be copied (recorder-copy exit $rc)"
 setup_step recorder-start || abort "the setup budget was spent before the recorder was started; nothing else was started"
 REC_STATE=starting
-gcp "$A" recorder-copy "$RECORDER" "egw@127.0.0.1:$PDIR/probe_recorder.sh" || { REC_STATE=none; abort "the guest recorder could not be copied"; }
 gxt "$(setup_left)" "$A" recorder-start "sudo systemd-run --unit '$UNIT' --collect sh '$PDIR/probe_recorder.sh' '$PNAME' '$PDIR/recorder.csv' '$PVOL' 1 10 && sleep 3 && systemctl is-active '$UNIT' && head -n 3 '$PDIR/recorder.csv'"
 rc=$?
 if [ "$rc" -ne 0 ]; then

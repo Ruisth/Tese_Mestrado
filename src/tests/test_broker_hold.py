@@ -733,18 +733,23 @@ def test_verdict_makes_no_refutation_out_of_records_that_are_missing(shape):
     assert v["refuted"] == [], (shape, v["refuted"])
 
 
-def test_verdict_an_observed_oom_survives_an_unreadable_sample_elsewhere():
-    # ev_oom read as 1 in one row, an unreadable counter in another: the
-    # observation stands (R4) and the unreadable sample makes the run
-    # inconclusive besides, while docker still reports running and no kill
+@pytest.mark.parametrize("positive_at, unreadable_at", [(120, 200), (200, 120)])
+def test_verdict_an_observed_oom_survives_an_unreadable_sample_of_the_same_counter(positive_at, unreadable_at):
+    # ev_oom read as 1 in one row and unreadable in another row of the SAME
+    # counter, in either order: the observation stands (R4) and the unreadable
+    # sample makes the run inconclusive besides, while docker still reports
+    # running and no kill. The earlier aggregation (None once any sample was
+    # unreadable, and None kept from then on) lost the observation in both
+    # orders; this is the case that fails on it.
     r = _supporting_records()
     rows = _recorder()
-    rows[120]["ev_oom"] = "1"
-    rows[200]["ev_oom_kill"] = "?"
+    rows[positive_at]["ev_oom"] = "1"
+    rows[unreadable_at]["ev_oom"] = "?"
     r["recorder_rows"] = rows
     v = bh.compute_verdict(**r)
     assert v["refutes"]["R4"] is True and v["result"] == "refutes"
     assert v["figures"]["oom_events"] == 1
+    assert v["figures"]["recorder_unknown_fields"] == {"ev_oom": 1}
     assert any("unreadable" in x for x in v["inconclusive"])
 
 

@@ -544,6 +544,10 @@ class ProbeBench(Bench):
         for name, text in (("docker", DOCKER_STUB), ("systemd-run", SYSTEMD_RUN_STUB), ("systemctl", SYSTEMCTL_STUB)):
             _write(self.guest_bin / name, text, executable=True)
         self.probe = _write(tmp_path / "probe_stub.py", PROBE_STUB, executable=True)
+        # the bench's scp, behind a wrapper that can be made slow
+        (self.bin / "scp").rename(self.bin / "scp.real")
+        _write(self.bin / "scp", '#!/bin/sh\n[ -z "${EGW_STUB_SCP_DELAY_S:-}" ] || sleep "$EGW_STUB_SCP_DELAY_S"\n'
+                                 'exec "$(dirname "$0")/scp.real" "$@"\n', executable=True)
         self.cgroup_root = tmp_path / "cg"
         self.cgroup_root.mkdir()
         self.extra.update(FAST)
@@ -836,6 +840,73 @@ def test_the_setup_budget_is_one_budget_and_no_stage_starts_beyond_it(pbench):
     assert "setup budget" in verdicts["reason"]
     assert verdicts["restoration"].startswith("stack=healthy")
     assert all(s["state"] == "running" for s in pbench.docker_state()["services"].values())
+
+
+def test_a_configuration_transfer_that_spends_the_budget_starts_no_probe(pbench):
+    # the two measurement copies take 4 s each; with a 6 s budget the second
+    # is cut by what is left of it, and the probe broker is never started
+    result = pbench.run_driver(EGW_STUB_SCP_DELAY_S="4", EGW_PROBE_SETUP_LIMIT_S="6", EGW_PROBE_STEP_TIMEOUT_S="60")
+    assert result.returncode in (2, 3), report(result)
+    dlog = pbench.docker_log()
+    assert "compose stop -t 60" in dlog
+    assert "run -d --name egw-probe-broker" not in dlog, "the probe was started after the setup budget was spent"
+    assert "compose start" in dlog
+    steps = _steps(pbench)
+    assert "probe-start" not in steps and "recorder-start" not in steps and "p2-publish" not in steps, steps
+    verdicts = pbench.probe_verdicts()
+    assert "setup budget" in verdicts["reason"]
+    assert verdicts["restoration"].startswith("stack=healthy")
+    assert all(s["state"] == "running" for s in pbench.docker_state()["services"].values())
+
+
+def test_a_recorder_transfer_that_spends_the_budget_starts_no_recorder_and_removes_the_probe(pbench):
+    # the copies take 5 s each: the two measurement copies fit a 14 s budget,
+    # the probe starts, and the recorder's copy is cut by what is left
+    result = pbench.run_driver(EGW_STUB_SCP_DELAY_S="5", EGW_PROBE_SETUP_LIMIT_S="14", EGW_PROBE_STEP_TIMEOUT_S="60")
+    assert result.returncode in (2, 3), report(result)
+    dlog = pbench.docker_log()
+    assert "run -d --name egw-probe-broker" in dlog, "this case needs the probe to have started"
+    ssh_log = _ssh_text(pbench)
+    assert "systemd-run" not in ssh_log, "the recorder was started after the setup budget was spent"
+    steps = _steps(pbench)
+    assert "recorder-start" not in steps and "p2-publish" not in steps, steps
+    assert "rm -f egw-probe-broker" in dlog and "compose start" in dlog
+    assert pbench.docker_state()["containers"] == {}
+    verdicts = pbench.probe_verdicts()
+    assert "setup budget" in verdicts["reason"]
+    assert verdicts["restoration"] == "stack=healthy probe=removed recorder=none"
+
+
+def test_the_bounded_dispatchers_refuse_a_spent_allowance_without_invoking_anything(tmp_path):
+    # the boundary itself: gxt and gcpt given 0, '' or a non-number call
+    # nothing (a 'timeout 0' would disable the bound, not enforce it)
+    driver = (REPO_ROOT / "tools" / "session" / "broker_measure.sh").read_text(encoding="utf-8")
+    import re
+    funcs = "".join(m.group(0) for m in re.finditer(r"^(budget_spent|gxt|gcpt)\(\) \{.*?^\}\n", driver, re.S | re.M))
+    assert "gxt() {" in funcs and "gcpt() {" in funcs and "budget_spent() {" in funcs
+    script = funcs + """
+ex() { echo "CALLED $*"; return 0; }
+EXIT_NOT_REACHED=97
+SESSION=/nonexistent
+for limit in 0 '' abc; do
+    gxt "$limit" A step 'echo hi'; echo "gxt[$limit]=$?"
+    gcpt "$limit" A copy src dst; echo "gcpt[$limit]=$?"
+done
+gxt 5 A step 'echo hi'; echo "gxt[5]=$?"
+"""
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=60)
+    assert "CALLED" not in result.stdout.split("gxt[abc]")[0], result.stdout
+    for limit in ("0", "", "abc"):
+        assert f"gxt[{limit}]=124" in result.stdout and f"gcpt[{limit}]=124" in result.stdout, result.stdout
+    assert "CALLED" in result.stdout and "gxt[5]=0" in result.stdout, result.stdout
+    assert result.stderr.count("was NOT started") == 6
+
+
+def _ssh_text(pbench: ProbeBench) -> str:
+    try:
+        return pbench.log.read_text(encoding="utf-8")
+    except OSError:
+        return ""
 
 
 def test_a_p4_stop_rule_ends_the_measurement_before_p5_and_p7(pbench):
