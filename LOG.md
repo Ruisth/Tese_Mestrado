@@ -3259,7 +3259,9 @@ is unchanged.
   container's state and restart count, and that partial row was written;
   corrected in the recorder (a sample the stop interrupted is not written;
   `tr` no longer used), pinned by `src/tests/test_probe_recorder.py` under
-  `sh` and the image's own busybox. **`attempt04`
+  `sh` and the image's own busybox, whose case ends the recorder's whole
+  process group inside a sample's `docker inspect`, as `systemctl stop` ends
+  the unit, and asserts the interrupted sample is not written. **`attempt04`
   (`20260923T195448Z_broker-hold-measurement-c3_attempt04`, execution commit
   `8e68017`, drivers sha256 `64c7c314…`, export tool `544c9b3d…`, clone
   clean): the broker verdict is `supports` — every one of S1–S5 holds —
@@ -3275,17 +3277,19 @@ is unchanged.
   (the deployed originals `057c0919…` and `76804469…`), W = 4,999, Q = 1,000,
   expiry 1 h, A = 4,999, B = 1,100 at 11.2 msg/s, the phases at the design's
   durations (P0 61 s, P1 11 s, P2 446 s, P3 130 s, P4 2 s, P5 98 s, P6 70 s,
-  P7 33 s, P8 30 s), 18 min 37 s from the driver's start to its end
-  including the stack's stop (17.9 s) and restart (122.9 s, healthy again in
-  49.1 s). What the records show: the subscriber held 4,999 distinct
+  P7 33 s, P8 30 s), 1,100.0 s (18 min 20 s) between the attempt's recorded
+  start and end, the stack's stop (17.9 s) and restart (122.9 s, healthy
+  again in 49.1 s) included, and 18 min 37 s from the driver's invocation to
+  its exit with the export. What the records show: the subscriber held 4,999 distinct
   deliveries with DUP = 0 and acknowledged nothing (S2); the store rose from
   its baseline of 51 to 5,050 by the end of P3 and to 6,050 by the end of P6,
   with no drop through P4 and 100 dropped in P5–P6 — the queue counted
   **above** the in-flight window (store W + Q, dropped B − Q), and the broker
   logged `Outgoing messages are being dropped for client egw-probe-hold.` at
   the deployed log types (S3, N4); no OOM, no restart, the container running
-  throughout, the recorder's 635 rows covering P2–P7 with no gap and no
-  unreadable value, docker reporting `OOMKilled=false` and `RestartCount=0`
+  throughout, the recorder's 635 rows covering P2–P7 with no unreadable value
+  and no interval over the 5 s limit (385 intervals of 1 s and 249 of 2 s: not
+  an unqualified 1 Hz), docker reporting `OOMKilled=false` and `RestartCount=0`
   before removal; peak memory 12,750,848 bytes (12.16 MiB) against 128 MiB,
   anon 6,111,232 and file 2,854,912 at the peak; about 771 B of anon per held
   message in P2 and about 737 B per queued message in P5, figures of this one
@@ -3316,8 +3320,21 @@ is unchanged.
   recorded verdict (`controlled_stop=failed`) as every package does; this
   entry and `~/egw-exec/notes/2026-09-23-current_session-cleared.txt` record
   the correction, and `current_session` was cleared by hand after the check.
-  The open and close drivers now match the process by its exact name
-  (`pgrep -x`), which a shell's command line cannot satisfy.
+  The sealed session spans 16:53:15–20:14:32 UTC (17:53–21:14 in Lisbon),
+  3 h 21 min including the waits between attempts; that is the session's
+  elapsed time, not its measured windows and not the attended engineering
+  effort. **The first correction was itself wrong:** `86fc50d` matched the
+  process by its exact name (`pgrep -x qemu-system-aarch64`), but the name
+  Linux keeps for a process is cut at 15 characters and this one has 19, so
+  that test can never see a running guest — a defect the project manager
+  found on inspection, after the measurement and never exercised in it. The
+  open and close drivers now ask `qemu_procs` (`guest_common.sh`), which
+  matches the executable at the start of the command line and keeps pgrep's
+  three answers apart (present, absent, indeterminate);
+  `src/tests/test_qemu_process_guard.py` shows it on real processes — a
+  `sleep` reached through a symbolic link named `qemu-system-aarch64`, a shell
+  whose command line merely holds the string, nothing, and a `pgrep` that is
+  not there — and shows the two obvious tests wrong on the same processes.
 - **Decisions and next steps.** No decision. The measurement's result goes
   to the student and the project manager for the recovery and scope decision
   on package D, with the remaining hours and the full schedule; option 5
