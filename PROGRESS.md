@@ -174,11 +174,10 @@ integration/recovery families, in-flight restart recovery, the nominal
 11.2 msg/s workload that failed its deadline on 2026-09-19, the soak, the
 official campaign, the freezes and G3–G7 stay exactly as the blocks below record
 them, and no native, performance, capacity, efficiency or stability conclusion
-follows from G2. **Open question for the student:** this file still records —
-in the 2026-09-19 note above, in the G3 bullet of the gate-status block, in the
-row of the nine-families record and in the critical-path row of those
-families — that test acceptance is paused at his request; the decision record does not say whether that pause is
-lifted for the G3 battery, and nothing here resolves it.
+follows from G2. **The pause on test acceptance, answered by the student on
+2026-09-21** (it is recorded in the 2026-09-19 note above, in the G3 bullet of
+the gate-status block, in the row of the nine-families record and in the
+critical-path row of those families): it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix); bounded engineering diagnostics continue, as they have since the continuation of 2026-09-19, and the nine families then run as one qualifying battery on the frozen candidate.
 
 Addendum 2026-09-18, controller observability only: `GET /metrics` gains the
 additive progress counters `received`, `in_progress` and `processing_errors`
@@ -393,9 +392,8 @@ records the student's G2 decision of that date and the bounded functional scope
 it accepts ([LOG `#C039`](LOG.md)); the state that bullet replaces is kept in
 the gate log under "Superseded row states". No other bullet changes, apart from
 a dated marker in the G0 bullet where it said that G2 remained pending, and one
-in the G3 bullet recording, as an open question for the student, that the
-decision record does not say whether the pause on test acceptance is lifted for
-the G3 battery.*
+in the G3 bullet recording the student's answer on the pause of test
+acceptance.*
 
 - **G0 — Accepted on 2026-09-19**, authority: the student (Rui Duarte), with
   the project manager's concurrence; scope: **project initiation and baseline
@@ -500,10 +498,10 @@ the G3 battery.*
   invalid timed attempts of 2026-09-19 are open — the delivery backlog under
   QEMU/TCG and the controller restart that appears to discard the in-memory
   queue (bears on C12 and RQ2) — and test acceptance is paused at the student's
-  request *(marker added 2026-09-21: the
-  [G2 decision record](docs/governance/decisions/2026-09-21-g2-closure.md) does
-  not say whether this pause is lifted for the G3 battery; that is an open
-  question for the student, and nothing here resolves it)*. *(Corrected 2026-09-19: this bullet previously said that seven
+  request *(marker added 2026-09-21: the student has decided that this pause
+  stays on the G3 qualifying runs until the candidate is frozen after package D;
+  bounded engineering diagnostics continue, and the nine families then run as
+  one qualifying battery on the frozen candidate)*. *(Corrected 2026-09-19: this bullet previously said that seven
   passed and that only tests 1 and 6 carried a failing harness part.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
