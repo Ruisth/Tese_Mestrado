@@ -3046,10 +3046,81 @@ is unchanged.
   against a real Mosquitto 2.0.22 (Docker Desktop was not running on the
   workstation when this entry was written; that local functional check is
   the next step and is a tool check, not evidence).
+- **Corrections after the review of 2026-09-23** (the project manager's
+  `PM_REVIEW_PR43_BROKER_PROBE_2026-09-23.md`, findings PR43-01 to PR43-05,
+  all confirmed against the code of `d9b3563`). *PR43-01:* the background
+  clients were started inside a command substitution, so the driver could not
+  wait for them and could end P7 before the redelivery client had ended; each
+  client is now a child of the driver's shell, waited for with a bound
+  (`P7_LIMIT` plus a grace), its exit status recorded in `phases.jsonl`, and
+  ended by the driver only when the bound is reached, which is a stop rule
+  and never the broker's behaviour. *PR43-02:* an unreadable counter was read
+  as zero, a non-empty recorder sufficed for S4, the 128 MiB limit was a
+  figure and not a condition, the recorder's coverage of P2–P7 was not
+  required, and the guest clock offset was applied with the wrong sign
+  (subtracted where it must be added); the verdict now requires full coverage
+  of the window, readable and ordered counters, the container running with
+  the expected `memory.max`, and `docker inspect`'s `OOMKilled` read before
+  removal (`probe_state.json`), and carries host instants onto the guest clock
+  by adding the offset. *PR43-03:* a refutation could rest on records that
+  were missing (a short offer, a P7 at its limit, an empty log); every
+  refutation now rests on something observed and an absence makes the run
+  inconclusive, while an observed refutation stands when the run is also
+  inconclusive. *PR43-04:* P7's identities were counted and not reconciled
+  against the P2 and P5 populations; the SUBACK's granted QoS and the CONNACK's
+  `session_present` were figures and not conditions; and the PUBACK was
+  requested before the delivery's record was written. The verdict now
+  reconciles by identity (the P2 set in full, of P5 exactly the first queued
+  by the broker's own count, nothing unknown); the subscriber insists on QoS 1
+  and, in P7, on a resumed session; and the record is written first, the
+  PUBACK requested only then, its outcome recorded beside it, and nothing
+  acknowledged once a record has failed. *PR43-05:* the guest-state flags were
+  set only after a mutating command returned, there was no ownership guard on
+  the fixed container name, and a missing mandatory record did not change a
+  passing verdict. The intent is now recorded before each dispatch and the
+  restoration reads the guest back; the probe carries the attempt's label and
+  only a container with that label is removed; an existing container, volume,
+  directory or unit of the probe's names stops the driver before it touches
+  anything; every setup and restoration command is bounded by `timeout`; and
+  the attempt records `broker_verdict` and `restoration` as two outputs, with
+  a pass only when the observation supports, every record was made and the
+  guest is restored. The decision brief's categorical statement that test 6
+  fails "in every option" was replaced by what is established (the current
+  candidate failed; a changed candidate is unmeasured; recovery alone is not
+  evidence of meeting the deadline).
+- **Verification of the corrections.** `src/tests/test_broker_hold.py`: 55
+  cases pass, among them the record-before-PUBACK order (spied), no PUBACK for
+  a record that failed, a failed PUBACK recorded separately, a SUBACK not
+  granting QoS 1 refused, the offset carried with either sign, each of R1–R6
+  from observed evidence, eighteen inconclusive shapes (coverage head and
+  tail, unknown and disordered counters, the wrong limit, a missing probe
+  state, a short offer, P7 at its limit or without an end, a failed PUBACK,
+  no `$SYS`, no disconnection line, a stop rule, a missing log, an unrelated
+  identity, a subscriber that ended early), and four shapes in which a
+  missing record makes no refutation. `src/tests/test_broker_measure_driver.py`:
+  10 lifecycle cases pass on the drivers' stub bench, with a stateful
+  `docker`, a `systemd-run` that really runs the guest recorder and a stub of
+  the probe tool whose verdict is the real one — P7 ends after the client's
+  end record with its status captured (a client delayed 3 s is never ended by
+  the driver); a client that does not end is ended and the run is
+  inconclusive; an interruption in P3, and one that lands while `compose stop`
+  is in flight, reap the clients and start the stack again; a container of
+  the probe's name that exists stops the driver before it touches anything and
+  is not removed; a `compose start` that fails, a stack not healthy again and
+  a recorder CSV that could not be fetched never yield a pass while
+  `broker_verdict` keeps the observation; a broker that refuses its
+  configuration is R1 with the guest restored; a publisher that is not exact
+  is inconclusive, not a refutation. ShellCheck 0.11.0 at `--severity=error`:
+  clean. **Not verified here:** the clients against a real Mosquitto 2.0.22
+  (the local functional check on Docker Desktop is the next step, subject to
+  the student's authorisation; a tool check, not evidence).
 - **Decisions and next steps.** No decision. Next, in the order the project
   manager's advice sets out and only with the student's authorisation: the
-  local functional check against an isolated pinned Mosquitto 2.0.22; the
-  presentation of the final commands, identities, checks, export paths,
-  restoration steps and stop rules (`tools/probe/README.md`); one explicitly
-  authorised guest session; then the implementation/scope decision on package
-  D with the measurement's result, the remaining hours and the full schedule.
+  local functional check against an isolated pinned Mosquitto 2.0.22
+  (generate → hold → publish → kill → resume/ACK → discard → verdict, plus one
+  controlled observation failure, exported to `output_test` as a local tool
+  verification and not as QEMU evidence); the presentation of the final
+  commands, identities, checks, export paths, restoration steps and stop rules
+  (`tools/probe/README.md`); one explicitly authorised guest session; then the
+  implementation/scope decision on package D with the measurement's result,
+  the remaining hours and the full schedule.

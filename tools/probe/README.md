@@ -22,8 +22,74 @@ design, approves none of ADR 0011's implementation items and accepts no gate.
 |---|---|
 | `broker_hold.py` | the host-side clients (`generate`, `publish`, `hold`, `sysreader`, `discard`) and the `verdict` that applies S1–S5, R1–R6 and the inconclusive rules to the records |
 | `guest/probe_recorder.sh` | the guest-side 1 s recorder of the probe broker's memory cgroup, its `memory.events`, the size of its `mosquitto.db` and its container state (BusyBox ash, root) |
-| `../session/broker_measure.sh` | the session driver: the stack stopped, the probe broker started on its own volume with measurement copies of the configuration, the phases P0–P8, every record kept, the probe removed, the stack started and waited for, the verdict, the export |
+| `../session/broker_measure.sh` | the session driver: the stack stopped, the probe broker started on its own volume with measurement copies of the configuration, the phases P0–P8, every record kept, the probe's state read and the probe removed, the stack started and waited for, the verdict, the export |
 | `../../src/tests/test_broker_hold.py` | the cases: the clients against a fake paho client, `generate` with the real simulator loop and a fake clock, the verdict on hand-written records of a supporting run and of every refuting and inconclusive shape |
+| `../../src/tests/test_broker_measure_driver.py` | the driver's lifecycle on the drivers' stub bench (a fake guest with a stateful `docker`, a `systemd-run` that really runs the recorder, a stub of the probe tool whose verdict is the real one): P7 waits for the client, a client that does not end is ended, an interruption — also one landing while the stack is being stopped — restores, a name in use stops the driver, a failed restoration or a missing record never yields a pass |
+
+## Two outputs, kept apart
+
+The attempt records two things and never lets one stand for the other:
+
+- **`broker_verdict`** — the broker observation, as `verdict` computed it from the
+  records (`environment/probe/verdict.json`): `supports`, `refutes`,
+  `inconclusive`, or `not-computed`.
+- **`restoration`** — what the guest was left with: `stack=… probe=… recorder=…`.
+
+The attempt's own outcome, and so the driver's exit status, is a **pass only
+when the observation supports, every mandatory record was made and the stack
+is running and healthy again with the probe removed**. A refutation with a
+complete record is a valid negative (exit 1). A missing record makes the
+instrumentation invalid and the outcome inconclusive (3) whatever the
+observation; a restoration that did not finish makes a supporting observation
+an inconclusive session (3), with the observation still in `broker_verdict`.
+
+## How a refutation is made
+
+Every refutation rests on something the instrument **observed**: an error line
+in a broker log that was fetched (R1), the drop counter (R3), an OOM or a
+restart from the recorder or from `docker inspect` before removal (R4), a
+CONNACK without `session_present` in P7 or fewer redelivered in a P7 that ran
+to its end (R5), an order break (R6). A shortfall that would rest only on
+records that are absent — a publisher that did not offer its exact counts, a
+P7 that hit its limit or has no end record, an empty log — is **never** a
+refutation: the run is inconclusive. An observed refutation stands even when
+another part of the attempt is incomplete.
+
+Support needs the whole window measured: the recorder covering P2–P7 from its
+first to its last second with no gap over 5 s, no unreadable counter, the
+container `running` throughout with `memory.max` at the expected 128 MiB, and
+`docker inspect` reporting `OOMKilled=false` before removal. The host's phase
+instants are carried onto the guest clock by adding the recorded offset
+(guest minus host).
+
+## What the clients promise
+
+- The holding subscriber insists on a SUBACK that grants QoS 1 and, in P7, on
+  a CONNACK with `session_present`; anything else ends it (exit 2) or is
+  recorded for R5.
+- In P7 the delivery's record is written **first**; only then is the PUBACK
+  requested, and the request's own outcome is written as a separate `ack`
+  record. A record that cannot be written stops every acknowledgement from
+  then on and the client ends 3: nothing is acknowledged that the file does
+  not hold.
+- The driver starts each client as its own child, waits for it with a bound,
+  records its exit status in `phases.jsonl` and ends it itself only when the
+  bound is reached — which is recorded as a stop rule, never as the broker's
+  behaviour.
+
+## Ownership and restoration
+
+Before anything is touched, the driver refuses to start if a container named
+`egw-probe-broker`, a volume of its attempt-specific name, its guest directory
+or its recorder unit already exist. The probe container and volume carry the
+label `egw.probe.attempt=<attempt id>`, and removal reads that label back: a
+container of that name without this attempt's label is left alone and
+reported. The intent of every mutation (`stopping`, `creating`, `starting`) is
+recorded before the command is dispatched, so an interruption that lands while
+the command is in flight is treated as "it may have taken effect" and the
+restoration reads the guest back. Every guest command of the setup and the
+restoration is bounded by `timeout` (`EGW_PROBE_STEP_TIMEOUT_S`, 300 s); the
+restoration itself is never cut short to keep a total duration.
 
 The recorder was also run under the image's own busybox through
 `tools/test/make-busybox-wrappers.sh` (every applet it uses is one the image
@@ -97,16 +163,22 @@ package, as every driver's attempt is: `console/` holds each step's stdout
 and stderr; `environment/probe/` holds `params.json`, `phases.jsonl`,
 `messages.jsonl`, `publish_p2.jsonl`, `publish_p5.jsonl`, `hold_p1.jsonl`,
 `hold_p7.jsonl`, `sys.jsonl`, `discard.jsonl`, `recorder.csv`, `broker.log`,
-`mosquitto.measure.conf`, `acl.measure`, `verdict.json` and the background
-clients' own stdout/stderr; `environment/generate/` holds the simulator's
-provenance of the generated set. A failed or interrupted attempt is exported
+`probe_state.json` (the container's status, `OOMKilled`, restart count and
+exit code read before removal), `mosquitto.measure.conf`, `acl.measure`,
+`verdict.json` and the background clients' own stdout/stderr;
+`environment/generate/` holds the simulator's provenance of the generated
+set. On the guest the measurement's files live under
+`/opt/egw/probe/<attempt id>/` (the two measurement copies, the recorder's
+script and its CSV), never under the deployment tree. A failed or interrupted attempt is exported
 too. No credential is on any command line or in any record: the clients read
 their passwords from the environment.
 
 ## Restoration
 
-`compose start` of the deployed stack, then the shared "running and healthy"
-wait of the G2 drivers; the probe container and its volume removed; the
+The clients reaped; the recorder unit stopped and its CSV fetched; the probe
+container's state read, its log fetched, the container and its volume removed
+(only when its label is this attempt's); `compose start` of the deployed
+stack, then the shared "running and healthy" wait of the G2 drivers; the
 measurement copies left under `/opt/egw/probe/<attempt>` on the guest (they
 are also in the package). The interrupt handler does the same and says on the
 final line which state it left the guest in (`stack=… probe=… recorder=…`).
