@@ -1121,9 +1121,13 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     def _row_int(row, key):
         return _int(row.get(key)) if row else None
 
-    ooms: int | None = 0
-    oom_kills: int | None = 0
-    restarts_max: int | None = 0
+    # Two things are kept apart: what was OBSERVED (the largest readable value
+    # of each counter, which makes R4 when positive) and whether every sample
+    # was readable (an unreadable one makes the run inconclusive and denies
+    # S4, but never erases a positive observation of another row).
+    ooms = 0
+    oom_kills = 0
+    restarts_max = 0
     unknown_fields: dict[str, int] = defaultdict(int)
     not_running = 0
     peak = None
@@ -1140,11 +1144,14 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
                 unknown_fields[key] += 1
         ep = _row_int(row, "epoch")
         o, ok_, rs = _row_int(row, "ev_oom"), _row_int(row, "ev_oom_kill"), _row_int(row, "restarts")
-        # a counter that could not be read is not a zero: it makes the
-        # figure unknown, and an unknown figure cannot support the limit
-        ooms = None if (o is None or ooms is None) else max(ooms, o)
-        oom_kills = None if (ok_ is None or oom_kills is None) else max(oom_kills, ok_)
-        restarts_max = None if (rs is None or restarts_max is None) else max(restarts_max, rs)
+        # a counter that could not be read is not a zero (it is counted in
+        # unknown_fields above); a counter that was read keeps its observation
+        if o is not None:
+            ooms = max(ooms, o)
+        if ok_ is not None:
+            oom_kills = max(oom_kills, ok_)
+        if rs is not None:
+            restarts_max = max(restarts_max, rs)
         st = row.get("state")
         if st != "running":
             not_running += 1
@@ -1170,6 +1177,8 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
         coverage_ok = min(epochs) <= p2_epoch + edge_tolerance_s and max(epochs) >= p7_end_epoch - edge_tolerance_s
     if not recorder_rows:
         inconclusive.append("the guest recorder produced no rows")
+    elif not epochs:
+        inconclusive.append("no recorder row carries a readable epoch, so the recorder's coverage of P2-P7 cannot be judged")
     elif p2_epoch is None or p7_end_epoch is None:
         inconclusive.append("the measured window P2-P7 has no recorded boundaries, so the recorder's coverage of it cannot be judged")
     elif not coverage_ok:
@@ -1191,14 +1200,16 @@ def compute_verdict(*, params: dict, phases: dict, broker_log: list[str] | None,
     ps_restarts = _int(ps.get("restart_count"))
     ps_status = ps.get("status")
     counters_ok = ooms == 0 and oom_kills == 0 and restarts_max == 0
-    supports["S4"] = bool(recorder_rows) and coverage_ok and not gaps and not unknown_fields and not not_running \
-        and mem_max_ok and counters_ok and (oom_killed_flag is False) and (ps_restarts == 0) and ps_status == "running"
+    supports["S4"] = bool(recorder_rows) and bool(epochs) and coverage_ok and not gaps and not unknown_fields \
+        and not not_running and mem_max_ok and counters_ok and (oom_killed_flag is False) and (ps_restarts == 0) \
+        and ps_status == "running"
     if oom_killed_flag is None:
         inconclusive.append("the probe container's OOMKilled state was not read before its removal")
     elif ps_status != "running" and not oom_killed_flag and not (ps_restarts or 0):
         inconclusive.append(f"the probe container was '{ps_status}' before its removal, not running")
-    # R4 rests on OOM or restart evidence that WAS observed, by either source.
-    refutes["R4"] = bool(ooms) or bool(oom_kills) or bool(restarts_max) or oom_killed_flag is True or bool(ps_restarts)
+    # R4 rests on OOM or restart evidence that WAS observed, by either source,
+    # and an unreadable sample elsewhere never erases it.
+    refutes["R4"] = ooms > 0 or oom_kills > 0 or restarts_max > 0 or oom_killed_flag is True or bool(ps_restarts)
     figures.update({
         "memory_max_values": sorted(mem_max_seen), "memory_max_expected": memory_max_expected,
         "memory_max_as_expected": mem_max_ok if mem_max_seen else None,

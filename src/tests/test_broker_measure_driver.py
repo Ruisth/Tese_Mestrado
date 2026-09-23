@@ -163,7 +163,12 @@ if cmd == "volume":
         if name in state["volumes"]:
             print(f"Error: volume {name} exists", file=sys.stderr)
             sys.exit(1)
-        state["volumes"][name] = {}
+        labels = {}
+        for i, a in enumerate(args):
+            if a == "--label":
+                k, _, v = args[i + 1].partition("=")
+                labels[k] = v + os.environ.get("EGW_STUB_VOLUME_LABEL_SUFFIX", "")
+        state["volumes"][name] = {"labels": labels}
         os.makedirs(vdir, exist_ok=True)
         with open(os.path.join(vdir, "mosquitto.db"), "w") as fh:
             fh.write("stub store")
@@ -171,7 +176,14 @@ if cmd == "volume":
         print(name)
         sys.exit(0)
     if sub == "inspect":
-        sys.exit(0 if name in state["volumes"] else 1)
+        if name not in state["volumes"]:
+            print(f"Error response from daemon: get {name}: no such volume", file=sys.stderr)
+            sys.exit(1)
+        if "-f" in args:
+            template = args[args.index("-f") + 1]
+            label = (state["volumes"][name].get("labels") or {}).get("egw.probe.attempt", "")
+            print(template.replace('{{index .Labels "egw.probe.attempt"}}', label))
+        sys.exit(0)
     if sub == "rm":
         if name not in state["volumes"]:
             print(f"Error: No such volume: {name}", file=sys.stderr)
@@ -188,7 +200,7 @@ if cmd == "run":
     for i, a in enumerate(args):
         if a == "--label":
             k, _, v = args[i + 1].partition("=")
-            labels[k] = v
+            labels[k] = v + os.environ.get("EGW_STUB_LABEL_SUFFIX", "")
     if name in state["containers"]:
         print(f"docker: Error response from daemon: Conflict. The container name \"/{name}\" is already in use.", file=sys.stderr)
         sys.exit(125)
@@ -274,6 +286,7 @@ import time
 
 cmd, unit = sys.argv[1], sys.argv[-1]
 path = os.environ["EGW_STUB_LOG"] + ".unit." + unit
+failures = "," + os.environ.get("EGW_STUB_FAIL", "") + ","
 try:
     pid = int(open(path).read().strip())
 except (OSError, ValueError):
@@ -288,13 +301,35 @@ def alive(p):
         return False
 
 
+def polls(suffix):
+    p = os.environ["EGW_STUB_LOG"] + suffix
+    try:
+        n = int(open(p).read() or 0)
+    except (OSError, ValueError):
+        n = 0
+    n += 1
+    with open(p, "w") as fh:
+        fh.write(str(n))
+    return n
+
+
 if cmd == "is-active":
+    # 'recorder-start-late': the unit IS running, but the first query after it
+    # was started, the one inside the start command, answers as if it were not
+    # (a slow systemd); queries before the unit exists are not counted
+    if ",recorder-start-late," in failures and pid is not None and polls(".isactive") == 1:
+        print("activating")
+        sys.exit(3)
     if pid and alive(pid):
         print("active")
         sys.exit(0)
     print("inactive")
     sys.exit(3)
 if cmd == "stop":
+    if ",recorder-stop-fails," in failures:
+        # the stop is refused and the unit keeps running
+        print("Failed to stop " + unit + ".service: stub refusal", file=sys.stderr)
+        sys.exit(1)
     if pid and alive(pid):
         os.kill(pid, signal.SIGTERM)
         for _ in range(50):
@@ -737,6 +772,119 @@ def test_a_broker_that_refuses_its_configuration_is_r1_and_the_guest_is_restored
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
     assert verdicts["restoration"] == "stack=healthy probe=removed recorder=stopped"
     assert "rm -f egw-probe-broker" in pbench.docker_log()
+
+
+def _recorder_pid(pbench: ProbeBench) -> int | None:
+    units = list(Path(str(pbench.log)).parent.glob(Path(str(pbench.log)).name + ".unit.*"))
+    if not units:
+        return None
+    try:
+        return int(units[0].read_text().strip())
+    except ValueError:
+        return None
+
+
+def _steps(pbench: ProbeBench) -> list[str]:
+    path = pbench.probe_attempt() / "commands.jsonl"
+    return [json.loads(l)["name"] for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+
+# --------------------------------------------------------------------------
+# B1: the recorder's real state, the stop verified
+# --------------------------------------------------------------------------
+
+def test_a_recorder_whose_start_was_not_confirmed_is_still_found_stopped_and_fetched(pbench):
+    result = pbench.run_driver(EGW_STUB_FAIL="recorder-start-late")
+    assert result.returncode == 2, report(result)
+    verdicts = pbench.probe_verdicts()
+    assert verdicts["system_outcome"] == "not-run"
+    steps = _steps(pbench)
+    assert "recorder-stop" in steps and "recorder-fetch" in steps, steps
+    assert not _alive(_recorder_pid(pbench)), "the recorder unit was left running"
+    assert verdicts["restoration"] == "stack=healthy probe=removed recorder=stopped"
+    assert (pbench.probe_attempt() / "environment" / "probe" / "recorder.csv").is_file()
+
+
+def test_a_recorder_stop_that_failed_is_never_declared_stopped_even_with_a_readable_csv(pbench):
+    result = pbench.run_driver(EGW_STUB_FAIL="recorder-stop-fails")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.probe_verdicts()
+    assert verdicts["broker_verdict"] == "supports", "the broker observation is kept apart from the cleanup"
+    assert verdicts["system_outcome"] != "pass"
+    assert verdicts["restoration"] == "stack=healthy probe=removed recorder=unknown"
+    assert "not verified stopped" in verdicts["reason"]
+    assert (pbench.probe_attempt() / "environment" / "probe" / "recorder.csv").is_file(), "the CSV is fetched anyway"
+    pid = _recorder_pid(pbench)
+    if _alive(pid):
+        os.kill(pid, signal.SIGTERM)
+
+
+# --------------------------------------------------------------------------
+# B2: the stop rules enforced
+# --------------------------------------------------------------------------
+
+def test_the_setup_budget_is_one_budget_and_no_stage_starts_beyond_it(pbench):
+    # the stop itself succeeds after 4 s; with a 3 s budget nothing after it may start
+    result = pbench.run_driver(EGW_STUB_FAIL="stack-stop-hang", EGW_STUB_HANG_S="4", EGW_PROBE_SETUP_LIMIT_S="3",
+                               EGW_PROBE_STEP_TIMEOUT_S="60")
+    assert result.returncode in (2, 3), report(result)
+    dlog = pbench.docker_log()
+    assert "compose stop -t 60" in dlog
+    assert "run -d --name egw-probe-broker" not in dlog, "the probe was created after the setup budget was spent"
+    assert "compose start" in dlog
+    verdicts = pbench.probe_verdicts()
+    assert "setup budget" in verdicts["reason"]
+    assert verdicts["restoration"].startswith("stack=healthy")
+    assert all(s["state"] == "running" for s in pbench.docker_state()["services"].values())
+
+
+def test_a_p4_stop_rule_ends_the_measurement_before_p5_and_p7(pbench):
+    result = pbench.run_driver(EGW_STUB_FAIL="no-disconnect-line", EGW_PROBE_P4_S="2")
+    assert result.returncode == 3, report(result)
+    steps = _steps(pbench)
+    assert "p2-publish" in steps and "p5-publish" not in steps, steps
+    assert not (pbench.probe_attempt() / "environment" / "probe" / "hold_p7.stdout.txt").exists() \
+        or "SUBSCRIBED" not in (pbench.probe_attempt() / "environment" / "probe" / "hold_p7.stdout.txt").read_text()
+    phases = pbench.phases()
+    assert phases["P4"]["limit_reached"] is True and "stop_rule_reached" in phases["P4"]
+    assert "P5" not in phases and "P7" not in phases
+    assert "P8" in phases and "discard" in steps, "the final readings and the discard still run"
+    verdicts = pbench.probe_verdicts()
+    assert verdicts["broker_verdict"] == "inconclusive" and verdicts["system_outcome"] == "inconclusive"
+    assert "disconnection line" in verdicts["reason"]
+    assert verdicts["restoration"] == "stack=healthy probe=removed recorder=stopped"
+    # the partial observation is preserved
+    assert (pbench.probe_attempt() / "environment" / "probe" / "hold_p1.jsonl").stat().st_size > 0
+
+
+# --------------------------------------------------------------------------
+# C2: ownership is the label being exactly this attempt's id
+# --------------------------------------------------------------------------
+
+def test_a_container_whose_label_merely_contains_the_attempt_id_is_left_alone(pbench):
+    result = pbench.run_driver(EGW_STUB_LABEL_SUFFIX="-x")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.probe_verdicts()
+    # a container not established as this attempt's is neither removed nor
+    # read as its evidence: its log and state are not fetched, so the broker
+    # observation is inconclusive, and the session is not a pass
+    assert verdicts["broker_verdict"] == "inconclusive"
+    assert verdicts["system_outcome"] != "pass"
+    assert "did NOT create" in verdicts["reason"]
+    assert verdicts["restoration"].startswith("stack=healthy probe=unknown")
+    assert "egw-probe-broker" in pbench.docker_state()["containers"], "a container not carrying this attempt's label was removed"
+    assert "rm -f" not in pbench.docker_log()
+
+
+def test_a_volume_whose_label_is_not_exactly_the_attempt_id_is_left_alone(pbench):
+    result = pbench.run_driver(EGW_STUB_VOLUME_LABEL_SUFFIX="-x")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.probe_verdicts()
+    assert verdicts["broker_verdict"] == "supports"
+    assert verdicts["system_outcome"] != "pass"
+    assert "does not carry this attempt's label" in verdicts["reason"]
+    assert pbench.docker_state()["volumes"], "a volume not carrying this attempt's label was removed"
+    assert "volume rm" not in pbench.docker_log()
 
 
 def test_a_publisher_that_is_not_exact_is_a_missing_record_not_a_refutation(pbench):

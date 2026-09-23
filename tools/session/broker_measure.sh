@@ -327,10 +327,32 @@ not_run() {
 probe_owned() {
     local out
     if out=$(gxt "$STEP_TIMEOUT" "$A" "$1" "docker inspect -f '{{index .Config.Labels \"egw.probe.attempt\"}}' '$PNAME' 2>&1" > /dev/null; said "$1" ''); then
+        out=$(printf '%s' "$out" | tr -d ' \n\r')
+        # ownership is the label being EXACTLY this attempt's id
+        if [ "$out" = "$TAG" ]; then
+            return 0
+        fi
         case "$out" in
-            *"$TAG"*) return 0 ;;
-            *"No such object"* | *"No such container"* | *"no such object"* | *"no such container"*) return 1 ;;
-            *"Cannot connect"* | *"error during connect"* | '') return 3 ;;
+            *"Nosuchobject"* | *"Nosuchcontainer"* | *"nosuchobject"* | *"nosuchcontainer"*) return 1 ;;
+            *"Cannotconnect"* | *"errorduringconnect"* | '') return 3 ;;
+            *) return 2 ;;
+        esac
+    fi
+    return 3
+}
+# volume_owned NAME: 0 when the probe volume exists with EXACTLY this attempt's
+# label; 1 when it does not exist; 2 when it exists with another label; 3
+# when the daemon did not answer.
+volume_owned() {
+    local out
+    if out=$(gxt "$STEP_TIMEOUT" "$A" "$1" "docker volume inspect -f '{{index .Labels \"egw.probe.attempt\"}}' '$PVOL' 2>&1" > /dev/null; said "$1" ''); then
+        out=$(printf '%s' "$out" | tr -d ' \n\r')
+        if [ "$out" = "$TAG" ]; then
+            return 0
+        fi
+        case "$out" in
+            *"Nosuchvolume"* | *"nosuchvolume"* | *"Nosuchobject"*) return 1 ;;
+            *"Cannotconnect"* | *"errorduringconnect"* | '') return 3 ;;
             *) return 2 ;;
         esac
     fi
@@ -352,14 +374,20 @@ restore() {
     SYS_PID=
     : > "$PR/sys.stop" 2> /dev/null
     case "$REC_STATE" in
-        starting | running | stopping)
+        starting | running | stopping | unknown)
+            # The unit's REAL state is read first: a start whose confirmation
+            # failed may still have left it running. Stopping and fetching are
+            # two steps, so that a CSV that could be read never stands for a
+            # stop that did not happen: the recorder is 'stopped' only when
+            # 'systemctl is-active' says it is inactive after the stop.
             REC_STATE=stopping
-            if gxt "$STEP_TIMEOUT" "$A" recorder-stop "sudo systemctl stop '$UNIT' 2>&1; sleep 1; sudo chmod 0644 '$PDIR/recorder.csv' 2> /dev/null; wc -l '$PDIR/recorder.csv'; tail -n 1 '$PDIR/recorder.csv'"; then
+            if gxt "$STEP_TIMEOUT" "$A" recorder-stop "if systemctl is-active '$UNIT' > /dev/null 2>&1; then sudo systemctl stop '$UNIT' || echo 'STOP: systemctl stop failed'; fi; sleep 1; st=\$(systemctl is-active '$UNIT' 2>&1); echo \"unit-state=\$st\"; case \"\$st\" in inactive | failed) echo 'RECORDER STOPPED'; exit 0 ;; esac; echo 'STOP: the recorder unit is still active'; exit 1"; then
                 REC_STATE=stopped
             else
                 REC_STATE=unknown
-                missed "the guest recorder unit may still be running ($UNIT)"
+                missed "the guest recorder unit is not verified stopped ($UNIT): $(said recorder-stop 'STOP: ')"
             fi
+            gxt "$STEP_TIMEOUT" "$A" recorder-readable "sudo chmod 0644 '$PDIR/recorder.csv' 2> /dev/null; wc -l '$PDIR/recorder.csv'; tail -n 1 '$PDIR/recorder.csv'" || true
             gcp "$A" recorder-fetch "egw@127.0.0.1:$PDIR/recorder.csv" "$PR/recorder.csv" \
                 || missed "the guest recorder's CSV was not fetched"
             ;;
@@ -394,8 +422,22 @@ restore() {
                     ;;
             esac
             if [ "$PROBE_STATE" = removed ]; then
-                gxt "$STEP_TIMEOUT" "$A" volume-remove "if docker volume inspect '$PVOL' > /dev/null 2>&1; then docker volume rm '$PVOL' && echo 'PROBE VOLUME REMOVED'; else echo 'no probe volume'; fi" \
-                    || missed "the probe volume may still be on the guest ($PVOL)"
+                volume_owned volume-owned
+                case "$?" in
+                    0)
+                        gxt "$STEP_TIMEOUT" "$A" volume-remove "docker volume rm '$PVOL' && echo 'PROBE VOLUME REMOVED'" \
+                            || { PROBE_STATE=unknown; missed "the probe volume may still be on the guest ($PVOL)"; }
+                        ;;
+                    1) ;;
+                    2)
+                        PROBE_STATE=unknown
+                        missed "a volume named $PVOL exists on the guest that does not carry this attempt's label; it was left alone"
+                        ;;
+                    *)
+                        PROBE_STATE=unknown
+                        missed "whether the probe volume is still on the guest could not be determined"
+                        ;;
+                esac
             fi
             ;;
     esac
@@ -452,8 +494,10 @@ finish_measurement() {
         validity=invalid
         [ "$outcome" != pass ] || outcome=inconclusive
     fi
-    if [ "$STACK_STATE" != healthy ] || [ "$PROBE_STATE" != removed ]; then
-        # the session did not end with the guest restored: a pass is never
+    if [ "$STACK_STATE" != healthy ] || [ "$PROBE_STATE" != removed ] \
+        || { [ "$REC_STATE" != stopped ] && [ "$REC_STATE" != none ]; }; then
+        # the session did not end with the guest restored - the stack healthy,
+        # the probe gone AND the recorder verified stopped: a pass is never
         # reported, and the broker observation stays in broker_verdict
         [ "$outcome" != pass ] || outcome=inconclusive
         reason="$reason; the guest was NOT fully restored"
@@ -498,16 +542,35 @@ rc=$?
 [ "$rc" -eq 0 ] || not_run "the ownership guard refused to start (exit $rc): $(said ownership-guard 'STOP: ')"
 
 # --- 1. the deployed stack stopped, the probe broker started (stop rule) -----
+# The setup's limit is ONE budget over every step of this stage, read from one
+# clock: each guest command gets the smaller of its own bound and what is left
+# of the budget, and a step is not started at all once the budget is spent.
 T_SETUP=$(date +%s)
+setup_left() {
+    local left=$((SETUP_LIMIT - ($(date +%s) - T_SETUP)))
+    [ "$left" -gt 0 ] || left=0
+    [ "$left" -le "$STEP_TIMEOUT" ] || left=$STEP_TIMEOUT
+    printf '%s' "$left"
+}
+# setup_step NAME: non-zero, with the stop rule recorded, when the setup budget
+# is spent before NAME could start.
+setup_step() {
+    if [ "$(setup_left)" -le 0 ]; then
+        stoprule "the setup budget of ${SETUP_LIMIT} s was spent before '$1' could start" setup
+        return 1
+    fi
+    return 0
+}
 phase_mark setup start
 STACK_STATE=stopping
-gxt "$STEP_TIMEOUT" "$A" stack-stop "cd '$DEPLOYED' && $DC stop -t 60 && $DC ps -a --format '{{.Name}} {{.State}}'"
+gxt "$(setup_left)" "$A" stack-stop "cd '$DEPLOYED' && $DC stop -t 60 && $DC ps -a --format '{{.Name}} {{.State}}'"
 rc=$?
 if [ "$rc" -ne 0 ]; then
     STACK_STATE=unknown
-    abort "the deployed stack could not be stopped, or the stop did not return (stack-stop exit $rc)"
+    abort "the deployed stack could not be stopped, or the stop did not return within the setup budget (stack-stop exit $rc)"
 fi
 STACK_STATE=stopped
+setup_step probe-config || abort "the setup budget was spent after the stack was stopped; nothing else was started"
 
 probe_config_script() {
     printf "DEPLOYED='%s'\nPDIR='%s'\nW='%s'\nQ='%s'\nEXPIRY='%s'\n" "$DEPLOYED" "$PDIR" "$W" "$Q" "$EXPIRY"
@@ -537,9 +600,10 @@ echo '## sha256'
 sha256sum "$PDIR/mosquitto.measure.conf" "$PDIR/acl.measure" "$DEPLOYED/mosquitto/config/mosquitto.conf" "$DEPLOYED/mosquitto/config/acl"
 GUEST_PROBE_CONFIG
 }
-gxt "$STEP_TIMEOUT" "$A" probe-config "$(probe_config_script)"
+gxt "$(setup_left)" "$A" probe-config "$(probe_config_script)"
 rc=$?
 [ "$rc" -eq 0 ] || abort "the measurement copies of mosquitto.conf and acl could not be made (probe-config exit $rc): $(said probe-config 'STOP: ')"
+setup_step probe-start || abort "the setup budget was spent before the probe broker was started; nothing else was started"
 IMAGE=$(said probe-config 'IMAGE=' | tr -d ' ')
 [ -n "$IMAGE" ] || abort "the pinned broker image could not be read from $DEPLOYED/images.lock.env"
 guest_literal "$IMAGE" || abort "the image reference is not a guest literal"
@@ -582,7 +646,7 @@ docker logs "$PNAME" 2>&1 | grep -q 'listen socket on port 8883' || { echo 'STOP
 GUEST_PROBE_START
 }
 PROBE_STATE=creating
-gxt "$STEP_TIMEOUT" "$A" probe-start "$(probe_start_script)"
+gxt "$(setup_left)" "$A" probe-start "$(probe_start_script)"
 rc=$?
 if [ "$rc" -ne 0 ]; then
     # A broker that refuses its configuration is R1: the system's answer, not
@@ -601,13 +665,16 @@ fi
 MEMMAX=$(said probe-start 'memory.max=' | cut -d' ' -f1)
 [ "$MEMMAX" = "$MEMORY_MAX" ] || missed "the probe broker's memory.max reads '$MEMMAX', not $MEMORY_MAX"
 
+setup_step recorder-start || abort "the setup budget was spent before the recorder was started; nothing else was started"
 REC_STATE=starting
 gcp "$A" recorder-copy "$RECORDER" "egw@127.0.0.1:$PDIR/probe_recorder.sh" || { REC_STATE=none; abort "the guest recorder could not be copied"; }
-gxt "$STEP_TIMEOUT" "$A" recorder-start "sudo systemd-run --unit '$UNIT' --collect sh '$PDIR/probe_recorder.sh' '$PNAME' '$PDIR/recorder.csv' '$PVOL' 1 10 && sleep 3 && systemctl is-active '$UNIT' && head -n 3 '$PDIR/recorder.csv'"
+gxt "$(setup_left)" "$A" recorder-start "sudo systemd-run --unit '$UNIT' --collect sh '$PDIR/probe_recorder.sh' '$PNAME' '$PDIR/recorder.csv' '$PVOL' 1 10 && sleep 3 && systemctl is-active '$UNIT' && head -n 3 '$PDIR/recorder.csv'"
 rc=$?
 if [ "$rc" -ne 0 ]; then
+    # the unit may be running although its confirmation failed: restore reads
+    # its real state and stops it
     REC_STATE=unknown
-    abort "the guest recorder did not start (recorder-start exit $rc)"
+    abort "the guest recorder did not start, or its start was not confirmed (recorder-start exit $rc)"
 fi
 REC_STATE=running
 phase_mark setup end
@@ -683,7 +750,13 @@ else
         stoprule "the broker's disconnection line for egw-probe-hold did not appear within ${P4_S} s of the kill" P4
     fi
     phase_mark P4 end
+fi
 
+# A stop rule reached ends the measurement: no later phase starts (nothing
+# more is published and the session is not resumed), what was observed is
+# kept, and the guest is restored. Only the final readings and the discard of
+# the probe's own session follow.
+if [ "${#stoprules[@]}" -eq 0 ] && [ "$PROBE_STATE" = running ] && [ "${#mandatory[@]}" -eq 0 ]; then
     # --- P5: B published while the subscriber is away -----------------------
     phase_mark P5 start
     hl "$A" p5-publish "\"$PY\" \"$PROBE\" publish --messages \"$PR/messages.jsonl\" --first $A_COUNT --count $B_COUNT --rate $RATE --host $BROKER_HOST --port $BROKER_PORT --ca-cert \"$CA\" --record \"$PR/publish_p5.jsonl\""
@@ -734,8 +807,12 @@ else
     fi
     phase_note P7 store_end "\"$(sys_last '$SYS/broker/store/messages/count')\""
     phase_mark P7 end
+fi
 
-    # --- P8: final readings, the session discarded ----------------------------
+# --- P8: final readings, the probe's own session discarded ------------------
+# Run whenever the probe broker is up, so that a measurement ended by a stop
+# rule still leaves its last readings and no persistent session behind.
+if [ "$PROBE_STATE" = running ] && [ -f "$PR/hold_p1.jsonl" ]; then
     phase_mark P8 start
     sleep "$P8_S"
     hl "$A" discard "\"$PY\" \"$PROBE\" discard --host $BROKER_HOST --port $BROKER_PORT --ca-cert \"$CA\" --record \"$PR/discard.jsonl\"" \

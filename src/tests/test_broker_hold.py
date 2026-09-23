@@ -733,6 +733,30 @@ def test_verdict_makes_no_refutation_out_of_records_that_are_missing(shape):
     assert v["refuted"] == [], (shape, v["refuted"])
 
 
+def test_verdict_an_observed_oom_survives_an_unreadable_sample_elsewhere():
+    # ev_oom read as 1 in one row, an unreadable counter in another: the
+    # observation stands (R4) and the unreadable sample makes the run
+    # inconclusive besides, while docker still reports running and no kill
+    r = _supporting_records()
+    rows = _recorder()
+    rows[120]["ev_oom"] = "1"
+    rows[200]["ev_oom_kill"] = "?"
+    r["recorder_rows"] = rows
+    v = bh.compute_verdict(**r)
+    assert v["refutes"]["R4"] is True and v["result"] == "refutes"
+    assert v["figures"]["oom_events"] == 1
+    assert any("unreadable" in x for x in v["inconclusive"])
+
+
+def test_verdict_rows_without_a_readable_epoch_are_inconclusive_not_an_error():
+    r = _supporting_records()
+    for row in r["recorder_rows"]:
+        row["epoch"] = "?"
+    v = bh.compute_verdict(**r)
+    assert v["result"] == "inconclusive" and v["refuted"] == []
+    assert any("readable epoch" in x for x in v["inconclusive"])
+
+
 def test_verdict_an_observed_refutation_stands_even_when_the_run_is_also_inconclusive():
     r = _supporting_records()
     r["recorder_rows"] = _recorder(gap_at=100, oom_kill=1)
