@@ -396,6 +396,13 @@ def ids():
 
 cmd = sys.argv[1]
 if cmd == "generate":
+    # like the real one, the simulator resolves its schemas from EGW_SCHEMA_DIR
+    # when that is set: a value meant for the guest (a path relative to the
+    # deployment tree) does not exist on the host and is a prerequisite failure
+    schema_dir = os.environ.get("EGW_SCHEMA_DIR")
+    if schema_dir is not None and not os.path.isdir(schema_dir):
+        print(f"STOP: [Errno 2] No such file or directory: '{schema_dir}/telemetry-envelope-v1.schema.json'", file=sys.stderr)
+        sys.exit(2)
     out = opt("--out")
     count = int(opt("--count"))
     with open(out, "w", encoding="utf-8") as fh:
@@ -544,6 +551,12 @@ class ProbeBench(Bench):
         for name, text in (("docker", DOCKER_STUB), ("systemd-run", SYSTEMD_RUN_STUB), ("systemctl", SYSTEMCTL_STUB)):
             _write(self.guest_bin / name, text, executable=True)
         self.probe = _write(tmp_path / "probe_stub.py", PROBE_STUB, executable=True)
+        # the secrets file of runbook 5.2 also carries the controller's GUEST
+        # settings, among them the schema directory relative to the deployment
+        # tree: a host step that sources it and then runs the simulator fails,
+        # which is what the C3 session of 2026-09-23 met on its first step
+        with open(self.home / "egw-tcg" / ".env", "a", encoding="utf-8") as fh:
+            fh.write("EGW_SCHEMA_DIR=src/schemas\nMOSQUITTO_CONTROLLER_PASSWORD=stub-controller-password\n")
         # the bench's scp, behind a wrapper that can be made slow
         (self.bin / "scp").rename(self.bin / "scp.real")
         _write(self.bin / "scp", '#!/bin/sh\n[ -z "${EGW_STUB_SCP_DELAY_S:-}" ] || sleep "$EGW_STUB_SCP_DELAY_S"\n'

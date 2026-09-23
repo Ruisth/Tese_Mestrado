@@ -249,6 +249,17 @@ hl() {
     ex "$a" "$name" bash -c "{ $HOST_LITE ; } || { echo 'STOP: the host preamble (the venv and the secrets) could not be loaded: the step never ran' >&2; exit 97; }
 $1"
 }
+# hv ATTEMPT NAME HOST-SCRIPT: a host step with the venv ONLY. The secrets file
+# of runbook 5.2 also carries the controller's settings for the GUEST, among
+# them EGW_SCHEMA_DIR as a path relative to the deployment tree; a step that
+# runs the repository's simulator on the host, as 'generate' does, resolves
+# the schemas from the clone and must not inherit that value.
+hv() {
+    local a=$1 name=$2
+    shift 2
+    ex "$a" "$name" bash -c "{ . $VENV/bin/activate ; } || { echo 'STOP: the venv could not be activated: the step never ran' >&2; exit 97; }
+$1"
+}
 # bg NAME ARGS...: one probe client in the background, a CHILD OF THIS SHELL
 # (never started inside a command substitution, whose subshell would own it),
 # its output kept under environment/probe/NAME.stdout.txt; the pid is left in
@@ -547,7 +558,7 @@ abort() {
 }
 
 # --- 0. the messages, the clock offset, the ownership guard --------------------
-hl "$A" generate "\"$PY\" \"$PROBE\" generate --seed $SEED --run-id '$RUN_ID' --count $((A_COUNT + B_COUNT)) --rate $RATE --work-dir \"$ENVD/generate\" --out \"$PR/messages.jsonl\"" \
+hv "$A" generate "cd \"$REPO\" && \"$PY\" \"$PROBE\" generate --seed $SEED --run-id '$RUN_ID' --count $((A_COUNT + B_COUNT)) --rate $RATE --work-dir \"$ENVD/generate\" --out \"$PR/messages.jsonl\"" \
     || not_run "the messages could not be generated (generate exit $?): $(said generate 'STOP: ')"
 gxt "$STEP_TIMEOUT" "$A" guest-clock "date +%s; date -u +%Y-%m-%dT%H:%M:%SZ"
 HOST_EPOCH=$(date +%s)
