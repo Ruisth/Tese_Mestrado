@@ -640,7 +640,10 @@ cat "$PDIR/mosquitto.measure.conf"
 echo '## acl.measure'
 cat "$PDIR/acl.measure"
 echo '## sha256'
-sha256sum "$PDIR/mosquitto.measure.conf" "$PDIR/acl.measure" "$DEPLOYED/mosquitto/config/mosquitto.conf" "$DEPLOYED/mosquitto/config/acl"
+sha256sum "$PDIR/mosquitto.measure.conf" "$PDIR/acl.measure"
+# the deployed originals are readable by root only on the guest (runbook 5.4a
+# hardens the broker's files): they are hashed the way they were read
+sudo sha256sum "$DEPLOYED/mosquitto/config/mosquitto.conf" "$DEPLOYED/mosquitto/config/acl"
 GUEST_PROBE_CONFIG
 }
 gxt "$(setup_left)" "$A" probe-config "$(probe_config_script)"
