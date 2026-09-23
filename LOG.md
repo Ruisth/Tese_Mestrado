@@ -3194,6 +3194,24 @@ is unchanged.
   supports — with every figure equal and `full01`'s `verdict.json` byte for
   byte identical (sha256 `b0bc63ce…`); the sealed packages were not touched
   and no live run was repeated.
+- **Correction after the delta review of 2026-09-23 at `6e3f456`**
+  (`PM_PR43_DELTA_6e3f456_2026-09-23.md`, section 3). The setup's transfers
+  (the two measurement copies fetched, the recorder copied) ran outside the
+  setup budget, and a transfer that spent it left the next command a bound of
+  zero seconds — which `timeout` reads as no bound at all, so the probe or
+  the recorder could still start after the allowance had expired. Now every
+  setup transfer is guarded and bounded like the commands, the two bounded
+  dispatchers (`gxt`, `gcpt`) refuse a spent or unreadable allowance before
+  invoking anything, and a transfer the budget ends records the stop, keeps
+  what was observed and enters the restoration with nothing after it started.
+  The C1 regression is sharpened to the same counter (a positive `ev_oom` and
+  an unreadable `ev_oom`, in either order), the case the earlier aggregation
+  lost. Regressions: a configuration transfer that spends the budget starts no
+  probe; a recorder transfer that spends it starts no recorder and removes the
+  probe it owns; the dispatchers given `0`, an empty value or a non-number call
+  nothing and answer 124. `test_broker_measure_driver.py`: 19 cases;
+  `test_broker_hold.py`: 60. The sealed local records were not touched and
+  no live run was repeated.
 - **Decisions and next steps.** No decision. Next, in the order the project
   manager's advice sets out and only with the student's authorisation: the
   presentation of the final commands, identities, checks, export paths,

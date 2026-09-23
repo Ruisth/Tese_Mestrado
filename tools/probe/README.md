@@ -88,9 +88,15 @@ container of that name without this attempt's label is left alone and
 reported. The intent of every mutation (`stopping`, `creating`, `starting`) is
 recorded before the command is dispatched, so an interruption that lands while
 the command is in flight is treated as "it may have taken effect" and the
-restoration reads the guest back. Every guest command of the setup and the
-restoration is bounded by `timeout` (`EGW_PROBE_STEP_TIMEOUT_S`, 300 s); the
-restoration itself is never cut short to keep a total duration.
+restoration reads the guest back. The setup runs on one budget from one clock
+(`EGW_PROBE_SETUP_LIMIT_S`, 300 s): every setup command **and every setup
+transfer** is guarded before dispatch and bounded by the smaller of its own
+bound (`EGW_PROBE_STEP_TIMEOUT_S`, 300 s) and what is left of the budget, and
+a spent allowance is refused before anything is invoked (a `timeout` of zero
+would disable a bound, never enforce it); a transfer the budget ends is the
+setup ending, and nothing after it — probe, recorder, workload — is started.
+The restoration has its own bounds and is never cut short to keep a total
+duration.
 
 The recorder was also run under the image's own busybox through
 `tools/test/make-busybox-wrappers.sh` (every applet it uses is one the image
