@@ -2,12 +2,22 @@
 
 One file per ``run_id``: ``{EGW_EVENT_LOG_DIR}/{run_id}/events.jsonl``, matching
 the evidence layout ``results/raw/<run_id>/events.jsonl``. Every record carries
-exactly the contract field set; each line is flushed immediately so the file is
-usable while the run is still in progress.
+exactly the contract field set.
+
+Each line is one ``write`` call of the encoded bytes on an unbuffered,
+append-only handle (ADR 0011, item 9): when ``log`` returns the line has been
+handed to the kernel, and when it raises nothing of that line stays in a
+userspace buffer for a later flush or close. A write that raises ``OSError``
+or returns fewer bytes than the line (reported as ``OSError(EIO)``) closes
+and forgets the handle; the next line opens the file again. A short write can
+leave a partial line on disk; it is terminated with a newline at the next
+open, so the following line never merges with it, and readers skip a line
+that is not JSON.
 """
 
 from __future__ import annotations
 
+import errno
 import json
 import re
 import threading
@@ -68,7 +78,7 @@ class EventLogger:
 
     def __init__(self, log_dir: Path | str) -> None:
         self._log_dir = Path(log_dir)
-        self._files: dict[str, IO[str]] = {}
+        self._files: dict[str, IO[bytes]] = {}
         self._lock = threading.Lock()
 
     @staticmethod
@@ -100,23 +110,68 @@ class EventLogger:
                 "and latency_ms"
             )
 
-    def _open(self, bucket: str) -> IO[str]:
+    @staticmethod
+    def _ends_without_newline(path: Path) -> bool:
+        """True when the file exists, is not empty and lacks a final newline
+        (a partial line left by a short write or by a process that died)."""
+        try:
+            if path.stat().st_size == 0:
+                return False
+            with path.open("rb") as probe:
+                probe.seek(-1, 2)
+                return probe.read(1) != b"\n"
+        except FileNotFoundError:
+            return False
+
+    def _open(self, bucket: str) -> IO[bytes]:
         fh = self._files.get(bucket)
         if fh is None or fh.closed:
             run_dir = self._log_dir / bucket
             run_dir.mkdir(parents=True, exist_ok=True)
-            fh = (run_dir / EVENTS_FILENAME).open("a", encoding="utf-8", newline="\n")
+            path = run_dir / EVENTS_FILENAME
+            terminate = self._ends_without_newline(path)
+            fh = path.open("ab", buffering=0)
+            if terminate:
+                try:
+                    fh.write(b"\n")
+                except OSError:
+                    self._drop(bucket, fh)
+                    raise
             self._files[bucket] = fh
         return fh
 
+    def _drop(self, bucket: str, fh: IO[bytes]) -> None:
+        """Forget a handle whose write failed; its close may fail too."""
+        self._files.pop(bucket, None)
+        try:
+            fh.close()
+        except OSError:
+            pass
+
     def log(self, event: ControllerEvent) -> None:
-        """Append one event line and flush it immediately."""
+        """Append one event line with one unbuffered write.
+
+        Raises ``OSError`` when the line was not written whole; the handle is
+        then closed and forgotten, so nothing is left for a later flush.
+        """
         self._validate(event)
         line = json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
+        data = (line + "\n").encode("utf-8")
         with self._lock:
-            fh = self._open(self._bucket(event.run_id))
-            fh.write(line + "\n")
-            fh.flush()
+            bucket = self._bucket(event.run_id)
+            fh = self._open(bucket)
+            try:
+                written = fh.write(data)
+            except OSError:
+                self._drop(bucket, fh)
+                raise
+            if written is None or written < len(data):
+                self._drop(bucket, fh)
+                raise OSError(
+                    errno.EIO,
+                    f"short write to {EVENTS_FILENAME}: {written} of "
+                    f"{len(data)} bytes written",
+                )
 
     def close(self) -> None:
         with self._lock:

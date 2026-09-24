@@ -2,11 +2,14 @@
 
 The ``events.jsonl`` lines must carry exactly the contract field set;
 ``rejected``/``duplicate``/``failed`` events have ``ditto_ack_monotonic_ns``
-and ``latency_ms`` null; each line is flushed immediately.
+and ``latency_ms`` null; each line is written unbuffered in one call, and a
+failed write leaves nothing behind for a later flush (ADR 0011, item 9).
 """
 
 from __future__ import annotations
 
+import errno
+import io
 import json
 from pathlib import Path
 from typing import Iterator
@@ -188,3 +191,121 @@ def test_accepted_without_ack_raises(logger: EventLogger) -> None:
 def test_rejected_with_ack_raises(logger: EventLogger) -> None:
     with pytest.raises(ValueError):
         logger.log(make_event(outcome="rejected", attempts=0, error="x"))
+
+
+# ---------------------------------------------------------------------------
+# A failed write leaves nothing behind for a later flush (ADR 0011, item 9)
+# ---------------------------------------------------------------------------
+
+
+class _RawFileStandIn:
+    """Wraps the logger's open handle; ``write`` fails as the test decides."""
+
+    def __init__(self, inner: object, *, raise_error: bool, short_by: int = 0) -> None:
+        self._inner = inner
+        self.raise_error = raise_error
+        self.short_by = short_by
+        self.writes: list[bytes] = []
+        self.closed = False
+
+    def write(self, data: bytes) -> int:
+        self.writes.append(bytes(data))
+        if self.raise_error:
+            raise OSError(28, "No space left on device")
+        # A short write puts the partial line on disk, as a kernel would.
+        partial = data[: len(data) - self.short_by]
+        self._inner.write(partial)  # type: ignore[attr-defined]
+        return len(partial)
+
+    def close(self) -> None:
+        self.closed = True
+        self._inner.close()  # type: ignore[attr-defined]
+
+    def flush(self) -> None:
+        raise AssertionError("nothing may be flushed after a failed write")
+
+
+def _install_stand_in(logger: EventLogger, **kwargs: object) -> _RawFileStandIn:
+    logger.log(make_event())  # opens the bucket's handle
+    stand_in = _RawFileStandIn(logger._files[RUN_ID], **kwargs)  # type: ignore[arg-type]
+    logger._files[RUN_ID] = stand_in  # type: ignore[assignment]
+    return stand_in
+
+
+def test_lines_are_written_unbuffered_in_one_call(logger: EventLogger) -> None:
+    """One ``write`` call per line, bytes already encoded, on an unbuffered
+    binary handle: the line is on disk or the call has raised, and nothing
+    stays in a userspace buffer for a later flush or close."""
+    stand_in = _install_stand_in(logger, raise_error=False)
+    logger.log(make_event(seq=1))
+    (data,) = stand_in.writes
+    assert data.endswith(b"\n")
+    assert json.loads(data)["seq"] == 1
+    inner = stand_in._inner
+    assert getattr(inner, "mode", "") == "ab"
+    assert isinstance(inner, io.RawIOBase)
+
+
+def test_failed_write_raises_drops_the_handle_and_leaves_no_late_line(
+    logger: EventLogger, tmp_path: Path
+) -> None:
+    """A write that raises: the error propagates as ``OSError``, the handle
+    is closed and forgotten, and the failed line never appears later, not
+    even after the next successful write and ``close()``."""
+    stand_in = _install_stand_in(logger, raise_error=True)
+    with pytest.raises(OSError):
+        logger.log(make_event(seq=7))
+    assert stand_in.closed is True
+    assert RUN_ID not in logger._files
+    # Recovery: the next line opens a fresh handle and is written whole.
+    logger.log(make_event(seq=8))
+    logger.close()
+    assert [record["seq"] for record in read_lines(tmp_path)] == [0, 8]
+
+
+def test_short_write_is_reported_as_eio_and_the_handle_is_dropped(
+    logger: EventLogger, tmp_path: Path
+) -> None:
+    """A write that returns fewer bytes than the line is an ``OSError``
+    (``EIO``) naming both counts; the handle is dropped; the partial line
+    stays on disk, terminated at the next open so the next line is intact."""
+    stand_in = _install_stand_in(logger, raise_error=False, short_by=5)
+    with pytest.raises(OSError) as raised:
+        logger.log(make_event(seq=7))
+    assert raised.value.errno == errno.EIO
+    assert "bytes" in str(raised.value)
+    assert stand_in.closed is True
+    assert RUN_ID not in logger._files
+    logger.log(make_event(seq=8))
+    logger.close()
+    raw = (tmp_path / RUN_ID / EVENTS_FILENAME).read_bytes()
+    lines = raw.split(b"\n")
+    assert lines[-1] == b""
+    records = [json.loads(line) for line in lines[:-1] if _is_json(line)]
+    assert [record["seq"] for record in records] == [0, 8]
+    # Exactly one non-JSON line: the partial one, which a reader skips.
+    assert sum(1 for line in lines[:-1] if not _is_json(line)) == 1
+
+
+def _is_json(line: bytes) -> bool:
+    try:
+        json.loads(line)
+    except ValueError:
+        return False
+    return True
+
+
+def test_open_after_a_partial_line_terminates_it_first(tmp_path: Path) -> None:
+    """A file left without its final newline (a short write, a crash) is
+    terminated before the next line is appended, so the two never merge."""
+    run_dir = tmp_path / RUN_ID
+    run_dir.mkdir()
+    (run_dir / EVENTS_FILENAME).write_bytes(b'{"run_id": "run-2026')
+    with EventLogger(tmp_path) as logger:
+        logger.log(make_event(seq=3))
+    raw = (run_dir / EVENTS_FILENAME).read_bytes()
+    assert raw.startswith(b'{"run_id": "run-2026\n{')
+    lines = raw.split(b"\n")
+    assert lines[-1] == b""
+    (record,) = [json.loads(line) for line in lines[:-1] if _is_json(line)]
+    assert record["seq"] == 3
