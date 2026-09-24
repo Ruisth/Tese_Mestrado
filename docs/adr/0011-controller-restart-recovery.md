@@ -1868,11 +1868,17 @@ test and none changes a count, a threshold or a stop rule of the proof.
   cancellation could lose it; `stop()` sets the event and queues nothing.
   A cancelled consumer (A1's second exception) ends the connection with
   the cause `consumer-cancelled`, naming the delivery in progress, and the
-  bridge stays disconnected, since nothing consumes any more; readiness
-  requires a live consumer. The lifespan stops the consumer, then the
-  bridge in an executor (the join of the network thread never blocks the
-  loop), then Ditto and the event log, each clean-up running whatever the
-  previous step raised *(from the review of the pull request)*.
+  bridge stays disconnected, since nothing consumes any more — whatever the
+  connection's acknowledgement state (an earlier end request does not turn
+  the cancellation into a reconnection), re-checked by the supervisor after
+  its back-off; readiness requires a live consumer. The lifespan stops the
+  consumer, then the bridge in an executor (the join of the network thread
+  never blocks the loop), then Ditto and the event log, each clean-up
+  running whatever the previous step raised; a cancellation of the shutdown
+  itself — which cancels the awaited pipeline too — propagates after those
+  clean-ups, read from the pending cancellation of the current task, while
+  a pipeline cancelled earlier is logged and the shutdown goes on *(from the
+  reviews of the pull request)*.
 - **Event log (item 9).** One unbuffered `write` of the encoded line on an
   append-only handle; an `OSError` or a short write (reported as `EIO`)
   closes and forgets the handle; a partial line can remain and is terminated
