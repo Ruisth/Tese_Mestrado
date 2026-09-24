@@ -491,6 +491,35 @@ manifest/release (plan 5.8).
 python -m egw_experiments analyze
 ```
 
+**Recovery qualification (ADR 0011 item 18, review finding F2).** The
+analyser never reads `drain.outcome`, so a valid `controller_restart` run
+whose drain gave up (a failed recovery, retained as an observation) can pass
+every C12 row of `acceptance_by_condition.csv`. `analyze` therefore runs a
+separate layer after the analysis, `egw_experiments.recovery_qualification`,
+which writes `processed/recovery_qualification.json` and `.csv`: one record
+per `controller_restart` run of the plan (validity, integrity, `drain_outcome`
+quiet / gave-up / error / absent, `drain_source` hook / ingested, whether the
+before and after snapshots and the post-drain events are present and
+verified) and its qualification — `recovery_observed` (valid, drain quiet,
+after evidence verified), `recovery_failed` (valid, drain gave up) or
+`not_evidenced` — plus the criterion `restart_recovery_observed_every_run`,
+true only when every controller_restart run of the plan is
+`recovery_observed` and otherwise false naming the runs. One `[recovery]`
+summary line is printed; the exit code stays the analyser's. `python -m
+egw_experiments recovery [--base-dir DIR] [--plan PATH]` runs the layer
+alone. It changes no count of lost, late or N1 and adds no row to the
+acceptance table. Two related rules of the ingestion (finding F6a): a twin
+snapshot handed to `--twins-before-from` must name exactly the devices the
+plan entry's seed determines, with the entries `snap` writes (an absent
+twin, `exists` false, is legitimate), the after snapshot exactly the verified
+before snapshot's devices; a drain transcript handed to
+`--drain-transcript-from` must start with the envelope the runbook writes
+before `drained` runs (`run_id=<id> captured_utc=<UTC instant>`, the instant
+after the run's measured window), or it is refused naming the reason. For the
+persistence comparison of the runbook's test 6, `itest_reconcile delta
+--events <file>` selects the post-drain copy of the events explicitly (F6c);
+the timed `events.jsonl` and its deadline accounting are never touched.
+
 ## Validity rules (audit 9.1/9.2, hardened by work order P1 — never warning-only)
 
 Timed runs (every simulator-driven condition) REQUIRE, in the run dir:

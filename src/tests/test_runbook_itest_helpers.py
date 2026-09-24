@@ -235,6 +235,8 @@ d, n = os.path.split(sys.argv[1]); os.chdir(d); socket.socket(socket.AF_UNIX).bi
 fi
 cmd="${@: -1}"
 case $cmd in
+  *sha256sum*) # the configuration identity capture of config_identity (6.1): the recorded key=value lines
+    cat "$S/identity_capture" 2>/dev/null; exit "$(cat "$S/ssh_identity_rc" 2>/dev/null || echo 0)";;
   *" ps -aq "*) [ -e "$S/svc_state_unreadable" ] && exit 1; cat "$S/svc_state" 2>/dev/null || echo running; exit 0;;
   *" stop "*)
     rc=$(cat "$S/ssh_stop_rc" 2>/dev/null || echo 0)
@@ -753,6 +755,185 @@ def test_harness_run_exit_non_zero_prints_stop(bench: Bench) -> None:
     r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'), EGW_CLONE=str(ROOT))
     assert r.value("RC") != "0", r.out
     assert r.starting("STOP: harness_run smoke_sequence-r01: egw_experiments run exited non-zero"), r.out
+
+
+# --------------------------------------------------------------------------
+# 6.1 - config_identity: the configuration identity captured on the guest, as the harness validates it (F6b)
+# --------------------------------------------------------------------------
+#: What the remote script of config_identity prints on the guest, one key=value line per field, as a realistic
+#: stack answers it (values of the shape the harness validates; the hashes are placeholders of the right form).
+IDENTITY_CAPTURE = {
+    "sha256": "3f" * 32,
+    "max_inflight_messages": "4999",
+    "max_inflight_bytes": "0",
+    "max_queued_messages": "1000",
+    "max_queued_bytes": "0",
+    "persistent_client_expiration": "1h",
+    "sys_interval": "10",
+    "reloaded": "0",
+    "stop_grace_period": "130s",
+    "image": "sha256:" + "5a" * 32,
+    "commit": "0123abcdef0123abcdef0123abcdef0123abcdef",
+    "paho": "2.1.0",
+}
+
+
+def capture_text(**changes: str | None) -> str:
+    """The capture with ``changes`` applied: a None value drops the line (the guest printed nothing for it)."""
+    values = {**IDENTITY_CAPTURE, **changes}
+    return "".join(f"{k}={v}\n" for k, v in values.items() if v is not None)
+
+
+def call_config_identity(bench: Bench, capture: str | None = None, out: str = "$P/idt.json", **env: str) -> Result:
+    if capture is not None:
+        (bench.state / "identity_capture").write_text(capture, encoding="utf-8")
+    return bench.run(bench.with_helpers(f'config_identity {out}\necho "RC=$?"'), **env)
+
+
+def test_config_identity_writes_the_identity_the_harness_validates(bench: Bench) -> None:
+    r = call_config_identity(bench, capture_text())
+    assert r.value("RC") == "0", r.out
+    assert not r.starting("STOP:"), r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert run_mod.configuration_identity_problems(doc) == []
+    assert doc == {
+        "broker_conf_sha256": "3f" * 32,
+        "broker_conf_values": {"max_inflight_messages": 4999, "max_inflight_bytes": 0, "max_queued_messages": 1000,
+                               "max_queued_bytes": 0, "persistent_client_expiration": "1h", "sys_interval": 10},
+        "broker_reloaded": False,
+        "stop_grace_period": "130s",
+        "controller_image_id": "sha256:" + "5a" * 32,
+        "controller_source_commit": "0123abcdef0123abcdef0123abcdef0123abcdef",
+        "paho_version": "2.1.0",
+        "a3_choice": "a",
+    }
+    # One ssh session reads every value on the guest, from the sources the harness names (the remote script
+    # spans several lines of the stub's log).
+    log = "\n".join(bench.ssh_log())
+    assert log.count("ssh [egw-tcg] [") == 1 and log.count("sha256sum") == 1
+    call = log
+    for source in ("sudo sha256sum", "mosquitto/config/mosquitto.conf", "max_inflight_messages", "max_inflight_bytes",
+                   "max_queued_messages", "max_queued_bytes", "persistent_client_expiration", "sys_interval",
+                   "logs --no-color mosquitto", "Reloading config", "stop_grace_period", "compose.yaml",
+                   "docker inspect -f", "{{.Image}}", "egw-controller-1", "org.opencontainers.image.revision",
+                   "docker exec egw-controller-1 python", "paho-mqtt"):
+        assert source in call, source
+
+
+def test_config_identity_reloaded_is_true_when_the_broker_log_holds_a_reload_line(bench: Bench) -> None:
+    r = call_config_identity(bench, capture_text(reloaded="2"))
+    assert r.value("RC") == "0", r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert doc["broker_reloaded"] is True and run_mod.configuration_identity_problems(doc) == []
+
+
+@pytest.mark.parametrize("key", sorted(IDENTITY_CAPTURE))
+def test_config_identity_with_a_missing_value_stops_and_writes_no_file(bench: Bench, key: str) -> None:
+    """A field the guest did not answer (no line, or an empty value): STOP naming it, nothing written - the
+    harness would refuse the identity, and an invented value would state what the run did not rest on."""
+    for capture in (capture_text(**{key: None}), capture_text(**{key: ""})):
+        r = call_config_identity(bench, capture)
+        assert r.value("RC") != "0", r.out
+        assert r.starting("STOP: config_identity:"), r.out
+        assert any(f"config_identity: {key} " in ln for ln in r.lines), r.out
+        assert not (bench.p / "idt.json").exists()
+
+
+@pytest.mark.parametrize("key, value", [
+    ("sha256", "3f" * 31), ("max_inflight_messages", "many"), ("sys_interval", "-1"), ("reloaded", "yes"),
+    ("image", "5a" * 32), ("commit", "0123ab"), ("commit", "not-a-commit"),
+])
+def test_config_identity_with_a_value_of_the_wrong_form_stops_and_writes_no_file(bench: Bench, key: str, value: str) -> None:
+    r = call_config_identity(bench, capture_text(**{key: value}))
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity:"), r.out
+    assert any(f"config_identity: {key} " in ln and value in ln for ln in r.lines), r.out
+    assert not (bench.p / "idt.json").exists()
+
+
+def test_config_identity_ssh_failure_stops_and_writes_no_file(bench: Bench) -> None:
+    bench.set("ssh_identity_rc", 255)
+    r = call_config_identity(bench, capture_text())
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity: ssh egw-tcg exited 255"), r.out
+    assert not (bench.p / "idt.json").exists()
+
+
+def test_config_identity_is_write_once_and_needs_a_path(bench: Bench) -> None:
+    bench.p.mkdir(parents=True, exist_ok=True)
+    (bench.p / "idt.json").write_text("{}\n", encoding="utf-8")
+    r = call_config_identity(bench, capture_text())
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity:") and "exists" in r.out
+    assert (bench.p / "idt.json").read_text(encoding="utf-8") == "{}\n"
+    assert "sha256sum" not in "\n".join(bench.ssh_log())  # nothing was read
+    r = call_config_identity(bench, capture_text(), out="")
+    assert r.value("RC") != "0" and r.starting("STOP: config_identity: usage"), r.out
+
+
+# --------------------------------------------------------------------------
+# Test 6 - the lines that hand the identity, the bound drain transcript and the post-drain copy to the harness
+# --------------------------------------------------------------------------
+def test_test_6_harness_line_captures_the_identity_and_hands_it_to_the_harness() -> None:
+    line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    capture = "config_identity $P/$RID.config_identity.json"
+    assert capture in line and line.index(capture) < line.index("harness_cmd $RID")
+    assert "--config-identity-from $P/$RID.config_identity.json" in line.split("harness_cmd $RID", 1)[1]
+    # No identity tolerance: only the restart-evidence-step reasons are expected from this harness run.
+    assert "'without its restart evidence step' not in r" in line
+    assert "identity" not in line.split("python3 -c", 1)[1].split("sys.exit", 1)[0]
+
+
+def test_test_6_delta_line_names_the_post_drain_copy() -> None:
+    line = _one(_host_commands("### Test 6"), '[ "$T6" = collected ] && $REC delta')
+    command = line.split("     #", 1)[0]  # the command, without its trailing comment
+    assert "--events $RAW6/events.post-drain.jsonl" in command
+    assert "--also" not in command
+
+
+def test_helper_table_names_config_identity() -> None:
+    text = RUNBOOK.read_text(encoding="utf-8")
+    assert "| `config_identity <out-file>` |" in text
+
+
+def drain_line() -> str:
+    return _one(_host_commands("### Test 6"), 'if [ "$T6" = ok ]; then printf')
+
+
+def call_drain_line(bench: Bench, **env: str) -> Result:
+    return bench.run(bench.with_helpers("\n".join(("RID=controller_restart-r01", "T6=ok", drain_line(),
+                                                   'echo "T6=$T6"'))), **env)
+
+
+def test_test_6_drain_line_writes_the_envelope_then_the_helpers_quiet_line(bench: Bench) -> None:
+    """The transcript the collect line ingests: the envelope written before `drained` runs, then the helper's
+    line through tee -a. The harness binds it to the run by that envelope (run.py, F6a) and classifies it quiet."""
+    r = call_drain_line(bench)
+    assert r.value("T6") == "drained", r.out
+    text = (bench.p / "controller_restart-r01.drained.txt").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert len(lines) == 2, text
+    assert re.fullmatch(r"run_id=controller_restart-r01 captured_utc=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", lines[0])
+    assert lines[1].startswith(QUIET_LINE)
+    problems, captured = run_mod.drain_transcript_envelope_problems(
+        text, run_id="controller_restart-r01", window_end_utc="2026-09-18T10:00:00.000Z")
+    assert problems == [] and captured == lines[0].split("captured_utc=")[1]
+    assert run_mod.classify_drain_output(text, None) == "quiet"
+    assert run_mod.drain_transcript_envelope_problems(text, run_id="controller_restart-r02",
+                                                       window_end_utc="2026-09-18T10:00:00.000Z")[0]
+
+
+def test_test_6_drain_line_that_gives_up_keeps_the_envelope_and_the_stop_line(bench: Bench) -> None:
+    bench.metrics(queue_depth=1)
+    r = call_drain_line(bench, DRAIN_LIMIT_S="0")
+    assert r.value("T6") == "gaveup", r.out
+    assert r.starting("STOP: test 6: 'drained' gave up or failed"), r.out
+    text = (bench.p / "controller_restart-r01.drained.txt").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[0].startswith("run_id=controller_restart-r01 captured_utc=") and lines[1].startswith(STOP_NO_WINDOW)
+    assert run_mod.drain_transcript_envelope_problems(
+        text, run_id="controller_restart-r01", window_end_utc="2026-09-18T10:00:00.000Z")[0] == []
+    assert run_mod.classify_drain_output(text, None) == "gave-up"
 
 
 # --------------------------------------------------------------------------

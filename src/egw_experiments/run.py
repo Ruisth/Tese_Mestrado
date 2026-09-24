@@ -123,15 +123,34 @@ The same four artefacts may be taken outside the harness (the runbook's
 helpers of docs/setup/qemu_integrated_gateway.md 6.1) and INGESTED, on
 ``run`` or ``collect``, with ``--twins-before-from``, ``--twins-after-from``,
 ``--post-drain-events-from`` and ``--drain-transcript-from``. Each file is
-verified against this run BEFORE it counts (the snapshot's label, its seed
-against the plan entry's, every event's ``run_id`` and outcome, the drain
-transcript's quiet or give-up line), copied write-once under the name the
-hook would have written, sealed, and recorded with its provenance
+verified against this run BEFORE it counts, copied write-once under the name
+the hook would have written, sealed, and recorded with its provenance
 (``source: "ingested"``, the source path and the copy's sha256; a hook's
 record carries ``source: "hook"``). A refused or missing file is a validity
 reason naming it. No flag excuses missing restart evidence: a
 ``controller_restart`` run needs the before snapshot and the drain, and, when
 the drain was quiet, the after snapshot and the post-drain events as well.
+
+What "verified against this run" means (review finding F6a): a twin
+snapshot must carry its label, a seed that is null or the plan entry's, and
+EXACTLY the devices of this run — for the before snapshot the identities
+``egw_simulator.devices.make_devices`` derives from the plan entry's seed
+(the plan names no device types, and the harness starts the simulator
+without ``--devices``, so the simulator's default set applies), for the after
+snapshot the devices of the verified before snapshot (what `snap --like
+before` reads) — each entry shaped as `snap` writes it (``device_type``,
+``exists``, ``ingestion`` with the helper's keys and typed-or-null values);
+an absent twin (``exists`` false, null values) is legitimate, and nothing
+requires the before snapshot to carry the measured run's ``last_run_id``.
+Every post-drain event must carry this run's ``run_id`` and a logged
+outcome. A drain transcript taken outside the harness must START with the
+envelope the runbook's test 6 line writes before the helper runs,
+``run_id=<run id> captured_utc=<ISO 8601 UTC instant>``: the run id must be
+this run's and the instant later than the manifest's measured window end
+and not later than the collection; the helper's quiet or give-up line then
+classifies it. A transcript without the envelope, of another run, or
+captured before the run ended is refused naming the reason — an old file
+that merely holds a quiet line never becomes this run's drain.
 
 Produces the plan 5.8 raw structure::
 
@@ -252,8 +271,11 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from egw_simulator.devices import DEVICE_TYPES, make_devices
 
 from .checksums import (
     SUMS_FILENAME,
@@ -317,7 +339,8 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 # a hook's record also 'dest_exists', an ingested one 'from' and 'sha256'),
 # 'drain' (the --drain-cmd record with 'outcome' — quiet, gave-up or error —
 # 'source' and 'verified'; an ingested transcript's record with 'file',
-# 'from', 'sha256', 'outcome' and 'problems') and 'events_post_drain_fetch'
+# 'from', 'sha256', 'outcome', 'problems' and, once verified, 'captured_utc'
+# from its envelope) and 'events_post_drain_fetch'
 # (shaped like 'events_fetch' plus 'file', 'source', 'verified' and
 # 'problems', or the ingested file's record), each null or empty on other
 # conditions; 'configuration_identity' (the parsed content of
@@ -543,6 +566,28 @@ TWIN_SNAPSHOT_LABELS: dict[str, str] = {
     "twin_snapshot_before": "before",
     "twin_snapshot_after": "after",
 }
+
+#: The keys of a snapshot entry's ``ingestion`` object, as the runbook's
+#: `snap` writes them (itest_reconcile.INGESTION_KEYS; a test keeps the two
+#: equal), with the JSON type each value has when it is not null: the
+#: controller's ingestion feature (egw_controller.ditto) stores the last run
+#: id, sequence number, message id and envelope timestamp, and the accepted
+#: count. `snap` reads a missing property as null and an absent twin (404)
+#: as all-null values.
+TWIN_INGESTION_TYPES: dict[str, type] = {
+    "last_run_id": str,
+    "last_seq": int,
+    "last_message_id": str,
+    "last_ts": str,
+    "accepted_count": int,
+}
+
+#: The envelope the runbook's test 6 line writes as the FIRST line of a drain
+#: transcript taken outside the harness, before the helper runs:
+#: ``printf 'run_id=%s captured_utc=%s\n' "$RID" "$(date -u +%FT%TZ)"``.
+#: It binds the transcript to one run and one instant; the helper's own lines
+#: follow it through ``tee -a``.
+DRAIN_ENVELOPE_RE = re.compile(r"^run_id=(\S+) captured_utc=(\S+)$")
 
 #: The outcomes a controller event record may carry (egw_controller
 #: events.py, OUTCOMES; the runbook's `accounted`): a post-drain copy of the
@@ -1355,37 +1400,198 @@ def drain_hook_outcome(record: dict[str, Any], run_dir: str | Path) -> str:
     return classify_drain_output(text, record.get("returncode"))
 
 
-def twin_snapshot_problems(doc: Any, *, label: str, seed: int | None) -> list[str]:
+def expected_twin_devices(
+    seed: int, device_types: tuple[str, ...] | list[str] = DEVICE_TYPES
+) -> dict[str, str]:
+    """``{device_uuid: device_type}`` of the run whose plan entry carries
+    ``seed``: the identities ``egw_simulator.devices.make_devices`` derives
+    from it (CONTRACTS 2, plan 5.6). The campaign plan names no device
+    types and :func:`_simulator_cmd` passes no ``--devices``, so a planned
+    run publishes for the simulator's default set, ``DEVICE_TYPES``; the
+    parameter exists for a plan entry that would name a subset."""
+    return {d.device_uuid: d.device_type for d in make_devices(seed, device_types)}
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _ids(values: list[str], limit: int = 5) -> str:
+    shown = ", ".join(values[:limit])
+    return shown + (f", ... ({len(values)} in all)" if len(values) > limit else "")
+
+
+def _snapshot_entry_problems(device_uuid: str, entry: Any, device_type: str) -> list[str]:
+    """What keeps one ``devices`` entry from being what `snap` writes for
+    ``device_uuid`` of type ``device_type``."""
+    if not isinstance(entry, dict):
+        return [f"{device_uuid}: the entry is a JSON {type(entry).__name__}, not an object"]
+    problems: list[str] = []
+    if entry.get("device_type") != device_type:
+        problems.append(
+            f"{device_uuid}: device_type must be {device_type!r}, found "
+            f"{entry.get('device_type')!r}"
+        )
+    exists = entry.get("exists")
+    if not isinstance(exists, bool):
+        problems.append(f"{device_uuid}: exists must be a boolean, found {exists!r}")
+    ingestion = entry.get("ingestion")
+    if not isinstance(ingestion, dict):
+        problems.append(f"{device_uuid}: ingestion must be a JSON object")
+        return problems
+    if set(ingestion) != set(TWIN_INGESTION_TYPES):
+        problems.append(
+            f"{device_uuid}: ingestion keys must be "
+            f"{', '.join(TWIN_INGESTION_TYPES)}, found {', '.join(map(str, ingestion)) or 'none'}"
+        )
+        return problems
+    for key, kind in TWIN_INGESTION_TYPES.items():
+        value = ingestion[key]
+        if value is None:
+            continue
+        ok = (_is_int(value) and value >= 0) if kind is int else isinstance(value, str)
+        if not ok:
+            problems.append(
+                f"{device_uuid}: ingestion.{key} must be null or "
+                + ("a non-negative integer" if kind is int else "a string")
+                + f", found {value!r}"
+            )
+    if exists is False and any(v is not None for v in ingestion.values()):
+        problems.append(
+            f"{device_uuid}: exists is false but ingestion carries values (an "
+            "absent twin has none)"
+        )
+    return problems
+
+
+def twin_snapshot_problems(
+    doc: Any,
+    *,
+    label: str,
+    seed: int | None,
+    devices: dict[str, str] | None,
+    devices_origin: str,
+) -> list[str]:
     """What keeps ``doc`` from being the twin snapshot ``label`` of this run.
 
     A snapshot is what itest_reconcile's `snap` writes: a JSON object with
-    ``label`` equal to ``label`` ('before' or 'after'), a non-empty
-    ``devices`` object and a ``seed`` that, when it is not null and the plan
-    entry has a seed, equals the plan entry's (the `--like` form of the
-    helper writes null: it derives the devices from an earlier snapshot).
+    ``label`` equal to ``label`` ('before' or 'after'), a ``seed`` that,
+    when it is not null and the plan entry has a seed, equals the plan
+    entry's (the `--like` form of the helper writes null: it derives the
+    devices from an earlier snapshot), and a ``devices`` object naming
+    EXACTLY ``devices`` — ``{device_uuid: device_type}``, described by
+    ``devices_origin`` in the problems: the identities the plan entry's
+    seed determines for the before snapshot (:func:`expected_twin_devices`),
+    the verified before snapshot's for the after one — each entry an object
+    with the expected ``device_type``, a boolean ``exists`` and an
+    ``ingestion`` object with the keys of :data:`TWIN_INGESTION_TYPES`,
+    every value null or of its type (:func:`_snapshot_entry_problems`). An
+    absent twin (``exists`` false, null values) is legitimate. With
+    ``devices`` None the snapshot cannot be shown to be the run's and
+    ``devices_origin`` says why (review finding F6a).
     """
     if not isinstance(doc, dict):
         return [f"the document is a JSON {type(doc).__name__}, not an object"]
     problems: list[str] = []
     if doc.get("label") != label:
         problems.append(f"label must be {label!r}, found {doc.get('label')!r}")
-    devices = doc.get("devices")
-    if not isinstance(devices, dict):
-        problems.append("devices must be a JSON object")
-    elif not devices:
-        problems.append("devices names no device")
     file_seed = doc.get("seed")
     if file_seed is not None and seed is not None and file_seed != seed:
         problems.append(f"seed {file_seed!r} is not the plan entry's seed {seed!r}")
+    found = doc.get("devices")
+    if not isinstance(found, dict):
+        problems.append("devices must be a JSON object")
+        return problems
+    if not found:
+        problems.append("devices names no device")
+        return problems
+    if devices is None:
+        problems.append(devices_origin)
+        return problems
+    unexpected = [u for u in found if u not in devices]
+    missing = [u for u in devices if u not in found]
+    if unexpected:
+        problems.append(
+            f"devices names {len(unexpected)} device(s) that are not "
+            f"{devices_origin}: {_ids(unexpected)}"
+        )
+    if missing:
+        problems.append(
+            f"devices lacks {len(missing)} of {devices_origin}: {_ids(missing)}"
+        )
+    for device_uuid, device_type in devices.items():
+        if device_uuid in found:
+            problems.extend(_snapshot_entry_problems(device_uuid, found[device_uuid], device_type))
     return problems
 
 
-def _twin_snapshot_file_problems(path: Path, *, label: str, seed: int | None) -> list[str]:
+def _twin_snapshot_file_problems(
+    path: Path,
+    *,
+    label: str,
+    seed: int | None,
+    devices: dict[str, str] | None,
+    devices_origin: str,
+) -> list[str]:
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return [f"not readable JSON ({exc})"]
-    return twin_snapshot_problems(doc, label=label, seed=seed)
+    return twin_snapshot_problems(
+        doc, label=label, seed=seed, devices=devices, devices_origin=devices_origin
+    )
+
+
+def verified_before_devices(
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+    run_dir: str | Path,
+) -> dict[str, str] | None:
+    """``{device_uuid: device_type}`` of the run's VERIFIED before snapshot
+    (its record in ``twin_snapshots`` says so and its file is in
+    ``run_dir``), or None: what the after snapshot is bound to."""
+    file = TWIN_SNAPSHOT_FILES["twin_snapshot_before"]
+    for record in twin_snapshots or []:
+        if record.get("file") != file or not record.get("verified"):
+            continue
+        try:
+            doc = json.loads((Path(run_dir) / file).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        devices = doc.get("devices") if isinstance(doc, dict) else None
+        if not isinstance(devices, dict) or not devices:
+            return None
+        return {
+            u: e.get("device_type") for u, e in devices.items() if isinstance(e, dict)
+        }
+    return None
+
+
+def snapshot_devices_of_run(
+    hook: str,
+    *,
+    seed: int | None,
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+    run_dir: str | Path,
+) -> tuple[dict[str, str] | None, str]:
+    """The devices the snapshot ``hook`` must name, and their origin for
+    the problems: the plan entry's seed for the before snapshot, the
+    verified before snapshot for the after one (`snap --like before`);
+    (None, why) when neither is available."""
+    if hook == "twin_snapshot_before":
+        if seed is None:
+            return None, (
+                "the plan entry has no seed, so the devices of this run cannot "
+                "be derived and the snapshot cannot be shown to be the run's"
+            )
+        return expected_twin_devices(seed), f"the devices of this run (seed {seed})"
+    devices = verified_before_devices(twin_snapshots, run_dir)
+    if devices is None:
+        return None, (
+            "no verified before snapshot to bind the after snapshot to "
+            f"({TWIN_SNAPSHOT_FILES['twin_snapshot_before']} missing, refused "
+            "or not verified)"
+        )
+    return devices, "the devices of the verified before snapshot"
 
 
 def post_drain_events_problems(
@@ -1436,20 +1642,31 @@ def post_drain_events_problems(
 
 
 def verify_twin_snapshot_record(
-    record: dict[str, Any], run_dir: str | Path, *, seed: int | None
+    record: dict[str, Any],
+    run_dir: str | Path,
+    *,
+    seed: int | None,
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
 ) -> None:
     """Set ``verified``/``problems`` on a --twin-snapshot-cmd hook's record:
     a hook that exited 0 and wrote its file is verified only when the file
-    is the snapshot of this run's label (:func:`twin_snapshot_problems`)."""
+    is the snapshot of this run's label and devices
+    (:func:`twin_snapshot_problems`; ``twin_snapshots`` holds the earlier
+    records, where the after snapshot finds its verified before)."""
     record["verified"] = False
     record["problems"] = []
     if record.get("returncode") != 0 or not record.get("dest_exists"):
         return
     hook = str(record.get("hook"))
+    devices, origin = snapshot_devices_of_run(
+        hook, seed=seed, twin_snapshots=twin_snapshots, run_dir=run_dir
+    )
     record["problems"] = _twin_snapshot_file_problems(
         Path(run_dir) / TWIN_SNAPSHOT_FILES[hook],
         label=TWIN_SNAPSHOT_LABELS[hook],
         seed=seed,
+        devices=devices,
+        devices_origin=origin,
     )
     record["verified"] = not record["problems"]
 
@@ -1501,15 +1718,19 @@ def ingest_twin_snapshot(
     *,
     seed: int | None,
     warnings: list[str],
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
 ) -> dict[str, Any]:
     """Verify and copy a twin snapshot taken outside the harness.
 
-    The file is verified BEFORE it counts (:func:`twin_snapshot_problems`)
-    and copied write-once (:func:`ingest_copy`) to the name the hook would
-    have written only when it verifies: a refused file never enters the
-    run directory, so the right file can follow it. The record carries the
-    provenance (``source: "ingested"``, ``from``, the copy's ``sha256``) or
-    the ``problems`` that refused it; a missing file is such a problem.
+    The file is verified BEFORE it counts (:func:`twin_snapshot_problems`:
+    label, seed, and exactly this run's devices — the plan entry's seed
+    determines the before snapshot's, the verified before snapshot among
+    ``twin_snapshots`` the after one's) and copied write-once
+    (:func:`ingest_copy`) to the name the hook would have written only when
+    it verifies: a refused file never enters the run directory, so the
+    right file can follow it. The record carries the provenance (``source:
+    "ingested"``, ``from``, the copy's ``sha256``) or the ``problems`` that
+    refused it; a missing file is such a problem.
     """
     file = TWIN_SNAPSHOT_FILES[hook]
     record = _ingested_record(hook, file, source)
@@ -1518,8 +1739,15 @@ def ingest_twin_snapshot(
         warnings.append(f"{record['flag']} file not found: {src}")
         record["problems"] = [f"file not found: {src}"]
         return record
+    devices, origin = snapshot_devices_of_run(
+        hook, seed=seed, twin_snapshots=twin_snapshots, run_dir=run_dir
+    )
     problems = _twin_snapshot_file_problems(
-        src, label=TWIN_SNAPSHOT_LABELS[hook], seed=seed
+        src,
+        label=TWIN_SNAPSHOT_LABELS[hook],
+        seed=seed,
+        devices=devices,
+        devices_origin=origin,
     )
     if problems:
         return _refuse_ingest(record, problems, warnings)
@@ -1552,23 +1780,105 @@ def ingest_post_drain_events(
     return record
 
 
-def ingest_drain_transcript(
-    run_dir: Path, source: str | Path, *, warnings: list[str]
-) -> dict[str, Any]:
-    """Classify and copy a drain transcript taken outside the harness
-    (``drained 2>&1 | tee <file>``).
+def parse_utc_instant(text: Any) -> datetime | None:
+    """An ISO 8601 instant WITH a UTC designator or offset (``Z`` or
+    ``+00:00``), as an aware datetime; None for anything else (a naive
+    stamp names no instant)."""
+    if not isinstance(text, str) or not text:
+        return None
+    try:
+        value = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if value.tzinfo is None:
+        return None
+    return value
 
-    The transcript is classified exactly as a hook's output is
-    (:func:`classify_drain_output`, without an exit code): 'quiet' or
-    'gave-up' is copied write-once to ``logs/sut/drain.txt`` and recorded
-    with its provenance; 'error' (neither of the helper's lines, or both)
-    is refused, not copied, and a validity reason. The record's ``outcome``
-    is what the finite proof's evaluator reads; the harness applies no
-    inconclusive rule of its own to it.
+
+def drain_transcript_envelope_problems(
+    text: str,
+    *,
+    run_id: str,
+    window_end_utc: str | None,
+    now: datetime | None = None,
+) -> tuple[list[str], str | None]:
+    """Why the envelope of a transcript taken outside the harness does not
+    bind it to ``run_id``, and the ``captured_utc`` it names.
+
+    The FIRST line must match :data:`DRAIN_ENVELOPE_RE` (what the runbook's
+    test 6 line writes before `drained` runs); its run id must be this
+    run's and its instant an ISO 8601 UTC instant later than the
+    manifest's measured window end (``window_end_utc``: the drain follows
+    the run) and not later than ``now`` (the collection instant, the real
+    clock by default: a later stamp is not an observation). An empty list
+    means the transcript is bound to this run.
+    """
+    first = text.split("\n", 1)[0].rstrip("\r") if text else ""
+    match = DRAIN_ENVELOPE_RE.match(first)
+    if match is None:
+        return [
+            "the first line is not the envelope 'run_id=<run id> "
+            "captured_utc=<UTC instant>' the runbook's test 6 line writes "
+            f"before the helper runs (found {first!r})"
+        ], None
+    envelope_run_id, captured_text = match.group(1), match.group(2)
+    if envelope_run_id != run_id:
+        return [
+            f"the envelope binds the transcript to run {envelope_run_id!r}, "
+            f"not {run_id!r}"
+        ], None
+    captured = parse_utc_instant(captured_text)
+    if captured is None:
+        return [
+            f"the envelope's captured_utc {captured_text!r} is not an ISO 8601 "
+            "UTC instant"
+        ], None
+    end = parse_utc_instant(window_end_utc)
+    if end is None:
+        return [
+            "the run's measured window end (manifest measured_window_utc.end) "
+            "is not recorded, so the transcript cannot be shown to follow the run"
+        ], captured_text
+    if captured <= end:
+        return [
+            f"the envelope's captured_utc {captured_text} is not later than the "
+            f"run's measured window end {window_end_utc}: the transcript cannot "
+            "be this run's drain"
+        ], captured_text
+    if captured > (now if now is not None else datetime.now(timezone.utc)):
+        return [
+            f"the envelope's captured_utc {captured_text} is later than the "
+            "collection instant"
+        ], captured_text
+    return [], captured_text
+
+
+def ingest_drain_transcript(
+    run_dir: Path,
+    source: str | Path,
+    *,
+    run_id: str,
+    window_end_utc: str | None,
+    warnings: list[str],
+) -> dict[str, Any]:
+    """Classify and copy a drain transcript taken outside the harness (the
+    envelope line, then ``drained 2>&1 | tee -a <file>``).
+
+    The transcript must first be bound to this run by its envelope
+    (:func:`drain_transcript_envelope_problems`: this ``run_id``, an instant
+    after ``window_end_utc`` and not after now); it is then classified
+    exactly as a hook's output is (:func:`classify_drain_output`, without
+    an exit code): 'quiet' or 'gave-up' is copied write-once — whole, the
+    envelope included — to ``logs/sut/drain.txt`` and recorded with its
+    provenance and ``captured_utc``; an unbound transcript, or 'error'
+    (neither of the helper's lines, or both), is refused, not copied, and a
+    validity reason. The record's ``outcome`` is what the finite proof's
+    evaluator reads; the harness applies no inconclusive rule of its own.
     """
     file = f"logs/{SUT_LOG_SUBDIR}/{DRAIN_TRANSCRIPT_FILENAME}"
     record = _ingested_record("drain", file, source)
     record["outcome"] = "error"
+    record["captured_utc"] = None
     src = Path(source)
     if not src.is_file():
         warnings.append(f"{record['flag']} file not found: {src}")
@@ -1578,6 +1888,11 @@ def ingest_drain_transcript(
         text = src.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return _refuse_ingest(record, [f"not readable ({exc})"], warnings)
+    problems, captured_utc = drain_transcript_envelope_problems(
+        text, run_id=run_id, window_end_utc=window_end_utc
+    )
+    if problems:
+        return _refuse_ingest(record, problems, warnings)
     outcome = classify_drain_output(text, None)
     if outcome == "error":
         return _refuse_ingest(record, _drain_transcript_problems(text, None), warnings)
@@ -1586,6 +1901,7 @@ def ingest_drain_transcript(
     ingest_copy(src, dest, run_dir)
     record["sha256"] = sha256_file(dest)
     record["outcome"] = outcome
+    record["captured_utc"] = captured_utc
     record["verified"] = True
     return record
 
@@ -4272,7 +4588,9 @@ def execute_run(
             )
             record["file"] = TWIN_SNAPSHOT_FILES[hook]
             record["source"] = "hook"
-            verify_twin_snapshot_record(record, run_dir, seed=seed)
+            verify_twin_snapshot_record(
+                record, run_dir, seed=seed, twin_snapshots=twin_snapshots
+            )
             twin_snapshots.append(record)
             return
         source = before_source if hook == "twin_snapshot_before" else after_source
@@ -4280,7 +4598,14 @@ def execute_run(
             return
         print(f"[harness] {RESTART_EVIDENCE_FROM_FLAGS[hook]}", flush=True)
         twin_snapshots.append(
-            ingest_twin_snapshot(run_dir, hook, source, seed=seed, warnings=warnings)
+            ingest_twin_snapshot(
+                run_dir,
+                hook,
+                source,
+                seed=seed,
+                warnings=warnings,
+                twin_snapshots=twin_snapshots,
+            )
         )
 
     if any(
@@ -4626,7 +4951,13 @@ def execute_run(
             )
     elif drain_source is not None:
         print("[harness] --drain-transcript-from", flush=True)
-        drain_record = ingest_drain_transcript(run_dir, drain_source, warnings=warnings)
+        drain_record = ingest_drain_transcript(
+            run_dir,
+            drain_source,
+            run_id=run_id,
+            window_end_utc=measured_end_utc,
+            warnings=warnings,
+        )
     if post_drain_template:
         print("[harness] --post-drain-fetch-cmd", flush=True)
         post_drain_ok, post_drain_cmd, post_drain_attempts = fetch_events_via_cmd(
@@ -5299,6 +5630,12 @@ def collect_run(
     plan_seed = manifest.get("seed")
     if not isinstance(plan_seed, int) or isinstance(plan_seed, bool):
         plan_seed = None
+    # The measured window this run recorded: an ingested drain transcript
+    # must have been captured after its end (F6a).
+    recorded_window = manifest.get("measured_window_utc")
+    measured_window_end_utc = (
+        recorded_window.get("end") if isinstance(recorded_window, dict) else None
+    )
 
     try:
         # Events: re-attempted while missing; raw evidence already present
@@ -5388,7 +5725,13 @@ def collect_run(
         # earlier refused record for the same artefact and copies nothing.
         for hook, source in external_evidence:
             if hook == "drain":
-                record = ingest_drain_transcript(run_dir, source, warnings=warnings)
+                record = ingest_drain_transcript(
+                    run_dir,
+                    source,
+                    run_id=run_id,
+                    window_end_utc=measured_window_end_utc,
+                    warnings=warnings,
+                )
                 recorded_drain = record
             elif hook == "post_drain":
                 record = ingest_post_drain_events(
@@ -5396,8 +5739,16 @@ def collect_run(
                 )
                 recorded_post_drain = record
             else:
+                # The before snapshot first (external_evidence keeps that
+                # order): the after one binds to the verified before, this
+                # pass's or an earlier one's.
                 record = ingest_twin_snapshot(
-                    run_dir, hook, source, seed=plan_seed, warnings=warnings
+                    run_dir,
+                    hook,
+                    source,
+                    seed=plan_seed,
+                    warnings=warnings,
+                    twin_snapshots=twin_snapshots,
                 )
                 twin_snapshots = [
                     r for r in twin_snapshots if r.get("file") != record["file"]
