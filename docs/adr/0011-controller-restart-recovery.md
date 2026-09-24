@@ -787,11 +787,14 @@ from ADR 0006.
   met on delivery. Claim C12 — "duplicate detection survives a controller
   restart", whose acceptance includes delivery through the restart
   (`docs/claim_evidence_matrix.md:173`) — could not be supported on delivery.
-  The harness's zero-lost gate for that condition is expected to fail at
-  11.2 msg/s under every option, not only this one (see "Relationship with the
-  throughput problem"); what differs between the options is whether the
-  restart classes are processed late or never, and under option 4 they are
-  never processed. Test 5 — no effect. Defensible only if the dissertation
+  Whether the harness's zero-lost gate for that condition passes at
+  11.2 msg/s is an unresolved risk under every option, not only this one: the
+  earlier candidate confirmed late in every timed run and no changed candidate
+  has been measured (see "Relationship with the throughput problem"); what the
+  options settle is whether the restart classes are processed late or never,
+  and under option 4 they are never processed *(corrected 2026-09-24; this
+  sentence had predicted that the gate fails under every option)*. Test 5 —
+  no effect. Defensible only if the dissertation
   states the limitation and reports the condition as a negative result.
 
 #### Option 5 — options 1 and 2 together: the broker holds every delivery until its outcome is recorded
@@ -1110,9 +1113,14 @@ with option 3 with option 2 kept in reserve.** The reasons, from this record:
   established) and 319 to 321 never delivered (CONSISTENT-WITH, on recovered
   bytes) (section 1.3) — a negative result reported as such; the G3
   criterion "recovery … and no record accepted twice" is not met on delivery,
-  and claim C12 cannot be supported on delivery (option 4 above). The
-  zero-lost gate is expected to fail under every option at 11.2 msg/s anyway
-  ("Relationship with the throughput problem").
+  and claim C12 cannot be supported on delivery (option 4 above). Whether
+  the zero-lost gate passes at 11.2 msg/s is an unresolved risk under every
+  option, option 4 included: the earlier candidate confirmed late in every
+  timed run and the changed candidate is unmeasured ("Relationship with the
+  throughput problem"); option 4 is not equivalent to a recovery option on
+  that gate, it merely leaves the restart classes unprocessed *(corrected
+  2026-09-24; this sentence had predicted that the gate fails under every
+  option)*.
 - **Why not option 3 with option 2 in its place:** it would recover both
   classes (intended), and because it acknowledges after its own local write it
   does not ask the broker to hold the backlog in flight (option 3 above). But
@@ -1536,12 +1544,22 @@ merely refutes nothing does not:
 - **S3.** No identity has two `accepted` lines (`double_accepted = 0`).
 - **S4.** Every identity with a `duplicate` line either also has an `accepted`
   line, or is a named N1 case. An N1 case has one of two sources, and the
-  result names each case with its source: the identity in progress at the
-  kill, or the identity in progress at a connection ended under A3 after its
-  `PATCH` (item 6).
+  result names each case with its source **and with the twin's evidence that
+  the identity was applied**: the identity in progress at the kill, or the
+  identity in progress at a connection ended under A3 after its `PATCH`
+  (item 6); and, on that identity's device, the post-drain twin snapshot's
+  `accepted_count` exceeds the device's `accepted` lines by exactly the
+  number of N1 cases named on it, with the twin's `last_seq` not below the
+  identity's `seq`. Being in progress is not enough: an identity whose
+  `PATCH` was never sent, redelivered after a later `seq` of its device had
+  been applied, would also end with only a `duplicate` line — that is the
+  order break R3 exists to detect, not an N1 case. Without the surplus the
+  identity was not applied and R3 applies *(added 2026-09-24, from the
+  review of the published record)*.
 - **S5.** The runbook's `delta` is `OK` for every twin (`qemu_integrated_gateway.md:1130`),
   except, on the device of each named N1 case of S4, a difference of exactly
-  one per such case.
+  one per such case — the difference S4 requires as the case's evidence,
+  not merely permits.
 - **S6.** `max(queue_depth + in_progress)` stayed below W — or the result
   states that the window filled, and from when (P5).
 
@@ -1551,9 +1569,9 @@ merely refutes nothing does not:
   line.
 - **R2.** An identity has two `accepted` lines.
 - **R3.** An identity has only `duplicate` lines and is not a named N1 case of
-  S4 (in progress at the kill, or at an A3 connection end listed under item 6):
-  a genuine message was rejected, through the ordering of N5 or a wrong
-  rebuild.
+  S4 (in progress at the kill, or at an A3 connection end listed under item 6,
+  **and** shown applied by the twin's surplus of S4): a genuine message was
+  rejected, through the ordering of N5 or a wrong rebuild.
 - **R4.** A `delta` mismatch beyond S5's named cases, or a twin whose
   `last_seq` regressed.
 
@@ -2152,7 +2170,12 @@ D2 finding of 2026-09-24), the closing paragraph restated, and the review
 record — analyses, gate notes, scripts, outputs, verification reports, annex
 and decision request — committed under
 `docs/reviews/2026-09-23-adr-0011-package-d/` (its `README.md` says what is
-not kept there and where it is).
+not kept there and where it is). The review of the published record on the
+same day added the twin's evidence to S4 (a named N1 case needs the device's
+`accepted_count` surplus, or R3 applies) and restated the two remaining
+sentences that predicted the zero-lost gate's failure under every option
+(option 4's row of the options table and the fallback assessment) as an
+unresolved risk, each marked where it stands.
 
 ---
 
