@@ -245,6 +245,33 @@ def _manifest(base: Path, run_id: str) -> dict:
     )
 
 
+#: A configuration identity as a guest-side capture would write it (ADR 0011
+#: item 18): the values are placeholders, the keys are the ones the record
+#: names. The harness copies the file and embeds its content verbatim.
+CONFIG_IDENTITY = {
+    "broker_conf_sha256": "ab" * 32,
+    "broker_conf_values": {
+        "max_inflight_messages": 4999,
+        "max_inflight_bytes": 0,
+        "max_queued_messages": 1000,
+        "max_queued_bytes": 0,
+        "persistent_client_expiration": "1h",
+    },
+    "broker_reloaded": False,
+    "stop_grace_period": "130s",
+    "controller_image_id": "sha256:" + "cd" * 32,
+    "controller_source_commit": "0123abc",
+    "paho_version": "2.1.0",
+    "a3_choice": "a",
+}
+
+
+def _config_identity_file(tmp_path: Path, name: str = "configuration_identity.json") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(CONFIG_IDENTITY, indent=2) + "\n", "utf-8")
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Fetch command template (audit 9.3)
 # ---------------------------------------------------------------------------
@@ -1037,6 +1064,9 @@ def test_restart_cmd_executed_once_and_recorded(
         restart_cmd=f'"{PY}" "{script.as_posix()}" "{marker.as_posix()}" {{run_id}}',
         restart_at_s=0.05,
         allow_missing_controller_marker=True,
+        # A controller_restart run without its configuration identity is
+        # invalid (ADR 0011 item 18), so the fixture carries one.
+        config_identity_from=_config_identity_file(tmp_path),
     )
     assert rc == 0
     assert marker.read_text(encoding="utf-8") == "restarted controller_restart-r01"
@@ -4492,6 +4522,816 @@ def test_metrics_sampler_writes_empty_for_non_finite_or_negative_counters(
     for row in rows[1:]:
         # inf/nan/negative/non-integer counters are written as EMPTY cells,
         # never as 'inf'/'nan'/'-1'/'2.5'.
-        assert row[1:] == ["5", "", "", "", "", "3"]
+        assert row[1:7] == ["5", "", "", "", "", "3"]
+        # The ten item-18 columns follow (ADR 0011); this snapshot carries
+        # none of them, so they are empty, never zero.
+        assert row[7:] == [""] * (len(metrics_mod.CSV_HEADER) - 7)
     assert sampler.invalid_values >= 4
     assert "dropped" in (sampler.last_invalid or "")
+
+
+# ---------------------------------------------------------------------------
+# ADR 0011 item 18 (T41): the ten /metrics fields the sampler used to discard
+# ---------------------------------------------------------------------------
+
+
+#: The new columns after queue_depth, in the fixed order: five counts, then
+#: the truth value, two strings and two numbers written verbatim.
+ITEM18_COLUMNS = [
+    "received",
+    "in_progress",
+    "processing_errors",
+    "unacked",
+    "mqtt_connection",
+    "mqtt_subscribed",
+    "started_at",
+    "wall_utc",
+    "uptime_s",
+    "monotonic_ns",
+]
+
+SIX_COUNTERS = {
+    "accepted": 5,
+    "rejected": 0,
+    "duplicate": 1,
+    "failed": 0,
+    "dropped": 0,
+    "queue_depth": 3,
+}
+
+
+def _sample_one_row(tmp_path: Path, monkeypatch, snapshot: dict) -> tuple[dict, Any]:
+    """One sampler pass over a recorded snapshot: (cells by column, sampler)."""
+    monkeypatch.setattr(
+        metrics_mod, "fetch_metrics", lambda url, *a, **k: dict(snapshot)
+    )
+    csv_path = tmp_path / "controller_metrics.csv"
+    with metrics_mod.ControllerMetricsSampler(
+        csv_path, "http://127.0.0.1:8000", interval_s=60.0
+    ) as sampler:
+        pass
+    rows = _metrics_rows(csv_path)
+    assert rows[0] == metrics_mod.CSV_HEADER
+    assert rows[1:]
+    assert all(len(row) == len(metrics_mod.CSV_HEADER) for row in rows[1:])
+    return dict(zip(metrics_mod.CSV_HEADER, rows[1])), sampler
+
+
+def test_metrics_csv_header_gains_the_item_18_columns_in_order() -> None:
+    assert metrics_mod.CSV_HEADER == [
+        "ts_utc",
+        "accepted",
+        "rejected",
+        "duplicate",
+        "failed",
+        "dropped",
+        "queue_depth",
+        *ITEM18_COLUMNS,
+    ]
+    # The count rule covers the five integer fields, the raw rule the other
+    # five; the header is exactly the two tuples behind the timestamp.
+    assert metrics_mod.METRIC_FIELDS == (
+        "accepted",
+        "rejected",
+        "duplicate",
+        "failed",
+        "dropped",
+        "queue_depth",
+        "received",
+        "in_progress",
+        "processing_errors",
+        "unacked",
+        "mqtt_connection",
+    )
+    assert metrics_mod.RAW_FIELDS == (
+        "mqtt_subscribed",
+        "started_at",
+        "wall_utc",
+        "uptime_s",
+        "monotonic_ns",
+    )
+    assert metrics_mod.CSV_HEADER == [
+        "ts_utc",
+        *metrics_mod.METRIC_FIELDS,
+        *metrics_mod.RAW_FIELDS,
+    ]
+
+
+def test_metrics_sampler_records_the_item_18_fields_verbatim(
+    tmp_path, monkeypatch
+) -> None:
+    snapshot = {
+        **SIX_COUNTERS,
+        "received": 9,
+        "in_progress": 1,
+        "processing_errors": 0,
+        "unacked": 2,
+        "mqtt_connection": 1,
+        "mqtt_subscribed": True,
+        "started_at": "2026-09-07T09:58:00.000Z",
+        "wall_utc": "2026-09-07T10:00:00.250Z",
+        "uptime_s": 120.25,
+        "monotonic_ns": 987_654_321_000,
+    }
+    cells, sampler = _sample_one_row(tmp_path, monkeypatch, snapshot)
+    assert [cells[c] for c in ITEM18_COLUMNS] == [
+        "9",
+        "1",
+        "0",
+        "2",
+        "1",
+        "true",
+        "2026-09-07T09:58:00.000Z",
+        "2026-09-07T10:00:00.250Z",
+        "120.25",
+        "987654321000",
+    ]
+    assert cells["accepted"] == "5" and cells["queue_depth"] == "3"
+    assert sampler.invalid_values == 0
+
+    cells, sampler = _sample_one_row(
+        tmp_path,
+        monkeypatch,
+        {**snapshot, "mqtt_subscribed": False, "uptime_s": 7, "mqtt_connection": 2.0},
+    )
+    assert cells["mqtt_subscribed"] == "false"
+    assert cells["uptime_s"] == "7"
+    assert cells["mqtt_connection"] == "2"
+    assert sampler.invalid_values == 0
+
+
+def test_metrics_sampler_leaves_absent_item_18_fields_empty_never_zero(
+    tmp_path, monkeypatch
+) -> None:
+    """A controller that predates the fields sends none of them: every new
+    cell stays empty (missing evidence), and absence is not a refusal."""
+    cells, sampler = _sample_one_row(tmp_path, monkeypatch, dict(SIX_COUNTERS))
+    assert [cells[c] for c in ITEM18_COLUMNS] == [""] * len(ITEM18_COLUMNS)
+    assert [cells[c] for c in SIX_COUNTERS] == ["5", "0", "1", "0", "0", "3"]
+    assert sampler.invalid_values == 0
+
+
+def test_metrics_sampler_refuses_mistyped_item_18_values(tmp_path, monkeypatch) -> None:
+    """A count that is a bool, negative, fractional, a string or infinite; a
+    truth value that is a string; a string that is a number or a list; a
+    number that is nan or a bool: each is an empty cell and a counted
+    refusal, never a coerced value."""
+    snapshot = {
+        **SIX_COUNTERS,
+        "received": True,
+        "in_progress": -1,
+        "processing_errors": 2.5,
+        "unacked": "3",
+        "mqtt_connection": float("inf"),
+        "mqtt_subscribed": "true",
+        "started_at": 12,
+        "wall_utc": ["2026-09-07T10:00:00Z"],
+        "uptime_s": float("nan"),
+        "monotonic_ns": True,
+    }
+    cells, sampler = _sample_one_row(tmp_path, monkeypatch, snapshot)
+    assert [cells[c] for c in ITEM18_COLUMNS] == [""] * len(ITEM18_COLUMNS)
+    assert sampler.invalid_values >= len(ITEM18_COLUMNS)
+    assert "monotonic_ns" in (sampler.last_invalid or "")
+
+
+# ---------------------------------------------------------------------------
+# ADR 0011 item 18: SUT log fetches, restart evidence steps and the
+# configuration identity (T42)
+# ---------------------------------------------------------------------------
+
+# One fake stands for every item-18 step that runs a host command: the three
+# log fetches, the two twin snapshots, the drain, the post-drain fetch and
+# the harness events fetch. It appends '<label> <dest name> <run_id>' to a
+# record file (so the ORDER of the steps is observable), prints on both
+# streams and, in mode 'write', writes '<label> content for <run_id>' to
+# {dest}; mode 'noop' writes nothing. It exits with the given code.
+SUT_STEP_SCRIPT = """\
+import sys
+from pathlib import Path
+
+record, label, run_id, dest, mode, rc = sys.argv[1:7]
+with Path(record).open("a", encoding="utf-8") as fh:
+    fh.write(" ".join((label, Path(dest).name, run_id)) + "\\n")
+print(label + " step stdout")
+sys.stderr.write(label + " step stderr\\n")
+if mode == "write":
+    Path(dest).parent.mkdir(parents=True, exist_ok=True)
+    Path(dest).write_text(label + " content for " + run_id + "\\n", encoding="utf-8")
+sys.exit(int(rc))
+"""
+
+RESTART_SCRIPT = """\
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_text("restarted " + sys.argv[2], encoding="utf-8")
+"""
+
+SUT_LOG_FILES = {
+    "broker_log": "logs/sut/broker.log",
+    "controller_log": "logs/sut/controller.log",
+    "docker_events": "logs/sut/docker-events.log",
+}
+
+
+def _step_tpl(
+    script: Path, record: Path, label: str, mode: str = "write", rc: int = 0
+) -> str:
+    return (
+        f'"{PY}" "{script.as_posix()}" "{record.as_posix()}" {label} '
+        '{run_id} "{dest}" ' + f"{mode} {rc}"
+    )
+
+
+def _step_lines(record: Path) -> list[str]:
+    """'<label> <dest name>' per recorded step, in execution order."""
+    if not record.is_file():
+        return []
+    return [
+        " ".join(line.split()[:2])
+        for line in record.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _item18_run(
+    tmp_path: Path,
+    plan_path: Path,
+    fast_run,
+    monkeypatch,
+    *,
+    run_id: str = "controller_restart-r01",
+    drain: tuple[str, int] = ("noop", 0),
+    snapshot: tuple[str, int] = ("write", 0),
+    post_drain: tuple[str, int] = ("write", 0),
+    log_fetch: dict[str, tuple[str, int]] | None = None,
+    config_identity: bool = True,
+    **overrides: Any,
+) -> tuple[int, Path, Path]:
+    """Execute one run with every item-18 step driven by the fake script.
+
+    Returns (exit code, run directory, record file). The fake simulator is
+    made visible in the record ('simulator - <run_id>') so the position of
+    the 'before' snapshot against the measured run can be asserted."""
+    script = _write_script(tmp_path, "sut_step.py", SUT_STEP_SCRIPT)
+    record = tmp_path / "sut-steps.txt"
+    restart_script = _write_script(tmp_path, "fake_restart.py", RESTART_SCRIPT)
+    marker = tmp_path / "restart-marker.txt"
+
+    def recording_subprocess(cmd, log_path, timeout_s):
+        with record.open("a", encoding="utf-8") as fh:
+            fh.write("simulator - " + cmd[cmd.index("--run-id") + 1] + "\n")
+        return fast_run(cmd, log_path, timeout_s)
+
+    monkeypatch.setattr(run_mod, "_run_subprocess", recording_subprocess)
+    log_fetch = log_fetch or {}
+    base = tmp_path / "results"
+    kwargs: dict[str, Any] = dict(
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        fetch_events_cmd=_step_tpl(script, record, "events"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        restart_cmd=(
+            f'"{PY}" "{restart_script.as_posix()}" "{marker.as_posix()}" {{run_id}}'
+        ),
+        restart_at_s=0.05,
+        twin_snapshot_cmd=_step_tpl(script, record, "snapshot", *snapshot),
+        drain_cmd=_step_tpl(script, record, "drain", *drain),
+        post_drain_fetch_cmd=_step_tpl(script, record, "post_drain", *post_drain),
+        fetch_broker_log_cmd=_step_tpl(
+            script, record, "broker_log", *log_fetch.get("broker_log", ("write", 0))
+        ),
+        fetch_controller_log_cmd=_step_tpl(
+            script,
+            record,
+            "controller_log",
+            *log_fetch.get("controller_log", ("write", 0)),
+        ),
+        fetch_docker_events_cmd=_step_tpl(
+            script,
+            record,
+            "docker_events",
+            *log_fetch.get("docker_events", ("write", 0)),
+        ),
+        allow_missing_controller_marker=True,
+    )
+    if config_identity:
+        kwargs["config_identity_from"] = _config_identity_file(tmp_path)
+    kwargs.update(overrides)
+    # Keep the measured (fake) run alive while the restart timer fires.
+    fast_run.sleep_s = 1.0 if kwargs.get("restart_cmd") else 0.0
+    rc = run_mod.execute_run(plan_path, run_id, **kwargs)
+    return rc, base / "raw" / run_id, record
+
+
+def test_sut_log_fetch_hooks_run_after_the_events_fetch_into_logs_sut_and_are_sealed(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The broker log, the controller container log and docker events are
+    fetched through the collector-hook machinery into logs/sut/, after the
+    harness events fetch, recorded in the manifest and sealed."""
+    script = _write_script(tmp_path, "sut_step.py", SUT_STEP_SCRIPT)
+    record = tmp_path / "sut-steps.txt"
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        fetch_events_cmd=_step_tpl(script, record, "events"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        fetch_broker_log_cmd=_step_tpl(script, record, "broker_log"),
+        fetch_controller_log_cmd=_step_tpl(script, record, "controller_log"),
+        fetch_docker_events_cmd=_step_tpl(script, record, "docker_events"),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    assert _step_lines(record) == [
+        "events events.jsonl",
+        "broker_log broker.log",
+        "controller_log controller.log",
+        "docker_events docker-events.log",
+    ]
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["manifest_version"] == run_mod.MANIFEST_VERSION == "1.4"
+    assert manifest["validity"] == "valid"
+    fetches = manifest["sut_log_fetches"]
+    assert [f["hook"] for f in fetches] == list(SUT_LOG_FILES)
+    sealed = _sealed_names(run_dir)
+    for fetch in fetches:
+        hook = fetch["hook"]
+        assert fetch["flag"] == run_mod.SUT_LOG_FETCH_FLAGS[hook]
+        assert fetch["returncode"] == 0
+        assert fetch["started_utc"] and fetch["finished_utc"]
+        assert "{run_id}" not in fetch["command"] and "{dest}" not in fetch["command"]
+        assert "smoke_sequence-r01" in fetch["command"]
+        assert fetch["dest_file"] == SUT_LOG_FILES[hook]
+        assert fetch["dest_exists"] is True
+        assert (run_dir / fetch["dest_file"]).read_text(encoding="utf-8") == (
+            f"{hook} content for smoke_sequence-r01\n"
+        )
+        assert fetch["stdout_file"] == f"logs/sut/hook-{hook}.stdout.txt"
+        assert fetch["stderr_file"] == f"logs/sut/hook-{hook}.stderr.txt"
+        assert fetch["stderr_tail"] == f"{hook} step stderr"
+        assert fetch["dest_file"] in sealed
+        assert fetch["stdout_file"] in sealed and fetch["stderr_file"] in sealed
+    assert checksums.verify_sha256sums(run_dir) == []
+    cli = manifest["config"]["cli"]
+    for key in ("fetch_broker_log_cmd", "fetch_controller_log_cmd", "fetch_docker_events_cmd"):
+        assert cli[key] and "{dest}" in cli[key]
+    # Nothing of the restart-only evidence on a nominal run.
+    assert manifest["twin_snapshots"] == []
+    assert manifest["drain"] is None
+    assert manifest["events_post_drain_fetch"] is None
+
+
+def test_sut_log_fetch_failure_is_a_validity_reason_naming_the_flag(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """A fetch that exits non-zero, or one that exits 0 without writing its
+    file, is never a silent warning; the other fetches still run and the
+    seal is still written (the fetched logs are not mandatory artefacts)."""
+    script = _write_script(tmp_path, "sut_step.py", SUT_STEP_SCRIPT)
+    record = tmp_path / "sut-steps.txt"
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        fetch_broker_log_cmd=_step_tpl(script, record, "broker_log", "write", 2),
+        fetch_controller_log_cmd=_step_tpl(script, record, "controller_log", "noop", 0),
+        fetch_docker_events_cmd=_step_tpl(script, record, "docker_events"),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 1
+    assert _step_lines(record) == [
+        "broker_log broker.log",
+        "controller_log controller.log",
+        "docker_events docker-events.log",
+    ]
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "invalid"
+    reasons = manifest["validity_reasons"]
+    broker = next(r for r in reasons if "--fetch-broker-log-cmd" in r)
+    assert "exit code 2" in broker
+    controller = next(r for r in reasons if "--fetch-controller-log-cmd" in r)
+    assert "logs/sut/controller.log" in controller
+    assert not any("--fetch-docker-events-cmd" in r for r in reasons)
+    by_hook = {f["hook"]: f for f in manifest["sut_log_fetches"]}
+    assert by_hook["broker_log"]["returncode"] == 2
+    assert by_hook["controller_log"]["returncode"] == 0
+    assert by_hook["controller_log"]["dest_exists"] is False
+    assert by_hook["docker_events"]["dest_exists"] is True
+    sealed = _sealed_names(run_dir)
+    assert "logs/sut/docker-events.log" in sealed
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_controller_restart_evidence_steps_run_in_order_and_are_sealed(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """For controller_restart: a twin snapshot before the measured run, the
+    harness events fetch after the confirmation window, then the blocking
+    drain, the post-drain fetch into its own file, the second snapshot and
+    the log fetches; every file exists before the seal and every step is in
+    the manifest."""
+    rc, run_dir, record = _item18_run(tmp_path, plan_path, fast_run, monkeypatch)
+    assert rc == 0
+    assert _step_lines(record) == [
+        "snapshot twins.before.json",
+        "simulator -",
+        "events events.jsonl",
+        "drain drain.txt",
+        "post_drain events.post-drain.jsonl",
+        "snapshot twins.after.json",
+        "broker_log broker.log",
+        "controller_log controller.log",
+        "docker_events docker-events.log",
+    ]
+    base = run_dir.parent.parent
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["manifest_version"] == "1.4"
+    assert manifest["validity"] == "valid"
+    assert manifest["restart"]["executed"] is True
+    sealed = _sealed_names(run_dir)
+
+    snapshots = manifest["twin_snapshots"]
+    assert [s["hook"] for s in snapshots] == [
+        "twin_snapshot_before",
+        "twin_snapshot_after",
+    ]
+    assert [s["file"] for s in snapshots] == ["twins.before.json", "twins.after.json"]
+    for snap in snapshots:
+        assert snap["flag"] == "--twin-snapshot-cmd"
+        assert snap["returncode"] == 0
+        assert snap["dest_exists"] is True
+        assert (run_dir / snap["file"]).read_text(encoding="utf-8") == (
+            "snapshot content for controller_restart-r01\n"
+        )
+        assert snap["stdout_file"] == f"logs/sut/hook-{snap['hook']}.stdout.txt"
+        assert snap["file"] in sealed and snap["stdout_file"] in sealed
+
+    drain = manifest["drain"]
+    assert drain["hook"] == "drain" and drain["flag"] == "--drain-cmd"
+    assert drain["returncode"] == 0
+    assert drain["started_utc"] and drain["finished_utc"]
+    assert drain["stdout_file"] == "logs/sut/hook-drain.stdout.txt"
+    assert drain["stdout_file"] in sealed and drain["stderr_file"] in sealed
+
+    post_drain = manifest["events_post_drain_fetch"]
+    assert post_drain["ok"] is True
+    assert post_drain["file"] == "events.post-drain.jsonl"
+    assert post_drain["template"] and "{dest}" not in post_drain["command"]
+    assert post_drain["attempts"][0]["returncode"] == 0
+    # The two event copies are kept apart: the harness fetch is untouched.
+    assert (run_dir / "events.jsonl").read_text(encoding="utf-8") == (
+        "events content for controller_restart-r01\n"
+    )
+    assert (run_dir / "events.post-drain.jsonl").read_text(encoding="utf-8") == (
+        "post_drain content for controller_restart-r01\n"
+    )
+    assert manifest["events_source"].startswith("fetch-cmd:")
+    assert "events.jsonl" in sealed and "events.post-drain.jsonl" in sealed
+
+    assert manifest["configuration_identity"] == CONFIG_IDENTITY
+    assert manifest["configuration_identity_file"] == "configuration_identity.json"
+    assert json.loads(
+        (run_dir / "configuration_identity.json").read_text(encoding="utf-8")
+    ) == CONFIG_IDENTITY
+    assert "configuration_identity.json" in sealed
+
+    for hook, path in SUT_LOG_FILES.items():
+        assert path in sealed
+    assert checksums.verify_sha256sums(run_dir) == []
+    cli = manifest["config"]["cli"]
+    for key in ("twin_snapshot_cmd", "drain_cmd", "post_drain_fetch_cmd"):
+        assert cli[key] and "{run_id}" in cli[key]
+    assert cli["config_identity_from"] == str(tmp_path / "configuration_identity.json")
+
+
+def test_controller_restart_drain_failure_is_a_validity_reason(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, drain=("noop", 3)
+    )
+    assert rc == 1
+    # The steps after the drain still run: the evidence is collected as it is.
+    assert _step_lines(record)[3:6] == [
+        "drain drain.txt",
+        "post_drain events.post-drain.jsonl",
+        "snapshot twins.after.json",
+    ]
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    reason = next(r for r in manifest["validity_reasons"] if "--drain-cmd" in r)
+    assert "exit code 3" in reason
+    assert manifest["drain"]["returncode"] == 3
+    assert (run_dir / checksums.SUMS_FILENAME).is_file()
+
+
+@pytest.mark.parametrize(
+    "snapshot, expected",
+    [
+        (("noop", 0), "twins.after.json"),  # exit 0 but no file written
+        (("write", 4), "exit code 4"),
+    ],
+)
+def test_controller_restart_twin_snapshot_failure_is_a_validity_reason(
+    tmp_path, plan_path, fast_run, monkeypatch, snapshot, expected
+) -> None:
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, snapshot=snapshot
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    reasons = [r for r in manifest["validity_reasons"] if "--twin-snapshot-cmd" in r]
+    assert len(reasons) == 2  # one per snapshot
+    assert any(expected in r for r in reasons)
+    assert any("twins.before.json" in r for r in reasons)
+
+
+def test_controller_restart_post_drain_fetch_failure_is_a_validity_reason(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, post_drain=("noop", 1)
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    reason = next(
+        r for r in manifest["validity_reasons"] if "--post-drain-fetch-cmd" in r
+    )
+    assert "events.post-drain.jsonl" in reason
+    post_drain = manifest["events_post_drain_fetch"]
+    assert post_drain["ok"] is False
+    assert len(post_drain["attempts"]) == run_mod.FETCH_ATTEMPTS
+    assert not (run_dir / "events.post-drain.jsonl").exists()
+    # The harness copy is untouched by the failed post-drain fetch.
+    assert (run_dir / "events.jsonl").read_text(encoding="utf-8") == (
+        "events content for controller_restart-r01\n"
+    )
+
+
+def test_controller_restart_without_a_configuration_identity_is_invalid(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, config_identity=False
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    reason = next(
+        r for r in manifest["validity_reasons"] if "--config-identity-from" in r
+    )
+    assert "configuration_identity.json" in reason
+    assert manifest["configuration_identity"] is None
+    assert manifest["configuration_identity_file"] is None
+    assert not (run_dir / "configuration_identity.json").exists()
+
+
+def test_config_identity_path_that_does_not_exist_is_a_warning_and_a_restart_reason(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, _record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        config_identity=False,
+        config_identity_from=tmp_path / "missing-identity.json",
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert any(
+        "--config-identity-from" in w and "not found" in w for w in manifest["warnings"]
+    )
+    assert any("--config-identity-from" in r for r in manifest["validity_reasons"])
+    assert manifest["configuration_identity"] is None
+
+
+def test_config_identity_is_optional_but_embedded_on_other_conditions(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """A missing identity is a reason for controller_restart only; a nominal
+    run stays valid without it and embeds it when given."""
+    base = tmp_path / "results"
+    common = dict(
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        sut_env_from=_sut_env_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        allow_missing_controller_marker=True,
+    )
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        resources_from=_resources_file(tmp_path),
+        **common,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["configuration_identity"] is None
+    assert manifest["configuration_identity_file"] is None
+    assert manifest["config"]["cli"]["config_identity_from"] is None
+
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r02",
+        event_log_dir=_local_events(tmp_path / "second", "smoke_sequence-r02"),
+        resources_from=_resources_file(tmp_path / "second"),
+        config_identity_from=_config_identity_file(tmp_path),
+        **common,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r02")
+    assert manifest["validity"] == "valid"
+    assert manifest["configuration_identity"] == CONFIG_IDENTITY
+    assert manifest["configuration_identity_file"] == "configuration_identity.json"
+    assert "configuration_identity.json" in _sealed_names(base / "raw" / "smoke_sequence-r02")
+
+
+def test_restart_evidence_steps_are_ignored_with_a_warning_on_other_conditions(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The drain, the twin snapshots and the post-drain fetch belong to the
+    controller_restart condition; on any other run they are not executed,
+    the manifest records none and a warning names the condition."""
+    rc, run_dir, record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        run_id="smoke_sequence-r01",
+        restart_cmd=None,
+        restart_at_s=None,
+    )
+    assert rc == 0
+    assert _step_lines(record) == [
+        "simulator -",
+        "events events.jsonl",
+        "broker_log broker.log",
+        "controller_log controller.log",
+        "docker_events docker-events.log",
+    ]
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["twin_snapshots"] == []
+    assert manifest["drain"] is None
+    assert manifest["events_post_drain_fetch"] is None
+    assert not (run_dir / "twins.before.json").exists()
+    assert not (run_dir / "events.post-drain.jsonl").exists()
+    ignored = [w for w in manifest["warnings"] if "controller_restart" in w]
+    assert ignored
+    assert all(
+        flag in " ".join(ignored)
+        for flag in ("--twin-snapshot-cmd", "--drain-cmd", "--post-drain-fetch-cmd")
+    )
+    # The identity is embedded on every condition when given.
+    assert manifest["configuration_identity"] == CONFIG_IDENTITY
+
+
+def test_collect_ingests_the_configuration_identity_and_reapplies_the_restart_reasons(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """'collect' adds a missing configuration_identity.json to a sealed run
+    like the SUT environment, and re-applies the run-time evidence reasons
+    it cannot recover (a failed drain stays a reason)."""
+    rc, run_dir, _record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        config_identity=False,
+        drain=("noop", 3),
+    )
+    assert rc == 1
+    base = run_dir.parent.parent
+    manifest = _manifest(base, "controller_restart-r01")
+    reasons = " ".join(manifest["validity_reasons"])
+    assert "--config-identity-from" in reasons and "--drain-cmd" in reasons
+    assert (run_dir / checksums.SUMS_FILENAME).is_file()
+
+    rc = run_mod.collect_run(
+        "controller_restart-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        config_identity_from=_config_identity_file(tmp_path),
+    )
+    assert rc == 1  # the drain failed at run time; collect cannot undo that
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["configuration_identity"] == CONFIG_IDENTITY
+    assert manifest["configuration_identity_file"] == "configuration_identity.json"
+    reasons = manifest["validity_reasons"]
+    assert not any("--config-identity-from" in r for r in reasons)
+    assert any("--drain-cmd" in r for r in reasons)
+    assert "configuration_identity.json" in _sealed_names(run_dir)
+    assert checksums.verify_sha256sums(run_dir) == []
+    added = [
+        f for entry in manifest["collection_history"] for f in entry["added_files"]
+    ]
+    assert "configuration_identity.json" in added
+
+    # Idempotent: the same file again is a no-op, a different one is refused.
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01",
+            base_dir=base,
+            plan_path=plan_path,
+            config_identity_from=_config_identity_file(tmp_path),
+        )
+        == 1
+    )
+    other = tmp_path / "other-identity.json"
+    other.write_text(json.dumps({**CONFIG_IDENTITY, "a3_choice": "b"}), "utf-8")
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01",
+            base_dir=base,
+            plan_path=plan_path,
+            config_identity_from=other,
+        )
+        == 2
+    )
+
+
+def test_run_and_collect_cli_pass_the_item_18_flags_through(monkeypatch) -> None:
+    from egw_experiments import cli
+
+    seen: dict[str, dict] = {}
+
+    def fake_execute_run(plan_path, run_id, **kwargs):
+        seen["run"] = kwargs
+        return 0
+
+    def fake_collect_run(run_id, **kwargs):
+        seen["collect"] = kwargs
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    monkeypatch.setattr(cli, "collect_run", fake_collect_run)
+    assert (
+        cli.main(
+            [
+                "run",
+                "--run-id",
+                "controller_restart-r01",
+                "--fetch-broker-log-cmd",
+                "broker {dest}",
+                "--fetch-controller-log-cmd",
+                "controller {dest}",
+                "--fetch-docker-events-cmd",
+                "events {dest}",
+                "--twin-snapshot-cmd",
+                "snap {dest}",
+                "--drain-cmd",
+                "drain {run_id}",
+                "--post-drain-fetch-cmd",
+                "post {dest}",
+                "--config-identity-from",
+                "identity.json",
+            ]
+        )
+        == 0
+    )
+    run_kwargs = seen["run"]
+    assert run_kwargs["fetch_broker_log_cmd"] == "broker {dest}"
+    assert run_kwargs["fetch_controller_log_cmd"] == "controller {dest}"
+    assert run_kwargs["fetch_docker_events_cmd"] == "events {dest}"
+    assert run_kwargs["twin_snapshot_cmd"] == "snap {dest}"
+    assert run_kwargs["drain_cmd"] == "drain {run_id}"
+    assert run_kwargs["post_drain_fetch_cmd"] == "post {dest}"
+    assert run_kwargs["config_identity_from"] == "identity.json"
+    assert (
+        cli.main(
+            [
+                "collect",
+                "--run-id",
+                "controller_restart-r01",
+                "--config-identity-from",
+                "identity.json",
+            ]
+        )
+        == 0
+    )
+    assert seen["collect"]["config_identity_from"] == "identity.json"
