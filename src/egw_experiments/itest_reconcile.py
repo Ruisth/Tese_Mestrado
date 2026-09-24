@@ -28,7 +28,13 @@ Exit codes (the runbook's shell helpers test them):
      ``delta``: every line that was compared closed. A controller restart
      between the two /metrics snapshots (planned in the fault tests) is
      printed and leaves the status to the twins; a missing /metrics snapshot
-     is printed as not compared.
+     is printed as not compared. ``delta`` compares the twins with the run
+     directory's ``events.jsonl`` unless ``--events <file>`` names another
+     copy of the log (the runbook's test 6 names the post-drain copy,
+     ``events.post-drain.jsonl``: messages completed during the drain are in
+     the after twin but not in the timed copy, which keeps its deadline
+     accounting untouched); ``--also`` adds the log of another run id (the
+     warm-up), never a second copy of the same records.
 - 1  the step was NOT carried out: marker unavailable, a write-once file
      already exists, an input file is missing or malformed, the controller
      clock went backwards, ``wait`` gave up, Ditto unreachable.
@@ -470,12 +476,17 @@ def cmd_snap(args) -> int:
     return EXIT_OK
 
 
-# --- delta: per-device and per-process differences vs events.jsonl ---------
+# --- delta: per-device and per-process differences vs the event log --------
 def cmd_delta(args) -> int:
     prefix = args.prefix or args.run_dir
     before = load_devices(sib(prefix, f".twins.{args.frm}.json"))
     after = load_devices(sib(prefix, f".twins.{args.to}.json"))
-    primary = jsonl(Path(args.run_dir) / "events.jsonl")
+    # The log the twins are compared with: the run directory's timed copy,
+    # or the copy --events names (the post-drain copy of the runbook's test
+    # 6). The timed file is only ever read here.
+    events_path = Path(args.events) if args.events else Path(args.run_dir) / "events.jsonl"
+    log_name = events_path.name
+    primary = jsonl(events_path)
     events = list(primary)
     for path in args.also:
         events += jsonl(Path(path))
@@ -509,7 +520,7 @@ def cmd_delta(args) -> int:
     for device_uuid, count in accepted_by_device.items():
         if device_uuid not in before:
             ok = False
-            print(f"{device_uuid}: {count} accepted record(s) in events.jsonl "
+            print(f"{device_uuid}: {count} accepted record(s) in {log_name} "
                   f"but absent from the '{args.frm}' snapshot (another seed or "
                   "--devices than the run?): MISMATCH")
     for device_uuid, b in before.items():
@@ -536,7 +547,7 @@ def cmd_delta(args) -> int:
         print(f"{device_uuid} {b['device_type']}: existed_before={b['exists']} "
               f"accepted_count {b['ingestion']['accepted_count']} -> "
               f"{a['ingestion']['accepted_count']} (delta {d}); accepted "
-              f"records in events.jsonl {len(acc)}; last_run_id "
+              f"records in {log_name} {len(acc)}; last_run_id "
               f"{a['ingestion']['last_run_id']} last_seq "
               f"{a['ingestion']['last_seq']}: {'OK' if line_ok else 'MISMATCH'}")
     if len(readings) < 2:
@@ -556,7 +567,7 @@ def cmd_delta(args) -> int:
                 if key != "dropped":
                     same = dm == outcomes.get(key, 0)
                     ok = ok and same
-                    note = (f"; events.jsonl {outcomes.get(key, 0)}: "
+                    note = (f"; {log_name} {outcomes.get(key, 0)}: "
                             f"{'OK' if same else 'MISMATCH'}")
                 print(f"/metrics {key}: {mb[key]} -> {ma[key]} "
                       f"(delta {dm}){note}")
@@ -614,8 +625,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--prefix", default=None)
     s.add_argument("--from", dest="frm", default="before")
     s.add_argument("--to", default="after")
+    s.add_argument("--events", default=None,
+                   help="the copy of the event log to compare the twins with "
+                        "(default: <run_dir>/events.jsonl, the timed copy); "
+                        "the runbook's test 6 names the post-drain copy, "
+                        "events.post-drain.jsonl")
     s.add_argument("--also", action="append", default=[],
-                   help="extra events.jsonl (e.g. the harness warm-up run)")
+                   help="extra events.jsonl of ANOTHER run id (e.g. the "
+                        "harness warm-up run); never a second copy of the "
+                        "same records, which would be counted twice")
     s = sub.add_parser("same")
     s.add_argument("--prefix", required=True)
     s.add_argument("label_a")

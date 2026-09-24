@@ -869,7 +869,8 @@ run_test() {
 
 # harness_cmd <plan-run-id> [extra 'egw_experiments run' args...]: the harness command line against the pilot plan;
 # harness_run is the same command with a STOP when it exits non-zero (tests 1 and 6). Test 6 calls harness_cmd and reads
-# the verdict itself: its run is invalid by design until the collect line ingests the restart evidence.
+# the verdict itself: its run is invalid by design until the collect line ingests the restart evidence; it hands the
+# harness the configuration identity captured by config_identity (below) with --config-identity-from.
 # The collector is told the six services the run must account for (--expect-services, handed to it as {expect_services});
 # the fetch hook copies its CSV with the .diagnostics.log and .lifecycle.csv companions (and a .self-test marker, if any),
 # each checked against the guest's sha256, with the fetch script of the checkout in EGW_CLONE (set below).
@@ -886,6 +887,67 @@ harness_cmd() {
 }
 harness_run() {
   harness_cmd "$@" || stop "harness_run $1: egw_experiments run exited non-zero"
+}
+
+# config_identity <out-file>: the configuration identity the harness embeds in a run (--config-identity-from; run.py
+# configuration_identity_problems names the fields and their types): the sha256 and the six C1 options of the broker
+# configuration, whether the broker reloaded its configuration since the container started (a "Reloading config" line
+# in its log), the controller's stop_grace_period in compose.yaml, the controller image id and its source commit label
+# (org.opencontainers.image.revision), the paho-mqtt version installed in that image, and the A3 choice ("a"). Every
+# value is read on the guest in ONE ssh session. A value that is missing or not of the expected form stops and NO file
+# is written: the harness refuses an incomplete identity (the run is then invalid for a reason other than the restart
+# evidence), and a fabricated value would state what the run did not rest on. Write-once, like the snapshots.
+config_identity() {
+  local out=$1 raw rc
+  [ -n "$out" ] || { stop "config_identity: usage: config_identity <out-file>"; return 1; }
+  [ ! -e "$out" ] || { stop "config_identity: $out exists - NOT overwritten (a run id and its identity are captured once)"; return 1; }
+  raw=$(ssh egw-tcg 'cd /opt/egw/deployment || exit 3
+conf=mosquitto/config/mosquitto.conf
+echo "sha256=$(sudo sha256sum "$conf" | cut -d" " -f1)"
+for k in max_inflight_messages max_inflight_bytes max_queued_messages max_queued_bytes persistent_client_expiration sys_interval; do
+  echo "$k=$(sudo grep -E "^$k[[:space:]]" "$conf" | tail -n 1 | awk "{print \$2}")"
+done
+echo "reloaded=$(docker compose --env-file .env --env-file images.lock.env logs --no-color mosquitto | grep -c "Reloading config")"
+echo "stop_grace_period=$(awk "/^  controller:/{f=1; next} /^  [^ ]/{f=0} f && /stop_grace_period:/{print \$2}" compose.yaml)"
+image=$(docker inspect -f "{{.Image}}" egw-controller-1)
+echo "image=$image"
+echo "commit=$(docker inspect -f "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" "$image")"
+echo "paho=$(docker exec egw-controller-1 python -c "import importlib.metadata as m; print(m.version(\"paho-mqtt\"))")"'); rc=$?
+  [ "$rc" = 0 ] || { stop "config_identity: ssh egw-tcg exited $rc - nothing was written"; return 1; }
+  printf '%s\n' "$raw" | python3 -c '
+import json, re, sys
+out = sys.argv[1]
+v = {}
+for line in sys.stdin.read().splitlines():
+    k, sep, val = line.partition("=")
+    if sep:
+        v[k.strip()] = val.strip()
+def need(k, pattern, what):
+    x = v.get(k, "")
+    if not re.fullmatch(pattern, x):
+        print("config_identity: %s %s (found %r on the guest)" % (k, what, x), file=sys.stderr)
+        sys.exit(4)
+    return x
+values = {}
+for k in ("max_inflight_messages", "max_inflight_bytes", "max_queued_messages", "max_queued_bytes"):
+    values[k] = int(need(k, r"[0-9]+", "must be a non-negative integer"))
+values["persistent_client_expiration"] = need("persistent_client_expiration", r"\S+", "is missing")
+values["sys_interval"] = int(need("sys_interval", r"[0-9]+", "must be a non-negative integer"))
+doc = {
+    "broker_conf_sha256": need("sha256", r"[0-9a-f]{64}", "must be 64 hex characters"),
+    "broker_conf_values": values,
+    "broker_reloaded": int(need("reloaded", r"[0-9]+", "must be the count of Reloading config lines")) > 0,
+    "stop_grace_period": need("stop_grace_period", r"\S+", "is missing"),
+    "controller_image_id": need("image", r"sha256:[0-9a-f]{64}", "must be sha256: and 64 hex characters"),
+    "controller_source_commit": need("commit", r"[0-9a-f]{7,40}", "must be 7 to 40 hex characters"),
+    "paho_version": need("paho", r"\S+", "is missing"),
+    "a3_choice": "a",
+}
+with open(out, "x", encoding="utf-8") as fh:
+    json.dump(doc, fh, indent=2)
+    fh.write("\n")
+print("config_identity: wrote %s" % out)
+' "$out" || { stop "config_identity: the capture is incomplete or not of the expected form (the line above names the field) - no file was written"; return 1; }
 }
 
 # .env sets EGW_SCHEMA_DIR=src/schemas, which resolves only from the clone root: an
@@ -927,6 +989,7 @@ How the helpers enforce the order (what each one refuses to do):
 | `sim_post <run-id> <sim args>` | simulator (stderr teed to `<run-id>.stderr.txt`), then `post` immediately **whatever the simulator's exit status**, then one `TEST STATUS` line | the transcript file cannot be created (the simulator is then **not** started); simulator exit ≠ 0, `tee` exit ≠ 0, an empty transcript or `post` ≠ 0 — the marker and the evidence are still collected |
 | `run_test <run-id> <seed> [sim args]` | `pre`, and only then `sim_post` with the same seed (and `DEVICES`, if set) | `pre` fails: `TEST STATUS <id>: precondition failed -> simulator NOT started` |
 | `harness_run <plan-run-id> [args]` | one `egw_experiments run` against the pilot plan, with the six expected services and the fetch of the collector's CSV and companions (Section 7, test 1); `harness_cmd` is the same command line without the stop, for test 6, whose run is invalid by design until its restart evidence is ingested | the harness exits non-zero, which includes an invalid run: a collector hook that exits non-zero, a missing companion or an expected service without rows makes the run invalid |
+| `config_identity <out-file>` | the configuration identity of the guest stack in one JSON file, as the harness validates it (`--config-identity-from`, test 6): the broker configuration's sha256 and its six C1 options, whether the broker reloaded its configuration since the container started, the controller's `stop_grace_period`, the controller image id and its `org.opencontainers.image.revision` label, the `paho-mqtt` version in that image, `a3_choice` `a`; read on the guest in one `ssh` session, written write-once | the file exists; `ssh` exits non-zero; a value missing or not of the expected form (nothing is written: the harness refuses an incomplete identity, and a fabricated value would state what the run did not rest on) |
 
 `TEST STATUS ... PROCEDURE COMPLETE` means only that every step ran and that `check` and `delta` exited 0. It is **not** the verdict of a test: `check` exits 0 also when `lost > 0` (it reports, it does not judge — `itest_reconcile.py`, `cmd_check`), so the acceptance of each test remains its **Expected** list, read from the printed values. No helper relaxes or replaces an acceptance criterion.
 
@@ -1151,11 +1214,11 @@ host$ RID=controller_restart-r01    # deterministic (controller_restart-r01..r03
 host$ SEED=$(python3 -c "import json;p=json.load(open('$HOME/egw-tcg/pilot/campaign_plan.json'));print(next(r['seed'] for r in p['runs'] if r['run_id']=='$RID'))")
 host$ RESTART="ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'"
 host$ RAW6=~/egw-tcg/pilot/results/raw/$RID     # the next line calls harness_cmd (6.1), harness_run's command WITHOUT its STOP: this run is invalid by design until the collect line below ingests its restart evidence (ADR 0011, item 18: a controller_restart run without the twin snapshots, the drain and the post-drain events is invalid, and no flag excuses them), so the harness exits 1 here and harness_run would stop the flow; that line tells the expected state from any other defect
-host$ T6=stop; if [ -n "$SEED" ] && wait_ready && drained && $REC snap --prefix $P/$RID --label before --seed $SEED; then harness_cmd $RID --restart-cmd "$RESTART" --restart-at-s 300; HR=$?; if [ "$HR" != 2 ] && [ -s $RAW6/SHA256SUMS ] && python3 -c "import json,sys; m=json.load(open('$RAW6/manifest.json')); o=[r for r in m['validity_reasons'] if 'without its restart evidence step' not in r]; [print('OTHER INVALID: '+r) for r in o]; sys.exit(1 if o else 0)"; then T6=ok; echo "test 6: harness exit=$HR (1 is expected here: the run is invalid only for the restart evidence the collect line below ingests), run directory sealed"; else stop "test 6: the harness run was not sealed, exited 2, or is invalid for another reason than the restart evidence (the [harness] INVALID and OTHER INVALID lines above) - do not continue"; fi; else stop "test 6: no seed, not ready, not drained or no 'before' snapshot - the harness run was NOT started"; fi     # the plan's derived seed, not 42: these are other devices; the before/after twin snapshots, the drain transcript and the post-drain copy of the events are taken by the helpers around this line and ingested, verified against this run, by the collect line (the proof's session driver hands the harness its own templates instead); the python3 check filters the harness's reasons on the phrase every "step not taken" reason carries, so any OTHER reason (restart not fired, a collector hook failed, ...) stops here
-host$ if [ "$T6" = ok ]; then drained 2>&1 | tee $P/$RID.drained.txt; DR=("${PIPESTATUS[@]}"); if [ "${DR[1]}" != 0 ] || [ ! -s $P/$RID.drained.txt ]; then stop "test 6: the drain transcript $P/$RID.drained.txt was NOT written (tee exit=${DR[1]}) - do not continue"; elif [ "${DR[0]}" = 0 ]; then T6=drained; echo "test 6: drained (transcript $P/$RID.drained.txt)"; else python -m egw_experiments collect --run-id $RID --plan ~/egw-tcg/pilot/campaign_plan.json --base-dir ~/egw-tcg/pilot/results --twins-before-from $P/$RID.twins.before.json --drain-transcript-from $P/$RID.drained.txt; T6=gaveup; stop "test 6: 'drained' gave up or failed (exit ${DR[0]}): the 'before' snapshot and the transcript were ingested, so the outcome is recorded (manifest drain.outcome 'gave-up' = a failed recovery, retained as a valid observation, collect exit 0; 'error' = an instrument failure, the run invalid, collect exit 1) - no 'after' snapshot and no delta on this run"; fi; else stop "test 6: harness run not sealed (T6='$T6') - the drain was NOT run"; fi     # the transcript carries both streams of 'drained' (DR copies PIPESTATUS at once, as 6.2 does): 'collect' classifies it exactly as it classifies a --drain-cmd hook's output (its quiet line, its give-up line, anything else an error); a 'drained' that gave up prints its own STOP: and is a failed recovery, kept as a result, so it is ingested before this line stops the test
+host$ T6=stop; if [ -n "$SEED" ] && wait_ready && drained && $REC snap --prefix $P/$RID --label before --seed $SEED && config_identity $P/$RID.config_identity.json; then harness_cmd $RID --restart-cmd "$RESTART" --restart-at-s 300 --config-identity-from $P/$RID.config_identity.json; HR=$?; if [ "$HR" != 2 ] && [ -s $RAW6/SHA256SUMS ] && python3 -c "import json,sys; m=json.load(open('$RAW6/manifest.json')); o=[r for r in m['validity_reasons'] if 'without its restart evidence step' not in r]; [print('OTHER INVALID: '+r) for r in o]; sys.exit(1 if o else 0)"; then T6=ok; echo "test 6: harness exit=$HR (1 is expected here: the run is invalid only for the restart evidence the collect line below ingests), run directory sealed"; else stop "test 6: the harness run was not sealed, exited 2, or is invalid for another reason than the restart evidence (the [harness] INVALID and OTHER INVALID lines above) - do not continue"; fi; else stop "test 6: no seed, not ready, not drained, no 'before' snapshot or no configuration identity - the harness run was NOT started"; fi     # the plan's derived seed, not 42: these are other devices; the configuration identity is captured on the guest by config_identity (6.1) BEFORE the harness starts and handed to it with --config-identity-from, so the manifest embeds it and the run is not invalid for its absence (an incomplete file is refused by the harness, and that refusal is an OTHER INVALID line here); the before/after twin snapshots, the drain transcript and the post-drain copy of the events are taken by the helpers around this line and ingested, verified against this run, by the collect line (the proof's session driver hands the harness its own templates instead); the python3 check filters the harness's reasons on the phrase every "step not taken" reason carries, so any OTHER reason (restart not fired, a collector hook failed, a missing or incomplete configuration identity, ...) stops here
+host$ if [ "$T6" = ok ]; then printf 'run_id=%s captured_utc=%s\n' "$RID" "$(date -u +%FT%TZ)" > $P/$RID.drained.txt; drained 2>&1 | tee -a $P/$RID.drained.txt; DR=("${PIPESTATUS[@]}"); if [ "${DR[1]}" != 0 ] || [ ! -s $P/$RID.drained.txt ]; then stop "test 6: the drain transcript $P/$RID.drained.txt was NOT written (tee exit=${DR[1]}) - do not continue"; elif [ "${DR[0]}" = 0 ]; then T6=drained; echo "test 6: drained (transcript $P/$RID.drained.txt)"; else python -m egw_experiments collect --run-id $RID --plan ~/egw-tcg/pilot/campaign_plan.json --base-dir ~/egw-tcg/pilot/results --twins-before-from $P/$RID.twins.before.json --drain-transcript-from $P/$RID.drained.txt; T6=gaveup; stop "test 6: 'drained' gave up or failed (exit ${DR[0]}): the 'before' snapshot and the transcript were ingested, so the outcome is recorded (manifest drain.outcome 'gave-up' = a failed recovery, retained as a valid observation, collect exit 0; 'error' = an instrument failure, the run invalid, collect exit 1) - no 'after' snapshot and no delta on this run"; fi; else stop "test 6: harness run not sealed (T6='$T6') - the drain was NOT run"; fi     # the transcript starts with an envelope line - this run id and the UTC instant, written before 'drained' runs - and then carries both streams of 'drained' through tee -a (DR copies PIPESTATUS at once, as 6.2 does): 'collect' binds the file to this run by that envelope (a transcript without it, of another run id, or with an instant before this run's measured window ended is refused naming the reason: an old file that holds a quiet line is never this run's drain) and classifies the rest exactly as it classifies a --drain-cmd hook's output (its quiet line, its give-up line, anything else an error); a 'drained' that gave up prints its own STOP: and is a failed recovery, kept as a result, so it is ingested before this line stops the test
 host$ [ "$T6" = drained ] && scp -q "egw-tcg:/opt/egw/deployment/data/events/$RID/events.jsonl" $P/$RID.events.post-drain.jsonl && [ -s $P/$RID.events.post-drain.jsonl ] && $REC snap --prefix $P/$RID --label after && T6=captured || stop "test 6: not drained (T6='$T6'), the post-drain copy of the events NOT fetched, or the 'after' snapshot NOT taken - do not run collect or delta"     # the second copy of the events, taken after the drain and kept apart from the harness copy (events.post-drain.jsonl in the run directory once ingested), then the 'after' twin snapshot (--like before: the devices of the 'before' file, seed null)
 host$ [ "$T6" = captured ] && python -m egw_experiments collect --run-id $RID --plan ~/egw-tcg/pilot/campaign_plan.json --base-dir ~/egw-tcg/pilot/results --twins-before-from $P/$RID.twins.before.json --twins-after-from $P/$RID.twins.after.json --post-drain-events-from $P/$RID.events.post-drain.jsonl --drain-transcript-from $P/$RID.drained.txt && T6=collected || stop "test 6: 'after' state not captured (T6='$T6'), or collect exited non-zero (an artefact refused - wrong run, wrong label, wrong seed - or the run invalid: read the [collect] INVALID lines) - do not run delta"     # each file is verified against this run before it counts (the snapshot's label and seed, every event's run_id and outcome, the transcript's quiet or give-up line), copied write-once into the run directory under the hook's name, sealed, and recorded with its source path and sha256 (manifest twin_snapshots, drain, events_post_drain_fetch: source 'ingested'); collect exits 0 only when the run is then valid
-host$ [ "$T6" = collected ] && $REC delta ~/egw-tcg/pilot/results/raw/$RID --prefix $P/$RID || stop "test 6: delta NOT run (T6='$T6') or it exited non-zero (4 = MISMATCH)"     # twins only: no /metrics snapshots are given, and the process counters restart from zero at the restart anyway
+host$ [ "$T6" = collected ] && $REC delta ~/egw-tcg/pilot/results/raw/$RID --prefix $P/$RID --events $RAW6/events.post-drain.jsonl || stop "test 6: delta NOT run (T6='$T6') or it exited non-zero (4 = MISMATCH)"     # twins only: no /metrics snapshots are given, and the process counters restart from zero at the restart anyway; --events names the post-drain copy the collect line sealed in the run directory: the messages completed during the drain are in the 'after' twin but not in the timed events.jsonl, which keeps its deadline accounting untouched (comparing the twins with the timed copy would report a false MISMATCH by exactly those records, and adding the post-drain copy with --also would count the shared records twice)
 host$ python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json
 ```
 

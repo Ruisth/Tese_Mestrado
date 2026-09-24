@@ -26,6 +26,7 @@ from egw_experiments import checksums, plan_gen
 from egw_experiments import controller_metrics as metrics_mod
 from egw_experiments import resources as resources_mod
 from egw_experiments import run as run_mod
+from egw_simulator.devices import DEVICE_TYPES, device_uuid_for
 
 PY = Path(sys.executable).as_posix()
 
@@ -4840,11 +4841,17 @@ name = Path(dest).name
 if flags[0] == "write":
     Path(dest).parent.mkdir(parents=True, exist_ok=True)
     if name.startswith("twins."):
+        # The run's devices (a JSON object the test wrote) when the mode
+        # names them; an unrelated device otherwise.
+        if "devices" in opts:
+            devices = json.loads(Path(opts["devices"]).read_text(encoding="utf-8"))
+        else:
+            devices = {"a" * 8: {"device_type": "smartwatch", "exists": True,
+                                 "ingestion": {"accepted_count": 1}}}
         body = json.dumps({
             "label": name.split(".")[1],
             "seed": None,
-            "devices": {"a" * 8: {"device_type": "smartwatch", "exists": True,
-                                  "ingestion": {"accepted_count": 1}}},
+            "devices": devices,
         }) + "\\n"
     elif name == "events.post-drain.jsonl":
         body = json.dumps({"run_id": opts.get("run", run_id), "outcome": "accepted",
@@ -4887,18 +4894,69 @@ def _plan_seed(plan_path: Path, run_id: str) -> int:
     return int(next(r["seed"] for r in plan["runs"] if r["run_id"] == run_id))
 
 
-def _twins_file(
-    tmp_path: Path, label: str, *, seed: int | None = None, name: str | None = None, **overrides: Any
-) -> Path:
-    """A twin snapshot as itest_reconcile's `snap` writes it (label, seed,
-    devices), with ``overrides`` applied on top."""
-    doc: dict[str, Any] = {
-        "label": label,
-        "seed": seed,
-        "devices": {
-            "b" * 8: {"device_type": "smartwatch", "exists": True, "ingestion": {"accepted_count": 3}}
+#: The instant the runbook's test 6 line stamps in the envelope of a drain
+#: transcript (`run_id=<id> captured_utc=<instant>`), as the fixtures use it:
+#: after the fake clock's measured window (2026-09-07T10:00, 100 ms ticks) and
+#: before any real collection instant.
+CAPTURED_UTC = "2026-09-07T10:30:00Z"
+
+
+def _snapshot_devices(
+    seed: int, *, exists: bool = True, accepted_count: int | None = 3
+) -> dict[str, dict[str, Any]]:
+    """The ``devices`` object of a snapshot of the run whose seed is ``seed``:
+    the identities egw_simulator.devices.make_devices derives from it, each
+    entry as itest_reconcile's `snap` writes it. An absent twin (``exists``
+    false) carries null ingestion values, as `snap` records a 404."""
+    ingestion: dict[str, Any] = {
+        "last_run_id": "itest-earlier" if exists else None,
+        "last_seq": 9 if exists else None,
+        "last_message_id": None,
+        "last_ts": None,
+        "accepted_count": accepted_count if exists else None,
+    }
+    return {
+        device_uuid: {"device_type": device_type, "exists": exists, "ingestion": dict(ingestion)}
+        for device_uuid, device_type in run_mod.expected_twin_devices(seed).items()
+    }
+
+
+#: A well-formed entry of a device no plan seed determines: what a snapshot
+#: taken with another seed, or of the wrong stack, holds.
+UNRELATED_DEVICES: dict[str, dict[str, Any]] = {
+    "b" * 8: {
+        "device_type": "smartwatch",
+        "exists": True,
+        "ingestion": {
+            "last_run_id": None,
+            "last_seq": None,
+            "last_message_id": None,
+            "last_ts": None,
+            "accepted_count": 3,
         },
     }
+}
+
+
+def _twins_file(
+    tmp_path: Path,
+    label: str,
+    *,
+    seed: int | None = None,
+    devices_seed: int | None = None,
+    devices: dict[str, Any] | None = None,
+    name: str | None = None,
+    **overrides: Any,
+) -> Path:
+    """A twin snapshot as itest_reconcile's `snap` writes it (label, seed,
+    devices), with ``overrides`` applied on top. The devices are the run's
+    (``devices_seed``, else ``seed``: a `--like` snapshot carries seed null
+    and the devices of the before file) unless ``devices`` gives them; with
+    neither seed they are UNRELATED_DEVICES."""
+    if devices is None:
+        origin = devices_seed if devices_seed is not None else seed
+        devices = _snapshot_devices(origin) if origin is not None else UNRELATED_DEVICES
+    doc: dict[str, Any] = {"label": label, "seed": seed, "devices": devices}
     doc.update(overrides)
     path = tmp_path / (name or f"external.twins.{label}.json")
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
@@ -4923,9 +4981,26 @@ def _post_drain_events_file(
     return path
 
 
-def _drain_transcript(tmp_path: Path, text: str, *, name: str = "external.drained.txt") -> Path:
+def _envelope(run_id: str, captured_utc: str = CAPTURED_UTC) -> str:
+    """The first line of a transcript taken by the runbook's test 6 line
+    (`printf 'run_id=%s captured_utc=%s\\n' "$RID" "$(date -u +%FT%TZ)"`)."""
+    return f"run_id={run_id} captured_utc={captured_utc}\n"
+
+
+def _drain_transcript(
+    tmp_path: Path,
+    text: str,
+    *,
+    run_id: str | None = None,
+    captured_utc: str = CAPTURED_UTC,
+    name: str = "external.drained.txt",
+) -> Path:
+    """A drain transcript file: with ``run_id``, the envelope line the runbook
+    writes before the helper runs, then ``text`` (what `drained 2>&1 | tee
+    -a` appends); without it, ``text`` alone."""
     path = tmp_path / name
-    path.write_text(text, encoding="utf-8")
+    body = (_envelope(run_id, captured_utc) if run_id is not None else "") + text
+    path.write_text(body, encoding="utf-8")
     return path
 
 RESTART_SCRIPT = """\
@@ -4993,6 +5068,16 @@ def _item18_run(
     monkeypatch.setattr(run_mod, "_run_subprocess", recording_subprocess)
     log_fetch = log_fetch or {}
     base = tmp_path / "results"
+    # The snapshot hook writes the devices of THIS run (F6a: a snapshot of
+    # other devices is refused), handed to the fake script as a file.
+    devices_file = tmp_path / f"snapshot-devices-{run_id}.json"
+    devices_file.write_text(
+        json.dumps(_snapshot_devices(_plan_seed(plan_path, run_id))), encoding="utf-8"
+    )
+    snapshot_mode, snapshot_rc = snapshot
+    if snapshot_mode.startswith("write") and "devices:" not in snapshot_mode:
+        snapshot_mode += "+devices:" + devices_file.as_posix()
+    snapshot = (snapshot_mode, snapshot_rc)
     kwargs: dict[str, Any] = dict(
         base_dir=base,
         no_tls=True,
@@ -5829,12 +5914,16 @@ def _bare_restart_run(tmp_path: Path, plan_path: Path, fast_run, monkeypatch) ->
 
 
 def _external_evidence(tmp_path: Path, plan_path: Path, run_id: str, *, drain: str = DRAIN_QUIET_LINE) -> dict[str, Path]:
+    """The four files the runbook's helpers take for ``run_id``: the before
+    snapshot by seed, the after one as `--like before` writes it (seed null,
+    the before file's devices), the post-drain events and the transcript
+    with the envelope the test 6 line writes before `drained` runs."""
     seed = _plan_seed(plan_path, run_id)
     return dict(
         twins_before_from=_twins_file(tmp_path, "before", seed=seed),
-        twins_after_from=_twins_file(tmp_path, "after", seed=seed),
+        twins_after_from=_twins_file(tmp_path, "after", devices_seed=seed),
         post_drain_events_from=_post_drain_events_file(tmp_path, run_id),
-        drain_transcript_from=_drain_transcript(tmp_path, drain),
+        drain_transcript_from=_drain_transcript(tmp_path, drain, run_id=run_id),
     )
 
 
@@ -5875,7 +5964,12 @@ def test_collect_ingests_verified_external_restart_evidence_with_provenance(
     assert drain["file"] == "logs/sut/drain.txt"
     assert drain["sha256"] == checksums.sha256_file(run_dir / "logs" / "sut" / "drain.txt")
     assert "logs/sut/drain.txt" in sealed
-    assert (run_dir / "logs" / "sut" / "drain.txt").read_text(encoding="utf-8") == DRAIN_QUIET_LINE
+    # The transcript is kept whole: the envelope that binds it to this run
+    # (F6a) and the helper's line, exactly as `tee -a` left them.
+    assert (run_dir / "logs" / "sut" / "drain.txt").read_text(encoding="utf-8") == (
+        _envelope("controller_restart-r01") + DRAIN_QUIET_LINE
+    )
+    assert drain["captured_utc"] == CAPTURED_UTC
 
     post_drain = manifest["events_post_drain_fetch"]
     assert post_drain["source"] == "ingested"
@@ -5901,10 +5995,12 @@ def test_collect_ingests_verified_external_restart_evidence_with_provenance(
     # Idempotent: the same files again are no-ops and the run stays valid.
     assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
     assert checksums.verify_sha256sums(run_dir) == []
-    # A different snapshot for the same file is refused (write-once).
+    # A different snapshot for the same file is refused (write-once): one
+    # that verifies (this run's devices) but differs in content.
+    seed = _plan_seed(plan_path, "controller_restart-r01")
     other = _twins_file(
-        tmp_path, "before", seed=_plan_seed(plan_path, "controller_restart-r01"),
-        name="other.before.json", devices={"c" * 8: {"device_type": "vest", "exists": False, "ingestion": {}}},
+        tmp_path, "before", seed=seed, name="other.before.json",
+        devices=_snapshot_devices(seed, accepted_count=99),
     )
     assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, twins_before_from=other) == 2
 
@@ -5971,9 +6067,18 @@ def test_collect_names_a_missing_external_file_as_a_reason(
     )
     assert rc == 1
     manifest = _manifest(base, "controller_restart-r01")
-    (reason,) = manifest["validity_reasons"]
-    assert expected in reason and "absent-file" in reason and "not found" in reason
+    reasons = manifest["validity_reasons"]
+    reason = next(r for r in reasons if expected in r and "not found" in r)
+    assert "absent-file" in reason
     assert any(expected in w and "not found" in w for w in manifest["warnings"])
+    others = [r for r in reasons if r != reason]
+    if key == "twins_before_from":
+        # Without a verified before snapshot the after one has nothing to
+        # bind to (F6a) and is refused as well.
+        (after,) = others
+        assert "--twins-after-from" in after and "no verified before snapshot" in after
+    else:
+        assert others == []
 
 
 def test_collect_ingests_a_gave_up_transcript_without_requiring_the_after_evidence(
@@ -5990,14 +6095,16 @@ def test_collect_ingests_a_gave_up_transcript_without_requiring_the_after_eviden
         base_dir=base,
         plan_path=plan_path,
         twins_before_from=_twins_file(tmp_path, "before", seed=seed),
-        drain_transcript_from=_drain_transcript(tmp_path, DRAIN_GAVE_UP_LINE),
+        drain_transcript_from=_drain_transcript(
+            tmp_path, DRAIN_GAVE_UP_LINE, run_id="controller_restart-r01"
+        ),
     )
     assert rc == 0
     manifest = _manifest(base, "controller_restart-r01")
     assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
     drain = manifest["drain"]
     assert drain["outcome"] == "gave-up" and drain["source"] == "ingested"
-    assert drain["verified"] is True
+    assert drain["verified"] is True and drain["captured_utc"] == CAPTURED_UTC
     assert [s["file"] for s in manifest["twin_snapshots"]] == ["twins.before.json"]
     assert manifest["events_post_drain_fetch"] is None
     (warning,) = [w for w in manifest["warnings"] if "failed recovery" in w]
@@ -6058,10 +6165,84 @@ def test_collect_refuses_a_snapshot_of_another_label_or_seed(
     assert f"seed {seed + 1}" in after and f"{seed}" in after
     assert not (run_dir / "twins.before.json").exists()
     assert not (run_dir / "twins.after.json").exists()
-    # A snapshot whose seed is null is accepted (the helper's `--like` form).
-    files["twins_before_from"] = _twins_file(tmp_path, "before", name="no-seed-before.json")
-    files["twins_after_from"] = _twins_file(tmp_path, "after", name="no-seed-after.json")
+    # A snapshot whose seed is null is accepted when it holds this run's
+    # devices (the helper's `--like` form derives them from the before file).
+    files["twins_before_from"] = _twins_file(tmp_path, "before", devices_seed=seed, name="no-seed-before.json")
+    files["twins_after_from"] = _twins_file(tmp_path, "after", devices_seed=seed, name="no-seed-after.json")
     assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
+
+
+# ---------------------------------------------------------------------------
+# F6a: a snapshot is this run's only when it names the devices the plan
+# entry's seed determines, with the structure `snap` writes; the after
+# snapshot is bound to the verified before; a drain transcript taken outside
+# the harness is bound to the run by its envelope
+# ---------------------------------------------------------------------------
+
+SEED = 7
+RUN_DEVICES = run_mod.expected_twin_devices(SEED)
+FIRST = next(iter(RUN_DEVICES))
+
+
+def test_twin_ingestion_keys_are_the_helpers() -> None:
+    """The structure the harness demands of a snapshot entry is the one the
+    runbook's `snap` writes: the same keys, in the same order."""
+    from egw_experiments import itest_reconcile
+
+    assert tuple(run_mod.TWIN_INGESTION_TYPES) == itest_reconcile.INGESTION_KEYS
+
+
+def test_expected_twin_devices_are_the_simulators_for_the_seed() -> None:
+    assert RUN_DEVICES == {device_uuid_for(SEED, t): t for t in DEVICE_TYPES}
+    assert len(RUN_DEVICES) == 3
+    assert run_mod.expected_twin_devices(SEED, ("smartwatch",)) == {
+        device_uuid_for(SEED, "smartwatch"): "smartwatch"
+    }
+
+
+def _doc(label: str = "before", seed: int | None = SEED, devices: dict | None = None) -> dict:
+    return {
+        "label": label,
+        "seed": seed,
+        "devices": devices if devices is not None else _snapshot_devices(SEED),
+    }
+
+
+def _entry(**changes: Any) -> dict:
+    """A good document with the first device's entry changed."""
+    doc = _doc()
+    doc["devices"][FIRST].update(changes)
+    return doc
+
+
+def _ingestion(**changes: Any) -> dict:
+    doc = _doc()
+    doc["devices"][FIRST]["ingestion"].update(changes)
+    return doc
+
+
+def _without_key(key: str) -> dict:
+    doc = _doc()
+    del doc["devices"][FIRST]["ingestion"][key]
+    return doc
+
+
+def _without_device() -> dict:
+    doc = _doc()
+    del doc["devices"][FIRST]
+    return doc
+
+
+def _with_extra_device() -> dict:
+    doc = _doc()
+    doc["devices"].update(UNRELATED_DEVICES)
+    return doc
+
+
+def _entry_not_an_object() -> dict:
+    doc = _doc()
+    doc["devices"][FIRST] = "x"
+    return doc
 
 
 @pytest.mark.parametrize(
@@ -6070,20 +6251,264 @@ def test_collect_refuses_a_snapshot_of_another_label_or_seed(
         ([], "not an object"),
         ({"label": "before", "seed": None}, "devices must be a JSON object"),
         ({"label": "before", "seed": None, "devices": []}, "devices must be a JSON object"),
-        ({"label": "before", "seed": None, "devices": {}}, "no device"),
-        ({"label": "after", "seed": None, "devices": {"x": {}}}, "label must be 'before'"),
-        ({"label": "before", "seed": 8, "devices": {"x": {}}}, "seed 8"),
+        (_doc(devices={}), "no device"),
+        (_doc(label="after"), "label must be 'before'"),
+        (_doc(seed=SEED + 1), f"seed {SEED + 1}"),
+        # a null-seed snapshot of unrelated devices: the F6a case
+        (_doc(seed=None, devices=UNRELATED_DEVICES), "not the devices of this run"),
+        (_doc(seed=None, devices=_snapshot_devices(SEED + 1)), "not the devices of this run"),
+        (_without_device(), "lacks 1 of the devices of this run"),
+        (_with_extra_device(), "not the devices of this run"),
+        (_entry_not_an_object(), "not an object"),
+        (_entry(device_type="smart_ring"), "device_type must be"),
+        (_entry(exists="yes"), "exists must be a boolean"),
+        (_entry(ingestion=None), "ingestion must be a JSON object"),
+        (_entry(ingestion={"accepted_count": 1}), "ingestion keys must be"),
+        (_without_key("last_ts"), "ingestion keys must be"),
+        (_ingestion(extra=1), "ingestion keys must be"),
+        (_ingestion(accepted_count="3"), "ingestion.accepted_count"),
+        (_ingestion(accepted_count=-1), "ingestion.accepted_count"),
+        (_ingestion(last_seq=True), "ingestion.last_seq"),
+        (_ingestion(last_run_id=5), "ingestion.last_run_id"),
+        (_ingestion(last_ts=1.5), "ingestion.last_ts"),
+        (_entry(exists=False), "exists is false but ingestion carries"),
     ],
 )
 def test_twin_snapshot_problems(document, problem) -> None:
-    problems = run_mod.twin_snapshot_problems(document, label="before", seed=7)
+    problems = run_mod.twin_snapshot_problems(
+        document, label="before", seed=SEED, devices=RUN_DEVICES,
+        devices_origin="the devices of this run",
+    )
     assert problems and any(problem in p for p in problems), problems
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        _doc(),
+        _doc(seed=None),  # the `--like` form: seed null, this run's devices
+        _doc(devices=_snapshot_devices(SEED, exists=False)),  # absent twins
+        _ingestion(last_run_id=None, last_seq=None, accepted_count=None),  # no feature yet
+        _ingestion(last_message_id="m-1", last_ts="2026-09-07T10:00:00.000Z"),
+    ],
+)
+def test_twin_snapshot_problems_accepts_the_helpers_format(document) -> None:
     assert run_mod.twin_snapshot_problems(
-        {"label": "before", "seed": 7, "devices": {"x": {}}}, label="before", seed=7
+        document, label="before", seed=SEED, devices=RUN_DEVICES,
+        devices_origin="the devices of this run",
     ) == []
-    assert run_mod.twin_snapshot_problems(
-        {"label": "before", "seed": None, "devices": {"x": {}}}, label="before", seed=7
-    ) == []
+
+
+def test_twin_snapshot_problems_without_a_device_set_names_why() -> None:
+    """No expected devices (a run without a seed, or an after snapshot with
+    no verified before): the snapshot cannot be shown to be the run's."""
+    problems = run_mod.twin_snapshot_problems(
+        _doc(), label="before", seed=None, devices=None,
+        devices_origin="no verified before snapshot to bind the after snapshot to",
+    )
+    assert problems == ["no verified before snapshot to bind the after snapshot to"]
+
+
+def test_collect_refuses_a_null_seed_before_snapshot_of_other_devices(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F6a: a `--like`-shaped before snapshot (seed null) of devices no plan
+    seed determines is refused, naming them; the after snapshot then has no
+    verified before to bind to and is refused as well."""
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files["twins_before_from"] = _twins_file(
+        tmp_path, "before", devices_seed=seed + 1, name="other-devices.json"
+    )
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    reasons = manifest["validity_reasons"]
+    assert len(reasons) == 2
+    before = next(r for r in reasons if "--twins-before-from" in r)
+    assert "not the devices of this run" in before and f"seed {seed}" in before
+    assert any(u in before for u in run_mod.expected_twin_devices(seed + 1))
+    after = next(r for r in reasons if "--twins-after-from" in r)
+    assert "no verified before snapshot" in after
+    assert not (run_dir / "twins.before.json").exists()
+    assert not (run_dir / "twins.after.json").exists()
+    for record in manifest["twin_snapshots"]:
+        assert record["verified"] is False and record["sha256"] is None
+    # The drain and the post-drain events were verified on their own.
+    assert manifest["drain"]["verified"] is True
+    assert manifest["events_post_drain_fetch"]["verified"] is True
+
+
+def test_collect_binds_the_after_snapshot_to_the_verified_before(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F6a: the after snapshot must hold exactly the devices of the verified
+    before snapshot (what `snap --like before` reads); one of other devices
+    is refused although its seed is null, and the right one then passes."""
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files["twins_after_from"] = _twins_file(
+        tmp_path, "after", devices_seed=seed + 1, name="after-other-devices.json"
+    )
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    (reason,) = manifest["validity_reasons"]
+    assert "--twins-after-from" in reason
+    assert "not the devices of the verified before snapshot" in reason
+    assert (run_dir / "twins.before.json").is_file()
+    assert not (run_dir / "twins.after.json").exists()
+    # An after snapshot lacking one of the before's devices is refused too.
+    partial = _snapshot_devices(seed)
+    del partial[next(iter(partial))]
+    files["twins_after_from"] = _twins_file(tmp_path, "after", devices=partial, name="after-partial.json")
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 1
+    (reason,) = _manifest(base, "controller_restart-r01")["validity_reasons"]
+    assert "lacks 1 of the devices of the verified before snapshot" in reason
+    # The right after file, on a later pass, binds to the before ingested
+    # earlier and the run becomes valid.
+    files["twins_after_from"] = _twins_file(tmp_path, "after", devices_seed=seed, name="after-right.json")
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "valid"
+    assert [s["verified"] for s in manifest["twin_snapshots"]] == [True, True]
+
+
+def test_collect_accepts_a_before_snapshot_of_absent_twins(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A legitimate before snapshot of twins that do not exist yet (exists
+    false, null ingestion) is this run's: nothing requires it to carry the
+    measured run's last_run_id."""
+    base, _run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files["twins_before_from"] = _twins_file(
+        tmp_path, "before", seed=seed, devices=_snapshot_devices(seed, exists=False), name="absent.json"
+    )
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "valid"
+    assert [s["verified"] for s in manifest["twin_snapshots"]] == [True, True]
+
+
+@pytest.mark.parametrize(
+    "devices, problem",
+    [
+        ({u: {**e, "ingestion": {"accepted_count": 3}} for u, e in _snapshot_devices(SEED).items()}, "ingestion keys must be"),
+        ({u: {**e, "exists": "true"} for u, e in _snapshot_devices(SEED).items()}, "exists must be a boolean"),
+        ({u: [e] for u, e in _snapshot_devices(SEED).items()}, "not an object"),
+    ],
+)
+def test_collect_refuses_a_snapshot_with_malformed_entries(
+    tmp_path, plan_path, fast_run, monkeypatch, devices, problem
+) -> None:
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    # The entries are of this run's devices but not of the helper's shape.
+    wrong = {device_uuid_for(seed, t): devices[device_uuid_for(SEED, t)] for t in DEVICE_TYPES}
+    files["twins_before_from"] = _twins_file(tmp_path, "before", seed=seed, devices=wrong, name="malformed.json")
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    before = next(r for r in manifest["validity_reasons"] if "--twins-before-from" in r)
+    assert problem in before
+    assert not (run_dir / "twins.before.json").exists()
+
+
+def _future_utc() -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@pytest.mark.parametrize(
+    "text, problem",
+    [
+        (DRAIN_QUIET_LINE, "not the envelope"),
+        ("\n" + _envelope("controller_restart-r01") + DRAIN_QUIET_LINE, "not the envelope"),
+        (_envelope("controller_restart-r02") + DRAIN_QUIET_LINE, "run 'controller_restart-r02', not 'controller_restart-r01'"),
+        (_envelope("controller_restart-r01", "2026-09-07T09:00:00Z") + DRAIN_QUIET_LINE, "not later than the run's measured window end"),
+        (_envelope("controller_restart-r01", _future_utc()) + DRAIN_QUIET_LINE, "later than the collection instant"),
+        (_envelope("controller_restart-r01", "yesterday") + DRAIN_QUIET_LINE, "not an ISO 8601 UTC instant"),
+        (_envelope("controller_restart-r01", "2026-09-07T10:30:00") + DRAIN_QUIET_LINE, "not an ISO 8601 UTC instant"),
+    ],
+)
+def test_collect_refuses_a_drain_transcript_not_bound_to_this_run(
+    tmp_path, plan_path, fast_run, monkeypatch, text, problem
+) -> None:
+    """F6a: a transcript counts only with the envelope the runbook writes
+    before the helper runs, naming this run and an instant after its
+    measured window (and not after the collection): an old file that merely
+    holds the helper's quiet line is refused, naming the reason."""
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files["drain_transcript_from"] = _drain_transcript(tmp_path, text, name="unbound.txt")
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    (reason,) = manifest["validity_reasons"]
+    assert "--drain-transcript-from" in reason and problem in reason
+    drain = manifest["drain"]
+    assert drain["outcome"] == "error" and drain["verified"] is False
+    assert drain.get("captured_utc") is None
+    assert not (run_dir / "logs" / "sut" / "drain.txt").exists()
+    # The other three verified on their own.
+    assert [s["verified"] for s in manifest["twin_snapshots"]] == [True, True]
+    assert manifest["events_post_drain_fetch"]["verified"] is True
+
+
+def test_the_drain_transcript_is_bound_against_the_manifests_window(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The instant is compared with measured_window_utc.end of THIS run's
+    manifest, so one second after it passes and the end itself does not."""
+    base, _run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    end = _manifest(base, "controller_restart-r01")["measured_window_utc"]["end"]
+    end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files["drain_transcript_from"] = _drain_transcript(
+        tmp_path, DRAIN_QUIET_LINE, run_id="controller_restart-r01", captured_utc=end, name="at-end.txt"
+    )
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 1
+    just_after = (end_dt + timedelta(seconds=1)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    files["drain_transcript_from"] = _drain_transcript(
+        tmp_path, DRAIN_GAVE_UP_LINE, run_id="controller_restart-r01", captured_utc=just_after, name="after-end.txt"
+    )
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
+    drain = _manifest(base, "controller_restart-r01")["drain"]
+    assert drain["outcome"] == "gave-up" and drain["verified"] is True
+    assert drain["captured_utc"] == just_after
+
+
+def test_drain_transcript_envelope_problems_are_a_pure_function() -> None:
+    now = datetime(2026, 9, 7, 11, 0, tzinfo=timezone.utc)
+    ok, captured = run_mod.drain_transcript_envelope_problems(
+        _envelope("r1", "2026-09-07T10:30:00Z") + DRAIN_QUIET_LINE,
+        run_id="r1", window_end_utc="2026-09-07T10:00:00.300Z", now=now,
+    )
+    assert ok == [] and captured == "2026-09-07T10:30:00Z"
+    problems, captured = run_mod.drain_transcript_envelope_problems(
+        _envelope("r1", "2026-09-07T10:30:00Z") + DRAIN_QUIET_LINE,
+        run_id="r1", window_end_utc=None, now=now,
+    )
+    assert captured == "2026-09-07T10:30:00Z" and "measured window end" in problems[0]
+    problems, _ = run_mod.drain_transcript_envelope_problems(
+        "", run_id="r1", window_end_utc="2026-09-07T10:00:00.300Z", now=now
+    )
+    assert "not the envelope" in problems[0]
 
 
 @pytest.mark.parametrize(

@@ -7,6 +7,7 @@ Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
     python -m egw_experiments collect --run-id nominal-r01 [...]
     python -m egw_experiments analyze [--base-dir PATH] [--plan PATH]
+    python -m egw_experiments recovery [--base-dir PATH] [--plan PATH]
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan;
@@ -75,6 +76,18 @@ a failed collector hook; the drain's outcome is recorded (quiet, gave-up or
 error) and only 'error' is a reason; a ``controller_restart`` run without
 its configuration identity, or without its restart evidence, is invalid —
 no flag excuses the evidence.
+
+Recovery qualification (review finding F2): the analyser never reads
+``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
+after the analysis, which writes ``processed/recovery_qualification.json``
+and ``.csv`` (one record per ``controller_restart`` run of the plan: its
+validity, drain outcome and source, the presence and verification of the
+after snapshot and the post-drain events, and its qualification —
+``recovery_observed``, ``recovery_failed`` or ``not_evidenced`` — plus the
+criterion ``restart_recovery_observed_every_run``) and prints one
+``[recovery]`` summary line; ``recovery`` runs that layer alone. The layer
+changes no count and adds nothing to the acceptance table (ADR 0011 leaves
+``analyze.py`` unchanged).
 """
 
 from __future__ import annotations
@@ -87,6 +100,7 @@ from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
 from .plan_gen import generate_campaign_plan, write_campaign_plan
+from .recovery_qualification import write_recovery_qualification
 from .run import (
     DEFAULT_PLAN_PATH,
     DEFAULT_RESULTS_BASE,
@@ -670,6 +684,29 @@ def build_parser() -> argparse.ArgumentParser:
         "fallback consulted when the default plan is absent",
     )
 
+    # recovery (review finding F2) -------------------------------------------
+    p_rec = sub.add_parser(
+        "recovery",
+        help="write processed/recovery_qualification.json and .csv from the "
+        "sealed manifests of the plan's controller_restart runs (the drain "
+        "outcome and the after evidence the analyser does not read), without "
+        "regenerating the analyser's outputs; 'analyze' runs this layer itself",
+    )
+    p_rec.add_argument(
+        "--base-dir",
+        type=Path,
+        default=None,
+        help=f"results base directory (default: {DEFAULT_RESULTS_BASE})",
+    )
+    p_rec.add_argument(
+        "--plan",
+        type=Path,
+        default=DEFAULT_PLAN_PATH,
+        help=f"campaign plan path (default: {DEFAULT_PLAN_PATH}): the set of "
+        "controller_restart runs to qualify; without a readable plan the "
+        "planned set is unknown and the criterion is reported false",
+    )
+
     # verify-checksums ------------------------------------------------------
     p_ver = sub.add_parser(
         "verify-checksums", help="verify SHA256SUMS of raw run directories"
@@ -834,26 +871,62 @@ def _cmd_collect(args: argparse.Namespace) -> int:
     )
 
 
-def _cmd_analyze(args: argparse.Namespace) -> int:
-    """Run the analysis with the campaign plan wired in (sprint P5.4).
-
-    ``--plan`` defaults to the frozen plan, so identity-based completeness
-    is the DEFAULT behaviour of the shipped command. An explicitly named
-    plan is forwarded verbatim — if it cannot be read, ``analyze()`` says so
-    loudly and degrades to the count-only check. The DEFAULT path merely
-    being absent (a tree analyzed before the plan is frozen) is not an
-    operator error: the plan is then left unset so ``analyze()`` applies its
-    documented ``EGW_CAMPAIGN_PLAN`` fallback and, failing that, warns that
-    completeness is checked BY COUNT ONLY.
-    """
-    plan_path: Path | None = args.plan
+def _plan_for_analysis(plan_path: Path | None) -> Path | None:
+    """The plan ``analyze`` and ``recovery`` read: an explicitly named plan
+    verbatim; the DEFAULT path merely being absent (a tree analysed before
+    the plan is frozen) is not an operator error, so it is left unset and
+    the documented ``EGW_CAMPAIGN_PLAN`` fallback applies."""
     if (
         plan_path is not None
         and Path(plan_path) == Path(DEFAULT_PLAN_PATH)
         and not Path(plan_path).exists()
     ):
-        plan_path = None
-    return analyze(base_dir=args.base_dir, plan_path=plan_path)
+        return None
+    return plan_path
+
+
+def _cmd_analyze(args: argparse.Namespace) -> int:
+    """Run the analysis with the campaign plan wired in (sprint P5.4), then
+    the recovery qualification layer (review finding F2).
+
+    ``--plan`` defaults to the frozen plan, so identity-based completeness
+    is the DEFAULT behaviour of the shipped command. An explicitly named
+    plan is forwarded verbatim — if it cannot be read, ``analyze()`` says so
+    loudly and degrades to the count-only check. The DEFAULT path merely
+    being absent is left unset so ``analyze()`` applies its documented
+    ``EGW_CAMPAIGN_PLAN`` fallback and, failing that, warns that
+    completeness is checked BY COUNT ONLY.
+
+    After a successful analysis the recovery qualification is written beside
+    the analyser's outputs and its summary line printed. The exit code stays
+    the analyser's: it says whether the processed tree was regenerated, not
+    whether the campaign passed — ``analyze()`` returns 0 with failed rows in
+    its acceptance table as well, and a campaign still in progress would
+    otherwise fail every regeneration. A false criterion is therefore
+    reported in the files and on stdout, never through the exit code; the
+    ``recovery`` subcommand behaves the same.
+    """
+    rc = analyze(base_dir=args.base_dir, plan_path=_plan_for_analysis(args.plan))
+    if rc != 0:
+        return rc
+    _rc, line = write_recovery_qualification(
+        base_dir=args.base_dir, plan_path=_plan_for_analysis(args.plan)
+    )
+    if line:
+        print(line, flush=True)
+    return rc
+
+
+def _cmd_recovery(args: argparse.Namespace) -> int:
+    """The recovery qualification layer alone (finding F2): 0 once the
+    files are written, whatever the criterion says (see ``_cmd_analyze``);
+    2 when there is no ``raw/`` to read."""
+    rc, line = write_recovery_qualification(
+        base_dir=args.base_dir, plan_path=_plan_for_analysis(args.plan)
+    )
+    if line:
+        print(line, flush=True)
+    return rc
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
@@ -905,6 +978,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_collect(args)
     if args.command == "analyze":
         return _cmd_analyze(args)
+    if args.command == "recovery":
+        return _cmd_recovery(args)
     if args.command == "verify-checksums":
         return _cmd_verify(args)
     raise AssertionError(f"unhandled command {args.command!r}")
