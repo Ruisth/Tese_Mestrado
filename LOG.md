@@ -3398,3 +3398,69 @@ is unchanged.
   hours, whichever comes first. The finite proof, the resumption of the
   qualifying battery and the G4 pilot each need the student's separate
   authorisation.
+
+## Entry #C042 — The bounded implementation of ADR 0011: acknowledgement after the outcome line on a persistent session, the connection end, the stop, the session fields, the harness and runbook evidence, the hashed dependency lock
+
+- **Date:** 2026-09-24. **Scope:** the twenty items of ADR 0011's "What must
+  change" except item 17 (the `$SYS` grant, declined by the student), the
+  contract v1.2, the regression tests with fakes, and the record of the
+  implementer's choices in the ADR. Verified with fakes only: no broker,
+  Ditto, guest, image build or measurement is part of this entry. The
+  qualifying G3 runs stay paused; the finite proof, the battery and the G4
+  pilot each need the student's separate authorisation.
+- **What.** Controller (`src/egw_controller/`): the client built with a
+  persistent session and manual acknowledgement; the delivery identity
+  stamped on the network thread; one lock for the connection identity, the
+  acknowledgement window, `unacked`, the CONNACK count and the subscription;
+  the PUBACK of a QoS 1 delivery requested by the consumer from the flag set
+  after its outcome line was written, before the next delivery is taken, and
+  only on the connection that delivered it; a delivery without a line — the
+  event log unwritable, an exception after the Ditto 2xx — ends
+  acknowledgement and the connection, in process, through a supervisor
+  thread with a back-off (1 to 30 s) and a bound (ten consecutive ends
+  without an acknowledged delivery leave the client disconnected, visibly);
+  the purge and skip of an ended connection's deliveries, counted `dropped`;
+  every other exception before the `PATCH` a `failed` line naming it, the
+  decode stage catching `ValueError` and `RecursionError`, a non-string
+  `device_type` rejected, an unusable twin body and a non-transport `httpx`
+  error `failed` and never retried, odd twin containers read as empty;
+  `on_message` never raising; readiness only on a QoS 1 grant; the stop
+  without a marker or a post-disconnect drain; `mqtt_subscribed`,
+  `mqtt_connection` and `unacked` in `/metrics`; one unbuffered write per
+  event line with nothing kept for a later flush. Deployment: the six C1
+  options in `mosquitto.conf`, `stop_grace_period: 130s`,
+  `src/requirements-runtime.lock` (hashed; paho-mqtt 2.1.0) installed by the
+  Dockerfile with `--require-hashes`. Harness (`src/egw_experiments/`): ten
+  added columns in `controller_metrics.csv`; the broker-log, controller-log
+  and docker-events fetches; for `controller_restart`, the twin snapshots,
+  the blocking drain and the post-drain fetch; the configuration identity
+  embedded in the manifest; every failure a validity reason. Runbook 6.1:
+  `_mline` with the thirteen fields and the identity, `drained` quiet only
+  on a subscribed connection with nothing unacknowledged, the Section 7 and
+  Appendix B passages restated, test 6's expected list. Contract v1.2
+  (`src/CONTRACTS.md` sections 1, 5, 9). ADR 0011: the implementation record
+  (choices, deviations, what stays outside); ADR 0010 amended (#C041).
+- **Why.** The student decided option 5 on 2026-09-24 (#C041). The
+  implementation is the second of the four things the record requires
+  before the behaviour becomes the one it proposes; the third and fourth —
+  the finite proof and its support — follow on the guest under separate
+  authorisation.
+- **How it was verified.** The full suite ran in the WSL venv (Python 3.12) on the merged branch: 2,115 passed, 64 skipped, 1 failed, in 17 min 21 s (the dev baseline: 1,975 passed, 64 skipped, the same 1 failed). One test of the broker
+  measurement driver (`test_a_stack_not_healthy_again_is_a_stop_rule_and_not_a_pass`)
+  failed once in the dev baseline run while the workstation was loaded and
+  passes alone; it is unchanged by this entry. The Markdown link checker,
+  the evidence verifier and shellcheck at error severity pass; the hashed
+  lock was resolved inside the pinned base image under `linux/arm64`
+  user-mode emulation on the workstation (the container reports `aarch64`),
+  by the lock script's own steps, with `pip check` clean.
+- **What it does not establish.** Nothing about the controller's recovery,
+  timely delivery or the broker's behaviour with this controller: the code
+  ran only against fakes. The changed candidate is unmeasured. The controller
+  image for the proof is not built; the guest-side capture of the
+  configuration identity and the log-fetch helpers, the regeneration of the
+  deployed helper file and the proof's evaluator (S1–S6, R1–R4, S4 with the
+  twin's evidence of a named N1 case) are the next work, before the proof.
+- **Decisions and next steps.** No decision; nothing accepted. Next: the
+  progress return of the 2026-09-27 checkpoint (or the eighth reported
+  engineering hour), the proof's session driver, evaluator and identified
+  image, then the finite proof under the student's authorisation.
