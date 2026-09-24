@@ -107,9 +107,31 @@ of the events into ``events.post-drain.jsonl``, kept apart from the harness
 copy. ``--config-identity-from <file>`` is copied to
 ``configuration_identity.json`` and embedded in the manifest
 (``configuration_identity``). Every record is in the manifest; a failed
-fetch, snapshot or drain is a validity reason, as a failed collector hook
-is, and a ``controller_restart`` run without its configuration identity is
-invalid.
+fetch or snapshot is a validity reason, as a failed collector hook is, and
+a ``controller_restart`` run without its configuration identity is invalid.
+
+The drain's OUTCOME is classified from the helper's exit code and output
+(``drain.outcome``): ``quiet`` (exit 0 with the helper's quiet line),
+``gave-up`` (a non-zero exit with its give-up line: the controller stayed
+backlogged until the helper's limit, a VALID observation of failed recovery,
+recorded with a warning and never a validity reason) or ``error`` (anything
+else: an instrument failure and a validity reason). Exclusion follows the
+validity of the evidence, never the outcome: a valid run that shows a failed
+recovery is retained and analysed.
+
+The same four artefacts may be taken outside the harness (the runbook's
+helpers of docs/setup/qemu_integrated_gateway.md 6.1) and INGESTED, on
+``run`` or ``collect``, with ``--twins-before-from``, ``--twins-after-from``,
+``--post-drain-events-from`` and ``--drain-transcript-from``. Each file is
+verified against this run BEFORE it counts (the snapshot's label, its seed
+against the plan entry's, every event's ``run_id`` and outcome, the drain
+transcript's quiet or give-up line), copied write-once under the name the
+hook would have written, sealed, and recorded with its provenance
+(``source: "ingested"``, the source path and the copy's sha256; a hook's
+record carries ``source: "hook"``). A refused or missing file is a validity
+reason naming it. No flag excuses missing restart evidence: a
+``controller_restart`` run needs the before snapshot and the drain, and, when
+the drain was quiet, the after snapshot and the post-drain events as well.
 
 Produces the plan 5.8 raw structure::
 
@@ -130,7 +152,8 @@ Produces the plan 5.8 raw structure::
       loadgen_environment.json # captured here (harness host)
       logs/                    # simulator stdout/stderr, warmup artifacts
       logs/sut/                # fetched broker log, controller log, docker
-                               # events, and the item-18 hooks' full output
+                               # events, the item-18 hooks' full output and
+                               # drain.txt (an ingested drain transcript)
       SHA256SUMS               # written last, ONLY after successful
                                # collection; covers every file above
 
@@ -289,14 +312,20 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 # needed): adds 'sut_log_fetches' (the records of --fetch-broker-log-cmd,
 # --fetch-controller-log-cmd and --fetch-docker-events-cmd, shaped like a
 # 'collector_hooks' record plus 'dest_file'/'dest_exists'); for
-# controller_restart runs 'twin_snapshots' (the two --twin-snapshot-cmd
-# records, each with 'file' and 'dest_exists'), 'drain' (the --drain-cmd
-# record) and 'events_post_drain_fetch' (shaped like 'events_fetch' plus
-# 'file'), each null or empty on other conditions; 'configuration_identity'
-# (the parsed content of --config-identity-from) and
-# 'configuration_identity_file'; 'config.cli' gains the seven flags. A failed
-# fetch, snapshot or drain and, for controller_restart, a missing
-# configuration identity are validity reasons of a timed run.
+# controller_restart runs 'twin_snapshots' (one record per snapshot, each
+# with 'file', 'source' ('hook' or 'ingested'), 'verified' and 'problems';
+# a hook's record also 'dest_exists', an ingested one 'from' and 'sha256'),
+# 'drain' (the --drain-cmd record with 'outcome' — quiet, gave-up or error —
+# 'source' and 'verified'; an ingested transcript's record with 'file',
+# 'from', 'sha256', 'outcome' and 'problems') and 'events_post_drain_fetch'
+# (shaped like 'events_fetch' plus 'file', 'source', 'verified' and
+# 'problems', or the ingested file's record), each null or empty on other
+# conditions; 'configuration_identity' (the parsed content of
+# --config-identity-from) and 'configuration_identity_file'; 'config.cli'
+# gains the seven hook/identity flags and the four --*-from flags. A failed
+# fetch or snapshot, a drain in error, a refused or missing restart evidence
+# artefact and, for controller_restart, a missing configuration identity are
+# validity reasons of a timed run; a drain that gave up is not.
 # controller_metrics.csv gains ten columns after 'queue_depth'
 # (egw_experiments.controller_metrics).
 # 1.4 (collector output accounting, 2026-09-19; additive, no reader change
@@ -461,6 +490,69 @@ CONFIG_IDENTITY_FILENAME = "configuration_identity.json"
 #: window it needs where a first-contact message may be in progress, without
 #: letting a hung helper hold the run open indefinitely.
 DRAIN_TIMEOUT_S = 1800.0
+
+#: Timeout of each --twin-snapshot-cmd hook (the default hook timeout, made
+#: explicit) and, with it, the allowance the collector window carries for
+#: the before-snapshot: that hook blocks between the collector start hook
+#: and the measured run, so a self-terminating collector's ``{duration_s}``
+#: must cover the whole of it (see ``collector_window_s`` in
+#: :func:`execute_run`).
+SNAPSHOT_TIMEOUT_S = FETCH_TIMEOUT_S
+
+#: Where an ingested drain transcript lands, under logs/sut/ (the hook's
+#: own output is kept as hook-drain.stdout.txt / .stderr.txt beside it).
+DRAIN_TRANSCRIPT_FILENAME = "drain.txt"
+
+#: The runbook's `drained` helper (docs/setup/qemu_integrated_gateway.md,
+#: 6.1) prints exactly one of two lines: on success, on stdout, one starting
+#: with DRAIN_QUIET_LINE_PREFIX; when it gives up at its limit, on stderr,
+#: one starting with DRAIN_GAVE_UP_LINE_PREFIX (its other stop, "STOP:
+#: drained: GET ... failed or was not valid JSON, ...", is an instrument
+#: failure). tools/session/nominal.sh greps the same give-up prefix, so both
+#: are a documented, byte-stable interface.
+DRAIN_QUIET_LINE_PREFIX = "drained: queue_depth 0"
+DRAIN_GAVE_UP_LINE_PREFIX = "STOP: drained: no quiet window"
+
+#: What a drain record's ``outcome`` may hold (:func:`classify_drain_output`):
+#: 'quiet' (exit 0 and the quiet line), 'gave-up' (a non-zero exit and the
+#: give-up line: the controller stayed backlogged until the helper's limit,
+#: a VALID observation of failed recovery, never a validity reason) or
+#: 'error' (a spawn error, a timeout, an exit code contradicting the line,
+#: output without either line or with both: an instrument failure and a
+#: validity reason). The finite proof's evaluator reads ``drain.outcome``
+#: and applies the ADR's inconclusive rule itself; the harness does not.
+DRAIN_OUTCOMES = ("quiet", "gave-up", "error")
+
+#: The flags that ingest each restart evidence artefact from a file taken
+#: outside the harness, keyed like the hook that would take it.
+RESTART_EVIDENCE_FROM_FLAGS: dict[str, str] = {
+    "twin_snapshot_before": "--twins-before-from",
+    "twin_snapshot_after": "--twins-after-from",
+    "drain": "--drain-transcript-from",
+    "post_drain": "--post-drain-events-from",
+}
+
+#: The hook flag that takes each restart evidence artefact.
+RESTART_EVIDENCE_HOOK_FLAGS: dict[str, str] = {
+    **RESTART_EVIDENCE_FLAGS,
+    "post_drain": "--post-drain-fetch-cmd",
+}
+
+#: The label a twin snapshot file must carry (itest_reconcile `snap`).
+TWIN_SNAPSHOT_LABELS: dict[str, str] = {
+    "twin_snapshot_before": "before",
+    "twin_snapshot_after": "after",
+}
+
+#: The outcomes a controller event record may carry (egw_controller
+#: events.py, OUTCOMES; the runbook's `accounted`): a post-drain copy of the
+#: events is refused when a line carries anything else.
+POST_DRAIN_EVENT_OUTCOMES: tuple[str, ...] = (
+    "accepted",
+    "rejected",
+    "duplicate",
+    "failed",
+)
 
 #: Extra seconds added to the {duration_s} placeholder handed to the collector
 #: hooks, on top of warm-up + measured run + confirmation window. The stop
@@ -1179,96 +1271,506 @@ def sut_log_fetch_failures(
     return reasons
 
 
+# ---------------------------------------------------------------------------
+# Restart evidence (ADR 0011 item 18): the drain's outcome, the verification
+# of the twin snapshots and of the post-drain events, their ingestion from
+# files taken outside the harness, and the validity reasons
+# ---------------------------------------------------------------------------
+
+
+def classify_drain_output(text: str, returncode: int | None) -> str:
+    """The drain's outcome from what the runbook's `drained` helper printed.
+
+    ``text`` is the helper's output — stdout and stderr, in either order:
+    the hook keeps them apart, the runbook's transcript (``drained 2>&1 |
+    tee``) merges them — and ``returncode`` its exit code, or None for a
+    transcript ingested without one. A line is the helper's only when it
+    STARTS with the prefix (:data:`DRAIN_QUIET_LINE_PREFIX`,
+    :data:`DRAIN_GAVE_UP_LINE_PREFIX`), byte for byte.
+
+    - 'quiet': the quiet line, and the exit code 0 or unknown;
+    - 'gave-up': the give-up line, and the exit code non-zero or unknown;
+    - 'error': neither line, both lines, or an exit code that contradicts
+      the line printed (the helper's other stop, "STOP: drained: GET ...
+      failed ...", has no line of its own and is an error as well).
+    """
+    lines = text.splitlines()
+    quiet = any(line.startswith(DRAIN_QUIET_LINE_PREFIX) for line in lines)
+    gave_up = any(line.startswith(DRAIN_GAVE_UP_LINE_PREFIX) for line in lines)
+    if quiet == gave_up:
+        return "error"
+    if returncode is None:
+        return "quiet" if quiet else "gave-up"
+    if returncode == 0:
+        return "quiet" if quiet else "error"
+    return "gave-up" if gave_up else "error"
+
+
+def _drain_transcript_problems(text: str, returncode: int | None) -> list[str]:
+    """Why :func:`classify_drain_output` found 'error' (empty otherwise)."""
+    lines = text.splitlines()
+    quiet = any(line.startswith(DRAIN_QUIET_LINE_PREFIX) for line in lines)
+    gave_up = any(line.startswith(DRAIN_GAVE_UP_LINE_PREFIX) for line in lines)
+    if quiet and gave_up:
+        return [
+            "both the helper's quiet line and its give-up line are in the "
+            "transcript"
+        ]
+    if not quiet and not gave_up:
+        return [
+            f"neither the helper's quiet line ({DRAIN_QUIET_LINE_PREFIX!r} ...) "
+            f"nor its give-up line ({DRAIN_GAVE_UP_LINE_PREFIX!r} ...) is in "
+            "the transcript"
+        ]
+    if returncode is None or (returncode == 0) == quiet:
+        return []
+    return [
+        f"exit code {returncode} contradicts the "
+        + ("quiet" if quiet else "give-up")
+        + " line printed"
+    ]
+
+
+def drain_hook_outcome(record: dict[str, Any], run_dir: str | Path) -> str:
+    """Classify a --drain-cmd hook's record from the output it kept.
+
+    A hook that did not run to an exit code (``error`` set: a spawn error or
+    a timeout) is 'error'; otherwise the kept ``stdout_file`` and
+    ``stderr_file`` (relative to ``run_dir``) are read and classified with
+    the exit code."""
+    if record.get("error") is not None or record.get("timed_out"):
+        return "error"
+    run_dir = Path(run_dir)
+    text = ""
+    for key in ("stdout_file", "stderr_file"):
+        name = record.get(key)
+        if not name:
+            continue
+        try:
+            text += (run_dir / name).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return "error"
+        if not text.endswith("\n"):
+            text += "\n"
+    return classify_drain_output(text, record.get("returncode"))
+
+
+def twin_snapshot_problems(doc: Any, *, label: str, seed: int | None) -> list[str]:
+    """What keeps ``doc`` from being the twin snapshot ``label`` of this run.
+
+    A snapshot is what itest_reconcile's `snap` writes: a JSON object with
+    ``label`` equal to ``label`` ('before' or 'after'), a non-empty
+    ``devices`` object and a ``seed`` that, when it is not null and the plan
+    entry has a seed, equals the plan entry's (the `--like` form of the
+    helper writes null: it derives the devices from an earlier snapshot).
+    """
+    if not isinstance(doc, dict):
+        return [f"the document is a JSON {type(doc).__name__}, not an object"]
+    problems: list[str] = []
+    if doc.get("label") != label:
+        problems.append(f"label must be {label!r}, found {doc.get('label')!r}")
+    devices = doc.get("devices")
+    if not isinstance(devices, dict):
+        problems.append("devices must be a JSON object")
+    elif not devices:
+        problems.append("devices names no device")
+    file_seed = doc.get("seed")
+    if file_seed is not None and seed is not None and file_seed != seed:
+        problems.append(f"seed {file_seed!r} is not the plan entry's seed {seed!r}")
+    return problems
+
+
+def _twin_snapshot_file_problems(path: Path, *, label: str, seed: int | None) -> list[str]:
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"not readable JSON ({exc})"]
+    return twin_snapshot_problems(doc, label=label, seed=seed)
+
+
+def post_drain_events_problems(
+    path: str | Path, run_id: str, *, limit: int = 5
+) -> list[str]:
+    """What keeps ``path`` from being the post-drain copy of this run's
+    events: it must be non-empty JSON Lines where every line is a JSON
+    object whose ``run_id`` is ``run_id`` and whose ``outcome`` is one of
+    :data:`POST_DRAIN_EVENT_OUTCOMES`. At most ``limit`` problems are
+    listed, then the remaining lines are left unchecked (a file of another
+    run would otherwise name every line)."""
+    path = Path(path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"not readable ({exc})"]
+    problems: list[str] = []
+    records = 0
+    outcomes = "/".join(POST_DRAIN_EVENT_OUTCOMES)
+    for number, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        records += 1
+        try:
+            doc = json.loads(line)
+        except json.JSONDecodeError:
+            problems.append(f"line {number} is not JSON")
+        else:
+            if not isinstance(doc, dict):
+                problems.append(f"line {number} is not a JSON object")
+            else:
+                if doc.get("run_id") != run_id:
+                    problems.append(
+                        f"line {number} belongs to run {doc.get('run_id')!r}, "
+                        f"not {run_id!r}"
+                    )
+                if doc.get("outcome") not in POST_DRAIN_EVENT_OUTCOMES:
+                    problems.append(
+                        f"line {number} has outcome {doc.get('outcome')!r}, not "
+                        f"one of {outcomes}"
+                    )
+        if len(problems) >= limit:
+            problems.append(f"further lines not checked (after line {number})")
+            break
+    if records == 0:
+        problems.append("the file holds no event record")
+    return problems
+
+
+def verify_twin_snapshot_record(
+    record: dict[str, Any], run_dir: str | Path, *, seed: int | None
+) -> None:
+    """Set ``verified``/``problems`` on a --twin-snapshot-cmd hook's record:
+    a hook that exited 0 and wrote its file is verified only when the file
+    is the snapshot of this run's label (:func:`twin_snapshot_problems`)."""
+    record["verified"] = False
+    record["problems"] = []
+    if record.get("returncode") != 0 or not record.get("dest_exists"):
+        return
+    hook = str(record.get("hook"))
+    record["problems"] = _twin_snapshot_file_problems(
+        Path(run_dir) / TWIN_SNAPSHOT_FILES[hook],
+        label=TWIN_SNAPSHOT_LABELS[hook],
+        seed=seed,
+    )
+    record["verified"] = not record["problems"]
+
+
+def verify_post_drain_record(
+    record: dict[str, Any], run_dir: str | Path, run_id: str
+) -> None:
+    """Set ``verified``/``problems`` on a --post-drain-fetch-cmd record: a
+    fetch that succeeded is verified only when the file is the post-drain
+    copy of THIS run's events (:func:`post_drain_events_problems`)."""
+    record["verified"] = False
+    record["problems"] = []
+    if not record.get("ok"):
+        return
+    record["problems"] = post_drain_events_problems(
+        Path(run_dir) / POST_DRAIN_EVENTS_FILENAME, run_id
+    )
+    record["verified"] = not record["problems"]
+
+
+def _ingested_record(hook: str, file: str, source: str | Path) -> dict[str, Any]:
+    return {
+        "hook": hook,
+        "flag": RESTART_EVIDENCE_FROM_FLAGS[hook],
+        "file": file,
+        "source": "ingested",
+        "from": str(source),
+        "sha256": None,
+        "verified": False,
+        "problems": [],
+    }
+
+
+def _refuse_ingest(
+    record: dict[str, Any], problems: list[str], warnings: list[str]
+) -> dict[str, Any]:
+    record["problems"] = problems
+    warnings.append(
+        f"{record['flag']} {record['from']} REFUSED ({record['file']} not "
+        "ingested): " + "; ".join(problems)
+    )
+    return record
+
+
+def ingest_twin_snapshot(
+    run_dir: Path,
+    hook: str,
+    source: str | Path,
+    *,
+    seed: int | None,
+    warnings: list[str],
+) -> dict[str, Any]:
+    """Verify and copy a twin snapshot taken outside the harness.
+
+    The file is verified BEFORE it counts (:func:`twin_snapshot_problems`)
+    and copied write-once (:func:`ingest_copy`) to the name the hook would
+    have written only when it verifies: a refused file never enters the
+    run directory, so the right file can follow it. The record carries the
+    provenance (``source: "ingested"``, ``from``, the copy's ``sha256``) or
+    the ``problems`` that refused it; a missing file is such a problem.
+    """
+    file = TWIN_SNAPSHOT_FILES[hook]
+    record = _ingested_record(hook, file, source)
+    src = Path(source)
+    if not src.is_file():
+        warnings.append(f"{record['flag']} file not found: {src}")
+        record["problems"] = [f"file not found: {src}"]
+        return record
+    problems = _twin_snapshot_file_problems(
+        src, label=TWIN_SNAPSHOT_LABELS[hook], seed=seed
+    )
+    if problems:
+        return _refuse_ingest(record, problems, warnings)
+    dest = run_dir / file
+    ingest_copy(src, dest, run_dir)
+    record["sha256"] = sha256_file(dest)
+    record["verified"] = True
+    return record
+
+
+def ingest_post_drain_events(
+    run_dir: Path, run_id: str, source: str | Path, *, warnings: list[str]
+) -> dict[str, Any]:
+    """Verify and copy the post-drain copy of this run's events taken
+    outside the harness, like :func:`ingest_twin_snapshot` (a file of
+    another run is refused, naming the mismatch, and not copied)."""
+    record = _ingested_record("post_drain", POST_DRAIN_EVENTS_FILENAME, source)
+    src = Path(source)
+    if not src.is_file():
+        warnings.append(f"{record['flag']} file not found: {src}")
+        record["problems"] = [f"file not found: {src}"]
+        return record
+    problems = post_drain_events_problems(src, run_id)
+    if problems:
+        return _refuse_ingest(record, problems, warnings)
+    dest = run_dir / POST_DRAIN_EVENTS_FILENAME
+    ingest_copy(src, dest, run_dir)
+    record["sha256"] = sha256_file(dest)
+    record["verified"] = True
+    return record
+
+
+def ingest_drain_transcript(
+    run_dir: Path, source: str | Path, *, warnings: list[str]
+) -> dict[str, Any]:
+    """Classify and copy a drain transcript taken outside the harness
+    (``drained 2>&1 | tee <file>``).
+
+    The transcript is classified exactly as a hook's output is
+    (:func:`classify_drain_output`, without an exit code): 'quiet' or
+    'gave-up' is copied write-once to ``logs/sut/drain.txt`` and recorded
+    with its provenance; 'error' (neither of the helper's lines, or both)
+    is refused, not copied, and a validity reason. The record's ``outcome``
+    is what the finite proof's evaluator reads; the harness applies no
+    inconclusive rule of its own to it.
+    """
+    file = f"logs/{SUT_LOG_SUBDIR}/{DRAIN_TRANSCRIPT_FILENAME}"
+    record = _ingested_record("drain", file, source)
+    record["outcome"] = "error"
+    src = Path(source)
+    if not src.is_file():
+        warnings.append(f"{record['flag']} file not found: {src}")
+        record["problems"] = [f"file not found: {src}"]
+        return record
+    try:
+        text = src.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return _refuse_ingest(record, [f"not readable ({exc})"], warnings)
+    outcome = classify_drain_output(text, None)
+    if outcome == "error":
+        return _refuse_ingest(record, _drain_transcript_problems(text, None), warnings)
+    dest = run_dir / "logs" / SUT_LOG_SUBDIR / DRAIN_TRANSCRIPT_FILENAME
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    ingest_copy(src, dest, run_dir)
+    record["sha256"] = sha256_file(dest)
+    record["outcome"] = outcome
+    record["verified"] = True
+    return record
+
+
+def _evidence_step(hook: str) -> str:
+    """'<hook flag> or <from flag> (<file>)' naming one restart evidence step."""
+    file = {
+        **TWIN_SNAPSHOT_FILES,
+        "drain": f"logs/{SUT_LOG_SUBDIR}/{DRAIN_TRANSCRIPT_FILENAME}",
+        "post_drain": POST_DRAIN_EVENTS_FILENAME,
+    }[hook]
+    return (
+        f"{RESTART_EVIDENCE_HOOK_FLAGS[hook]} or "
+        f"{RESTART_EVIDENCE_FROM_FLAGS[hook]} ({file})"
+    )
+
+
+def _drain_gave_up(drain: dict[str, Any] | None) -> bool:
+    return drain is not None and drain.get("outcome") == "gave-up"
+
+
 def restart_evidence_missing(
     twin_snapshots: list[dict[str, Any]] | None,
     drain: dict[str, Any] | None,
     events_post_drain_fetch: dict[str, Any] | None,
 ) -> list[str]:
-    """The restart evidence steps a controller_restart run did not
-    configure at all (ADR 0011 item 18): the two twin snapshots, the drain
-    and the post-drain fetch. A step that ran and failed is not missing; it
-    is a failure, reported by :func:`restart_evidence_failures`."""
+    """The restart evidence steps a controller_restart run has NO record of
+    (ADR 0011 item 18): the before snapshot and the drain always; the after
+    snapshot and the post-drain events unless the drain gave up (there is
+    then no quiet state to snapshot or to read the outcomes from). A step
+    that ran and failed, or a file that was refused, is not missing; it is
+    reported by :func:`restart_evidence_failures` from its record."""
     missing: list[str] = []
     files = {record.get("file") for record in twin_snapshots or []}
-    for hook, file in TWIN_SNAPSHOT_FILES.items():
-        if file not in files:
-            missing.append(f"{RESTART_EVIDENCE_FLAGS[hook]} ({file})")
+    if TWIN_SNAPSHOT_FILES["twin_snapshot_before"] not in files:
+        missing.append(_evidence_step("twin_snapshot_before"))
     if drain is None:
-        missing.append("--drain-cmd")
-    if events_post_drain_fetch is None:
-        missing.append("--post-drain-fetch-cmd")
+        missing.append(_evidence_step("drain"))
+    if not _drain_gave_up(drain):
+        if TWIN_SNAPSHOT_FILES["twin_snapshot_after"] not in files:
+            missing.append(_evidence_step("twin_snapshot_after"))
+        if events_post_drain_fetch is None:
+            missing.append(_evidence_step("post_drain"))
     return missing
+
+
+def _twin_snapshot_reasons(record: dict[str, Any]) -> list[str]:
+    file = record.get("file") or "the snapshot file"
+    tail = ": without both snapshots the twins cannot be compared across the restart"
+    if record.get("source") == "ingested":
+        if record.get("verified"):
+            return []
+        return [
+            f"twin snapshot {record.get('flag')} {record.get('from')} refused "
+            f"({file} not ingested): " + "; ".join(record.get("problems") or [])
+            + tail
+        ]
+    flag = record.get("flag") or "--twin-snapshot-cmd"
+    if record.get("returncode") != 0:
+        return [f"twin snapshot {flag} ({file}) failed with {_hook_outcome(record)}" + tail]
+    if not record.get("dest_exists"):
+        return [f"twin snapshot {flag} exited 0 but wrote no file at {file}" + tail]
+    if not record.get("verified"):
+        return [
+            f"twin snapshot {flag} wrote {file} but it is not the snapshot of "
+            "this run: " + "; ".join(record.get("problems") or []) + tail
+        ]
+    return []
+
+
+def _drain_reasons(drain: dict[str, Any]) -> list[str]:
+    if drain.get("outcome") != "error":
+        return []
+    tail = (
+        ": an instrument failure, so the post-drain evidence does not bound "
+        "the recovery"
+    )
+    if drain.get("source") == "ingested":
+        return [
+            f"drain transcript {drain.get('flag')} {drain.get('from')} refused "
+            f"({drain.get('file')} not ingested): "
+            + "; ".join(drain.get("problems") or [])
+            + tail
+        ]
+    return [
+        f"drain {drain.get('flag') or '--drain-cmd'} failed with "
+        f"{_hook_outcome(drain)}: neither the helper's quiet line "
+        f"({DRAIN_QUIET_LINE_PREFIX!r} ...) with exit 0 nor its give-up line "
+        f"({DRAIN_GAVE_UP_LINE_PREFIX!r} ...) with a non-zero exit was "
+        "observed" + tail
+    ]
+
+
+def _post_drain_reasons(record: dict[str, Any]) -> list[str]:
+    tail = ", so the outcome of every delivery after the restart cannot be read"
+    if record.get("source") == "ingested":
+        if record.get("verified"):
+            return []
+        return [
+            f"post-drain events {record.get('flag')} {record.get('from')} refused "
+            f"({POST_DRAIN_EVENTS_FILENAME} not ingested): "
+            + "; ".join(record.get("problems") or [])
+            + tail
+        ]
+    if not record.get("ok"):
+        attempts = record.get("attempts") or []
+        return [
+            "post-drain fetch --post-drain-fetch-cmd failed after "
+            f"{len(attempts)} attempt(s): no {POST_DRAIN_EVENTS_FILENAME} was "
+            "fetched" + tail
+        ]
+    if not record.get("verified"):
+        return [
+            f"post-drain fetch --post-drain-fetch-cmd wrote "
+            f"{POST_DRAIN_EVENTS_FILENAME} but it is not the post-drain copy of "
+            "this run's events: " + "; ".join(record.get("problems") or []) + tail
+        ]
+    return []
 
 
 def restart_evidence_failures(
     twin_snapshots: list[dict[str, Any]] | None,
     drain: dict[str, Any] | None,
     events_post_drain_fetch: dict[str, Any] | None,
-    *,
-    required: bool = False,
 ) -> list[str]:
-    """Reasons of a controller_restart run whose evidence steps did not
-    complete (ADR 0011 item 18).
+    """Reasons of a controller_restart run whose restart evidence is not
+    complete and verified (ADR 0011 item 18).
 
-    With ``required`` (a controller_restart run without
-    ``--allow-missing-restart-evidence``) a step that was not configured is
-    a reason too: the recovery cannot be evidenced without both twin
-    snapshots, a completed drain and the post-drain copy of the events, so
-    a run that omitted them is never marked valid by their absence.
-
-    A twin snapshot that failed or wrote no file leaves the twins without a
-    comparison across the restart; a drain that did not exit 0 (the helper
-    reached its limit, or the controller was never quiet) leaves the
-    post-drain evidence unbounded; a post-drain fetch that produced no
-    second copy of the events leaves the outcome of the deliveries after the
-    restart unreadable. Each makes the run invalid, so the proof reads it as
-    inconclusive rather than as a result.
+    A step with no record at all (:func:`restart_evidence_missing`) is a
+    reason: the recovery cannot be evidenced without the before snapshot,
+    the drain and — when the drain was quiet — the after snapshot and the
+    post-drain copy of the events, so a run that omitted them is never
+    marked valid by their absence, and no flag excuses it. Every configured
+    hook that failed, wrote no file or wrote a file that does not verify,
+    and every ingested file that was refused or missing, is a reason naming
+    it. A drain whose outcome is 'error' is a reason (an instrument
+    failure); a drain that 'gave-up' is not: it is a valid observation of
+    failed recovery, recorded by :func:`restart_evidence_notes`.
     """
     reasons: list[str] = []
-    if required:
-        for step in restart_evidence_missing(
-            twin_snapshots, drain, events_post_drain_fetch
-        ):
-            reasons.append(
-                f"controller_restart condition without its restart evidence "
-                f"step {step}: not configured, so the recovery across the "
-                "restart cannot be evidenced from the run directory (ADR 0011 "
-                "item 18; --allow-missing-restart-evidence records the "
-                "exception as a deviation)"
-            )
+    for step in restart_evidence_missing(twin_snapshots, drain, events_post_drain_fetch):
+        reasons.append(
+            f"controller_restart condition without its restart evidence step "
+            f"{step}: neither taken by its hook nor ingested from a file, so "
+            "the recovery across the restart cannot be evidenced from the run "
+            "directory (ADR 0011 item 18)"
+        )
     for record in twin_snapshots or []:
-        flag = record.get("flag") or "--twin-snapshot-cmd"
-        file = record.get("file") or "the snapshot file"
-        if record.get("returncode") != 0:
-            reasons.append(
-                f"twin snapshot {flag} ({file}) failed with "
-                f"{_hook_outcome(record)}: without both snapshots the twins "
-                "cannot be compared across the restart"
-            )
-        elif not record.get("dest_exists"):
-            reasons.append(
-                f"twin snapshot {flag} exited 0 but wrote no file at {file}: "
-                "without both snapshots the twins cannot be compared across "
-                "the restart"
-            )
-    if drain is not None and drain.get("returncode") != 0:
-        reasons.append(
-            f"drain {drain.get('flag') or '--drain-cmd'} failed with "
-            f"{_hook_outcome(drain)}: the controller was not observed quiet "
-            "after the restart, so the post-drain evidence does not bound the "
-            "recovery"
-        )
-    if events_post_drain_fetch is not None and not events_post_drain_fetch.get(
-        "ok"
-    ):
-        attempts = events_post_drain_fetch.get("attempts") or []
-        reasons.append(
-            "post-drain fetch --post-drain-fetch-cmd failed after "
-            f"{len(attempts)} attempt(s): no {POST_DRAIN_EVENTS_FILENAME} was "
-            "fetched, so the outcome of every delivery after the restart "
-            "cannot be read"
-        )
+        reasons.extend(_twin_snapshot_reasons(record))
+    if drain is not None:
+        reasons.extend(_drain_reasons(drain))
+    if events_post_drain_fetch is not None:
+        reasons.extend(_post_drain_reasons(events_post_drain_fetch))
     return reasons
+
+
+def restart_evidence_notes(
+    twin_snapshots: list[dict[str, Any]] | None,
+    drain: dict[str, Any] | None,
+    events_post_drain_fetch: dict[str, Any] | None,
+) -> list[str]:
+    """The warning a drain that gave up leaves in the manifest: the failed
+    recovery is retained as a result, and the after evidence it makes
+    pointless is not required (named when absent)."""
+    if not _drain_gave_up(drain):
+        return []
+    note = (
+        "the controller was not observed quiet within the helper's limit "
+        "after the restart: a failed recovery, retained (drain.outcome "
+        "'gave-up' is an observation, never a validity reason; the proof's "
+        "evaluator applies the ADR's rule to it)"
+    )
+    files = {record.get("file") for record in twin_snapshots or []}
+    absent: list[str] = []
+    if TWIN_SNAPSHOT_FILES["twin_snapshot_after"] not in files:
+        absent.append(TWIN_SNAPSHOT_FILES["twin_snapshot_after"])
+    if events_post_drain_fetch is None:
+        absent.append(POST_DRAIN_EVENTS_FILENAME)
+    if absent:
+        note += (
+            "; " + " and ".join(absent) + " not required of this run: there "
+            "is no quiet state to snapshot or to read the post-drain outcomes "
+            "from"
+        )
+    return [note]
 
 
 def _inventory_fields(message: str) -> dict[str, str]:
@@ -2690,7 +3192,6 @@ def compute_validity(
     drain: dict[str, Any] | None = None,
     events_post_drain_fetch: dict[str, Any] | None = None,
     config_identity_ok: bool = True,
-    allow_missing_restart_evidence: bool = False,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -2758,14 +3259,18 @@ def compute_validity(
 
     ADR 0011 item 18: every configured SUT log fetch (``sut_log_fetches``)
     must exit 0 and write its file; for ``controller_restart``
-    (``restart_required``) the two twin snapshots, the drain and the
-    post-drain fetch must complete and the configuration identity must be
-    present (``config_identity_ok``). A configured step that failed has no
-    allow flag: the proof reads a run missing it as inconclusive, never as
-    a result. A step that was not configured at all is a reason too,
-    unless ``allow_missing_restart_evidence`` records the exception as a
-    deviation (the runbook's test 6 takes the snapshots and the drain with
-    its own helpers, outside the harness).
+    (``restart_required``) the configuration identity must be present
+    (``config_identity_ok``) and the restart evidence must be complete and
+    verified (:func:`restart_evidence_failures`): the before snapshot and
+    the drain, taken by their hooks or ingested from files, and — when the
+    drain's outcome is 'quiet' — the after snapshot and the post-drain copy
+    of the events as well. Every configured hook that failed and every
+    ingested file that was refused or missing is a reason naming it; a step
+    with no record at all is a reason too, and no flag excuses it (the
+    runbook's test 6 ingests the helpers' files with 'collect'). A drain
+    whose outcome is 'gave-up' is NOT a reason: exclusion follows the
+    validity of the evidence, never the outcome, so a valid run that shows
+    a failed recovery is retained and analysed.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -2855,10 +3360,7 @@ def compute_validity(
         if restart_required:
             reasons.extend(
                 restart_evidence_failures(
-                    twin_snapshots,
-                    drain,
-                    events_post_drain_fetch,
-                    required=not allow_missing_restart_evidence,
+                    twin_snapshots, drain, events_post_drain_fetch
                 )
             )
             if not config_identity_ok:
@@ -3356,8 +3858,11 @@ def execute_run(
     twin_snapshot_cmd: str | None = None,
     drain_cmd: str | None = None,
     post_drain_fetch_cmd: str | None = None,
+    twins_before_from: str | Path | None = None,
+    twins_after_from: str | Path | None = None,
+    post_drain_events_from: str | Path | None = None,
+    drain_transcript_from: str | Path | None = None,
     config_identity_from: str | Path | None = None,
-    allow_missing_restart_evidence: bool = False,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
@@ -3401,8 +3906,15 @@ def execute_run(
     and after the drain (``twins.after.json``), ``drain_cmd`` blocks after
     the events fetch, and ``post_drain_fetch_cmd`` fetches the second copy
     of the events into ``events.post-drain.jsonl``; on any other condition
-    the three are ignored with a warning. Every failure is a validity
-    reason; the templates accept the collector hooks' placeholders.
+    the three are ignored with a warning. Every hook failure is a validity
+    reason; the drain's outcome is classified (``drain.outcome``: quiet,
+    gave-up or error) and only 'error' is a reason; the templates accept
+    the collector hooks' placeholders. The same artefacts may instead be
+    ingested from files taken outside the harness (``twins_before_from``,
+    ``twins_after_from``, ``post_drain_events_from``,
+    ``drain_transcript_from``; one source per artefact, a hook AND a file
+    for the same one is a usage error, exit 2), each verified against this
+    run before it counts and recorded with its provenance.
     """
     plan_path = Path(plan_path)
     try:
@@ -3469,6 +3981,27 @@ def execute_run(
             file=sys.stderr,
         )
         return 2
+    # One source per restart evidence artefact (ADR 0011 item 18): the hook
+    # takes it, or a file taken outside the harness is ingested — never both.
+    for hook_flag, hook_template, from_flag, from_file in (
+        ("--twin-snapshot-cmd", twin_snapshot_cmd, "--twins-before-from", twins_before_from),
+        ("--twin-snapshot-cmd", twin_snapshot_cmd, "--twins-after-from", twins_after_from),
+        ("--drain-cmd", drain_cmd, "--drain-transcript-from", drain_transcript_from),
+        (
+            "--post-drain-fetch-cmd",
+            post_drain_fetch_cmd,
+            "--post-drain-events-from",
+            post_drain_events_from,
+        ),
+    ):
+        if hook_template and from_file is not None:
+            print(
+                f"error: {hook_flag} and {from_flag} are mutually exclusive: "
+                "one source per restart evidence artefact (the hook takes it, "
+                "or a file taken outside the harness is ingested).",
+                file=sys.stderr,
+            )
+            return 2
     collector_hooks_in_use = any(
         (collector_start_cmd, collector_stop_cmd, collector_fetch_cmd)
     )
@@ -3567,23 +4100,31 @@ def execute_run(
     # as given are still echoed in config.cli.
     ignored_restart_flags = [
         flag
-        for flag, template in (
+        for flag, value in (
             ("--twin-snapshot-cmd", twin_snapshot_cmd),
             ("--drain-cmd", drain_cmd),
             ("--post-drain-fetch-cmd", post_drain_fetch_cmd),
+            ("--twins-before-from", twins_before_from),
+            ("--twins-after-from", twins_after_from),
+            ("--post-drain-events-from", post_drain_events_from),
+            ("--drain-transcript-from", drain_transcript_from),
         )
-        if template and not restart_required
+        if value and not restart_required
     ]
     if ignored_restart_flags:
         warnings.append(
             ", ".join(ignored_restart_flags)
             + f" ignored on condition {condition_id!r}: the twin snapshots, "
-            "the drain and the post-drain fetch apply to the "
+            "the drain and the post-drain events apply to the "
             "controller_restart condition only"
         )
     snapshot_template = twin_snapshot_cmd if restart_required else None
     drain_template = drain_cmd if restart_required else None
     post_drain_template = post_drain_fetch_cmd if restart_required else None
+    before_source = twins_before_from if restart_required else None
+    after_source = twins_after_from if restart_required else None
+    drain_source = drain_transcript_from if restart_required else None
+    post_drain_source = post_drain_events_from if restart_required else None
 
     started_utc = utc_now_iso()
     sim_output_dir = logs_dir / "simulator"
@@ -3618,13 +4159,20 @@ def execute_run(
     # SUT collector hooks (sprint P5, report 5.3). The collector must cover
     # the whole protocol structure of this run: warm-up + measured window +
     # confirmation window (plus a start-up margin), which is what the
-    # {duration_s} placeholder carries to a self-terminating collector.
+    # {duration_s} placeholder carries to a self-terminating collector. With
+    # a twin snapshot configured (controller_restart) the before-snapshot
+    # blocks between the collector start hook and the measured run for up
+    # to SNAPSHOT_TIMEOUT_S, so that allowance is added as well: otherwise
+    # a snapshot that legitimately outlasts the margin would let the
+    # collector end before the measured window (review finding F5). The
+    # stop hook still ends the collector right after the measured run.
     collector_hooks: list[dict[str, Any]] = []
     collector_window_s = (
         (0 if skip_warmup else warmup_s)
         + duration_s
         + int(post_run_wait_s)
         + COLLECTOR_DURATION_MARGIN_S
+        + (int(SNAPSHOT_TIMEOUT_S) if snapshot_template else 0)
     )
     collector_dest = (
         logs_dir / COLLECTOR_FETCH_SUBDIR / f"resources-{run_id}.csv"
@@ -3676,7 +4224,12 @@ def execute_run(
     events_post_drain_fetch: dict[str, Any] | None = None
 
     def _run_sut_hook(
-        hook: str, template: str, dest: Path, *, timeout_s: float | None = None
+        hook: str,
+        template: str,
+        dest: Path,
+        *,
+        timeout_s: float | None = None,
+        report_failure: bool = True,
     ) -> dict[str, Any]:
         print(f"[harness] {HOOK_FLAGS[hook]}", flush=True)
         record = execute_collector_hook(
@@ -3696,7 +4249,7 @@ def execute_run(
                     Path(path).relative_to(run_dir).as_posix()
                 )
         record["dest_exists"] = dest.is_file()
-        if record.get("returncode") != 0:
+        if report_failure and record.get("returncode") != 0:
             print(
                 f"[harness] {HOOK_FLAGS[hook]} FAILED "
                 f"(exit {record.get('returncode')})",
@@ -3706,13 +4259,29 @@ def execute_run(
         return record
 
     def _take_twin_snapshot(hook: str) -> None:
-        if not snapshot_template:
+        """The snapshot ``hook``: through --twin-snapshot-cmd (under
+        SNAPSHOT_TIMEOUT_S, its file then verified like an ingested one) or
+        ingested from the --twins-*-from file; either way recorded with its
+        source."""
+        if snapshot_template:
+            record = _run_sut_hook(
+                hook,
+                snapshot_template,
+                run_dir / TWIN_SNAPSHOT_FILES[hook],
+                timeout_s=SNAPSHOT_TIMEOUT_S,
+            )
+            record["file"] = TWIN_SNAPSHOT_FILES[hook]
+            record["source"] = "hook"
+            verify_twin_snapshot_record(record, run_dir, seed=seed)
+            twin_snapshots.append(record)
             return
-        record = _run_sut_hook(
-            hook, snapshot_template, run_dir / TWIN_SNAPSHOT_FILES[hook]
+        source = before_source if hook == "twin_snapshot_before" else after_source
+        if source is None:
+            return
+        print(f"[harness] {RESTART_EVIDENCE_FROM_FLAGS[hook]}", flush=True)
+        twin_snapshots.append(
+            ingest_twin_snapshot(run_dir, hook, source, seed=seed, warnings=warnings)
         )
-        record["file"] = TWIN_SNAPSHOT_FILES[hook]
-        twin_snapshots.append(record)
 
     if any(
         (
@@ -4029,11 +4598,35 @@ def execute_run(
         drain_record = _run_sut_hook(
             "drain",
             drain_template,
-            sut_log_dir / "drain.txt",
+            sut_log_dir / DRAIN_TRANSCRIPT_FILENAME,
             timeout_s=DRAIN_TIMEOUT_S,
+            report_failure=False,
         )
         # The drain writes no file of its own; {dest} is only a placeholder.
         drain_record.pop("dest_exists", None)
+        drain_record["source"] = "hook"
+        # The OUTCOME (review finding F2): from the exit code and the output
+        # the hook kept. 'gave-up' is a valid observation of failed recovery;
+        # only 'error' is a validity reason. The proof's evaluator reads
+        # drain.outcome and applies the ADR's rule itself.
+        drain_record["outcome"] = drain_hook_outcome(drain_record, run_dir)
+        drain_record["verified"] = drain_record["outcome"] != "error"
+        if drain_record["outcome"] == "error":
+            print(
+                f"[harness] --drain-cmd FAILED (exit {drain_record.get('returncode')}, "
+                "outcome error: an instrument failure)",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif drain_record["outcome"] == "gave-up":
+            print(
+                "[harness] --drain-cmd gave up: the controller was not observed "
+                "quiet within the helper's limit (a failed recovery, retained)",
+                flush=True,
+            )
+    elif drain_source is not None:
+        print("[harness] --drain-transcript-from", flush=True)
+        drain_record = ingest_drain_transcript(run_dir, drain_source, warnings=warnings)
     if post_drain_template:
         print("[harness] --post-drain-fetch-cmd", flush=True)
         post_drain_ok, post_drain_cmd, post_drain_attempts = fetch_events_via_cmd(
@@ -4045,7 +4638,9 @@ def execute_run(
             "attempts": post_drain_attempts,
             "ok": post_drain_ok,
             "file": POST_DRAIN_EVENTS_FILENAME,
+            "source": "hook",
         }
+        verify_post_drain_record(events_post_drain_fetch, run_dir, run_id)
         if not post_drain_ok:
             warnings.append(
                 f"post-drain fetch failed after {len(post_drain_attempts)} "
@@ -4057,7 +4652,21 @@ def execute_run(
                 file=sys.stderr,
                 flush=True,
             )
+        elif not events_post_drain_fetch["verified"]:
+            warnings.append(
+                f"post-drain fetch wrote {POST_DRAIN_EVENTS_FILENAME} but it is "
+                "not the post-drain copy of this run's events: "
+                + "; ".join(events_post_drain_fetch["problems"])
+            )
+    elif post_drain_source is not None:
+        print("[harness] --post-drain-events-from", flush=True)
+        events_post_drain_fetch = ingest_post_drain_events(
+            run_dir, run_id, post_drain_source, warnings=warnings
+        )
     _take_twin_snapshot("twin_snapshot_after")
+    warnings.extend(
+        restart_evidence_notes(twin_snapshots, drain_record, events_post_drain_fetch)
+    )
 
     # SUT log fetches (ADR 0011 item 18): the broker log, the controller
     # container log and the docker events of the run, last so that on
@@ -4201,22 +4810,6 @@ def execute_run(
         allow_missing_resources=allow_missing_resources,
     )
 
-    # Restart evidence not configured on a controller_restart run (ADR 0011
-    # item 18): a reason, unless deliberately accepted and recorded.
-    if restart_required and allow_missing_restart_evidence:
-        absent = restart_evidence_missing(
-            twin_snapshots, drain_record, events_post_drain_fetch
-        )
-        if absent:
-            _append_deviation(
-                deviations,
-                "missing_restart_evidence",
-                "controller_restart run without the harness's restart evidence "
-                "step(s) " + ", ".join(absent) + " accepted: taken outside the "
-                "harness (the runbook's helpers), or not at all",
-                "--allow-missing-restart-evidence",
-            )
-
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -4242,7 +4835,6 @@ def execute_run(
         drain=drain_record,
         events_post_drain_fetch=events_post_drain_fetch,
         config_identity_ok=configuration_identity is not None,
-        allow_missing_restart_evidence=allow_missing_restart_evidence,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -4280,7 +4872,6 @@ def execute_run(
         "allow_warmup_failure": allow_warmup_failure,
         "allow_protocol_deviation": allow_protocol_deviation,
         "allow_missing_controller_marker": allow_missing_controller_marker,
-        "allow_missing_restart_evidence": allow_missing_restart_evidence,
         # Protocol deviations (work order P1 fix 5): {kind, detail,
         # authorized_by_flag} entries; the analysis lists them per run.
         "deviations": deviations,
@@ -4349,10 +4940,21 @@ def execute_run(
                 "twin_snapshot_cmd": twin_snapshot_cmd,
                 "drain_cmd": drain_cmd,
                 "post_drain_fetch_cmd": post_drain_fetch_cmd,
+                "twins_before_from": (
+                    str(twins_before_from) if twins_before_from else None
+                ),
+                "twins_after_from": (
+                    str(twins_after_from) if twins_after_from else None
+                ),
+                "post_drain_events_from": (
+                    str(post_drain_events_from) if post_drain_events_from else None
+                ),
+                "drain_transcript_from": (
+                    str(drain_transcript_from) if drain_transcript_from else None
+                ),
                 "config_identity_from": (
                     str(config_identity_from) if config_identity_from else None
                 ),
-                "allow_missing_restart_evidence": allow_missing_restart_evidence,
             },
         },
         "started_utc": started_utc,
@@ -4392,9 +4994,14 @@ def execute_run(
         "restart": restart_record,
         # ADR 0011 item 18: the SUT log fetches (broker log, controller
         # container log, docker events) into logs/sut/; for controller_restart
-        # the two twin snapshots, the drain and the post-drain fetch (empty or
-        # null elsewhere); the configuration identity the run rests on,
-        # embedded verbatim from configuration_identity.json.
+        # the two twin snapshots, the drain and the post-drain events (empty
+        # or null elsewhere), each with its 'source' ('hook' or 'ingested',
+        # the latter with 'from' and 'sha256'), 'verified' and 'problems';
+        # the drain's 'outcome' (quiet, gave-up or error) is what the finite
+        # proof's evaluator reads to apply the ADR's rule — the harness
+        # records it and treats only 'error' as a validity reason; the
+        # configuration identity the run rests on, embedded verbatim from
+        # configuration_identity.json.
         "sut_log_fetches": sut_log_fetches,
         "twin_snapshots": twin_snapshots,
         "drain": drain_record,
@@ -4483,7 +5090,10 @@ def collect_run(
     allow_missing_controller_marker: bool = False,
     expect_services: list[str] | None = None,
     config_identity_from: str | Path | None = None,
-    allow_missing_restart_evidence: bool = False,
+    twins_before_from: str | Path | None = None,
+    twins_after_from: str | Path | None = None,
+    post_drain_events_from: str | Path | None = None,
+    drain_transcript_from: str | Path | None = None,
 ) -> int:
     """Re-attempt evidence collection for an EXISTING run directory.
 
@@ -4518,8 +5128,18 @@ def collect_run(
     ADR 0011 item 18: ``config_identity_from`` is ingested like the SUT
     environment (copied write-once as ``configuration_identity.json`` and
     embedded in the manifest); the SUT log fetches and the restart evidence
-    steps are run-time measurements, so their recorded outcomes are
-    re-applied as the collector hooks' are.
+    steps taken by hooks are run-time measurements, so their recorded
+    outcomes are re-applied as the collector hooks' are. The restart
+    evidence taken outside the harness (the runbook's helpers) is ingested
+    here with ``twins_before_from``, ``twins_after_from``,
+    ``post_drain_events_from`` and ``drain_transcript_from``: each file is
+    verified against this run before it counts, copied write-once under
+    the hook's name and recorded with its provenance
+    (:func:`ingest_twin_snapshot`, :func:`ingest_post_drain_events`,
+    :func:`ingest_drain_transcript`); a refused file is not copied, so the
+    right one can follow it, and stays a validity reason until it does. An
+    artefact a hook took at run time is never replaced by a file (exit 2).
+    On any other condition the four are ignored with a warning.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -4620,6 +5240,66 @@ def collect_run(
     warnings: list[str] = []
     actions: list[str] = []
 
+    # The item-18 evidence steps (ADR 0011) taken by hooks are run-time
+    # measurements like the collector hooks: 'collect' re-applies their
+    # recorded outcomes. The ones taken outside the harness are ingested
+    # below, into these same records.
+    sut_log_fetches = manifest.get("sut_log_fetches")
+    if not isinstance(sut_log_fetches, list):
+        sut_log_fetches = []
+    twin_snapshots = manifest.get("twin_snapshots")
+    if not isinstance(twin_snapshots, list):
+        twin_snapshots = []
+    recorded_drain = manifest.get("drain")
+    if not isinstance(recorded_drain, dict):
+        recorded_drain = None
+    recorded_post_drain = manifest.get("events_post_drain_fetch")
+    if not isinstance(recorded_post_drain, dict):
+        recorded_post_drain = None
+    restart_run = manifest.get("condition_id") == "controller_restart"
+    external_evidence = [
+        (hook, source)
+        for hook, source in (
+            ("twin_snapshot_before", twins_before_from),
+            ("twin_snapshot_after", twins_after_from),
+            ("drain", drain_transcript_from),
+            ("post_drain", post_drain_events_from),
+        )
+        if source is not None
+    ]
+    if external_evidence and not restart_run:
+        warnings.append(
+            ", ".join(RESTART_EVIDENCE_FROM_FLAGS[hook] for hook, _ in external_evidence)
+            + f" ignored on condition {manifest.get('condition_id')!r}: the "
+            "twin snapshots, the drain and the post-drain events apply to the "
+            "controller_restart condition only"
+        )
+        external_evidence = []
+    # A hook's record is a run-time measurement: a file for the same
+    # artefact cannot replace it, whether the hook succeeded or failed.
+    existing_by_hook: dict[str, dict[str, Any] | None] = {
+        **{
+            hook: next((r for r in twin_snapshots if r.get("file") == file), None)
+            for hook, file in TWIN_SNAPSHOT_FILES.items()
+        },
+        "drain": recorded_drain,
+        "post_drain": recorded_post_drain,
+    }
+    for hook, _source in external_evidence:
+        existing = existing_by_hook[hook]
+        if existing is not None and existing.get("source", "hook") == "hook":
+            print(
+                f"error: run {run_id!r} took this step with its hook "
+                f"{RESTART_EVIDENCE_HOOK_FLAGS[hook]} at run time; "
+                f"{RESTART_EVIDENCE_FROM_FLAGS[hook]} cannot replace a hook's "
+                "record (a run-time measurement).",
+                file=sys.stderr,
+            )
+            return 2
+    plan_seed = manifest.get("seed")
+    if not isinstance(plan_seed, int) or isinstance(plan_seed, bool):
+        plan_seed = None
+
     try:
         # Events: re-attempted while missing; raw evidence already present
         # is never overwritten. When events.jsonl exists AND a fetch
@@ -4701,9 +5381,56 @@ def collect_run(
             and not identity_was_present
         ):
             actions.append(f"ingested {CONFIG_IDENTITY_FILENAME}")
+
+        # Restart evidence taken outside the harness (ADR 0011 item 18):
+        # verified against this run, copied write-once under the hook's
+        # name, recorded with its provenance. A refused file replaces an
+        # earlier refused record for the same artefact and copies nothing.
+        for hook, source in external_evidence:
+            if hook == "drain":
+                record = ingest_drain_transcript(run_dir, source, warnings=warnings)
+                recorded_drain = record
+            elif hook == "post_drain":
+                record = ingest_post_drain_events(
+                    run_dir, run_id, source, warnings=warnings
+                )
+                recorded_post_drain = record
+            else:
+                record = ingest_twin_snapshot(
+                    run_dir, hook, source, seed=plan_seed, warnings=warnings
+                )
+                twin_snapshots = [
+                    r for r in twin_snapshots if r.get("file") != record["file"]
+                ] + [record]
+            actions.append(
+                (
+                    f"ingested {record['file']} from {RESTART_EVIDENCE_FROM_FLAGS[hook]} "
+                    f"{source} (verified"
+                    + (f", drain outcome {record['outcome']}" if hook == "drain" else "")
+                    + ")"
+                )
+                if record["verified"]
+                else (
+                    f"refused {RESTART_EVIDENCE_FROM_FLAGS[hook]} {source}: "
+                    + "; ".join(record["problems"])
+                )
+            )
     except SealedRunError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    order = list(TWIN_SNAPSHOT_FILES.values())
+    twin_snapshots.sort(
+        key=lambda r: order.index(r["file"]) if r.get("file") in order else len(order)
+    )
+    # A hook's drain record written before the outcome was classified is
+    # classified now from the output the hook kept (never invented).
+    if recorded_drain is not None and "outcome" not in recorded_drain:
+        recorded_drain.setdefault("source", "hook")
+        recorded_drain["outcome"] = drain_hook_outcome(recorded_drain, run_dir)
+        recorded_drain["verified"] = recorded_drain["outcome"] != "error"
+    manifest["twin_snapshots"] = twin_snapshots
+    manifest["drain"] = recorded_drain
+    manifest["events_post_drain_fetch"] = recorded_post_drain
     sut_env_present = (run_dir / SUT_ENVIRONMENT_FILENAME).is_file()
     manifest["sut_environment_present"] = sut_env_present
     manifest["configuration_identity"] = configuration_identity
@@ -4808,10 +5535,12 @@ def collect_run(
     manifest["allow_missing_sut_env"] = allow_missing_sut_env
     manifest["allow_missing_resources"] = allow_missing_resources
     manifest["allow_missing_controller_marker"] = allow_missing_controller_marker
-    allow_missing_restart_evidence = allow_missing_restart_evidence or bool(
-        manifest.get("allow_missing_restart_evidence")
-    )
-    manifest["allow_missing_restart_evidence"] = allow_missing_restart_evidence
+    # The retired --allow-missing-restart-evidence (review finding F6): a
+    # manifest that still carries it is rewritten under the current rules,
+    # where missing restart evidence never qualifies through a flag.
+    manifest.pop("allow_missing_restart_evidence", None)
+    if isinstance((manifest.get("config") or {}).get("cli"), dict):
+        manifest["config"]["cli"].pop("allow_missing_restart_evidence", None)
 
     # SUT environment quality (work order P1 fix 4): re-validate the file
     # currently in the run dir against REQUIRED_SUT_FIELDS.
@@ -4847,20 +5576,6 @@ def collect_run(
         if isinstance(current_collector, dict)
         else []
     )
-    # The item-18 evidence steps (ADR 0011) are run-time measurements like
-    # the collector hooks: 'collect' re-applies their recorded outcomes.
-    sut_log_fetches = manifest.get("sut_log_fetches")
-    if not isinstance(sut_log_fetches, list):
-        sut_log_fetches = []
-    twin_snapshots = manifest.get("twin_snapshots")
-    if not isinstance(twin_snapshots, list):
-        twin_snapshots = []
-    recorded_drain = manifest.get("drain")
-    if not isinstance(recorded_drain, dict):
-        recorded_drain = None
-    recorded_post_drain = manifest.get("events_post_drain_fetch")
-    if not isinstance(recorded_post_drain, dict):
-        recorded_post_drain = None
     missing_artifacts = missing_mandatory_artifacts(
         run_dir,
         manifest.get("condition_id"),
@@ -4894,33 +5609,30 @@ def collect_run(
         drain=recorded_drain,
         events_post_drain_fetch=recorded_post_drain,
         config_identity_ok=configuration_identity is not None,
-        allow_missing_restart_evidence=allow_missing_restart_evidence,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons
+    if restart_run:
+        recorded_warnings = manifest.get("warnings")
+        if not isinstance(recorded_warnings, list):
+            recorded_warnings = []
+        for note in restart_evidence_notes(
+            twin_snapshots, recorded_drain, recorded_post_drain
+        ):
+            if note not in recorded_warnings and note not in warnings:
+                warnings.append(note)
 
     # Overrides taking effect at collect time must leave the same recorded
     # deviation entries a 'run' would (work order P1 fix 5); deduplicated
-    # by kind so repeated collect passes never stack duplicates.
+    # by kind so repeated collect passes never stack duplicates. The retired
+    # 'missing_restart_evidence' kind (F6) is dropped: it excused nothing.
     deviations = manifest.get("deviations")
     if not isinstance(deviations, list):
         deviations = []
-    if (
-        manifest.get("condition_id") == "controller_restart"
-        and allow_missing_restart_evidence
-    ):
-        absent = restart_evidence_missing(
-            twin_snapshots, recorded_drain, recorded_post_drain
-        )
-        if absent:
-            _append_deviation(
-                deviations,
-                "missing_restart_evidence",
-                "controller_restart run without the harness's restart evidence "
-                "step(s) " + ", ".join(absent) + " accepted: taken outside the "
-                "harness (the runbook's helpers), or not at all",
-                "--allow-missing-restart-evidence",
-            )
+    deviations = [
+        d for d in deviations
+        if not (isinstance(d, dict) and d.get("kind") == "missing_restart_evidence")
+    ]
     if (
         timed
         and allow_missing_sut_env
