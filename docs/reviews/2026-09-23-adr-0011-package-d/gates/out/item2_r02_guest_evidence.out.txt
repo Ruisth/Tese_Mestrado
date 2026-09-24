@@ -1,0 +1,148 @@
+
+=== R02: controller_restart-r02
+R02.E0 harness copy: 1267723 bytes sha256 8899f993fc93fe08176574efcbe314f558a2735cc34b4eefb2d9e56a9be4cd58
+R02.E0 guest copy:   1522738 bytes sha256 83ec782145ce13ac214264b9d75c6d6bd9303dd400e87ec473910409410e0127
+R02.E0 first 1267723 bytes of the guest copy sha256 8899f993fc93fe08176574efcbe314f558a2735cc34b4eefb2d9e56a9be4cd58 -> IDENTICAL to the harness copy
+R02.E1 lines: harness copy 3819, guest copy 4584, written after the harness copy 765; outcomes in those {'accepted': 765}; outcomes in the whole guest copy {'accepted': 4584}
+R02.E1 run_id values in the guest copy: ['controller_restart-r02']
+R02.E2 identities with an outcome: harness copy 3819, guest copy 4584; identities with two or more 'accepted' lines in the guest copy: 0
+R02.E2 guest-copy identities absent from sent_events.jsonl: 0
+R02.E3 no-outcome blocks, harness copy: [(1595, 3730, 2136), (5956, 6720, 765)]
+R02.E3 no-outcome blocks, guest copy:   [(1595, 3730, 2136)]
+R02.E3 harness-copy block sent_events.jsonl:1595-3730 (2136): 0 have an outcome in the guest copy, 2136 have none
+R02.E3 harness-copy block sent_events.jsonl:5956-6720 (765): 765 have an outcome in the guest copy, 0 have none
+R02.E4 the 765 later lines cover sent_events.jsonl:5956-6720 (distinct identities 765)
+R02.E4 later lines acknowledged after confirmation_deadline_monotonic_ns: 765 of 765
+R02.E4 newest acknowledgement in the guest copy: 2026-09-19T00:25:47.931Z harness wall (2026-09-19T00:25:47.887Z controller wall), 92.440 s after the deadline
+R02.E4 oldest acknowledgement among the later lines: 2026-09-19T00:24:19.413Z harness wall; harness fetch started 2026-09-19T00:24:18.026Z
+R02.E5 smart_clothing 8647cce2-d0ac-466f-80bf-bc9f228c9a77: accepted lines 4092, highest seq accepted 5999
+R02.E5 smart_ring 22eb9494-2dca-4beb-b1aa-3455124c4839: accepted lines 82, highest seq accepted 119
+R02.E5 smartwatch 9f0e7c83-9137-4216-9f98-afb0056de2ae: accepted lines 410, highest seq accepted 599
+
+=== R01: controller_restart-r01
+R01.E0 harness copy: 1507916 bytes sha256 3a110d5cbc8613ca1f3cbbfd9214666ae6975e9cb3125739219800aa2de8e958
+R01.E0 guest copy:   1648593 bytes sha256 df8390d6cf90ce0c7b15e153d2ed2158b953b4e698c90085deb4df02523c084e
+R01.E0 first 1507916 bytes of the guest copy sha256 3a110d5cbc8613ca1f3cbbfd9214666ae6975e9cb3125739219800aa2de8e958 -> IDENTICAL to the harness copy
+R01.E1 lines: harness copy 4538, guest copy 4960, written after the harness copy 422; outcomes in those {'accepted': 422}; outcomes in the whole guest copy {'accepted': 4960}
+R01.E1 run_id values in the guest copy: ['controller_restart-r01']
+R01.E2 identities with an outcome: harness copy 4538, guest copy 4960; identities with two or more 'accepted' lines in the guest copy: 0
+R01.E2 guest-copy identities absent from sent_events.jsonl: 0
+R01.E3 no-outcome blocks, harness copy: [(2012, 3771, 1760), (6299, 6720, 422)]
+R01.E3 no-outcome blocks, guest copy:   [(2012, 3771, 1760)]
+R01.E3 harness-copy block sent_events.jsonl:2012-3771 (1760): 0 have an outcome in the guest copy, 1760 have none
+R01.E3 harness-copy block sent_events.jsonl:6299-6720 (422): 422 have an outcome in the guest copy, 0 have none
+R01.E4 the 422 later lines cover sent_events.jsonl:6299-6720 (distinct identities 422)
+R01.E4 later lines acknowledged after confirmation_deadline_monotonic_ns: 422 of 422
+R01.E4 newest acknowledgement in the guest copy: 2026-09-18T22:02:06.359Z harness wall (2026-09-18T22:02:06.474Z controller wall), 43.713 s after the deadline
+R01.E4 oldest acknowledgement among the later lines: 2026-09-18T22:01:32.014Z harness wall; harness fetch started 2026-09-18T22:01:30.951Z
+R01.E5 smart_clothing bf8c7e60-dd3d-4937-90d8-6db337cac4d6: accepted lines 4429, highest seq accepted 5999
+R01.E5 smart_ring bf92ab68-275f-43a8-b36d-c8b14740171a: accepted lines 88, highest seq accepted 119
+R01.E5 smartwatch ea5687a1-8165-4b69-943e-952e9e2a678f: accepted lines 443, highest seq accepted 599
+
+=== J: guest journal, boot f99873bd9ff940259ae1135c277d9d86 (lines naming the controller container, its bridge port or the forwarded port 8000), 00:18:00Z-00:19:00Z
+J1 2026-09-19T00:18:11.385443+00:00 egw-qemu-integrated systemd[1]: run-docker-runtime\x2drunc-moby-9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91-runc.tUri3d.mount: Deactivated successfully.
+J1 2026-09-19T00:18:29.716576+00:00 egw-qemu-integrated dockerd[286]: time="2026-09-19T00:18:29.707989744Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91
+J1 2026-09-19T00:18:30.103298+00:00 egw-qemu-integrated systemd[1]: docker-9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.scope: Deactivated successfully.
+J1 2026-09-19T00:18:30.114524+00:00 egw-qemu-integrated systemd[1]: docker-9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.scope: Consumed 3min 18.105s CPU time.
+J1 2026-09-19T00:18:30.588480+00:00 egw-qemu-integrated containerd[245]: time="2026-09-19T00:18:30.583046048Z" level=info msg="shim disconnected" id=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 namespace=moby
+J1 2026-09-19T00:18:30.591446+00:00 egw-qemu-integrated containerd[245]: time="2026-09-19T00:18:30.589285603Z" level=warning msg="cleaning up after shim disconnected" id=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 namespace=moby
+J1 2026-09-19T00:18:30.599569+00:00 egw-qemu-integrated dockerd[286]: time="2026-09-19T00:18:30.598992841Z" level=info msg="ignoring event" container=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 module=libcontainerd namespace=moby topic=/tasks/delete type="*events.TaskDelete"
+J1 2026-09-19T00:18:30.932619+00:00 egw-qemu-integrated dockerd[286]: time="2026-09-19T00:18:30.929922992Z" level=warning msg="ShouldRestart failed, container will not be restarted" container=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 daemonShuttingDown=false error="restart canceled" execDuration=15m13.651706125s exitStatus="{137 2026-09-19 00:18:30.166524828 +0000 UTC}" hasBeenManuallyStopped=true
+J1 2026-09-19T00:18:31.357923+00:00 egw-qemu-integrated sshd[3128]: error: connect_to 127.0.0.1 port 8000: failed.
+J1 2026-09-19T00:18:31.472102+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(vethf40fbc4) entered disabled state
+J1 2026-09-19T00:18:31.599417+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(vethf40fbc4) entered disabled state
+J1 2026-09-19T00:18:31.621988+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(vethf40fbc4) entered disabled state
+J1 2026-09-19T00:18:31.849469+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered blocking state
+J1 2026-09-19T00:18:31.850249+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered disabled state
+J1 2026-09-19T00:18:31.886038+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered blocking state
+J1 2026-09-19T00:18:31.886587+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered forwarding state
+J1 2026-09-19T00:18:32.356517+00:00 egw-qemu-integrated sshd[3128]: error: connect_to 127.0.0.1 port 8000: failed.
+J1 2026-09-19T00:18:32.496235+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered disabled state
+J1 2026-09-19T00:18:33.099085+00:00 egw-qemu-integrated containerd[245]: time="2026-09-19T00:18:33.094000885Z" level=info msg="connecting to shim 9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91" address="unix:///run/containerd/s/440034cf68973a9b3878bbdccb967fa84b81e5c03f8b1537033a9d928c1e9029" namespace=moby protocol=ttrpc version=3
+J1 2026-09-19T00:18:33.602160+00:00 egw-qemu-integrated systemd[1]: Started libcontainer container 9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.
+J1 2026-09-19T00:18:35.480428+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered blocking state
+J1 2026-09-19T00:18:35.481291+00:00 egw-qemu-integrated kernel: br-9421b840f096: port 6(veth93bd278) entered forwarding state
+J2 journal lines naming the controller container between 00:03Z and 00:30Z: 21
+J2 2026-09-19T00:03:14.170857+00:00 egw-qemu-integrated systemd[1]: Started libcontainer container 9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.
+J2 2026-09-19T00:18:29.716576+00:00 egw-qemu-integrated dockerd[286]: time="2026-09-19T00:18:29.707989744Z" level=info msg="Container failed to exit within 10s of signal 15 - using the force" container=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91
+J2 2026-09-19T00:18:30.103298+00:00 egw-qemu-integrated systemd[1]: docker-9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.scope: Deactivated successfully.
+J2 2026-09-19T00:18:30.932619+00:00 egw-qemu-integrated dockerd[286]: time="2026-09-19T00:18:30.929922992Z" level=warning msg="ShouldRestart failed, container will not be restarted" container=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 daemonShuttingDown=false error="restart cancel
+J2 2026-09-19T00:18:33.602160+00:00 egw-qemu-integrated systemd[1]: Started libcontainer container 9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.
+J2 2026-09-19T00:28:41.898987+00:00 egw-qemu-integrated systemd[1]: docker-9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91.scope: Deactivated successfully.
+J2 2026-09-19T00:28:43.371038+00:00 egw-qemu-integrated dockerd[286]: time="2026-09-19T00:28:43.369138748Z" level=warning msg="ShouldRestart failed, container will not be restarted" container=9b2098915ade19660d43960189390249db7cc9ef7516650551afa1b0eb5f9e91 daemonShuttingDown=false error="restart cancel
+
+=== B: broker log lines for client egw-controller-egw-01 found in the data-disk image (offset: json line)
+B0 distinct json lines stamped 2026-09-19T00 in the image: 43499; of them in the broker's text format: 155
+B1 2026-09-19T00:03:32.618721846Z | 2026-09-19T00:03:32: New client connected from 172.18.0.7:48707 as egw-controller-egw-01 (p2, c1, k60, u'egw-controller'). | offsets [400588507]
+B1 2026-09-19T00:03:32.634341391Z | 2026-09-19T00:03:32: egw-controller-egw-01 1 c2dt/+/+/telemetry | offsets [400588700]
+B1 2026-09-19T00:18:19.877136929Z | 2026-09-19T00:18:19: Client egw-controller-egw-01 disconnected. | offsets [400599754]
+B1 2026-09-19T00:18:48.374836454Z | 2026-09-19T00:18:48: New client connected from 172.18.0.7:59117 as egw-controller-egw-01 (p2, c1, k60, u'egw-controller'). | offsets [400600466]
+B1 2026-09-19T00:18:48.42024951Z | 2026-09-19T00:18:48: egw-controller-egw-01 1 c2dt/+/+/telemetry | offsets [400600659]
+B1 2026-09-19T00:28:41.330008024Z | 2026-09-19T00:28:41: Client egw-controller-egw-01 disconnected. | offsets [400607709]
+B1 2026-09-19T00:13:15.499482409Z | 2026-09-19T00:13:15: New client connected from 10.0.2.2:55027 as egw-simulator-controller_restart-r02 (p2, c1, k30, u'egw-simulator'). | offsets [400595946]
+B1 2026-09-19T00:23:15.397214738Z | 2026-09-19T00:23:15: Client egw-simulator-controller_restart-r02 disconnected. | offsets [400603672]
+B3 broker-format lines 00:03:30-00:29Z: 136, first 2026-09-19T00:03:32.501Z, last 2026-09-19T00:28:44.591Z; silences over 35 s: []; byte offsets span 400585678-400607971
+B2 broker-format lines stamped 00:18-00:19Z in the image: 14
+B2 2026-09-19T00:18:06.089306172Z | 2026-09-19T00:18:06: New connection from 127.0.0.1:59516 on port 8883.
+B2 2026-09-19T00:18:06.323404771Z | 2026-09-19T00:18:06: Client egw-healthcheck disconnected, not authorised.
+B2 2026-09-19T00:18:19.877136929Z | 2026-09-19T00:18:19: Client egw-controller-egw-01 disconnected.
+B2 2026-09-19T00:18:37.518400948Z | 2026-09-19T00:18:37: Saving in-memory database to /mosquitto/data//mosquitto.db.
+B2 2026-09-19T00:18:37.962996812Z | 2026-09-19T00:18:37: New connection from 127.0.0.1:58052 on port 8883.
+B2 2026-09-19T00:18:38.557246798Z | 2026-09-19T00:18:38: Client egw-healthcheck disconnected, not authorised.
+B2 2026-09-19T00:18:48.302875888Z | 2026-09-19T00:18:48: New connection from 172.18.0.7:59117 on port 8883.
+B2 2026-09-19T00:18:48.374836454Z | 2026-09-19T00:18:48: New client connected from 172.18.0.7:59117 as egw-controller-egw-01 (p2, c1, k60, u'egw-controller').
+B2 2026-09-19T00:18:48.42024951Z | 2026-09-19T00:18:48: egw-controller-egw-01 1 c2dt/+/+/telemetry
+B2 2026-09-19T00:19:10.232890881Z | 2026-09-19T00:19:10: New connection from 127.0.0.1:42452 on port 8883.
+B2 2026-09-19T00:19:10.87662517Z | 2026-09-19T00:19:10: Client egw-healthcheck disconnected, not authorised.
+B2 2026-09-19T00:19:38.493861667Z | 2026-09-19T00:19:38: Saving in-memory database to /mosquitto/data//mosquitto.db.
+B2 2026-09-19T00:19:42.129495159Z | 2026-09-19T00:19:42: New connection from 127.0.0.1:58166 on port 8883.
+B2 2026-09-19T00:19:42.394932767Z | 2026-09-19T00:19:42: Client egw-healthcheck disconnected, not authorised.
+
+=== C: controller container log lines found in the data-disk image (engine time | line)
+C1 2026-09-19T00:18:19.763Z | INFO:     Shutting down | offset 410341299
+C1 2026-09-19T00:18:19.868Z | INFO:     Waiting for application shutdown. | offset 410341702
+C1 2026-09-19T00:18:19.876Z | {"ts": "2026-09-19T00:18:19.874Z", "level": "WARNING", "logger": "egw_controller.mqtt", "message": "MQTT disconnected", "context": {"reason_code": "Normal disconnection"}} | offset 410341816
+C1 2026-09-19T00:18:48.166Z | INFO:     Started server process [1] | offset 410359070
+C1 2026-09-19T00:18:48.166Z | INFO:     Waiting for application startup. | offset 410359177
+C1 2026-09-19T00:18:48.186Z | INFO:     Application startup complete. | offset 410359290
+C1 2026-09-19T00:18:48.192Z | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit) | offset 410359400
+C1 2026-09-19T00:18:48.417Z | {"ts": "2026-09-19T00:18:48.415Z", "level": "INFO", "logger": "egw_controller.mqtt", "message": "MQTT connected; subscription requested", "context": {"host": "mosquitto", "port": 8883, "topic_filter": "c2dt/+/+/telemetry | offset 410359542
+C1 2026-09-19T00:18:48.422Z | {"ts": "2026-09-19T00:18:48.420Z", "level": "INFO", "logger": "egw_controller.mqtt", "message": "MQTT subscription granted; bridge ready", "context": {"granted_qos": 1, "topic_filter": "c2dt/+/+/telemetry"}} | offset 410359864
+C2 PATCH lines stamped 2026-09-19T00: 4920 (with 204: 4920)
+C3 old-process outcome lines acknowledged 00:17:00Z-death (controller wall): 504; each matched to a distinct PATCH 204 line for the same thing within 0.5 s: 504; largest gap 49.1 ms; PATCH 204 lines stamped 00:17:00.5Z-00:18:31Z left unmatched: 0
+C4 old process's last acknowledgement stamp 2026-09-19T00:18:29.990Z (controller wall); PATCH 204 lines logged after it by the old process: 0
+C5 after the last answered poll (00:18:19.443Z harness): outcome lines 58, PATCH 204 lines 58
+C6 controller instants (guest wall): shutting_down: 2026-09-19T00:18:19.763Z, mqtt_disconnected: 2026-09-19T00:18:19.874Z, sub_requested: 2026-09-19T00:18:48.415Z, sub_granted: 2026-09-19T00:18:48.420Z; PATCH 204 lines after 'Shutting down': 56
+
+=== P: controller_restart-r02, the internal block cut on the broker's instants
+P0 connect 2026-09-19T00:03:32.618Z | 2026-09-19T00:03:32: New client connected from 172.18.0.7:48707 as egw-controller-egw-01 (p2, c1, k60, u'egw-controller').
+P0 connect 2026-09-19T00:18:48.374Z | 2026-09-19T00:18:48: New client connected from 172.18.0.7:59117 as egw-controller-egw-01 (p2, c1, k60, u'egw-controller').
+P0 marker offset guest - harness = -0.044 s (manifest controller_marker); applied to every guest instant
+P0 old client disconnect: json time 2026-09-19T00:18:19.877Z guest; text second 2026-09-19T00:18:19.000Z
+P0 new subscription:      json time 2026-09-19T00:18:48.420Z guest; text second 2026-09-19T00:18:48.000Z
+P0 last answered old poll 2026-09-19T00:18:19.443Z harness; first answered new poll 2026-09-19T00:18:48.558Z harness
+P0 block sent_events.jsonl:1595-3730 (2136): first published 2026-09-19T00:15:37.744Z, last published 2026-09-19T00:18:48.444Z harness wall
+P0 first identity after the block, sent_events.jsonl:3731, published 2026-09-19T00:18:48.543Z harness wall
+P1 [broker json times] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:19.921Z] 6 | (later of the two, subscription 2026-09-19T00:18:48.464Z] 320 | after the subscription 0 | total 2136
+P1 [controller's own stamps 'MQTT disconnected' / 'subscription requested'] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:19.918Z] 6 | (later of the two, subscription 2026-09-19T00:18:48.459Z] 320 | after the subscription 0 | total 2136
+P1 [earliest disconnect ('Shutting down', engine time) / broker json subscription] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:19.807Z] 5 | (later of the two, subscription 2026-09-19T00:18:48.464Z] 321 | after the subscription 0 | total 2136
+P4 offset guest - harness implied by the boundary identities: between -0.129 and -0.024 s (marker: -0.044 s)
+P1 [broker json times, offset -0.129 s] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:20.006Z] 7 | (later of the two, subscription 2026-09-19T00:18:48.549Z] 319 | after the subscription 0 | total 2136
+P1 [broker json times, offset -0.024 s] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:19.900Z] 6 | (later of the two, subscription 2026-09-19T00:18:48.444Z] 320 | after the subscription 0 | total 2136
+P1 [broker json times, offset shifted -0.5 s (outside the implied window; for scale)] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:19.421Z] 0 | (later of the two, subscription 2026-09-19T00:18:47.964Z] 321 | after the subscription 5 | total 2136
+P1 [broker json times, offset shifted +0.5 s (outside the implied window; for scale)] G1 <= last poll 1810 (of which published after the disconnect 0) | (last poll, disconnect 2026-09-19T00:18:20.421Z] 11 | (later of the two, subscription 2026-09-19T00:18:48.964Z] 315 | after the subscription 0 | total 2136
+P2 published while no subscription for egw-controller-egw-01 existed: 319 to 321 over the readings above (the +-0.5 s rows excluded); published after the last poll and before the disconnect: 5 to 7
+P3 all identities published inside (disconnect, subscription] on json times: 320 (sent_events.jsonl:3411-3730); with an outcome in the guest copy: 0
+P3 of the first 200 identities published after the subscription, without an outcome in the guest copy: 0
+
+=== X: stop timeline, guest wall (and harness wall at the marker offset)
+X1 2026-09-19T00:18:19.399Z guest  2026-09-19T00:18:19.443Z harness  last answered old poll (a harness instant, shown on guest wall)
+X1 2026-09-19T00:18:19.707Z guest  2026-09-19T00:18:19.751Z harness  signal 15 sent, at the latest (force time - timeout)
+X1 2026-09-19T00:18:19.877Z guest  2026-09-19T00:18:19.921Z harness  broker logs the old client's disconnect
+X1 2026-09-19T00:18:29.707Z guest  2026-09-19T00:18:29.751Z harness  engine gives up on signal 15 and forces the stop
+X1 2026-09-19T00:18:29.990Z guest  2026-09-19T00:18:30.034Z harness  old process's last outcome (controller wall at the marker)
+X1 2026-09-19T00:18:30.166Z guest  2026-09-19T00:18:30.210Z harness  exit status recorded by the engine
+X1 2026-09-19T00:18:33.602Z guest  2026-09-19T00:18:33.646Z harness  new container started (systemd)
+X1 2026-09-19T00:18:48.374Z guest  2026-09-19T00:18:48.418Z harness  new client connected (broker)
+X1 2026-09-19T00:18:48.420Z guest  2026-09-19T00:18:48.464Z harness  new subscription (broker)
+X2 signal 15, timeout 10 s, exit status 137 (= 128 + 9), execDuration 15m13.651706125s

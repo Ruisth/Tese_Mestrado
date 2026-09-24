@@ -1,0 +1,126 @@
+
+##############################################################################
+# A. Offered (sent_events.jsonl, harness monotonic)
+##############################################################################
+n 6720 first +0.155604 last +600.055411
+offered (n-1)/span 11.200204 ; n/span 11.201871 ; n/600.106644 11.198010 ; n/600 11.200000
+rounded to 4 dp: 11.2002 (plan 11.2000) -> equal at 4 dp: False ; at 3 dp: True
+per 60 s block from window start (harness): [671, 672, 672, 672, 672, 672, 672, 672, 672, 672]
+device mix Counter({'smart_clothing': 6000, 'smartwatch': 600, 'smart_ring': 120})
+warm-up device mix Counter({'smart_clothing': 1200, 'smartwatch': 120, 'smart_ring': 24})
+
+##############################################################################
+# B. Arrivals at the controller (controller monotonic)
+##############################################################################
+measured arrivals (n-1)/span 11.201088 msg/s ; first el 0.193468 last el 600.045903
+warm-up arrivals: n 1344 first el -119.879781 last el 0.009955
+
+##############################################################################
+# C. Served rate by phase
+##############################################################################
+samples pre/win/after/total 122 599 0 721
+counters warm-up (first sample -> last pre-window sample): d 593 over 120.047 s = 4.939732
+counters warm-up (first sample -> first in-window sample): d 601 over 121.045 s = 4.965096
+counters window first->last in-window sample: d 3863 over 598.261 s = 6.457048 msg/s
+event log acks in (el 0, el W]: 3878 ; /W = 6.462185 ; vs counters +0.0796 %
+event log warm-up acks (first arrival, el 0]: 593 over 119.880 s = 4.946622
+acks after window end 3593 ; last at el 1005.469 ; rate 3593/(last-end) = 8.863682 ; (n-1)/(last-first after) = 8.863580
+offered/served(counters) 1.734570 ; net accumulation 4.743156 (using offered (n-1)/span)
+
+##############################################################################
+# D. Fixed blocks, aligned at el 0 (event log; counters interpolated)
+##############################################################################
+-- 60 s blocks --
+   -120..-60   arr  671 acks  276 ev 4.6000 ctr 4.6009
+    -60..0     arr  672 acks  317 ev 5.2833 ctr 5.2900
+      0..60    arr  672 acks  393 ev 6.5500 ctr 6.5428
+     60..120   arr  672 acks  334 ev 5.5667 ctr 5.5650
+    120..180   arr  672 acks  319 ev 5.3167 ctr 5.3158
+    180..240   arr  671 acks  360 ev 6.0000 ctr 6.0130
+    240..300   arr  673 acks  369 ev 6.1500 ctr 6.1400
+    300..360   arr  672 acks  370 ev 6.1667 ctr 6.1520
+    360..420   arr  672 acks  392 ev 6.5333 ctr 6.5527
+    420..480   arr  672 acks  413 ev 6.8833 ctr 6.8607
+    480..540   arr  672 acks  414 ev 6.9000 ctr 6.9094
+    540..600   arr  672 acks  513 ev 8.5500 ctr 8.4576
+  lowest ev 4.6000 at [(-120, -60)] ; lowest in window 5.3167 ; highest in window 8.5500
+-- 30 s blocks --
+   -120..-90   arr  335 acks  115 ev 3.8333 ctr 3.8437
+    -90..-60   arr  336 acks  161 ev 5.3667 ctr 5.3581
+    -60..-30   arr  336 acks  139 ev 4.6333 ctr 4.6450
+    -30..0     arr  336 acks  178 ev 5.9333 ctr 5.9350
+      0..30    arr  336 acks  189 ev 6.3000 ctr 6.2906
+     30..60    arr  336 acks  204 ev 6.8000 ctr 6.7950
+     60..90    arr  335 acks  172 ev 5.7333 ctr 5.7590
+     90..120   arr  337 acks  162 ev 5.4000 ctr 5.3709
+    120..150   arr  336 acks  153 ev 5.1000 ctr 5.1257
+    150..180   arr  336 acks  166 ev 5.5333 ctr 5.5059
+    180..210   arr  336 acks  180 ev 6.0000 ctr 5.9965
+    210..240   arr  335 acks  180 ev 6.0000 ctr 6.0295
+    240..270   arr  337 acks  183 ev 6.1000 ctr 6.0864
+    270..300   arr  336 acks  186 ev 6.2000 ctr 6.1936
+    300..330   arr  336 acks  191 ev 6.3667 ctr 6.3720
+    330..360   arr  336 acks  179 ev 5.9667 ctr 5.9321
+    360..390   arr  336 acks  200 ev 6.6667 ctr 6.6949
+    390..420   arr  336 acks  192 ev 6.4000 ctr 6.4106
+    420..450   arr  336 acks  196 ev 6.5333 ctr 6.5233
+    450..480   arr  336 acks  217 ev 7.2333 ctr 7.1982
+    480..510   arr  336 acks  198 ev 6.6000 ctr 6.6472
+    510..540   arr  336 acks  216 ev 7.2000 ctr 7.1717
+    540..570   arr  336 acks  229 ev 7.6333 ctr 7.6430
+    570..600   arr  336 acks  284 ev 9.4667 ctr 9.2722
+  lowest ev 3.8333 at [(-120, -90)] ; lowest in window 5.1000 ; highest in window 9.4667
+-- 10 s blocks: lowest overall 3.0000 at [(-120, -110)] ; lowest in window 3.9000 at [(20, 30), (60, 70), (90, 100), (340, 350)]
+   in-window 10 s blocks with acks >= arrivals: 0 of 60
+   in-window 10 s blocks with acks >= arrivals counting only measured arrivals: 0
+   1 s bins in window with zero acks: 12 of 600
+   note: block grid ends at el 600.000; window end el 600.106644; acks in (600, W]: 1
+
+##############################################################################
+# E. The queue
+##############################################################################
+samples with queue_depth 0: ['2026-09-19T20:00:45.540Z', '2026-09-19T20:00:45.566Z'] ; first arrival harness wall 2026-09-19T20:00:45.763Z
+  max dropped 0
+  max rejected 0
+  max duplicate 0
+  max failed 0
+in-window samples 599 first 752 last 3590 min 752 max 3590 ; decreases 6 largest 3
+max over all samples 3590 ; 35.90 % of 10000
+in system at el 0: 750 ; at window end: 3593 ; at deadline: 2926
+growth reconstruction el0->end 2843 over 600.107 s = 4.7375 msg/s
+sampled growth 2838 over 598.261 s ; deficit prediction (offered (n-1)/span - counter rate) x 598.261 = 2837.65
+  alternative prediction with the arrival rate at the controller: 2838.17
+
+##############################################################################
+# F. Around the window end and the drain (30 s blocks from the window end)
+##############################################################################
+  end+  0..+ 30 s (harness wall from 2026-09-19T20:12:45.750Z): 348 acks = 11.600 msg/s (per 30 s: 11.600)
+  end+ 30..+ 60 s (harness wall from 2026-09-19T20:13:15.750Z): 319 acks = 10.633 msg/s (per 30 s: 10.633)
+  end+ 60..+ 90 s (harness wall from 2026-09-19T20:13:45.750Z): 207 acks = 6.900 msg/s (per 30 s: 6.900)
+  end+ 90..+120 s (harness wall from 2026-09-19T20:14:15.750Z): 237 acks = 7.900 msg/s (per 30 s: 7.900)
+  end+120..+150 s (harness wall from 2026-09-19T20:14:45.750Z): 238 acks = 7.933 msg/s (per 30 s: 7.933)
+  end+150..+180 s (harness wall from 2026-09-19T20:15:15.750Z): 259 acks = 8.633 msg/s (per 30 s: 8.633)
+  end+180..+210 s (harness wall from 2026-09-19T20:15:45.750Z): 251 acks = 8.367 msg/s (per 30 s: 8.367)
+  end+210..+240 s (harness wall from 2026-09-19T20:16:15.750Z): 239 acks = 7.967 msg/s (per 30 s: 7.967)
+  end+240..+270 s (harness wall from 2026-09-19T20:16:45.750Z): 248 acks = 8.267 msg/s (per 30 s: 8.267)
+  end+270..+300 s (harness wall from 2026-09-19T20:17:15.750Z): 286 acks = 9.533 msg/s (per 30 s: 9.533)
+  end+300..+330 s (harness wall from 2026-09-19T20:17:45.750Z): 272 acks = 9.067 msg/s (per 30 s: 9.067)
+  end+330..+360 s (harness wall from 2026-09-19T20:18:15.750Z): 252 acks = 8.400 msg/s (per 30 s: 8.400)
+  end+360..+390 s (harness wall from 2026-09-19T20:18:45.750Z): 279 acks = 9.300 msg/s (per 30 s: 9.300)
+  end+390..+420 s (harness wall from 2026-09-19T20:19:15.750Z): 158 acks = 10.285 msg/s (per 30 s: 5.267)
+last 30 s of window (el 570..600): 9.4667 ; (W-30, W]: 9.5000
+first 30 s after end / window counter rate = 1.7965
+after deadline: 2926 acks over 345.362 s = 8.4723
+last metrics sample 2026-09-19T20:12:44.846Z ; stop hook started ['2026-09-19T20:12:45.769Z']
+fetch hook [('2026-09-19T20:13:48.078Z', '2026-09-19T20:13:57.285Z')]
+10 s blocks el 560..640: [7.5, 9.4, 10.0, 9.0, 10.1, 12.9, 11.7, 10.6]
+max 10 s drain block rate: 12.9
+
+##############################################################################
+# G. The ADR's N.7 blocks (5.35 .. 8.57): try plausible counter definitions
+##############################################################################
+harness wall from measured_window_utc.start nearest samples, rate over sample span: [6.5463, 5.5633, 5.315, 6.0142, 6.145, 6.1487, 6.558, 6.853, 6.9161, 8.5726]
+harness wall from measured_window_utc.start interpolated: [6.5428, 5.565, 5.3158, 6.013, 6.14, 6.152, 6.5527, 6.8607, 6.9094, 8.4576]
+harness wall from measured_window_utc.start last sample <= edge, /60: [6.55, 5.4667, 5.35, 5.9833, 6.1, 6.1833, 6.5333, 6.9, 6.8833, 8.5667]
+harness wall from measured_window_utc.start last sample <= edge, /sample span: [6.5463, 5.5571, 5.347, 5.9803, 6.0968, 6.1821, 6.5316, 6.8962, 6.8784, 8.5664]
+groups of 60 in-window samples: [6.4179, 5.6042, 5.3679, 5.9944, 6.197, 6.1651, 6.533, 6.7518, 7.0602, 8.5476]

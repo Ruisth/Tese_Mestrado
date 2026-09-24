@@ -1,0 +1,15 @@
+[A.0] run nominal-r01 seed 2119955110 egw_id egw-01 devices ['smartwatch', 'smart_ring', 'smart_clothing']
+[A.1] identities regenerated 6720 sent_events rows 6720 message_id mismatches 0
+[A.2] smartwatch: n=600 payload bytes min=290 median=293.0 max=294 mean=292.9; topic bytes=58
+[A.2] smart_ring: n=120 payload bytes min=273 median=274.0 max=275 mean=274.2; topic bytes=58
+[A.2] smart_clothing: n=6000 payload bytes min=311 median=316.0 max=320 mean=316.3; topic bytes=58
+[A.3] all: payload bytes min=273 median=316.0 max=320 mean=313.5 sum=2106533
+[A.4] 3593 messages x max payload 320 B = 1149760 B = 1.096 MiB; with max topic 58 B: 1.295 MiB
+[A.4] 4999 messages x max payload 320 B = 1599680 B = 1.526 MiB; with max topic 58 B: 1.802 MiB
+[A.4] 5000 messages x max payload 320 B = 1600000 B = 1.526 MiB; with max topic 58 B: 1.802 MiB
+[A.4] 9999 messages x max payload 320 B = 3199680 B = 3.051 MiB; with max topic 58 B: 3.605 MiB
+[A.5] 128 MiB / 3593 = 37355.3 B per message (= 36.48 KiB), before any baseline is subtracted
+[A.5] 128 MiB / 4999 = 26848.9 B per message (= 26.22 KiB), before any baseline is subtracted
+[B.nominal-r01] file /home/ruisth/egw-tcg/pilot/results/raw/nominal-r01/logs/collector/resources-nominal-r01.csv; broker rows 720 (2026-09-19T20:00:47Z .. 2026-09-19T20:12:46Z); mem_bytes min=4374528 median=4395008.0 max=7692288 at 2026-09-19T20:02:09Z (4.17 / 4.19 / 7.34 MiB); mem_pct max=5.73; implied memory.max=128.03 MiB
+[B.controller_restart-r01] file /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r01/logs/collector/resources-controller_restart-r01.csv; broker rows 140 (2026-09-18T21:50:22Z .. 2026-09-18T22:00:23Z); mem_bytes min=1925186 median=1974469.0 max=3391095 at 2026-09-18T21:58:57Z (1.84 / 1.88 / 3.23 MiB); mem_pct max=2.53; implied memory.max=127.83 MiB
+[B.controller_restart-r02] file /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r02/logs/collector/resources-controller_restart-r02.csv; broker rows 504 (2026-09-19T00:13:17Z .. 2026-09-19T00:23:16Z); mem_bytes min=5029888 median=5074944.0 max=7766016 at 2026-09-19T00:22:19Z (4.80 / 4.84 / 7.41 MiB); mem_pct max=5.79; implied memory.max=127.91 MiB

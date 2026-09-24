@@ -3339,3 +3339,62 @@ is unchanged.
   to the student and the project manager for the recovery and scope decision
   on package D, with the remaining hours and the full schedule; option 5
   stays a proposal, the qualifying G3 runs stay paused.
+
+## Entry #C041 — The student's decision on package D: option 5 for bounded implementation; ADR 0011 enters the repository with its review record
+
+- **Date:** 2026-09-24. **Scope:** documentation only — the decision record,
+  its index row, the amendment note in ADR 0010, the review record, a marker
+  in `PROGRESS.md` and this entry. No code, contract text, deployment file,
+  test, guest session or measurement is part of this entry; the implementation
+  follows in its own pull request.
+- **What.** `docs/adr/0011-controller-restart-recovery.md` — status: accepted
+  by the student for bounded implementation (2026-09-24). Its section "The
+  decision recorded on 2026-09-24" records the decision and the choices that go
+  with it: A3(a) in process under A5's bound; `max_queued_messages 1000` and
+  `persistent_client_expiration 1h` as the candidate's configuration, not a
+  validated capacity or expiry; C2 declined knowingly, with what is lost
+  stated; T1; no optional proof extension, no T2, no T3; the checkpoints of
+  2026-09-27 (or eight reported engineering hours), 2026-10-01 and 2026-10-03
+  with the return to the student if a terminal one is missed; and what the
+  decision does not authorise (no guest session, no gate, no claim, the pause
+  on the qualifying G3 runs in force). The review record
+  `docs/reviews/2026-09-23-adr-0011-package-d/` — the two first analyses, the
+  backlog diagnosis, the four gate notes with their scripts and outputs, the
+  refutation check, the verification reports, the review annex and the
+  decision request; its `README.md` says what is not kept there (third-party
+  documentation copies, identified by hash; the guest files extracted for gate
+  item 2, held in `output_test`; superseded versions) and where it is. The
+  index row in `docs/adr/README.md`; the amendment note at the head of ADR
+  0010; the marker in `PROGRESS.md` beside the student's answer on the pause.
+- **Why.** The G3 qualifying runs are paused until the candidate is frozen
+  after package D (the student's answer of 2026-09-21). The diagnosis of
+  2026-09-20/21, the four gate notes of 2026-09-21, the refutation check
+  applied on 2026-09-23, the broker measurement that met condition C3 on
+  2026-09-23 (#C040), and the project manager's corrections D1–D3 of
+  2026-09-23 and note of 2026-09-24 brought the decision to the student, who
+  decided option 5 on 2026-09-24 ("Avança com a opção 5").
+- **Corrections carried into the published record.** (i) Mosquitto 2.0.22
+  logs `Outgoing messages are being dropped for client <id>.` once per client
+  at the transition into dropping and clears that flag only at the client's
+  next CONNECT (`src/database.c`, `src/handle_connect.c` of the tagged
+  source); every drop increments only the broker-wide `$SYS` counter. The
+  line is presence for that connection, not a count and not per run, so
+  declining C2 loses run-level drop accounting (N4, C2; the earlier wording
+  "the run-level drop evidence is in the broker log, C2 or not" was wrong).
+  (ii) Two paragraphs of "Relationship with the throughput problem" no longer
+  say that nothing in option 5 would improve the timing figures, nor that the
+  zero-lost gate is expected to fail under every option: recovery is not a
+  timing change and the changed candidate is unmeasured either way. (iii)
+  Q = 1,000 and the one-hour expiry are exercised configuration values — the
+  expiry of a disconnected session, not a message lifetime — not a validated
+  capacity; the 28.5 s × 11.2 msg/s sizing holds for r02's outage only.
+- **Result.** Documentation. The link checker (122 Markdown files) and the evidence verifier (909 artefacts across 24 seals) pass locally with the record and the review record in place. The code at `dev` implements
+  none of ADR 0011.
+- **Decisions and next steps.** The student's decision is recorded; nothing
+  here accepts a gate or admits a claim. Next: the bounded implementation on a
+  branch from `dev` — the twenty items of "What must change", the contract
+  text, the regression tests with fakes and an identified controller image —
+  with the progress return by 2026-09-27 or after eight reported engineering
+  hours, whichever comes first. The finite proof, the resumption of the
+  qualifying battery and the G4 pilot each need the student's separate
+  authorisation.

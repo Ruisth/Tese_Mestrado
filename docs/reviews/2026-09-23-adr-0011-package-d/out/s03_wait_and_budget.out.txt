@@ -1,0 +1,49 @@
+
+==============================================================================
+A. Order checks over all 8,064 messages (warm-up + measured)
+==============================================================================
+messages 8064; acknowledgements strictly increasing in arrival order (FIFO): True
+last warm-up arrival +0.009955 s < first measured arrival +0.193468 s: True
+last warm-up ack +126.513075 s < first measured ack +126.661899 s: True
+messages that arrived after the previous ack (consumer idle before them): 0
+=> consumer continuously busy from the first arrival (el -119.880 s) to the last ack (el +1005.469 s): True
+max |(ack-received)/1e6 - latency_ms| : 0.000000 ms
+first message per device: {'smartwatch': 'warmup', 'smart_ring': 'warmup', 'smart_clothing': 'warmup'}
+attempts > 1: 0; non-null error: 0
+
+==============================================================================
+B. Exact wait / own split for the 6,720 measured messages
+==============================================================================
+first measured message: arrival el +0.193468, ack el +126.661899, latency 126.468431 s = wait 126.319607 + own 0.148824; messages in the controller at its arrival: 749
+wait (s)   : min 126.320  p50 320.194  mean 305.044  max 405.370
+own  (ms)  : min 59.68  p50 112.61  mean 130.80  p95 217.47  max 2542.14
+wait share of latency: min 98.6474 %  p50 99.9638 %
+sum wait / sum latency over the 6,720: 99.9571 %
+
+==============================================================================
+C. The per-message budget (mean inter-acknowledgement gap) by population
+==============================================================================
+M-in: measured messages acked inside the window (ingress running)  n= 3127  mean  151.44 ms  p50  128.57  p95  248.94  1/mean 6.6032 msg/s
+M-after: measured messages acked after the window end (no ingress) n= 3593  mean  112.83 ms  p50   97.97  p95  182.03  1/mean 8.8628 msg/s
+M-all: all 6,720 measured messages                                 n= 6720  mean  130.80 ms  p50  112.61  p95  217.47  1/mean 7.6454 msg/s
+W-in: warm-up messages acked inside the window                     n=  751  mean  168.58 ms  p50  139.61  p95  298.58  1/mean 5.9318 msg/s
+D (the draft's 154.77 ms): every ack inside the window             n= 3878  mean  154.76 ms  p50  130.86  p95  261.08  1/mean 6.4616 msg/s
+W-in share of D: messages 751/3878; server time 126.605/600.160 s
+-- M-in by 60 s block of the ack (el) --
+  el   0..60   n=   0  (only warm-up messages served)
+  el  60..120  n=   0  (only warm-up messages served)
+  el 120..180  n= 295  mean  181.09 ms
+  el 180..240  n= 360  mean  166.33 ms
+  el 240..300  n= 369  mean  163.01 ms
+  el 300..360  n= 370  mean  162.25 ms
+  el 360..420  n= 392  mean  152.81 ms
+  el 420..480  n= 413  mean  145.36 ms
+  el 480..540  n= 414  mean  145.03 ms
+  el 540..600  n= 513  mean  116.98 ms
+identity: sum of D gaps = last in-window ack - last pre-window ack = 600.160037 s; mean = span/3878 = 154.7602 ms; its reciprocal is the served rate of that population by construction
+
+==============================================================================
+D. Independent cross-check: event-stream reconstruction vs sampled queue_depth
+==============================================================================
+samples 721: mean diff +0.110, median +0.0, max |diff| 3, samples outside +/-3: 0
+(anchor: harness wall polled_utc of the controller marker <-> end marker monotonic)
