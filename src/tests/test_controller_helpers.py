@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from egw_controller.events import ControllerEvent, EventLogger
 from egw_controller.service import InboundMessage
@@ -78,7 +79,13 @@ def make_inbound(
     *,
     topic: str | None = None,
     received_monotonic_ns: int = 1_000_000,
+    mid: int = 0,
+    qos: int = 0,
+    dup: bool = False,
+    connection: int = 0,
 ) -> InboundMessage:
+    """Build an ``InboundMessage``; the delivery identity defaults to a QoS 0
+    delivery of no connection, which the pipeline processes without a PUBACK."""
     if isinstance(payload, bytes):
         raw = payload
         if topic is None:
@@ -87,8 +94,26 @@ def make_inbound(
         raw = json.dumps(payload).encode("utf-8")
         topic = topic or topic_for(payload)
     return InboundMessage(
-        topic=topic, payload=raw, received_monotonic_ns=received_monotonic_ns
+        topic=topic,
+        payload=raw,
+        received_monotonic_ns=received_monotonic_ns,
+        mid=mid,
+        qos=qos,
+        dup=dup,
+        connection=connection,
     )
+
+
+async def until(
+    predicate: Callable[[], bool], *, timeout_s: float = 5.0, step_s: float = 0.001
+) -> None:
+    """Give the loop back until ``predicate`` holds; a bound turns a hang into
+    a failure and never decides a test on its own."""
+    deadline = time.monotonic() + timeout_s
+    while not predicate():
+        if time.monotonic() >= deadline:
+            raise AssertionError("condition not reached within the bound")
+        await asyncio.sleep(step_s)
 
 
 def make_raw_twin(
@@ -252,11 +277,11 @@ def accounting_gap(
 ) -> int:
     """``received`` minus the right-hand side of the identity (CONTRACTS 5).
 
-    0 while the controller runs; -1 exactly while the shutdown marker of
-    ``ControllerService.stop`` is queued, because ``queue_depth`` counts it.
-    ``queue_depth`` defaults to ``reading["queue_depth"]`` (a ``/metrics``
-    body); pass it for a bare ``MetricsCounters.snapshot()``, in the same
-    synchronous stretch as the snapshot.
+    0 at every instant, the stop request included: ``ControllerService.stop``
+    queues nothing (ADR 0011, item 13). ``unacked`` is kept by the bridge and
+    is not a term. ``queue_depth`` defaults to ``reading["queue_depth"]`` (a
+    ``/metrics`` body); pass it for a bare ``MetricsCounters.snapshot()``, in
+    the same synchronous stretch as the snapshot.
     """
     if queue_depth is None:
         queue_depth = reading["queue_depth"]

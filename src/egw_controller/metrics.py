@@ -2,9 +2,13 @@
 
 The four contract counters (``accepted``/``rejected``/``duplicate``/``failed``)
 are incremented via :meth:`MetricsCounters.increment`. ``dropped`` is an
-additive operational counter (messages discarded on inbound queue overflow,
-before any processing) incremented via
-:meth:`MetricsCounters.increment_dropped`; it is not an event outcome.
+additive operational counter incremented via
+:meth:`MetricsCounters.increment_dropped`; it is not an event outcome. Since
+ADR 0011 it means "left for redelivery at the next session resumption": a
+delivery discarded on inbound queue overflow (before any processing), one
+purged from the queue when its connection ended, or one skipped when taken
+because its connection had ended. None of them is acknowledged, so the
+broker resends each on the persistent session.
 
 Progress counters (CONTRACTS 5, additive, 2026-09-18), none of them an event
 outcome:
@@ -18,10 +22,18 @@ outcome:
   and back-off included (:meth:`MetricsCounters.processing_started` /
   :meth:`MetricsCounters.processing_finished`);
 - ``processing_errors`` (cumulative): messages removed from the inbound queue
-  whose processing ended WITHOUT any outcome counter having been incremented
-  (an exception escaping the pipeline, a failed event-record write included,
-  or cancellation of the consumer). It means "no outcome was recorded", not
-  "not applied": the twin may already have been updated.
+  whose processing ended WITHOUT any outcome counter having been incremented.
+  Since ADR 0011 (item 8) every other exception ends in a ``failed`` line, so
+  these are exactly the deliveries that end with no line: the event log
+  could not be written, the consumer was cancelled, or an exception was
+  raised after the Ditto 2xx. It means "no outcome was recorded", not "not
+  applied": the twin may already have been updated.
+
+The three bridge fields of ``GET /metrics`` (``mqtt_subscribed``,
+``mqtt_connection``, ``unacked``; ADR 0011, item 14) are NOT kept here: they
+are updated on the MQTT network thread, which may touch nothing in this
+class, so the bridge keeps them under its own lock and the HTTP handler
+reads them beside the snapshot. ``unacked`` is not a term of the identity.
 
 ``processing_errors`` is a RESIDUAL, not an error handler:
 ``processing_finished`` raises it, in the same lock acquisition that lowers
