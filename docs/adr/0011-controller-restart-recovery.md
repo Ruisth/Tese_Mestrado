@@ -1905,11 +1905,26 @@ test and none changes a count, a threshold or a stop rule of the proof.
   and may carry `{run_id}` in a campaign; the manifest keys are
   `sut_log_fetches`, `twin_snapshots`, `drain`, `events_post_drain_fetch`,
   `configuration_identity` and `configuration_identity_file`, additive
-  within version 1.4. For a `controller_restart` run the two snapshots, the
-  drain and the post-drain fetch are required: a step not configured is a
-  validity reason unless `--allow-missing-restart-evidence` records the
-  exception as a deviation — the runbook's test 6, which takes the snapshots
-  and the drain with its own helpers, passes it; the proof does not. The
+  within version 1.4. For a `controller_restart` run the before snapshot,
+  the drain and — when the drain was quiet — the after snapshot and the
+  post-drain copy of the events are required, taken by the hooks or
+  ingested from the runbook helpers' files with `--twins-before-from`,
+  `--twins-after-from`, `--post-drain-events-from` and
+  `--drain-transcript-from` (each verified against the run before it
+  counts — the snapshot's label and seed, every post-drain event's
+  `run_id` and outcome, the helper's own lines in the transcript — with
+  its source and hash recorded); no flag excuses a missing step, and a
+  hook's file is verified by the same rules. The drain's outcome is
+  classified from the helper's lines: `quiet`; `gave-up`, a valid
+  observation of failed recovery, recorded with a warning, never a
+  validity reason, the after evidence then not required; or `error`, an
+  instrument failure and a reason — the proof's evaluator applies the
+  ADR's inconclusive rule to `drain.outcome` itself. The twin snapshot
+  hooks run under `SNAPSHOT_TIMEOUT_S`, which the collector's
+  `{duration_s}` includes when a snapshot is configured, so the before
+  snapshot cannot outlast the collector. The runbook's test 6 captures the
+  drain's transcript, fetches the post-drain copy, takes the after
+  snapshot and ingests the four files with `collect` before `delta`. The
   identity document must be a JSON object carrying `broker_conf_sha256`, the
   six C1 values, `broker_reloaded`, `stop_grace_period`,
   `controller_image_id`, `controller_source_commit`, `paho_version` and

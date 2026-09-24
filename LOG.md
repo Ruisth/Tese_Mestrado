@@ -3433,13 +3433,31 @@ is unchanged.
   Dockerfile with `--require-hashes`. Harness (`src/egw_experiments/`): ten
   added columns in `controller_metrics.csv`; the broker-log, controller-log
   and docker-events fetches; for `controller_restart`, the twin snapshots,
-  the blocking drain and the post-drain fetch; the configuration identity
-  embedded in the manifest; every failure a validity reason. Runbook 6.1:
+  the blocking drain and the post-drain fetch, or the same artefacts
+  ingested from the runbook helpers' files and verified against the run;
+  the configuration identity validated and embedded in the manifest; a
+  configured hook that fails, a file that does not verify and a drain
+  that errs are validity reasons, a drain that gives up a valid
+  observation of failed recovery. Runbook 6.1:
   `_mline` with the thirteen fields and the identity, `drained` quiet only
   on a subscribed connection with nothing unacknowledged, the Section 7 and
   Appendix B passages restated, test 6's expected list. Contract v1.2
   (`src/CONTRACTS.md` sections 1, 5, 9). ADR 0011: the implementation record
   (choices, deviations, what stays outside); ADR 0010 amended (#C041).
+- **Corrections after the reviews of 2026-09-24**, each with a regression:
+  the bot review of the pull request — one A5 occurrence per connection;
+  the restart evidence required; the configuration identity validated
+  (F4) — and the project manager's findings F1, F2, F3, F5 and F6: an
+  ended connection is retired the moment the end is requested, so no
+  later delivery of it is applied ahead of the one the broker resends (a
+  never-applied identity can no longer become a duplicate); a drain that
+  gives up is a valid observation of failed recovery, not invalid
+  evidence; a cancelled consumer ends the connection, the bridge stays
+  disconnected, readiness needs a live consumer and shutdown cleans up
+  whatever awaiting the pipeline raised; the collector's window carries
+  the snapshot's allowance; the missing-evidence flag is gone — the
+  runbook helpers' files are ingested and verified instead. The ADR's
+  implementation record and the contract state the repaired rules.
 - **Why.** The student decided option 5 on 2026-09-24 (#C041). The
   implementation is the second of the four things the record requires
   before the behaviour becomes the one it proposes; the third and fourth —
