@@ -5,12 +5,14 @@
 # save` plus an identity record) and loaded into the gateway with `docker
 # load`: deployment/compose.yaml has no "build:" for the controller and the
 # gateway has no build context, no buildx and no pip. It is never pulled, so
-# it is not listed in deployment/images.lock.env. The base image is pinned, but
-# Python dependencies are NOT reproducibly locked yet: G2/exp-v1 remains
-# blocked until deployment/scripts/generate-runtime-lock.sh is run on the
-# ARM64 VM, requirements-runtime.lock is reviewed/committed, and this install
-# is changed to `--require-hashes` followed by
-# `pip install --no-build-isolation --no-deps .`.
+# it is not listed in deployment/images.lock.env. The base image is pinned and
+# the Python dependencies are locked: requirements-runtime.lock (ADR 0011,
+# condition C7) carries a SHA-256 hash for every runtime and build
+# distribution, resolved inside this base image on an aarch64 environment by
+# deployment/scripts/generate-runtime-lock.sh's steps, installed below with
+# --require-hashes and the project with --no-build-isolation --no-deps. Any
+# change to pyproject.toml, the base-image digest or the Python version
+# invalidates the lock and requires regeneration.
 #
 # Multi-arch friendly: the base image is pinned by its MULTI-ARCH
 # manifest-list digest, so the same reference resolves to the native child
@@ -37,15 +39,19 @@ WORKDIR /app
 # runs in this image) and the JSON Schemas used for payload validation
 # (EGW_SCHEMA_DIR=/app/schemas, set by compose).
 COPY pyproject.toml ./
+COPY requirements-runtime.lock ./
 COPY egw_simulator/ egw_simulator/
 COPY egw_controller/ egw_controller/
 COPY egw_experiments/ egw_experiments/
 COPY schemas/ schemas/
 
-# TEMPORARY, explicitly non-reproducible dependency resolution. Do not use an
-# image built by this line for exp-v1 or thesis measurements; see the blocker
-# and ARM64 procedure in deployment/README.md.
-RUN pip install .
+# Hash-locked install (deployment/README.md, "Runtime Python lock"): every
+# distribution must match a hash of the lock, wheels only, and the project is
+# built without isolation so that no unsealed backend can be downloaded.
+RUN pip install --require-hashes --only-binary=:all: \
+        -r requirements-runtime.lock \
+    && pip install --no-build-isolation --no-deps . \
+    && pip check
 
 # Non-root runtime user (uid 1000). /data/events is the default event-log
 # location (EGW_EVENT_LOG_DIR); in the compose stack the host directory

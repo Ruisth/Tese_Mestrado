@@ -206,6 +206,10 @@ docker run --rm --platform "$PLATFORM" --network none \
     --entrypoint python "$IMAGE" -m pip freeze --all >"$OUT_DIR/$BASENAME.pip-freeze.tmp"
 [ -s "$OUT_DIR/$BASENAME.pip-freeze.tmp" ] || { echo "ERROR: pip freeze returned nothing" >&2; exit 1; }
 PIP_FREEZE_SHA256=$(sha256sum "$OUT_DIR/$BASENAME.pip-freeze.tmp" | awk '{print $1}')
+# The hashed runtime lock the Dockerfile installs (ADR 0011, C7): its hash
+# identifies the dependency set the image was built from.
+[ -s "$SRC_DIR/requirements-runtime.lock" ] || { echo "ERROR: $SRC_DIR/requirements-runtime.lock is missing or empty" >&2; exit 1; }
+LOCK_SHA256=$(sha256sum "$SRC_DIR/requirements-runtime.lock" | awk '{print $1}')
 
 # --- 5. export, and the image id as the archive states it ----------------------
 # Work inside the output directory with bare file names: GNU tar reads a
@@ -263,7 +267,7 @@ BUILDX_VERSION=$(docker buildx version)
     echo "archive_sha256=$ARCHIVE_SHA256"
     echo "archive_size_bytes=$ARCHIVE_SIZE"
     echo "python_version=$PYTHON_VERSION"
-    echo "python_dependencies=UNLOCKED (pip install . without hashes; to be resolved before the experimental freeze)"
+    echo "python_dependencies=LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 $LOCK_SHA256)"
     echo "pip_freeze_sha256=$PIP_FREEZE_SHA256"
     echo "docker_client_version=$DOCKER_CLIENT"
     echo "docker_server_version=$DOCKER_SERVER"

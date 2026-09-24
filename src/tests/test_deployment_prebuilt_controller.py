@@ -36,6 +36,7 @@ COMPOSE = DEPLOY_DIR / "compose.yaml"
 README = DEPLOY_DIR / "README.md"
 LOCK = DEPLOY_DIR / "images.lock.env"
 DOCKERFILE = SRC_DIR / "Dockerfile"
+RUNTIME_LOCK = SRC_DIR / "requirements-runtime.lock"  # the hashed lock the Dockerfile installs (ADR 0011, C7)
 SCRIPTS = DEPLOY_DIR / "scripts"
 BUILD_SCRIPT = SCRIPTS / "build-controller-image.sh"
 VERIFY_SCRIPT = SCRIPTS / "verify-controller-image.sh"
@@ -163,18 +164,20 @@ def test_no_deployment_file_tells_the_gateway_to_build() -> None:
     assert hint == 'echo "    docker compose --env-file .env --env-file images.lock.env up -d"'
 
 
-def test_readme_says_where_the_image_comes_from_and_states_the_unlocked_dependencies() -> None:
+def test_readme_says_where_the_image_comes_from_and_states_the_dependency_lock() -> None:
     readme = " ".join(_read(README).split())
 
     assert "sh src/deployment/scripts/build-controller-image.sh <output-dir>" in readme
     assert "docker load -i egw-controller-0.1.0-arm64.tar" in readme
     assert "sh scripts/verify-controller-image.sh egw-controller-0.1.0-arm64.identity.txt" in readme
-    # The limitation stays in the README for as long as the Dockerfile installs without hashes.
-    if "--require-hashes" not in "\n".join(_code_lines(_read(DOCKERFILE))):
-        assert "**not locked**" in readme
-        assert "unlocked Python dependencies" in readme
-        assert readme.count("before the experimental freeze") >= 2
-        assert "scripts/generate-runtime-lock.sh" in readme
+    # The Dockerfile installs the hashed lock, and the README says so; the
+    # limitation wording is kept only for images built before the lock.
+    dockerfile_code = "\n".join(_code_lines(_read(DOCKERFILE)))
+    assert "--require-hashes" in dockerfile_code and "requirements-runtime.lock" in dockerfile_code
+    assert "--no-build-isolation --no-deps" in dockerfile_code
+    assert "requirements-runtime.lock" in readme and "--require-hashes" in readme
+    assert "scripts/generate-runtime-lock.sh" in readme
+    assert "**unlocked**" in readme  # images built before the lock are named as such
 
 
 def test_scripts_agree_on_the_image_and_the_provisioning_script_cannot_push() -> None:
@@ -267,6 +270,9 @@ class Checkout:
         shutil.copy(BUILD_SCRIPT, scripts)
         shutil.copy(VERIFY_SCRIPT, scripts)
         shutil.copy(DOCKERFILE, self.repo / "src" / "Dockerfile")
+        # The build script refuses a checkout without the hashed lock the
+        # Dockerfile copies, and records the lock's hash in the identity.
+        shutil.copy(RUNTIME_LOCK, self.repo / "src" / "requirements-runtime.lock")
         (self.repo / "NOTES.md").write_text("outside the build context\n", encoding="utf-8")
         stub = self.bin / "docker"
         stub.write_text(STUB_DOCKER, encoding="utf-8")
@@ -337,7 +343,7 @@ def test_build_script_writes_an_identity_record_from_a_clean_checkout(tmp_path, 
     assert record["archive_size_bytes"] == [str(archive.stat().st_size)]
     assert record["python_version"] == ["Python 3.12.13"]
     assert record["pip_freeze"] == ["fastapi==0.0.1", "pip==0.0.2"]
-    assert record["python_dependencies"][0].startswith("UNLOCKED")
+    assert record["python_dependencies"][0].startswith("LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 ")
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", record["built_utc"][0])
     assert checkout.left_behind() == ["egw-controller-0.1.0-arm64.identity.txt", archive.name]
 
@@ -483,7 +489,7 @@ def test_verify_script_compares_the_loaded_image_with_the_record(tmp_path, shell
     assert f"CONTROLLER IMAGE IDENTITY: verified ({CONTROLLER_IMAGE} = {STUB_CONFIG_ID})" in identical.stdout
     assert f"OK: revision label {checkout.commit}" in identical.stdout
     assert f"OK: source commit {checkout.commit}, clean build context" in identical.stdout
-    assert "UNLOCKED" in identical.stdout
+    assert "python dependencies: LOCKED (requirements-runtime.lock" in identical.stdout
 
     (checkout.state / "arch").write_text("amd64", encoding="utf-8")
     assert checkout.run("verify-controller-image.sh", record).returncode == 1
