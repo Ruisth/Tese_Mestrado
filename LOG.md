@@ -3463,14 +3463,31 @@ is unchanged.
   before the behaviour becomes the one it proposes; the third and fourth —
   the finite proof and its support — follow on the guest under separate
   authorisation.
-- **How it was verified.** The full suite ran in the WSL venv (Python 3.12) on the merged branch: 2,115 passed, 64 skipped, 1 failed, in 17 min 21 s (the dev baseline: 1,975 passed, 64 skipped, the same 1 failed). One test of the broker
-  measurement driver (`test_a_stack_not_healthy_again_is_a_stop_rule_and_not_a_pass`)
-  failed once in the dev baseline run while the workstation was loaded and
-  passes alone; it is unchanged by this entry. The Markdown link checker,
-  the evidence verifier and shellcheck at error severity pass; the hashed
-  lock was resolved inside the pinned base image under `linux/arm64`
-  user-mode emulation on the workstation (the container reports `aarch64`),
-  by the lock script's own steps, with `pip check` clean.
+- **How it was verified.** The full suite ran in the WSL venv (Python 3.12)
+  on `95ed23d`, after which only the ADR's implementation record changed (a
+  file no test reads): 2,283 passed, 64 skipped, 3 failed, in 18 min 15 s.
+  The package `HIST_2026-09-24-pr46-full-suite-attempt01` under the local
+  `output_test` holds the output with every skip reason, the JUnit report,
+  the isolated reruns, the clock evidence and the checksums. The three
+  failures are cases of the broker-measurement driver's stub bench
+  (`test_generate_never_inherits_a_schema_directory_from_the_callers_environment`,
+  `test_a_recorder_stop_that_failed_is_never_declared_stopped_even_with_a_readable_csv`,
+  `test_a_volume_whose_label_is_not_exactly_the_attempt_id_is_left_alone`),
+  whose files this entry does not touch: the WSL2 host clock is stepped
+  backwards by 2–3 s about every 30 s, the recorder script the bench runs
+  stamps its rows with `date +%s`, and the probe's verdict rightly calls a
+  run with a decreasing epoch inconclusive, so a bench case fails whenever a
+  step falls inside its window. Rerun alone, two passed and one failed again
+  with the same reason; the whole bench module failed four cases; the same
+  module on plain `dev` (`f64a57f`) failed one case with the same reason.
+  The failures are recorded as they happened; no bench rule was changed, and
+  the bench's immunity to a backward host clock step is a separate task. The
+  64 skips are the platform skips (53 guest-shell cases that need the
+  BusyBox wrappers, 11 NTFS-junction cases). The Markdown link checker, the
+  evidence verifier and shellcheck at error severity pass on the final tree;
+  the hashed lock was resolved inside the pinned base image under
+  `linux/arm64` user-mode emulation on the workstation (the container
+  reports `aarch64`), by the lock script's own steps, with `pip check` clean.
 - **What it does not establish.** Nothing about the controller's recovery,
   timely delivery or the broker's behaviour with this controller: the code
   ran only against fakes. The changed candidate is unmeasured. The controller
