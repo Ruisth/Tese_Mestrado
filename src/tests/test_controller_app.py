@@ -835,15 +835,19 @@ async def test_a_cancelled_consumer_leaves_the_app_not_ready_and_shutdown_still_
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver"
         ) as http:
-            assert (await http.get("/ready")).status_code == 200
+            # Ditto is not reachable here, so /ready is 503 throughout; the
+            # MQTT half of readiness is what the consumer's state changes.
+            assert (await http.get("/ready")).json()["mqtt_connected"] is True
             service.task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await service.task
             assert service.consuming is False
             assert bridge.ends == [("consumer-cancelled", None)]
             # The bridge still claims a subscription; readiness needs the
-            # consumer as well, so the app is not ready.
-            assert (await http.get("/ready")).status_code == 503
+            # consumer as well, so the MQTT half reports not connected.
+            ready = await http.get("/ready")
+            assert ready.status_code == 503
+            assert ready.json()["mqtt_connected"] is False
         order.clear()
     assert order == ["bridge.stop", "ditto.aclose", "events.close"]
 
