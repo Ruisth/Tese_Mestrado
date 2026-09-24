@@ -133,7 +133,7 @@ def _no_acknowledge(message: InboundMessage) -> bool:
     return False
 
 
-def _no_end_connection(cause: str, message: InboundMessage | None) -> None:
+def _no_end_connection(cause: str, message: InboundMessage | None) -> int | None:
     return None
 
 
@@ -199,7 +199,7 @@ class ControllerService:
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
         queue_maxsize: int = DEFAULT_QUEUE_MAXSIZE,
         acknowledge: Callable[[InboundMessage], bool] | None = None,
-        end_connection: Callable[[str, InboundMessage | None], None] | None = None,
+        end_connection: Callable[[str, InboundMessage | None], int | None] | None = None,
     ) -> None:
         self._repository = repository
         self._dedupe = dedupe
@@ -216,8 +216,11 @@ class ControllerService:
             end_connection if end_connection is not None else _no_end_connection
         )
         # Deliveries of a connection below this one are skipped when taken;
-        # ``purge`` moves it forward. 0 admits every unstamped delivery.
+        # ``purge`` and ``_retire`` move it forward. 0 admits every
+        # unstamped delivery.
         self._current_connection = 0
+        # True while ``run`` consumes; readiness needs a live consumer.
+        self._consuming = False
         self._stop_requested = asyncio.Event()
         # Set by submit and stop; the consumer waits on it when the queue is
         # empty instead of on the queue itself (see run).
@@ -248,7 +251,26 @@ class ControllerService:
                     }
                 },
             )
-            self._end_connection("overflow", message)
+            self._retire(self._end_connection("overflow", message))
+
+    def _retire(self, ended_connection: int | None) -> None:
+        """Skip every later delivery of a connection the bridge just ended.
+
+        The bridge returns the connection it closed; from that instant no
+        delivery of it may advance the twin or the cache, because its
+        earlier delivery is left to the broker to resend: a later ``seq``
+        applied first would turn the resent one into a false duplicate.
+        None (nothing ended, or no bridge) changes nothing.
+        """
+        if ended_connection is not None:
+            self._current_connection = max(
+                self._current_connection, ended_connection + 1
+            )
+
+    @property
+    def consuming(self) -> bool:
+        """True while the consumer runs; false before, after and once cancelled."""
+        return self._consuming
 
     def purge(self, ended_connection: int) -> None:
         """Remove the queued deliveries of an ended connection (loop thread).
@@ -301,52 +323,79 @@ class ControllerService:
         connection is skipped (counted ``dropped``, never in progress). A
         QoS 1 delivery whose line was written is acknowledged before the
         next one is taken; one without a line ends acknowledgement on its
-        connection. After the stop request the delivery already taken is
-        finished and the loop exits; the queue is left as it is.
+        connection, and that connection is retired at once, so no later
+        delivery of it is processed. After the stop request the delivery
+        already taken is finished and the loop exits; the queue is left as
+        it is. A cancellation propagates: the delivery in progress, if any,
+        has no line and no PUBACK, the connection is ended with the cause
+        ``consumer-cancelled`` and the bridge stays disconnected, since
+        nothing consumes any more (A1's second exception).
         """
-        while not self._stop_requested.is_set():
-            # The take is synchronous, in the same stretch as the skip or
-            # processing_started() below: a reader on the loop never sees a
-            # delivery out of queue_depth and in no other term, and a
-            # cancellation while waiting takes nothing.
-            try:
-                message = self._queue.get_nowait()
-            except asyncio.QueueEmpty:
-                await self._wake.wait()
-                self._wake.clear()
-                continue
-            if message.connection < self._current_connection:
-                self._metrics.increment_dropped()
-                logger.info(
-                    "delivery of an ended connection skipped",
-                    extra={
-                        "context": {
-                            "topic": message.topic,
-                            "mid": message.mid,
-                            "connection": message.connection,
-                            "current_connection": self._current_connection,
-                        }
-                    },
-                )
-                continue
-            # Before the try, with no await since the removal from the
-            # queue: the finally below runs if and only if this call ran.
-            self._metrics.processing_started()
-            try:
-                line = await self.process(message)
-                if line:
-                    if message.qos == 1:
-                        self._acknowledge(message)
-                else:
-                    self._end_connection("no-outcome-line", message)
-            except Exception:  # noqa: BLE001 - keep the pipeline alive
-                logger.exception(
-                    "unhandled error while processing message",
-                    extra={"context": {"topic": message.topic, "mid": message.mid}},
-                )
-                self._end_connection("no-outcome-line", message)
-            finally:
-                self._metrics.processing_finished()
+        self._consuming = True
+        current: InboundMessage | None = None
+        try:
+            while not self._stop_requested.is_set():
+                current = await self._take_one()
+                if current is None:
+                    continue
+                await self._consume(current)
+                current = None
+        except asyncio.CancelledError:
+            self._retire(self._end_connection("consumer-cancelled", current))
+            raise
+        finally:
+            self._consuming = False
+
+    async def _take_one(self) -> InboundMessage | None:
+        """The next delivery to process, or None after a wait or a skip."""
+        # The take is synchronous, in the same stretch as the skip or
+        # processing_started() in _consume: a reader on the loop never sees
+        # a delivery out of queue_depth and in no other term, and a
+        # cancellation while waiting takes nothing.
+        try:
+            message = self._queue.get_nowait()
+        except asyncio.QueueEmpty:
+            await self._wake.wait()
+            self._wake.clear()
+            return None
+        if message.connection < self._current_connection:
+            self._metrics.increment_dropped()
+            logger.info(
+                "delivery of an ended connection skipped",
+                extra={
+                    "context": {
+                        "topic": message.topic,
+                        "mid": message.mid,
+                        "connection": message.connection,
+                        "current_connection": self._current_connection,
+                    }
+                },
+            )
+            return None
+        # No await between the take and processing_started(): the finally
+        # of _consume runs if and only if the take ran.
+        self._metrics.processing_started()
+        return message
+
+    async def _consume(self, message: InboundMessage) -> None:
+        """Process one taken delivery to its line and PUBACK, or end its
+        connection and retire it; ``processing_started`` was called by the
+        take, ``processing_finished`` runs here however it ends."""
+        try:
+            line = await self.process(message)
+            if line:
+                if message.qos == 1:
+                    self._acknowledge(message)
+            else:
+                self._retire(self._end_connection("no-outcome-line", message))
+        except Exception:  # noqa: BLE001 - keep the pipeline alive
+            logger.exception(
+                "unhandled error while processing message",
+                extra={"context": {"topic": message.topic, "mid": message.mid}},
+            )
+            self._retire(self._end_connection("no-outcome-line", message))
+        finally:
+            self._metrics.processing_finished()
 
     async def stop(self) -> None:
         """Request the consumer to exit after the delivery in progress.

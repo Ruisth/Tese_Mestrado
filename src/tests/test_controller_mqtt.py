@@ -672,6 +672,48 @@ async def test_a_second_end_on_the_same_connection_counts_no_occurrence(
     bridge.stop()
 
 
+async def test_end_connection_returns_the_connection_once_and_purges_it_at_once() -> None:
+    """F1: the first end returns the connection it closed and schedules
+    the purge of its queued deliveries at once, before the socket closes;
+    a repeated end on the same connection returns None."""
+    purged: list[int] = []
+    bridge, client, _ = make_bridge(purge=purged.append)
+    bridge.start()
+    connect_and_grant(client)
+    assert bridge.end_connection("no-outcome-line", None) == 1
+    await asyncio.sleep(0)  # the purge was scheduled onto the loop
+    assert purged == [1]
+    assert bridge.end_connection("no-outcome-line", None) is None
+    await asyncio.sleep(0)
+    assert purged == [1]
+    await until(lambda: client.count("loop_start") == 2)
+    bridge.stop()
+
+
+async def test_a_cancelled_consumer_halts_the_bridge(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """F3: the cause ``consumer-cancelled`` ends the connection and the
+    supervisor stays disconnected instead of reconnecting: nothing
+    consumes, so a subscribed bridge would be a false readiness."""
+    bridge, client, _ = make_bridge()
+    bridge.start()
+    connect_and_grant(client)
+    with caplog.at_level(logging.ERROR, logger=MQTT_LOGGER):
+        assert bridge.end_connection("consumer-cancelled", None) == 1
+        await until(
+            lambda: "MQTT consumer gone; staying disconnected" in caplog.text
+        )
+        await asyncio.sleep(0.05)  # no reconnection follows
+    assert client.calls[-2:] == ["disconnect", "loop_stop"]
+    assert client.count("loop_start") == 1
+    assert bridge.connected is False
+    assert bridge.state()["mqtt_subscribed"] is False
+    (end,) = _ends(caplog)
+    assert end["cause"] == "consumer-cancelled"
+    bridge.stop()
+
+
 async def test_backoff_grows_with_the_occurrence_and_is_capped() -> None:
     from egw_controller.mqtt import default_backoff_s
 
@@ -912,11 +954,14 @@ async def test_event_write_failure_ends_the_connection_with_no_late_line(
     caplog: pytest.LogCaptureFixture,
     make_logger: Callable[[Path], EventLogger],
 ) -> None:
-    """T03, T16, T17, T34: a delivery whose line cannot be written gets no
-    line and no PUBACK, nor does anything after it on that connection; the
-    connection is ended; ``unacked`` stays above 0 while the connection
-    lasts; after recovery no late line appears for it, and the copy the
-    broker resends on the next connection is acknowledged (T21)."""
+    """T03, T16, T17, T34 and F1: a delivery whose line cannot be written
+    gets no line and no PUBACK; the connection is ended and retired at once,
+    so the delivery queued after it on that connection is skipped (counted
+    ``dropped``), never processed; ``unacked`` stays above 0 while the
+    connection lasts; after recovery no late line appears for the failed
+    one, and the copies the broker resends on the next connection are
+    processed and acknowledged (T21): the applied one a duplicate (N1), the
+    skipped one accepted."""
     events = make_logger(tmp_path)
     bridge, client, service, metrics, _ = make_bridged_service(tmp_path, events=events)
     bridge.start()
@@ -928,14 +973,16 @@ async def test_event_write_failure_ends_the_connection_with_no_late_line(
         await _idle(service, metrics)
         await until(lambda: client.count("loop_start") == 2)
         await _idle(service, metrics)
-    # seq 0: no line; seq 1: its line, but no PUBACK (acknowledgement closed).
-    assert [record["seq"] for record in read_events(tmp_path)] == [1]
+    # seq 0: no line; seq 1: skipped, since the connection was retired the
+    # moment the end was requested (no line, no PUBACK, counted dropped).
+    assert read_events(tmp_path) == []
     assert client.acks == []  # nothing after the failure on that connection
     assert bridge.state()["unacked"] == 2
     assert [end["cause"] for end in _ends(caplog)] == ["no-outcome-line"]
     assert client.calls[2:] == ["disconnect", "loop_stop", "connect_async", "loop_start"]
     snapshot = metrics.snapshot()
     assert snapshot["processing_errors"] == 1
+    assert snapshot["dropped"] == 1
 
     # paho closes the socket on the DISCONNECT; the session resumes and the
     # broker resends both deliveries with DUP set.
@@ -951,11 +998,11 @@ async def test_event_write_failure_ends_the_connection_with_no_late_line(
     records = read_events(tmp_path)
     # The failed delivery never obtained a late line: seq 0's only line is
     # the resent copy's, a duplicate (the twin was updated the first time);
-    # seq 1, recorded but never acknowledged, is resent too.
+    # seq 1, skipped on the ended connection, is applied on resend — never
+    # ahead of seq 0, so it is accepted, not a false duplicate.
     assert [(record["seq"], record["outcome"]) for record in records] == [
-        (1, "accepted"),
         (0, "duplicate"),
-        (1, "duplicate"),
+        (1, "accepted"),
     ]
     assert client.acks == [(1, 1), (2, 1)]
     assert bridge.state()["unacked"] == 0
@@ -966,9 +1013,11 @@ async def test_event_write_failure_ends_the_connection_with_no_late_line(
 async def test_overflow_ends_acknowledgement_and_keeps_the_delivery_counted(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """T07 and T33: a delivery dropped on a full queue gets no PUBACK and
-    ends acknowledgement on its connection, so the earlier one processed
-    afterwards is not acknowledged either; both stay in ``unacked``."""
+    """T07, T33 and F1: a delivery dropped on a full queue gets no PUBACK
+    and ends acknowledgement on its connection, which is retired at once:
+    the earlier one still queued is skipped (counted ``dropped``), never
+    processed nor acknowledged; both stay in ``unacked`` and both are left
+    to the broker."""
     bridge, client, service, metrics, events = make_bridged_service(
         tmp_path, queue_maxsize=1
     )
@@ -985,7 +1034,9 @@ async def test_overflow_ends_acknowledgement_and_keeps_the_delivery_counted(
     await service.stop()
     await task
     assert [end["cause"] for end in _ends(caplog)] == ["overflow"]
-    assert [record["seq"] for record in read_events(tmp_path)] == [0]
+    assert read_events(tmp_path) == []
+    assert metrics.snapshot()["dropped"] == 2  # the overflowed and the skipped one
+    assert accounting_gap(metrics.snapshot(), service.queue_depth()) == 0
     assert client.acks == []
     assert bridge.state()["unacked"] == 2
     bridge.stop()

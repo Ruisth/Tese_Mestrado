@@ -44,6 +44,7 @@ blocks the loop), then the Ditto client and the event log.
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,6 +62,8 @@ from .metrics import MetricsCounters
 from .schema import SchemaRepository
 from .service import ControllerService
 from .topic import UUID4_RE
+
+logger = logging.getLogger("egw_controller.app")
 
 
 class TwinReader(Protocol):
@@ -197,15 +200,35 @@ def create_app_from_env() -> FastAPI:
             # joins the network thread; the rest of the queue is left to
             # the broker.
             await service.stop()
-            await pipeline_task
-            await loop.run_in_executor(None, bridge.stop)
-            await ditto.aclose()
-            events.close()
+            try:
+                await pipeline_task
+            except asyncio.CancelledError:
+                if not pipeline_task.cancelled():
+                    # The shutdown itself was cancelled: it propagates
+                    # after the clean-up below.
+                    raise
+                # The consumer had been cancelled earlier (A1's second
+                # exception; the bridge is halted): the shutdown goes on.
+                logger.error(
+                    "the consumer had been cancelled before shutdown; "
+                    "nothing was consumed since"
+                )
+            finally:
+                # Each clean-up runs whatever the previous one raised.
+                try:
+                    await loop.run_in_executor(None, bridge.stop)
+                finally:
+                    try:
+                        await ditto.aclose()
+                    finally:
+                        events.close()
 
     deps = AppDeps(
         metrics=metrics,
         ditto=ditto,
-        mqtt_connected=lambda: bridge.connected,
+        # Ready only with a live consumer: a bridge that is subscribed
+        # while nothing consumes would report readiness falsely.
+        mqtt_connected=lambda: bridge.connected and service.consuming,
         queue_depth=service.queue_depth,
         bridge_state=bridge.state,
     )

@@ -127,7 +127,10 @@ rate.
   queue and counted `dropped`; a PUBACK is never sent on a connection other than the one that delivered
   the message. A cause that repeats the connection end is bounded (ten consecutive ends without an
   acknowledged delivery in between): the controller then stays disconnected, visibly, with `/ready` at
-  503 and `mqtt_subscribed` false. The bridge is ready only when the SUBACK grants QoS 1.
+  503 and `mqtt_subscribed` false. The bridge is ready only when the SUBACK grants QoS 1, and
+  `/ready` is 200 only while the consumer runs: a cancelled consumer ends the connection and the
+  bridge stays disconnected. The connection a delivery could not be acknowledged on is retired at
+  once: no later delivery of it is processed before the socket closes.
 - **Redelivery (v1.2).** A redelivered copy passes through the unchanged pipeline and obtains its own
   line: `duplicate` when the first copy reached the twin, `accepted` when it did not (section 4, ADR 0006).
   The identity in progress at a kill, or at a connection end after its `PATCH`, may have reached the

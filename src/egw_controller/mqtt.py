@@ -78,6 +78,7 @@ END_CAUSES = (
     "overflow",
     "no-event-loop",
     "on-message-error",
+    "consumer-cancelled",
     "stop",
 )
 
@@ -152,6 +153,9 @@ class MqttBridge:
         self._connections = 0
         self._subscribed = False
         self._ends_in_a_row = 0
+        # Set when the consumer was cancelled: the supervisor then leaves the
+        # client disconnected, since nothing consumes any more.
+        self._halted = False
         # The supervisor thread runs the A3(a) sequence off the loop and off
         # the network thread (loop_stop joins the latter).
         self._signal = threading.Event()
@@ -390,17 +394,24 @@ class MqttBridge:
 
     def end_connection(
         self, cause: str, identity: Mapping[str, Any] | InboundMessage | None
-    ) -> None:
+    ) -> int | None:
         """Close acknowledgement on the current connection and end it.
 
-        Records the occurrence and wakes the supervisor, which reconnects
-        after a back-off or, beyond the bound, leaves the client
-        disconnected. One connection counts one occurrence (A5): the
-        first call closes acknowledgement on it and requests the end;
-        a later call on the same connection — a further delivery that
-        could not be acknowledged before the socket closed — is logged
-        and changes nothing. The cause ``stop`` (graceful) only closes
-        acknowledgement: it is recorded at INFO and counts no occurrence.
+        Returns the number of the connection it closed, or None when
+        acknowledgement was already closed on it. Records the occurrence,
+        schedules the purge of that connection's queued deliveries onto
+        the event loop at once — before the socket closes, so no later
+        delivery of the ended connection is processed — and wakes the
+        supervisor, which reconnects after a back-off or, beyond the
+        bound, leaves the client disconnected. One connection counts one
+        occurrence (A5): the first call closes acknowledgement on it and
+        requests the end; a later call on the same connection — a further
+        delivery that could not be acknowledged before the socket closed —
+        is logged and changes nothing. The cause ``consumer-cancelled``
+        halts the bridge: the supervisor disconnects and does not
+        reconnect, since nothing consumes any more. The cause ``stop``
+        (graceful) only closes acknowledgement: it is recorded at INFO and
+        counts no occurrence.
         """
         with self._state_lock:
             was_open = self._ack_open
@@ -408,6 +419,8 @@ class MqttBridge:
             connection = self._conn
             if cause != "stop" and was_open:
                 self._ends_in_a_row += 1
+                if cause == "consumer-cancelled":
+                    self._halted = True
             occurrence = self._ends_in_a_row
         if cause != "stop" and not was_open:
             logger.info(
@@ -421,7 +434,19 @@ class MqttBridge:
                     }
                 },
             )
-            return
+            return None
+        # The ended connection's queued deliveries are retired now, not only
+        # at the socket close: the consumer must not advance the twin or
+        # the cache with a later delivery of a connection whose earlier
+        # delivery is left to the broker to resend.
+        loop = self._loop
+        if (
+            cause != "stop"
+            and self._purge is not None
+            and loop is not None
+            and not loop.is_closed()
+        ):
+            loop.call_soon_threadsafe(self._purge, connection)
         context = {
             "cause": cause,
             "connection": connection,
@@ -433,11 +458,12 @@ class MqttBridge:
             logger.info(
                 "MQTT connection ended by the controller", extra={"context": context}
             )
-            return
+            return connection
         logger.error(
             "MQTT connection ended by the controller", extra={"context": context}
         )
         self._signal.set()
+        return connection
 
     # -- supervisor thread ---------------------------------------------------
 
@@ -469,6 +495,13 @@ class MqttBridge:
         self._client.loop_stop()
         with self._state_lock:
             self._subscribed = False
+            halted = self._halted
+        if halted:
+            logger.error(
+                "MQTT consumer gone; staying disconnected",
+                extra={"context": context},
+            )
+            return
         if occurrence > self._end_bound:
             logger.error(
                 "MQTT reconnection bound reached; staying disconnected",
@@ -493,6 +526,8 @@ class MqttBridge:
         """Attach to the running event loop and start the network thread."""
         self._loop = loop if loop is not None else asyncio.get_running_loop()
         self._stopping.clear()
+        with self._state_lock:
+            self._halted = False
         if self._supervisor is None or not self._supervisor.is_alive():
             self._supervisor = threading.Thread(
                 target=self._supervise, name=_SUPERVISOR_THREAD_NAME, daemon=True

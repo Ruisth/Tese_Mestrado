@@ -1720,23 +1720,116 @@ async def test_cancelled_consumer_requests_no_puback(
     metrics: MetricsCounters,
     tmp_path: Path,
 ) -> None:
-    """T04: cancellation with a delivery in flight: no line, no PUBACK and
-    no connection end from the pipeline (the cancellation propagates)."""
+    """T04 and F3: cancellation with a delivery in flight: no line, no
+    PUBACK, the connection ended with the cause ``consumer-cancelled`` and
+    the delivery in progress named; the cancellation propagates and the
+    service reports that it no longer consumes."""
     ditto = GatedDittoClient()
     recorder = _BridgeRecorder()
     service = _make_service(
         repository, ditto, events, metrics,
         acknowledge=recorder.acknowledge, end_connection=recorder.end_connection,
     )
-    service.submit(make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1))
+    inbound = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1)
+    service.submit(inbound)
+    assert service.consuming is False
     task = asyncio.create_task(service.run())
     await ditto.entered.wait()
+    assert service.consuming is True
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
     assert recorder.acks == []
-    assert recorder.ends == []
+    assert recorder.ends == [("consumer-cancelled", inbound)]
     assert read_events(tmp_path) == []
+    assert service.consuming is False
+
+
+async def test_idle_consumer_cancelled_ends_the_connection_with_no_delivery(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """F3: a consumer cancelled while waiting ends the connection too (no
+    delivery in progress), so the bridge halts rather than staying
+    subscribed with nothing consuming."""
+    recorder = _BridgeRecorder()
+    service = _make_service(
+        repository, ditto, events, metrics, end_connection=recorder.end_connection
+    )
+    task = asyncio.create_task(service.run())
+    await asyncio.sleep(0)
+    assert service.consuming is True
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert recorder.ends == [("consumer-cancelled", None)]
+    assert service.consuming is False
+
+
+async def test_a_retired_connection_never_applies_a_later_seq_before_the_resent_one(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """F1: seq 0 fails its PATCH and the write of its failed line also
+    fails, so the connection is ended; the queued seq 1 of the same device
+    must not be processed before the socket closes — it is skipped and left
+    to the broker — so that the resent seq 0 is accepted, never read as a
+    duplicate of a later seq applied ahead of it."""
+    from egw_controller.ditto import DittoUnavailableError
+
+    ditto = FakeDittoClient(
+        fail_patch=DittoUnavailableError("ditto down", attempts=3, status=503)
+    )
+    failing_events = FailingEventLogger(tmp_path, failures=1)
+    ends: list[tuple[str, InboundMessage | None]] = []
+
+    def end_connection(cause: str, message: InboundMessage | None) -> int | None:
+        ends.append((cause, message))
+        return message.connection if message is not None else None
+
+    acks: list[InboundMessage] = []
+    service = _make_service(
+        repository, ditto, failing_events, metrics,
+        acknowledge=lambda m: acks.append(m) or True,
+        end_connection=end_connection,
+    )
+    first = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1, connection=1)
+    second = make_inbound(make_payload("smartwatch", seq=1), mid=2, qos=1, connection=1)
+    service.submit(first)
+    service.submit(second)
+    task = asyncio.create_task(service.run())
+    await until(lambda: service.queue_depth() == 0 and metrics.snapshot()["in_progress"] == 0)
+    # seq 0: PATCH failed, its failed line could not be written: the
+    # connection is ended and retired; seq 1 is skipped, not applied.
+    assert ends == [("no-outcome-line", first)]
+    assert ditto.patch_calls == [] or all(
+        patch["features"]["ingestion"]["properties"]["last_seq"] == 0
+        for _, patch in ditto.patch_calls
+    )
+    assert metrics.snapshot()["dropped"] == 1
+    assert acks == []
+    # The socket closes and the broker resends both on the next connection.
+    service.purge(1)
+    ditto.fail_patch = None
+    resent_first = make_inbound(
+        make_payload("smartwatch", seq=0), mid=1, qos=1, dup=True, connection=2
+    )
+    resent_second = make_inbound(
+        make_payload("smartwatch", seq=1), mid=2, qos=1, dup=True, connection=2
+    )
+    service.submit(resent_first)
+    service.submit(resent_second)
+    await until(lambda: len(acks) == 2)
+    await service.stop()
+    await task
+    outcomes = [(r["seq"], r["outcome"]) for r in read_events(tmp_path)]
+    assert outcomes == [(0, "accepted"), (1, "accepted")]
+    assert [m.mid for m in acks] == [1, 2]
+    assert [p["features"]["ingestion"]["properties"]["last_seq"] for _, p in ditto.patch_calls][-2:] == [0, 1]
 
 
 def test_queue_overflow_ends_the_connection_after_counting_dropped(

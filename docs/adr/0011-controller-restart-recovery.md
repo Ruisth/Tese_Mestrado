@@ -1848,11 +1848,17 @@ test and none changes a count, a threshold or a stop rule of the proof.
 - **Purge and skip.** `purge(ended)` re-queues the other connections'
   deliveries in order and counts each removed one `dropped`; `run()` skips a
   taken delivery of a connection below the current one, counted `dropped`,
-  never in progress. Between `end_connection` and the socket close the
-  consumer may still take one or two deliveries of the ending connection:
-  each obtains its line, is not acknowledged and is redelivered as a
-  `duplicate` — a small source of duplicates, never of loss; stated, not
-  narrowed.
+  never in progress. The ending connection is retired the moment the end
+  is requested: `end_connection` returns the connection it closed and the
+  consumer skips every later delivery of it from that instant, and the
+  bridge schedules the purge at once as well as at the socket close. No
+  later delivery of an ended connection can therefore advance the twin or
+  the cache ahead of an earlier one left to the broker *(from the review
+  of the pull request: a failed `PATCH` whose `failed` line also failed,
+  followed by a later `seq` of the same device applied before the socket
+  closed, would have turned the resent first identity into a false
+  duplicate — the order break R3 exists to detect; the earlier text here
+  had called that window a source of duplicates only, which was wrong)*.
 - **Overflow and the callback without a loop.** Both count the delivery in
   `unacked` (QoS 1 only, the gauge's definition) and end the connection;
   `dropped` keeps its counting point.
@@ -1860,8 +1866,13 @@ test and none changes a count, a threshold or a stop rule of the proof.
   set by `submit` and `stop` — a `get` task would take a delivery in a step
   of its own, so a reader on the loop could see it in no term and a
   cancellation could lose it; `stop()` sets the event and queues nothing.
-  The lifespan stops the consumer, then the bridge in an executor (the join
-  of the network thread never blocks the loop), then Ditto and the event log.
+  A cancelled consumer (A1's second exception) ends the connection with
+  the cause `consumer-cancelled`, naming the delivery in progress, and the
+  bridge stays disconnected, since nothing consumes any more; readiness
+  requires a live consumer. The lifespan stops the consumer, then the
+  bridge in an executor (the join of the network thread never blocks the
+  loop), then Ditto and the event log, each clean-up running whatever the
+  previous step raised *(from the review of the pull request)*.
 - **Event log (item 9).** One unbuffered `write` of the encoded line on an
   append-only handle; an `OSError` or a short write (reported as `EIO`)
   closes and forgets the handle; a partial line can remain and is terminated

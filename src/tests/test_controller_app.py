@@ -766,8 +766,9 @@ class _RecordingBridge:
         self.acked.append(delivery)
         return True
 
-    def end_connection(self, cause: str, identity: Any) -> None:
+    def end_connection(self, cause: str, identity: Any) -> int | None:
         self.ends.append((cause, identity))
+        return getattr(identity, "connection", None) if identity is not None else 1
 
     def state(self) -> dict[str, Any]:
         return {"mqtt_subscribed": True, "mqtt_connection": 2, "unacked": 5}
@@ -775,6 +776,76 @@ class _RecordingBridge:
     @property
     def connected(self) -> bool:
         return True
+
+
+async def test_a_cancelled_consumer_leaves_the_app_not_ready_and_shutdown_still_cleans_up(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """F3: when the pipeline task is cancelled while the app runs, the
+    connection is ended with the cause ``consumer-cancelled``, ``/ready`` is
+    503 although the bridge says it is subscribed, and the lifespan's shutdown
+    still stops the bridge, closes Ditto and closes the event log, in that
+    order, without raising."""
+    import egw_controller.app as app_module
+    from egw_controller.ditto import DittoClient
+
+    order: list[str] = []
+
+    class TaskRecordingService(ControllerService):
+        instances: list["TaskRecordingService"] = []
+
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+            self.task: asyncio.Task[None] | None = None
+            TaskRecordingService.instances.append(self)
+
+        async def run(self) -> None:
+            self.task = asyncio.current_task()
+            await super().run()
+
+    class RecordingEvents(EventLogger):
+        def close(self) -> None:
+            order.append("events.close")
+            super().close()
+
+    class RecordingDitto(DittoClient):
+        async def aclose(self) -> None:
+            order.append("ditto.aclose")
+            await super().aclose()
+
+    monkeypatch.setattr("egw_controller.mqtt.MqttBridge", _RecordingBridge)
+    monkeypatch.setattr(app_module, "ControllerService", TaskRecordingService)
+    monkeypatch.setattr(app_module, "EventLogger", RecordingEvents)
+    monkeypatch.setattr(app_module, "DittoClient", RecordingDitto)
+    monkeypatch.setattr(app_module, "configure_logging", lambda: None)
+    monkeypatch.setenv("EGW_MQTT_TLS", "false")
+    monkeypatch.setenv("EGW_SCHEMA_DIR", str(SCHEMA_DIR))
+    monkeypatch.setenv("EGW_EVENT_LOG_DIR", str(tmp_path))
+    _RecordingBridge.instances.clear()
+    _RecordingBridge.order = order
+    TaskRecordingService.instances.clear()
+
+    app = app_module.create_app_from_env()
+    (bridge,) = _RecordingBridge.instances
+    (service,) = TaskRecordingService.instances
+    async with app.router.lifespan_context(app):
+        await asyncio.sleep(0)
+        assert service.task is not None and service.consuming is True
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as http:
+            assert (await http.get("/ready")).status_code == 200
+            service.task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await service.task
+            assert service.consuming is False
+            assert bridge.ends == [("consumer-cancelled", None)]
+            # The bridge still claims a subscription; readiness needs the
+            # consumer as well, so the app is not ready.
+            assert (await http.get("/ready")).status_code == 503
+        order.clear()
+    assert order == ["bridge.stop", "ditto.aclose", "events.close"]
 
 
 async def test_create_app_from_env_wires_the_bridge_and_stops_in_order(
