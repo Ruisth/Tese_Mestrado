@@ -15,6 +15,11 @@ and where named tee and pgrep) that stand first on PATH. No controller, broker, 
 engine, guest or OpenSSH client takes part: nothing here shows that Sections 4-9 of the
 runbook work on the real host or guest. DRAIN_QUIET_S is set to 0 and 'sleep' is
 scaled down for the tests only; the 130 s figure itself is not under test.
+
+The cases named "mline" and "drained" pin the thirteen-field reading and the quiet
+window of ADR 0011 work item 19 against stub /metrics bodies (one body, or a sequence
+of bodies served one per request); the "regen" case pins tools/session/regen_helpers.py
+to the heredoc it regenerates the helper file from.
 """
 from __future__ import annotations
 
@@ -46,6 +51,12 @@ REAL_TEE = shutil.which("tee") or "/usr/bin/tee"
 REAL_PGREP = shutil.which("pgrep")
 
 STARTED = "2026-09-18T10:00:00Z"
+
+# The accounting identity of CONTRACTS 5: received == the sum of these eight terms, all from one response.
+IDENTITY_TERMS = ("accepted", "rejected", "duplicate", "failed", "dropped", "processing_errors", "in_progress", "queue_depth")
+# The thirteen fields of one _mline reading, in the fixed order the helper prints them (runbook 6.1).
+MLINE_FIELDS = ("queue_depth", "in_progress", "unacked", "mqtt_subscribed", "started_at", "mqtt_connection", "received",
+                "accepted", "rejected", "duplicate", "failed", "dropped", "processing_errors")
 
 
 # --------------------------------------------------------------------------
@@ -145,7 +156,13 @@ url=
 for a in "$@"; do case $a in http://*|https://*) url=$a;; esac; done
 case $url in
   */ready) printf '%s' "$(cat "$S/ready_code" 2>/dev/null || echo 200)"; exit 0;;
-  */metrics) [ -s "$S/metrics.json" ] || { echo "curl: (7) stub: connection refused" >&2; exit 7; }
+  */metrics) if [ -d "$S/metrics.seq" ]; then
+               # one answer per request, in order; the last one is repeated once they are used up
+               n=$(($(cat "$S/metrics.calls" 2>/dev/null || echo 0) + 1)); echo "$n" > "$S/metrics.calls"
+               f="$S/metrics.seq/$n.json"; [ -e "$f" ] || f="$S/metrics.seq/last.json"
+               cat "$f"; exit 0
+             fi
+             [ -s "$S/metrics.json" ] || { echo "curl: (7) stub: connection refused" >&2; exit 7; }
              cat "$S/metrics.json"; exit 0;;
   */api/2/things/*) [ -s "$S/thing.json" ] || { echo "curl: (22) stub: 404" >&2; exit 22; }
              cat "$S/thing.json"; exit 0;;
@@ -304,12 +321,40 @@ class Bench:
     def set(self, name: str, value: object = "") -> None:
         (self.state / name).write_text(f"{value}\n", encoding="utf-8")
 
-    def metrics(self, started_at: str = STARTED, queue_depth: int = 0, **counters: int) -> dict:
+    @staticmethod
+    def reading(started_at: str = STARTED, queue_depth: int = 0, **fields: object) -> dict:
+        """One /metrics body as the controller serves it: the four outcome counters and dropped, the progress
+        fields of CONTRACTS 5 (received, in_progress, processing_errors) and the three session fields of
+        ADR 0011 (mqtt_subscribed, mqtt_connection, unacked). Unless the case sets `received` itself, it is
+        recomputed as the sum of the eight terms of the accounting identity, so that a case overriding a
+        counter still serves a reading whose identity holds (and one that sets it breaks the identity on purpose)."""
         m = {"queue_depth": queue_depth, "started_at": started_at, "monotonic_ns": 1,
-             "accepted": 0, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}
-        m.update(counters)
+             "accepted": 0, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0,
+             "in_progress": 0, "processing_errors": 0,
+             "mqtt_subscribed": True, "mqtt_connection": 1, "unacked": 0}
+        m.update(fields)
+        if "received" not in fields:
+            m["received"] = sum(m[k] for k in IDENTITY_TERMS)
+        return m
+
+    def metrics(self, started_at: str = STARTED, queue_depth: int = 0, **fields: object) -> dict:
+        """The body the stub curl serves for every GET /metrics from now on (see `reading`)."""
+        m = self.reading(started_at, queue_depth, **fields)
         (self.state / "metrics.json").write_text(json.dumps(m), encoding="utf-8")
         return m
+
+    def readings(self, *bodies: dict) -> None:
+        """The bodies the stub curl serves for GET /metrics, one per request in this order; the last one is
+        repeated once they are used up. Takes precedence over `metrics` for the rest of the case."""
+        d = self.state / "metrics.seq"
+        d.mkdir()
+        for i, body in enumerate(bodies, 1):
+            (d / f"{i}.json").write_text(json.dumps(body), encoding="utf-8")
+        (d / "last.json").write_text(json.dumps(bodies[-1]), encoding="utf-8")
+
+    def metrics_requests(self) -> int:
+        """How many GET /metrics the stub curl has answered or refused so far."""
+        return sum(1 for ln in self.calls().splitlines() if ln.startswith("curl ") and ln.endswith("/metrics"))
 
     def jsonl(self, name: str, rows: list[dict]) -> None:
         (self.state / name).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
@@ -403,7 +448,272 @@ def test_helper_file_sourced_with_an_empty_password_prints_stop_and_is_not_repor
     assert "helpers loaded, reconcile helper importable" not in r.lines
 
 
-SIX_SERVICES = "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1"
+def heredoc_body(command: str) -> str:
+    """The text between the `cat > ... <<'EOF'` line and the `EOF` line of one runbook heredoc, as the file."""
+    lines = command.split("\n")
+    assert lines[0].startswith("cat > ") and "<<'EOF'" in lines[0] and lines[-1] == "EOF", command[:80]
+    return "\n".join(lines[1:-1]) + "\n"
+
+
+def test_regen_helpers_writes_exactly_the_body_of_the_6_1_heredoc(bench: Bench, tmp_path: Path) -> None:
+    """tools/session/regen_helpers.py regenerates ~/egw-tcg/itest-helpers.sh from the runbook: the file it writes is
+    byte for byte the heredoc body, i.e. the file the operator's own paste of 6.1 writes through bash."""
+    script = ROOT / "tools" / "session" / "regen_helpers.py"
+    target = tmp_path / "regen" / "itest-helpers.sh"
+    target.parent.mkdir()
+    proc = subprocess.run([sys.executable, str(script), str(RUNBOOK), str(target)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stdout.startswith(f"wrote {target}: sha256 "), proc.stdout
+    written = target.read_bytes().decode("utf-8")
+    assert written == heredoc_body(helpers_heredoc())
+    bench.run("\n".join((tunnel_heredoc(), helpers_heredoc())))
+    assert target.read_bytes() == (bench.home / "egw-tcg" / "itest-helpers.sh").read_bytes()
+    assert "_mline()" in written and "drained()" in written and "\r" not in written
+
+
+# --------------------------------------------------------------------------
+# 6.1 - _mline and drained: the thirteen-field reading and the quiet window (ADR 0011, work item 19)
+# --------------------------------------------------------------------------
+CTRL_DEFAULT = "http://127.0.0.1:8000"
+QUIET_LINE = "drained: queue_depth 0 and identical counters on "
+STOP_NO_WINDOW = "STOP: drained: no quiet window of "
+STOP_NO_READING = f"STOP: drained: GET {CTRL_DEFAULT}/metrics failed or was not valid JSON, or a field was missing or of the wrong type"
+
+
+def mline_of(m: dict) -> str:
+    """The one line _mline prints for this body: the thirteen fields in order, mqtt_subscribed as true/false."""
+    return " ".join(str(m[k]).lower() if k == "mqtt_subscribed" else str(m[k]) for k in MLINE_FIELDS)
+
+
+def call_mline(bench: Bench) -> Result:
+    return bench.run(bench.with_helpers('out=$(_mline 2>/dev/null); rc=$?; echo "OUT=$out"; echo "RC=$rc"'))
+
+
+def call_drained(bench: Bench, limit_s: str = "2", **env: str) -> Result:
+    """drained with the case's DRAIN_QUIET_S=0 and DRAIN_STEP_S=0: a quiet reading closes the window on the next
+    equal reading, and a refusal spins until DRAIN_LIMIT_S (whole seconds of bash's SECONDS) has passed."""
+    return bench.run(bench.with_helpers('drained\necho "RC=$?"'), DRAIN_LIMIT_S=limit_s, **env)
+
+
+def quiet_reading_of(r: Result) -> str:
+    """The reading inside the parentheses of the one success line; fails when the line is absent or reworded."""
+    lines = r.starting(QUIET_LINE)
+    assert len(lines) == 1, r.out
+    m = re.match(r"^drained: queue_depth 0 and identical counters on (\d+) consecutive readings over (\d+) s \((.*?)\) - ", lines[0])
+    assert m, lines[0]
+    return m.group(3)
+
+
+def assert_no_quiet_window(r: Result, last: dict) -> str:
+    """drained gave up: the give-up line names the last reading, and neither the success line nor the other stop was printed."""
+    assert r.value("RC") != "0", r.out
+    stops = r.starting(STOP_NO_WINDOW)
+    assert len(stops) == 1, r.out
+    assert f"(last reading: {mline_of(last)}) - do not take snapshots, do not start a run" in stops[0], stops[0]
+    assert not r.starting(QUIET_LINE) and not r.starting(STOP_NO_READING), r.out
+    return stops[0]
+
+
+def test_mline_prints_the_thirteen_fields_in_the_fixed_order_and_exits_0_when_the_identity_holds(bench: Bench) -> None:
+    m = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1)
+    r = call_mline(bench)
+    assert r.value("RC") == "0", r.out
+    assert r.value("OUT") == mline_of(m) == f"0 0 0 true {STARTED} 1 6 3 1 1 0 1 0"
+
+
+def test_mline_exits_3_with_the_line_when_the_accounting_identity_fails(bench: Bench) -> None:
+    m = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1, received=7)     # the eight terms sum to 6
+    r = call_mline(bench)
+    assert r.value("RC") == "3", r.out
+    assert r.value("OUT") == mline_of(m) == f"0 0 0 true {STARTED} 1 7 3 1 1 0 1 0"
+
+
+def seven_field_reading() -> dict:
+    """The response of a controller build before the progress counters and the session fields."""
+    return {"queue_depth": 0, "started_at": STARTED, "monotonic_ns": 1,
+            "accepted": 0, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}
+
+
+def without(m: dict, key: str) -> dict:
+    return {k: v for k, v in m.items() if k != key}
+
+
+NO_READING_BODIES = [
+    ("seven-field response of an earlier controller build", seven_field_reading()),
+    ("unacked missing", without(Bench.reading(), "unacked")),
+    ("mqtt_subscribed missing", without(Bench.reading(), "mqtt_subscribed")),
+    ("received missing", without(Bench.reading(), "received")),
+    ("mqtt_subscribed the string true", Bench.reading(mqtt_subscribed="true")),
+    ("in_progress the JSON true", Bench.reading(in_progress=True)),
+    ("queue_depth null", Bench.reading(queue_depth=None, received=0)),
+    ("received a float", Bench.reading(received=0.0)),
+    ("accepted negative", Bench.reading(accepted=-1)),
+    ("mqtt_connection a string", Bench.reading(mqtt_connection="1")),
+    ("started_at with a space", Bench.reading(started_at="2026-09-18 10:00:00Z")),
+    ("started_at empty", Bench.reading(started_at="")),
+    ("started_at a number", Bench.reading(started_at=1758189600)),
+    ("body not JSON", "not json"),
+]
+
+
+@pytest.mark.parametrize("label, body", NO_READING_BODIES, ids=[label for label, _ in NO_READING_BODIES])
+def test_mline_prints_no_reading_and_exits_neither_0_nor_3_when_a_field_is_missing_or_of_the_wrong_type(bench: Bench, label: str, body: object) -> None:
+    (bench.state / "metrics.json").write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+    r = call_mline(bench)
+    assert r.value("OUT") == "", r.out
+    assert r.value("RC") not in ("0", "3"), r.out
+
+
+def test_drained_closes_a_window_of_quiet_readings_and_keeps_the_start_of_the_success_line(bench: Bench) -> None:
+    m = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1)
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(m)
+    assert len(quiet_reading_of(r).split()) == 13
+    line = r.starting(QUIET_LINE)[0]
+    assert "an observation, not proof that processing has finished" in line, line
+    assert not r.starting("STOP"), r.out
+
+
+def test_drained_refuses_a_quiet_window_with_mqtt_subscribed_false_throughout(bench: Bench) -> None:
+    m = bench.metrics(mqtt_subscribed=False)
+    r = call_drained(bench)
+    assert_no_quiet_window(r, m)
+    assert bench.metrics_requests() >= 3, bench.calls()               # it kept reading until the limit, never a STOP earlier
+    assert " 0 0 0 false " in r.starting(STOP_NO_WINDOW)[0]
+    # the control: the same counters on a subscribed connection are quiet
+    m = bench.metrics(mqtt_subscribed=True)
+    r = call_drained(bench)
+    assert r.value("RC") == "0" and quiet_reading_of(r) == mline_of(m), r.out
+
+
+def test_drained_refuses_a_quiet_window_with_unacked_above_0_and_the_queue_empty(bench: Bench) -> None:
+    m = bench.metrics(unacked=2)
+    r = call_drained(bench)
+    assert_no_quiet_window(r, m)
+    assert bench.metrics_requests() >= 3, bench.calls()
+    assert "(last reading: 0 0 2 true " in r.starting(STOP_NO_WINDOW)[0]
+    m = bench.metrics(unacked=0)
+    r = call_drained(bench)
+    assert r.value("RC") == "0" and quiet_reading_of(r) == mline_of(m), r.out
+
+
+def test_drained_refuses_a_quiet_window_with_a_message_in_progress_and_the_queue_empty(bench: Bench) -> None:
+    m = bench.metrics(in_progress=1)                                   # received follows: the identity holds
+    assert m["received"] == 1
+    r = call_drained(bench)
+    assert_no_quiet_window(r, m)
+    assert "(last reading: 0 1 0 true " in r.starting(STOP_NO_WINDOW)[0]
+
+
+def test_drained_refuses_a_quiet_window_across_a_change_of_mqtt_connection(bench: Bench) -> None:
+    """Every reading arrives on a new connection: each opens a new window, so none closes although every other
+    field is quiet and unchanged."""
+    bodies = [bench.reading(mqtt_connection=i) for i in range(1, 601)]
+    bench.readings(*bodies)
+    r = call_drained(bench)
+    n = int((bench.state / "metrics.calls").read_text(encoding="utf-8"))
+    assert 3 <= n < 600, n                                             # several readings, and the sequence never ran out
+    assert_no_quiet_window(r, bodies[n - 1])
+
+
+def test_drained_change_of_mqtt_connection_opens_a_new_window_that_closes_on_the_new_connection_only(bench: Bench) -> None:
+    old, new = bench.reading(mqtt_connection=1), bench.reading(mqtt_connection=2)
+    bench.readings(old, new)                                           # then `new` for every later request
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(new)
+    # the reading on connection 1 is not part of the window that closed: DRAIN_QUIET_S=0 closes it on the second
+    # equal reading, so the count is 2 and not 3
+    assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}2 consecutive readings"), r.out
+
+
+def test_drained_treats_a_reading_whose_identity_fails_as_not_quiet_and_not_as_a_stop(bench: Bench) -> None:
+    bad = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1, received=7)   # the eight terms sum to 6
+    r = call_drained(bench)
+    stop = assert_no_quiet_window(r, bad)                              # the line WAS a reading (status 3 with the line)
+    assert bench.metrics_requests() >= 3, bench.calls()
+    assert f"(last reading: 0 0 0 true {STARTED} 1 7 3 1 1 0 1 0)" in stop, stop
+    # ... and it opens a new window: quiet readings after it close one that began after it
+    good = bench.reading(accepted=3, rejected=1, duplicate=1, dropped=1)
+    bench.readings(bad, good)
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(good) == f"0 0 0 true {STARTED} 1 6 3 1 1 0 1 0"
+    assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}2 consecutive readings"), r.out
+
+
+NO_READING_STOPS = [
+    ("seven-field response of an earlier controller build", seven_field_reading()),
+    ("unacked missing", without(Bench.reading(), "unacked")),
+    ("mqtt_subscribed the string true", Bench.reading(mqtt_subscribed="true")),
+    ("in_progress the JSON true", Bench.reading(in_progress=True)),
+    ("started_at with a space", Bench.reading(started_at="2026-09-18 10:00:00Z")),
+    ("body not JSON", "not json"),
+]
+
+
+@pytest.mark.parametrize("label, body", NO_READING_STOPS, ids=[label for label, _ in NO_READING_STOPS])
+def test_drained_reading_without_the_thirteen_fields_is_the_get_failed_stop_not_a_reading(bench: Bench, label: str, body: object) -> None:
+    (bench.state / "metrics.json").write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+    r = call_drained(bench)
+    assert r.value("RC") != "0", r.out
+    stops = r.starting(STOP_NO_READING)
+    assert len(stops) == 1 and "a controller build without the thirteen fields?" in stops[0], r.out
+    assert not r.starting(STOP_NO_WINDOW) and not r.starting(QUIET_LINE), r.out
+    assert bench.metrics_requests() == 1, bench.calls()               # a STOP, not a reading: no window, no second request
+
+
+def test_drained_metrics_unreachable_is_still_the_get_failed_stop(bench: Bench) -> None:
+    (bench.state / "metrics.json").unlink()
+    r = call_drained(bench)
+    assert r.value("RC") != "0", r.out
+    assert len(r.starting(STOP_NO_READING)) == 1 and not r.starting(STOP_NO_WINDOW), r.out
+
+
+def test_drained_keeps_both_output_prefixes(bench: Bench) -> None:
+    """The success line's start is what the G2 acceptance proposal quotes; the give-up line's start is what
+    tools/session/nominal.sh greps for (`^STOP: drained: no quiet window of [0-9]* s within [0-9]* s`)."""
+    m = bench.metrics()
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert re.match(r"^drained: queue_depth 0 and identical counters on \d+ consecutive readings over \d+ s \(", r.starting(QUIET_LINE)[0])
+    assert quiet_reading_of(r) == mline_of(m)
+    m = bench.metrics(queue_depth=1)                                   # the refusal the first version already made
+    r = call_drained(bench)
+    stop = assert_no_quiet_window(r, m)
+    assert re.match(r"^STOP: drained: no quiet window of [0-9][0-9]* s within [0-9][0-9]* s", stop), stop
+    assert re.match(r"^STOP: drained: no quiet window of 0 s within 2 s \(last reading: 1 0 0 true ", stop), stop
+
+
+STABLE_FIELDS = ("started_at", "mqtt_connection", "accepted", "rejected", "duplicate", "failed", "dropped", "processing_errors")
+
+
+@pytest.mark.parametrize("field", STABLE_FIELDS)
+def test_drained_movement_of_a_stable_field_between_quiet_readings_opens_a_new_window(bench: Bench, field: str) -> None:
+    """Four quiet readings that differ only in one of the nine stable fields (received follows the counters), then
+    the last one repeated: the window that closes began at the last movement, so it counts two readings."""
+    if field == "started_at":
+        bodies = [bench.reading(started_at=f"2026-09-18T10:0{i}:00Z") for i in range(4)]
+    else:
+        bodies = [bench.reading(**{field: i}) for i in range(4)]
+    assert len({mline_of(b) for b in bodies}) == 4
+    bench.readings(*bodies)
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(bodies[-1])
+    assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}2 consecutive readings"), r.out
+    assert int((bench.state / "metrics.calls").read_text(encoding="utf-8")) == 5
+
+
+def test_drained_text_keeps_the_three_defaults_and_the_thirteen_field_order(bench: Bench) -> None:
+    text = heredoc_body(helpers_heredoc())
+    assert "local quiet=${DRAIN_QUIET_S:-130} step=${DRAIN_STEP_S:-5} limit=${DRAIN_LIMIT_S:-900}" in text
+    assert "#   " + " ".join(MLINE_FIELDS) in text                      # the order stated in the comment of _mline
+    assert 'sleep "$step"' in text
+
+
+SIX_SERVICES ="egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1"
 
 
 def harness_argv(bench: Bench) -> list[str]:

@@ -74,8 +74,19 @@ no quiet window of … s within … s` its console record carries. That step
 reaches the controller through the tunnel, so its status alone observes nothing
 about the queue — a tunnel that dropped, a refused connection, a guest that is
 not answering, and the helper's other stop (a `/metrics` that is unreachable or
-not JSON) leave the tail simply unobserved. Either way the
+not JSON, or a response missing one of the thirteen fields `drained` reads or
+carrying one of the wrong type) leave the tail simply unobserved. Either way the
 measured verdict stands and nothing claims eventual delivery or a complete tail.
+`drained` (runbook 6.1, under ADR 0011) reads `queue_depth`, `in_progress`,
+`unacked`, `mqtt_subscribed`, `started_at`, `mqtt_connection`, `received`, the
+four outcome counters, `dropped` and `processing_errors` from each `/metrics`
+response; a reading is quiet only when `queue_depth`, `in_progress` and
+`unacked` are 0, `mqtt_subscribed` is true and the accounting identity of
+`src/CONTRACTS.md` section 5 holds in that same response, and its window closes
+only when `started_at`, `mqtt_connection`, `received` and the six counters
+stayed unchanged through it. A reading that is not quiet, or whose identity
+fails, opens a new window and is not a stop; the window, the thresholds and
+both prefixes are unchanged.
 
 Two rules hold the three groups apart. **A clean pass needs complete
 evidence**: while anything is `incomplete` the outcome cannot be `pass`, so it
