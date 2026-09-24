@@ -134,13 +134,21 @@ class SchemaRepository:
 
         The schema is selected by the payload's own ``device_type`` claim, so a
         payload carrying the wrong measurement fields for its claimed type fails
-        (``const``/``required``/``unevaluatedProperties``).
+        (``const``/``required``/``unevaluatedProperties``). The claim must be a
+        string before it is looked up: a JSON array or object there is
+        unhashable and would otherwise escape the lookup as a ``TypeError``
+        (ADR 0011, item 6); the error names the type found instead.
         """
         if not isinstance(payload, Mapping):
             raise SchemaValidationError(
                 f"payload must be a JSON object, got {type(payload).__name__}"
             )
-        validator = self.validator_for(payload.get("device_type"))
+        device_type = payload.get("device_type")
+        if not isinstance(device_type, str):
+            raise SchemaValidationError(
+                f"device_type must be a string, got {type(device_type).__name__}"
+            )
+        validator = self.validator_for(device_type)
         errors = sorted(validator.iter_errors(payload), key=lambda e: e.json_path)
         if errors:
             messages = tuple(

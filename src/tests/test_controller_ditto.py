@@ -3,13 +3,17 @@
 Covers retry behaviour against ``httpx.MockTransport`` (success, 4xx never
 retried, 5xx retried then success, retries exhausted, connect errors), the
 first-contact policy+thing creation, the merge-patch body shape for every
-device_type (features per CONTRACTS 4 including ``ingestion``) and the
-normalized twin read.
+device_type (features per CONTRACTS 4 including ``ingestion``), the
+normalized twin read, and the two exchange faults that ADR 0011 (item 7)
+turns into a ``DittoError`` rather than an escaping exception: a 2xx whose
+body is not a JSON object, and an ``httpx`` error outside the transport
+layer, neither of which is retried.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any, Callable
 
 import httpx
@@ -20,6 +24,8 @@ from egw_controller.ditto import (
     PREAUTH_HEADER,
     DittoClient,
     DittoClientError,
+    DittoError,
+    DittoProtocolError,
     DittoUnavailableError,
     build_merge_patch,
     normalize_twin,
@@ -299,6 +305,205 @@ async def test_is_ready_false_on_5xx_or_transport_error() -> None:
     assert await client.is_ready() is False
     client = make_client(ScriptedHandler(httpx.ConnectError("refused")))
     assert await client.is_ready() is False
+
+
+# ---------------------------------------------------------------------------
+# Twin body that is not a JSON object (ADR 0011, item 7a)
+# ---------------------------------------------------------------------------
+
+
+def _assert_exchange_fault(error: DittoError) -> None:
+    """The fault is a ``DittoProtocolError``: a ``DittoError`` (so the service's
+    ``except DittoError`` sees it) that is neither a 4xx nor an exhausted retry."""
+    assert isinstance(error, DittoError)
+    assert isinstance(error, DittoProtocolError)
+    assert not isinstance(error, (DittoClientError, DittoUnavailableError))
+
+
+async def test_get_twin_non_json_body_raises_ditto_error() -> None:
+    """A 200 with an HTML body (a proxy page) is a fault, not a twin."""
+    handler = ScriptedHandler(
+        httpx.Response(
+            200, content=b"<html>proxy</html>", headers={"content-type": "text/html"}
+        )
+    )
+    sleep = SleepRecorder()
+    client = make_client(handler, sleep=sleep)
+    with pytest.raises(DittoError) as excinfo:
+        await client.get_twin(DEVICE)
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1
+    assert excinfo.value.status == 200
+    assert "non-JSON body" in str(excinfo.value)
+    assert len(handler.requests) == 1  # a 200 with an unusable body is not retried
+    assert sleep.delays == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(b"{\xff}", id="invalid-utf8"),
+        pytest.param(b"[" * 200_000, id="deeply-nested"),
+    ],
+)
+async def test_get_twin_undecodable_body_raises_ditto_error(body: bytes) -> None:
+    """The decoder's other faults (UnicodeDecodeError, RecursionError) end the same way."""
+    handler = ScriptedHandler(
+        httpx.Response(200, content=body, headers={"content-type": "application/json"})
+    )
+    client = make_client(handler)
+    with pytest.raises(DittoError) as excinfo:
+        await client.get_twin(DEVICE)
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1
+    assert excinfo.value.status == 200
+    assert "non-JSON body" in str(excinfo.value)
+
+
+async def test_get_twin_oversized_integer_body_raises_ditto_error() -> None:
+    """An integer beyond the interpreter's digit limit raises a plain ValueError."""
+    limit = sys.get_int_max_str_digits()
+    if limit == 0:
+        pytest.skip("integer string conversion limit is disabled here")
+    body = b'{"seq": ' + b"1" * (limit + 1) + b"}"
+    handler = ScriptedHandler(
+        httpx.Response(200, content=body, headers={"content-type": "application/json"})
+    )
+    client = make_client(handler)
+    with pytest.raises(DittoError) as excinfo:
+        await client.get_twin(DEVICE)
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1
+    assert excinfo.value.status == 200
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(b"null", id="null"),
+        pytest.param(b"[]", id="array"),
+        pytest.param(b'"x"', id="string"),
+        pytest.param(b"42", id="number"),
+        pytest.param(b"true", id="bool"),
+    ],
+)
+async def test_get_twin_non_object_json_body_raises_ditto_error(body: bytes) -> None:
+    """Only a 404 means "no twin": a 200 ``null`` is a fault, never a first contact.
+
+    Reading ``null`` as "no twin" made the service re-create the thing with
+    an empty ingestion feature over whatever the twin held.
+    """
+    handler = ScriptedHandler(
+        httpx.Response(200, content=body, headers={"content-type": "application/json"})
+    )
+    client = make_client(handler)
+    with pytest.raises(DittoError) as excinfo:
+        await client.get_twin(DEVICE)
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1
+    assert excinfo.value.status == 200
+    assert "non-object JSON body" in str(excinfo.value)
+    assert type(json.loads(body)).__name__ in str(excinfo.value)
+
+
+async def test_get_twin_unusable_body_keeps_attempt_count() -> None:
+    """The attempt count of the GET is reported, not discarded (retried 503 then 200)."""
+    handler = ScriptedHandler(httpx.Response(503), httpx.Response(200, content=b"[]"))
+    sleep = SleepRecorder()
+    client = make_client(handler, sleep=sleep)
+    with pytest.raises(DittoError) as excinfo:
+        await client.get_twin(DEVICE)
+    assert excinfo.value.attempts == 2
+    assert excinfo.value.status == 200
+    assert len(handler.requests) == 2
+    assert sleep.delays == [0.2]
+
+
+# ---------------------------------------------------------------------------
+# httpx errors that are not transport errors (ADR 0011, item 7b)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(httpx.DecodingError("bad content-encoding"), id="decoding"),
+        pytest.param(httpx.TooManyRedirects("redirect loop"), id="redirects"),
+    ],
+)
+async def test_non_transport_httpx_error_is_not_retried(error: httpx.HTTPError) -> None:
+    """An ``httpx.HTTPError`` outside the transport layer ends the exchange at once."""
+    assert not isinstance(error, httpx.TransportError)  # the premise of the test
+    handler = ScriptedHandler(error)
+    sleep = SleepRecorder()
+    client = make_client(handler, sleep=sleep)
+    with pytest.raises(DittoError) as excinfo:
+        await client.patch_thing(DEVICE, {"features": {}})
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1
+    assert excinfo.value.status is None
+    assert type(error).__name__ in str(excinfo.value)
+    assert excinfo.value.__cause__ is error
+    assert len(handler.requests) == 1
+    assert sleep.delays == []
+
+
+async def test_non_transport_httpx_error_after_retried_failure_keeps_attempt_count() -> None:
+    handler = ScriptedHandler(
+        httpx.Response(503), httpx.DecodingError("bad content-encoding")
+    )
+    sleep = SleepRecorder()
+    client = make_client(handler, sleep=sleep)
+    with pytest.raises(DittoError) as excinfo:
+        await client.patch_thing(DEVICE, {"features": {}})
+    assert excinfo.value.attempts == 2
+    assert excinfo.value.status is None
+    assert len(handler.requests) == 2
+    assert sleep.delays == [0.2]
+
+
+async def test_get_twin_non_transport_httpx_error_raises_ditto_error() -> None:
+    handler = ScriptedHandler(httpx.DecodingError("bad content-encoding"))
+    client = make_client(handler)
+    with pytest.raises(DittoError) as excinfo:
+        await client.get_twin(DEVICE)
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1
+    assert len(handler.requests) == 1
+
+
+async def test_ensure_twin_non_transport_httpx_error_after_policy_put() -> None:
+    handler = ScriptedHandler(
+        httpx.Response(201), httpx.DecodingError("bad content-encoding")
+    )
+    client = make_client(handler)
+    with pytest.raises(DittoError) as excinfo:
+        await client.ensure_twin(
+            device_uuid=DEVICE,
+            device_type="smartwatch",
+            egw_id="egw-01",
+            schema_version="1.0.0",
+        )
+    _assert_exchange_fault(excinfo.value)
+    assert excinfo.value.attempts == 1  # the thing PUT's own count
+    assert len(handler.requests) == 2  # policy PUT succeeded, thing PUT faulted
+
+
+async def test_non_httpx_exception_from_the_transport_propagates_unchanged() -> None:
+    """What is not an ``httpx`` error is not an exchange fault of this client.
+
+    It is left to the pipeline's residual handler (ADR 0011, item 8), so it
+    must reach the caller as raised: not wrapped, not retried.
+    """
+    error = RuntimeError("boom")
+    handler = ScriptedHandler(error)
+    sleep = SleepRecorder()
+    client = make_client(handler, sleep=sleep)
+    with pytest.raises(RuntimeError) as excinfo:
+        await client.patch_thing(DEVICE, {"features": {}})
+    assert excinfo.value is error
+    assert len(handler.requests) == 1
+    assert sleep.delays == []
 
 
 # ---------------------------------------------------------------------------

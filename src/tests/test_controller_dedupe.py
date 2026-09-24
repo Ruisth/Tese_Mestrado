@@ -223,6 +223,46 @@ def test_seed_from_twin_tolerates_malformed_ingestion() -> None:
         assert cache.check(DEVICE, mid(0), 0, RUN) is None
 
 
+@pytest.mark.parametrize(
+    "twin",
+    [
+        pytest.param({"features": [1]}, id="features-list"),
+        pytest.param({"features": "ingestion"}, id="features-string"),
+        pytest.param({"features": 7}, id="features-number"),
+        pytest.param({"features": True}, id="features-bool"),
+        pytest.param({"features": {"ingestion": [1]}}, id="ingestion-list"),
+        pytest.param({"features": {"ingestion": "properties"}}, id="ingestion-string"),
+        pytest.param({"features": {"ingestion": 7}}, id="ingestion-number"),
+        pytest.param(
+            {"features": {"ingestion": {"properties": [1]}}}, id="properties-list"
+        ),
+        pytest.param(
+            {"features": {"ingestion": {"properties": "last_seq"}}},
+            id="properties-string",
+        ),
+        pytest.param(
+            {"features": {"ingestion": {"properties": 7}}}, id="properties-number"
+        ),
+    ],
+)
+def test_seed_from_twin_treats_non_mapping_container_as_empty(twin: dict) -> None:
+    """A container that is not a JSON object is read as empty, never raised on.
+
+    A truthy non-mapping at ``features``, ``ingestion`` or ``properties`` used
+    to escape as an ``AttributeError`` and left the delivery without an
+    outcome line (ADR 0011, item 7); the tolerance the docstring promises for
+    missing and null values now covers it. Nothing is inferred from such a
+    twin: the device is seeded with unknown state.
+    """
+    cache = DedupeCache()
+    cache.seed_from_twin(DEVICE, twin)
+    assert cache.known_device(DEVICE)
+    assert cache.last_seq(DEVICE) is None
+    assert cache.last_run_id(DEVICE) is None
+    assert cache.accepted_count(DEVICE) == 0
+    assert cache.check(DEVICE, mid(0), 0, RUN) is None
+
+
 def test_message_id_lru_is_bounded() -> None:
     cache = DedupeCache(message_id_capacity=2)
     cache.seed_from_twin(DEVICE, None)

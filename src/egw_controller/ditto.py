@@ -5,7 +5,13 @@
 - Telemetry: ``PATCH /api/2/things/{thingId}`` with ``application/merge-patch+json``.
 - Bounded retries: only timeouts, connection errors and 5xx are retried, never
   4xx; exponential backoff with base ``EGW_RETRY_BACKOFF_MS`` and at most
-  ``EGW_RETRY_MAX`` attempts in total.
+  ``EGW_RETRY_MAX`` attempts in total. Two further faults are never retried
+  and raise :class:`DittoProtocolError` with the attempts made so far
+  (ADR 0011, item 7): an ``httpx`` error that is not a transport error (a
+  body that cannot be decoded per its ``content-encoding``, for instance),
+  and a 2xx answer to ``GET`` whose body is not a JSON object (not JSON at
+  all, or JSON ``null``, an array, a string, a number or a boolean). Only a
+  404 means "no twin".
 """
 
 from __future__ import annotations
@@ -117,6 +123,17 @@ class DittoUnavailableError(DittoError):
     """Transient failures (timeout/connect/5xx) persisting after all retries."""
 
 
+class DittoProtocolError(DittoError):
+    """The exchange gave no usable result; neither a 4xx nor transient, never retried.
+
+    Raised for an ``httpx`` error outside the transport layer and for a 2xx
+    whose body is not a JSON object (ADR 0011, item 7). ``attempts`` is the
+    number of requests made when the fault occurred, the faulting one
+    included; ``status`` is the answer's code, or ``None`` when there was no
+    answer.
+    """
+
+
 def _body_snippet(response: httpx.Response, limit: int = 200) -> str:
     try:
         return response.text[:limit]
@@ -213,8 +230,12 @@ class DittoClient:
         """Perform one logical request with bounded retries.
 
         Returns ``(response, attempts)`` on any non-4xx success; raises
-        :class:`DittoClientError` on 4xx (no retry) and
-        :class:`DittoUnavailableError` once retries are exhausted.
+        :class:`DittoClientError` on 4xx (no retry),
+        :class:`DittoProtocolError` on an ``httpx`` error that is not a
+        transport error (no retry; ``attempts`` counts the requests made,
+        the faulting one included) and :class:`DittoUnavailableError` once
+        retries are exhausted. An exception that is not an ``httpx.HTTPError``
+        propagates as raised: it is not a fault of the exchange.
         """
         content: bytes | None = None
         extra_headers: dict[str, str] = {}
@@ -234,6 +255,16 @@ class DittoClient:
                 # Covers timeouts and connection-level errors (retryable).
                 last_error = f"{type(exc).__name__}: {exc}"
                 last_status = None
+            except httpx.HTTPError as exc:
+                # Every other httpx error (DecodingError, for instance) is
+                # neither transient nor a request fault: report it at once,
+                # with the requests made so far. This clause must follow the
+                # TransportError one, which is a subclass of HTTPError.
+                raise DittoProtocolError(
+                    f"{method} {path} failed: {type(exc).__name__}: {exc}",
+                    attempts=attempt,
+                    status=None,
+                ) from exc
             else:
                 if response.status_code < 400:
                     return response, attempt
@@ -321,16 +352,41 @@ class DittoClient:
         return policy_attempts + thing_attempts
 
     async def get_twin(self, device_uuid: str) -> dict[str, Any] | None:
-        """Fetch the raw thing JSON, or ``None`` when the twin does not exist."""
+        """Fetch the raw thing JSON, or ``None`` when the twin does not exist.
+
+        Only a 404 means "no twin". A 2xx whose body is not JSON, or is JSON
+        but not an object (``null`` included), raises
+        :class:`DittoProtocolError` carrying the GET's attempt count and
+        status: reading such an answer as "no twin" would re-create the twin
+        over whatever it held (ADR 0011, item 7).
+        """
+        path = f"/api/2/things/{thing_id_for(device_uuid)}"
         try:
-            response, _ = await self._request(
-                "GET", f"/api/2/things/{thing_id_for(device_uuid)}"
-            )
+            response, attempts = await self._request("GET", path)
         except DittoClientError as exc:
             if exc.status == 404:
                 return None
             raise
-        return response.json()
+        try:
+            twin = response.json()
+        except (ValueError, RecursionError) as exc:
+            # ValueError covers JSONDecodeError, UnicodeDecodeError and the
+            # integer digit limit; the decoder raises RecursionError for a
+            # deeply nested document.
+            raise DittoProtocolError(
+                f"GET {path} returned {response.status_code} with a non-JSON "
+                f"body: {exc}",
+                attempts=attempts,
+                status=response.status_code,
+            ) from exc
+        if not isinstance(twin, dict):
+            raise DittoProtocolError(
+                f"GET {path} returned {response.status_code} with a non-object "
+                f"JSON body ({type(twin).__name__})",
+                attempts=attempts,
+                status=response.status_code,
+            )
+        return twin
 
     async def patch_thing(
         self, device_uuid: str, patch: Mapping[str, Any]
