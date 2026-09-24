@@ -1,0 +1,30 @@
+
+==============================================================================
+A. The run's served rate: lowest blocks, and the averages it must not be sized on
+==============================================================================
+ 60 s blocks el -120..600: lowest 4.6000 msg/s at el -120..-60; lowest inside the window 5.3167 at el 120..180
+ 30 s blocks el -120..600: lowest 3.8333 msg/s at el -120..-90; lowest inside the window 5.1000 at el 120..150
+ 10 s blocks el -120..600: lowest 3.0000 msg/s at el -120..-110; lowest inside the window 3.9000 at el 20..30
+(10 s blocks are shown only to expose the spread; a 10 s block holds ~50 acks)
+window average (counters, s02) 6.457048 msg/s and drain 8.863682 msg/s: NOT used for sizing
+
+==============================================================================
+B. The proposed offered rate against the lowest rates
+==============================================================================
+R = 2.24 msg/s; per device smartwatch 0.200 Hz, smart_ring 0.040 Hz, smart_clothing 2.000 Hz
+messages in 720 s: smartwatch 144.0, smart_ring 28.8, smart_clothing 1440.0; total 1612.8
+R / lowest 60 s block (4.6000) = 0.487; headroom +2.3600 msg/s; service needed for all 1613 at that rate 350.6 s of 720 s
+R / lowest 30 s block (3.8333) = 0.584; headroom +1.5933 msg/s; service needed for all 1613 at that rate 420.7 s of 720 s
+R / lowest 10 s block (3.0000) = 0.747
+R / nominal offered rate = 0.200
+campaign plan (~/egw-tcg/pilot/campaign_plan.json): 95 runs; distinct offered rates [10.0, 11.2, 50.0, 100.0, 250.0]; lowest 10.0 msg/s
+
+==============================================================================
+C. Detection and time budget
+==============================================================================
+passage long enough for 3 arrivals at 2.24 msg/s: 3 / 2.24 = 1.339 s; measured passages of nominal-r01 longer than that: 17 of 6720; longest 2.542 s (acknowledged at el 253.6)
+precondition 'drained' in the nominal attempt: 133.146 s (commands.jsonl seq 3)
+expected guest time ~ 133 + 720 + 60 + ~135 (post quiet window) = 1048 s = 17.5 min
+with DRAIN_QUIET_S=490 after the run: ~1408 s = 23.5 min
+the round-two 'hard bound' 900 + 720 + 60 + 900 = 2580 s = 43.0 min is not a bound
+planning ceiling with the helpers' defaults: wait_ready 60 + drained 900 + publication 720 + wait 60 + 120 + drained 900 = 2760 s = 46.0 min before the excluded terms; it excludes each drained reading's curl time past its limit, fetches, snapshots and 'accounted'

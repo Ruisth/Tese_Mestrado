@@ -1,0 +1,362 @@
+################ backlog_diagnosis.md (429 lines)
+=== status words (accepted/proved/guarantee/closed/verified/validated/confirmed/established): 17 lines
+backlog_diagnosis.md:5: [accepts, closes, verified] - **Status:** corrected draft for review. It replaces the round-one draft `../backlog_diagnosis.md` and applies every finding of the two round-one verification reports (`../verification_figures.md`, `../verification_constraints.md`) that co
+backlog_diagnosis.md:36: [accepted] - **The recorded result.** 3,794 of 6,720 identities were confirmed within the deadline; 2,926 were not — 85 confirmed late and 2,841 with no outcome when the harness fetched the log. A separate observation after the drain shows all 2,926 e
+backlog_diagnosis.md:40: [established] - **Not established.** Any capacity or steady service rate; what moved the service rate during the run; what inside the Ditto round trip takes the time; whether more concurrency would help; what an empty start would have produced — the warm
+backlog_diagnosis.md:55: [accepted] | P3′ | No outcome after the drain | **0** | `post` | Same observation; the `/metrics` reading at 20:21:45.640Z shows `accepted` = `received` = 8,124, `queue_depth` 0, `in_progress` 0, `dropped` 0, `processing_errors` 0, 134.402 s after the
+backlog_diagnosis.md:62: [accepted] 2. **P2′ never stands in for a deadline count, nor a deadline count for P2′.** P2′ equals `lost` numerically only because every P3 identity was later accepted; it is a different population, observed at a different instant.
+backlog_diagnosis.md:120: [closes] - Growth: sampled 752 → 3,590 = 2,838 over 598.261 s, against 2,837.65 predicted by the deficit over the same interval; the reconstruction gives 750 → 3,593 = 2,843 over 600.107 s, i.e. 4.7375 msg/s [s02 §E]. The figures agree at the 0.2 % 
+backlog_diagnosis.md:124: [accepted] > **At 11.2 msg/s offered, the controller at `fe954a9` in this configuration, on this emulated guest, served fewer messages than it received in every one of the 60 ten-second blocks of the 600 s window [warm, post → s02 §D], so the number o
+backlog_diagnosis.md:128: [close, closes] - **No capacity, no sustainable rate, no maximum throughput.** Under one unchanged offered load the served rate moved between 4.60 and 8.55 msg/s in 60 s blocks; one failed load does not define the rate this stack could sustain. The ratio 1
+backlog_diagnosis.md:130: [established] - **Nothing about restart losses.** Identities that never obtained any outcome — the failure mode of the two invalid `controller_restart` runs — are a different failure and belong to the recovery decision. Their split in `controller_restart
+backlog_diagnosis.md:232: [accepted] Pearson r against summed CPU: E −0.6229, C −0.6589; one instant below 150 falls in no band [res, warm, post, metrics → s06 §D]. E counts every acknowledgement, warm-up and measured, in the second before each resource instant, mapped through
+backlog_diagnosis.md:253: [established] 6. **Whether more concurrency in the consumer would raise the served rate.** 89.2857 % of the measured messages (6,000 of 6,720) target one twin [sent → s01 §A], and how Eclipse Ditto orders concurrent updates to one thing is not establishe
+backlog_diagnosis.md:260: [accepted] - Over the empty-to-empty interval — `/metrics` at 20:00:42.825Z (`queue_depth` 0, `in_progress` 0, `accepted` 60) and at 20:21:45.640Z (0, 0, 8,124) [snap → s04 §A] — the 8,064 messages give ∫N dt = Σ sojourn = 2,143,130.910 message-second
+backlog_diagnosis.md:291: [established] [warm, post → s05 §B]. Both reproduce to the digit. The verification report's claim that its values are exact "and not a matter of modelling choice" holds only under R-msg; round one's values hold under R-slot. **The run's own data argue th
+backlog_diagnosis.md:295: [establish] ## 10. What I could not establish
+backlog_diagnosis.md:366: [establish] - **What the ad-hoc path does not provide by default:** the 1 Hz `/metrics` series and the guest resource series that the harness records for plan runs. Without them the run answers its question from the event log alone and adds nothing abo
+backlog_diagnosis.md:386: [closes] | "No amount of tuning closes 1.73" (constraints B8) | stated | withdrawn (section 3.3) |
+backlog_diagnosis.md:429: [accepts, closes] **This is a corrected draft for review. It closes no gate, admits no claim, accepts no result, and changes no threshold, deadline, offered load or rule. `nominal-r01` remains a valid run that failed its delivery criterion.**
+=== capacity / ceiling / throughput / constraint / bottleneck / sustain: 11 lines
+backlog_diagnosis.md:6: [capacity, maximum, sustainable, throughput] - **Platform label, governing every figure:** an **ARM64 guest emulated under QEMU/TCG** — Poky 5.0.19 `scarthgap`, kernel `6.6.142-yocto-standard`, 4 vCPU, 8,204,356 kB — on an x86_64 WSL2 host with 16 CPUs [`sut_environment.json`, `loadge
+backlog_diagnosis.md:40: [capacity] - **Not established.** Any capacity or steady service rate; what moved the service rate during the run; what inside the Ditto round trip takes the time; whether more concurrency would help; what an empty start would have produced — the warm
+backlog_diagnosis.md:128: [capacity, ceiling, maximum, sustain, sustainable, throughput] - **No capacity, no sustainable rate, no maximum throughput.** Under one unchanged offered load the served rate moved between 4.60 and 8.55 msg/s in 60 s blocks; one failed load does not define the rate this stack could sustain. The ratio 1
+backlog_diagnosis.md:188: [capacity, ceiling, maximum, saturated] - **not a capacity, ceiling or maximum rate** — it was measured while the consumer was saturated at one offered load;
+backlog_diagnosis.md:214: [maximum] - Coverage: 720 instants × 6 containers, maximum spacing 1.000 s; **one** instant after the window end, so nothing is known about resources during the drain [res → s06 §A].
+backlog_diagnosis.md:216: [saturated, saturation] **What can be said: no CPU saturation was observed in the six sampled containers.** Round one's "nothing was saturated" is withdrawn: only the six container cgroups were sampled, so the guest's other processes (the container daemon, the SSH
+backlog_diagnosis.md:262: [maximum] - **The cross-check that does carry weight** compares two different mechanisms of the controller: the waiting queue reconstructed from the event stamps against the `queue_depth` (`qsize()`, `service.py:171-173`) the harness polled — 721 sam
+backlog_diagnosis.md:263: [sustainable, throughput] - λ = 7.1658 msg/s is the throughput of the whole interval, which includes about 405 s with no arrivals. It is not a sustainable rate and is not quoted as one.
+backlog_diagnosis.md:297: [capacity, maximum, throughput] 1. **A capacity, a steady service rate or a maximum throughput** for this stack on this guest. None exists in this run (section 3.1).
+backlog_diagnosis.md:358: [capacity, maximum, throughput] **What a positive result would mean, and no more:** that at 2.24 msg/s for 720 s the queue stayed bounded on this candidate. Nothing about any other rate, no capacity figure, no maximum throughput, nothing native; the `nominal-r01` verdict 
+backlog_diagnosis.md:387: [saturated, saturation] | "Nothing was saturated" (figures B4; constraints 4(g)) | heading and summary | "no CPU saturation observed in the six sampled containers" (section 6.1) |
+=== native / emulated: 10 lines
+backlog_diagnosis.md:6: [QEMU, TCG, emulated, native] - **Platform label, governing every figure:** an **ARM64 guest emulated under QEMU/TCG** — Poky 5.0.19 `scarthgap`, kernel `6.6.142-yocto-standard`, 4 vCPU, 8,204,356 kB — on an x86_64 WSL2 host with 16 CPUs [`sut_environment.json`, `loadge
+backlog_diagnosis.md:124: [emulated] > **At 11.2 msg/s offered, the controller at `fe954a9` in this configuration, on this emulated guest, served fewer messages than it received in every one of the 60 ten-second blocks of the 600 s window [warm, post → s02 §D], so the number o
+backlog_diagnosis.md:131: [native] - **Nothing native.**
+backlog_diagnosis.md:189: [native] - **not transferable** to another offered rate or configuration, and **not native**.
+backlog_diagnosis.md:216: [QEMU] **What can be said: no CPU saturation was observed in the six sampled containers.** Round one's "nothing was saturated" is withdrawn: only the six container cgroups were sampled, so the guest's other processes (the container daemon, the SSH
+backlog_diagnosis.md:220: [emulated, emulation, native] The consumer was busy for the whole window (section 4.1). Averaged over the 600 instants, the whole controller container — consumer, MQTT network thread, `/metrics`, event-log writes — used **36.70 %** of one vCPU: 220.19 CPU-seconds in 600
+backlog_diagnosis.md:254: [native] 7. **Anything native.**
+backlog_diagnosis.md:309: [native] 13. **The native equivalent of any figure.**
+backlog_diagnosis.md:358: [native] **What a positive result would mean, and no more:** that at 2.24 msg/s for 720 s the queue stayed bounded on this candidate. Nothing about any other rate, no capacity figure, no maximum throughput, nothing native; the `nominal-r01` verdict 
+backlog_diagnosis.md:385: [emulation] | "130 ms for one PATCH"; "emulation is the multiplier" (figures B3; constraints B2) | stated | withdrawn (section 6.2) |
+=== supervisor / orientador / advisor: 0 lines
+=== names of text-generation tools: 0 lines
+=== American spellings (heuristic): 16 lines
+backlog_diagnosis.md:39: [while] - **Why fewer were served than received.** One strictly serial consumer; its occupancy per measured message while ingress ran averaged 151.44 ms and drifted from 181 to 117 ms inside the window. For at least 63.3 % of the time it was busy, 
+backlog_diagnosis.md:41: [sized] - **Next.** One bounded diagnostic run: 2.24 msg/s for 720 s, sized against the **lowest** rate this run served (4.60 msg/s over its first minute), asking whether the queue stays bounded below every rate the run showed and how long one pass
+backlog_diagnosis.md:66: [analyze] **Latency by population** (seconds; the harness's own percentile convention, `src/egw_experiments/analyze.py:499-516`):
+backlog_diagnosis.md:161: [while] **What "own" is.** Everything the consumer did between two acknowledgement stamps: the previous event line's write and flush, dequeue, decode, validation, dedupe, the merge patch, the Ditto `PATCH` round trip, and any interval in which the 
+backlog_diagnosis.md:177: [while] - **D is not a figure of the measured window's messages**: 751 of its 3,878 messages (19.4 %) are warm-up messages, carrying 126.605 s of its 600.160 s of consumer time (21.1 %) [s03 §C]. The measured window's own messages, served while ing
+backlog_diagnosis.md:188: [while] - **not a capacity, ceiling or maximum rate** — it was measured while the consumer was saturated at one offered load;
+backlog_diagnosis.md:232: [size] Pearson r against summed CPU: E −0.6229, C −0.6589; one instant below 150 falls in no band [res, warm, post, metrics → s06 §D]. E counts every acknowledgement, warm-up and measured, in the second before each resource instant, mapped through
+backlog_diagnosis.md:262: [qsize] - **The cross-check that does carry weight** compares two different mechanisms of the controller: the waiting queue reconstructed from the event stamps against the `queue_depth` (`qsize()`, `service.py:171-173`) the harness polled — 721 sam
+backlog_diagnosis.md:291: [while] [warm, post → s05 §B]. Both reproduce to the digit. The verification report's claim that its values are exact "and not a matter of modelling choice" holds only under R-msg; round one's values hold under R-slot. **The run's own data argue th
+backlog_diagnosis.md:321: [Sizing] ### 11.2 Sizing, against the lowest rate the run showed
+backlog_diagnosis.md:332: [sizing] | Deliberately **not** used for sizing | the window average 6.457048 msg/s and the drain rate 8.863682 msg/s | [s02 §C] |
+backlog_diagnosis.md:334: [sized] The offered rate sits below the lowest rate the run served at every block width from 10 s to 60 s; at 1 s resolution the run served nothing in 12 of the 600 in-window seconds [s02 §D], so no rate can be sized at that width.
+backlog_diagnosis.md:363: [while] - It is **not a G3 qualifying run.** The student's decision, recorded in `PROGRESS.md` and in `LOG.md` entry #C039 at commit `3549d46`, keeps the G3 qualifying runs paused until the candidate is frozen after package D, while bounded enginee
+backlog_diagnosis.md:365: [sizes, sizing] - **Package D proposes two guest runs in total**: this one and the finite proof of the recovery ADR. This one comes first: the ADR draft sizes its proof run at 5.0 msg/s against the 6.457 msg/s average (`../adr-recovery-draft.md`), which is
+backlog_diagnosis.md:394: [sized] | Probe sized on the average (figures B5) | 5.0 msg/s against 6.457 | 2.24 msg/s against the lowest block, 4.60 msg/s (section 11.2) |
+backlog_diagnosis.md:423: [s07_probe_sizing, sizing] | `s07_probe_sizing.py` | the lowest block rates and the sizing arithmetic of section 11 |
+=== dates (all forms): 4 lines
+backlog_diagnosis.md:3: [2026-09-21] - **Date:** 2026-09-21
+backlog_diagnosis.md:4: [2026-09-19] - **Package:** D, first half — diagnosis of the message backlog of the nominal run of 2026-09-19. The controller's restart recovery is the second half and is decided in the recovery ADR draft, not here.
+backlog_diagnosis.md:339: [2026-09-19] - **Through the existing ad-hoc path** used for the 1 Hz slice of 2026-09-19: `run_test <id> <seed> --scenario load-sweep --rate 2.24 --duration 720` (`~/egw-tcg/itest-helpers.sh`, `run_test` → `pre`, `sim_post`). `load-sweep` here is the s
+backlog_diagnosis.md:397: [2026-09-20] | Date on an act; unnamed authority (constraints B11, 4(f)) | "clearance of 2026-09-20" | records named by file (sections 3.3, 9.1, 11) |
+=== load / deadline / window / threshold / ingest rule changes: 63 lines
+backlog_diagnosis.md:5: [deadline, ingest, threshold, warm-up] - **Status:** corrected draft for review. It replaces the round-one draft `../backlog_diagnosis.md` and applies every finding of the two round-one verification reports (`../verification_figures.md`, `../verification_constraints.md`) that co
+backlog_diagnosis.md:24: [warmup] | `warm` | `…/analysis/warmup.events.jsonl` |
+backlog_diagnosis.md:36: [deadline] - **The recorded result.** 3,794 of 6,720 identities were confirmed within the deadline; 2,926 were not — 85 confirmed late and 2,841 with no outcome when the harness fetched the log. A separate observation after the drain shows all 2,926 e
+backlog_diagnosis.md:40: [warm-up] - **Not established.** Any capacity or steady service rate; what moved the service rate during the run; what inside the Ditto round trip takes the time; whether more concurrency would help; what an empty start would have produced — the warm
+backlog_diagnosis.md:47: [60 s, deadline] The confirmation deadline is the controller end marker plus the unchanged 60 s: 2,391,405,170,833 ns controller monotonic, 60.000000000 s after the marker [manifest → s01 §A]. Through the marker it corresponds to about 20:13:45.750Z harness
+backlog_diagnosis.md:51: [deadline] | **P1** | Confirmed within the deadline | **3,794** | `sealed`; the same 3,794 identities in `post` | **Harness fetch**: scp started 20:13:57.289Z (`manifest` `events_fetch`), harness command ended 20:13:58.570Z (`cmds` seq 4); the newest 
+backlog_diagnosis.md:52: [deadline] | **P2** | Confirmed late, already visible at the fetch | **85** | `sealed` | Same fetch; acknowledgements from 0.012 s to 12.659 s after the deadline [sealed → s01 §D] |
+backlog_diagnosis.md:54: [deadline, drained] | P2′ | Confirmed late (eventual delivery), as seen after the drain | **2,926** = the 85 of P2 + all 2,841 of P3 | `post` | **Post-drain observation**, its scp starting 466.238 s after the harness fetch's: `drained` ran 20:13:58.613Z → 20:2
+backlog_diagnosis.md:61: [deadline] 1. **The run's delivery result is P1 against 6,720**: `delivered_unique` 3,794 and `lost` 2,926, i.e. 56.46 % in time and 43.54 % not [acct → s01 §C]. `lost` there means "not confirmed uniquely within the deadline" and is 85 (P2) + 2,841 (P
+backlog_diagnosis.md:62: [deadline] 2. **P2′ never stands in for a deadline count, nor a deadline count for P2′.** P2′ equals `lost` numerically only because every P3 identity was later accepted; it is a different population, observed at a different instant.
+backlog_diagnosis.md:63: [deadline] 3. **What the post-drain file adds about P3, and nothing more:** all 2,841 had been received before the deadline (no measured identity was received after it) and were acknowledged between 12.891 s and 345.362 s after it [post → s01 §D]. The
+backlog_diagnosis.md:75: [deadline] [sealed, post → s01 §E]. Only the first row is the run's latency: it reproduces `acct` `harness_row` (264.429926 / 321.069848 / 323.248067 s) to the microsecond [acct → s01 §E]. The post-drain rows include acknowledgements up to 345 s after
+backlog_diagnosis.md:85: [11.2] | Offered | 11.200204 msg/s over the publish span; 6,720 records, first at +0.156 s and last at +600.055 s from the window start (harness clock); plan 11.2 | [sent → s02 §A] |
+backlog_diagnosis.md:86: [11.2, 60 s] | Offered per 60 s block from the window start | 671, then 672 in each of the other nine blocks: 11.1833–11.2000 msg/s. The run-level rate matches the plan to four decimal places; a 60 s block cannot, since 60 s of 11.2 msg/s is not a whole
+backlog_diagnosis.md:89: [warm-up] | Served, warm-up, counters | 593 over 120.047 s = 4.939732 msg/s | [metrics → s02 §C] |
+backlog_diagnosis.md:95: [60 s] **Served rate in 60 s blocks** under one unchanged offered load:
+backlog_diagnosis.md:117: [drained] - Inside the window (599 samples) the depth starts at 752, ends at 3,590, never goes below 752, and falls between consecutive samples only six times, by at most 3 [metrics → s02 §E]. The queue never drained inside the window.
+backlog_diagnosis.md:118: [deadline] - Reconstructed from the event stamps (arrivals minus acknowledgements up to an instant; one message in service whenever the controller is non-empty): **750** in the controller at el 0 (749 waiting + 1), **3,593** at the window end (3,592 +
+backlog_diagnosis.md:124: [11.2, deadline] > **At 11.2 msg/s offered, the controller at `fe954a9` in this configuration, on this emulated guest, served fewer messages than it received in every one of the 60 ten-second blocks of the 600 s window [warm, post → s02 §D], so the number o
+backlog_diagnosis.md:128: [60 s] - **No capacity, no sustainable rate, no maximum throughput.** Under one unchanged offered load the served rate moved between 4.60 and 8.55 msg/s in 60 s blocks; one failed load does not define the rate this stack could sustain. The ratio 1
+backlog_diagnosis.md:129: [11.2, deadline] - **Nothing about other loads or other timed conditions.** The 1 Hz slice of the same day passed (`PM_REVIEW_PR38_LOCAL_OUTPUT_AND_NOMINAL_2026-09-19.md`, section 2.3); only the 11.2 msg/s nominal workload failed its deadline in this config
+backlog_diagnosis.md:139: [warm-up] - The 8,064 messages of the run (1,344 warm-up + 6,720 measured) were acknowledged in exactly their arrival order (FIFO) [warm, post → s03 §A].
+backlog_diagnosis.md:140: [warm-up] - The last warm-up arrival (el +0.009955 s) precedes the first measured arrival (el +0.193468 s), and the last warm-up acknowledgement (el +126.513075 s) precedes the first measured one (el +126.661899 s): warm-up and measured messages do n
+backlog_diagnosis.md:143: [warm-up] - The first message of each of the three devices is a warm-up message, so the first-contact seeding of the twins happened in the warm-up; no record has `attempts` > 1 or a non-null `error` [s03 §A].
+backlog_diagnosis.md:159: [warm-up] - The first measured message: latency 126.468 s = 126.320 s waiting behind the 749 warm-up messages then in the controller + 0.149 s of its own [s03 §B].
+backlog_diagnosis.md:172: [warm-up] | W-in — warm-up messages acknowledged inside the window | 751 | 168.58 ms | 139.61 | 298.58 | 5.9318 msg/s |
+backlog_diagnosis.md:177: [warm-up] - **D is not a figure of the measured window's messages**: 751 of its 3,878 messages (19.4 %) are warm-up messages, carrying 126.605 s of its 600.160 s of consumer time (21.1 %) [s03 §C]. The measured window's own messages, served while ing
+backlog_diagnosis.md:178: [60 s] - **M-in is not steady.** By 60 s block of the acknowledgement: 181.09 ms (el 120–180, n = 295), 166.33, 163.01, 162.25, 152.81, 145.36, 145.03, then 116.98 ms (el 540–600, n = 513); no measured message was served in el 0–120 [s03 §C].
+backlog_diagnosis.md:212: [warm-up] - Shares of the six containers' CPU: Ditto services 68.82 %, MongoDB 12.73 %, controller 16.18 % [res → s06 §C]. Per acknowledgement inside the window — all 3,878, 751 of them warm-up, because CPU cannot be attributed to individual messages
+backlog_diagnosis.md:232: [warm-up] Pearson r against summed CPU: E −0.6229, C −0.6589; one instant below 150 falls in no band [res, warm, post, metrics → s06 §D]. E counts every acknowledgement, warm-up and measured, in the second before each resource instant, mapped through
+backlog_diagnosis.md:241: [warm-up] 2. **The wait grew because service fell short of arrivals throughout**: fewer acknowledgements than arrivals in every ten-second block of the window, 2,843 more messages in the controller at its end than at its start [warm, post → s02 §D, §
+backlog_diagnosis.md:250: [warm-up] 3. **Why the service rate moved.** A warm-up (time or state) effect, contention with ingress and the harness's own activity in the guest are confounded. At the window end publication stopped (last arrival el +600.046 s), the resource collec
+backlog_diagnosis.md:267: [warm-up] ## 9. What the window inherited from the warm-up
+backlog_diagnosis.md:276: [warm-up] | Last warm-up acknowledgement | el +126.513075 s | [warm → s05 §A] |
+backlog_diagnosis.md:277: [warm-up] | Consumer time spent on warm-up work after the first measured arrival | 126.319607 s | [warm, post → s05 §A] |
+backlog_diagnosis.md:280: [warm-up] For the first 126.3 s after the first measured message arrived, the consumer served only warm-up messages (FIFO, no interleaving, never idle — section 4.1), and every measured message's wait includes that time. The queue's growth during the
+backlog_diagnosis.md:286: [deadline] | Replay — **not a finding** | shift of each acknowledgement | on time by the deadline | still late |
+backlog_diagnosis.md:291: [warm-up] [warm, post → s05 §B]. Both reproduce to the digit. The verification report's claim that its values are exact "and not a matter of modelling choice" holds only under R-msg; round one's values hold under R-slot. **The run's own data argue th
+backlog_diagnosis.md:300: [warm-up] 4. **What moved the service rate** — warm-up, ingress contention or the harness's activity in the guest (section 7.2).
+backlog_diagnosis.md:308: [warm-up] 12. **What the controller logged** — no controller container log is preserved in the run directory (`logs/` holds simulator, warm-up and collector output only).
+backlog_diagnosis.md:319: [11.2] It tests the account of section 7 where that account makes a sharp prediction: if the backlog is a rate deficit at 11.2 msg/s, a load below every rate the run served must not build a queue. It also makes the passage directly observable — im
+backlog_diagnosis.md:321: [11.2] ### 11.2 Sizing, against the lowest rate the run showed
+backlog_diagnosis.md:325: [60 s] | **Lowest 60 s served rate of `nominal-r01`** | **4.6000 msg/s** (event log; counters 4.6009), el −120 … −60 — the first minute of load, first-contact seeding included | [warm, post, metrics → s02 §D, s07 §A] |
+backlog_diagnosis.md:327: [60 s] | Lowest inside the window | 5.3167 (60 s), 5.1000 (30 s), 3.9000 (10 s) msg/s | [warm, post → s07 §A] |
+backlog_diagnosis.md:328: [11.2] | **Offered rate proposed** | **2.24 msg/s** — one fifth of 11.2; the simulator's 1 : 0.2 : 10 split gives `smartwatch` 0.2 Hz, `smart_ring` 0.04 Hz, `smart_clothing` 2.0 Hz | [s07 §B]; `src/egw_simulator/cli.py:79-87` |
+backlog_diagnosis.md:331: [60 s] | Service needed at the lowest 60 s rate | 350.6 s for all of them, inside the 720 s | [s07 §B] |
+backlog_diagnosis.md:334: [60 s] The offered rate sits below the lowest rate the run served at every block width from 10 s to 60 s; at 1 s resolution the run served nothing in 12 of the 600 in-window seconds [s02 §D], so no rate can be sized at that width.
+backlog_diagnosis.md:339: [drained, precondition] - **Through the existing ad-hoc path** used for the 1 Hz slice of 2026-09-19: `run_test <id> <seed> --scenario load-sweep --rate 2.24 --duration 720` (`~/egw-tcg/itest-helpers.sh`, `run_test` → `pre`, `sim_post`). `load-sweep` here is the s
+backlog_diagnosis.md:340: [60 s, confirmation window] - The unchanged 60 s confirmation window after the controller marker.
+backlog_diagnosis.md:341: [60 s, DRAIN_LIMIT_S, DRAIN_QUIET_S, drained, precondition] - **Duration.** Expected guest time about **17.5 min**: 133 s of precondition, as observed in the nominal attempt [cmds → s07 §C], + 720 s + 60 s + about 135 s of quiet window after the run. About 23.5 min if `DRAIN_QUIET_S=490` is exported
+backlog_diagnosis.md:345: [deadline] **Prediction from section 7.1:** over the 720 s the reconstructed number in the controller shows no net growth beyond the ±3 band and returns to 0 repeatedly, and every identity is confirmed within the deadline.
+backlog_diagnosis.md:350: [deadline] - any identity is confirmed after the deadline, or has no outcome at the fetch.
+backlog_diagnosis.md:352: [11.2] Either result means the queue grows at a load below every rate this candidate served in `nominal-r01`. The backlog would then not be explained by the 11.2 msg/s deficit alone, the account of section 7 would have to be revised before the rec
+backlog_diagnosis.md:362: [11.2, 60 s, criterion, deadline, threshold, warm-up] - It does not change the nominal condition (11.2 msg/s, 600 s, 120 s warm-up, 60 s window) or any threshold, deadline, rule or gate criterion, and it does not relabel `nominal-r01`.
+backlog_diagnosis.md:365: [60 s] - **Package D proposes two guest runs in total**: this one and the finite proof of the recovery ADR. This one comes first: the ADR draft sizes its proof run at 5.0 msg/s against the 6.457 msg/s average (`../adr-recovery-draft.md`), which is
+backlog_diagnosis.md:374: [deadline] | Populations mixed (PM instruction; figures C4) | "2,926 lost means 2,926 late", with deadline and post-drain counts side by side | Three populations with counts and collection instants (section 2); the deadline verdict stays 3,794 / 2,926
+backlog_diagnosis.md:379: [warm-up] | Per-message budget (figures B1) | 154.77 ms "of the measured window" | 151.44 ms over the 3,127 measured messages served with ingress running; D's 19.4 % warm-up share stated; what it is and is not (section 5) |
+backlog_diagnosis.md:390: [60 s] | Offered "per 60 s block to four decimals" (figures C3) | stated | 671–672 per block, 11.1833–11.2000 msg/s (section 3.1) |
+backlog_diagnosis.md:394: [11.2] | Probe sized on the average (figures B5) | 5.0 msg/s against 6.457 | 2.24 msg/s against the lowest block, 4.60 msg/s (section 11.2) |
+backlog_diagnosis.md:395: [precondition] | Probe timing (figures §1.9) | 180 s precondition, 13 min | observed 133 s; 17.5 / 23.5 min expected; 43.0 min hard bound (section 11.3) |
+backlog_diagnosis.md:417: [deadline] | `s01_populations.py` | deadline, populations at both collection points, collection instants, latency by population |
+backlog_diagnosis.md:421: [warm-up] | `s05_warmup_inheritance.py` | the warm-up counts at named instants, and the two replays |
+backlog_diagnosis.md:429: [criterion, deadline, threshold] **This is a corrected draft for review. It closes no gate, admits no claim, accepts no result, and changes no threshold, deadline, offered load or rule. `nominal-r01` remains a valid run that failed its delivery criterion.**
+=== campaign / soak / rerun / repeat: 7 lines
+backlog_diagnosis.md:7: [repeated] - **Method:** read-only analysis of data that already exist. No guest was started, no run repeated, nothing measured live, no network touched; nothing under the repository, the raw runs, the attempts, `output_test` or the project-management
+backlog_diagnosis.md:18: [pilot] | `sent` | `/home/ruisth/egw-tcg/pilot/results/raw/nominal-r01/sent_events.jsonl` |
+backlog_diagnosis.md:319: [repeat] It tests the account of section 7 where that account makes a sharp prediction: if the backlog is a rate deficit at 11.2 msg/s, a load below every rate the run served must not build a queue. It also makes the passage directly observable — im
+backlog_diagnosis.md:338: [campaign, pilot] - **One run**, under a fresh diagnostic run id and seed, outside the campaign plan — the plan's 95 runs use no offered rate below 10 msg/s [`~/egw-tcg/pilot/campaign_plan.json` → s07 §B] — on the same controller code (`src/egw_controller/` 
+backlog_diagnosis.md:339: [campaign] - **Through the existing ad-hoc path** used for the 1 Hz slice of 2026-09-19: `run_test <id> <seed> --scenario load-sweep --rate 2.24 --duration 720` (`~/egw-tcg/itest-helpers.sh`, `run_test` → `pre`, `sim_post`). `load-sweep` here is the s
+backlog_diagnosis.md:345: [repeatedly] **Prediction from section 7.1:** over the 720 s the reconstructed number in the controller shows no net growth beyond the ±3 band and returns to 0 repeatedly, and every identity is confirmed within the deadline.
+backlog_diagnosis.md:352: [battery] Either result means the queue grows at a load below every rate this candidate served in `nominal-r01`. The backlog would then not be explained by the 11.2 msg/s deficit alone, the account of section 7 would have to be revised before the rec
+
+################ adr-0011-controller-restart-recovery.md (1060 lines)
+=== status words (accepted/proved/guarantee/closed/verified/validated/confirmed/established): 79 lines
+adr-0011-controller-restart-recovery.md:7: [accepts, validates] to be cited. Nothing here accepts a gate, admits a claim, validates a result,
+adr-0011-controller-restart-recovery.md:11: [guarantee] **Nothing in this record is a guarantee.** The code at the merged `dev`
+adr-0011-controller-restart-recovery.md:12: [guarantee] implements none of it. It becomes a guarantee only after three things have
+adr-0011-controller-restart-recovery.md:49: [PROVED] **Status of each claim.** **PROVED** — an artefact line states it, or
+adr-0011-controller-restart-recovery.md:54: [establish] could not establish*.
+adr-0011-controller-restart-recovery.md:81: [PROVED] published identities (sent_events.jsonl)                           6,720   PROVED
+adr-0011-controller-restart-recovery.md:82: [PROVED, accepted] with an outcome in the fetched events.jsonl (all 'accepted')       3,819   PROVED
+adr-0011-controller-restart-recovery.md:83: [PROVED] without an outcome in that copy                                    2,901   PROVED
+adr-0011-controller-restart-recovery.md:84: [PROVED] contiguous block, sent_events.jsonl:1595-3730                    2,136   PROVED
+adr-0011-controller-restart-recovery.md:85: [PROVED] contiguous block, sent_events.jsonl:5956-6720 (end of run)         765   PROVED
+adr-0011-controller-restart-recovery.md:94: [PROVED] published by that poll                                             3,404   PROVED
+adr-0011-controller-restart-recovery.md:95: [PROVED, accepted] accepted since the window opened (1,872 - 336)                   1,536   PROVED
+adr-0011-controller-restart-recovery.md:96: [PROVED] queue_depth in that poll                                         1,867   PROVED
+adr-0011-controller-restart-recovery.md:97: [PROVED, accepted] residual: published - accepted - queued                              1   PROVED
+adr-0011-controller-restart-recovery.md:98: [PROVED] identities with an outcome ahead of the block                      1,594   PROVED
+adr-0011-controller-restart-recovery.md:99: [PROVED] of them written after the poll (1,594 - 1,536)                      58   PROVED
+adr-0011-controller-restart-recovery.md:100: [PROVED] still queued when the process stopped, at least (1,867 - 58)       1,809   PROVED
+adr-0011-controller-restart-recovery.md:111: [PROVED] sub-second precision and is CONSISTENT-WITH, not PROVED. The residual is
+adr-0011-controller-restart-recovery.md:125: [PROVED] published identities                                                6,720   PROVED
+adr-0011-controller-restart-recovery.md:126: [PROVED, accepted] with an outcome in the fetched events.jsonl (all 'accepted')        4,538   PROVED
+adr-0011-controller-restart-recovery.md:127: [PROVED] without an outcome in that copy                                     2,182   PROVED
+adr-0011-controller-restart-recovery.md:128: [PROVED] contiguous block, sent_events.jsonl:2012-3771                     1,760   PROVED
+adr-0011-controller-restart-recovery.md:129: [PROVED] contiguous block, sent_events.jsonl:6299-6720 (end of run)          422   PROVED
+adr-0011-controller-restart-recovery.md:130: [PROVED] published by the last answered poll (controller_metrics.csv:308)    3,416   PROVED
+adr-0011-controller-restart-recovery.md:131: [PROVED, accepted] accepted since the window opened (7,909 - 5,981)                  1,928   PROVED
+adr-0011-controller-restart-recovery.md:132: [PROVED] queue_depth in that poll                                          1,487   PROVED
+adr-0011-controller-restart-recovery.md:133: [PROVED] residual                                                              1   PROVED
+adr-0011-controller-restart-recovery.md:134: [PROVED] identities with an outcome ahead of the block                       2,011   PROVED
+adr-0011-controller-restart-recovery.md:135: [PROVED] still queued when the process stopped, at least (1,487 - 83)        1,404   PROVED
+adr-0011-controller-restart-recovery.md:155: [PROVED] The group sizes are PROVED; their labels are not. Whether G2 and G3a reached
+adr-0011-controller-restart-recovery.md:181: [PROVED] - **PROVED:** none of r02's 2,136 has an outcome record of any kind in the
+adr-0011-controller-restart-recovery.md:192: [accepted] the twin would be classified `accepted`, not `duplicate`. What carries the
+adr-0011-controller-restart-recovery.md:197: [PROVED] - **PROVED:** in r02 it wrote outcomes until 14.646 s after the restart command
+adr-0011-controller-restart-recovery.md:216: [establish] processed *I could not establish*.
+adr-0011-controller-restart-recovery.md:220: [establish] could not establish*; nor whether the `PATCH` of r02's in-flight identity,
+adr-0011-controller-restart-recovery.md:229: [establish] guest *I could not establish*.
+adr-0011-controller-restart-recovery.md:240: [accepted] | accepted after the deadline, present at that fetch | 85 | same | same |
+adr-0011-controller-restart-recovery.md:242: [accepted] | accepted after the deadline, all | 2,926 = 2,841 + 85 | `analysis/events.post-drain.jsonl` | fetch started 2026-09-19T20:21:43.527Z (`commands.jsonl` seq 6), after the `drained` helper ran 464.875 s (seq 5) |
+adr-0011-controller-restart-recovery.md:245: [accepted] All 2,841 without an outcome at the harness fetch ended accepted late; none was
+adr-0011-controller-restart-recovery.md:268: [guarantees] ### 2. What the controller guarantees today
+adr-0011-controller-restart-recovery.md:283: [validated] (`service.py:161`), queued (`:163`), validated, written to Ditto (`:320`) or
+adr-0011-controller-restart-recovery.md:310: [accepted] `duplicate`, `failed` or `accepted`. `EventLogger.log` writes and `flush()`es
+adr-0011-controller-restart-recovery.md:349: [accepted] **(h) What is durable.** Every accepted `PATCH` writes the twin's `ingestion`
+adr-0011-controller-restart-recovery.md:358: [accepted] delivered again under the same `run_id` is accepted if its `seq` is above the
+adr-0011-controller-restart-recovery.md:366: [accepted] delivered only through an `accepted` record (`src/egw_experiments/analyze.py:1766`,
+adr-0011-controller-restart-recovery.md:407: [accepted] and no record accepted twice" (`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:630-631`).
+adr-0011-controller-restart-recovery.md:410: [accepted] (2026-09-18) accepted all 2,016 valid events but 326 after the deadline, and
+adr-0011-controller-restart-recovery.md:433: [establish] could not establish* from any source available here.
+adr-0011-controller-restart-recovery.md:450: [establish] could not establish*.
+adr-0011-controller-restart-recovery.md:461: [established] from one run, not established.
+adr-0011-controller-restart-recovery.md:492: [proves] that cost proves to be.
+adr-0011-controller-restart-recovery.md:503: [accepted] and the G3 criterion "recovery … and no record accepted twice" would not be
+adr-0011-controller-restart-recovery.md:505: [acceptance] restart", whose acceptance includes delivery through the restart
+adr-0011-controller-restart-recovery.md:534: [accepted] record accepted twice" rests on the ADR 0006 rebuild, untested across a
+adr-0011-controller-restart-recovery.md:572: [guarantee] guarantee.
+adr-0011-controller-restart-recovery.md:577: [accepted] | acknowledgement | the PUBACK for a delivery is sent only after that delivery's outcome line (`accepted`, `rejected`, `duplicate` or `failed`) has been written and flushed (`service.py:414`; `events.py:112-119`); never for a delivery whose
+adr-0011-controller-restart-recovery.md:594: [accepts] (`eclipse-mosquitto:2.0.22`, `src/deployment/images.lock.env:39`) accepts such
+adr-0011-controller-restart-recovery.md:595: [establish] a window, and at what memory cost within 128 MiB, *I could not establish*; it
+adr-0011-controller-restart-recovery.md:624: [accepted] `duplicate`, the identity never obtains an `accepted` record, and
+adr-0011-controller-restart-recovery.md:628: [accepted] before the PUBACK leaves the identity with its `accepted` record and, later,
+adr-0011-controller-restart-recovery.md:630: [acceptance] queued. Neither is a double acceptance.
+adr-0011-controller-restart-recovery.md:635: [establish] establish*. The event log is flushed, not synced (`events.py:112-119`).
+adr-0011-controller-restart-recovery.md:639: [accepted] device's deliveries in publication order. A later `seq` accepted before an
+adr-0011-controller-restart-recovery.md:692: [establish] not establish*), which may fall inside a later run, where its twin patch
+adr-0011-controller-restart-recovery.md:712: [guaranteed] | why this rate and instant | the property concerns deliveries in flight at a kill. The two earlier runs at this rate held 818 (r01) and 988 (r02) queued at t+150 s [F:R01.10, R02.10], so the kill is expected — not guaranteed — to find seve
+adr-0011-controller-restart-recovery.md:720: [accepted] redelivered backlog has drained — with no identity accepted twice, and no
+adr-0011-controller-restart-recovery.md:751: [accepted] - **S3.** No identity has two `accepted` lines (`double_accepted = 0`).
+adr-0011-controller-restart-recovery.md:752: [accepted] - **S4.** Every identity with a `duplicate` line either also has an `accepted`
+adr-0011-controller-restart-recovery.md:765: [accepted] - **R2.** An identity has two `accepted` lines.
+adr-0011-controller-restart-recovery.md:779: [prove] that run; it does not prove it in general. It says nothing about the graceful
+adr-0011-controller-restart-recovery.md:862: [accepted] classified `duplicate`, an unapplied one `accepted`, no regression of
+adr-0011-controller-restart-recovery.md:905: [established] confirm late — expected, not established, since no run of the changed
+adr-0011-controller-restart-recovery.md:925: [establish] decision, and how the broker treats that *I could not establish*) and
+adr-0011-controller-restart-recovery.md:928: [established] concurrent updates to one thing is not established from any source available
+adr-0011-controller-restart-recovery.md:951: [guaranteed] graceful stop is not guaranteed to reach it.
+adr-0011-controller-restart-recovery.md:995: [proved] | 4 | "1,809 proved discarded", "the largest proved loss class" | at least 1,809 proved still queued at the stop; "discarded" ASSUMED on the source reading; 151 carries the clock caveat | `verification_constraints.md` B4 |
+adr-0011-controller-restart-recovery.md:996: [closed] | 5 | Consequences: classes "disappear", are "closed" | conditional, and only after the decision and the proof | `verification_constraints.md` B3 |
+adr-0011-controller-restart-recovery.md:1057: [accepts, closes] **This record is `Proposed`. It closes no gate, admits no claim, accepts no
+adr-0011-controller-restart-recovery.md:1060: [guarantee] nothing described here is a guarantee — the code today implements none of it.**
+=== capacity / ceiling / throughput / constraint / bottleneck / sustain: 20 lines
+adr-0011-controller-restart-recovery.md:45: [capacity, maximum, throughput] performance, none is a capacity, and no maximum throughput is inferred from any
+adr-0011-controller-restart-recovery.md:262: [capacity, maximum] under emulation; they are not a capacity and fix no maximum. The two restart
+adr-0011-controller-restart-recovery.md:399: [ceiling] replaces the draft's "ceiling on the 154.77 ms budget", a base in which
+adr-0011-controller-restart-recovery.md:523: [throughput] loss, unbounded retention, ordering beyond the broker's, throughput,
+adr-0011-controller-restart-recovery.md:564: [constraint] guest that is already the constraint, and as the largest change of the five; it
+adr-0011-controller-restart-recovery.md:643: [throughput] - **N6. Not a change in throughput.** The served rate is unchanged except by the
+adr-0011-controller-restart-recovery.md:646: [throughput] throughput problem".
+adr-0011-controller-restart-recovery.md:715: [ceiling] | guest time | about 16 to 28 minutes as a planning figure: quiet window + 300 s + a drain no longer than the 405.4 s that `nominal-r01`'s larger backlog took + quiet window [F:P.2, N.3]. Hard ceiling 35 minutes with the helper's default li
+adr-0011-controller-restart-recovery.md:781: [throughput] or duration, latency, throughput, or the validity of a `controller_restart` run
+adr-0011-controller-restart-recovery.md:895: [throughput] ### Relationship with the throughput problem
+adr-0011-controller-restart-recovery.md:908: [throughput] Whether throughput work belongs to the candidate before G3 is **a separate
+adr-0011-controller-restart-recovery.md:920: [throughput] - **T2 — throughput work before the freeze**, for example per-device
+adr-0011-controller-restart-recovery.md:931: [capacity] - **T3 — a bounded diagnostic measurement first**, then T1 or T2. The capacity
+adr-0011-controller-restart-recovery.md:935: [capacity] block of the window 5.35 msg/s [F:N.5, N.7]. A measurement, never a capacity
+adr-0011-controller-restart-recovery.md:960: [constraint] constraint. Held in reserve.
+adr-0011-controller-restart-recovery.md:961: [throughput] - **Consumer concurrency as part of this decision.** It addresses throughput,
+adr-0011-controller-restart-recovery.md:980: [throughput] - The throughput decision (T1 to T4).
+adr-0011-controller-restart-recovery.md:998: [constraint] | 7 | promise: the overflow path "becomes unreachable" | removed; replaced by the explicit window constraint and recorded broker values | `verification_constraints.md` B6; `verification_figures.md` B6 |
+adr-0011-controller-restart-recovery.md:1000: [ceiling] | 9 | "ceiling" of 6.46 and 8.86 msg/s on 154.77 / 112.82 ms budgets | phase rates of one failed run, labelled as such; the 154.77 ms base (19.4 % warm-up acknowledgements) is not used | `verification_constraints.md` B1; `verification_figur
+adr-0011-controller-restart-recovery.md:1002: [headroom] | 11 | proof at 5.0 msg/s, "+1.457 msg/s headroom", restart at t+90 s | 11.2 msg/s, kill at t+150 s, no timing in any criterion; the old sizing assumed a rate the nominal warm-up (4.94) and slowest block (5.35) fell below, and could have le
+=== native / emulated: 3 lines
+adr-0011-controller-restart-recovery.md:44: [QEMU, TCG, emulated, native] emulated under QEMU/TCG on the x86-64 workstation. None is native-hardware
+adr-0011-controller-restart-recovery.md:262: [emulation] under emulation; they are not a capacity and fix no maximum. The two restart
+adr-0011-controller-restart-recovery.md:937: [QEMU] - **T4 — a prospective protocol decision on QEMU workloads** belongs to G4 and
+=== supervisor / orientador / advisor: 0 lines
+=== names of text-generation tools: 0 lines
+=== American spellings (heuristic): 32 lines
+adr-0011-controller-restart-recovery.md:155: [sizes] The group sizes are PROVED; their labels are not. Whether G2 and G3a reached
+adr-0011-controller-restart-recovery.md:163: [while] - published while nothing was subscribed: **at least 151, at most 327** in r02;
+adr-0011-controller-restart-recovery.md:182: [while] fetched copy, while all 2,225 identities with an outcome after the block
+adr-0011-controller-restart-recovery.md:291: [maxsize, queue_maxsize] `asyncio.Queue(maxsize=queue_maxsize)` (`service.py:150-152`),
+adr-0011-controller-restart-recovery.md:293: [size] passes no size (`app.py:144-150`); no `EGW_*` variable sets it
+adr-0011-controller-restart-recovery.md:320: [while] the controller while it is disconnected, and discards unacknowledged deliveries
+adr-0011-controller-restart-recovery.md:365: [analyze] (`controller_today.md` section 4.3). `analyze.py` counts an identity as
+adr-0011-controller-restart-recovery.md:366: [analyze] delivered only through an `accepted` record (`src/egw_experiments/analyze.py:1766`,
+adr-0011-controller-restart-recovery.md:420: [while] - **Promises, alone:** while one connection lasts, the broker regards as
+adr-0011-controller-restart-recovery.md:427: [while] thread; unmeasured. The larger cost falls on measurement: while the broker's
+adr-0011-controller-restart-recovery.md:430: [while] ADR 0005) would exclude that wait and fall while no confirmation arrives
+adr-0011-controller-restart-recovery.md:446: [while] - **Promises, alone:** while the controller is disconnected, the broker keeps
+adr-0011-controller-restart-recovery.md:478: [while] - **Does not promise:** the outage class — a message published while the
+adr-0011-controller-restart-recovery.md:519: [while] is recorded, and nothing published while the controller is away is dropped
+adr-0011-controller-restart-recovery.md:543: [while] | publications while the controller is away | lost | queued by the broker (intended) | queued by the broker (intended) | lost | queued by the broker (intended) |
+adr-0011-controller-restart-recovery.md:546: [while] | meaning of `latency_ms` | changes when the window fills | unchanged | unchanged | unchanged | unchanged while the window is not full |
+adr-0011-controller-restart-recovery.md:547: [size] | size of the change | small | one argument and broker configuration | large | none | small, plus broker configuration |
+adr-0011-controller-restart-recovery.md:581: [while] | restart | the new process connects under the same client id with a persistent session; the broker resends the unacknowledged deliveries and those queued while the controller was away; they pass through the unchanged pipeline, where each d
+adr-0011-controller-restart-recovery.md:588: [while] every unacknowledged delivery while the originals are still queued — cannot
+adr-0011-controller-restart-recovery.md:617: [while] — for every delivery received while the in-flight window was not full; each
+adr-0011-controller-restart-recovery.md:625: [analyze] `analyze.py` reports it `lost` (2i). At most one such identity per death,
+adr-0011-controller-restart-recovery.md:670: [analyze] unchanged; `double_accepted` must stay 0 (`analyze.py:1780-1787`).
+adr-0011-controller-restart-recovery.md:689: [while] - **Contamination across runs.** A delivery left unacknowledged while the
+adr-0011-controller-restart-recovery.md:712: [size] | why this rate and instant | the property concerns deliveries in flight at a kill. The two earlier runs at this rate held 818 (r01) and 988 (r02) queued at t+150 s [F:R01.10, R02.10], so the kill is expected — not guaranteed — to find seve
+adr-0011-controller-restart-recovery.md:784: [while] recorded, while the proof's answer comes from reconciliation by identity,
+adr-0011-controller-restart-recovery.md:801: [while] only while the delivery's connection is the current one. The call crosses
+adr-0011-controller-restart-recovery.md:832: [analyze] - Section 9 (`:369-374`) and `analyze.py` unchanged by this decision. Whether
+adr-0011-controller-restart-recovery.md:916: [sizing] deadline is recorded as failed and as a sizing finding, never absorbed by
+adr-0011-controller-restart-recovery.md:932: [sizing] probe proposed in `backlog_diagnosis.md` section 7 would need re-sizing
+adr-0011-controller-restart-recovery.md:1002: [sizing] | 11 | proof at 5.0 msg/s, "+1.457 msg/s headroom", restart at t+90 s | 11.2 msg/s, kill at t+150 s, no timing in any criterion; the old sizing assumed a rate the nominal warm-up (4.94) and slowest block (5.35) fell below, and could have le
+adr-0011-controller-restart-recovery.md:1003: [sized] | 12 | proof burst sized from the outage only | the burst of deliveries in flight at the kill is the thing under test (S1) | `verification_constraints.md` 4(e) |
+adr-0011-controller-restart-recovery.md:1009: [analyze] | 18 | `src/CONTRACTS.md:284-286` for the marker sentence; `analyze.py:1765` | `:282-283`; `:1766` | `verification_figures.md` 2.1 |
+=== dates (all forms): 13 lines
+adr-0011-controller-restart-recovery.md:3: [2026-09-21] **Status:** Proposed (2026-09-21) — for the student's decision, with the
+adr-0011-controller-restart-recovery.md:5: [2026-09-20] the unnumbered draft of 2026-09-20 (`adr-recovery-draft.md`), whose defects
+adr-0011-controller-restart-recovery.md:6: [2026-09-20] are listed in "Corrections to the draft of 2026-09-20" below; the draft is not
+adr-0011-controller-restart-recovery.md:22: [2026-09-18] `docs/evidence/integrated-qemu/2026-09-18-mongodb7-isolated/README.md:72` and
+adr-0011-controller-restart-recovery.md:23: [2026-09-17] in `docs/reviews/2026-09-17-egw-image-audit.md:615`, and ADR 0010 records that
+adr-0011-controller-restart-recovery.md:29: [2026-09-21] `35fe8bb` (the merge of pull request #41, 2026-09-21) [C]. The directory
+adr-0011-controller-restart-recovery.md:72: [2026-09-19] #### 1.1 `controller_restart-r02` (2026-09-19; `invalid`, unsealed)
+adr-0011-controller-restart-recovery.md:118: [2026-09-18] #### 1.2 `controller_restart-r01` (2026-09-18; `invalid`, unsealed) — corrected
+adr-0011-controller-restart-recovery.md:120: [2026-09-20] The draft of 2026-09-20 gave r01 "1,405 identities with no outcome". **That was
+adr-0011-controller-restart-recovery.md:231: [2026-09-19] #### 1.7 What was at stake without a restart: `nominal-r01` (2026-09-19; `valid`, sealed)
+adr-0011-controller-restart-recovery.md:410: [2026-09-18] (2026-09-18) accepted all 2,016 valid events but 326 after the deadline, and
+adr-0011-controller-restart-recovery.md:911: [2026-09-21] 2026-09-21 (`PROGRESS.md:180` on the branch `docs/g3-pause-answer`, commit
+adr-0011-controller-restart-recovery.md:988: [2026-09-20] ## Corrections to the draft of 2026-09-20
+=== load / deadline / window / threshold / ingest rule changes: 53 lines
+adr-0011-controller-restart-recovery.md:8: [confirmation window, threshold] changes a maturity level, or changes any threshold, confirmation window,
+adr-0011-controller-restart-recovery.md:9: [deadline, ingest] deadline, offered load, ingest rule or evidence class.
+adr-0011-controller-restart-recovery.md:46: [11.2] of them: the one run with a valid resource record at 11.2 msg/s failed its
+adr-0011-controller-restart-recovery.md:47: [criterion] delivery criterion.
+adr-0011-controller-restart-recovery.md:75: [11.2] 600 s window at 11.2 msg/s, and returned 0 (`manifest.json`, `restart`)
+adr-0011-controller-restart-recovery.md:234: [60 s, deadline] [F:N.0–N.2]. The deadline is the controller end marker plus the unchanged 60 s
+adr-0011-controller-restart-recovery.md:239: [deadline] | confirmed by the deadline | 3,794 | the sealed `raw/nominal-r01/events.jsonl` | harness fetch started 2026-09-19T20:13:57.289Z (`manifest.json`, `events_fetch`) |
+adr-0011-controller-restart-recovery.md:240: [deadline] | accepted after the deadline, present at that fetch | 85 | same | same |
+adr-0011-controller-restart-recovery.md:242: [deadline, drained] | accepted after the deadline, all | 2,926 = 2,841 + 85 | `analysis/events.post-drain.jsonl` | fetch started 2026-09-19T20:21:43.527Z (`commands.jsonl` seq 6), after the `drained` helper ran 464.875 s (seq 5) |
+adr-0011-controller-restart-recovery.md:246: [criterion] lost after the drain [F:N.2]. The run failed its delivery criterion and stays
+adr-0011-controller-restart-recovery.md:259: [warm-up] the warm-up, 6.457 msg/s over the measured window, 8.864 msg/s draining with no
+adr-0011-controller-restart-recovery.md:260: [60 s] ingress — and in each 60 s block of the window (5.35 to 8.57 msg/s) was below
+adr-0011-controller-restart-recovery.md:261: [11.2] the 11.2 msg/s offered [F:N.5, N.7]. These are observations of one failed run
+adr-0011-controller-restart-recovery.md:339: [drained] not yet drained — all of it already acknowledged to the broker.
+adr-0011-controller-restart-recovery.md:392: [warm-up] | added *x* | warm-up, 4.940 msg/s | window, 6.457 msg/s | drain, 8.864 msg/s |
+adr-0011-controller-restart-recovery.md:400: [warm-up] warm-up acknowledgements were mixed into the window
+adr-0011-controller-restart-recovery.md:405: [11.2] 11.2 msg/s with a restart at t+300 s (`qemu_integrated_gateway.md:1116-1138`);
+adr-0011-controller-restart-recovery.md:406: [criterion] its G3 criterion is "controller restart with recovery inside the bounded window
+adr-0011-controller-restart-recovery.md:410: [deadline] (2026-09-18) accepted all 2,016 valid events but 326 after the deadline, and
+adr-0011-controller-restart-recovery.md:455: [60 s] of holding session state and writing it every 60 s is unmeasured
+adr-0011-controller-restart-recovery.md:457: [11.2] once on reconnection: at 11.2 msg/s the r02 outage bounds (13.5 s to 33.2 s)
+adr-0011-controller-restart-recovery.md:459: [11.2] did the served rate reach 11.2 msg/s [F:N.5], so under continuing ingress at
+adr-0011-controller-restart-recovery.md:503: [criterion] and the G3 criterion "recovery … and no record accepted twice" would not be
+adr-0011-controller-restart-recovery.md:527: [60 s] copies and writes a larger store every 60 s (unmeasured; its container limit
+adr-0011-controller-restart-recovery.md:533: [11.2] 11.2 msg/s, so late confirmations are expected as in `nominal-r01`. "No
+adr-0011-controller-restart-recovery.md:537: [deadline] deadline result is a matter of processing rate that this option does not
+adr-0011-controller-restart-recovery.md:632: [60 s] store is written every 60 s (`mosquitto.conf:33-35`; its comment at `:30-31`
+adr-0011-controller-restart-recovery.md:645: [deadline] - **N7. Not a deadline pass** for any timed family — see "Relationship with the
+adr-0011-controller-restart-recovery.md:647: [ingest] - **N8. Not a valid `controller_restart` run.** The ingest rule
+adr-0011-controller-restart-recovery.md:648: [MAX_SAMPLE_GAP_S] `MAX_SAMPLE_GAP_S = 5.0` (`src/egw_experiments/protocol.py:112`) rejected both
+adr-0011-controller-restart-recovery.md:694: [drained, precondition] `delta` mismatch. So the `drained` precondition must also require
+adr-0011-controller-restart-recovery.md:703: [deadline, threshold] pilot; it changes no threshold, deadline, load or rule. It runs only after the
+adr-0011-controller-restart-recovery.md:710: [11.2, warm-up] | load | the `nominal` scenario at 11.2 msg/s, three wearables, no warm-up, 300 s of publication = 3,360 messages [F:P.1] |
+adr-0011-controller-restart-recovery.md:712: [criterion] | why this rate and instant | the property concerns deliveries in flight at a kill. The two earlier runs at this rate held 818 (r01) and 988 (r02) queued at t+150 s [F:R01.10, R02.10], so the kill is expected — not guaranteed — to find seve
+adr-0011-controller-restart-recovery.md:714: [drained] | after publication | the runbook's `drained` helper (`qemu_integrated_gateway.md:653-654`: quiet window 130 s by default; 490 s where a first-contact message may be in progress, `:651`), then the fetches listed below |
+adr-0011-controller-restart-recovery.md:720: [drained] redelivered backlog has drained — with no identity accepted twice, and no
+adr-0011-controller-restart-recovery.md:775: [drained] claimed: the kill found nothing in flight (S1 fails); a `drained` call reaches
+adr-0011-controller-restart-recovery.md:782: [ingest] under the ingest rule (N8). The harness may again mark the run invalid under
+adr-0011-controller-restart-recovery.md:783: [MAX_SAMPLE_GAP_S] `MAX_SAMPLE_GAP_S`; that verdict belongs to the campaign rules and is kept as
+adr-0011-controller-restart-recovery.md:864: [drained] - the harness writing the five fields; `drained` refusing a reading with
+adr-0011-controller-restart-recovery.md:870: [criterion] statement of what is expected, not a change of criterion.
+adr-0011-controller-restart-recovery.md:898: [deadline] deadline.** It changes where undelivered messages go when the controller
+adr-0011-controller-restart-recovery.md:901: [deadline] confirmed by the deadline and 2,926 after it, with none lost after the drain
+adr-0011-controller-restart-recovery.md:903: [11.2] late in its one execution), test 6 at 11.2 msg/s and any other family timed at a
+adr-0011-controller-restart-recovery.md:916: [deadline] deadline is recorded as failed and as a sizing finding, never absorbed by
+adr-0011-controller-restart-recovery.md:934: [60 s, warm-up] rate, although the nominal warm-up served 4.94 msg/s and the slowest 60 s
+adr-0011-controller-restart-recovery.md:963: [11.2, 60 s] - **Relaxing the 60 s window or lowering the 11.2 msg/s load to make a run
+adr-0011-controller-restart-recovery.md:964: [criterion] pass.** Changing a criterion to meet it is not a repair, and it is not this
+adr-0011-controller-restart-recovery.md:981: [ingest] - The lifecycle-aware ingest rule for a deliberate restart (proposal section 2),
+adr-0011-controller-restart-recovery.md:1000: [warm-up] | 9 | "ceiling" of 6.46 and 8.86 msg/s on 154.77 / 112.82 ms budgets | phase rates of one failed run, labelled as such; the 154.77 ms base (19.4 % warm-up acknowledgements) is not used | `verification_constraints.md` B1; `verification_figur
+adr-0011-controller-restart-recovery.md:1002: [11.2, criterion, warm-up] | 11 | proof at 5.0 msg/s, "+1.457 msg/s headroom", restart at t+90 s | 11.2 msg/s, kill at t+150 s, no timing in any criterion; the old sizing assumed a rate the nominal warm-up (4.94) and slowest block (5.35) fell below, and could have le
+adr-0011-controller-restart-recovery.md:1004: [precondition] | 13 | "180 s precondition" | the helper's 130 s default quiet window, 490 s where the runbook requires it | `verification_figures.md` 1.9 |
+adr-0011-controller-restart-recovery.md:1041: [warmup] (`analysis/events.post-drain.jsonl`, `analysis/warmup.events.jsonl`,
+=== campaign / soak / rerun / repeat: 12 lines
+adr-0011-controller-restart-recovery.md:354: [repeated] repeated `message_id` and, within one `run_id`, any `seq <= last_seq`
+adr-0011-controller-restart-recovery.md:701: [repetition] One bounded diagnostic run. It is not a G3 qualifying run, not a repetition of
+adr-0011-controller-restart-recovery.md:702: [campaign, soak] `nominal-r01` or of `controller_restart-r01..r03`, and not a campaign, soak or
+adr-0011-controller-restart-recovery.md:703: [pilot] pilot; it changes no threshold, deadline, load or rule. It runs only after the
+adr-0011-controller-restart-recovery.md:708: [pilot] | identity | a fresh run id recorded as a diagnostic, in a one-entry diagnostic plan of its own — the harness refuses a run id absent from its plan (`src/egw_experiments/run.py:2983`) — never an edit of the pilot plan |
+adr-0011-controller-restart-recovery.md:713: [battery] | why SIGKILL | it is the case in which no controller code runs, and the one r02's timing points to (ASSUMED there). The graceful path is covered by regression tests and exercised by test 6 in the battery |
+adr-0011-controller-restart-recovery.md:772: [re-run] A refutation is a result: it is recorded and preserved, never re-run away.
+adr-0011-controller-restart-recovery.md:783: [campaign] `MAX_SAMPLE_GAP_S`; that verdict belongs to the campaign rules and is kept as
+adr-0011-controller-restart-recovery.md:915: [battery] families run as one qualifying battery; each timed family that misses its
+adr-0011-controller-restart-recovery.md:1035: [pilot] `/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r01/` and `-r02/`
+adr-0011-controller-restart-recovery.md:1038: [pilot] `/home/ruisth/egw-tcg/pilot/results/raw/nominal-r01/` (`manifest.json`,
+adr-0011-controller-restart-recovery.md:1052: [repeated] No guest was started, no run was repeated, nothing was measured live, and no
+

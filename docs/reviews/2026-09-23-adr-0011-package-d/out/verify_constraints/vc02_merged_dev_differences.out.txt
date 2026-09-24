@@ -1,0 +1,313 @@
+== refs
+35fe8bbdd71e48a3d029eef0cc75ab712ab360b2 2026-09-21 12:03:49 +0100 Merge pull request #41 from Ruisth/docs/g2-decision
+35fe8bbdd71e48a3d029eef0cc75ab712ab360b2 2026-09-21 12:03:49 +0100 Merge pull request #41 from Ruisth/docs/g2-decision
+3549d460931ef865d5972450451d70085ab70b9d 2026-09-21 12:06:13 +0100 docs(governance): record the student's answer on the pause of test acceptance
+b7e0c83 is an ancestor of 35fe8bb
+3549d46 is NOT an ancestor of 35fe8bb
+== cited paths changed b7e0c83..35fe8bb
+ PROGRESS.md                                        | 220 +++++++++++++++++++--
+ .../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md |  84 +++++++-
+ 2 files changed, 276 insertions(+), 28 deletions(-)
+(end)
+== plan lines at 35fe8bb
+--- 35fe8bb:docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:104
+  104  | Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
+--- 35fe8bb:docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:630-631
+  630  dropout and reconnection with no loss; controller restart with recovery inside
+  631  the bounded window and no record accepted twice; dependency fault and recovery
+--- 35fe8bb:docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:638-640
+  638  declared; every failed run retained; and **no threshold moved** — a result worse
+  639  than expected at the nominal rate is recorded as a sizing finding for the pilot,
+  640  never absorbed by changing the protocol. G3 establishes no performance, capacity
+--- where the phrases are at 35fe8bb and at b7e0c83
+[35fe8bb]
+104:| Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
+630:dropout and reconnection with no loss; controller restart with recovery inside
+639:than expected at the nominal rate is recorded as a sizing finding for the pilot,
+[b7e0c83]
+87:| Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
+572:dropout and reconnection with no loss; controller restart with recovery inside
+581:than expected at the nominal rate is recorded as a sizing finding for the pilot,
+== PROGRESS.md
+--- 35fe8bb:PROGRESS.md:509
+  509    image still installs its Python dependencies without a hashed lock.
+--- 3549d46:PROGRESS.md:509
+  509    `experiments/results/raw/` is empty. Since 2026-09-19 the 95-run composition,
+--- 3549d46:PROGRESS.md:180
+  180  critical-path row of those families): it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix); bounded engin
+--- 35fe8bb:PROGRESS.md:180
+  180  families — that test acceptance is paused at his request; the decision record does not say whether that pause is
+[b7e0c83] PROGRESS.md lines: 471
+330:  image still installs its Python dependencies without a hashed lock.
+[35fe8bb] PROGRESS.md lines: 651
+509:  image still installs its Python dependencies without a hashed lock.
+[3549d46] PROGRESS.md lines: 649
+180:critical-path row of those families): it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix);
+502:  stays on the G3 qualifying runs until the candidate is frozen after package D;
+507:  image still installs its Python dependencies without a hashed lock.
+== LOG #C039 at 3549d46 and 35fe8bb
+[35fe8bb]
+2837:## Entry #C039 — The student's G2 decision: accepted in a bounded functional scope, and where it is transcribed
+[3549d46]
+2837:## Entry #C039 — The student's G2 decision: accepted in a bounded functional scope, and where it is transcribed
+== ADR README format and status vocabulary at 35fe8bb
+# Architecture Decision Records (ADRs)
+
+Architecture decisions of the EGW project, in MADR-style short form
+(Status / Context / Decision / Consequences). ADRs record decisions already
+fixed by the normative integrated plan
+([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md))
+and by [`../../src/CONTRACTS.md`](../../src/CONTRACTS.md); changing an accepted
+ADR therefore requires updating those sources first and logging the change in
+`LOG.md`. An ADR whose status is `Proposed` (0007, 0010) records a proposal, not
+a decision fixed by the plan in force. **0008 is accepted by the student for
+project execution (2026-09-18), as amended for QEMU-only execution and again on
+2026-09-19**, and is fixed by the adopted plan. Its academic framing — the title
+and the research-question wording of D011 — is **reported approved by the
+student**: reported, undated and not a documented supervisor decision. Under D014, the QEMU evaluation scope of RQ3 is reported approved — reported by the student, undated, not a documented supervisor decision — and is not re-requested; the open part of D014 is only the wording of the native-evidence limitation and of claims about emulated timing and resource figures, and numerical criteria belong to D007 *(corrected 2026-09-19;
+previously said the scope of the evaluation and any academic use of emulated
+results remained reserved, with the academic-use half unanswered)*.
+
+Conventions:
+
+- Files are numbered `NNNN-short-title.md`; numbers are never reused.
+- Statuses: `Proposed`, `Accepted`, `Deprecated`, `Superseded by NNNN`; a
+  qualifier may follow the status word.
+- New decisions taken during implementation (G1–G4) get new ADRs; ADRs are due
+  with the first version of thesis chapter 4, which the adopted plan
+  ([v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), section 4.1)
+  targets for 2026-10-01 with Chapters 1–4. That is a planning target.
+
+## Index
+
+| ADR | Title | Status |
+|---|---|---|
+| [0001](0001-qemu-functional-vs-arm64-vm-performance.md) | Separate functional platform (QEMU) from performance platform (native ARM64 VM) | Accepted — extended by 0007; superseded in part by 0008 (2026-09-18) |
+| [0002](0002-ssi-acapy-conditional-p1.md) | Historical conditional SSI/ACA-Py option | Superseded by integrated plan v1.1 |
+| [0003](0003-flat-measurements-common-envelope-uuidv5.md) | Flat measurement fields with common envelope v1 and UUIDv5 message_id | Accepted |
+| [0004](0004-minimal-ditto-preauth.md) | Minimal Ditto deployment (policies/things/gateway) with pre-authentication for the controller | Accepted |
+| [0005](0005-latency-measured-in-controller-monotonic.md) | Primary latency measured inside the controller with a monotonic clock | Accepted |
+| [0006](0006-duplicate-state-in-twin-ingestion-feature.md) | Duplicate-detection state persisted in the twin `ingestion` feature | Accepted |
+| [0007](0007-three-tier-platform-model.md) | Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3 | Proposed; superseded for the adopted baseline by 0008 (2026-09-18); never validated by the supervisors |
+| [0008](0008-integrated-yocto-arm64-evaluation.md) | Benchmark the service stack on the Yocto-built ARM64 guest | Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution and on 2026-09-19 — academic framing and the QEMU evaluation scope of RQ3 reported approved by the student; only D014's limitation and claim wording open (corrected 2026-09-19; previously "academic use of emulated results (D014) not agreed") |
+| [0010](0010-controller-progress-counters.md) | Progress counters in the controller's `GET /metrics`: `received`, `in_progress`, `processing_errors` | Proposed |
+== length and section headings of every ADR at 35fe8bb
+docs/adr/0001-qemu-functional-vs-arm64-vm-performance.md: 58 lines; headings: Context|Decision|Consequences|
+docs/adr/0002-ssi-acapy-conditional-p1.md: 46 lines; headings: Context|Decision|Consequences|
+docs/adr/0003-flat-measurements-common-envelope-uuidv5.md: 42 lines; headings: Context|Decision|Consequences|
+docs/adr/0004-minimal-ditto-preauth.md: 43 lines; headings: Context|Decision|Consequences|
+docs/adr/0005-latency-measured-in-controller-monotonic.md: 43 lines; headings: Context|Decision|Consequences|
+docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md: 69 lines; headings: Context|Decision|Consequences|Amended 2026-08-08 (CONTRACTS v1.1): run-scoped `seq` floor|
+docs/adr/0007-three-tier-platform-model.md: 119 lines; headings: Context|Decision|Consequences|
+docs/adr/0008-integrated-yocto-arm64-evaluation.md: 150 lines; headings: Context|Decision|Consequences|Amendment of 2026-09-18 — evidence classes and decisions reserved for the supervisors|Amendment of 2026-09-18 — QEMU-only execution scope, adopted by the student|Amendment of 2026-09-19 — supervisor confirmations reported by the student|
+docs/adr/0010-controller-progress-counters.md: 210 lines; headings: Context|Decision|Consequences|Alternatives rejected|Follow-ups (not part of this decision)|
+== session, acknowledgement and restart terms in the existing ADRs at 35fe8bb
+35fe8bb:docs/adr/0005-latency-measured-in-controller-monotonic.md:40:  separate simulator-side publish/puback timings (`sent_events.jsonl`), never
+35fe8bb:docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md:12:lost on every controller restart — precisely the moment (reconnect/restart
+35fe8bb:docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md:25:  durable source of truth: after a restart, the cache is **rebuilt by reading
+35fe8bb:docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md:32:- Positive: duplicate detection survives controller restarts with no extra
+35fe8bb:docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md:43:- The first event after restart incurs one extra twin read (cache rebuild);
+35fe8bb:docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md:50:the same `device_uuid`s while restarting `seq` at 0. Under the original rule
+35fe8bb:docs/adr/0008-integrated-yocto-arm64-evaluation.md:41:**Facts.** On 2026-09-17 no native ARM64 virtual machine had been obtained (the student's attempts with cloud providers had not produced o
+35fe8bb:docs/adr/0010-controller-progress-counters.md:53:  identity and the restart rules are new normative statements, so the change
+35fe8bb:docs/adr/0010-controller-progress-counters.md:80:the identity, the restart rules and the shutdown exclusion live in
+== ADR 0010 on the shutdown sequence and the shutdown exclusion, at 35fe8bb
+--- 35fe8bb:docs/adr/0010-controller-progress-counters.md:78-81
+   78  
+   79  Three additive integer fields in `GET /metrics`; normative wording,
+   80  the identity, the restart rules and the shutdown exclusion live in
+   81  CONTRACTS.md section 5, sub-section "Progress counters in `GET /metrics`".
+--- 35fe8bb:docs/adr/0010-controller-progress-counters.md:113-116
+  113  - **Unchanged:** `queue_depth`, every existing field, `increment()`,
+  114    `increment_dropped()`, `process()`, `_emit()`, `stop()`, the MQTT bridge,
+  115    outcomes, event records, retry policy, log messages and the shutdown
+  116    sequence. The new names are not event outcomes and never enter
+--- 35fe8bb:docs/adr/0010-controller-progress-counters.md:139-141
+  139  - During shutdown `queue_depth` may include the one internal marker, so the
+  140    right-hand side of the identity may exceed `received` by one. The contract
+  141    states this exclusion in words rather than relying on the shutdown order of
+== the protocol proposal on the order of evidence and design decision, at 35fe8bb and b7e0c83
+--- 35fe8bb:docs/governance/proposals/acceptance_protocol_update_2026-09-19.md:418-425
+  418  2. After resumption, and before any restart run is repeated, confirm or refute
+  419     Finding 2 from the guest-side evidence of `controller_restart-r02`: its full
+  420     event log on the data disk, the twins' ingestion counters and the controller
+  421     container logs, read-only.
+  422  3. If it is confirmed, take a **separate design decision** on restart-safe
+  423     delivery before C12 evidence is collected again. Directions for that
+  424     decision, none of them assessed here: a persistent MQTT session, so that the
+  425     broker holds QoS 1 messages for the fixed client id while no session exists;
+--- 35fe8bb:docs/governance/proposals/acceptance_protocol_update_2026-09-19.md:452-455
+  452  The design decision on the controller's restart path is the student's, recorded
+  453  as a separate decision (for example an architecture decision record) once the
+  454  guest-side evidence has been read. A lowered QEMU workload is a prospective
+  455  protocol decision of the student and belongs to the G4 protocol freeze, where
+--- b7e0c83:docs/governance/proposals/acceptance_protocol_update_2026-09-19.md:418-425
+  418  2. After resumption, and before any restart run is repeated, confirm or refute
+  419     Finding 2 from the guest-side evidence of `controller_restart-r02`: its full
+  420     event log on the data disk, the twins' ingestion counters and the controller
+  421     container logs, read-only.
+  422  3. If it is confirmed, take a **separate design decision** on restart-safe
+  423     delivery before C12 evidence is collected again. Directions for that
+  424     decision, none of them assessed here: a persistent MQTT session, so that the
+  425     broker holds QoS 1 messages for the fixed client id while no session exists;
+--- b7e0c83:docs/governance/proposals/acceptance_protocol_update_2026-09-19.md:452-455
+  452  The design decision on the controller's restart path is the student's, recorded
+  453  as a separate decision (for example an architecture decision record) once the
+  454  guest-side evidence has been read. A lowered QEMU workload is a prospective
+  455  protocol decision of the student and belongs to the G4 protocol freeze, where
+== header block of every ADR at 35fe8bb
+----- docs/adr/0001-qemu-functional-vs-arm64-vm-performance.md
+# 0001 — Separate functional platform (QEMU) from performance platform (native ARM64 VM)
+
+> **Superseded in part on 2026-09-18, for the adopted execution baseline.** [ADR 0008](0008-integrated-yocto-arm64-evaluation.md) — *Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; academic framing and the QEMU evaluation scope of RQ3 reported approved by the student; only D014's limitation and claim wording open* — supersedes this ADR's final-deployment rule and its virtualisation classification. The decision below is retained as the **historical record** and as the rule set that would apply to any future native measurement work; it is not a current description of the execution baseline, in which there is no native ARM64 performance platform. **The rules that survive unchanged** are that no performance conclusion of any kind is derived from QEMU runs, that every piece of evidence states its platform, and that data from different execution modes is never mixed in one analysis. The G1 evidence is unchanged. The plan in force is [version 2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), adopted by the student on 2026-09-18 and amended on 2026-09-19. The supervisor position is split: the thresholds and other numerical criteria (D007) and the open part of D014 — the wording of the native-evidence limitation and of claims about emulated timing and resource figures — are not agreed and their package is unsent (corrected 2026-09-19; previously "the academic use of emulated results (D014) are not agreed"), while the title, the research questions and ten further items are reported confirmed by the student and are nowhere recorded as documented supervisor decisions.
+
+**Status:** Accepted (2026-08-07) — fixed by integrated plan sections 5.1 and 12 (of the archived version 1.0); superseded in part by [0008](0008-integrated-yocto-arm64-evaluation.md) on 2026-09-18
+
+**Extended by:** [0007](0007-three-tier-platform-model.md) (Proposed,
+2026-08-12) — the dedicated ARM64 market proved unavailable, so the two-way
+split below is refined into three tiers: this ADR separates emulated from
+native, and 0007 adds that a *burstable* native instance is admissible for
+functional integration but never as a source of numbers. Nothing in this ADR is
+withdrawn or weakened by that extension.
+
+## Context
+----- docs/adr/0002-ssi-acapy-conditional-p1.md
+# 0002 — SSI/ACA-Py is strictly conditional P1 behind gate G3 and outside all RQs
+
+**Status:** Superseded (2026-08-13) by the integrated plan v1.1, sections 3.3
+and 3.4. The historical decision below is retained for traceability; it no
+longer authorises any SSI/ACA-Py implementation in September or in an
+unapproved October contingency.
+
+## Context
+
+Earlier project plans placed a decentralised-identity stack (Hyperledger Indy,
+verifiable credentials, IPFS, Fabric) on the critical path. The September
+deadline makes that scope infeasible, and none of the three definitive research
+questions (RQ1 reproducible Yocto/ARM64 gateway, RQ2 correct/reliable ingestion,
+RQ3 performance trade-offs) requires SSI. The plan states explicitly: "ACA-Py e
+----- docs/adr/0003-flat-measurements-common-envelope-uuidv5.md
+# 0003 — Flat measurement fields with common envelope v1 and UUIDv5 message_id
+
+**Status:** Accepted (2026-08-07) — fixed by CONTRACTS.md sections 2–3 (plan 5.3)
+
+## Context
+
+Three wearable types (smartwatch, smart ring, smart clothing) publish telemetry
+that must be validated per device type, correlated across simulator, controller
+and Ditto, and deduplicated under QoS 1 redelivery. The reference payloads from
+the C2DTA paper and `INTERFACES.md` carry measurements as top-level fields. A
+correlation identifier is needed that both ends can compute independently and
+deterministically, without coordination or storage on the publisher side.
+
+## Decision
+----- docs/adr/0004-minimal-ditto-preauth.md
+# 0004 — Minimal Ditto deployment (policies/things/gateway) with pre-authentication for the controller
+
+**Status:** Accepted (2026-08-07) — fixed by plan 4.3 and CONTRACTS.md sections 4 and 8
+
+## Context
+
+Eclipse Ditto 3.9.4 ships as multiple services (gateway, policies, things,
+things-search, connectivity, UI). The performance platform is a 4 vCPU / 8 GiB
+ARM64 VM shared by Mosquitto, MongoDB, the controller and Ditto itself; Ditto
+memory pressure is an identified risk (plan section 11, "Ditto excede
+recursos"). The research questions require twin materialisation and retrieval,
+not search queries, managed connections or a UI. The controller is the only
+Ditto client and talks to it over the internal Docker network; the Ditto HTTP
+port is never exposed beyond localhost.
+----- docs/adr/0005-latency-measured-in-controller-monotonic.md
+# 0005 — Primary latency measured inside the controller with a monotonic clock
+
+**Status:** Accepted (2026-08-07) — fixed by plan 5.1, 5.8 and 7.3; CONTRACTS.md section 5
+
+## Context
+
+RQ3 requires latency figures for the gateway's twin-materialisation path. During
+benchmarks the simulator runs outside the ARM VM (ADR 0001), so any end-to-end
+timestamp difference would include the external network link and, worse, the
+clock offset between two machines. The simulator's payload field `ts` is a
+wall-clock value from a different host and is neither monotonic nor synchronised
+to the controller's clock. Cross-host clock comparison (NTP-dependent) is not
+defensible at millisecond resolution.
+
+----- docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md
+# 0006 — Duplicate-detection state persisted in the twin `ingestion` feature
+
+**Status:** Accepted (2026-08-07), amended 2026-08-08 — fixed by plan 5.4;
+CONTRACTS.md section 4
+
+## Context
+
+MQTT QoS 1 guarantees at-least-once delivery, so redeliveries are expected,
+especially in the `dropout-reconnect` scenario. Twin updates must be idempotent:
+a repeated `message_id` or a non-increasing `seq` must be rejected as a
+duplicate (plan 5.4). A purely in-memory dedup cache in the controller would be
+lost on every controller restart — precisely the moment (reconnect/restart
+testing, plan 9.1) when duplicates are most likely — silently re-applying old
+messages and corrupting both twin state and the accepted/duplicate counters that
+----- docs/adr/0007-three-tier-platform-model.md
+# 0007 — Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3
+
+> **Superseded on 2026-09-18, for the adopted execution baseline.** [ADR 0008](0008-integrated-yocto-arm64-evaluation.md) — *Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; academic framing and the QEMU evaluation scope of RQ3 reported approved by the student; only D014's limitation and claim wording open* — supersedes this ADR: the services run inside the Yocto guest emulated by QEMU/TCG, and there is **no tier-3 measurement platform in the adopted baseline**. The three-tier model below is retained as the historical record and as the rule set that would apply to any future native measurement work, including the bar on numbers from a burstable instance. **The rules that survive unchanged** are that no latency, throughput or resource figure from tier 1 or tier 2 enters the dissertation, that every piece of evidence states its execution mode, and that data from different modes is never mixed in one analysis. Historical availability and prices below are not current quotations. The plan in force is [version 2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), adopted by the student on 2026-09-18 and amended on 2026-09-19. The supervisor position is split: the thresholds and other numerical criteria (D007) and the open part of D014 — the wording of the native-evidence limitation and of claims about emulated timing and resource figures — are not agreed and their package is unsent (corrected 2026-09-19; previously "the academic use of emulated results (D014) are not agreed"), while the title, the research questions and ten further items are reported confirmed by the student and are nowhere recorded as documented supervisor decisions.
+
+**Status:** Proposed (2026-08-12) — extends [ADR 0001](0001-qemu-functional-vs-arm64-vm-performance.md);
+**never validated by the supervisors**; superseded for the adopted execution
+baseline by [0008](0008-integrated-yocto-arm64-evaluation.md) on 2026-09-18.
+Nothing here accepts a gate or validates a claim.
+
+## Context
+
+ADR 0001 separates two platforms: QEMU (`qemuarm64`) for functional validation,
+and a native ARM64 cloud VM for the experimental campaign. It draws the line
+between **emulated and native**, because that was the only line the market
+----- docs/adr/0008-integrated-yocto-arm64-evaluation.md
+# 0008 — Benchmark the service stack on the Yocto-built ARM64 guest
+
+**Date:** 2026-09-16; amended 2026-09-18 (evidence classes, see the last section but one); links and facts updated 2026-09-18 when the plan v2.0 proposal moved under `docs/governance/proposals/`; **amended 2026-09-18 — adopted by the student for project execution with the QEMU-only execution amendment**; **amended 2026-09-19 — supervisor confirmations reported by the student** (see the last section)
+
+**Status:** **Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution; the academic framing and the QEMU evaluation scope of RQ3 are reported approved, and only D014's limitation and claim wording is open.** Amended 2026-09-19. The student **reports** that the academic title, the research-question wording with RQ3 evaluated in QEMU, and the local-core scope were approved (D011), and that a supervisor approved proceeding with the QEMU tests. Those are **reported by the student**, carry no date, message or supervisor name, and are not documented supervisor decisions. What remains open is the wording of the native-evidence limitation and of claims about emulated timing and resource figures (the open part of D014, whose row is `partly_confirmed_reported_by_student`) and the experimental thresholds and other numerical criteria (D007); the QEMU evaluation scope of RQ3 is reported approved and is not re-requested. *(Corrected 2026-09-19 to match the narrowed D014 row of the [decision log](../governance/supervisor_decision_log.csv); this line previously said the academic use of emulated results was not agreed and D014's academic-use half unanswered. The dated statements below that say so are kept as written and are superseded by this line.)*
+
+**Supersedes, for the adopted execution baseline** (student authority, 2026-09-18): the separate-operating-system/service deployment in [0001](0001-qemu-functional-vs-arm64-vm-performance.md) and [0007](0007-three-tier-platform-model.md). Their historical status is retained, and their rules continue to govern any future native measurement work.
+
+**Authority:** the student's adoption of plan v2.0 with the QEMU-only execution amendment on 2026-09-18, published at the canonical path, [`docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md). That is the student's authority over project execution; it is **not** supervisor approval. Separately, the student reports **supervisor approval to proceed with the QEMU tests** — a supervisor confirmation reported by the student, undated and not a documented supervisor decision. Adopting a plan version accepts no gate and admits no claim, and neither does a reported confirmation.
+
+## Context
+
+The original thesis theme asks for a Yocto-based Linux distribution supporting wearable digital twins on ARM, and for the solution to be tested. The August two-layer proposal described the implemented state accurately but proposed a reduced final evaluation: Yocto boot checks and application benchmarks on a different Linux system. **As at 2026-08 no supervisor approval for that reframing was recorded, and none has been since**: that two-layer wording was never sent, and what the student reports approved in September is the integrated framing of D011, not this one. The student has explicitly requested the integrated objective.
+
+----- docs/adr/0010-controller-progress-counters.md
+# 0010 — Progress counters in the controller's `GET /metrics`: `received`, `in_progress`, `processing_errors`
+
+**Status:** Proposed (2026-09-18) — additive extension of
+[CONTRACTS.md](../../src/CONTRACTS.md) section 5, following the project review
+of 2026-09-18. Nothing here accepts a gate, validates a claim or changes a
+maturity level. The change is verified by unit tests with fakes only; it has
+not been run against a live broker, Ditto or an ARM64 system.
+
+Numbering: `dev` ends at 0007. Number 0008 is used by an open proposal
+(pull request #30) and 0009 is kept for other open work; numbers are never
+reused, so this record takes 0010.
+
+## Context
+
+== ADR numbers ever added on any ref
+docs/adr/0001-qemu-functional-vs-arm64-vm-performance.md
+docs/adr/0002-ssi-acapy-conditional-p1.md
+docs/adr/0003-flat-measurements-common-envelope-uuidv5.md
+docs/adr/0004-minimal-ditto-preauth.md
+docs/adr/0005-latency-measured-in-controller-monotonic.md
+docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md
+docs/adr/0007-three-tier-platform-model.md
+docs/adr/0008-integrated-yocto-arm64-evaluation.md
+docs/adr/0010-controller-progress-counters.md
+docs/adr/README.md
+== 0011 anywhere at 35fe8bb (all paths)
+warning: unable to access 'docs/evidence/g2-complete-flow/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/simulator/itest-g2-01.reconcile/.gitattributes': Filename too long
+warning: unable to access 'docs/evidence/g2-complete-flow/20260920T233212Z_g2-twin-persistence-restart_attempt01/simulator/itest-g2-01.reconcile/.gitattributes': Filename too long
+warning: unable to access 'docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/raw/2026-09-18-stack-images-provisioning/.gitattributes': Filename too long
+warning: unable to access 'docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/raw/2026-09-18-stack-images-provisioning/boot/.gitattributes': Filename too long
+warning: unable to access 'docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/raw/2026-09-18-stack-images-provisioning/guest/.gitattributes': Filename too long
+warning: unable to access 'docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/raw/2026-09-18-stack-images-provisioning/scripts/.gitattributes': Filename too long
+== 0011 on any ref's docs/adr
+(end)

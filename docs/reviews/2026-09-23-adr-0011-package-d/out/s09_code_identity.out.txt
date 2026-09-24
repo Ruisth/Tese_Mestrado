@@ -1,0 +1,107 @@
+== code identity of src/egw_controller/ (the run's commit fe954a9 against the heads read today)
+git diff fe954a9 35fe8bb -- src/egw_controller/ : 0 changed line(s)
+git diff fe954a9 b7e0c83 -- src/egw_controller/ : 0 changed line(s)
+git diff fe954a9 3549d46 -- src/egw_controller/ : 0 changed line(s)
+35fe8bb 2026-09-21 12:03:49 +0100 Merge pull request #41 from Ruisth/docs/g2-decision
+b7e0c83 (WSL clone HEAD) is an ancestor of 35fe8bb
+3549d46 is NOT an ancestor of 35fe8bb (not on dev)
+branches containing 3549d46:
+    docs/g2-decision
+  * docs/g3-pause-answer
+    remotes/origin/docs/g2-decision
+    remotes/origin/docs/g3-pause-answer
+== the other cited files, b7e0c83 against 35fe8bb (empty = unchanged)
+(end)
+== anchors at 35fe8bb
+--- src/egw_controller/service.py:39-39 at 35fe8bb
+   39  DEFAULT_QUEUE_MAXSIZE = 10000
+--- src/egw_controller/service.py:150-152 at 35fe8bb
+  150          self._queue: asyncio.Queue[InboundMessage | None] = asyncio.Queue(
+  151              maxsize=queue_maxsize
+  152          )
+--- src/egw_controller/service.py:171-173 at 35fe8bb
+  171      def queue_depth(self) -> int:
+  172          """Current number of queued inbound messages (for ``GET /metrics``)."""
+  173          return self._queue.qsize()
+--- src/egw_controller/service.py:182-197 at 35fe8bb
+  182          while True:
+  183              message = await self._queue.get()
+  184              if message is None:
+  185                  break
+  186              # Before the try, with no await since the removal from the queue:
+  187              # the finally below runs if and only if this call ran.
+  188              self._metrics.processing_started()
+  189              try:
+  190                  await self.process(message)
+  191              except Exception:  # noqa: BLE001 - keep the pipeline alive
+  192                  logger.exception(
+  193                      "unhandled error while processing message",
+  194                      extra={"context": {"topic": message.topic}},
+  195                  )
+  196              finally:
+  197                  self._metrics.processing_finished()
+--- src/egw_controller/service.py:320-320 at 35fe8bb
+  320              attempts = await self._ditto.patch_thing(device_uuid, patch)
+--- src/egw_controller/service.py:331-331 at 35fe8bb
+  331          ack = self._monotonic_ns()
+--- src/egw_controller/service.py:342-342 at 35fe8bb
+  342              latency_ms=(ack - received) / 1e6,
+--- src/egw_controller/service.py:414-414 at 35fe8bb
+  414          self._events.log(event)
+--- src/egw_controller/events.py:112-119 at 35fe8bb
+  112      def log(self, event: ControllerEvent) -> None:
+  113          """Append one event line and flush it immediately."""
+  114          self._validate(event)
+  115          line = json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
+  116          with self._lock:
+  117              fh = self._open(self._bucket(event.run_id))
+  118              fh.write(line + "\n")
+  119              fh.flush()
+--- src/egw_controller/mqtt.py:187-189 at 35fe8bb
+  187      def _on_message(self, client: Client, userdata: Any, message: Any) -> None:
+  188          # Latency measurement starts here, on the network thread, at arrival.
+  189          received_monotonic_ns = self._monotonic_ns()
+--- src/egw_controller/mqtt.py:199-199 at 35fe8bb
+  199          loop.call_soon_threadsafe(self._submit, inbound)
+--- src/egw_experiments/analyze.py:499-503 at 35fe8bb
+  499  def percentile(values: list[float], p: float) -> float | None:
+  500      """Percentile with linear interpolation between closest ranks.
+  501  
+  502      rank = (n-1) * p/100 on the sorted sample (numpy's default convention).
+  503      Returns None for an empty sample.
+--- src/deployment/scripts/collect-resources.sh:60-67 at 35fe8bb
+   60  #   cpu_pct   100 * delta(cpu.stat usage_usec) / delta(elapsed time), i.e.
+   61  #             docker's single-CPU basis (can exceed 100 for a
+   62  #             multi-threaded container); the harness analysis normalizes
+   63  #             it by nproc from sut_environment.json (audit 9.7). Elapsed
+   64  #             time comes from /proc/uptime, kept exactly as read (never
+   65  #             re-rounded), which no clock step moves. The figure is the CPU
+   66  #             time the GUEST accounts to the container; it is not the host
+   67  #             QEMU process's CPU and not native performance.
+--- src/egw_simulator/cli.py:79-87 at 35fe8bb
+   79      run_p.add_argument(
+   80          "--rate",
+   81          type=float,
+   82          default=None,
+   83          help=(
+   84              "aggregate message rate in msg/s, split 1:0.2:10 across "
+   85              "smartwatch:smart_ring:smart_clothing (default: scenario "
+   86              "default; required for load-sweep)"
+   87          ),
+--- src/egw_experiments/itest_reconcile.py:235-235 at 35fe8bb
+  235      give_up = time.monotonic() + CONFIRMATION_WINDOW_S + args.extra_timeout
+--- src/egw_experiments/itest_reconcile.py:604-604 at 35fe8bb
+  604              s.add_argument("--extra-timeout", type=float, default=120.0)
+--- docs/setup/qemu_integrated_gateway.md:651-651 at 35fe8bb
+  651  # the per-phase sum is 40 s per attempt, 482.4 s for a first-contact message - export DRAIN_QUIET_S=490 to cover it.
+--- docs/setup/qemu_integrated_gateway.md:653-654 at 35fe8bb
+  653  drained() {
+  654    local quiet=${DRAIN_QUIET_S:-130} step=${DRAIN_STEP_S:-5} limit=${DRAIN_LIMIT_S:-900}
+--- CPU limits in compose.yaml at 35fe8bb
+no CPU limit key in compose.yaml
+memory-limit keys: 6
+== the pause record: PROGRESS.md and LOG.md entry #C039 at 3549d46
+180:critical-path row of those families): it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after
+502:  stays on the G3 qualifying runs until the candidate is frozen after package D;
+2837:## Entry #C039 — The student's G2 decision: accepted in a bounded functional scope, and where it is transcribed
+2990:  the student decided on 2026-09-21 that it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen a

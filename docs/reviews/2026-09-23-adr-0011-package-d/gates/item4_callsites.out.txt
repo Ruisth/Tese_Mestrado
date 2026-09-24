@@ -1,0 +1,65 @@
+== identity
+35fe8bbdd71e48a3d029eef0cc75ab712ab360b2
+35fe8bb 2026-09-21 12:03:49 +0100 Merge pull request #41 from Ruisth/docs/g2-decision
+WSL clone HEAD: b7e0c83c3277f7469c05336f91949e7d1b89489a
+runbook and tools/session/{nominal,slice}.sh differ between b7e0c83 and 35fe8bb? (empty = identical)
+
+== runbook (docs/setup/qemu_integrated_gateway.md at 35fe8bb): definition, callers, the quiet-window argument
+638:_mline() {
+653:drained() {
+654:  local quiet=${DRAIN_QUIET_S:-130} step=${DRAIN_STEP_S:-5} limit=${DRAIN_LIMIT_S:-900}
+657:    cur=$(_mline) || { stop "drained: GET $CTRL/metrics failed or was not valid JSON (tunnel of 5.7 down? controller stopped?)"; return 1; }
+667:    [ $((SECONDS - t0)) -ge "$limit" ] && { stop "drained: no quiet window of ${quiet} s within ${limit} s (last reading: $cur) - do not take snapshots, do not start 
+782:pre() {
+788:  wait_ready "${READY_LIMIT_S:-60}" && drained && snap_pair "$1" before --seed "$2" ${3:+--devices "$3"} \
+802:finish() {
+804:  { [ -f "$P/$id.window-closed.json" ] || $REC wait "$P/$id" --controller-url "$CTRL"; } && drained && fetch "$id" && accounted "$id" && _after "$id" \
+813:post() {
+837:run_test() {
+890:| `drained` | waits until every `/metrics` reading of one unbroken quiet window showed `queue_depth` 0 and unchanged counters: a **temporary precaution, not proof tha
+895:| `pre <run-id> <seed> [types]` | run-id freshness first (run directory, `metrics.before`, `twins.before`, `marker` must not exist), then `wait_ready && drained && sn
+897:| `finish <run-id>` | `wait && drained && fetch && accounted && snap_pair after`, then `check` **and** `delta` (both always run) | any capture step fails, `check` exi
+911:`pre` (6.1) first refuses a run id that was already used, then waits for `/ready` = 200, then for `drained`, then writes `$P/$RUN.metrics.before.json` and the `before
+920:host$ { [ -f $P/$RUN.window-closed.json ] || $REC wait $P/$RUN; } && drained && fetch $RUN && accounted $RUN && snap_pair $RUN after || stop "6.3: the 'after' state w
+926:`$REC wait` returns when the **controller** clock has passed marker + 60 s (it replaces a host-side sleep). The closed window says nothing about work still queued or 
+942:Acceptance (counters): every `delta` line ends in `OK` — per device, Δ`accepted_count` between the `before` and `after` snapshots equals the number of `accepted` r
+988:3. Inside `post`: if `mark` fails, nothing else is attempted (that run can only be described as an eventual-delivery observation, not as protocol compliance); `wait`,
+994:**The 130 s quiet window (`drained`): a temporary precaution, not proof that processing has finished.** The project review of 2026-09-18 allows the wait to stay as a 
+1002:Since the code supports no instantaneous invariant, `drained` stays as a **temporary precaution** until the controller exposes the counters of Section 9 item 7: a **
+1004:What the procedure still **cannot** see (`UNVERIFIED:`, Appendix B item 21): (a) a message delivered to the controller during the last seconds of the window and stil
+1032:host$ wait_ready && drained && harness_run $RID || stop "test 1 (harness): not ready, not drained, or the harness exited non-zero"
+1086:host$ if [ "$T4" = ok ] && wait_ready && drained; then T4=replayed; replay; RC=$?; echo "replay simulator exit=$RC (must be 0)"; [ "$RC" = 0 ] && REPLAYED=ok || stop
+1087:host$ [ "$REPLAYED" = ok ] && drained && fetch $R && snap_pair $R replay && $REC same --prefix $P/$R after replay && REPLAYED=captured || stop "test 4: replay not pu
+1124:host$ T6=stop; if [ -n "$SEED" ] && wait_ready && drained && $REC snap --prefix $P/$RID --label before --seed $SEED; then harness_run $RID --restart-cmd "$RESTART" -
+1125:host$ [ "$T6" = ok ] && drained && $REC snap --prefix $P/$RID --label after && T6=captured || stop "test 6: harness run not complete (T6='$T6') or 'after' snapshot N
+1130:(Manual equivalent without the harness: `run_test <id> 42 --scenario nominal --duration 600` and, 300 s after the simulator's first stderr line (not after the comman
+1186:host$ if wait_ready && drained && $REC snap --prefix $P/itest-reboot --label pre-reboot --seed 42 && ssh egw-tcg cat /proc/sys/kernel/random/boot_id > $P/itest-reboo
+1212:host$ T=$(date -u +%Y%m%dT%H%M%SZ); PR=stop; if wait_ready && drained && metrics itest-acl-$T before; then ssh egw-tcg "sh /opt/egw/deployment/scripts/probe-acl.sh $
+1241:7. **Controller: make "no work in progress" observable** — **implemented in the controller on 2026-09-18** (`received`, `in_progress`, `processing_errors`: CONTRAC
+1299:20. The guards and host-side helpers (conventions; 3.3, 4.4, 5.1, 5.2, 5.5, 5.7; the helper file of 6.1; Sections 6 and 7), **none executed on the real host or guest
+1300:21. The 130 s quiet window and the reconciliation by identity (Section 7). `/metrics` has no `received` counter and no in-progress indicator, and `queue_depth` exclu
+
+== tools/session at 35fe8bb
+35fe8bb:tools/session/README.md:71:`observed` as well only when the drain itself **gave up**: the `STOP: drained:
+35fe8bb:tools/session/README.md:276:| `persistence.sh` | the run id, the open session, the bounded waits as whole seconds, every guest parameter writable as the literal i
+35fe8bb:tools/session/nominal.sh:151:hx "$A" pre "wait_ready 300 && drained && metrics $RID before && \$REC snap --prefix \$P/$RID --label before --seed $SEED"
+35fe8bb:tools/session/nominal.sh:156:    not_run "precondition failed (ready/drained/snapshot); the harness was NOT started"
+35fe8bb:tools/session/nominal.sh:210:        grep -q '^STOP: drained: no quiet window of [0-9][0-9]* s within [0-9][0-9]* s' "$f" \
+35fe8bb:tools/session/nominal.sh:219:DRAIN_LIMIT_S=1500 hx "$A" post-drain "DRAIN_LIMIT_S=1500 drained"
+35fe8bb:tools/session/persistence.sh:385:    hx "$A" quiesce "drained"
+35fe8bb:tools/session/slice.sh:48:hx "$A" pre "pre $RUN $SEED smartwatch"
+35fe8bb:tools/session/slice.sh:62:    hx "$A" after "{ [ -f \$P/$RUN.window-closed.json ] || \$REC wait \$P/$RUN; } && drained && fetch $RUN && accounted $RUN && snap_pai
+
+== harness and reconciliation helper: any drain of their own?
+
+== deployed helper file vs the runbook heredoc (runbook :610-878 at 35fe8bb)
+255,257d254
+< # EGW_CLONE must name the checkout the harness runs from (the clean clone, e.g. export EGW_CLONE=$HOME/egw-exec/repo
+< # before sourcing this file): harness_run's fetch hook runs that checkout's fetch-collector-output.sh. The default
+< # below is the older Yocto clone.
+f94cff6f637958ba0db6ee79408e16c2cdfdca92ebe9da395f02b53da2a11b6a  /home/ruisth/egw-tcg/itest-helpers.sh
+44:drained() {
+173:pre() {
+179:  wait_ready "${READY_LIMIT_S:-60}" && drained && snap_pair "$1" before --seed "$2" ${3:+--devices "$3"} \
+193:finish() {
+195:  { [ -f "$P/$id.window-closed.json" ] || $REC wait "$P/$id" --controller-url "$CTRL"; } && drained && fetch "$id" && accounted "$id" && _after "$id" \

@@ -6,6 +6,17 @@ of 2026-09-18. Nothing here accepts a gate, validates a claim or changes a
 maturity level. The change is verified by unit tests with fakes only; it has
 not been run against a live broker, Ditto or an ARM64 system.
 
+**Amended by [ADR 0011](0011-controller-restart-recovery.md)** (decided
+2026-09-24; effective once its implementation is merged): the shutdown
+sequence recorded below as unchanged changes — the marker-and-drain is
+replaced by a stop that records and acknowledges the message in progress
+and then disconnects; `dropped` comes to mean "left for redelivery at the
+next session resumption"; `processing_errors` narrows to the four exceptions
+of 0011's rule A1; and three additive fields, `mqtt_subscribed`,
+`mqtt_connection` and `unacked`, join the counters' contract, `unacked`
+outside the accounting identity. Until that implementation is merged, this
+record describes the code at `dev`.
+
 Numbering: `dev` ends at 0007. Number 0008 is used by an open proposal
 (pull request #30) and 0009 is kept for other open work; numbers are never
 reused, so this record takes 0010.

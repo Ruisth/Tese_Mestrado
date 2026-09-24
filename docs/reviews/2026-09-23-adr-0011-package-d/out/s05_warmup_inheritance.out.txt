@@ -1,0 +1,29 @@
+
+==============================================================================
+A. Observed: warm-up messages at named instants
+==============================================================================
+in the controller at el 0                 : 750
+acknowledged after el 0                   : 751
+arrived after el 0                        : 1 (at el +0.009955 s)
+in the controller at the first measured arrival (el +0.193468): 749
+last warm-up ack                          : el +126.513075 s
+consumer time on warm-up work after the first measured arrival: 126.319607 s
+warm-up acks after el 0 and their summed inter-ack gaps: 751 / 126.605 s
+in the controller at el 0 / at the window end: 750 / 3593; growth inside the window 2843
+of the 3593 at the window end, warm-up messages: 0
+
+==============================================================================
+B. Two replays from an empty controller (NOT findings; shown to test exactness)
+==============================================================================
+R-msg  (message-indexed durations, server empty at the first measured arrival)
+   replayed messages 6720; server idle before 0 of them
+   mean latency 178.855 s (observed 305.175 s)
+   shift: min 126.319607  mean 126.319607  max 126.319607 s
+   acknowledged by the deadline 4776 (observed 3794; +982); still late 1944
+R-slot (slot-indexed durations after el 0, server empty at el 0)
+   replayed messages 6720; server idle before 1 of them
+   mean latency 204.016 s (observed 305.175 s)
+   shift: min 67.063261  mean 101.158605  max 140.302746 s
+   acknowledged by the deadline 4543 (observed 3794; +749); still late 2177
+The two replays use the same observed durations and disagree on every
+derived figure; the data cannot say which attachment (if either) holds.
