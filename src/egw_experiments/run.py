@@ -1179,13 +1179,42 @@ def sut_log_fetch_failures(
     return reasons
 
 
-def restart_evidence_failures(
+def restart_evidence_missing(
     twin_snapshots: list[dict[str, Any]] | None,
     drain: dict[str, Any] | None,
     events_post_drain_fetch: dict[str, Any] | None,
 ) -> list[str]:
+    """The restart evidence steps a controller_restart run did not
+    configure at all (ADR 0011 item 18): the two twin snapshots, the drain
+    and the post-drain fetch. A step that ran and failed is not missing; it
+    is a failure, reported by :func:`restart_evidence_failures`."""
+    missing: list[str] = []
+    files = {record.get("file") for record in twin_snapshots or []}
+    for hook, file in TWIN_SNAPSHOT_FILES.items():
+        if file not in files:
+            missing.append(f"{RESTART_EVIDENCE_FLAGS[hook]} ({file})")
+    if drain is None:
+        missing.append("--drain-cmd")
+    if events_post_drain_fetch is None:
+        missing.append("--post-drain-fetch-cmd")
+    return missing
+
+
+def restart_evidence_failures(
+    twin_snapshots: list[dict[str, Any]] | None,
+    drain: dict[str, Any] | None,
+    events_post_drain_fetch: dict[str, Any] | None,
+    *,
+    required: bool = False,
+) -> list[str]:
     """Reasons of a controller_restart run whose evidence steps did not
     complete (ADR 0011 item 18).
+
+    With ``required`` (a controller_restart run without
+    ``--allow-missing-restart-evidence``) a step that was not configured is
+    a reason too: the recovery cannot be evidenced without both twin
+    snapshots, a completed drain and the post-drain copy of the events, so
+    a run that omitted them is never marked valid by their absence.
 
     A twin snapshot that failed or wrote no file leaves the twins without a
     comparison across the restart; a drain that did not exit 0 (the helper
@@ -1196,6 +1225,17 @@ def restart_evidence_failures(
     inconclusive rather than as a result.
     """
     reasons: list[str] = []
+    if required:
+        for step in restart_evidence_missing(
+            twin_snapshots, drain, events_post_drain_fetch
+        ):
+            reasons.append(
+                f"controller_restart condition without its restart evidence "
+                f"step {step}: not configured, so the recovery across the "
+                "restart cannot be evidenced from the run directory (ADR 0011 "
+                "item 18; --allow-missing-restart-evidence records the "
+                "exception as a deviation)"
+            )
     for record in twin_snapshots or []:
         flag = record.get("flag") or "--twin-snapshot-cmd"
         file = record.get("file") or "the snapshot file"
@@ -2423,20 +2463,117 @@ def ingest_sut_environment(
     return dest.is_file()
 
 
+#: The broker options a configuration identity must state (ADR 0011, C1),
+#: each an integer count except the expiry, a duration string.
+CONFIG_IDENTITY_BROKER_KEYS = (
+    "max_inflight_messages",
+    "max_inflight_bytes",
+    "max_queued_messages",
+    "max_queued_bytes",
+    "persistent_client_expiration",
+    "sys_interval",
+)
+
+#: The fields of a configuration identity (ADR 0011, the proof's record):
+#: the broker configuration's hash and its C1 values, the statement on the
+#: reload, the stop allowance, the controller image's id and source commit,
+#: the paho version installed in it and the A3 choice.
+CONFIG_IDENTITY_FIELDS = (
+    "broker_conf_sha256",
+    "broker_conf_values",
+    "broker_reloaded",
+    "stop_grace_period",
+    "controller_image_id",
+    "controller_source_commit",
+    "paho_version",
+    "a3_choice",
+)
+
+
+def _is_hex(value: Any, length: int | None = None) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    if length is not None and len(value) != length:
+        return False
+    return all(c in "0123456789abcdef" for c in value)
+
+
+def configuration_identity_problems(doc: Any) -> list[str]:
+    """What keeps ``doc`` from being a configuration identity (ADR 0011).
+
+    An empty list means the document carries every field of
+    :data:`CONFIG_IDENTITY_FIELDS` with the right type: any other JSON
+    value — ``{}``, a list, a string, an object missing a field or
+    carrying one of the wrong type — is not evidence of what the run
+    rested on and must not make a ``controller_restart`` run valid.
+    """
+    if not isinstance(doc, dict):
+        return [f"the document is a JSON {type(doc).__name__}, not an object"]
+    problems: list[str] = []
+    if not _is_hex(doc.get("broker_conf_sha256"), 64):
+        problems.append("broker_conf_sha256 must be 64 lowercase hex characters")
+    values = doc.get("broker_conf_values")
+    if not isinstance(values, dict):
+        problems.append("broker_conf_values must be a JSON object")
+    else:
+        for key in CONFIG_IDENTITY_BROKER_KEYS:
+            value = values.get(key)
+            if key == "persistent_client_expiration":
+                ok = isinstance(value, str) and bool(value)
+            else:
+                ok = (
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                )
+            if not ok:
+                problems.append(
+                    f"broker_conf_values.{key} missing or of the wrong type"
+                )
+    if not isinstance(doc.get("broker_reloaded"), bool):
+        problems.append("broker_reloaded must be a boolean")
+    grace = doc.get("stop_grace_period")
+    if not isinstance(grace, str) or not grace:
+        problems.append("stop_grace_period must be a non-empty string")
+    image = doc.get("controller_image_id")
+    if not (
+        isinstance(image, str)
+        and image.startswith("sha256:")
+        and _is_hex(image[len("sha256:"):], 64)
+    ):
+        problems.append(
+            "controller_image_id must be 'sha256:' followed by 64 hex characters"
+        )
+    commit = doc.get("controller_source_commit")
+    if not (_is_hex(commit) and 7 <= len(commit) <= 40):
+        problems.append(
+            "controller_source_commit must be 7 to 40 lowercase hex characters"
+        )
+    paho = doc.get("paho_version")
+    if not isinstance(paho, str) or not paho.strip():
+        problems.append("paho_version must be a non-empty string")
+    if doc.get("a3_choice") not in ("a", "b"):
+        problems.append("a3_choice must be 'a' or 'b'")
+    return problems
+
+
 def ingest_configuration_identity(
     run_dir: Path, config_identity_from: str | Path | None, warnings: list[str]
-) -> Any:
+) -> dict[str, Any] | None:
     """Copy the guest-side configuration identity into the run dir and
     return the parsed content of the copy (ADR 0011 item 18).
 
     The file lands as ``configuration_identity.json`` under the same
     write-once rules as the SUT environment (:func:`ingest_copy`: an
     identical re-copy is a no-op, a differing one raises
-    :class:`SealedRunError`). Returns the parsed JSON of the file present in
-    the run dir afterwards, or None when there is none or it is not JSON — a
-    warning in both cases; the validity rules then apply (a
-    ``controller_restart`` run needs its identity). Nothing is fabricated: a
-    document that cannot be read is not an identity.
+    :class:`SealedRunError`). Returns the parsed document of the file
+    present in the run dir afterwards when it is a complete identity
+    (:func:`configuration_identity_problems` finds nothing), or None when
+    there is no file, it is not JSON, or it lacks a field or carries one of
+    the wrong type — a warning naming the problems in every case; the
+    validity rules then apply (a ``controller_restart`` run needs its
+    identity). Nothing is fabricated: a document that cannot be read, or
+    that does not say what the run rested on, is not an identity.
     """
     dest = run_dir / CONFIG_IDENTITY_FILENAME
     if config_identity_from is not None:
@@ -2448,13 +2585,22 @@ def ingest_configuration_identity(
     if not dest.is_file():
         return None
     try:
-        return json.loads(dest.read_text(encoding="utf-8"))
+        doc = json.loads(dest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         warnings.append(
             f"{CONFIG_IDENTITY_FILENAME} in the run directory is not readable "
             f"JSON ({exc}); no configuration identity is embedded"
         )
         return None
+    problems = configuration_identity_problems(doc)
+    if problems:
+        warnings.append(
+            f"{CONFIG_IDENTITY_FILENAME} in the run directory is not a "
+            "configuration identity (" + "; ".join(problems) + "); no "
+            "configuration identity is embedded"
+        )
+        return None
+    return doc
 
 
 def ingest_resources(
@@ -2544,6 +2690,7 @@ def compute_validity(
     drain: dict[str, Any] | None = None,
     events_post_drain_fetch: dict[str, Any] | None = None,
     config_identity_ok: bool = True,
+    allow_missing_restart_evidence: bool = False,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -2613,8 +2760,12 @@ def compute_validity(
     must exit 0 and write its file; for ``controller_restart``
     (``restart_required``) the two twin snapshots, the drain and the
     post-drain fetch must complete and the configuration identity must be
-    present (``config_identity_ok``). None of these has an allow flag: the
-    proof reads a run missing them as inconclusive, never as a result.
+    present (``config_identity_ok``). A configured step that failed has no
+    allow flag: the proof reads a run missing it as inconclusive, never as
+    a result. A step that was not configured at all is a reason too,
+    unless ``allow_missing_restart_evidence`` records the exception as a
+    deviation (the runbook's test 6 takes the snapshots and the drain with
+    its own helpers, outside the harness).
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -2704,7 +2855,10 @@ def compute_validity(
         if restart_required:
             reasons.extend(
                 restart_evidence_failures(
-                    twin_snapshots, drain, events_post_drain_fetch
+                    twin_snapshots,
+                    drain,
+                    events_post_drain_fetch,
+                    required=not allow_missing_restart_evidence,
                 )
             )
             if not config_identity_ok:
@@ -3203,6 +3357,7 @@ def execute_run(
     drain_cmd: str | None = None,
     post_drain_fetch_cmd: str | None = None,
     config_identity_from: str | Path | None = None,
+    allow_missing_restart_evidence: bool = False,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
@@ -4046,6 +4201,22 @@ def execute_run(
         allow_missing_resources=allow_missing_resources,
     )
 
+    # Restart evidence not configured on a controller_restart run (ADR 0011
+    # item 18): a reason, unless deliberately accepted and recorded.
+    if restart_required and allow_missing_restart_evidence:
+        absent = restart_evidence_missing(
+            twin_snapshots, drain_record, events_post_drain_fetch
+        )
+        if absent:
+            _append_deviation(
+                deviations,
+                "missing_restart_evidence",
+                "controller_restart run without the harness's restart evidence "
+                "step(s) " + ", ".join(absent) + " accepted: taken outside the "
+                "harness (the runbook's helpers), or not at all",
+                "--allow-missing-restart-evidence",
+            )
+
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -4071,6 +4242,7 @@ def execute_run(
         drain=drain_record,
         events_post_drain_fetch=events_post_drain_fetch,
         config_identity_ok=configuration_identity is not None,
+        allow_missing_restart_evidence=allow_missing_restart_evidence,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -4108,6 +4280,7 @@ def execute_run(
         "allow_warmup_failure": allow_warmup_failure,
         "allow_protocol_deviation": allow_protocol_deviation,
         "allow_missing_controller_marker": allow_missing_controller_marker,
+        "allow_missing_restart_evidence": allow_missing_restart_evidence,
         # Protocol deviations (work order P1 fix 5): {kind, detail,
         # authorized_by_flag} entries; the analysis lists them per run.
         "deviations": deviations,
@@ -4179,6 +4352,7 @@ def execute_run(
                 "config_identity_from": (
                     str(config_identity_from) if config_identity_from else None
                 ),
+                "allow_missing_restart_evidence": allow_missing_restart_evidence,
             },
         },
         "started_utc": started_utc,
@@ -4309,6 +4483,7 @@ def collect_run(
     allow_missing_controller_marker: bool = False,
     expect_services: list[str] | None = None,
     config_identity_from: str | Path | None = None,
+    allow_missing_restart_evidence: bool = False,
 ) -> int:
     """Re-attempt evidence collection for an EXISTING run directory.
 
@@ -4633,6 +4808,10 @@ def collect_run(
     manifest["allow_missing_sut_env"] = allow_missing_sut_env
     manifest["allow_missing_resources"] = allow_missing_resources
     manifest["allow_missing_controller_marker"] = allow_missing_controller_marker
+    allow_missing_restart_evidence = allow_missing_restart_evidence or bool(
+        manifest.get("allow_missing_restart_evidence")
+    )
+    manifest["allow_missing_restart_evidence"] = allow_missing_restart_evidence
 
     # SUT environment quality (work order P1 fix 4): re-validate the file
     # currently in the run dir against REQUIRED_SUT_FIELDS.
@@ -4715,6 +4894,7 @@ def collect_run(
         drain=recorded_drain,
         events_post_drain_fetch=recorded_post_drain,
         config_identity_ok=configuration_identity is not None,
+        allow_missing_restart_evidence=allow_missing_restart_evidence,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons
@@ -4725,6 +4905,22 @@ def collect_run(
     deviations = manifest.get("deviations")
     if not isinstance(deviations, list):
         deviations = []
+    if (
+        manifest.get("condition_id") == "controller_restart"
+        and allow_missing_restart_evidence
+    ):
+        absent = restart_evidence_missing(
+            twin_snapshots, recorded_drain, recorded_post_drain
+        )
+        if absent:
+            _append_deviation(
+                deviations,
+                "missing_restart_evidence",
+                "controller_restart run without the harness's restart evidence "
+                "step(s) " + ", ".join(absent) + " accepted: taken outside the "
+                "harness (the runbook's helpers), or not at all",
+                "--allow-missing-restart-evidence",
+            )
     if (
         timed
         and allow_missing_sut_env

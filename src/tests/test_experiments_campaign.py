@@ -982,9 +982,11 @@ def test_cli_campaign_passes_the_item_18_flags_through(monkeypatch) -> None:
             "post {dest}",
             "--config-identity-from",
             "identity-{run_id}.json",
+            "--allow-missing-restart-evidence",
         ]
     )
     assert rc == 0
+    assert seen["allow_missing_restart_evidence"] is True
     assert seen["fetch_broker_log_cmd"] == "broker {dest}"
     assert seen["fetch_controller_log_cmd"] == "controller {dest}"
     assert seen["fetch_docker_events_cmd"] == "events {dest}"

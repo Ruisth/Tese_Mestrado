@@ -133,8 +133,13 @@ def _add_collection_arguments(
         "happened, stop_grace_period, the controller image's id and source "
         "commit, the paho version installed in it, the A3 choice; ADR 0011). "
         "Copied into the run directory as configuration_identity.json and "
-        "embedded in the manifest under 'configuration_identity'. A "
-        "controller_restart run without it is marked validity 'invalid'"
+        "embedded in the manifest under 'configuration_identity'. The "
+        "document must be a JSON object with broker_conf_sha256 (64 hex), "
+        "broker_conf_values (the six C1 options), broker_reloaded (boolean), "
+        "stop_grace_period, controller_image_id (sha256:...), "
+        "controller_source_commit, paho_version and a3_choice ('a' or 'b'); "
+        "anything else is not an identity. A controller_restart run without "
+        "it is marked validity 'invalid'"
         + (
             ". May contain a {run_id} placeholder substituted per run"
             if resources_template
@@ -195,6 +200,15 @@ def _add_collection_arguments(
         action="store_true",
         help="deliberately accept a timed run without SUT resources; the "
         "decision is recorded in the manifest (audit 9.1)",
+    )
+    parser.add_argument(
+        "--allow-missing-restart-evidence",
+        action="store_true",
+        help="deliberately accept a controller_restart run on which the "
+        "twin snapshots, the drain or the post-drain fetch were not configured "
+        "(taken outside the harness, by the runbook's helpers, or not at "
+        "all); the decision is recorded in the manifest as a deviation. A "
+        "configured step that fails stays a validity reason (ADR 0011)",
     )
     parser.add_argument(
         "--allow-missing-controller-marker",
@@ -678,6 +692,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
         config_identity_from=args.config_identity_from,
+        allow_missing_restart_evidence=args.allow_missing_restart_evidence,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
     )
@@ -730,6 +745,7 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
         config_identity_from=args.config_identity_from,
+        allow_missing_restart_evidence=args.allow_missing_restart_evidence,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
@@ -752,6 +768,7 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         allow_missing_controller_marker=args.allow_missing_controller_marker,
         expect_services=args.expect_services,
         config_identity_from=args.config_identity_from,
+        allow_missing_restart_evidence=args.allow_missing_restart_evidence,
     )
 
 

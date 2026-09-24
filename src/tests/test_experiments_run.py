@@ -256,6 +256,7 @@ CONFIG_IDENTITY = {
         "max_queued_messages": 1000,
         "max_queued_bytes": 0,
         "persistent_client_expiration": "1h",
+        "sys_interval": 10,
     },
     "broker_reloaded": False,
     "stop_grace_period": "130s",
@@ -1065,8 +1066,12 @@ def test_restart_cmd_executed_once_and_recorded(
         restart_at_s=0.05,
         allow_missing_controller_marker=True,
         # A controller_restart run without its configuration identity is
-        # invalid (ADR 0011 item 18), so the fixture carries one.
+        # invalid (ADR 0011 item 18), so the fixture carries one; the twin
+        # snapshots, the drain and the post-drain fetch are not configured
+        # here — the runbook's test 6 takes them with its own helpers — so
+        # the exception is deliberately recorded, as that line does.
         config_identity_from=_config_identity_file(tmp_path),
+        allow_missing_restart_evidence=True,
     )
     assert rc == 0
     assert marker.read_text(encoding="utf-8") == "restarted controller_restart-r01"
@@ -1077,6 +1082,101 @@ def test_restart_cmd_executed_once_and_recorded(
     assert restart["requested_at_s"] == 0.05
     assert restart["started_utc"] and restart["finished_utc"]
     assert manifest["validity"] == "valid"
+    assert manifest["allow_missing_restart_evidence"] is True
+    (deviation,) = [
+        d for d in manifest["deviations"] if d["kind"] == "missing_restart_evidence"
+    ]
+    assert deviation["authorized_by_flag"] == "--allow-missing-restart-evidence"
+    for step in ("twins.before.json", "twins.after.json", "--drain-cmd", "--post-drain-fetch-cmd"):
+        assert step in deviation["detail"]
+
+
+def test_controller_restart_without_the_evidence_steps_is_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """Without --allow-missing-restart-evidence a controller_restart run
+    that configured no twin snapshot, drain or post-drain fetch is invalid:
+    the absence of the evidence never makes the run valid (ADR 0011)."""
+    fast_run.sleep_s = 1.0
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "controller_restart-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "controller_restart-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        restart_cmd=f'"{PY}" -c "pass" {{run_id}}',
+        restart_at_s=0.05,
+        allow_missing_controller_marker=True,
+        config_identity_from=_config_identity_file(tmp_path),
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    reasons = manifest["validity_reasons"]
+    for step in (
+        "--twin-snapshot-cmd (twins.before.json)",
+        "--twin-snapshot-cmd (twins.after.json)",
+        "--drain-cmd",
+        "--post-drain-fetch-cmd",
+    ):
+        assert any(step in r and "not configured" in r for r in reasons), step
+    assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
+
+
+@pytest.mark.parametrize(
+    "document, problem",
+    [
+        ({}, "broker_conf_sha256"),
+        ([], "not an object"),
+        ("identity", "not an object"),
+        ({**CONFIG_IDENTITY, "paho_version": ""}, "paho_version"),
+        ({**CONFIG_IDENTITY, "broker_reloaded": "no"}, "broker_reloaded"),
+        ({**CONFIG_IDENTITY, "a3_choice": "c"}, "a3_choice"),
+        ({**CONFIG_IDENTITY, "controller_image_id": "cd" * 32}, "controller_image_id"),
+        (
+            {
+                **CONFIG_IDENTITY,
+                "broker_conf_values": {
+                    k: v
+                    for k, v in CONFIG_IDENTITY["broker_conf_values"].items()
+                    if k != "sys_interval"
+                },
+            },
+            "broker_conf_values.sys_interval",
+        ),
+    ],
+)
+def test_an_incomplete_configuration_identity_is_not_embedded(
+    tmp_path, document, problem
+) -> None:
+    """Any JSON that is not a complete identity (an empty object, a list, a
+    string, a missing or mistyped field) is refused with a warning naming
+    the problem, so a controller_restart run cannot be valid on it."""
+    src = tmp_path / "identity.json"
+    src.write_text(json.dumps(document), encoding="utf-8")
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    warnings: list[str] = []
+    assert run_mod.ingest_configuration_identity(run_dir, src, warnings) is None
+    assert (run_dir / "configuration_identity.json").is_file()
+    (warning,) = warnings
+    assert "not a configuration identity" in warning and problem in warning
+
+
+def test_a_complete_configuration_identity_is_embedded(tmp_path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    warnings: list[str] = []
+    doc = run_mod.ingest_configuration_identity(
+        run_dir, _config_identity_file(tmp_path), warnings
+    )
+    assert doc == CONFIG_IDENTITY and warnings == []
+    assert run_mod.configuration_identity_problems(CONFIG_IDENTITY) == []
 
 
 def test_controller_restart_run_without_fired_restart_is_invalid(

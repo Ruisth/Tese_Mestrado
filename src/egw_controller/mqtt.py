@@ -395,15 +395,33 @@ class MqttBridge:
 
         Records the occurrence and wakes the supervisor, which reconnects
         after a back-off or, beyond the bound, leaves the client
-        disconnected. The cause ``stop`` (graceful) only closes
+        disconnected. One connection counts one occurrence (A5): the
+        first call closes acknowledgement on it and requests the end;
+        a later call on the same connection — a further delivery that
+        could not be acknowledged before the socket closed — is logged
+        and changes nothing. The cause ``stop`` (graceful) only closes
         acknowledgement: it is recorded at INFO and counts no occurrence.
         """
         with self._state_lock:
+            was_open = self._ack_open
             self._ack_open = False
             connection = self._conn
-            if cause != "stop":
+            if cause != "stop" and was_open:
                 self._ends_in_a_row += 1
             occurrence = self._ends_in_a_row
+        if cause != "stop" and not was_open:
+            logger.info(
+                "MQTT connection end already requested; acknowledgement closed",
+                extra={
+                    "context": {
+                        "cause": cause,
+                        "connection": connection,
+                        "identity": _delivery_context(identity),
+                        "occurrence": occurrence,
+                    }
+                },
+            )
+            return
         context = {
             "cause": cause,
             "connection": connection,

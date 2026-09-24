@@ -1827,7 +1827,12 @@ test and none changes a count, a threshold or a stop rule of the proof.
   client is left disconnected — `disconnect` and `loop_stop` run before the
   bound is checked, so "staying disconnected" is real — with `/ready` at 503,
   `mqtt_subscribed` false and `/metrics` still served. An acknowledged
-  delivery resets the count. The graceful stop closes acknowledgement with
+  delivery resets the count. One connection counts one occurrence: the
+  first delivery that cannot be acknowledged closes acknowledgement and
+  requests the end; a further such delivery on the same connection, before
+  the socket closes, is logged and counts nothing *(from the review of the
+  pull request: otherwise several queued deliveries of one connection could
+  reach the bound by themselves)*. The graceful stop closes acknowledgement with
   the cause `stop`, logged at INFO, counting no occurrence. The occurrence
   log is the medium the proof reads (item 18 fetches the controller's log).
 - **PUBACK from the written line.** `_emit` returns true after
@@ -1889,7 +1894,16 @@ test and none changes a count, a threshold or a stop rule of the proof.
   and may carry `{run_id}` in a campaign; the manifest keys are
   `sut_log_fetches`, `twin_snapshots`, `drain`, `events_post_drain_fetch`,
   `configuration_identity` and `configuration_identity_file`, additive
-  within version 1.4.
+  within version 1.4. For a `controller_restart` run the two snapshots, the
+  drain and the post-drain fetch are required: a step not configured is a
+  validity reason unless `--allow-missing-restart-evidence` records the
+  exception as a deviation — the runbook's test 6, which takes the snapshots
+  and the drain with its own helpers, passes it; the proof does not. The
+  identity document must be a JSON object carrying `broker_conf_sha256`, the
+  six C1 values, `broker_reloaded`, `stop_grace_period`,
+  `controller_image_id`, `controller_source_commit`, `paho_version` and
+  `a3_choice`, each of the stated type; anything else is refused with a
+  warning and embeds nothing *(both from the review of the pull request)*.
 - **Runbook (item 19).** `_mline` exits 3 with the line when the identity
   fails in the response; `metrics()` keeps its seven keys, since `accounted`
   reads only those; `regen_helpers.py` is unchanged and now pinned by a

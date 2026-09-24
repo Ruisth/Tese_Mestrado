@@ -601,9 +601,11 @@ async def test_repeated_connection_ends_are_recorded_and_bounded(
     with caplog.at_level(logging.ERROR, logger=MQTT_LOGGER):
         bridge.end_connection("no-outcome-line", None)
         await until(lambda: client.count("loop_start") == 2)
+        socket_close(client)  # paho closes the socket on the disconnect
         connect_and_grant(client)
         bridge.end_connection("no-outcome-line", None)
         await until(lambda: client.count("loop_start") == 3)
+        socket_close(client)
         connect_and_grant(client)
         assert bridge.connected is True
         bridge.end_connection("no-outcome-line", None)  # the third: > bound
@@ -637,6 +639,36 @@ async def test_an_acknowledged_delivery_resets_the_occurrence_counter(
         bridge.end_connection("overflow", None)
         await until(lambda: client.count("loop_start") == 3)
     assert [end["occurrence"] for end in _ends(caplog)] == [1, 1]
+    bridge.stop()
+
+
+async def test_a_second_end_on_the_same_connection_counts_no_occurrence(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A5 counts connections, not deliveries: several deliveries of one
+    ending connection that cannot be acknowledged before the socket closes
+    request the end once, so one connection can never reach the bound."""
+    bridge, client, received = make_bridge(end_bound=1)
+    bridge.start()
+    connect_and_grant(client)
+    for mid in (1, 2, 3):
+        deliver(client, message_for(mid=mid, qos=1))
+    await asyncio.sleep(0)
+    assert len(received) == 3
+    with caplog.at_level(logging.INFO, logger=MQTT_LOGGER):
+        for delivery in received:
+            bridge.end_connection("no-outcome-line", delivery)
+        await until(lambda: client.count("loop_start") == 2)
+    assert [end["occurrence"] for end in _ends(caplog)] == [1]
+    assert client.count("disconnect") == 1
+    repeated = [
+        r.context  # type: ignore[attr-defined]
+        for r in caplog.records
+        if r.getMessage() == "MQTT connection end already requested; acknowledgement closed"
+    ]
+    assert [r["identity"]["mid"] for r in repeated] == [2, 3]
+    assert all(r["occurrence"] == 1 for r in repeated)
+    assert "bound reached" not in caplog.text
     bridge.stop()
 
 
