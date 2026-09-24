@@ -121,12 +121,16 @@ drained() {
     # own limit: these three fail only that one, and never the 'drained' of the
     # precondition, which runs before the harness. They are the three ways the
     # step ends non-zero, and only the first says anything about the queue:
-    # the helper's own give-up (the runbook's wording), the helper's OTHER stop
-    # (a /metrics it could not read, which is what a dropped tunnel or a
-    # stopped controller leaves), and the step dying in the transport.
+    # the helper's own give-up (the runbook's wording, with a thirteen-field
+    # reading: queue_depth in_progress unacked mqtt_subscribed started_at
+    # mqtt_connection received accepted rejected duplicate failed dropped
+    # processing_errors), the helper's OTHER stop (a /metrics it could not
+    # read, or one without those fields, which is what a dropped tunnel, a
+    # stopped controller or an earlier controller build leaves), and the step
+    # dying in the transport.
     if [ "${DRAIN_LIMIT_S:-}" = 1500 ]; then
-        stub_fails post-drain && { stop "drained: no quiet window of ${DRAIN_QUIET_S:-130} s within ${DRAIN_LIMIT_S:-900} s (last reading: 4 2026-09-19T20:00:00Z 60 0 0 0 0) - do not take snapshots, do not start a run"; return 1; }
-        stub_fails post-drain-unreachable && { stop "drained: GET $CTRL/metrics failed or was not valid JSON (tunnel of 5.7 down? controller stopped?)"; return 1; }
+        stub_fails post-drain && { stop "drained: no quiet window of ${DRAIN_QUIET_S:-130} s within ${DRAIN_LIMIT_S:-900} s (last reading: 4 0 0 true 2026-09-19T20:00:00Z 1 64 60 0 0 0 0 0) - do not take snapshots, do not start a run"; return 1; }
+        stub_fails post-drain-unreachable && { stop "drained: GET $CTRL/metrics failed or was not valid JSON, or a field was missing or of the wrong type (tunnel of 5.7 down? controller stopped? a controller build without the thirteen fields?)"; return 1; }
         stub_fails post-drain-dropped && { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; return 255; }
     fi
     echo "drained: queue_depth 0 and identical counters (stub observation)"
