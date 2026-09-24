@@ -1,0 +1,76 @@
+paho 2.1.0 uvicorn 0.52.1
+--- paho client.py:740,752
+   740	        transport: Literal["tcp", "websockets", "unix"] = "tcp",
+   741	        reconnect_on_failure: bool = True,
+   742	        manual_ack: bool = False,
+   743	    ) -> None:
+   744	        transport = transport.lower()  # type: ignore
+   745	        if transport == "unix" and not hasattr(socket, "AF_UNIX"):
+   746	            raise ValueError('"unix" transport not supported')
+   747	        elif transport not in ("websockets", "tcp", "unix"):
+   748	            raise ValueError(
+   749	                f'transport must be "websockets", "tcp" or "unix", not {transport}')
+   750	
+   751	        self._manual_ack = manual_ack
+   752	        self._transport = transport
+--- paho client.py:783,787
+   783	        else:
+   784	            if clean_session is None:
+   785	                clean_session = True
+   786	            if not clean_session and (client_id == "" or client_id is None):
+   787	                raise ValueError(
+--- paho client.py:4145,4153
+  4145	            self._handle_on_message(message)
+  4146	            return MQTTErrorCode.MQTT_ERR_SUCCESS
+  4147	        elif message.qos == 1:
+  4148	            self._handle_on_message(message)
+  4149	            if self._manual_ack:
+  4150	                return MQTTErrorCode.MQTT_ERR_SUCCESS
+  4151	            else:
+  4152	                return self._send_puback(message.mid)
+  4153	        elif message.qos == 2:
+--- paho client.py:4163,4177
+  4163	            return MQTTErrorCode.MQTT_ERR_PROTOCOL
+  4164	
+  4165	    def ack(self, mid: int, qos: int) -> MQTTErrorCode:
+  4166	        """
+  4167	           send an acknowledgement for a given message id (stored in :py:attr:`message.mid <MQTTMessage.mid>`).
+  4168	           only useful in QoS>=1 and ``manual_ack=True`` (option of `Client`)
+  4169	        """
+  4170	        if self._manual_ack :
+  4171	            if qos == 1:
+  4172	                return self._send_puback(mid)
+  4173	            elif qos == 2:
+  4174	                return self._send_pubcomp(mid)
+  4175	
+  4176	        return MQTTErrorCode.MQTT_ERR_SUCCESS
+  4177	
+--- uvicorn server.py:34,38
+    34	    )
+    35	
+    36	HANDLED_SIGNALS = (
+    37	    signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
+    38	    signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
+--- uvicorn server.py:340,349
+   340	            signal.raise_signal(captured_signal)
+   341	
+   342	    def handle_exit(self, sig: int, frame: FrameType | None) -> None:
+   343	        self._captured_signals.append(sig)
+   344	        if self.should_exit and sig == signal.SIGINT:
+   345	            self.force_exit = True  # pragma: full coverage
+   346	        else:
+   347	            self.should_exit = True
+--- paho: does the client impose PUBACK ordering, or send in callback order?
+690:    :param bool manual_ack: normally, when a message is received, the library automatically
+691:        acknowledges after on_message callback returns.  manual_ack=True allows the application to
+742:        manual_ack: bool = False,
+751:        self._manual_ack = manual_ack
+3337:    def _send_puback(self, mid: int) -> MQTTErrorCode:
+4149:            if self._manual_ack:
+4165:    def ack(self, mid: int, qos: int) -> MQTTErrorCode:
+4168:           only useful in QoS>=1 and ``manual_ack=True`` (option of `Client`)
+4170:        if self._manual_ack :
+4178:    def manual_ack_set(self, on: bool) -> None:
+4181:           If manual_ack is turned on, then the caller MUST manually acknowledge every message once
+4184:        self._manual_ack = on
+4224:        if self._manual_ack:

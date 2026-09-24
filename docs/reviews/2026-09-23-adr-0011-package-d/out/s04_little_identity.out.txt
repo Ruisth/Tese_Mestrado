@@ -1,0 +1,20 @@
+
+==============================================================================
+A. The interval is empty at both ends (controller /metrics snapshots)
+==============================================================================
+before 2026-09-19T20:00:42.825Z: queue_depth 0, in_progress 0, accepted 60
+after  2026-09-19T20:21:45.640Z: queue_depth 0, in_progress 0, accepted 8124
+messages in the interval: 8064 (= 8124 - 60)
+
+==============================================================================
+B. The observed stamps
+==============================================================================
+integral N dt 2143130.910 msg*s; sum of sojourns 2143130.910 msg*s; T 1125.348 s
+L 1904.4154, lambda 7.1658 msg/s, W 265.7652 s, L/(lambda W) = 1.0000000000
+
+==============================================================================
+C. The same computation on fabricated departures (identity demonstration)
+==============================================================================
+departure = arrival + U(0, 900 s), order ignored     L/(lambda W) = 1.0000000000
+departure = arrival + 1 ms                           L/(lambda W) = 1.0000000000
+Any stamps give 1: the ratio cannot corroborate the measurement chain.
