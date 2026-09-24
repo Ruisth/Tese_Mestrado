@@ -5,7 +5,21 @@ Polls the controller's ``GET /metrics`` endpoint (CONTRACTS 5; since
 CONTRACTS v1.1 the snapshot includes ``dropped`` and ``queue_depth``) once
 per second during timed runs and appends one CSV row per sample::
 
-    ts_utc,accepted,rejected,duplicate,failed,dropped,queue_depth
+    ts_utc,accepted,rejected,duplicate,failed,dropped,queue_depth,
+    received,in_progress,processing_errors,unacked,mqtt_connection,
+    mqtt_subscribed,started_at,wall_utc,uptime_s,monotonic_ns
+
+The first seven columns are the historical ones. The ten after
+``queue_depth`` are ADR 0011 item 18: the progress fields ``/metrics`` has
+carried since ADR 0010 (``received``, ``in_progress``,
+``processing_errors``, ``started_at``, ``uptime_s``, ``monotonic_ns``,
+``wall_utc``) and the three fields of the bridge (``mqtt_subscribed``,
+``mqtt_connection``, ``unacked``), which the sampler used to discard. They
+let the analysis tell one controller process from the next
+(``started_at``), place a reading in the controller's clock
+(``monotonic_ns``/``wall_utc``) and see the session state across a restart.
+The analysis reads the CSV by column name, so the addition changes no
+reader.
 
 Access note: port 8000 is bound to loopback ON the ARM VM (deployment
 security notes), so the harness host reaches it through an SSH tunnel::
@@ -18,16 +32,23 @@ condition. Failed polls are counted (``poll_errors``) and the last error
 message is kept; no row is written for a failed poll, so gaps in
 ``controller_metrics.csv`` are themselves evidence of unavailability.
 
-Strict numeric rule (sprint P5.4 defect 4): the six counters
+Two recording rules, one per kind of field. The eleven counters
 (:data:`METRIC_FIELDS`) are COUNTS, so a recorded value must be a
-non-negative integer. Two layers enforce it. :func:`fetch_metrics` refuses
-the JSON constants ``NaN``/``Infinity``/``-Infinity`` — ``json.loads``
-parses them into Python floats by default, which is how ``inf`` used to
-reach the CSV — and the writer refuses any value that is not a non-negative
-integer, recording an EMPTY cell instead of ``inf``/``nan``/``-1``/``2.5``.
-Refusals are counted (``invalid_values``, ``last_invalid``) so the harness
-can surface them in the manifest; an empty cell is missing evidence, a
-fabricated one would be worse.
+non-negative integer (sprint P5.4 defect 4). Two layers enforce it.
+:func:`fetch_metrics` refuses the JSON constants
+``NaN``/``Infinity``/``-Infinity`` — ``json.loads`` parses them into Python
+floats by default, which is how ``inf`` used to reach the CSV — and the
+writer refuses any value that is not a non-negative integer, recording an
+EMPTY cell instead of ``inf``/``nan``/``-1``/``2.5``. The five raw fields
+(:data:`RAW_FIELDS`) are written verbatim when they are of their documented
+type (:func:`raw_value`): ``mqtt_subscribed`` as ``true``/``false``,
+``started_at`` and ``wall_utc`` as the strings the controller sent,
+``uptime_s`` and ``monotonic_ns`` as the numbers it sent; anything else is
+an empty cell. Under both rules a field the controller did not send is an
+empty cell and never a zero (CONTRACTS 5: absence is not zero). Refusals are
+counted (``invalid_values``, ``last_invalid``) so the harness can surface
+them in the manifest; an empty cell is missing evidence, a fabricated one
+would be worse.
 
 Standard library only (``urllib.request``); timestamps are the harness
 host's wall clock (same NTP-sync assumption as the measured window: good
@@ -50,18 +71,43 @@ from typing import Any
 
 from .protocol import RESOURCE_SAMPLE_INTERVAL_S
 
-CSV_HEADER = [
-    "ts_utc",
+#: Counter fields copied from the /metrics JSON snapshot under the count
+#: rule (:func:`counter_value`), in column order: the six historical ones,
+#: then the five integer fields of ADR 0011 item 18.
+METRIC_FIELDS = (
     "accepted",
     "rejected",
     "duplicate",
     "failed",
     "dropped",
     "queue_depth",
-]
+    "received",
+    "in_progress",
+    "processing_errors",
+    "unacked",
+    "mqtt_connection",
+)
 
-#: Counter fields copied from the /metrics JSON snapshot, in column order.
-METRIC_FIELDS = ("accepted", "rejected", "duplicate", "failed", "dropped", "queue_depth")
+#: Fields copied verbatim under the raw rule (:func:`raw_value`), in column
+#: order after the counters: a truth value, two strings, two numbers.
+RAW_FIELDS = (
+    "mqtt_subscribed",
+    "started_at",
+    "wall_utc",
+    "uptime_s",
+    "monotonic_ns",
+)
+
+#: The documented type of each raw field, as the rule checks it.
+_RAW_KINDS: dict[str, str] = {
+    "mqtt_subscribed": "bool",
+    "started_at": "str",
+    "wall_utc": "str",
+    "uptime_s": "number",
+    "monotonic_ns": "number",
+}
+
+CSV_HEADER = ["ts_utc", *METRIC_FIELDS, *RAW_FIELDS]
 
 
 def _utc_now_iso() -> str:
@@ -103,11 +149,11 @@ def fetch_metrics(url: str, timeout_s: float = 5.0) -> dict[str, Any]:
 def counter_value(value: Any) -> int | None:
     """The recordable value of one counter, or None when it is refusable.
 
-    Strict rule (sprint P5.4 defect 4): accepted/rejected/duplicate/failed/
-    dropped/queue_depth are COUNTS. Accepted are ``int`` (never ``bool``)
-    and integral finite ``float`` values (a JSON ``5.0``), both >= 0.
-    Everything else — ``nan``, ``inf``, a negative count, a fractional value
-    or a non-number — returns None and is written as an EMPTY cell.
+    Strict rule (sprint P5.4 defect 4): the :data:`METRIC_FIELDS` are
+    COUNTS. Accepted are ``int`` (never ``bool``) and integral finite
+    ``float`` values (a JSON ``5.0``), both >= 0. Everything else — ``nan``,
+    ``inf``, a negative count, a fractional value or a non-number — returns
+    None and is written as an EMPTY cell.
     """
     if isinstance(value, bool):
         return None
@@ -120,6 +166,27 @@ def counter_value(value: Any) -> int | None:
     return None
 
 
+def raw_value(field: str, value: Any) -> str | int | float | None:
+    """The recordable value of one raw field, or None when it is refusable.
+
+    Raw rule (ADR 0011 item 18): the field is written verbatim when it is of
+    its documented type and refused otherwise. ``mqtt_subscribed`` is a
+    truth value, written ``true``/``false`` (a string ``"true"`` is not a
+    truth value); ``started_at`` and ``wall_utc`` are strings; ``uptime_s``
+    and ``monotonic_ns`` are finite numbers (a ``bool`` is not a number).
+    """
+    kind = _RAW_KINDS[field]
+    if kind == "bool":
+        return ("true" if value else "false") if isinstance(value, bool) else None
+    if kind == "str":
+        return value if isinstance(value, str) else None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
 class ControllerMetricsSampler:
     """Context manager sampling the controller /metrics into a CSV file.
 
@@ -129,7 +196,7 @@ class ControllerMetricsSampler:
                                       "http://127.0.0.1:8000") as sampler:
             ...  # timed run
         sampler.samples_written / sampler.poll_errors / sampler.last_error
-        sampler.invalid_values / sampler.last_invalid  # refused counters
+        sampler.invalid_values / sampler.last_invalid  # refused values
 
     The CSV (header included) is always created so the run directory
     structure stays uniform (plan 5.8).
@@ -147,7 +214,7 @@ class ControllerMetricsSampler:
         self.samples_written = 0
         self.poll_errors = 0
         self.last_error: str | None = None
-        # Counter values refused by the strict numeric rule (P5.4 defect 4).
+        # Values refused by the count rule (P5.4 defect 4) or the raw rule.
         self.invalid_values = 0
         self.last_invalid: str | None = None
         self._stop = threading.Event()
@@ -158,12 +225,11 @@ class ControllerMetricsSampler:
 
     # -- internals ---------------------------------------------------------
 
-    def _record_invalid(self, field: str, value: Any) -> None:
-        """Count and log one refused counter value (P5.4 defect 4)."""
+    def _record_invalid(self, field: str, value: Any, expected: str) -> None:
+        """Count and log one refused value (P5.4 defect 4; raw rule)."""
         self.invalid_values += 1
         self.last_invalid = (
-            f"{field}={value!r} is not a non-negative integer counter; "
-            "recorded as an empty cell"
+            f"{field}={value!r} is not {expected}; recorded as an empty cell"
         )
         if self.invalid_values == 1:
             print(
@@ -179,15 +245,27 @@ class ControllerMetricsSampler:
             self.poll_errors += 1
             self.last_error = str(exc)
             return
-        row = [_utc_now_iso()]
+        row: list[Any] = [_utc_now_iso()]
         for field in METRIC_FIELDS:
             raw = snapshot.get(field)
             value = counter_value(raw)
             if value is None:
                 # Refused, never coerced: writing 'inf'/'nan'/'-1' would put
-                # a non-measurement into the evidence (P5.4 defect 4).
+                # a non-measurement into the evidence (P5.4 defect 4). An
+                # absent field is missing evidence, not a refusal.
                 if raw is not None:
-                    self._record_invalid(field, raw)
+                    self._record_invalid(
+                        field, raw, "a non-negative integer counter"
+                    )
+                row.append("")
+            else:
+                row.append(value)
+        for field in RAW_FIELDS:
+            raw = snapshot.get(field)
+            value = raw_value(field, raw)
+            if value is None:
+                if raw is not None:
+                    self._record_invalid(field, raw, f"a {_RAW_KINDS[field]}")
                 row.append("")
             else:
                 row.append(value)

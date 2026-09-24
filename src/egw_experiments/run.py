@@ -93,13 +93,35 @@ command template (``{run_id}`` placeholder) executed exactly once,
 ``--restart-at-s`` seconds into the measured run, via subprocess; the
 attempt is recorded in the manifest with timestamps and exit code.
 
+Restart evidence and SUT logs (ADR 0011 item 18): ``--fetch-broker-log-cmd``,
+``--fetch-controller-log-cmd`` and ``--fetch-docker-events-cmd`` are command
+templates run through the collector-hook machinery after the harness events
+fetch, each writing ``{dest}`` under ``logs/sut/``, so the broker's
+connection lines, the controller's log and the container's lifecycle are
+sealed with the run. For the ``controller_restart`` condition only,
+``--twin-snapshot-cmd`` writes ``{dest}`` = ``twins.before.json`` before the
+measured run and ``twins.after.json`` after the drain, ``--drain-cmd``
+blocks after the events fetch until the controller is quiet (the runbook's
+``drained`` helper), and ``--post-drain-fetch-cmd`` fetches a second copy
+of the events into ``events.post-drain.jsonl``, kept apart from the harness
+copy. ``--config-identity-from <file>`` is copied to
+``configuration_identity.json`` and embedded in the manifest
+(``configuration_identity``). Every record is in the manifest; a failed
+fetch, snapshot or drain is a validity reason, as a failed collector hook
+is, and a ``controller_restart`` run without its configuration identity is
+invalid.
+
 Produces the plan 5.8 raw structure::
 
     results/raw/<run_id>/
       events.jsonl             # controller log (fetched from the VM)
+      events.post-drain.jsonl  # controller_restart: second copy, after the drain
       sent_events.jsonl        # simulator log
       resources.csv            # 1 Hz SUT docker stats (ingested)
       controller_metrics.csv   # 1 Hz controller /metrics samples
+      twins.before.json        # controller_restart: the twins before the
+      twins.after.json         #   measured run and after the drain
+      configuration_identity.json  # what the run rests on (ingested)
       manifest.json            # scenario, seed, commit, digests, env refs,
                                # config echo, timestamps, measured window,
                                # validity, deviations, protocol version,
@@ -107,6 +129,8 @@ Produces the plan 5.8 raw structure::
       sut_environment.json     # captured ON the VM (ingested)
       loadgen_environment.json # captured here (harness host)
       logs/                    # simulator stdout/stderr, warmup artifacts
+      logs/sut/                # fetched broker log, controller log, docker
+                               # events, and the item-18 hooks' full output
       SHA256SUMS               # written last, ONLY after successful
                                # collection; covers every file above
 
@@ -261,6 +285,20 @@ HOOK_KILL_GRACE_S = 5.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.4 (ADR 0011 item 18; additive within the version, no reader change
+# needed): adds 'sut_log_fetches' (the records of --fetch-broker-log-cmd,
+# --fetch-controller-log-cmd and --fetch-docker-events-cmd, shaped like a
+# 'collector_hooks' record plus 'dest_file'/'dest_exists'); for
+# controller_restart runs 'twin_snapshots' (the two --twin-snapshot-cmd
+# records, each with 'file' and 'dest_exists'), 'drain' (the --drain-cmd
+# record) and 'events_post_drain_fetch' (shaped like 'events_fetch' plus
+# 'file'), each null or empty on other conditions; 'configuration_identity'
+# (the parsed content of --config-identity-from) and
+# 'configuration_identity_file'; 'config.cli' gains the seven flags. A failed
+# fetch, snapshot or drain and, for controller_restart, a missing
+# configuration identity are validity reasons of a timed run.
+# controller_metrics.csv gains ten columns after 'queue_depth'
+# (egw_experiments.controller_metrics).
 # 1.4 (collector output accounting, 2026-09-19; additive, no reader change
 # needed): adds 'collector' ({expected_services, hooks_in_use, source} and,
 # when the SUT resources come from a collector hook or --resources-from, the
@@ -358,6 +396,71 @@ COLLECTOR_HOOK_FLAGS: dict[str, str] = {
     "stop": "--collector-stop-cmd",
     "fetch": "--collector-fetch-cmd",
 }
+
+#: SUT log fetch hooks (ADR 0011 item 18) in execution order, with the CLI
+#: flag that configures each. They run through the collector-hook machinery
+#: after the harness events fetch (and, on controller_restart, after the
+#: post-drain steps, so they cover the drain) and before the seal; each must
+#: write {dest}, its file under logs/sut/ (SUT_LOG_FILES).
+SUT_LOG_FETCH_FLAGS: dict[str, str] = {
+    "broker_log": "--fetch-broker-log-cmd",
+    "controller_log": "--fetch-controller-log-cmd",
+    "docker_events": "--fetch-docker-events-cmd",
+}
+
+#: Sub-directory of the run's logs/ receiving the fetched SUT logs and the
+#: full output of every item-18 hook (hook-<hook>.stdout.txt/.stderr.txt).
+SUT_LOG_SUBDIR = "sut"
+
+#: The file each SUT log fetch must write, relative to logs/sut/.
+SUT_LOG_FILES: dict[str, str] = {
+    "broker_log": "broker.log",
+    "controller_log": "controller.log",
+    "docker_events": "docker-events.log",
+}
+
+#: Restart-evidence hooks of the controller_restart condition (ADR 0011 item
+#: 18): the twin snapshot taken before the measured run and again after the
+#: drain (both through --twin-snapshot-cmd, writing {dest}), and the
+#: blocking drain (--drain-cmd, the runbook's `drained` helper) run after
+#: the confirmation window and the harness events fetch, before the
+#: post-drain fetch and the second snapshot.
+RESTART_EVIDENCE_FLAGS: dict[str, str] = {
+    "twin_snapshot_before": "--twin-snapshot-cmd",
+    "twin_snapshot_after": "--twin-snapshot-cmd",
+    "drain": "--drain-cmd",
+}
+
+#: Every hook label execute_collector_hook may record, with its flag.
+HOOK_FLAGS: dict[str, str] = {
+    **COLLECTOR_HOOK_FLAGS,
+    **SUT_LOG_FETCH_FLAGS,
+    **RESTART_EVIDENCE_FLAGS,
+}
+
+#: The twin snapshot files, at the run root, per snapshot hook.
+TWIN_SNAPSHOT_FILES: dict[str, str] = {
+    "twin_snapshot_before": "twins.before.json",
+    "twin_snapshot_after": "twins.after.json",
+}
+
+#: The second copy of the controller's events, fetched after the drain
+#: (--post-drain-fetch-cmd) and kept apart from the harness copy
+#: events.jsonl, which is fetched after the confirmation window as before.
+POST_DRAIN_EVENTS_FILENAME = "events.post-drain.jsonl"
+
+#: The configuration identity captured on the guest (the broker
+#: configuration's hash and values, stop_grace_period, the controller
+#: image's id and source commit, the paho version, the A3 choice), copied
+#: into the run directory from --config-identity-from and embedded in the
+#: manifest.
+CONFIG_IDENTITY_FILENAME = "configuration_identity.json"
+
+#: Timeout of the blocking --drain-cmd. The runbook's `drained` helper gives
+#: up after its own limit (900 s); twice that leaves room for the quiet
+#: window it needs where a first-contact message may be in progress, without
+#: letting a hung helper hold the run open indefinitely.
+DRAIN_TIMEOUT_S = 1800.0
 
 #: Extra seconds added to the {duration_s} placeholder handed to the collector
 #: hooks, on top of warm-up + measured run + confirmation window. The stop
@@ -935,6 +1038,9 @@ def execute_collector_hook(
     finished_utc, returncode}`` (plus ``stderr_tail``/``error`` when
     applicable). A non-zero (or absent) return code is NEVER a silent
     warning: the caller turns it into a validity reason naming the hook.
+    The same machinery runs the SUT log fetches and the restart-evidence
+    hooks of ADR 0011 item 18; ``flag`` is the label's entry in
+    :data:`HOOK_FLAGS`.
 
     The hook runs without a shell, with stdin from the null device, in a
     session (and so a process group) of its own. When it exceeds
@@ -964,7 +1070,7 @@ def execute_collector_hook(
     )
     record: dict[str, Any] = {
         "hook": hook,
-        "flag": COLLECTOR_HOOK_FLAGS[hook],
+        "flag": HOOK_FLAGS.get(hook, hook),
         "template": template,
         "command": cmd_str,
         "started_utc": utc_now_iso(),
@@ -1029,6 +1135,98 @@ def collector_hook_failures(
             + (f" ({detail})" if detail else "")
             + ": the SUT resource collector was not driven as the protocol "
             "prescribes, so this run's CPU/RAM evidence cannot be trusted"
+        )
+    return reasons
+
+
+def _hook_outcome(record: dict[str, Any]) -> str:
+    """``exit code N``, with the recorded error, of a hook that did not exit 0."""
+    detail = record.get("error")
+    return f"exit code {record.get('returncode')}" + (
+        f" ({detail})" if detail else ""
+    )
+
+
+def sut_log_fetch_failures(
+    sut_log_fetches: list[dict[str, Any]] | None,
+) -> list[str]:
+    """Reasons for the SUT log fetches that did not exit 0 or wrote no file.
+
+    The broker log, the controller container log and the docker events of
+    the run are the record of every connection end during it (ADR 0011). A
+    fetch that failed, or that exited 0 without producing its file, left
+    that record on the guest, so the run's connection history cannot be read
+    from the run directory.
+    """
+    reasons: list[str] = []
+    for record in sut_log_fetches or []:
+        flag = record.get("flag") or SUT_LOG_FETCH_FLAGS.get(
+            str(record.get("hook")), "SUT log fetch"
+        )
+        dest = record.get("dest_file") or "its file"
+        if record.get("returncode") != 0:
+            reasons.append(
+                f"SUT log fetch {flag} failed with {_hook_outcome(record)}: "
+                f"{dest} was not fetched, so the connection history of this "
+                "run cannot be read from the run directory"
+            )
+        elif not record.get("dest_exists"):
+            reasons.append(
+                f"SUT log fetch {flag} exited 0 but wrote no file at {dest}: "
+                "the log was not fetched, so the connection history of this "
+                "run cannot be read from the run directory"
+            )
+    return reasons
+
+
+def restart_evidence_failures(
+    twin_snapshots: list[dict[str, Any]] | None,
+    drain: dict[str, Any] | None,
+    events_post_drain_fetch: dict[str, Any] | None,
+) -> list[str]:
+    """Reasons of a controller_restart run whose evidence steps did not
+    complete (ADR 0011 item 18).
+
+    A twin snapshot that failed or wrote no file leaves the twins without a
+    comparison across the restart; a drain that did not exit 0 (the helper
+    reached its limit, or the controller was never quiet) leaves the
+    post-drain evidence unbounded; a post-drain fetch that produced no
+    second copy of the events leaves the outcome of the deliveries after the
+    restart unreadable. Each makes the run invalid, so the proof reads it as
+    inconclusive rather than as a result.
+    """
+    reasons: list[str] = []
+    for record in twin_snapshots or []:
+        flag = record.get("flag") or "--twin-snapshot-cmd"
+        file = record.get("file") or "the snapshot file"
+        if record.get("returncode") != 0:
+            reasons.append(
+                f"twin snapshot {flag} ({file}) failed with "
+                f"{_hook_outcome(record)}: without both snapshots the twins "
+                "cannot be compared across the restart"
+            )
+        elif not record.get("dest_exists"):
+            reasons.append(
+                f"twin snapshot {flag} exited 0 but wrote no file at {file}: "
+                "without both snapshots the twins cannot be compared across "
+                "the restart"
+            )
+    if drain is not None and drain.get("returncode") != 0:
+        reasons.append(
+            f"drain {drain.get('flag') or '--drain-cmd'} failed with "
+            f"{_hook_outcome(drain)}: the controller was not observed quiet "
+            "after the restart, so the post-drain evidence does not bound the "
+            "recovery"
+        )
+    if events_post_drain_fetch is not None and not events_post_drain_fetch.get(
+        "ok"
+    ):
+        attempts = events_post_drain_fetch.get("attempts") or []
+        reasons.append(
+            "post-drain fetch --post-drain-fetch-cmd failed after "
+            f"{len(attempts)} attempt(s): no {POST_DRAIN_EVENTS_FILENAME} was "
+            "fetched, so the outcome of every delivery after the restart "
+            "cannot be read"
         )
     return reasons
 
@@ -2225,6 +2423,40 @@ def ingest_sut_environment(
     return dest.is_file()
 
 
+def ingest_configuration_identity(
+    run_dir: Path, config_identity_from: str | Path | None, warnings: list[str]
+) -> Any:
+    """Copy the guest-side configuration identity into the run dir and
+    return the parsed content of the copy (ADR 0011 item 18).
+
+    The file lands as ``configuration_identity.json`` under the same
+    write-once rules as the SUT environment (:func:`ingest_copy`: an
+    identical re-copy is a no-op, a differing one raises
+    :class:`SealedRunError`). Returns the parsed JSON of the file present in
+    the run dir afterwards, or None when there is none or it is not JSON — a
+    warning in both cases; the validity rules then apply (a
+    ``controller_restart`` run needs its identity). Nothing is fabricated: a
+    document that cannot be read is not an identity.
+    """
+    dest = run_dir / CONFIG_IDENTITY_FILENAME
+    if config_identity_from is not None:
+        src = Path(config_identity_from)
+        if src.is_file():
+            ingest_copy(src, dest, run_dir)
+        else:
+            warnings.append(f"--config-identity-from file not found: {src}")
+    if not dest.is_file():
+        return None
+    try:
+        return json.loads(dest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        warnings.append(
+            f"{CONFIG_IDENTITY_FILENAME} in the run directory is not readable "
+            f"JSON ({exc}); no configuration identity is embedded"
+        )
+        return None
+
+
 def ingest_resources(
     run_dir: Path,
     resources_from: str | Path | None,
@@ -2307,6 +2539,11 @@ def compute_validity(
     collector_hooks: list[dict[str, Any]] | None = None,
     missing_artifacts: list[str] | None = None,
     collector_problems: list[str] | None = None,
+    sut_log_fetches: list[dict[str, Any]] | None = None,
+    twin_snapshots: list[dict[str, Any]] | None = None,
+    drain: dict[str, Any] | None = None,
+    events_post_drain_fetch: dict[str, Any] | None = None,
+    config_identity_ok: bool = True,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -2371,6 +2608,13 @@ def compute_validity(
     the reasons. They
     do NOT withhold SHA256SUMS: the fetched files are sealed as they are, so
     the invalid run's evidence stays verifiable.
+
+    ADR 0011 item 18: every configured SUT log fetch (``sut_log_fetches``)
+    must exit 0 and write its file; for ``controller_restart``
+    (``restart_required``) the two twin snapshots, the drain and the
+    post-drain fetch must complete and the configuration identity must be
+    present (``config_identity_ok``). None of these has an allow flag: the
+    proof reads a run missing them as inconclusive, never as a result.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -2456,6 +2700,22 @@ def compute_validity(
             )
         reasons.extend(collector_hook_failures(collector_hooks))
         reasons.extend(collector_problem_reasons(collector_problems))
+        reasons.extend(sut_log_fetch_failures(sut_log_fetches))
+        if restart_required:
+            reasons.extend(
+                restart_evidence_failures(
+                    twin_snapshots, drain, events_post_drain_fetch
+                )
+            )
+            if not config_identity_ok:
+                reasons.append(
+                    "controller_restart condition without its configuration "
+                    f"identity ({CONFIG_IDENTITY_FILENAME}, ingested via "
+                    "--config-identity-from): the broker configuration, the "
+                    "stop allowance, the controller image and the paho "
+                    "version the run rests on are not recorded, so the run "
+                    "cannot evidence the restart recovery (ADR 0011)"
+                )
     if missing_artifacts:
         reasons.append(
             "mandatory artefact(s) missing from the run directory: "
@@ -2936,6 +3196,13 @@ def execute_run(
     collector_stop_cmd: str | None = None,
     collector_fetch_cmd: str | None = None,
     expect_services: list[str] | None = None,
+    fetch_broker_log_cmd: str | None = None,
+    fetch_controller_log_cmd: str | None = None,
+    fetch_docker_events_cmd: str | None = None,
+    twin_snapshot_cmd: str | None = None,
+    drain_cmd: str | None = None,
+    post_drain_fetch_cmd: str | None = None,
+    config_identity_from: str | Path | None = None,
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
@@ -2968,6 +3235,19 @@ def execute_run(
     point and its ``problems`` invalidate the timed run; a missing
     ``expect_services`` is one of them. ``--local-resources`` (dev only)
     is not inspected.
+
+    ADR 0011 item 18: ``fetch_broker_log_cmd``, ``fetch_controller_log_cmd``
+    and ``fetch_docker_events_cmd`` run through the collector-hook machinery
+    after the harness events fetch (last of all on ``controller_restart``,
+    so they cover the drain), each writing ``{dest}`` under ``logs/sut/``;
+    ``config_identity_from`` is copied to ``configuration_identity.json`` and
+    embedded in the manifest. For the ``controller_restart`` condition only,
+    ``twin_snapshot_cmd`` runs before the measured run (``twins.before.json``)
+    and after the drain (``twins.after.json``), ``drain_cmd`` blocks after
+    the events fetch, and ``post_drain_fetch_cmd`` fetches the second copy
+    of the events into ``events.post-drain.jsonl``; on any other condition
+    the three are ignored with a warning. Every failure is a validity
+    reason; the templates accept the collector hooks' placeholders.
     """
     plan_path = Path(plan_path)
     try:
@@ -3103,6 +3383,11 @@ def execute_run(
                 "sut_environment.json missing required field(s): "
                 + ", ".join(sut_env_missing_fields)
             )
+    # Configuration identity (ADR 0011 item 18): the guest-side capture of
+    # what the run rests on, copied write-once and embedded in the manifest.
+    configuration_identity = ingest_configuration_identity(
+        run_dir, config_identity_from, warnings
+    )
 
     commit = read_git_commit()
     if commit is None:
@@ -3119,6 +3404,31 @@ def execute_run(
     cooldown_s: int = int(entry.get("cooldown_s") or 0)
     condition_id = entry.get("condition_id")
     timed = condition_id in TIMED_CONDITION_IDS or entry.get("runner") == "simulator"
+    restart_required = condition_id == "controller_restart"
+
+    # Restart evidence (ADR 0011 item 18) belongs to the controller_restart
+    # condition: on any other run the three templates are ignored, so a
+    # campaign-wide flag never drains or snapshots a nominal run. The flags
+    # as given are still echoed in config.cli.
+    ignored_restart_flags = [
+        flag
+        for flag, template in (
+            ("--twin-snapshot-cmd", twin_snapshot_cmd),
+            ("--drain-cmd", drain_cmd),
+            ("--post-drain-fetch-cmd", post_drain_fetch_cmd),
+        )
+        if template and not restart_required
+    ]
+    if ignored_restart_flags:
+        warnings.append(
+            ", ".join(ignored_restart_flags)
+            + f" ignored on condition {condition_id!r}: the twin snapshots, "
+            "the drain and the post-drain fetch apply to the "
+            "controller_restart condition only"
+        )
+    snapshot_template = twin_snapshot_cmd if restart_required else None
+    drain_template = drain_cmd if restart_required else None
+    post_drain_template = post_drain_fetch_cmd if restart_required else None
 
     started_utc = utc_now_iso()
     sim_output_dir = logs_dir / "simulator"
@@ -3198,6 +3508,70 @@ def execute_run(
                 flush=True,
             )
 
+    # Item-18 hooks (ADR 0011): the SUT log fetches, the twin snapshots and
+    # the drain go through the same machinery as the collector hooks (no
+    # shell, process-group timeout, full output kept), with their output
+    # under logs/sut/ and, where the hook must write a file, whether it did
+    # recorded beside its exit code. Every record lands in the manifest and
+    # every failure is a validity reason.
+    sut_log_dir = logs_dir / SUT_LOG_SUBDIR
+    sut_log_fetches: list[dict[str, Any]] = []
+    twin_snapshots: list[dict[str, Any]] = []
+    drain_record: dict[str, Any] | None = None
+    events_post_drain_fetch: dict[str, Any] | None = None
+
+    def _run_sut_hook(
+        hook: str, template: str, dest: Path, *, timeout_s: float | None = None
+    ) -> dict[str, Any]:
+        print(f"[harness] {HOOK_FLAGS[hook]}", flush=True)
+        record = execute_collector_hook(
+            hook,
+            template,
+            run_id,
+            duration_s=collector_window_s,
+            dest=dest,
+            expect_services=expect_services,
+            log_dir=sut_log_dir,
+            timeout_s=timeout_s,
+        )
+        for stream in ("stdout", "stderr"):
+            path = record.pop(f"{stream}_path", None)
+            if path is not None:
+                record[f"{stream}_file"] = (
+                    Path(path).relative_to(run_dir).as_posix()
+                )
+        record["dest_exists"] = dest.is_file()
+        if record.get("returncode") != 0:
+            print(
+                f"[harness] {HOOK_FLAGS[hook]} FAILED "
+                f"(exit {record.get('returncode')})",
+                file=sys.stderr,
+                flush=True,
+            )
+        return record
+
+    def _take_twin_snapshot(hook: str) -> None:
+        if not snapshot_template:
+            return
+        record = _run_sut_hook(
+            hook, snapshot_template, run_dir / TWIN_SNAPSHOT_FILES[hook]
+        )
+        record["file"] = TWIN_SNAPSHOT_FILES[hook]
+        twin_snapshots.append(record)
+
+    if any(
+        (
+            fetch_broker_log_cmd,
+            fetch_controller_log_cmd,
+            fetch_docker_events_cmd,
+            snapshot_template,
+            drain_template,
+        )
+    ):
+        # The fetches write into logs/sut/ themselves (scp, a helper): the
+        # directory must exist before the first of them runs.
+        sut_log_dir.mkdir(parents=True, exist_ok=True)
+
     if collector_hooks_in_use:
         collector_dest.parent.mkdir(parents=True, exist_ok=True)
     # Started BEFORE the warm-up so the collector covers the whole run.
@@ -3233,6 +3607,11 @@ def execute_run(
             )
             if warmup_returncode != 0:
                 warnings.append(f"warm-up exited with code {warmup_returncode}")
+
+        # Twin snapshot BEFORE the measured run (controller_restart only): the
+        # twins as the warm-up left them, taken before the restart timer can
+        # fire; the second snapshot follows the drain.
+        _take_twin_snapshot("twin_snapshot_before")
 
         print(f"[harness] measured run: {duration_s} s at {rate_msg_s} msg/s", flush=True)
         # Measured window (audit 9.4): wall-clock stamps immediately around
@@ -3485,6 +3864,62 @@ def execute_run(
             flush=True,
         )
 
+    # Restart evidence (ADR 0011 item 18; controller_restart only), AFTER the
+    # harness events fetch so the two event copies stay apart: the blocking
+    # drain (the runbook's `drained` helper, which returns once the
+    # controller has been quiet for its window or gives up), then the
+    # post-drain fetch of the events into events.post-drain.jsonl (the same
+    # retried fetch as events.jsonl), then the second twin snapshot.
+    if drain_template:
+        drain_record = _run_sut_hook(
+            "drain",
+            drain_template,
+            sut_log_dir / "drain.txt",
+            timeout_s=DRAIN_TIMEOUT_S,
+        )
+        # The drain writes no file of its own; {dest} is only a placeholder.
+        drain_record.pop("dest_exists", None)
+    if post_drain_template:
+        print("[harness] --post-drain-fetch-cmd", flush=True)
+        post_drain_ok, post_drain_cmd, post_drain_attempts = fetch_events_via_cmd(
+            post_drain_template, run_id, run_dir / POST_DRAIN_EVENTS_FILENAME
+        )
+        events_post_drain_fetch = {
+            "template": post_drain_template,
+            "command": post_drain_cmd,
+            "attempts": post_drain_attempts,
+            "ok": post_drain_ok,
+            "file": POST_DRAIN_EVENTS_FILENAME,
+        }
+        if not post_drain_ok:
+            warnings.append(
+                f"post-drain fetch failed after {len(post_drain_attempts)} "
+                f"attempt(s): {post_drain_cmd}"
+            )
+            print(
+                "[harness] --post-drain-fetch-cmd FAILED: no "
+                f"{POST_DRAIN_EVENTS_FILENAME}",
+                file=sys.stderr,
+                flush=True,
+            )
+    _take_twin_snapshot("twin_snapshot_after")
+
+    # SUT log fetches (ADR 0011 item 18): the broker log, the controller
+    # container log and the docker events of the run, last so that on
+    # controller_restart they cover the drain as well; each must write its
+    # file under logs/sut/, which the seal then covers.
+    for hook, template in (
+        ("broker_log", fetch_broker_log_cmd),
+        ("controller_log", fetch_controller_log_cmd),
+        ("docker_events", fetch_docker_events_cmd),
+    ):
+        if not template:
+            continue
+        dest = sut_log_dir / SUT_LOG_FILES[hook]
+        record = _run_sut_hook(hook, template, dest)
+        record["dest_file"] = dest.relative_to(run_dir).as_posix()
+        sut_log_fetches.append(record)
+
     # SUT resources ingestion (audit 9.1), content- AND semantically
     # validated against this run's measured window (sprint P5, report 5.4).
     measured_window_s = max(
@@ -3631,6 +4066,11 @@ def execute_run(
         collector_hooks=collector_hooks,
         missing_artifacts=missing_artifacts,
         collector_problems=collector_problems,
+        sut_log_fetches=sut_log_fetches,
+        twin_snapshots=twin_snapshots,
+        drain=drain_record,
+        events_post_drain_fetch=events_post_drain_fetch,
+        config_identity_ok=configuration_identity is not None,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -3730,6 +4170,15 @@ def execute_run(
                 "collector_stop_cmd": collector_stop_cmd,
                 "collector_fetch_cmd": collector_fetch_cmd,
                 "expect_services": expect_services,
+                "fetch_broker_log_cmd": fetch_broker_log_cmd,
+                "fetch_controller_log_cmd": fetch_controller_log_cmd,
+                "fetch_docker_events_cmd": fetch_docker_events_cmd,
+                "twin_snapshot_cmd": twin_snapshot_cmd,
+                "drain_cmd": drain_cmd,
+                "post_drain_fetch_cmd": post_drain_fetch_cmd,
+                "config_identity_from": (
+                    str(config_identity_from) if config_identity_from else None
+                ),
             },
         },
         "started_utc": started_utc,
@@ -3767,6 +4216,21 @@ def execute_run(
         "events_source": events_source,
         "events_fetch": fetch_info or None,
         "restart": restart_record,
+        # ADR 0011 item 18: the SUT log fetches (broker log, controller
+        # container log, docker events) into logs/sut/; for controller_restart
+        # the two twin snapshots, the drain and the post-drain fetch (empty or
+        # null elsewhere); the configuration identity the run rests on,
+        # embedded verbatim from configuration_identity.json.
+        "sut_log_fetches": sut_log_fetches,
+        "twin_snapshots": twin_snapshots,
+        "drain": drain_record,
+        "events_post_drain_fetch": events_post_drain_fetch,
+        "configuration_identity": configuration_identity,
+        "configuration_identity_file": (
+            CONFIG_IDENTITY_FILENAME
+            if (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+            else None
+        ),
         "resource_samples_written": (
             local_sampler.samples_written if local_sampler is not None else None
         ),
@@ -3844,6 +4308,7 @@ def collect_run(
     allow_missing_resources: bool = False,
     allow_missing_controller_marker: bool = False,
     expect_services: list[str] | None = None,
+    config_identity_from: str | Path | None = None,
 ) -> int:
     """Re-attempt evidence collection for an EXISTING run directory.
 
@@ -3874,6 +4339,12 @@ def collect_run(
     the run recorded none, never change them (exit 2), and is only
     accepted together with ``resources_from``. Without ``resources_from``
     the problems recorded at run time are re-applied unchanged.
+
+    ADR 0011 item 18: ``config_identity_from`` is ingested like the SUT
+    environment (copied write-once as ``configuration_identity.json`` and
+    embedded in the manifest); the SUT log fetches and the restart evidence
+    steps are run-time measurements, so their recorded outcomes are
+    re-applied as the collector hooks' are.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -4043,11 +4514,29 @@ def collect_run(
                 and not was_present
             ):
                 actions.append(f"ingested {SUT_ENVIRONMENT_FILENAME}")
+
+        # Configuration identity (ADR 0011 item 18): ingested like the SUT
+        # environment; the manifest embeds whatever the run dir then holds.
+        identity_was_present = (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+        configuration_identity = ingest_configuration_identity(
+            run_dir, config_identity_from, warnings
+        )
+        if (
+            (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+            and not identity_was_present
+        ):
+            actions.append(f"ingested {CONFIG_IDENTITY_FILENAME}")
     except SealedRunError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     sut_env_present = (run_dir / SUT_ENVIRONMENT_FILENAME).is_file()
     manifest["sut_environment_present"] = sut_env_present
+    manifest["configuration_identity"] = configuration_identity
+    manifest["configuration_identity_file"] = (
+        CONFIG_IDENTITY_FILENAME
+        if (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+        else None
+    )
     refs = manifest.get("environment_refs")
     if isinstance(refs, dict):
         refs["sut"] = SUT_ENVIRONMENT_FILENAME if sut_env_present else None
@@ -4179,6 +4668,20 @@ def collect_run(
         if isinstance(current_collector, dict)
         else []
     )
+    # The item-18 evidence steps (ADR 0011) are run-time measurements like
+    # the collector hooks: 'collect' re-applies their recorded outcomes.
+    sut_log_fetches = manifest.get("sut_log_fetches")
+    if not isinstance(sut_log_fetches, list):
+        sut_log_fetches = []
+    twin_snapshots = manifest.get("twin_snapshots")
+    if not isinstance(twin_snapshots, list):
+        twin_snapshots = []
+    recorded_drain = manifest.get("drain")
+    if not isinstance(recorded_drain, dict):
+        recorded_drain = None
+    recorded_post_drain = manifest.get("events_post_drain_fetch")
+    if not isinstance(recorded_post_drain, dict):
+        recorded_post_drain = None
     missing_artifacts = missing_mandatory_artifacts(
         run_dir,
         manifest.get("condition_id"),
@@ -4207,6 +4710,11 @@ def collect_run(
         collector_hooks=collector_hooks,
         missing_artifacts=missing_artifacts,
         collector_problems=collector_problems,
+        sut_log_fetches=sut_log_fetches,
+        twin_snapshots=twin_snapshots,
+        drain=recorded_drain,
+        events_post_drain_fetch=recorded_post_drain,
+        config_identity_ok=configuration_identity is not None,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons

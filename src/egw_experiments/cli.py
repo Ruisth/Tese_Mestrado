@@ -57,6 +57,17 @@ mis-rated or swapped run. A plan path that does not exist (or cannot be
 read) degrades the same way and never fails the analysis. The
 ``EGW_CAMPAIGN_PLAN`` environment variable is the documented fallback used
 when ``--plan`` names nothing readable.
+
+ADR 0011 item 18: ``run`` and ``campaign`` accept the SUT log fetches
+``--fetch-broker-log-cmd`` / ``--fetch-controller-log-cmd`` /
+``--fetch-docker-events-cmd`` (run after the events fetch, into
+``logs/sut/``), the restart-evidence steps ``--twin-snapshot-cmd`` /
+``--drain-cmd`` / ``--post-drain-fetch-cmd`` (applied to ``controller_restart``
+runs only, as ``--restart-cmd`` is) and, with ``collect``,
+``--config-identity-from`` (copied into the run directory as
+``configuration_identity.json`` and embedded in the manifest). A failed
+fetch, snapshot or drain is a validity reason, like a failed collector hook;
+a ``controller_restart`` run without its configuration identity is invalid.
 """
 
 from __future__ import annotations
@@ -112,6 +123,23 @@ def _add_collection_arguments(
         "deployment/scripts/capture-sut-environment.sh and fetched here "
         f"(default: env {SUT_ENV_FILE_ENV}). Timed runs without it are "
         "marked validity 'invalid'",
+    )
+    parser.add_argument(
+        "--config-identity-from",
+        default=None,
+        help="path of the configuration identity captured ON the guest for "
+        "this run (a JSON document: the broker configuration's sha256 and "
+        "its window/queue/expiry values, the statement that no reload "
+        "happened, stop_grace_period, the controller image's id and source "
+        "commit, the paho version installed in it, the A3 choice; ADR 0011). "
+        "Copied into the run directory as configuration_identity.json and "
+        "embedded in the manifest under 'configuration_identity'. A "
+        "controller_restart run without it is marked validity 'invalid'"
+        + (
+            ". May contain a {run_id} placeholder substituted per run"
+            if resources_template
+            else ""
+        ),
     )
     parser.add_argument(
         "--resources-from",
@@ -239,6 +267,40 @@ def _add_collector_hook_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_sut_log_fetch_arguments(parser: argparse.ArgumentParser) -> None:
+    """SUT log fetches shared by ``run`` and ``campaign`` (ADR 0011 item 18).
+
+    Each template runs through the collector-hook machinery (no shell, the
+    same ``{run_id}``, ``{dest}``, ``{duration_s}`` and ``{expect_services}``
+    placeholders, full output kept as ``logs/sut/hook-<hook>.*.txt``) after
+    the harness events fetch — on ``controller_restart`` after the drain and
+    the post-drain steps, so the logs cover them — and must write its file
+    to ``{dest}`` under ``logs/sut/``. The record goes to the manifest
+    (``sut_log_fetches``); a non-zero exit, or an exit 0 without the file,
+    marks the run validity 'invalid' naming the flag.
+    """
+    parser.add_argument(
+        "--fetch-broker-log-cmd",
+        default=None,
+        help="command template that writes the broker's log for the run to "
+        "{dest} (logs/sut/broker.log), e.g. a helper running 'docker compose "
+        "logs --no-color mosquitto' on the guest and copying its output; "
+        "quote \"{dest}\" (the template is split without a shell)",
+    )
+    parser.add_argument(
+        "--fetch-controller-log-cmd",
+        default=None,
+        help="command template that writes the controller container's log "
+        "for the run to {dest} (logs/sut/controller.log)",
+    )
+    parser.add_argument(
+        "--fetch-docker-events-cmd",
+        default=None,
+        help="command template that writes the container engine's events for "
+        "the controller over the run to {dest} (logs/sut/docker-events.log)",
+    )
+
+
 def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
     """Run-level flags shared by ``run`` and ``campaign`` (same wiring)."""
     parser.add_argument(
@@ -310,6 +372,35 @@ def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
         help="offset in seconds into the measured run at which "
         "--restart-cmd fires (default: half the run duration)",
     )
+    # Restart evidence (ADR 0011 item 18): applied to controller_restart runs
+    # only, as --restart-cmd is; every failure is a validity reason.
+    parser.add_argument(
+        "--twin-snapshot-cmd",
+        default=None,
+        help="command template that writes a snapshot of the run's twins to "
+        "{dest}, executed once BEFORE the measured run (twins.before.json) "
+        "and once AFTER the drain (twins.after.json), e.g. a helper running "
+        "'itest_reconcile snap' against the guest; recorded in the manifest "
+        "(twin_snapshots). controller_restart runs only",
+    )
+    parser.add_argument(
+        "--drain-cmd",
+        default=None,
+        help="BLOCKING command template ({run_id} placeholder) executed after "
+        "the confirmation window and the events fetch, returning once the "
+        "controller has been quiet for the runbook's window (the 'drained' "
+        "helper) or exiting non-zero when it gives up; recorded in the "
+        "manifest (drain). controller_restart runs only",
+    )
+    parser.add_argument(
+        "--post-drain-fetch-cmd",
+        default=None,
+        help="command template ({run_id}, {dest}) that fetches the "
+        "controller's events.jsonl AFTER the drain into {dest} "
+        "(events.post-drain.jsonl, kept apart from the harness copy "
+        "events.jsonl); same retries as --fetch-events-cmd; recorded in the "
+        "manifest (events_post_drain_fetch). controller_restart runs only",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -379,6 +470,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_collection_arguments(p_run)
     _add_collector_hook_arguments(p_run)
+    _add_sut_log_fetch_arguments(p_run)
     p_run.add_argument(
         "--local-resources",
         action="store_true",
@@ -461,6 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_run_level_arguments(p_camp)
     _add_collection_arguments(p_camp, resources_template=True)
     _add_collector_hook_arguments(p_camp)
+    _add_sut_log_fetch_arguments(p_camp)
 
     # collect (recovery, audit 9.3) ------------------------------------------
     p_col = sub.add_parser(
@@ -578,6 +671,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
         collector_stop_cmd=args.collector_stop_cmd,
         collector_fetch_cmd=args.collector_fetch_cmd,
         expect_services=args.expect_services,
+        fetch_broker_log_cmd=args.fetch_broker_log_cmd,
+        fetch_controller_log_cmd=args.fetch_controller_log_cmd,
+        fetch_docker_events_cmd=args.fetch_docker_events_cmd,
+        twin_snapshot_cmd=args.twin_snapshot_cmd,
+        drain_cmd=args.drain_cmd,
+        post_drain_fetch_cmd=args.post_drain_fetch_cmd,
+        config_identity_from=args.config_identity_from,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
     )
@@ -623,6 +723,13 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         collector_stop_cmd=args.collector_stop_cmd,
         collector_fetch_cmd=args.collector_fetch_cmd,
         expect_services=args.expect_services,
+        fetch_broker_log_cmd=args.fetch_broker_log_cmd,
+        fetch_controller_log_cmd=args.fetch_controller_log_cmd,
+        fetch_docker_events_cmd=args.fetch_docker_events_cmd,
+        twin_snapshot_cmd=args.twin_snapshot_cmd,
+        drain_cmd=args.drain_cmd,
+        post_drain_fetch_cmd=args.post_drain_fetch_cmd,
+        config_identity_from=args.config_identity_from,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
@@ -644,6 +751,7 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         allow_missing_resources=args.allow_missing_resources,
         allow_missing_controller_marker=args.allow_missing_controller_marker,
         expect_services=args.expect_services,
+        config_identity_from=args.config_identity_from,
     )
 
 
