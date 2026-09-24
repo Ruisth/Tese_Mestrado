@@ -65,9 +65,16 @@ ADR 0011 item 18: ``run`` and ``campaign`` accept the SUT log fetches
 ``--drain-cmd`` / ``--post-drain-fetch-cmd`` (applied to ``controller_restart``
 runs only, as ``--restart-cmd`` is) and, with ``collect``,
 ``--config-identity-from`` (copied into the run directory as
-``configuration_identity.json`` and embedded in the manifest). A failed
-fetch, snapshot or drain is a validity reason, like a failed collector hook;
-a ``controller_restart`` run without its configuration identity is invalid.
+``configuration_identity.json`` and embedded in the manifest) and the
+ingestion of the restart evidence taken outside the harness,
+``--twins-before-from`` / ``--twins-after-from`` /
+``--post-drain-events-from`` / ``--drain-transcript-from`` (each file
+verified against the run before it counts, copied write-once and recorded
+with its provenance). A failed fetch or snapshot is a validity reason, like
+a failed collector hook; the drain's outcome is recorded (quiet, gave-up or
+error) and only 'error' is a reason; a ``controller_restart`` run without
+its configuration identity, or without its restart evidence, is invalid —
+no flag excuses the evidence.
 """
 
 from __future__ import annotations
@@ -201,14 +208,60 @@ def _add_collection_arguments(
         help="deliberately accept a timed run without SUT resources; the "
         "decision is recorded in the manifest (audit 9.1)",
     )
+    # Restart evidence taken outside the harness (ADR 0011 item 18): the
+    # runbook's helpers take the snapshots, the drain and the post-drain copy
+    # of the events; each file is verified against the run before it counts.
+    per_run = (
+        ". May contain a {run_id} placeholder substituted per run"
+        if resources_template
+        else ""
+    )
     parser.add_argument(
-        "--allow-missing-restart-evidence",
-        action="store_true",
-        help="deliberately accept a controller_restart run on which the "
-        "twin snapshots, the drain or the post-drain fetch were not configured "
-        "(taken outside the harness, by the runbook's helpers, or not at "
-        "all); the decision is recorded in the manifest as a deviation. A "
-        "configured step that fails stays a validity reason (ADR 0011)",
+        "--twins-before-from",
+        default=None,
+        metavar="FILE",
+        help="a twin snapshot taken BEFORE the measured run outside the "
+        "harness (itest_reconcile snap --label before), ingested as "
+        "twins.before.json once verified: a JSON object whose label is "
+        "'before', with a devices object, and whose seed (when not null) is "
+        "the plan entry's. controller_restart runs only; mutually exclusive "
+        "with --twin-snapshot-cmd" + per_run,
+    )
+    parser.add_argument(
+        "--twins-after-from",
+        default=None,
+        metavar="FILE",
+        help="the twin snapshot taken AFTER the drain outside the harness "
+        "(label 'after'), ingested as twins.after.json once verified like "
+        "--twins-before-from. Not required when the drain gave up. "
+        "controller_restart runs only; mutually exclusive with "
+        "--twin-snapshot-cmd" + per_run,
+    )
+    parser.add_argument(
+        "--post-drain-events-from",
+        default=None,
+        metavar="FILE",
+        help="the copy of the controller's events.jsonl fetched AFTER the "
+        "drain outside the harness, ingested as events.post-drain.jsonl "
+        "once verified: non-empty JSON Lines whose every record carries "
+        "this run's run_id and an outcome of accepted/rejected/duplicate/"
+        "failed (a file of another run is refused, naming the mismatch). "
+        "Not required when the drain gave up. controller_restart runs only; "
+        "mutually exclusive with --post-drain-fetch-cmd" + per_run,
+    )
+    parser.add_argument(
+        "--drain-transcript-from",
+        default=None,
+        metavar="FILE",
+        help="the transcript of the runbook's 'drained' helper run outside "
+        "the harness (drained 2>&1 | tee FILE), ingested as "
+        "logs/sut/drain.txt and classified as a hook's output would be: its "
+        "quiet line ('drained: queue_depth 0 ...') gives drain.outcome "
+        "'quiet', its give-up line ('STOP: drained: no quiet window ...') "
+        "'gave-up' (a failed recovery, retained as a valid observation), "
+        "anything else is refused as an instrument failure. "
+        "controller_restart runs only; mutually exclusive with --drain-cmd"
+        + per_run,
     )
     parser.add_argument(
         "--allow-missing-controller-marker",
@@ -691,8 +744,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
         twin_snapshot_cmd=args.twin_snapshot_cmd,
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
+        twins_before_from=args.twins_before_from,
+        twins_after_from=args.twins_after_from,
+        post_drain_events_from=args.post_drain_events_from,
+        drain_transcript_from=args.drain_transcript_from,
         config_identity_from=args.config_identity_from,
-        allow_missing_restart_evidence=args.allow_missing_restart_evidence,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
     )
@@ -744,8 +800,11 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         twin_snapshot_cmd=args.twin_snapshot_cmd,
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
+        twins_before_from=args.twins_before_from,
+        twins_after_from=args.twins_after_from,
+        post_drain_events_from=args.post_drain_events_from,
+        drain_transcript_from=args.drain_transcript_from,
         config_identity_from=args.config_identity_from,
-        allow_missing_restart_evidence=args.allow_missing_restart_evidence,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
@@ -768,7 +827,10 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         allow_missing_controller_marker=args.allow_missing_controller_marker,
         expect_services=args.expect_services,
         config_identity_from=args.config_identity_from,
-        allow_missing_restart_evidence=args.allow_missing_restart_evidence,
+        twins_before_from=args.twins_before_from,
+        twins_after_from=args.twins_after_from,
+        post_drain_events_from=args.post_drain_events_from,
+        drain_transcript_from=args.drain_transcript_from,
     )
 
 

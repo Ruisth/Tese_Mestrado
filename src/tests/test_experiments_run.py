@@ -1067,13 +1067,13 @@ def test_restart_cmd_executed_once_and_recorded(
         allow_missing_controller_marker=True,
         # A controller_restart run without its configuration identity is
         # invalid (ADR 0011 item 18), so the fixture carries one; the twin
-        # snapshots, the drain and the post-drain fetch are not configured
-        # here — the runbook's test 6 takes them with its own helpers — so
-        # the exception is deliberately recorded, as that line does.
+        # snapshots, the drain and the post-drain events are neither taken
+        # by hooks nor ingested here, so the run is invalid (F6: there is no
+        # flag that excuses missing restart evidence) while the restart
+        # itself is still recorded exactly once.
         config_identity_from=_config_identity_file(tmp_path),
-        allow_missing_restart_evidence=True,
     )
-    assert rc == 0
+    assert rc == 1
     assert marker.read_text(encoding="utf-8") == "restarted controller_restart-r01"
     manifest = _manifest(base, "controller_restart-r01")
     restart = manifest["restart"]
@@ -1081,22 +1081,24 @@ def test_restart_cmd_executed_once_and_recorded(
     assert restart["returncode"] == 0
     assert restart["requested_at_s"] == 0.05
     assert restart["started_utc"] and restart["finished_utc"]
-    assert manifest["validity"] == "valid"
-    assert manifest["allow_missing_restart_evidence"] is True
-    (deviation,) = [
-        d for d in manifest["deviations"] if d["kind"] == "missing_restart_evidence"
-    ]
-    assert deviation["authorized_by_flag"] == "--allow-missing-restart-evidence"
-    for step in ("twins.before.json", "twins.after.json", "--drain-cmd", "--post-drain-fetch-cmd"):
-        assert step in deviation["detail"]
+    assert manifest["validity"] == "invalid"
+    assert "allow_missing_restart_evidence" not in manifest
+    assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
+    # The runbook's test 6 (docs/setup/qemu_integrated_gateway.md) filters
+    # the harness's reasons on this phrase to tell the evidence still to be
+    # ingested from any other defect: keep it byte-stable.
+    assert all(
+        "without its restart evidence step" in r for r in manifest["validity_reasons"]
+    )
 
 
 def test_controller_restart_without_the_evidence_steps_is_invalid(
     tmp_path, plan_path, fast_run
 ) -> None:
-    """Without --allow-missing-restart-evidence a controller_restart run
-    that configured no twin snapshot, drain or post-drain fetch is invalid:
-    the absence of the evidence never makes the run valid (ADR 0011)."""
+    """A controller_restart run that neither took the twin snapshots, the
+    drain and the post-drain events with hooks nor ingested them from files
+    is invalid, naming each missing step by both routes: the absence of the
+    evidence never makes the run valid (ADR 0011; F6)."""
     fast_run.sleep_s = 1.0
     base = tmp_path / "results"
     rc = run_mod.execute_run(
@@ -1119,13 +1121,20 @@ def test_controller_restart_without_the_evidence_steps_is_invalid(
     assert manifest["validity"] == "invalid"
     reasons = manifest["validity_reasons"]
     for step in (
-        "--twin-snapshot-cmd (twins.before.json)",
-        "--twin-snapshot-cmd (twins.after.json)",
-        "--drain-cmd",
-        "--post-drain-fetch-cmd",
+        "--twin-snapshot-cmd or --twins-before-from (twins.before.json)",
+        "--twin-snapshot-cmd or --twins-after-from (twins.after.json)",
+        "--drain-cmd or --drain-transcript-from (logs/sut/drain.txt)",
+        "--post-drain-fetch-cmd or --post-drain-events-from (events.post-drain.jsonl)",
     ):
-        assert any(step in r and "not configured" in r for r in reasons), step
+        assert any(
+            step in r and "neither taken by its hook nor ingested" in r for r in reasons
+        ), step
     assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
+    assert manifest["twin_snapshots"] == []
+    assert manifest["drain"] is None and manifest["events_post_drain_fetch"] is None
+    # Invalid for the missing evidence only: the run is still sealed, so
+    # 'collect' can ingest the artefacts taken outside the harness.
+    assert (base / "raw" / "controller_restart-r01" / checksums.SUMS_FILENAME).is_file()
 
 
 @pytest.mark.parametrize(
@@ -4804,22 +4813,120 @@ def test_metrics_sampler_refuses_mistyped_item_18_values(tmp_path, monkeypatch) 
 # log fetches, the two twin snapshots, the drain, the post-drain fetch and
 # the harness events fetch. It appends '<label> <dest name> <run_id>' to a
 # record file (so the ORDER of the steps is observable), prints on both
-# streams and, in mode 'write', writes '<label> content for <run_id>' to
-# {dest}; mode 'noop' writes nothing. It exits with the given code.
+# streams and exits with the given code. Mode 'write[+option...]' writes
+# {dest}: a twin snapshot as itest_reconcile's `snap` writes it when {dest}
+# is twins.<label>.json (seed null), one event record of the run when it is
+# events.post-drain.jsonl ('run:<id>' stamps another run id on it), and
+# '<label> content for <run_id>' otherwise; 'sleep:<s>' waits that long
+# first. Mode 'noop' writes nothing. Modes 'quiet' and 'gaveup' print what
+# the runbook's `drained` helper prints when it succeeds (stdout) and when
+# it gives up (stderr).
 SUT_STEP_SCRIPT = """\
+import json
 import sys
+import time
 from pathlib import Path
 
 record, label, run_id, dest, mode, rc = sys.argv[1:7]
+flags = mode.split("+")
+opts = dict(flag.partition(":")[::2] for flag in flags[1:])
 with Path(record).open("a", encoding="utf-8") as fh:
     fh.write(" ".join((label, Path(dest).name, run_id)) + "\\n")
+if "sleep" in opts:
+    time.sleep(float(opts["sleep"]))
 print(label + " step stdout")
 sys.stderr.write(label + " step stderr\\n")
-if mode == "write":
+name = Path(dest).name
+if flags[0] == "write":
     Path(dest).parent.mkdir(parents=True, exist_ok=True)
-    Path(dest).write_text(label + " content for " + run_id + "\\n", encoding="utf-8")
+    if name.startswith("twins."):
+        body = json.dumps({
+            "label": name.split(".")[1],
+            "seed": None,
+            "devices": {"a" * 8: {"device_type": "smartwatch", "exists": True,
+                                  "ingestion": {"accepted_count": 1}}},
+        }) + "\\n"
+    elif name == "events.post-drain.jsonl":
+        body = json.dumps({"run_id": opts.get("run", run_id), "outcome": "accepted",
+                           "seq": 0}) + "\\n"
+    else:
+        body = label + " content for " + run_id + "\\n"
+    Path(dest).write_text(body, encoding="utf-8")
+elif flags[0] == "quiet":
+    print("drained: queue_depth 0 and identical counters on 27 consecutive readings "
+          "over 130 s (0 0 0 true 2026-09-07T10:00:00Z 1 60 60 0 0 0 0 0) - an "
+          "observation, not proof that processing has finished")
+elif flags[0] == "gaveup":
+    sys.stderr.write("STOP: drained: no quiet window of 130 s within 900 s (last "
+                     "reading: 12 1 0 true 2026-09-07T10:00:00Z 1 60 40 0 0 0 0 0) - "
+                     "do not take snapshots, do not start a run\\n")
 sys.exit(int(rc))
 """
+
+#: What the runbook's `drained` helper prints, as its transcript (both
+#: streams through `tee`) carries it: the quiet line on success, the give-up
+#: line at its limit.
+DRAIN_QUIET_LINE = (
+    "drained: queue_depth 0 and identical counters on 27 consecutive readings "
+    "over 130 s (0 0 0 true 2026-09-07T10:00:00Z 1 60 60 0 0 0 0 0) - an "
+    "observation, not proof that processing has finished\n"
+)
+DRAIN_GAVE_UP_LINE = (
+    "STOP: drained: no quiet window of 130 s within 900 s (last reading: 12 1 0 "
+    "true 2026-09-07T10:00:00Z 1 60 40 0 0 0 0 0) - do not take snapshots, do "
+    "not start a run\n"
+)
+DRAIN_GET_FAILED_LINE = (
+    "STOP: drained: GET http://127.0.0.1:8000/metrics failed or was not valid "
+    "JSON, or a field was missing or of the wrong type\n"
+)
+
+
+def _plan_seed(plan_path: Path, run_id: str) -> int:
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    return int(next(r["seed"] for r in plan["runs"] if r["run_id"] == run_id))
+
+
+def _twins_file(
+    tmp_path: Path, label: str, *, seed: int | None = None, name: str | None = None, **overrides: Any
+) -> Path:
+    """A twin snapshot as itest_reconcile's `snap` writes it (label, seed,
+    devices), with ``overrides`` applied on top."""
+    doc: dict[str, Any] = {
+        "label": label,
+        "seed": seed,
+        "devices": {
+            "b" * 8: {"device_type": "smartwatch", "exists": True, "ingestion": {"accepted_count": 3}}
+        },
+    }
+    doc.update(overrides)
+    path = tmp_path / (name or f"external.twins.{label}.json")
+    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _post_drain_events_file(
+    tmp_path: Path, run_id: str, *, name: str = "external.events.post-drain.jsonl", lines: list[Any] | None = None
+) -> Path:
+    """The post-drain copy of a run's events.jsonl: one JSON object per line
+    with this run's id and a logged outcome, unless ``lines`` says otherwise."""
+    if lines is None:
+        lines = [
+            {"run_id": run_id, "outcome": "accepted", "seq": 0},
+            {"run_id": run_id, "outcome": "duplicate", "seq": 0},
+        ]
+    path = tmp_path / name
+    path.write_text(
+        "".join((line if isinstance(line, str) else json.dumps(line)) + "\n" for line in lines),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _drain_transcript(tmp_path: Path, text: str, *, name: str = "external.drained.txt") -> Path:
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    return path
 
 RESTART_SCRIPT = """\
 import sys
@@ -4861,7 +4968,7 @@ def _item18_run(
     monkeypatch,
     *,
     run_id: str = "controller_restart-r01",
-    drain: tuple[str, int] = ("noop", 0),
+    drain: tuple[str, int] = ("quiet", 0),
     snapshot: tuple[str, int] = ("write", 0),
     post_drain: tuple[str, int] = ("write", 0),
     log_fetch: dict[str, tuple[str, int]] | None = None,
@@ -5075,35 +5182,43 @@ def test_controller_restart_evidence_steps_run_in_order_and_are_sealed(
         "twin_snapshot_after",
     ]
     assert [s["file"] for s in snapshots] == ["twins.before.json", "twins.after.json"]
-    for snap in snapshots:
+    for snap, label in zip(snapshots, ("before", "after")):
         assert snap["flag"] == "--twin-snapshot-cmd"
         assert snap["returncode"] == 0
         assert snap["dest_exists"] is True
-        assert (run_dir / snap["file"]).read_text(encoding="utf-8") == (
-            "snapshot content for controller_restart-r01\n"
-        )
+        # The hook's file is verified like an ingested one (F6): a snapshot
+        # of the right label with a devices object.
+        assert snap["source"] == "hook"
+        assert snap["verified"] is True and snap["problems"] == []
+        written = json.loads((run_dir / snap["file"]).read_text(encoding="utf-8"))
+        assert written["label"] == label and written["devices"]
         assert snap["stdout_file"] == f"logs/sut/hook-{snap['hook']}.stdout.txt"
         assert snap["file"] in sealed and snap["stdout_file"] in sealed
 
     drain = manifest["drain"]
     assert drain["hook"] == "drain" and drain["flag"] == "--drain-cmd"
     assert drain["returncode"] == 0
+    assert drain["source"] == "hook"
+    assert drain["outcome"] == "quiet" and drain["verified"] is True
     assert drain["started_utc"] and drain["finished_utc"]
     assert drain["stdout_file"] == "logs/sut/hook-drain.stdout.txt"
     assert drain["stdout_file"] in sealed and drain["stderr_file"] in sealed
+    assert not any("failed recovery" in w for w in manifest["warnings"])
 
     post_drain = manifest["events_post_drain_fetch"]
     assert post_drain["ok"] is True
     assert post_drain["file"] == "events.post-drain.jsonl"
+    assert post_drain["source"] == "hook"
+    assert post_drain["verified"] is True and post_drain["problems"] == []
     assert post_drain["template"] and "{dest}" not in post_drain["command"]
     assert post_drain["attempts"][0]["returncode"] == 0
     # The two event copies are kept apart: the harness fetch is untouched.
     assert (run_dir / "events.jsonl").read_text(encoding="utf-8") == (
         "events content for controller_restart-r01\n"
     )
-    assert (run_dir / "events.post-drain.jsonl").read_text(encoding="utf-8") == (
-        "post_drain content for controller_restart-r01\n"
-    )
+    assert json.loads(
+        (run_dir / "events.post-drain.jsonl").read_text(encoding="utf-8")
+    ) == {"run_id": "controller_restart-r01", "outcome": "accepted", "seq": 0}
     assert manifest["events_source"].startswith("fetch-cmd:")
     assert "events.jsonl" in sealed and "events.post-drain.jsonl" in sealed
 
@@ -5121,11 +5236,17 @@ def test_controller_restart_evidence_steps_run_in_order_and_are_sealed(
     for key in ("twin_snapshot_cmd", "drain_cmd", "post_drain_fetch_cmd"):
         assert cli[key] and "{run_id}" in cli[key]
     assert cli["config_identity_from"] == str(tmp_path / "configuration_identity.json")
+    for key in ("twins_before_from", "twins_after_from", "post_drain_events_from", "drain_transcript_from"):
+        assert cli[key] is None
+    assert "allow_missing_restart_evidence" not in cli
+    assert "allow_missing_restart_evidence" not in manifest
 
 
 def test_controller_restart_drain_failure_is_a_validity_reason(
     tmp_path, plan_path, fast_run, monkeypatch
 ) -> None:
+    """A drain that ends without either of the helper's lines (here: exit 3
+    and no STOP line) is an instrument failure: outcome 'error', a reason."""
     rc, run_dir, record = _item18_run(
         tmp_path, plan_path, fast_run, monkeypatch, drain=("noop", 3)
     )
@@ -5139,9 +5260,84 @@ def test_controller_restart_drain_failure_is_a_validity_reason(
     manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
     assert manifest["validity"] == "invalid"
     reason = next(r for r in manifest["validity_reasons"] if "--drain-cmd" in r)
-    assert "exit code 3" in reason
+    assert "exit code 3" in reason and "instrument failure" in reason
     assert manifest["drain"]["returncode"] == 3
+    assert manifest["drain"]["outcome"] == "error"
+    assert manifest["drain"]["verified"] is False
     assert (run_dir / checksums.SUMS_FILENAME).is_file()
+
+
+def test_a_drain_that_exits_0_without_the_quiet_line_is_an_instrument_failure(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, drain=("noop", 0)
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["drain"]["outcome"] == "error"
+    reason = next(r for r in manifest["validity_reasons"] if "--drain-cmd" in r)
+    assert "exit code 0" in reason and "quiet line" in reason
+
+
+def test_a_drain_that_gave_up_is_a_valid_observation_of_failed_recovery(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F2: complete instrumentation, the drain reaches the helper's limit
+    (the STOP line on stderr, exit 1): outcome 'gave-up', recorded with a
+    warning, never a validity reason; the run is valid and sealed, and the
+    steps after the drain still run and are recorded."""
+    rc, run_dir, record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, drain=("gaveup", 1)
+    )
+    assert rc == 0
+    assert _step_lines(record)[3:6] == [
+        "drain drain.txt",
+        "post_drain events.post-drain.jsonl",
+        "snapshot twins.after.json",
+    ]
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    drain = manifest["drain"]
+    assert drain["outcome"] == "gave-up"
+    assert drain["returncode"] == 1 and drain["verified"] is True
+    assert "STOP: drained: no quiet window" in drain["stderr_tail"]
+    assert run_dir.joinpath(drain["stderr_file"]).read_text(encoding="utf-8").endswith(
+        DRAIN_GAVE_UP_LINE
+    )
+    (warning,) = [w for w in manifest["warnings"] if "failed recovery" in w]
+    assert "not observed quiet within the helper's limit" in warning
+    assert "retained" in warning
+    assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
+    assert (run_dir / checksums.SUMS_FILENAME).is_file()
+    assert checksums.verify_sha256sums(run_dir) == []
+    assert manifest["events_post_drain_fetch"]["verified"] is True
+    assert [s["file"] for s in manifest["twin_snapshots"]] == [
+        "twins.before.json",
+        "twins.after.json",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text, returncode, expected",
+    [
+        (DRAIN_QUIET_LINE, 0, "quiet"),
+        ("noise\n" + DRAIN_QUIET_LINE, 0, "quiet"),
+        (DRAIN_QUIET_LINE, None, "quiet"),
+        (DRAIN_GAVE_UP_LINE, 1, "gave-up"),
+        (DRAIN_GAVE_UP_LINE, None, "gave-up"),
+        (DRAIN_QUIET_LINE, 1, "error"),  # the exit code contradicts the line
+        (DRAIN_GAVE_UP_LINE, 0, "error"),
+        (DRAIN_GET_FAILED_LINE, 1, "error"),  # the helper's other stop
+        ("", 0, "error"),
+        ("", None, "error"),
+        (DRAIN_QUIET_LINE + DRAIN_GAVE_UP_LINE, None, "error"),  # both lines
+        ("  " + DRAIN_QUIET_LINE, 0, "error"),  # a prefix, not an indented copy
+    ],
+)
+def test_classify_drain_output(text, returncode, expected) -> None:
+    assert run_mod.classify_drain_output(text, returncode) == expected
+    assert expected in run_mod.DRAIN_OUTCOMES
 
 
 @pytest.mark.parametrize(
@@ -5375,6 +5571,25 @@ def test_collect_ingests_the_configuration_identity_and_reapplies_the_restart_re
     )
 
 
+EXTERNAL_EVIDENCE_CLI = [
+    "--twins-before-from",
+    "ev/before.json",
+    "--twins-after-from",
+    "ev/after.json",
+    "--post-drain-events-from",
+    "ev/events.post-drain.jsonl",
+    "--drain-transcript-from",
+    "ev/drained.txt",
+]
+
+EXTERNAL_EVIDENCE_KWARGS = {
+    "twins_before_from": "ev/before.json",
+    "twins_after_from": "ev/after.json",
+    "post_drain_events_from": "ev/events.post-drain.jsonl",
+    "drain_transcript_from": "ev/drained.txt",
+}
+
+
 def test_run_and_collect_cli_pass_the_item_18_flags_through(monkeypatch) -> None:
     from egw_experiments import cli
 
@@ -5410,6 +5625,7 @@ def test_run_and_collect_cli_pass_the_item_18_flags_through(monkeypatch) -> None
                 "post {dest}",
                 "--config-identity-from",
                 "identity.json",
+                *EXTERNAL_EVIDENCE_CLI,
             ]
         )
         == 0
@@ -5422,6 +5638,9 @@ def test_run_and_collect_cli_pass_the_item_18_flags_through(monkeypatch) -> None
     assert run_kwargs["drain_cmd"] == "drain {run_id}"
     assert run_kwargs["post_drain_fetch_cmd"] == "post {dest}"
     assert run_kwargs["config_identity_from"] == "identity.json"
+    for key, value in EXTERNAL_EVIDENCE_KWARGS.items():
+        assert run_kwargs[key] == value, key
+    assert "allow_missing_restart_evidence" not in run_kwargs
     assert (
         cli.main(
             [
@@ -5430,8 +5649,636 @@ def test_run_and_collect_cli_pass_the_item_18_flags_through(monkeypatch) -> None
                 "controller_restart-r01",
                 "--config-identity-from",
                 "identity.json",
+                *EXTERNAL_EVIDENCE_CLI,
             ]
         )
         == 0
     )
     assert seen["collect"]["config_identity_from"] == "identity.json"
+    for key, value in EXTERNAL_EVIDENCE_KWARGS.items():
+        assert seen["collect"][key] == value, key
+    assert "allow_missing_restart_evidence" not in seen["collect"]
+
+
+@pytest.mark.parametrize("command", ["run", "collect", "campaign"])
+def test_the_allow_missing_restart_evidence_flag_no_longer_exists(
+    command, monkeypatch, capsys
+) -> None:
+    """F6: missing restart evidence never qualifies through a flag."""
+    from egw_experiments import cli
+
+    argv = [command, "--allow-missing-restart-evidence"]
+    if command != "campaign":
+        argv[1:1] = ["--run-id", "controller_restart-r01"]
+    with pytest.raises(SystemExit) as exc:
+        cli.main(argv)
+    assert exc.value.code == 2
+    assert "--allow-missing-restart-evidence" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# F5: the collector window covers the before-snapshot's allowance
+# ---------------------------------------------------------------------------
+
+
+def _collector_window(plan_path: Path, run_id: str, *, snapshot: bool) -> int:
+    """The {duration_s} the start hook must receive: warm-up + measured run
+    + confirmation wait (0 in these tests) + margin, plus the snapshot's
+    allowance when a twin snapshot is configured."""
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    entry = next(r for r in plan["runs"] if r["run_id"] == run_id)
+    return (
+        int(entry.get("warmup_s") or 0)
+        + int(entry["duration_s"])
+        + 0
+        + run_mod.COLLECTOR_DURATION_MARGIN_S
+        + (int(run_mod.SNAPSHOT_TIMEOUT_S) if snapshot else 0)
+    )
+
+
+def _start_hook_duration(record: Path) -> int:
+    """The {duration_s} the fake start hook recorded (HOOK_SCRIPT)."""
+    line = next(
+        line for line in record.read_text(encoding="utf-8").splitlines()
+        if line.startswith("start ")
+    )
+    return int(line.split()[2])
+
+
+def test_the_collector_window_gains_the_snapshot_allowance_only_with_a_twin_snapshot(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F5: with --twin-snapshot-cmd the {duration_s} handed to the collector
+    start hook adds SNAPSHOT_TIMEOUT_S (= FETCH_TIMEOUT_S, the allowance the
+    before-snapshot may take between the collector start and the measured
+    run); without a snapshot it is unchanged."""
+    assert run_mod.SNAPSHOT_TIMEOUT_S == run_mod.FETCH_TIMEOUT_S
+    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path)
+    hooks = dict(
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        expect_services=SIX_SERVICES,
+        resources_from=None,
+    )
+    _rc, run_dir, _steps = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, **hooks
+    )
+    with_snapshot = _collector_window(plan_path, "controller_restart-r01", snapshot=True)
+    assert _start_hook_duration(record) == with_snapshot
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert f" {with_snapshot} " in manifest["collector_hooks"][0]["command"]
+    assert with_snapshot == _collector_window(
+        plan_path, "controller_restart-r01", snapshot=False
+    ) + int(run_mod.SNAPSHOT_TIMEOUT_S)
+
+    # Without a snapshot (a smoke run through the same hooks): unchanged.
+    record.unlink()
+    rc, run_dir, _record = _hooked_run(
+        tmp_path, plan_path, run_id="smoke_sequence-r01", base=tmp_path / "plain-results"
+    )
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    without = _collector_window(plan_path, "smoke_sequence-r01", snapshot=False)
+    assert f" {without} " in manifest["collector_hooks"][0]["command"]
+
+
+def test_a_slow_successful_before_snapshot_leaves_the_run_valid(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F5: a before-snapshot that takes its time (0.3 s here) under its own
+    SNAPSHOT_TIMEOUT_S allowance is a successful step: the run is valid, the
+    collector's CSV is ingested and covers the measured window, and the
+    snapshot ran under the explicit timeout. The fixtures fake the wall
+    clock, so the collector's real-time self-termination cannot be observed
+    here; the window arithmetic is asserted by the test above."""
+    record, start_tpl, stop_tpl, fetch_tpl = _collector_hooks(tmp_path)
+    rc, run_dir, steps = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        snapshot=("write+sleep:0.3", 0),
+        collector_start_cmd=start_tpl,
+        collector_stop_cmd=stop_tpl,
+        collector_fetch_cmd=fetch_tpl,
+        expect_services=SIX_SERVICES,
+        resources_from=None,
+    )
+    assert rc == 0
+    assert _step_lines(steps)[:2] == ["snapshot twins.before.json", "simulator -"]
+    assert _hook_labels(record) == ["start", "stop", "fetch"]
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["resource_source"] == "sut-collector"
+    assert (run_dir / "resources.csv").is_file()
+    before = manifest["twin_snapshots"][0]
+    assert before["verified"] is True
+    started = datetime.fromisoformat(before["started_utc"].replace("Z", "+00:00"))
+    finished = datetime.fromisoformat(before["finished_utc"].replace("Z", "+00:00"))
+    assert finished >= started
+    assert _start_hook_duration(record) == _collector_window(
+        plan_path, "controller_restart-r01", snapshot=True
+    )
+
+
+def test_the_twin_snapshot_hooks_run_under_the_snapshot_timeout(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    seen: list[tuple[str, float | None]] = []
+    real = run_mod.execute_collector_hook
+
+    def spy(hook, template, run_id, **kwargs):
+        seen.append((hook, kwargs.get("timeout_s")))
+        return real(hook, template, run_id, **kwargs)
+
+    monkeypatch.setattr(run_mod, "execute_collector_hook", spy)
+    rc, _run_dir, _record = _item18_run(tmp_path, plan_path, fast_run, monkeypatch)
+    assert rc == 0
+    timeouts = dict(seen)
+    assert timeouts["twin_snapshot_before"] == run_mod.SNAPSHOT_TIMEOUT_S
+    assert timeouts["twin_snapshot_after"] == run_mod.SNAPSHOT_TIMEOUT_S
+    assert timeouts["drain"] == run_mod.DRAIN_TIMEOUT_S
+
+
+# ---------------------------------------------------------------------------
+# F6: restart evidence taken outside the harness is ingested and VERIFIED
+# ---------------------------------------------------------------------------
+
+
+def _bare_restart_run(tmp_path: Path, plan_path: Path, fast_run, monkeypatch) -> tuple[Path, Path]:
+    """A controller_restart run with the restart, the log fetches and the
+    identity, but none of the restart evidence steps: invalid, sealed.
+    Returns (base, run_dir)."""
+    rc, run_dir, _record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        twin_snapshot_cmd=None,
+        drain_cmd=None,
+        post_drain_fetch_cmd=None,
+    )
+    assert rc == 1
+    base = run_dir.parent.parent
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    assert len(manifest["validity_reasons"]) == 4
+    assert (run_dir / checksums.SUMS_FILENAME).is_file()
+    return base, run_dir
+
+
+def _external_evidence(tmp_path: Path, plan_path: Path, run_id: str, *, drain: str = DRAIN_QUIET_LINE) -> dict[str, Path]:
+    seed = _plan_seed(plan_path, run_id)
+    return dict(
+        twins_before_from=_twins_file(tmp_path, "before", seed=seed),
+        twins_after_from=_twins_file(tmp_path, "after", seed=seed),
+        post_drain_events_from=_post_drain_events_file(tmp_path, run_id),
+        drain_transcript_from=_drain_transcript(tmp_path, drain),
+    )
+
+
+def test_collect_ingests_verified_external_restart_evidence_with_provenance(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F6: the run without hooks is invalid; 'collect' with the four files
+    taken by the runbook's helpers verifies each against this run, copies
+    it write-once under the hook's name, seals it and records its source
+    path and sha256; the run becomes valid."""
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    sealed = _sealed_names(run_dir)
+    assert checksums.verify_sha256sums(run_dir) == []
+
+    snapshots = manifest["twin_snapshots"]
+    assert [s["file"] for s in snapshots] == ["twins.before.json", "twins.after.json"]
+    for snap, key in zip(snapshots, ("twins_before_from", "twins_after_from")):
+        assert snap["source"] == "ingested"
+        assert snap["from"] == str(files[key])
+        assert snap["verified"] is True and snap["problems"] == []
+        assert snap["flag"] == run_mod.RESTART_EVIDENCE_FROM_FLAGS[snap["hook"]]
+        assert snap["sha256"] == checksums.sha256_file(run_dir / snap["file"])
+        assert snap["sha256"] == checksums.sha256_file(files[key])
+        assert snap["file"] in sealed
+        assert "returncode" not in snap
+
+    drain = manifest["drain"]
+    assert drain["source"] == "ingested"
+    assert drain["from"] == str(files["drain_transcript_from"])
+    assert drain["outcome"] == "quiet" and drain["verified"] is True
+    assert drain["file"] == "logs/sut/drain.txt"
+    assert drain["sha256"] == checksums.sha256_file(run_dir / "logs" / "sut" / "drain.txt")
+    assert "logs/sut/drain.txt" in sealed
+    assert (run_dir / "logs" / "sut" / "drain.txt").read_text(encoding="utf-8") == DRAIN_QUIET_LINE
+
+    post_drain = manifest["events_post_drain_fetch"]
+    assert post_drain["source"] == "ingested"
+    assert post_drain["from"] == str(files["post_drain_events_from"])
+    assert post_drain["verified"] is True and post_drain["problems"] == []
+    assert post_drain["file"] == "events.post-drain.jsonl"
+    assert post_drain["sha256"] == checksums.sha256_file(run_dir / "events.post-drain.jsonl")
+    assert "events.post-drain.jsonl" in sealed
+    # The harness copy of the events is untouched.
+    assert (run_dir / "events.jsonl").read_text(encoding="utf-8") == (
+        "events content for controller_restart-r01\n"
+    )
+    added = [f for entry in manifest["collection_history"] for f in entry["added_files"]]
+    assert set(added) >= {
+        "twins.before.json",
+        "twins.after.json",
+        "events.post-drain.jsonl",
+        "logs/sut/drain.txt",
+    }
+    actions = " ".join(manifest["collect_history"][-1]["actions"])
+    assert "twins.before.json" in actions and "drain.txt" in actions
+
+    # Idempotent: the same files again are no-ops and the run stays valid.
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
+    assert checksums.verify_sha256sums(run_dir) == []
+    # A different snapshot for the same file is refused (write-once).
+    other = _twins_file(
+        tmp_path, "before", seed=_plan_seed(plan_path, "controller_restart-r01"),
+        name="other.before.json", devices={"c" * 8: {"device_type": "vest", "exists": False, "ingestion": {}}},
+    )
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, twins_before_from=other) == 2
+
+
+def test_collect_refuses_a_post_drain_events_file_of_another_run(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files["post_drain_events_from"] = _post_drain_events_file(
+        tmp_path,
+        "controller_restart-r02",
+        name="wrong-run.jsonl",
+    )
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "invalid"
+    (reason,) = manifest["validity_reasons"]
+    assert "--post-drain-events-from" in reason and "refused" in reason
+    assert "'controller_restart-r02'" in reason and "'controller_restart-r01'" in reason
+    post_drain = manifest["events_post_drain_fetch"]
+    assert post_drain["source"] == "ingested" and post_drain["verified"] is False
+    assert post_drain["sha256"] is None
+    assert any("controller_restart-r02" in p for p in post_drain["problems"])
+    # Nothing of the wrong run enters the evidence: the file is not copied.
+    assert not (run_dir / "events.post-drain.jsonl").exists()
+    assert "events.post-drain.jsonl" not in _sealed_names(run_dir)
+    assert checksums.verify_sha256sums(run_dir) == []
+    # The other three were ingested and stay in place.
+    assert (run_dir / "twins.before.json").is_file()
+    assert (run_dir / "logs" / "sut" / "drain.txt").is_file()
+    assert "REFUSED" in " ".join(manifest["warnings"])
+    err = capsys.readouterr().err
+    assert "INVALID" in err and "controller_restart-r02" in err
+
+    # The right file afterwards makes the run valid: a refusal blocks nothing.
+    files["post_drain_events_from"] = _post_drain_events_file(tmp_path, "controller_restart-r01")
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["events_post_drain_fetch"]["verified"] is True
+
+
+@pytest.mark.parametrize(
+    "key, expected",
+    [
+        ("twins_before_from", "--twins-before-from"),
+        ("twins_after_from", "--twins-after-from"),
+        ("post_drain_events_from", "--post-drain-events-from"),
+        ("drain_transcript_from", "--drain-transcript-from"),
+    ],
+)
+def test_collect_names_a_missing_external_file_as_a_reason(
+    tmp_path, plan_path, fast_run, monkeypatch, key, expected
+) -> None:
+    base, _run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    files[key] = tmp_path / "absent-file"
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    (reason,) = manifest["validity_reasons"]
+    assert expected in reason and "absent-file" in reason and "not found" in reason
+    assert any(expected in w and "not found" in w for w in manifest["warnings"])
+
+
+def test_collect_ingests_a_gave_up_transcript_without_requiring_the_after_evidence(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """F2 + F6: a `drained` that gave up is a failed recovery, retained: with
+    the before snapshot and the transcript alone the run is valid,
+    drain.outcome is 'gave-up', and the after snapshot and the post-drain
+    events are not required (a warning says why)."""
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    rc = run_mod.collect_run(
+        "controller_restart-r01",
+        base_dir=base,
+        plan_path=plan_path,
+        twins_before_from=_twins_file(tmp_path, "before", seed=seed),
+        drain_transcript_from=_drain_transcript(tmp_path, DRAIN_GAVE_UP_LINE),
+    )
+    assert rc == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    drain = manifest["drain"]
+    assert drain["outcome"] == "gave-up" and drain["source"] == "ingested"
+    assert drain["verified"] is True
+    assert [s["file"] for s in manifest["twin_snapshots"]] == ["twins.before.json"]
+    assert manifest["events_post_drain_fetch"] is None
+    (warning,) = [w for w in manifest["warnings"] if "failed recovery" in w]
+    assert "twins.after.json" in warning and "events.post-drain.jsonl" in warning
+    assert "not required" in warning
+    assert "logs/sut/drain.txt" in _sealed_names(run_dir)
+    # A second collect pass does not stack the warning.
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path) == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert len([w for w in manifest["warnings"] if "failed recovery" in w]) == 1
+
+
+@pytest.mark.parametrize(
+    "text, problem",
+    [
+        (DRAIN_GET_FAILED_LINE, "quiet line"),
+        ("", "quiet line"),
+        (DRAIN_QUIET_LINE + DRAIN_GAVE_UP_LINE, "both"),
+    ],
+)
+def test_collect_refuses_a_transcript_without_the_helper_lines(
+    tmp_path, plan_path, fast_run, monkeypatch, text, problem
+) -> None:
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01", drain=text)
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    (reason,) = manifest["validity_reasons"]
+    assert "--drain-transcript-from" in reason and problem in reason
+    assert manifest["drain"]["outcome"] == "error"
+    assert manifest["drain"]["verified"] is False
+    assert not (run_dir / "logs" / "sut" / "drain.txt").exists()
+
+
+def test_collect_refuses_a_snapshot_of_another_label_or_seed(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    base, run_dir = _bare_restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    # An 'after' file handed in as the before snapshot; a before snapshot of
+    # another seed handed in as the after one.
+    files["twins_before_from"] = _twins_file(tmp_path, "after", seed=seed, name="mislabelled.json")
+    files["twins_after_from"] = _twins_file(tmp_path, "after", seed=seed + 1, name="other-seed.json")
+    rc = run_mod.collect_run(
+        "controller_restart-r01", base_dir=base, plan_path=plan_path, **files
+    )
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    reasons = manifest["validity_reasons"]
+    assert len(reasons) == 2
+    before = next(r for r in reasons if "--twins-before-from" in r)
+    assert "label must be 'before'" in before and "'after'" in before
+    after = next(r for r in reasons if "--twins-after-from" in r)
+    assert f"seed {seed + 1}" in after and f"{seed}" in after
+    assert not (run_dir / "twins.before.json").exists()
+    assert not (run_dir / "twins.after.json").exists()
+    # A snapshot whose seed is null is accepted (the helper's `--like` form).
+    files["twins_before_from"] = _twins_file(tmp_path, "before", name="no-seed-before.json")
+    files["twins_after_from"] = _twins_file(tmp_path, "after", name="no-seed-after.json")
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **files) == 0
+
+
+@pytest.mark.parametrize(
+    "document, problem",
+    [
+        ([], "not an object"),
+        ({"label": "before", "seed": None}, "devices must be a JSON object"),
+        ({"label": "before", "seed": None, "devices": []}, "devices must be a JSON object"),
+        ({"label": "before", "seed": None, "devices": {}}, "no device"),
+        ({"label": "after", "seed": None, "devices": {"x": {}}}, "label must be 'before'"),
+        ({"label": "before", "seed": 8, "devices": {"x": {}}}, "seed 8"),
+    ],
+)
+def test_twin_snapshot_problems(document, problem) -> None:
+    problems = run_mod.twin_snapshot_problems(document, label="before", seed=7)
+    assert problems and any(problem in p for p in problems), problems
+    assert run_mod.twin_snapshot_problems(
+        {"label": "before", "seed": 7, "devices": {"x": {}}}, label="before", seed=7
+    ) == []
+    assert run_mod.twin_snapshot_problems(
+        {"label": "before", "seed": None, "devices": {"x": {}}}, label="before", seed=7
+    ) == []
+
+
+@pytest.mark.parametrize(
+    "lines, problem",
+    [
+        ([], "no event record"),
+        ([""], "no event record"),
+        (["not json"], "line 1 is not JSON"),
+        (["[]"], "line 1 is not a JSON object"),
+        ([{"run_id": "other", "outcome": "accepted"}], "belongs to run 'other'"),
+        ([{"run_id": "r1", "outcome": "lost"}], "outcome 'lost'"),
+        ([{"run_id": "r1"}], "outcome None"),
+        ([{"run_id": "r1", "outcome": "accepted"}, {"run_id": "r1", "outcome": "dropped"}], "line 2"),
+    ],
+)
+def test_post_drain_events_problems(tmp_path, lines, problem) -> None:
+    path = _post_drain_events_file(tmp_path, "r1", lines=lines)
+    problems = run_mod.post_drain_events_problems(path, "r1")
+    assert problems and any(problem in p for p in problems), problems
+    good = _post_drain_events_file(
+        tmp_path,
+        "r1",
+        name="good.jsonl",
+        lines=[{"run_id": "r1", "outcome": o} for o in ("accepted", "rejected", "duplicate", "failed")],
+    )
+    assert run_mod.post_drain_events_problems(good, "r1") == []
+
+
+def test_post_drain_events_problems_are_bounded(tmp_path) -> None:
+    path = _post_drain_events_file(
+        tmp_path, "r1", lines=[{"run_id": "other", "outcome": "accepted"}] * 50
+    )
+    problems = run_mod.post_drain_events_problems(path, "r1")
+    assert len(problems) <= 6 and problems[-1].startswith("further lines not checked")
+
+
+def test_run_ingests_external_restart_evidence_in_place_of_the_hooks(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The four --*-from flags work on 'run' as well: the before snapshot is
+    ingested where the hook would take it, the others after the drain
+    point; a valid set makes the run valid at run time."""
+    files = _external_evidence(tmp_path, plan_path, "controller_restart-r01")
+    rc, run_dir, record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        twin_snapshot_cmd=None,
+        drain_cmd=None,
+        post_drain_fetch_cmd=None,
+        **files,
+    )
+    assert rc == 0
+    assert _step_lines(record) == [
+        "simulator -",
+        "events events.jsonl",
+        "broker_log broker.log",
+        "controller_log controller.log",
+        "docker_events docker-events.log",
+    ]
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert manifest["validity"] == "valid"
+    assert [s["source"] for s in manifest["twin_snapshots"]] == ["ingested", "ingested"]
+    assert manifest["drain"]["source"] == "ingested" and manifest["drain"]["outcome"] == "quiet"
+    assert manifest["events_post_drain_fetch"]["source"] == "ingested"
+    cli = manifest["config"]["cli"]
+    for key, path in files.items():
+        assert cli[key] == str(path)
+    sealed = _sealed_names(run_dir)
+    for name in ("twins.before.json", "twins.after.json", "events.post-drain.jsonl", "logs/sut/drain.txt"):
+        assert name in sealed
+
+
+@pytest.mark.parametrize(
+    "hook, from_key, from_flag",
+    [
+        ("twin_snapshot_cmd", "twins_before_from", "--twins-before-from"),
+        ("twin_snapshot_cmd", "twins_after_from", "--twins-after-from"),
+        ("drain_cmd", "drain_transcript_from", "--drain-transcript-from"),
+        ("post_drain_fetch_cmd", "post_drain_events_from", "--post-drain-events-from"),
+    ],
+)
+def test_a_hook_and_a_file_for_the_same_artefact_are_refused_before_anything_is_written(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys, hook, from_key, from_flag
+) -> None:
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, **{from_key: tmp_path / "x"}
+    )
+    assert rc == 2
+    assert not run_dir.exists()
+    err = capsys.readouterr().err
+    assert from_flag in err and "mutually exclusive" in err
+    assert "--" + hook.replace("_", "-") in err
+
+
+def test_collect_cannot_replace_a_hooks_record_with_an_external_file(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    """A step taken by a hook at run time is a run-time measurement: an
+    external file for the same artefact is refused (exit 2), whether the
+    hook succeeded or failed."""
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, drain=("noop", 3)
+    )
+    assert rc == 1
+    base = run_dir.parent.parent
+    seed = _plan_seed(plan_path, "controller_restart-r01")
+    for kwargs, flag in (
+        ({"drain_transcript_from": _drain_transcript(tmp_path, DRAIN_QUIET_LINE)}, "--drain-transcript-from"),
+        ({"twins_before_from": _twins_file(tmp_path, "before", seed=seed)}, "--twins-before-from"),
+        ({"post_drain_events_from": _post_drain_events_file(tmp_path, "controller_restart-r01")}, "--post-drain-events-from"),
+    ):
+        assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path, **kwargs) == 2
+        err = capsys.readouterr().err
+        assert flag in err and "hook" in err
+    manifest = _manifest(base, "controller_restart-r01")
+    assert manifest["drain"]["source"] == "hook" and manifest["drain"]["outcome"] == "error"
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_a_post_drain_fetch_hook_that_delivers_another_runs_events_is_a_reason(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The hook's output is verified like an ingested file."""
+    rc, run_dir, _record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, post_drain=("write+run:other-run", 0)
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    (reason,) = manifest["validity_reasons"]
+    assert "--post-drain-fetch-cmd" in reason and "'other-run'" in reason
+    post_drain = manifest["events_post_drain_fetch"]
+    assert post_drain["ok"] is True and post_drain["verified"] is False
+
+
+def test_external_evidence_flags_are_ignored_with_a_warning_on_other_conditions(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    files = _external_evidence(tmp_path, plan_path, "smoke_sequence-r01")
+    rc, run_dir, _record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        run_id="smoke_sequence-r01",
+        restart_cmd=None,
+        restart_at_s=None,
+        twin_snapshot_cmd=None,
+        drain_cmd=None,
+        post_drain_fetch_cmd=None,
+        **files,
+    )
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert manifest["twin_snapshots"] == [] and manifest["drain"] is None
+    assert not (run_dir / "twins.before.json").exists()
+    ignored = " ".join(w for w in manifest["warnings"] if "controller_restart" in w)
+    for flag in run_mod.RESTART_EVIDENCE_FROM_FLAGS.values():
+        assert flag in ignored
+    # The same on 'collect'.
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01", base_dir=run_dir.parent.parent, plan_path=plan_path, **files
+    )
+    assert rc == 0
+    manifest = _manifest(run_dir.parent.parent, "smoke_sequence-r01")
+    assert manifest["twin_snapshots"] == [] and not (run_dir / "twins.after.json").exists()
+
+
+def test_collect_drops_the_retired_flag_and_deviation_from_an_older_manifest(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A manifest written before F6 may carry the retired key and deviation
+    kind; 'collect' rewrites it under the current rules: the flag excuses
+    nothing, and a hook drain record without an outcome is classified from
+    the output the hook kept."""
+    rc, run_dir, _record = _item18_run(tmp_path, plan_path, fast_run, monkeypatch)
+    assert rc == 0
+    base = run_dir.parent.parent
+    path = run_dir / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["allow_missing_restart_evidence"] = True
+    manifest["config"]["cli"]["allow_missing_restart_evidence"] = True
+    manifest["deviations"].append(
+        {"kind": "missing_restart_evidence", "detail": "x", "authorized_by_flag": "--allow-missing-restart-evidence"}
+    )
+    for key in ("outcome", "source", "verified"):
+        manifest["drain"].pop(key)
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    checksums.write_sha256sums(run_dir)
+    assert run_mod.collect_run("controller_restart-r01", base_dir=base, plan_path=plan_path) == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert "allow_missing_restart_evidence" not in manifest
+    assert "allow_missing_restart_evidence" not in manifest["config"]["cli"]
+    assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
+    assert manifest["drain"]["outcome"] == "quiet" and manifest["drain"]["source"] == "hook"
+    assert manifest["validity"] == "valid"

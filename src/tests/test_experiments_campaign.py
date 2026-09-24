@@ -913,6 +913,16 @@ ITEM18_RESTART_FLAGS = {
     "restart_at_s": 15.0,
 }
 
+#: The restart evidence taken outside the harness (F6), addressed per run
+#: like --resources-from and --config-identity-from; it reaches ONLY the
+#: controller_restart runs, as the restart hooks do.
+ITEM18_RESTART_FILES = {
+    "twins_before_from": "evidence/{run_id}.twins.before.json",
+    "twins_after_from": "evidence/{run_id}.twins.after.json",
+    "post_drain_events_from": "evidence/{run_id}.events.post-drain.jsonl",
+    "drain_transcript_from": "evidence/{run_id}.drained.txt",
+}
+
 
 def _add_restart_entry(plan_path: Path) -> None:
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
@@ -942,6 +952,7 @@ def test_campaign_passes_the_item_18_flags_and_gates_the_restart_steps(
         config_identity_from=identity_template,
         **ITEM18_RUN_FLAGS,
         **ITEM18_RESTART_FLAGS,
+        **ITEM18_RESTART_FILES,
     )
     assert rc == 0
     assert set(seen) == {*SIM_RUN_IDS, RESTART_RUN_ID}
@@ -955,6 +966,11 @@ def test_campaign_passes_the_item_18_flags_and_gates_the_restart_steps(
         restart = run_id == RESTART_RUN_ID
         for key, value in ITEM18_RESTART_FLAGS.items():
             assert kwargs[key] == (value if restart else None), (run_id, key)
+        # The external restart evidence: {run_id} substituted, restart runs only.
+        for key, template in ITEM18_RESTART_FILES.items():
+            expected = template.replace("{run_id}", run_id) if restart else None
+            assert kwargs[key] == expected, (run_id, key)
+        assert "allow_missing_restart_evidence" not in kwargs
 
 
 def test_cli_campaign_passes_the_item_18_flags_through(monkeypatch) -> None:
@@ -982,11 +998,18 @@ def test_cli_campaign_passes_the_item_18_flags_through(monkeypatch) -> None:
             "post {dest}",
             "--config-identity-from",
             "identity-{run_id}.json",
-            "--allow-missing-restart-evidence",
+            "--twins-before-from",
+            "ev/{run_id}.twins.before.json",
+            "--twins-after-from",
+            "ev/{run_id}.twins.after.json",
+            "--post-drain-events-from",
+            "ev/{run_id}.events.post-drain.jsonl",
+            "--drain-transcript-from",
+            "ev/{run_id}.drained.txt",
         ]
     )
     assert rc == 0
-    assert seen["allow_missing_restart_evidence"] is True
+    assert "allow_missing_restart_evidence" not in seen
     assert seen["fetch_broker_log_cmd"] == "broker {dest}"
     assert seen["fetch_controller_log_cmd"] == "controller {dest}"
     assert seen["fetch_docker_events_cmd"] == "events {dest}"
@@ -994,3 +1017,16 @@ def test_cli_campaign_passes_the_item_18_flags_through(monkeypatch) -> None:
     assert seen["drain_cmd"] == "drain {run_id}"
     assert seen["post_drain_fetch_cmd"] == "post {dest}"
     assert seen["config_identity_from"] == "identity-{run_id}.json"
+    assert seen["twins_before_from"] == "ev/{run_id}.twins.before.json"
+    assert seen["twins_after_from"] == "ev/{run_id}.twins.after.json"
+    assert seen["post_drain_events_from"] == "ev/{run_id}.events.post-drain.jsonl"
+    assert seen["drain_transcript_from"] == "ev/{run_id}.drained.txt"
+
+
+def test_cli_campaign_refuses_the_retired_allow_missing_restart_evidence_flag(
+    capsys,
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["campaign", "--allow-missing-restart-evidence"])
+    assert exc.value.code == 2
+    assert "--allow-missing-restart-evidence" in capsys.readouterr().err
