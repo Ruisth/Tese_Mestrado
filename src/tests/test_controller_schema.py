@@ -108,6 +108,28 @@ def test_missing_device_type_rejected(repository: SchemaRepository) -> None:
         repository.validate(payload)
 
 
+@pytest.mark.parametrize(
+    "device_type",
+    [[], {}, 42, None, True, 1.5],
+    ids=["list", "object", "int", "null", "bool", "float"],
+)
+def test_non_string_device_type_rejected(
+    repository: SchemaRepository, device_type: Any
+) -> None:
+    """A non-string ``device_type`` fails validation with a message naming its type.
+
+    A JSON array or object here used to escape the validator lookup as a
+    ``TypeError`` (unhashable) and left the delivery without an outcome line
+    (ADR 0011, item 6). The check is on the type, before the lookup, so the
+    message says what was wrong rather than "unknown device_type []".
+    """
+    payload = make_payload("smartwatch")
+    payload["device_type"] = device_type
+    with pytest.raises(SchemaValidationError, match="device_type") as excinfo:
+        repository.validate(payload)
+    assert type(device_type).__name__ in str(excinfo.value)
+
+
 @pytest.mark.parametrize("payload", [None, 42, "text", ["list"]])
 def test_non_object_payload_rejected(
     repository: SchemaRepository, payload: Any
