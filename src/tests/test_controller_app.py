@@ -852,6 +852,73 @@ async def test_a_cancelled_consumer_leaves_the_app_not_ready_and_shutdown_still_
     assert order == ["bridge.stop", "ditto.aclose", "events.close"]
 
 
+async def test_a_cancelled_shutdown_cleans_up_and_still_propagates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """F3b: the shutdown task is cancelled while it awaits a live
+    pipeline; the bridge, Ditto and the event log are still cleaned up,
+    and the cancellation reaches the shutdown's caller instead of being
+    swallowed."""
+    import egw_controller.app as app_module
+    from egw_controller.ditto import DittoClient
+
+    order: list[str] = []
+    hold = asyncio.Event()
+
+    class HoldingService(ControllerService):
+        async def run(self) -> None:
+            # A consumer that does not return on stop(): the shutdown
+            # awaits it until it is cancelled from outside.
+            try:
+                await hold.wait()
+            finally:
+                order.append("pipeline.exit")
+
+    class RecordingEvents(EventLogger):
+        def close(self) -> None:
+            order.append("events.close")
+            super().close()
+
+    class RecordingDitto(DittoClient):
+        async def aclose(self) -> None:
+            order.append("ditto.aclose")
+            await super().aclose()
+
+    monkeypatch.setattr("egw_controller.mqtt.MqttBridge", _RecordingBridge)
+    monkeypatch.setattr(app_module, "ControllerService", HoldingService)
+    monkeypatch.setattr(app_module, "EventLogger", RecordingEvents)
+    monkeypatch.setattr(app_module, "DittoClient", RecordingDitto)
+    monkeypatch.setattr(app_module, "configure_logging", lambda: None)
+    monkeypatch.setenv("EGW_MQTT_TLS", "false")
+    monkeypatch.setenv("EGW_SCHEMA_DIR", str(SCHEMA_DIR))
+    monkeypatch.setenv("EGW_EVENT_LOG_DIR", str(tmp_path))
+    _RecordingBridge.instances.clear()
+    _RecordingBridge.order = order
+
+    app = app_module.create_app_from_env()
+
+    async def run_then_shut_down() -> None:
+        async with app.router.lifespan_context(app):
+            order.append("running")
+
+    shutdown = asyncio.create_task(run_then_shut_down())
+    for _ in range(200):
+        if "running" in order:
+            break
+        await asyncio.sleep(0.01)
+    assert "running" in order
+    await asyncio.sleep(0.05)  # the shutdown is now awaiting the pipeline
+    shutdown.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shutdown
+    assert shutdown.cancelled()
+    assert order[order.index("pipeline.exit") + 1:] == [
+        "bridge.stop",
+        "ditto.aclose",
+        "events.close",
+    ]
+
+
 async def test_create_app_from_env_wires_the_bridge_and_stops_in_order(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

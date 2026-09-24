@@ -1899,8 +1899,9 @@ test and none changes a count, a threshold or a stop rule of the proof.
   written verbatim only when of their documented type (a mistyped one is an
   empty cell counted as invalid); the three log fetches run last, after the
   drain, so they cover it; a fetch or snapshot that exits 0 without its file
-  is a validity reason, as is a drain that gives up (`--drain-cmd` bounded
-  at 1,800 s, twice the helper's own limit); `twins.before.json` is taken
+  is a validity reason; a drain that gives up is not — it is the valid
+  observation of a failed recovery stated below (`--drain-cmd` bounded at
+  1,800 s, twice the helper's own limit); `twins.before.json` is taken
   after the warm-up; `--config-identity-from` is also accepted by `collect`
   and may carry `{run_id}` in a campaign; the manifest keys are
   `sut_log_fetches`, `twin_snapshots`, `drain`, `events_post_drain_fetch`,

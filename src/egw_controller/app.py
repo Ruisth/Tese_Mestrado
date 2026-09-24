@@ -203,12 +203,17 @@ def create_app_from_env() -> FastAPI:
             try:
                 await pipeline_task
             except asyncio.CancelledError:
-                if not pipeline_task.cancelled():
-                    # The shutdown itself was cancelled: it propagates
-                    # after the clean-up below.
+                # Awaiting a task that is cancelled raises here, and so
+                # does a cancellation of this shutdown itself — which
+                # cancels the awaited pipeline too, so the pipeline's
+                # state cannot tell the two apart. The shutdown's own
+                # cancellation is pending on the current task and
+                # propagates after the clean-up below; a pipeline
+                # cancelled earlier (A1's second exception; the bridge
+                # is halted) is logged and the shutdown goes on.
+                current = asyncio.current_task()
+                if current is not None and current.cancelling():
                     raise
-                # The consumer had been cancelled earlier (A1's second
-                # exception; the bridge is halted): the shutdown goes on.
                 logger.error(
                     "the consumer had been cancelled before shutdown; "
                     "nothing was consumed since"

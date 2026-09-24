@@ -714,6 +714,77 @@ async def test_a_cancelled_consumer_halts_the_bridge(
     bridge.stop()
 
 
+async def test_a_consumer_cancelled_after_an_end_request_halts_without_a_new_occurrence(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """F3a: acknowledgement was already closed by an earlier end request
+    when the consumer is cancelled, before the socket closed: no new A5
+    occurrence, the interrupted delivery is not acknowledged, and the
+    supervisor does not reconnect — with no consumer, a reconnection would
+    only receive deliveries nothing consumes."""
+    gate = threading.Event()
+
+    def slow_backoff(occurrence: int) -> float:
+        gate.wait(5)  # hold the supervisor before it reconnects
+        return 0.0
+
+    settings = Settings.from_env({"EGW_MQTT_TLS": "false"})
+    received: list[InboundMessage] = []
+    client = FakePahoClient()
+    bridge = MqttBridge(
+        settings, received.append, client=client,  # type: ignore[arg-type]
+        backoff_s=slow_backoff, end_bound=10,
+    )
+    bridge.start()
+    connect_and_grant(client)
+    deliver(client, message_for(mid=7, qos=1))
+    await asyncio.sleep(0)
+    (delivery,) = received
+    with caplog.at_level(logging.INFO, logger=MQTT_LOGGER):
+        assert bridge.end_connection("no-outcome-line", delivery) == 1
+        await until(lambda: client.count("loop_stop") == 1)
+        # The consumer is cancelled while the supervisor sits in the
+        # back-off of that first end.
+        assert bridge.end_connection("consumer-cancelled", delivery) is None
+        assert bridge.ack(delivery) is False
+        gate.set()
+        await until(
+            lambda: "MQTT consumer gone; staying disconnected" in caplog.text
+        )
+        await asyncio.sleep(0.05)
+    assert [end["occurrence"] for end in _ends(caplog)] == [1]
+    assert client.count("connect_async") == 1  # no reconnection
+    assert client.acks == []
+    assert bridge.connected is False
+    bridge.stop()
+
+
+async def test_a_consumer_cancelled_after_a_completed_reconnection_disconnects_again(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """F3a: the end request already reconnected the bridge when the
+    consumer is cancelled on the new connection: the bridge disconnects
+    and stays down."""
+    bridge, client, _ = make_bridge()
+    bridge.start()
+    connect_and_grant(client)
+    with caplog.at_level(logging.ERROR, logger=MQTT_LOGGER):
+        bridge.end_connection("no-outcome-line", None)
+        await until(lambda: client.count("loop_start") == 2)
+        socket_close(client)
+        connect_and_grant(client)
+        assert bridge.connected is True
+        assert bridge.end_connection("consumer-cancelled", None) == 2
+        await until(
+            lambda: "MQTT consumer gone; staying disconnected" in caplog.text
+        )
+        await asyncio.sleep(0.05)
+    assert client.count("connect_async") == 2
+    assert client.calls[-2:] == ["disconnect", "loop_stop"]
+    assert bridge.connected is False
+    bridge.stop()
+
+
 async def test_backoff_grows_with_the_occurrence_and_is_capped() -> None:
     from egw_controller.mqtt import default_backoff_s
 

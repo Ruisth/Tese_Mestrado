@@ -419,8 +419,11 @@ class MqttBridge:
             connection = self._conn
             if cause != "stop" and was_open:
                 self._ends_in_a_row += 1
-                if cause == "consumer-cancelled":
-                    self._halted = True
+            if cause == "consumer-cancelled":
+                # The consumer is gone whatever the connection's state:
+                # the supervisor must not reconnect, even if an earlier
+                # end request already closed acknowledgement here.
+                self._halted = True
             occurrence = self._ends_in_a_row
         if cause != "stop" and not was_open:
             logger.info(
@@ -434,6 +437,11 @@ class MqttBridge:
                     }
                 },
             )
+            if cause == "consumer-cancelled":
+                # No new occurrence, but the supervisor is woken so that
+                # a reconnection already under way, or completed, is
+                # undone: nothing consumes any more.
+                self._signal.set()
             return None
         # The ended connection's queued deliveries are retired now, not only
         # at the socket close: the consumer must not advance the twin or
@@ -510,6 +518,15 @@ class MqttBridge:
             return
         delay = self._backoff_s(occurrence)
         if delay > 0 and self._stopping.wait(delay):
+            return
+        with self._state_lock:
+            halted = self._halted
+        if halted:
+            # The consumer was cancelled during the back-off.
+            logger.error(
+                "MQTT consumer gone; staying disconnected",
+                extra={"context": context},
+            )
             return
         self._client.connect_async(
             self._settings.mqtt_host, self._settings.mqtt_port, keepalive=_KEEPALIVE_S
