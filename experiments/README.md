@@ -537,10 +537,15 @@ rests on; the named N1 cases with their source and the twin's surplus; the
 report by class of identity) and `restoration` (echoed from the driver's
 session facts). Where a criterion needs a rule to become code, the rule is
 stated in the document, labelled with its flag (`P-1` to `P-7`, `E-1` to
-`E-7`), and is conservative: what cannot be shown is never read as support,
-and a refutation rests only on evidence that was read and verified (a
-post-drain copy or a twin snapshot that is absent, unverified or unreadable
-leaves the criteria that depend on it null and the run inconclusive).
+`E-8`), and is conservative: what cannot be shown is never read as support,
+and a refutation rests only on evidence that was read and verified (`E-7`: a
+post-drain copy, a twin snapshot or the controller log that is absent,
+unverified or unreadable leaves the criteria that depend on it null and the
+run inconclusive; `E-8`: a duplicate-only identity whose line was received
+at or inside the controller-clock band between the last pre-kill and the
+first post-kill reading can be shown neither in progress at the kill nor
+not, so it is neither a named N1 case nor R3, its device is undecided for
+S5/R4, and the run is inconclusive on that ground, never refuted).
 No timestamp enters the document, so repeated runs are byte-identical; the
 run directory is never written to; exit codes 0 supports, 1 refutes, 3
 inconclusive, 2 not evaluated (an input unreadable, a seal that fails, a rule

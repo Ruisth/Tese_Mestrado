@@ -6,13 +6,15 @@ session, and writes one verdict document with three sections never merged.
 These cases pin: every rule text to the ADR (read when the test runs, so a
 later edit of the ADR is tested as it is); the readings in file order with
 empty cells read as absent, never zero; each identification rule the design
-flags (P-1 to P-7, E-1 to E-7) on a small in-memory scenario (three
+flags (P-1 to P-7, E-1 to E-8) on a small in-memory scenario (three
 devices, one kill on the controller clock, a host anchor for the report);
 the precedence of an observed refutation, and that a refutation is never
-recorded on evidence that was not read (E-7); the CLI's exit codes; and, last,
-the loader against a run directory the harness itself built with the
-fixtures of test_experiments_run (the fake simulator and the recorded
-item-18 hooks: no broker, no docker, no network).
+recorded on evidence that was not read (E-7) nor on a duplicate line inside
+the sampling band around the kill (E-8); the CLI's exit codes; the loader
+against a run directory the harness itself built with the fixtures of
+test_experiments_run (the fake simulator and the recorded item-18 hooks: no
+broker, no docker, no network); and, in the section after test 22, the
+branch review's findings, each with the mutation it must catch.
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -995,6 +997,369 @@ def test_r4_last_seq_regression_within_the_run_and_against_the_before_snapshot()
     assert r4["evidence"]["last_seq_regressions"][0]["device_uuid"] == D4
     assert "below the before snapshot's 9" in r4["evidence"]["last_seq_regressions"][0]["regressed"]
     assert "P-5" in r4["identification_rules"]
+
+
+# ---------------------------------------------------------------------------
+# 22a-22i. the branch review's findings: E-8, E-7 over the controller log and
+# an unverified twin, S5's equality, E-4, P-4's record, P-1's file order
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "received", [K_UPPER, (K_LOWER + K_UPPER) // 2, K_LOWER], ids=["upper-bound", "inside", "lower-bound"]
+)
+def test_a_duplicate_only_line_in_the_sampling_band_cannot_be_shown_and_never_refutes(received: int) -> None:
+    """E-8: the identity and twin evidence of test 16 (B in progress at the
+    kill, surplus 1, last_seq 1), with its redelivered duplicate line
+    written at or inside the controller-clock band between the last
+    pre-kill and the first post-kill reading, where the 1 Hz poll cannot
+    place the kill. Whether it was in progress at the kill cannot be shown
+    from such a reading, so it is neither named nor R3, its device is
+    undecided for S5/R4 and the run is inconclusive, never refuted; one
+    nanosecond above the band the same evidence names the case (test 16)."""
+    lines = [line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", received, None)]
+    twin = {D1: 1, "seqs": [(D1, 1)]}
+    doc = _evaluate(lines=lines, extra_after=twin)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert outcome["n1_cases"] == []
+    for rule_id in ("S4", "S5"):
+        assert _criterion(doc, rule_id)["holds"] is None, rule_id
+    for rule_id in ("R3", "R4"):
+        assert _criterion(doc, rule_id)["observed"] is None, rule_id
+    r3 = _criterion(doc, "R3")
+    assert r3["evidence"]["not_named_identities"] == []
+    shown = r3["evidence"]["cannot_show_identities"]
+    assert [c["message_id"] for c in shown] == ["b-mid"] and shown[0]["class"] == "ambiguous"
+    why = shown[0]["why_not_shown"]
+    assert "cannot be shown" in why and "(E-8)" in why and "the restart class" not in why
+    assert str(K_LOWER) in why and str(K_UPPER) in why and str(received) in why
+    assert "E-8" in r3["identification_rules"]
+    r4 = _criterion(doc, "R4")
+    assert "E-8" in r4["identification_rules"]
+    assert r4["evidence"]["mismatches"] == [] and r4["evidence"]["surplus_unexplained"] == []
+    assert r4["evidence"]["undecided"] == [{"device_uuid": D1, "rule": "E-8", "why": why, "message_ids": ["b-mid"]}]
+    row = next(row for row in r4["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert row["ok"] is None and row["undecided"]["rule"] == "E-8" and row["surplus"] == 1
+    reasons = outcome["inconclusive_reasons"]
+    assert any(r.startswith("S4 cannot be shown (E-8)") and str(K_LOWER) in r and str(K_UPPER) in r for r in reasons)
+    assert any(r.startswith("S5 cannot be shown (E-8)") and D1 in r for r in reasons)
+    assert outcome["report"]["classification"]["ambiguous"] == 1
+    assert "sampling band" in pe.IDENTIFICATION_RULES["E-8"] and "never refuted" in pe.IDENTIFICATION_RULES["E-8"]
+    assert "E-8" in pe.IDENTIFICATION_RULES["P-3"] and "E-8" in pe.IDENTIFICATION_RULES["P-4"]
+    # One nanosecond above the band: named from the kill, the run supports.
+    above = [line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", K_UPPER + 1, None)]
+    doc = _evaluate(lines=above, extra_after=twin)
+    assert _outcome(doc)["result"] == "supports"
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("b-mid", "kill")]
+    # Without a band (no readable monotonic_ns on both sides) the same
+    # candidate cannot be placed either: E-8, not R3.
+    no_band = [_row(_ts(0), P0, 3, 1, monotonic_ns=None)]
+    doc = _evaluate(lines=B_DUPLICATE, extra_after=twin, rows=no_band)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    shown = _criterion(doc, "R3")["evidence"]["cannot_show_identities"]
+    assert [c["message_id"] for c in shown] == ["b-mid"] and "could not be placed" in shown[0]["why_not_shown"]
+    # A duplicate line the pre-kill process wrote (below the band) is not in
+    # progress at the kill and, with no A3 occurrence, is R3 as before.
+    below = [line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", K_LOWER - NS, None)]
+    doc = _evaluate(lines=below, extra_after=twin)
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R3")["observed"] is True
+    not_named = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert not_named[0]["class"] == "pre_kill_lined"
+    assert "lined before the kill on the controller clock" in not_named[0]["why_not_named"]
+
+
+def test_a_controller_log_that_cannot_serve_the_criteria_leaves_an_a3_source_unshown_never_r3() -> None:
+    """E-7 over the controller log (the ADR's item 6, fetched 'so that an
+    N1 case caused by an A3 connection end is named and not read as R3'):
+    with the fetch recorded failed, recorded but the file absent, or the
+    file unreadable, an A3 connection end can be shown neither way, so a
+    duplicate-only identity not named with the kill as its source is
+    neither named nor R3, its device is undecided for S5/R4 and the run is
+    inconclusive with the failed fetch named; with the log read and an A5
+    occurrence the same identity is a named case (test 17). The kill still
+    names its one case on the record, and a candidate the twin shows
+    unapplied stays R3 on the twin's evidence, which was read."""
+    lines = [line for line in LINES if line[0] != "c-mid"] + [("c-mid", D2, 0, "duplicate", 1_230 * NS, None)]
+    twin = {D2: 1, "seqs": [(D2, 0)]}
+    log_rel = f"logs/sut/{SUT_LOG_FILES['controller_log']}"
+    fetches = _manifest()["sut_log_fetches"]
+    fetches[1] = {**fetches[1], "returncode": 1, "dest_exists": False}
+    failed_fetch = _manifest(sut_log_fetches=fetches)
+
+    def _unshown(doc: dict, problem: str) -> None:
+        outcome = _outcome(doc)
+        assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+        assert outcome["n1_cases"] == []
+        for rule_id in ("S4", "S5"):
+            assert _criterion(doc, rule_id)["holds"] is None, rule_id
+        for rule_id in ("R3", "R4"):
+            assert _criterion(doc, rule_id)["observed"] is None, rule_id
+        r3 = _criterion(doc, "R3")
+        assert r3["evidence"]["not_named_identities"] == []
+        shown = r3["evidence"]["cannot_show_identities"]
+        assert [c["message_id"] for c in shown] == ["c-mid"]
+        why = shown[0]["why_not_shown"]
+        assert problem in why and "(E-7)" in why and "neither way" in why
+        r4 = _criterion(doc, "R4")
+        assert r4["evidence"]["undecided"] == [{"device_uuid": D2, "rule": "E-7", "why": why, "message_ids": ["c-mid"]}]
+        assert r4["evidence"]["mismatches"] == [] and "E-7" in r4["identification_rules"]
+        reasons = outcome["inconclusive_reasons"]
+        assert any(r.startswith("any fetch listed above fails") and problem in r for r in reasons)
+        assert any(r.startswith("S4 cannot be shown (E-7)") and problem in r for r in reasons)
+        assert any(r.startswith("S5 cannot be shown (E-7)") and problem in r for r in reasons)
+        assert doc["instrumentation"]["proof_evidence"]["cannot_serve_the_criteria"][log_rel] == problem
+        assert outcome["report"]["method"]["controller_log_usable"] is False
+        assert outcome["report"]["method"]["controller_log_problem"] == problem
+
+    # The fetch recorded failed: exit 1, no file.
+    artefacts = _artefacts(lines=lines, extra_after=twin, manifest=failed_fetch)
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    _unshown(pe.evaluate(artefacts, _session()), f"{log_rel}: the fetch {SUT_LOG_FETCH_FLAGS['controller_log']} exit 1 and wrote no file")
+    # The fetch recorded failed although it wrote a file, and the file holds
+    # an A5 line that would name the case: a record the harness refused
+    # serves no criterion, so the occurrence is not read.
+    wrote = _manifest()["sut_log_fetches"]
+    wrote[1] = {**wrote[1], "returncode": 1, "dest_exists": True}
+    doc = _evaluate(lines=lines, extra_after=twin, manifest=_manifest(sut_log_fetches=wrote), controller_log=[_a5_line(D2, 1_205 * NS)])
+    _unshown(doc, f"{log_rel}: the fetch {SUT_LOG_FETCH_FLAGS['controller_log']} exit 1 and wrote its file")
+    assert _outcome(doc)["report"]["a5_occurrences"][0]["device_uuid"] == D2  # reported, never read for a criterion
+    # Recorded as fetched, but the file is absent from the run directory.
+    artefacts = _artefacts(lines=lines, extra_after=twin)
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    _unshown(pe.evaluate(artefacts, _session()), f"{log_rel}: recorded as fetched but absent from the run directory")
+    # Present but unreadable: the loader's problem is the failed fetch.
+    artefacts = _artefacts(lines=lines, extra_after=twin)
+    artefacts.controller_log = None
+    artefacts.problems = [f"{log_rel} unreadable: [Errno 5] Input/output error"]
+    _unshown(pe.evaluate(artefacts, _session()), f"{log_rel} unreadable: [Errno 5] Input/output error")
+    # The log read: an A5 occurrence before the redelivery names the case.
+    doc = _evaluate(lines=lines, extra_after=twin, controller_log=[_a5_line(D2, 1_205 * NS)])
+    assert _outcome(doc)["result"] == "supports"
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("c-mid", "a3-connection-end")]
+    assert _outcome(doc)["report"]["method"] ["controller_log_usable"] is True
+    # The log read and no occurrence: R3, as test 17 states.
+    doc = _evaluate(lines=lines, extra_after=twin)
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R3")["observed"] is True
+    # With the log unread the kill still names its one case on the record
+    # (the run stays inconclusive for the failed fetch) ...
+    artefacts = _artefacts(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, manifest=failed_fetch)
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    doc = pe.evaluate(artefacts, _session())
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("b-mid", "kill")]
+    assert _criterion(doc, "S4")["holds"] is True and _criterion(doc, "S5")["holds"] is True
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    # ... two claimants of the kill are then unshown, not R3 (one may be an
+    # A3 case the unread log would have named) ...
+    G = ("g-mid", D3, 1, 380 * NS)
+    artefacts = _artefacts(
+        sent=SENT + [G],
+        lines=B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)],
+        extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]},
+        manifest=failed_fetch,
+    )
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert _criterion(doc, "R3")["evidence"]["not_named_identities"] == []
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["b-mid", "g-mid"]
+    assert all("at most one N1 case per death" in c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"])
+    # ... and a candidate the twin shows unapplied (no surplus on D2) stays
+    # R3 on the twin's evidence, which was read: the run refutes.
+    artefacts = _artefacts(lines=lines, manifest=failed_fetch)
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R3")["observed"] is True
+    assert "no surplus" in _criterion(doc, "R3")["evidence"]["not_named_identities"][0]["why_not_named"]
+    assert "controller log" in pe.IDENTIFICATION_RULES["E-7"] and "item 6" in pe.IDENTIFICATION_RULES["E-7"]
+
+
+def test_a_twin_snapshot_present_and_readable_but_not_verified_serves_no_criterion() -> None:
+    """E-7's clause for a snapshot the harness refused: the after snapshot's
+    hook wrote a file the loader reads, but the record says verified=false
+    (exit 0 with problems). Its figures serve no criterion: S5/R4 are null,
+    a duplicate-only candidate is neither named nor R3, the run is
+    inconclusive with the failure named. The guard on twins_problem in
+    evaluate() is what keeps the file out: without it B, with no surplus in
+    the unverified file, would be R3 and the run refuted."""
+    snapshots = _manifest()["twin_snapshots"]
+    snapshots[1] = {**snapshots[1], "verified": False, "problems": ["device set differs from the before snapshot's"]}
+    unverified = _manifest(twin_snapshots=snapshots)
+    problem = "twins.after.json: the twin snapshot is not verified (exit 0): device set differs from the before snapshot's"
+    doc = _evaluate(lines=B_DUPLICATE, manifest=unverified)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    for rule_id in ("S4", "S5"):
+        assert _criterion(doc, rule_id)["holds"] is None, rule_id
+    for rule_id in ("R3", "R4"):
+        assert _criterion(doc, rule_id)["observed"] is None, rule_id
+    r3 = _criterion(doc, "R3")
+    assert r3["evidence"]["not_named_identities"] == []
+    assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["b-mid"]
+    assert problem in r3["evidence"]["cannot_show_identities"][0]["why_not_shown"]
+    assert _criterion(doc, "S5")["reason"] == f"the twin evidence cannot serve the criteria: {problem}"
+    assert _criterion(doc, "S5")["evidence"]["devices"] == []
+    assert outcome["report"]["method"]["twin_evidence_problem"] == problem
+    assert outcome["report"]["devices"]["surplus"] == []
+    assert doc["instrumentation"]["proof_evidence"]["cannot_serve_the_criteria"]["twins.after.json"] == problem
+    assert doc["instrumentation"]["proof_evidence"]["present"]["twins.after.json"] is True
+    reasons = outcome["inconclusive_reasons"]
+    assert any(r.startswith("any fetch listed above fails") and problem in r for r in reasons)
+    assert any(r.startswith("S4 cannot be shown (E-7)") and problem in r for r in reasons)
+    assert any(r.startswith("S5 cannot be shown (E-7)") and problem in r for r in reasons)
+    # With every line accepted the unverified file leaves S5/R4 null too:
+    # never 'holds' on a refused snapshot.
+    doc = _evaluate(manifest=unverified)
+    assert _criterion(doc, "S5")["holds"] is None and _criterion(doc, "R4")["observed"] is None
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    # The before snapshot refused: the same.
+    snapshots = _manifest()["twin_snapshots"]
+    snapshots[0] = {**snapshots[0], "verified": False, "problems": ["seed mismatch"]}
+    doc = _evaluate(lines=B_DUPLICATE, manifest=_manifest(twin_snapshots=snapshots))
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "R4")["observed"] is None
+    assert "twins.before.json: the twin snapshot is not verified (exit 0): seed mismatch" in _criterion(doc, "S5")["reason"]
+
+
+def test_accepted_count_advancing_by_fewer_than_the_accepted_lines_is_r4() -> None:
+    """S5's tolerance is an equality: a twin whose accepted_count advanced
+    by FEWER than the device's accepted lines (an accepted line the twin
+    does not carry: a lost write or a wrong rebuild) is a delta mismatch
+    and R4, exactly as one that advanced by more (test 21)."""
+    after = _after_from(BEFORE, LINES)
+    after[D1] = (BEFORE[D1][0] + 1, RID, 1)  # two accepted lines on D1 (a, b), the twin advanced by one
+    doc = _evaluate(after=after)
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    assert r4["evidence"]["mismatches"] == [
+        {"device_uuid": D1, "problems": ["accepted_count advanced by 1 against 2 accepted line(s) and 0 named N1 case(s)"]}
+    ]
+    assert _outcome(doc)["result"] == "refutes" and any(r.startswith("R4:") for r in _outcome(doc)["refutations"])
+    # Not advanced at all, the twin's ingestion untouched: a mismatch on the
+    # count and on last_run_id/last_seq alike.
+    after[D1] = BEFORE[D1]
+    doc = _evaluate(after=after)
+    problems = _criterion(doc, "R4")["evidence"]["mismatches"][0]["problems"]
+    assert problems[0].startswith("accepted_count advanced by 0 against 2 accepted line(s)")
+    assert any(p.startswith("last_run_id 'earlier' last_seq 9") for p in problems)
+    assert _outcome(doc)["result"] == "refutes"
+
+
+def test_several_kill_claimants_name_none_and_each_is_r3() -> None:
+    """E-4: one consumer dies once, so at most one identity was in progress
+    at the kill. Two duplicate-only identities on different devices, each
+    restart-class, published before the kill and with its device's surplus
+    of one, both claim it: none is named (not the first, not any), each is
+    R3 with the rule as its ground, and the note says so."""
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)]
+    doc = _evaluate(sent=SENT + [G], lines=lines, extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]})
+    outcome = _outcome(doc)
+    assert outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and _criterion(doc, "S4")["holds"] is False
+    not_named = r3["evidence"]["not_named_identities"]
+    assert [c["message_id"] for c in not_named] == ["b-mid", "g-mid"]
+    assert all("at most one N1 case per death" in c["why_not_named"] for c in not_named)
+    assert r3["evidence"]["cannot_show_identities"] == []
+    assert any("2 duplicate-only identities claim the kill" in n for n in r3["evidence"]["notes"])
+    assert outcome["result"] == "refutes" and any(r.startswith("R3:") for r in outcome["refutations"])
+    assert "E-4" in r3["identification_rules"] and "one N1 case per death" in pe.IDENTIFICATION_RULES["E-4"]
+    # Each device's surplus is then unexplained: R4 beside R3.
+    assert _criterion(doc, "R4")["observed"] is True
+    assert [u["device_uuid"] for u in _criterion(doc, "R4")["evidence"]["surplus_unexplained"]] == [D1, D3]
+
+
+def test_a_restart_that_did_not_execute_with_exit_0_is_not_the_kills_source() -> None:
+    """P-4's third condition: the kill is shown by the manifest's restart
+    record. With the restart hook exited non-zero, or not executed, the
+    identity of test 16 is not named with the kill as its source and is R3
+    with that ground; the record's figures are carried as evidence."""
+    for change in ({"returncode": 1}, {"executed": False, "returncode": 0}):
+        manifest = _manifest(restart={**_manifest()["restart"], **change})
+        doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, manifest=manifest)
+        assert _outcome(doc)["n1_cases"] == [], change
+        r3 = _criterion(doc, "R3")
+        assert r3["observed"] is True, change
+        why = r3["evidence"]["not_named_identities"][0]["why_not_named"]
+        assert "the manifest's restart did not execute with exit 0" in why, change
+        assert _outcome(doc)["result"] == "refutes", change
+        assert _criterion(doc, "S1")["evidence"]["restart_returncode"] == change["returncode"]
+        assert _criterion(doc, "S1")["evidence"]["restart_executed"] == change.get("executed", True)
+
+
+def test_s1_reads_the_last_pre_kill_row_in_file_order_not_the_latest_ts_utc() -> None:
+    """P-1: 'the last reading before it' is the last row of the pre-kill
+    process in FILE order. The WSL host clock steps back 2-3 s about every
+    30 s, so that row can carry a ts_utc earlier than its predecessor's;
+    the predecessor is not the reading S1 decides on (test 4 pins the
+    process split, this pins the order within the process)."""
+    raw = [
+        _row(_ts(100), P0, 3, 1, monotonic_ns=1_100 * NS),
+        _row(_ts(150), P0, 3, 1, monotonic_ns=1_149 * NS),
+        _row(_ts(148), P0, 0, 0, monotonic_ns=K_LOWER),  # stepped back 2 s; nothing in flight
+        _row(_ts(175), P1, 0, 0, monotonic_ns=K_UPPER),
+    ]
+    rows, notes = pe.read_metrics_rows(raw)
+    split = pe.split_by_process(rows)
+    s1 = pe.s1_kill_found_work(split.pre_kill, _manifest()["restart"])
+    assert s1.holds is False and s1.evidence["last_reading"]["row"] == 2
+    assert s1.evidence["last_reading"]["ts_utc"] == _ts(148) and s1.evidence["last_reading"]["in_flight"] == 0
+    assert any("row 2" in note and "host clock step" in note for note in notes)
+    doc = _evaluate(rows=raw)
+    assert _criterion(doc, "S1")["holds"] is False and _outcome(doc)["result"] == "inconclusive"
+    assert _criterion(doc, "S1")["evidence"]["last_reading"]["row"] == 2
+    # The converse: work on the stepped-back last row, none on its predecessor.
+    raw[1] = _row(_ts(150), P0, 0, 0, monotonic_ns=1_149 * NS)
+    raw[2] = _row(_ts(148), P0, 2, 1, monotonic_ns=K_LOWER)
+    doc = _evaluate(rows=raw)
+    s1 = _criterion(doc, "S1")
+    assert s1["holds"] is True and s1["evidence"]["last_reading"]["row"] == 2 and s1["evidence"]["last_reading"]["in_flight"] == 3
+    assert _outcome(doc)["result"] == "supports"
+
+
+def test_the_first_readable_started_at_defines_the_pre_kill_process() -> None:
+    """P-1: a first row whose started_at cell is empty is unreadable for the
+    split and does not make the pre-kill process None; the first READABLE
+    row's started_at does, so every P0 row is pre-kill, the empty row is
+    counted unreadable, and S1 reads the last P0 row."""
+    raw = [_row(_ts(0), None, 3, 1, monotonic_ns=1_000 * NS)] + _rows()
+    rows, _notes = pe.read_metrics_rows(raw)
+    assert rows[0].started_at is None
+    split = pe.split_by_process(rows)
+    assert split.pre_started_at == P0
+    assert [r.index for r in split.unreadable] == [0]
+    assert [r.index for r in split.pre_kill] == [1, 2, 3, 4, 5, 6]
+    assert [r.index for r in split.post_kill] == [7, 8, 9]
+    doc = _evaluate(rows=raw)
+    s1 = _criterion(doc, "S1")
+    assert s1["holds"] is True and s1["evidence"]["last_reading"]["row"] == 6
+    assert s1["evidence"]["last_reading"]["started_at"] == P0
+    assert _outcome(doc)["result"] == "supports"
+    assert _outcome(doc)["report"]["processes"] == {
+        "pre_kill_started_at": P0, "post_kill_started_at": [P1], "pre_kill_rows": 6, "post_kill_rows": 3, "unreadable_rows": 1,
+    }
+
+
+def test_no_surplus_unexplained_entry_when_the_surplus_equals_the_named_cases() -> None:
+    """R4's surplus_unexplained is evidence for the reader: a device whose
+    surplus is exactly its named cases gets no entry (a 'surplus 1, named
+    1, unexplained 0' row would state a problem that is not there), while
+    a surplus beyond the named cases is listed with the difference."""
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]})
+    assert [case["message_id"] for case in _outcome(doc)["n1_cases"]] == ["b-mid"]
+    assert _criterion(doc, "R4")["evidence"]["surplus_unexplained"] == []
+    assert _criterion(doc, "R4")["observed"] is False and _outcome(doc)["result"] == "supports"
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 2, "seqs": [(D1, 1)]})
+    assert _criterion(doc, "R4")["evidence"]["surplus_unexplained"] == [
+        {"device_uuid": D1, "surplus": 2, "named_n1_cases": 1, "unexplained": 1}
+    ]
+    assert _criterion(doc, "R4")["observed"] is True
 
 
 # ---------------------------------------------------------------------------

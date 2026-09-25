@@ -41,9 +41,11 @@ stated in :data:`IDENTIFICATION_RULES`, labelled with its flag, and carried
 into the verdict beside the criterion it serves. No rule changes a
 criterion, a threshold or a count of the ADR; every one is conservative:
 what cannot be shown is never read as support, and a refutation rests only
-on evidence that was read and verified (E-7): a post-drain copy or a twin
-snapshot that is absent, unverified or unreadable leaves the criteria that
-depend on it null, never observed.
+on evidence that was read and verified (E-7): a post-drain copy, a twin
+snapshot or the controller log that is absent, unverified or unreadable
+leaves the criteria that depend on it null, never observed; and a
+duplicate-only identity whose line falls in the sampling band around the
+kill can be shown neither way (E-8), never refuted on that ground.
 
 Exit codes, as ``broker_measure.sh`` reads the broker verdict: 0 supports,
 1 refutes, 3 inconclusive, 2 not evaluated (an input unreadable, a seal
@@ -269,7 +271,9 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "\"Published before the kill\" and \"published while the controller "
         "was away\" are report figures on the host clocks, with a stated band; "
         "they never decide a restart class, and only P-4 reads \"published "
-        "before the kill\" to attribute the kill as an N1 case's source."
+        "before the kill\" to attribute the kill as an N1 case's source. An "
+        "ambiguous identity with only `duplicate` lines is not rejected as R3 "
+        "on the ground of its class: it can be shown neither way (E-8)."
     ),
     "P-4": (
         "An N1 case's source is established by inference, since the "
@@ -280,10 +284,12 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "in-progress delivery's received_monotonic_ns precedes the "
         "candidate's redelivered duplicate line; 'kill' when the candidate is "
         "restart-class, was published before the kill on the host clock and "
-        "the manifest's restart executed with exit 0. A candidate is named "
-        "only with the twin's evidence: the device's surplus equals the "
-        "number of cases named on it and the after snapshot's last_seq is not "
-        "below the candidate's seq."
+        "the manifest's restart executed with exit 0. A candidate that is "
+        "ambiguous under P-3 is not thereby refused the kill as its source: "
+        "with the other two conditions met it can be shown neither way "
+        "(E-8). A candidate is named only with the twin's evidence: the "
+        "device's surplus equals the number of cases named on it and the "
+        "after snapshot's last_seq is not below the candidate's seq."
     ),
     "P-5": (
         "R4's \"last_seq regressed\": the after snapshot's last_run_id is this "
@@ -346,9 +352,29 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "the post-drain copy is absent, not verified by the harness as this "
         "run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way "
         "and are null; when a twin snapshot is so, or names no twin for the "
-        "device, S4, S5, R3 and R4 are null for what depends on it. The "
-        "absence is named as a failed fetch and the run is inconclusive unless "
-        "a refutation was observed on evidence that was read."
+        "device, S4, S5, R3 and R4 are null for what depends on it; when the "
+        "controller log (item 6) was not fetched, was recorded fetched but is "
+        "absent, or is unreadable, an A3 connection end can be shown neither "
+        "way, so a duplicate-only candidate that is not named with the kill "
+        "as its source is neither named nor R3, S4 and R3 are null for it and "
+        "S5 and R4 for its device, while a candidate the twin shows unapplied "
+        "(no surplus, or more candidates than the surplus) stays R3 on the "
+        "twin's evidence, which was read. The absence is named as a failed "
+        "fetch and the run is inconclusive unless a refutation was observed "
+        "on evidence that was read."
+    ),
+    "E-8": (
+        "A duplicate-only candidate that is ambiguous under P-3 (a `duplicate` "
+        "line received at or inside the controller-clock band between the "
+        "last pre-kill reading and the first post-kill one, a line without "
+        "received_monotonic_ns, or no band at all) is neither named nor R3 on "
+        "that ground: whether it was in progress at the kill cannot be shown "
+        "from a reading inside the sampling band, since no criterion of the "
+        "ADR involves timing and a poll instant decides nothing of it. S4 and "
+        "R3 are null for the candidate and S5 and R4 for its device, as for a "
+        "twin problem (E-7); the run is inconclusive on that ground, never "
+        "refuted. A candidate lined before the kill on the controller clock, "
+        "or one the twin shows unapplied, is R3 as before."
     ),
 }
 
@@ -1463,8 +1489,11 @@ class N1Naming:
     """The duplicate-only candidates sorted three ways: ``named`` (an N1
     case with its source and the twin's evidence), ``r3`` (the twin shows
     the identity was not applied, or no source can be established) and
-    ``cannot_show`` (no twin evidence exists for the device, E-7: neither
-    named nor R3)."""
+    ``cannot_show`` (neither named nor R3: no twin evidence exists for the
+    device or the controller log cannot serve the criteria, E-7, or the
+    candidate is ambiguous on the controller clock, E-8).
+    ``undecided_devices`` maps each device whose S5/R4 tolerance depends on
+    such a candidate to the rule, the reason and the candidates."""
 
     named: list[dict[str, Any]]
     r3: list[dict[str, Any]]
@@ -1472,6 +1501,7 @@ class N1Naming:
     candidates: list[dict[str, Any]]
     notes: list[str]
     cannot_show: list[dict[str, Any]] = field(default_factory=list)
+    undecided_devices: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def named_ids(self) -> list[str]:
@@ -1489,6 +1519,7 @@ def name_n1_cases(
     classification: Classification,
     restart: dict[str, Any],
     twins_problem: str | None = None,
+    log_problem: str | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -1496,10 +1527,14 @@ def name_n1_cases(
     device without twin evidence (``surplus`` None because a snapshot is
     absent, not verified or unreadable - ``twins_problem`` says which - or
     a device neither snapshot names) is neither named nor R3: nothing shows
-    whether it was applied (E-7)."""
+    whether it was applied (E-7). Nor is a candidate whose source cannot be
+    established because the controller log cannot serve the criteria
+    (``log_problem`` says why, E-7) or because it is ambiguous on the
+    controller clock (E-8): its device is then undecided for S5/R4."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
     restart_class = set(classification.restart_class)
+    ambiguous = set(classification.ambiguous)
     before_kill = set(classification.published_before_kill)
     candidates: list[dict[str, Any]] = []
     for message_id in _sorted_ids(valid, valid):
@@ -1515,6 +1550,11 @@ def name_n1_cases(
                 "outcomes": _outcomes_of(identity_lines),
                 "first_duplicate_received_monotonic_ns": min(known) if known else None,
                 "in_restart_class": message_id in restart_class,
+                "class": (
+                    "restart_class" if message_id in restart_class
+                    else "ambiguous" if message_id in ambiguous
+                    else "pre_kill_lined"
+                ),
                 "published_before_kill": message_id in before_kill,
             }
         )
@@ -1526,12 +1566,46 @@ def name_n1_cases(
     r3: list[dict[str, Any]] = []
     r4: list[dict[str, Any]] = []
     cannot: list[dict[str, Any]] = []
+    undecided: dict[str, dict[str, Any]] = {}
     notes: list[str] = []
     kill_claimants: list[tuple[dict[str, Any], Surplus]] = []
     used_occurrences: set[int] = set()
 
     def _reject(candidate: dict[str, Any], why: str) -> None:
         r3.append({**candidate, "why_not_named": why})
+
+    def _cannot_show(candidate: dict[str, Any], rule_id: str, why: str) -> None:
+        """Neither named nor R3 (E-7 over the log, E-8): the candidate's
+        device is then undecided for S5/R4, whose tolerance depends on the
+        case."""
+        cannot.append({**candidate, "why_not_shown": why})
+        entry = undecided.setdefault(
+            candidate["device_uuid"] or "", {"rule": rule_id, "why": why, "message_ids": []}
+        )
+        entry["message_ids"].append(candidate["message_id"])
+
+    def _band_reason(candidate: dict[str, Any]) -> str:
+        received = candidate["first_duplicate_received_monotonic_ns"]
+        band = classification.band
+        lower, upper = band.get("k_lower_monotonic_ns"), band.get("k_upper_monotonic_ns")
+        if lower is None or upper is None:
+            place = (
+                "the kill could not be placed on the controller clock (no readable "
+                "monotonic_ns on both sides of the restart)"
+            )
+        elif received is None:
+            place = "its duplicate line carries no received_monotonic_ns"
+        else:
+            place = (
+                f"its duplicate line was received at {received} on the controller clock, "
+                f"at or inside the sampling band between the last pre-kill reading ({lower}, "
+                f"row {(band.get('lower_row') or {}).get('row')}) and the first post-kill "
+                f"reading ({upper}, row {(band.get('upper_row') or {}).get('row')})"
+            )
+        return (
+            "whether it was in progress at the kill cannot be shown from a reading inside "
+            f"the sampling band: {place}; a poll instant decides nothing of the criterion (E-8)"
+        )
 
     for device in sorted(by_device):
         device_candidates = by_device[device]
@@ -1602,14 +1676,28 @@ def name_n1_cases(
                 )
             elif candidate["in_restart_class"] and candidate["published_before_kill"] and restart_ok:
                 kill_claimants.append((candidate, facts))
+            elif log_problem is not None:
+                _cannot_show(
+                    candidate, "E-7",
+                    "no A5 occurrence can be read: the controller log cannot serve the criteria "
+                    f"({log_problem}), so an A3 connection end can be shown neither way, and the "
+                    "kill is not established as its source (E-7)",
+                )
             else:
                 why = []
-                if not candidate["in_restart_class"]:
-                    why.append("not in the restart class on the controller clock")
+                if candidate["class"] == "pre_kill_lined":
+                    why.append("lined before the kill on the controller clock, not of the restart classes")
                 if not candidate["published_before_kill"]:
                     why.append("not published before the kill on the host clock")
                 if not restart_ok:
                     why.append("the manifest's restart did not execute with exit 0")
+                if not why:
+                    # Restart-class with both other conditions met is a kill
+                    # claimant above, so the only ground left is the band.
+                    _cannot_show(candidate, "E-8", _band_reason(candidate))
+                    continue
+                if candidate["class"] == "ambiguous":
+                    why.append("ambiguous on the controller clock, which alone would not reject it (E-8)")
                 _reject(
                     candidate,
                     "no A5 occurrence names its device before its redelivery and the kill cannot "
@@ -1643,9 +1731,22 @@ def name_n1_cases(
             "most one N1 case per death (N1), so none is named"
         )
         for candidate, _facts in kill_claimants:
-            _reject(candidate, "more than one identity claims the one death: at most one N1 case per death")
+            if log_problem is not None:
+                _cannot_show(
+                    candidate, "E-7",
+                    "more than one identity claims the one death (at most one N1 case per "
+                    "death, E-4) and no A5 occurrence can be read that would name another "
+                    f"source: the controller log cannot serve the criteria ({log_problem}) (E-7)",
+                )
+            else:
+                _reject(
+                    candidate,
+                    "more than one identity claims the one death: at most one N1 case per death (E-4)",
+                )
     for device in sorted(surplus or {}):
         facts = surplus[device]
+        if device in undecided:
+            continue  # the surplus may be the unshown case's evidence: undecided, not unexplained
         if facts.surplus is not None and facts.surplus > 0:
             named_here = len(named_on(named, device))
             if facts.surplus > named_here:
@@ -1660,7 +1761,9 @@ def name_n1_cases(
     named.sort(key=_candidate_order)
     r3.sort(key=_candidate_order)
     cannot.sort(key=_candidate_order)
-    return N1Naming(named, r3, r4, candidates, notes, cannot)
+    for entry in undecided.values():
+        entry["message_ids"].sort()
+    return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())))
 
 
 def _candidate_order(candidate: dict[str, Any]) -> tuple[str, int, str]:
@@ -1687,7 +1790,7 @@ def _twin_evidence(facts: Surplus) -> dict[str, Any]:
 def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
     """S4 holds when every duplicate-lined identity has an accepted line or
     is a named N1 case; R3 is observed for every one that is neither. A
-    candidate without twin evidence (E-7) can be shown neither way: with no
+    candidate that can be shown neither way (E-7, E-8) is neither: with no
     R3 observed elsewhere, S4 and R3 are then null."""
     evidence = {
         "duplicate_only_identities": len(naming.candidates),
@@ -1698,7 +1801,7 @@ def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
         "cannot_show_identities": naming.cannot_show,
         "notes": naming.notes,
     }
-    rules = ("P-4", "E-4", "E-7")
+    rules = ("P-4", "E-4", "E-7", "E-8")
     if naming.r3:
         reason = f"{len(naming.r3)} identity(ies) with only duplicate lines and no named N1 case"
         return (
@@ -1707,8 +1810,8 @@ def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
         )
     if naming.cannot_show:
         reason = (
-            f"{len(naming.cannot_show)} identity(ies) with only duplicate lines on a device "
-            "without twin evidence: " + "; ".join(sorted({c["why_not_shown"] for c in naming.cannot_show}))
+            f"{len(naming.cannot_show)} identity(ies) with only duplicate lines that can be "
+            "shown neither named nor R3: " + "; ".join(sorted({c["why_not_shown"] for c in naming.cannot_show}))
         )
         return (
             Criterion("S4", None, dict(evidence), rules, reason),
@@ -1733,7 +1836,10 @@ def s5_r4_delta(
     a mismatch), tolerating exactly one per named N1 case on the device
     (E-2), plus the last_seq regression rule (P-5). Without a surplus
     (``cannot`` says why: a snapshot or the post-drain copy absent, not
-    verified or unreadable) both are null (E-7)."""
+    verified or unreadable) both are null (E-7); so are they when no
+    mismatch or regression is observed and a device is undecided (its
+    tolerance depends on a duplicate-only case that can be shown neither
+    way, E-7 over the controller log or E-8)."""
     if surplus is None:
         why = cannot or "a twin snapshot is missing"
         evidence = {"devices": [], "note": f"no delta can be computed: {why}"}
@@ -1744,6 +1850,7 @@ def s5_r4_delta(
     devices: list[dict[str, Any]] = []
     mismatches: list[dict[str, Any]] = []
     regressions: list[dict[str, Any]] = []
+    undecided: list[dict[str, Any]] = []
     for device in sorted(surplus):
         facts = surplus[device]
         cases = named_on(naming.named, device)
@@ -1798,6 +1905,15 @@ def s5_r4_delta(
                 "not compared: named by the after snapshot only and without an "
                 "accepted line, which the runbook's `delta` does not compare"
             )
+        undecided_here = naming.undecided_devices.get(device)
+        if undecided_here is not None:
+            # The figures are shown as read, with the case unnamed; nothing
+            # is decided on them, since the tolerance depends on that case.
+            row["ok"] = None
+            row["undecided"] = undecided_here
+            devices.append(row)
+            undecided.append({"device_uuid": device, **undecided_here})
+            continue
         devices.append(row)
         if problems:
             mismatches.append({"device_uuid": device, "problems": problems})
@@ -1807,6 +1923,7 @@ def s5_r4_delta(
         "devices": devices,
         "mismatches": mismatches,
         "last_seq_regressions": regressions,
+        "undecided": undecided,
         "surplus_unexplained": naming.r4_unexplained,
         "note": (
             "the /metrics counters of `delta` are not compared: they restart from zero "
@@ -1822,6 +1939,17 @@ def s5_r4_delta(
             parts.append(f"{len(regressions)} device(s) whose last_seq regressed")
         reason = "; ".join(parts)
     observed = bool(mismatches or regressions)
+    if not observed and undecided:
+        extra = ("E-7", "E-8") if any(u["rule"] == "E-8" for u in undecided) else ("E-7",)
+        reason = (
+            f"{len(undecided)} device(s) whose delta tolerance depends on a duplicate-only "
+            "identity that can be shown neither named nor R3: "
+            + "; ".join(f"{u['device_uuid']}: {u['why']}" for u in undecided)
+        )
+        return (
+            Criterion("S5", None, dict(evidence), ("E-2", *extra), reason),
+            Criterion("R4", None, dict(evidence), ("P-5", "E-2", *extra), reason),
+        )
     return (
         Criterion("S5", not observed, dict(evidence), ("E-2",), reason),
         Criterion("R4", observed, dict(evidence), ("P-5", "E-2"), reason),
@@ -1876,7 +2004,7 @@ def failed_only_restart_class(
 class EvidenceStatus:
     """Whether the proof's evidence is complete, every absence named;
     ``unusable`` maps each file that cannot serve the criteria (the
-    post-drain copy, the twin snapshots) to why (E-7)."""
+    post-drain copy, the twin snapshots, the controller log) to why (E-7)."""
 
     complete: bool
     present: dict[str, bool]
@@ -2015,17 +2143,27 @@ def evidence_status(
     for hook, name in SUT_LOG_FILES.items():
         rel = f"{logs}/{name}"
         record = by_hook.get(hook)
+        problem = None
         if record is None:
             missing.append(f"{rel}: no fetch record ({SUT_LOG_FETCH_FLAGS[hook]})")
+            problem = missing[-1]
         elif record.get("returncode") != 0 or not record.get("dest_exists"):
             failures.append(
                 f"{rel}: the fetch {SUT_LOG_FETCH_FLAGS[hook]} {_record_outcome(record)} and "
                 + ("wrote its file" if record.get("dest_exists") else "wrote no file")
             )
+            problem = failures[-1]
         elif not present[rel]:
             missing.append(f"{rel}: recorded as fetched but absent from the run directory")
+            problem = missing[-1]
         elif _read_problem(rel) is not None:
             failures.append(_read_problem(rel))
+            problem = failures[-1]
+        if problem is not None and hook == "controller_log":
+            # Only the controller log serves a criterion (the A5 occurrences
+            # of S4/R3, E-7); the broker log and docker events are fetched
+            # evidence the proof reports and never reads for a criterion.
+            _cannot_serve(rel, problem)
 
     identity = manifest.get("configuration_identity")
     if not isinstance(identity, dict):
@@ -2090,9 +2228,10 @@ def inconclusive_reasons(
     r_any: bool,
 ) -> list[str]:
     """The ADR's five conditions, in its order, plus the evaluator's own
-    (P-2, P-6, E-3, E-7), each stated with what was read. A criterion of
-    S2 to S5 that is null is always named here (E-7), so a run that is
-    inconclusive for that cause never goes without a stated reason."""
+    (P-2, P-6, E-3, E-7, E-8), each stated with what was read. A criterion
+    of S2 to S5 that is null is always named here (E-7, or E-8 when the
+    band is the ground), so a run that is inconclusive for that cause never
+    goes without a stated reason."""
     s1, s2, s6 = criteria["S1"], criteria["S2"], criteria["S6"]
     reasons: list[str] = []
     if s1.holds is False:
@@ -2152,7 +2291,8 @@ def inconclusive_reasons(
         if criterion.holds is None:
             unshown.setdefault(criterion.reason or "no reason recorded", []).append(rule_id)
     for why, rule_ids in unshown.items():
-        reasons.append(f"{', '.join(rule_ids)} cannot be shown (E-7): {why}")
+        label = "E-8" if "(E-8)" in why else "E-7"
+        reasons.append(f"{', '.join(rule_ids)} cannot be shown ({label}): {why}")
     return reasons
 
 
@@ -2223,7 +2363,9 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     )
     # E-7: the post-drain copy serves the criteria only when it was fetched,
     # verified as this run's and read; the twins only when both snapshots
-    # were. Otherwise what depends on them is null, never a refutation.
+    # were; the controller log's A5 occurrences only when its fetch was
+    # recorded ok and the file was read. Otherwise what depends on them is
+    # null, never a refutation.
     post_problem = evidence.unusable.get(POST_DRAIN_EVENTS_FILENAME)
     if post_problem is None and artefacts.events_post_drain is None:
         post_problem = f"{POST_DRAIN_EVENTS_FILENAME}: not read"
@@ -2233,6 +2375,10 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     if twins_problem is None and (artefacts.twins_before is None or artefacts.twins_after is None):
         twins_problem = "a twin snapshot was not read"
     post_copy_usable = post_problem is None
+    log_rel = f"logs/{SUT_LOG_SUBDIR}/{SUT_LOG_FILES['controller_log']}"
+    log_problem = evidence.unusable.get(log_rel)
+    if log_problem is None and artefacts.controller_log is None:
+        log_problem = f"{log_rel}: not read"
 
     sent = valid_identities(artefacts.sent_events, run_id)
     post = lines_by_identity(artefacts.events_post_drain or [], run_id)
@@ -2259,7 +2405,14 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     else:
         cannot = None
     naming = name_n1_cases(
-        sent.valid, post.by_id, surplus, occurrences, classification, restart, twins_problem
+        sent.valid,
+        post.by_id,
+        surplus,
+        occurrences if log_problem is None else [],
+        classification,
+        restart,
+        twins_problem,
+        log_problem,
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))
@@ -2373,6 +2526,8 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
                     "criteria_copy_usable": post_copy_usable,
                     "criteria_copy_problem": post_problem,
                     "twin_evidence_problem": twins_problem,
+                    "controller_log_usable": log_problem is None,
+                    "controller_log_problem": log_problem,
                     "note": (
                         "the timed copy (events.jsonl) is reported beside the post-drain copy and "
                         "never enters a criterion"
