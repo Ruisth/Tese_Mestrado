@@ -1950,10 +1950,22 @@ container started, read from a log the guest read to its end with the exit
 status of that read (a failed or empty read stops with no file, so a count
 of zero never stands for a log that was not read; review of 2026-09-25,
 D2), `stop_grace_period`, the controller image's id and source commit, the
-paho version, the A3 choice. **Not in the pull request, needed before the
-proof:** the three log-fetch helpers and the proof's own capture of that
-identity, which belong to the proof's session driver; the identified
-controller image built from the commit that carries the lock; the regeneration of the deployed helper file
+paho version, the A3 choice. **In the repository since the pull request of
+2026-09-25 (`feat/adr-0011-finite-proof`, LOG #C043):** the proof's
+evaluator (`egw_experiments.proof_evaluator`: S1–S6, R1–R4 and the
+inconclusive rule by identity, the rule texts verbatim, every
+identification rule labelled and awaiting the Project Manager's
+confirmation); the proof's session driver (`tools/session/proof.sh`, with
+its hooks `proof_hook_twins.sh`, `proof_hook_drained.sh`,
+`proof_fetch_sut_log.sh` — the three log-fetch helpers — and
+`proof_restart_controller.sh`, the diagnostic plan `proof_plan.py`, the
+session facts `proof_session.py` and the helper-file check
+`proof_helpers_check.py`), which reuses `config_identity` as the proof's
+capture of that identity; and `guest_state_delta.py --expect-restarted`.
+The deployed helper file was regenerated on the WSL host from `60ebd8c` on
+2026-09-25. **Not in the repository, needed before the proof:** the
+identified controller image built from the commit that carries the lock
+and its load into the guest, under the student's build authorisation; the regeneration of the deployed helper file
 with `regen_helpers.py` (the new `_mline` refuses a controller build without
 the thirteen fields); the proof's evaluator, which applies S1–S6 and R1–R4 —
 S4 with the twin's evidence of a named N1 case — to the post-drain copy and

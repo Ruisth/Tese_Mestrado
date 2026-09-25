@@ -826,7 +826,8 @@ def test_the_values_and_stop_rules_are_recorded_before_the_first_drained(pbench)
         "EGW_HEALTH_LIMIT_S": 3, "EGW_HEALTH_STEP_S": 1, "EGW_READY_LIMIT_S": 5,
         "EGW_PROOF_ATTEMPT_LIMIT_S": 600, "EGW_PROOF_RESTART_AT_S": 150, "EGW_PROOF_DURATION_S": 300,
         "EGW_PROOF_RATE": 11.2, "EGW_PROOF_MASTER_SEED": 42, "EGW_PROOF_EXTENSION": "no",
-        "EGW_PROOF_EXTENSION_LIMIT_S": 1790, "EGW_PROOF_BASE": str(pbench.base), "EGW_PROOF_PLAN": str(pbench.plan),
+        "EGW_PROOF_EXTENSION_LIMIT_S": 1790, "extension_restart_limit_after_grace_s": 300, "extension_fetch_limit_s": 300,
+        "EGW_PROOF_BASE": str(pbench.base), "EGW_PROOF_PLAN": str(pbench.plan),
         "EGW_PROOF_RUNBOOK": str(pbench.runbook), "expected_source_commit": COMMIT,
     }
     assert verdicts["workload"]["engineering_diagnostic_not_a_g3_run"] is True
@@ -912,12 +913,16 @@ def test_a_rate_that_is_not_one_number_is_refused_and_a_path_with_a_quote_is_rec
     leading_zero = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="0600")
     assert leading_zero.returncode == 2, report(leading_zero)
     assert "EGW_PROOF_ATTEMPT_LIMIT_S='0600' is not a plain whole number" in leading_zero.stdout
-    base = pbench.bench.tmp / 'res"ults\\here'
-    result = pbench.run(EGW_PROOF_BASE=str(base), EGW_STUB_FAIL="drained")
+    # A quote in a path is recorded as it is (JSON-escaped): the plan path,
+    # which no hook template carries. The results base is different: every
+    # "{dest}" the harness renders lies under it, so a quote there is refused
+    # before anything starts (the spaced-drivers case shows it).
+    plan = pbench.bench.tmp / 'pl"an\\here.json'
+    result = pbench.run(EGW_PROOF_PLAN=str(plan), EGW_STUB_FAIL="drained")
     assert result.returncode == 2, report(result)
     values = pbench.verdicts()["workload"]["values"]
-    assert values["EGW_PROOF_BASE"] == str(base) and values["EGW_PROOF_RATE"] == 11.2
-    assert pbench.session_facts()["values"]["EGW_PROOF_BASE"] == str(base)
+    assert values["EGW_PROOF_PLAN"] == str(plan) and values["EGW_PROOF_RATE"] == 11.2
+    assert pbench.session_facts()["values"]["EGW_PROOF_PLAN"] == str(plan)
 
 
 def test_clocks_txt_keeps_each_timedatectl_line_whole(pbench):
@@ -1071,6 +1076,13 @@ def test_hook_templates_survive_the_harness_split_under_a_base_and_a_drivers_pat
     refused = pbench.run(EGW_PROOF_BASE=str(pbench.bench.tmp / "other results"))
     assert refused.returncode == 2, report(refused)
     assert "holds a double quote or a backslash" in refused.stdout and pbench.attempts() == []
+    # So is a results base the templates cannot hold: every "{dest}" the
+    # harness renders lies under it.
+    pbench.bench.drivers = spaced
+    refused = pbench.run(EGW_PROOF_BASE=str(pbench.bench.tmp / 'results "quoted"'))
+    assert refused.returncode == 2, report(refused)
+    assert "the results base" in refused.stdout and "holds a double quote or a backslash" in refused.stdout
+    assert pbench.attempts() == []
 
 
 def _harness_argv_of(function_text: str, call: str, home: Path) -> list[str]:

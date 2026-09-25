@@ -3544,3 +3544,116 @@ is unchanged.
   progress return of the 2026-09-27 checkpoint (or the eighth reported
   engineering hour), the proof's session driver, evaluator and identified
   image, then the finite proof under the student's authorisation.
+
+## Entry #C043 — The finite proof's tooling (ADR 0011): the evaluator, the session driver and its hooks, the diagnostic plan, the session facts and the guest-state extension; no session run
+
+- **Date:** 2026-09-25. **Scope:** the preparation the Project Manager's
+  final advice on PR #46 lists (section 5, items 2 and 4): the finite-proof
+  evaluator and the session driver, as code and unit tests only. No guest
+  session, no image build, no C3 repeat, no change to any criterion,
+  threshold, count, stop rule or validator. Branch
+  `feat/adr-0011-finite-proof` on `dev` at `60ebd8c` (the merge of PR #46).
+- **What.** `src/egw_experiments/proof_evaluator.py`: S1–S6, R1–R4 and the
+  inconclusive rule applied by identity to the post-drain copy of the
+  events, the twin snapshots, `controller_metrics.csv` (file order; an empty
+  cell is absent, never zero; `started_at` splits the processes; the kill
+  placed on the controller clock between the last pre-kill and the first
+  post-kill reading) and the controller log's A5 occurrences; the ADR's rule
+  texts verbatim as constants and pinned to the ADR by a test; the verdict
+  document `proof_verdict.json` with three sections never merged
+  (instrumentation, system outcome, restoration), every identification rule
+  labelled (P-1 to P-7 of the design, E-1 to E-9 of the implementation and
+  its reviews), the named N1 cases with source and twin surplus, the
+  harness's validity quoted and never decisive, no timestamp, exit codes
+  0 supports / 1 refutes / 3 inconclusive / 2 not evaluated. A refutation
+  rests only on evidence that was read and verified (E-7): an absent,
+  unverified or unreadable post-drain copy or twin snapshot makes the
+  affected criteria null and the run inconclusive, never a refutation.
+  `tools/session/proof.sh`: the session driver in the pattern of
+  `nominal.sh` and `broker_measure.sh` — prerequisites and every value
+  recorded before the first `drained` (on the attempt and in
+  `analysis/proof_session.json`), the deployed helper file byte-equal to the
+  runbook's 6.1 heredoc, the stack healthy as stop rule 1, the SUT
+  environment, guest state, containers and controller process before, the
+  one-entry diagnostic plan (`proof_plan.py`: a `controller_restart` entry
+  of 300 s at 11.2 msg/s, seed derived, refusing any campaign or pilot id),
+  the `/ready` wait as a step of its own before the attempt's clock, `pre` (starting with `drained`) with the configuration identity checked against the expected source
+  commit and `broker_reloaded` false, the harness run of the runbook's
+  `harness_cmd` arguments with the proof's hooks appended under `timeout`
+  on `/proc/uptime` as stop rule 2 (measured from the instant before the first `drained`), the restart shown from the driver's own
+  records, `metrics after`, the runbook's `delta` on the post-drain copy,
+  the prefix snapshots into the package, the session facts, the evaluator,
+  `guest_state_delta.py --expect-restarted egw-controller-1`, the healthy
+  wait as the restoration before the evaluator runs, the optional extension only with
+  `EGW_PROOF_EXTENSION=yes`, bounded by the ADR's two per-step stop rules and recorded apart, the three verdicts never
+  merged, the interrupt forwarded to the harness, every exit through
+  `driver_status.py`. The hooks: `proof_hook_twins.sh` (the `before` and
+  `after` snapshots through `$REC snap`, write-once), `proof_hook_drained.sh`
+  (the runbook's `drained`, refusing `DRAIN_QUIET_S` below 130),
+  `proof_fetch_sut_log.sh` (the broker, controller and docker-events logs
+  under the D2 rule: a non-zero status or an empty output is "not read",
+  no file), `proof_restart_controller.sh` (the fault: SIGKILL of the
+  controller's container followed by a start, the guest instants and the
+  container's id and start instant recorded before and after, write-once).
+  `proof_session.py` (the session facts, write-once then updated through
+  rename) and `proof_helpers_check.py` (the deployed helper file against the
+  heredoc, the extraction pinned to `regen_helpers.py`).
+  `guest_state_delta.py --expect-restarted <name>`: one in-place restart of
+  that container (same id, later start, restart count unchanged, no OOM) is
+  reported as expected, never a fault; anything else stays a fault, and an
+  expectation the pair does not show is a problem (exit 2). `tools/session/README.md`
+  and `experiments/README.md` describe the driver, its values and the layer.
+- **Why.** ADR 0011's implementation record reserved these for the proof's
+  session driver and evaluator; the Project Manager's advice of 2026-09-25
+  asks for them to be completed and unit-checked, reusing the configuration
+  identity's capture, before one short execution request is presented for
+  the student's authorisation. The identification rules that turn the
+  criteria into code are stated and labelled rather than decided silently:
+  they need the Project Manager's confirmation, listed in the pull request.
+- **How it was verified.** Unit tests only, under stubs, in the WSL venv
+  (Python 3.12): on the merged branch at `1cfd626` the seven modules the
+  branch adds or that read its files ran together, 903 passed
+  (`test_proof_evaluator.py` 54, `test_proof_driver.py` 62,
+  `test_proof_hooks.py` 24, `test_proof_plan.py` 25,
+  `test_session_drivers.py`, `test_runbook_itest_helpers.py`,
+  `test_experiments_run.py`); after the four editorial corrections of the
+  driver that followed its re-review, the driver module ran again (one case
+  adjusted to the refusal of a results base with a double quote, the rest
+  unchanged). Every part was reviewed by an independent reader and every
+  confirmed finding corrected with a regression: the phase-1 reviews (a P1
+  on the evaluator's refutations over evidence it did not read, a P2 on the
+  restart hook's stderr budget), the driver's review (a P1 on the interrupt
+  not reaching the harness under `timeout`, two P2s on the extension), the
+  branch review (a P1 on a duplicate-only identity inside the sampling band
+  read as R3, three P2s on the evaluator's evidence rules and tests) and
+  the re-reviews (a P2 on R4 suppressed on read twin evidence); mutation
+  checks pinned the rules the reviews named. shellcheck at error severity
+  is clean over the driver and its hooks; the Markdown link checker and the
+  evidence verifier pass. The package named in the next entry of this log
+  records the same modules run on the committed tree with the commit, the
+  tree hash and a clean status captured before the run; the CI of the final
+  head is the record for the whole suite.
+- **What it does not establish.** Nothing ran on the guest: no recovery was
+  observed, the candidate is unmeasured, and the identification rules are
+  proposals until confirmed. The identified ARM64 controller image is not
+  built and not loaded (the student's build authorisation is to be
+  confirmed); the deployed helper file was regenerated on the WSL host from
+  `60ebd8c` on 2026-09-25 (sha256 `e76f036e…`, the previous kept beside it),
+  not on the guest. Two points remain the reviewers' open flags: the
+  post-window observations of the driver (after a harness that returned
+  inside the allowance) are not bound by the 50-minute rule, because the
+  design binds the harness step only — a scope question for the Project
+  Manager, not changed here; and whether `restart: unless-stopped` restarts
+  the container by itself before the explicit start (V-1) is decided before
+  the session, the restart-shown step observing the effect either way.
+- **Decisions and next steps.** No decision; nothing accepted. For the
+  Project Manager: the identification rules P-1 to P-14 and E-1 to E-9, the
+  driver's additions (`EGW_PROOF_MASTER_SEED` required, `EGW_PROOF_RUNBOOK`,
+  `EGW_PROOF_EXTENSION_LIMIT_S` 1790, the extension's "not-refuted" label),
+  the post-window scope, and the plan helper's guards. For the student: the
+  build and load authorisation, the run id and master seed, `DRAIN_QUIET_S`
+  130 or 490, the optional extension, whether the previous image is restored
+  after the proof, and the session authorisation itself. Then the image
+  from a clean checkout, the execution request with the identities filled
+  in, and the session under separate authorisation. G3 stays paused; C3 is
+  not repeated.

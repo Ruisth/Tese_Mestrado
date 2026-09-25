@@ -9,8 +9,9 @@
 # run only; it does not prove it in general (ADR 0011, "What the proof
 # cannot show").
 #
-# WHAT IT DOES. After the prerequisites and 'pre' (ready, drained, the
-# /metrics reading and the configuration identity captured on the guest), it
+# WHAT IT DOES. After the prerequisites, the 'ready' step (the /ready wait,
+# before the attempt's clock starts) and 'pre' (drained, the /metrics reading
+# and the configuration identity captured on the guest), it
 # runs ONE harness run of a one-entry diagnostic plan (proof_plan.py: the
 # controller_restart condition's load - the nominal scenario at 11.2 msg/s,
 # three wearables, no warm-up - for 300 s of publication), with the fault
@@ -212,11 +213,14 @@ for value in "$RID" "$EXPECT_SERVICES" "$DEPLOYED" "$DC" "$BASE" "$PLAN" "$P" "$
 done
 # The hook templates handed to the harness are split without a shell
 # (shlex.split), so the hook paths and "{dest}" are double-quoted in them
-# as the runbook's harness_cmd quotes its own: the drivers' path must then
+# as the runbook's harness_cmd quotes its own: the drivers' path and the
+# results base (every "{dest}" the harness renders lies under it) must then
 # hold no double quote or backslash, which that splitting would consume.
-case "$DRIVERS" in
-    *[\"\\]*) driver_stop "$EXIT_PREREQUISITE" "the drivers' path '$DRIVERS' holds a double quote or a backslash and cannot be written double-quoted into the harness's hook templates; nothing was started" ;;
-esac
+for quoted in "drivers' path=$DRIVERS" "results base=$BASE"; do
+    case "${quoted#*=}" in
+        *[\"\\]*) driver_stop "$EXIT_PREREQUISITE" "the ${quoted%%=*} '${quoted#*=}' holds a double quote or a backslash and cannot be written double-quoted into the harness's hook templates; nothing was started" ;;
+    esac
+done
 # json_text VALUE: VALUE as a JSON string literal (quotes and backslashes
 # escaped); non-zero for a control character, which the record could not
 # hold as the text it is.
@@ -427,7 +431,7 @@ ext_cut() {
 
 # --- identities and the record of the values ----------------------------------
 IDENTITIES=$(repo_identity) || IDENTITY_FAILED=1
-VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, "EGW_HEALTH_LIMIT_S": %s, "EGW_HEALTH_STEP_S": %s, "EGW_READY_LIMIT_S": %s, "EGW_PROOF_ATTEMPT_LIMIT_S": %s, "EGW_PROOF_RESTART_AT_S": %s, "EGW_PROOF_DURATION_S": %s, "EGW_PROOF_RATE": %s, "EGW_PROOF_MASTER_SEED": %s, "EGW_PROOF_EXTENSION": "%s", "EGW_PROOF_EXTENSION_LIMIT_S": %s, "EGW_PROOF_BASE": %s, "EGW_PROOF_PLAN": %s, "EGW_PROOF_RUNBOOK": %s, "expected_source_commit": "%s"}' \
+VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, "EGW_HEALTH_LIMIT_S": %s, "EGW_HEALTH_STEP_S": %s, "EGW_READY_LIMIT_S": %s, "EGW_PROOF_ATTEMPT_LIMIT_S": %s, "EGW_PROOF_RESTART_AT_S": %s, "EGW_PROOF_DURATION_S": %s, "EGW_PROOF_RATE": %s, "EGW_PROOF_MASTER_SEED": %s, "EGW_PROOF_EXTENSION": "%s", "EGW_PROOF_EXTENSION_LIMIT_S": %s, "extension_restart_limit_after_grace_s": 300, "extension_fetch_limit_s": 300, "EGW_PROOF_BASE": %s, "EGW_PROOF_PLAN": %s, "EGW_PROOF_RUNBOOK": %s, "expected_source_commit": "%s"}' \
     "$DRAIN_QUIET_S" "$DRAIN_STEP_S" "$DRAIN_LIMIT_S" "$LIMIT" "$STEP" "$READY_LIMIT" "$ATTEMPT_LIMIT" "$RESTART_AT" "$DURATION" "$RATE" "$MASTER_SEED" "$EXTENSION" "$EXTENSION_LIMIT" "$(json_text "$BASE")" "$(json_text "$PLAN")" "$(json_text "$RUNBOOK")" "$EXPECTED_COMMIT")
 (cd "$REPO/src" && $LE set --attempt "$A" "pid=$$" "identities=$IDENTITIES" \
     "workload={\"session\": $(json_text "$(basename "$SESSION")"), \"proof\": \"the finite proof (ADR 0011)\", \"engineering_diagnostic_not_a_g3_run\": true, \"harness_run_id\": \"$RID\", \"condition\": \"controller_restart\", \"scenario\": \"nominal\", \"warmup_s\": 0, \"duration_s\": $DURATION, \"rate_msg_s\": $RATE, \"restart_at_s\": $RESTART_AT, \"fault\": \"SIGKILL of the controller's container followed by a start (proof_restart_controller.sh)\", \"devices\": \"smartwatch, smart ring, smart clothing (nominal mix)\", \"values\": $VALUES}" \
