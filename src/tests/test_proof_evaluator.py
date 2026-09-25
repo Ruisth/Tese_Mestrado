@@ -18,11 +18,16 @@ the section after test 22, the branch review's findings, each with the
 mutation it must catch; and, in the section after test 27, the Project
 Manager's review of PR #47 (2026-09-25): the proof's eligibility (E-11: the
 prescribed load, the publication completed, the population record whole,
-the fault demonstrated, the harness copy and the collector file in the
-inventory), the N1 sources' capacity across the run (E-10: an A5 occurrence
-serving its own device alone, a recorded death at most one candidate of the
-whole run, a further controller process start a recorded death that names
-no kill case) and the drain verified before R1.
+the fault demonstrated at its instant, the harness copy and the collector
+file in the inventory), the harness's validity admitted only as E-12 states
+(the sampling-gap form built with run.py's and resources.py's own
+functions, never a reason string written here), the N1 sources' capacity
+across the run (E-10: an A5 occurrence serving its own device alone, a
+recorded death at most one candidate of the whole run, each source only a
+candidate whose redelivery it may have preceded on the controller clock,
+a further controller process start a recorded death that names no kill
+case only when it may have preceded a claimant's redelivery) and the
+drain verified before R1.
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -38,7 +43,9 @@ import csv
 import itertools
 import json
 import textwrap
+import threading
 import time
+import types
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +53,7 @@ import pytest
 
 from egw_experiments import controller_metrics as metrics_mod
 from egw_experiments import proof_evaluator as pe
+from egw_experiments import resources as resources_mod
 from egw_experiments import run as run_mod
 from egw_experiments.checksums import write_sha256sums
 from egw_experiments.controller_metrics import CSV_HEADER
@@ -74,6 +82,8 @@ D4 = "44444444-4444-4444-8444-444444444444"
 #: The two controller processes, as /metrics names them (started_at).
 P0 = "2026-09-25T10:00:00Z"
 P1 = "2026-09-25T10:02:35Z"
+#: A third process, after a further death the plan did not prescribe.
+P2 = "2026-09-25T10:04:50Z"
 #: The kill on the controller clock: after the last pre-kill reading and
 #: before the first post-kill one (monotonic_ns as the controller reports).
 K_LOWER = 1_150 * NS
@@ -435,9 +445,13 @@ def _criterion(doc: dict, rule_id: str) -> dict:
 
 
 def _capacity(doc: dict) -> dict:
-    """The E-10 figures of R4's evidence, without the rule text they carry."""
+    """The E-10 figures of R4's evidence, without the rule text they carry
+    and without the deaths as placed and each candidate's possible sources,
+    which the cases on the order rule assert apart."""
     figures = dict(_criterion(doc, "R4")["evidence"]["source_capacity"])
     assert "own device alone" in figures.pop("rule") and "(E-10)" in _criterion(doc, "R4")["evidence"]["source_capacity"]["rule"]
+    figures.pop("deaths")
+    figures.pop("possible_sources")
     return figures
 
 
@@ -1591,6 +1605,7 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3_a
         "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
         "kill_available": 1, "a5_possible_by_device": {D1: [], D3: []}, "needed_by_device": {D1: 1, D3: 1},
         "needed": 2, "beyond_a5_by_device": {D1: 1, D3: 1}, "kill_needed": 2, "consistent": False,
+        "matched": 1, "deaths_preceding_none": [],
     }
     mismatches = r4["evidence"]["mismatches"]
     assert len(mismatches) == 1 and mismatches[0]["device_uuid"] is None and mismatches[0]["devices"] == [D1, D3]
@@ -1709,7 +1724,8 @@ def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> N
     assert _capacity(doc) == {
         "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
         "kill_available": 1, "a5_possible_by_device": {D1: []}, "needed_by_device": {D1: 1}, "needed": 1,
-        "beyond_a5_by_device": {D1: 1}, "kill_needed": 1, "consistent": True,
+        "beyond_a5_by_device": {D1: 1}, "kill_needed": 1, "consistent": True, "matched": 1,
+        "deaths_preceding_none": [],
     }
     # Two candidates on one device, surplus 2, the log unusable: E-7 leaves
     # both unshown and the capacity unknown; the count alone is read.
@@ -1799,23 +1815,28 @@ def test_an_a5_occurrence_serves_its_own_device_alone_and_a_death_at_most_one_ca
 
 
 def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_the_capacity_and_names_no_kill_case() -> None:
-    """E-10 and E-4, the independent review of 2026-09-25 (P2): the
-    readings record a third started_at after the restart's process, a
-    second death the plan did not prescribe. B, its only duplicate line
-    received after that start, claims the kill beside F in the band, and
-    D1 needs two cases: the record evidences two deaths, so a
+    """E-10 and E-4, the independent review of 2026-09-25 (P2), read with
+    the order rule of the joint check (F3): the readings record a third
+    started_at after the restart's process, a second death the plan did
+    not prescribe, placed on the controller clock between P1's last
+    reading (K_UPPER + 65 s) and P2's first (K_UPPER + 85 s). B, its only
+    duplicate line received after that death (K_UPPER + 90 s), claims the
+    kill beside F in the band, and D1 needs two cases: the kill may have
+    preceded both redeliveries and the further death B's, so a
     source-consistent naming exists (one per death) and the run is
     inconclusive with the starts named, never R4 against a capacity of
     one that the run's own readings contradict. Needing three refutes
-    still. A lone claimant beside the further death is neither named nor
-    R3 (which death it was in progress at cannot be told, and P-4 names
-    the command's kill alone); two claimants, R3 under one death (test
-    22e), are unshown under two, which cover both."""
-    P2 = "2026-09-25T10:04:50Z"
-    rows = _rows() + [
-        _row(_ts(290), P2, 0, 0, monotonic_ns=K_UPPER + 85 * NS, unacked=0),
-        _row(_ts(295), P2, 0, 0, monotonic_ns=K_UPPER + 95 * NS, unacked=0),
-    ]
+    still. A lone claimant redelivered after the further death is neither
+    named nor R3 (which death it was in progress at cannot be told, and
+    P-4 names the command's kill alone), with E-4 as the label of what
+    leaves it unshown, never E-7; two claimants redelivered after it are
+    unshown under two deaths, which cover both. This case's earlier
+    expectations used a lone claimant, and two claimants, redelivered
+    BEFORE the further death (at 1,200 s and 1,210 s) and expected
+    'inconclusive' and 'unshown under two': they encoded the wrong rule,
+    since a death wholly after a redelivery cannot be its source (the
+    joint check's 7c and 7d; the next test pins those cases)."""
+    rows = _rows_with_a_further_death()
     in_band = (K_LOWER + K_UPPER) // 2
     F = ("f-mid", D1, 2, 401 * NS)
     late_b = ("b-mid", D1, 1, "duplicate", K_UPPER + 90 * NS, None)
@@ -1832,7 +1853,15 @@ def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_t
     assert list(shown) == ["b-mid", "f-mid"]
     assert f"2 controller process starts after the pre-kill one ({P1}, {P2})" in shown["b-mid"] and "(E-4)" in shown["b-mid"]
     assert "never named as a source (P-4)" in shown["b-mid"]
+    assert f"a further death may have preceded its redelivered duplicate line (received at {K_UPPER + 90 * NS})" in shown["b-mid"]
+    assert f"death 1 between the last reading of process {P1} (monotonic_ns {K_UPPER + 65 * NS}) and the first reading of process {P2} ({K_UPPER + 85 * NS})" in shown["b-mid"]
     assert any("a further death is recorded that P-4 never names" in n and "(E-10)" in n for n in r3["evidence"]["notes"])
+    evidence = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert evidence["possible_sources"] == {"b-mid": {"a5_lines": [], "deaths": [0, 1]}, "f-mid": {"a5_lines": [], "deaths": [0]}}
+    assert [(d["death"], d["kind"], d["placed"], d["may_precede"]) for d in evidence["deaths"]] == [
+        (0, "kill", True, ["b-mid", "f-mid"]), (1, "further", True, ["b-mid"]),
+    ]
+    assert _capacity(doc)["matched"] == 2 and _capacity(doc)["deaths_preceding_none"] == []
     assert r3["observed"] is None and _criterion(doc, "S4")["holds"] is None
     assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "S5")["holds"] is None
     row = next(row for row in _criterion(doc, "R4")["evidence"]["devices"] if row["device_uuid"] == D1)
@@ -1845,27 +1874,196 @@ def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_t
     assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (3, 2, False)
     assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
     assert "against 2 recorded death(s)" in _criterion(doc, "R4")["reason"]
-    # A lone claimant beside the further death: unshown, not the kill's
-    # named case (which it is under one death, test 16).
-    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
+    # A lone claimant redelivered after the further death: unshown, not the
+    # kill's named case (which it is under one death, test 16). What leaves
+    # it unshown was read, so the label is E-4, never E-7.
+    late_alone = [line for line in LINES if line[0] != "b-mid"] + [late_b]
+    doc = _evaluate(lines=late_alone, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
     assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == [] and _outcome(doc)["refutations"] == []
     shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
     assert list(shown) == ["b-mid"] and "further death, which is never named as a source (P-4)" in shown["b-mid"]
     assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
     assert _capacity(doc)["kill_available"] == 2 and _criterion(doc, "R4")["observed"] is None
     assert [u["rule"] for u in _criterion(doc, "R4")["evidence"]["undecided"]] == ["E-4"]
-    # Two claimants (test 22e's, each R3 under one death): unshown under two.
+    unshown = [r for r in _outcome(doc)["inconclusive_reasons"] if " cannot be shown (" in r]
+    assert unshown and all(r.startswith(("S4 cannot be shown (E-4)", "S5 cannot be shown (E-4)", "S4, S5 cannot be shown (E-4)")) for r in unshown), unshown
+    assert not any("(E-7)" in r.split(":")[0] for r in _outcome(doc)["inconclusive_reasons"])
+    # Two claimants redelivered after the further death (test 22e's, each
+    # R3 under one death): unshown under two, which cover both.
     G = ("g-mid", D3, 1, 380 * NS)
-    doc = _evaluate(sent=SENT + [G], lines=B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)], extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    late_g = ("g-mid", D3, 1, "duplicate", K_UPPER + 92 * NS, None)
+    doc = _evaluate(sent=SENT + [G], lines=late_alone + [late_g], extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
     assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
     r3 = _criterion(doc, "R3")
     assert r3["evidence"]["not_named_identities"] == []
     assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["b-mid", "g-mid"]
     assert all("2 identities claim the kill" in c["why_not_shown"] and "(E-4)" in c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"])
+    assert all("a further death having possibly preceded the redelivery of b-mid, g-mid" in c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"])
     assert any("2 duplicate-only identities claim the kill" in n for n in r3["evidence"]["notes"])
     capacity = _capacity(doc)
     assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (2, 2, True)
     assert "recorded death" in pe.IDENTIFICATION_RULES["E-10"] and "further death" in pe.IDENTIFICATION_RULES["E-4"]
+
+
+def _rows_with_a_further_death() -> list[dict[str, str]]:
+    """The scenario's readings and a third process, P2, first read at
+    K_UPPER + 85 s: a further death placed between P1's last reading
+    (K_UPPER + 65 s) and P2's first."""
+    return _rows() + [
+        _row(_ts(290), P2, 0, 0, monotonic_ns=K_UPPER + 85 * NS, unacked=0),
+        _row(_ts(295), P2, 0, 0, monotonic_ns=K_UPPER + 95 * NS, unacked=0),
+    ]
+
+
+def test_a_further_death_wholly_after_every_redelivery_explains_nothing_and_turns_no_result() -> None:
+    """The joint check of 2026-09-25 (F3, P1), cases 7a-7d: a death can be
+    the source of a candidate only if it may have preceded that
+    candidate's redelivered duplicate line on the controller clock. A
+    crash of the new process late in the publication, after every
+    redelivery (P2 first read at K_UPPER + 85 s, P1 last read at K_UPPER +
+    65 s), explains nothing: case (1)'s R4 (surplus 2 on D1, one death that
+    may precede) stands on D1 by itself, case (2)'s R4 (one on each of D1
+    and D3) on the aggregate, two claimants of the kill stay R3 with R4
+    beside them, and a lone claimant redelivered before the late death is
+    named with the kill as its source and supports. Before this rule each
+    of them read 'inconclusive'."""
+    rows = _rows_with_a_further_death()
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    # 7a: case (1), B and F in the band on D1, surplus 2, no A5.
+    lines_bf = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None), ("f-mid", D1, 2, "duplicate", in_band, None),
+    ]
+    for label, readings in (("one death", None), ("a late further death", rows)):
+        doc = _evaluate(sent=SENT + [F], lines=lines_bf, extra_after={D1: 2, "seqs": [(D1, 2)]}, rows=readings)
+        assert _outcome(doc)["result"] == "refutes", label
+        mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+        assert mismatch["stands_on"] == [D1] and mismatch["device_uuid"] == D1, label
+        assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None, label
+    capacity = _capacity(doc)
+    assert (capacity["deaths_recorded"], capacity["kill_available"], capacity["kill_needed"]) == (2, 2, 2)
+    assert (capacity["matched"], capacity["consistent"], capacity["deaths_preceding_none"]) == (1, False, [1])
+    evidence = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert evidence["possible_sources"] == {"b-mid": {"a5_lines": [], "deaths": [0]}, "f-mid": {"a5_lines": [], "deaths": [0]}}
+    assert evidence["deaths"][1]["may_precede"] == [] and evidence["deaths"][1]["after_monotonic_ns"] == K_UPPER + 65 * NS
+    assert _outcome(doc)["refutations"] == [
+        "R4: 1 undecided device(s) whose twins need 2 N1 case(s) that only a death could serve (no A5 occurrence "
+        "on their own device can), against 2 recorded death(s), 1 of which may have preceded none of their "
+        f"redeliveries: a delta mismatch beyond the named cases stands on {D1} whatever the death(s) served (E-10)"
+    ]
+    assert "1 of which may have preceded none of their redelivered duplicate lines" in mismatch["problems"][0]
+    notes = _criterion(doc, "R3")["evidence"]["notes"]
+    assert any(n.startswith("further death(s) 1 may have preceded no duplicate-only candidate's") and "explain nothing" in n for n in notes)
+    # 7b: case (2), B on D1 and G on D3 in the band: R4 on the aggregate.
+    lines_bg = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None), ("g-mid", D3, 1, "duplicate", in_band, None),
+    ]
+    doc = _evaluate(sent=SENT + [G], lines=lines_bg, extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] is None and mismatch["devices"] == [D1, D3] and mismatch["stands_on"] == []
+    assert (_capacity(doc)["matched"], _capacity(doc)["deaths_preceding_none"]) == (1, [1])
+    # 7c: two claimants of the kill, redelivered at 1,200 s and 1,210 s,
+    # both before the late death: R3 on each and R4 beside, as under one.
+    lines_2cl = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)]
+    doc = _evaluate(sent=SENT + [G], lines=lines_2cl, extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and _criterion(doc, "R4")["observed"] is True
+    assert [c["message_id"] for c in r3["evidence"]["not_named_identities"]] == ["b-mid", "g-mid"]
+    assert all("follow every claimant's redelivered duplicate line" in c["why_not_named"] for c in r3["evidence"]["not_named_identities"])
+    assert r3["evidence"]["cannot_show_identities"] == []
+    assert [u["device_uuid"] for u in _criterion(doc, "R4")["evidence"]["surplus_unexplained"]] == [D1, D3]
+    # 7d: a lone claimant redelivered before the late death: named, supports.
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "supports" and _outcome(doc)["inconclusive_reasons"] == []
+    case = _outcome(doc)["n1_cases"][0]
+    assert (case["message_id"], case["source"]) == ("b-mid", "kill")
+    assert f"its redelivered duplicate line (received at {1_200 * NS}) precedes every further death recorded" in case["source_evidence"]["further_deaths_after_its_redelivery"]
+    assert _criterion(doc, "R4")["evidence"]["source_capacity"]["kill_available"] == 1
+    sources = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert sources["deaths_recorded"] == 2
+    assert "wholly after" in pe.IDENTIFICATION_RULES["E-4"] and "explains nothing" in pe.IDENTIFICATION_RULES["E-4"]
+    assert "matching" in pe.IDENTIFICATION_RULES["E-10"] and "may have preceded" in pe.IDENTIFICATION_RULES["E-10"]
+
+
+def test_a_death_the_readings_cannot_place_may_precede_any_redelivery() -> None:
+    """E-4's placement fails closed: a further death whose readings
+    contradict its interval (the dying process read again after the next
+    process's first reading) or without a readable lower bound may have
+    preceded any redelivery, so it is never read as wholly after one and
+    no refutation rests on it; case (1) is then inconclusive. With no
+    post-kill process recorded, the manifest's kill is the one death,
+    placed after the last pre-kill reading; a tie with that reading is
+    read inclusively, as the band of E-8 is."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    lines_bf = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None), ("f-mid", D1, 2, "duplicate", in_band, None),
+    ]
+    blip = _rows()
+    blip.insert(8, _row(_ts(200), "2026-09-25T10:03:20Z", 0, 0, monotonic_ns=K_UPPER + 20 * NS, unacked=0))
+    doc = _evaluate(sent=SENT + [F], lines=lines_bf, extra_after={D1: 2, "seqs": [(D1, 2)]}, rows=blip)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+    assert deaths[1]["placed"] is False and "which the readings contradict" in deaths[1]["placement"]
+    assert deaths[1]["may_precede"] == ["b-mid", "f-mid"] and _capacity(doc)["consistent"] is True
+    # The readings as a Death sees them.
+    rows, _notes = pe.read_metrics_rows(_rows())
+    split = pe.split_by_process(rows)
+    (kill,) = pe.recorded_deaths(split, restart_ok=True)
+    assert (kill.index, kill.dying_started_at, kill.next_started_at, kill.after, kill.before) == (0, P0, P1, K_LOWER, K_UPPER)
+    assert kill.may_precede(K_LOWER) and kill.may_precede(K_LOWER + 1) and not kill.may_precede(K_LOWER - 1)
+    assert kill.may_precede(None)
+    pre_only = pe.split_by_process([r for r in rows if r.started_at == P0])
+    (alone,) = pe.recorded_deaths(pre_only, restart_ok=True)
+    assert (alone.after, alone.before, alone.next_started_at, alone.placed) == (K_LOWER, None, None, True)
+    assert pe.recorded_deaths(pre_only, restart_ok=False) == []
+    unplaced = pe.Death(1, P1, P2, None, K_UPPER)
+    assert not unplaced.placed and unplaced.may_precede(0) and "not placed on the controller clock" in unplaced.placement()
+
+
+def test_an_a5_occurrence_serves_only_a_candidate_whose_redelivery_it_may_precede() -> None:
+    """E-10's matching applies P-4's order rule to an A5 occurrence as to a
+    death (the joint check's note on over-counting within one device): D1
+    needs three cases - B and F redelivered in the band, X without a
+    received stamp - with one death and two occurrences on D1 whose
+    in-progress deliveries were received after B's and F's redeliveries.
+    The occurrences may serve X alone, and at most one of them does, so
+    B and F need the one death: R4 stands on D1. Before, the device-wide
+    count read the two occurrences against the three cases and found the
+    twins consistent. With X's line stamped after both occurrences the
+    first names X (P-4) and the run refutes all the same."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    X = ("x-mid", D1, 3, 402 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None),
+        ("f-mid", D1, 2, "duplicate", in_band, None),
+        ("x-mid", D1, 3, "duplicate", None, None),
+    ]
+    log = [_a5_line(D1, K_UPPER + 30 * NS), _a5_line(D1, K_UPPER + 40 * NS)]
+    doc = _evaluate(sent=SENT + [F, X], lines=lines, extra_after={D1: 3, "seqs": [(D1, 3)]}, controller_log=log)
+    assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
+    capacity = _capacity(doc)
+    assert capacity["a5_possible_by_device"] == {D1: [1, 2]} and capacity["needed_by_device"] == {D1: 3}
+    assert (capacity["beyond_a5_by_device"], capacity["kill_needed"], capacity["kill_available"]) == ({D1: 2}, 2, 1)
+    assert (capacity["matched"], capacity["consistent"]) == (2, False)
+    possible = _criterion(doc, "R4")["evidence"]["source_capacity"]["possible_sources"]
+    assert possible == {
+        "b-mid": {"a5_lines": [], "deaths": [0]},
+        "f-mid": {"a5_lines": [], "deaths": [0]},
+        "x-mid": {"a5_lines": [1, 2], "deaths": [0]},
+    }
+    assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
+    # X stamped after both occurrences: the first names it (P-4), and B and
+    # F, redelivered before the second, still need the one death.
+    stamped = lines[:-1] + [("x-mid", D1, 3, "duplicate", K_UPPER + 50 * NS, None)]
+    doc = _evaluate(sent=SENT + [F, X], lines=stamped, extra_after={D1: 3, "seqs": [(D1, 3)]}, controller_log=log)
+    assert _outcome(doc)["result"] == "refutes"
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("x-mid", "a3-connection-end")]
+    assert (_capacity(doc)["needed_by_device"], _capacity(doc)["matched"]) == ({D1: 2}, 1)
 
 
 def test_a_publication_inside_the_restart_commands_window_cannot_be_shown_and_never_refutes() -> None:
@@ -1988,58 +2186,131 @@ def test_missing_session_facts_leave_the_stop_rules_unknown_and_the_proof_inconc
     assert any("no readable stop_rules (P-6)" in r for r in _outcome(doc)["inconclusive_reasons"])
 
 
-def test_harness_validity_is_recorded_verbatim_and_does_not_decide_the_proof() -> None:
-    """A complete diagnostic with only the campaign's sampling-gap deviation
-    still supports: the harness's validity is quoted, and the proof's own
-    eligibility (E-11) is checked apart and met."""
-    reasons = ["controller_metrics.csv: sample gap 12.0 s exceeds MAX_SAMPLE_GAP_S (5.0 s) after the restart"]
-    doc = _evaluate(manifest=_manifest(validity="invalid", validity_reasons=reasons))
-    assert doc["instrumentation"]["harness_validity"] == "invalid"
-    assert doc["instrumentation"]["harness_validity_reasons"] == reasons
+def test_harness_validity_is_quoted_verbatim_and_admitted_only_as_e12_states(tmp_path) -> None:
+    """The harness's validity is quoted as recorded and admitted for the
+    proof only as E-12 states; 'valid' (with no reason) is admitted and the
+    proof's own eligibility (E-11) is checked apart and met. This case
+    earlier fed a validity reason naming MAX_SAMPLE_GAP_S ('controller_
+    metrics.csv: sample gap ... exceeds MAX_SAMPLE_GAP_S') beside a sealed
+    resources.csv and expected 'supports': run.py never writes that form
+    (the joint check of 2026-09-25, F1), so the case is replaced by the
+    real form, built with run.py's and resources.py's own functions (test
+    27h below); a manifest field that decides the admission and cannot be
+    read leaves it unknown (P-6), never admitted."""
+    doc = _evaluate()
+    assert doc["instrumentation"]["harness_validity"] == "valid"
+    assert doc["instrumentation"]["harness_validity_reasons"] == []
     assert _outcome(doc)["result"] == "supports"
-    assert doc["instrumentation"]["proof_evidence"]["complete"] is True
-    assert "kept as recorded" in doc["instrumentation"]["note"]
+    assert doc["instrumentation"]["harness_admission"] == {
+        "admitted": True, "form": "valid", "reasons": [], "collector_file": None, "seal_withheld_for": None,
+        "rule": pe.IDENTIFICATION_RULES["E-12"],
+    }
+    assert "kept as recorded" in doc["instrumentation"]["note"] and "E-12" in doc["instrumentation"]["note"]
     assert "MAX_SAMPLE_GAP_S" in doc["cannot_show"]
     eligibility = doc["instrumentation"]["proof_eligibility"]
     assert eligibility["eligible"] is True and eligibility["reasons"] == [] and eligibility["unknown"] == []
-    assert eligibility["rule"] == pe.IDENTIFICATION_RULES["E-11"] and "MAX_SAMPLE_GAP_S" in eligibility["rule"]
+    assert eligibility["rule"] == pe.IDENTIFICATION_RULES["E-11"] and "E-12" in eligibility["rule"]
+    assert "MAX_SAMPLE_GAP_S" in eligibility["rule"]
     assert eligibility["checks"]["load"]["ok"] is True and eligibility["checks"]["publication"]["ok"] is True
     assert eligibility["checks"]["publication"]["source"] == "the simulator's own manifest"
+    assert eligibility["checks"]["harness_admission"] == doc["instrumentation"]["harness_admission"]
     assert eligibility["checks"]["fault"] == {
-        "restart_executed": True, "restart_returncode": 0, "restart_ok": True, "restart_shown": True, "session_facts_present": True,
+        "restart_executed": True, "restart_returncode": 0, "restart_ok": True, "restart_requested_at_s": 150.0,
+        "prescribed_at_s": 150, "at_the_prescribed_instant": True, "restart_shown": True, "session_facts_present": True,
     }
-
-
-def test_the_harness_validity_never_decides_the_proof_by_itself_whatever_its_reason() -> None:
-    """E-11's text says what the code does (the independent review of
-    2026-09-25, P3): the harness's validity is quoted and never decisive
-    by itself, whatever its reason - not for the campaign's sampling-gap
-    rule alone, which the ADR names as the one not touching the proof. A
-    harness reason outside the proof's requirements (no controller
-    confirmation marker, sut_environment.json missing) leaves the run
-    eligible and supporting when every requirement of E-11 is met; a
-    requirement the harness's reasons overlap (the simulator's exit) is
-    checked on the record itself, never read from the validity."""
-    for reason in (
-        "no controller confirmation marker: the run end was not stamped in the controller's clock "
-        "domain (GET /metrics 'monotonic_ns' via --controller-url)",
-        "sut_environment.json missing: timed runs require the SUT environment captured ON the VM",
-    ):
-        doc = _evaluate(manifest=_manifest(validity="invalid", validity_reasons=[reason]))
-        assert doc["instrumentation"]["harness_validity"] == "invalid"
-        assert doc["instrumentation"]["harness_validity_reasons"] == [reason]
-        assert _eligibility(doc)["eligible"] is True and _outcome(doc)["result"] == "supports", reason
+    # A requirement the harness's reasons overlap is checked on the record
+    # itself, never read from the validity: 'valid' beside a simulator that
+    # exited 1 is admitted and still not eligible.
     doc = _evaluate(manifest=_manifest(validity="valid", validity_reasons=[], simulator_returncode=1))
     _assert_not_eligible(doc, "the simulator did not exit 0")
+    assert doc["instrumentation"]["harness_admission"]["form"] == "valid"
+    # A field that decides the admission and cannot be read: unknown, the
+    # eligibility unknown with it (P-6) unless a requirement also fails
+    # (the last case's resources.csv is not the SUT collector's), the run
+    # inconclusive either way.
+    for changes, says, only_unknown in (
+        ({"validity": None}, "validity None cannot be read", True),
+        ({"validity_reasons": "none"}, "validity_reasons 'none' cannot be read", True),
+        ({"validity_reasons": [3]}, "validity_reasons [3] cannot be read", True),
+        ({"validity": "valid", "validity_reasons": pe.sampling_gap_validity_reasons()}, "validity 'valid' beside validity reason(s)", True),
+        (
+            # The sampling-gap form's two reasons, as run.py writes them,
+            # with the warnings that decide the form absent.
+            {"validity": "invalid", "validity_reasons": pe.sampling_gap_validity_reasons(), "resource_source": "none",
+             "missing_mandatory_artifacts": ["resources.csv"]},
+            "warnings None cannot be read",
+            False,
+        ),
+    ):
+        doc = _evaluate(manifest=_manifest(**changes))
+        admission = doc["instrumentation"]["harness_admission"]
+        assert (admission["admitted"], admission["form"]) == (None, "unknown"), changes
+        assert any(says in reason for reason in admission["reasons"]), (says, admission["reasons"])
+        eligibility = _eligibility(doc)
+        assert eligibility["eligible"] is not True, changes
+        if only_unknown:
+            assert eligibility["eligible"] is None and eligibility["reasons"] == [], changes
+        assert any(u.startswith("harness validity: whether it is admitted for the proof is unknown (E-12, P-6)") for u in eligibility["unknown"])
+        assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert "never admitted" in pe.IDENTIFICATION_RULES["E-12"] and "(P-6)" in pe.IDENTIFICATION_RULES["E-12"]
+    # The function the driver calls: a run directory that cannot be read,
+    # or a manifest that is not a JSON object, is unknown, never admitted.
+    missing = pe.harness_admission(_manifest(), tmp_path / "absent" / RID)
+    assert (missing["admitted"], missing["form"]) == (None, "unknown")
+    assert missing["reasons"][0].startswith("the run directory cannot be read: ")
+    not_an_object = pe.harness_admission(["not", "an", "object"], tmp_path)
+    assert (not_an_object["admitted"], not_an_object["form"]) == (None, "unknown")
+    assert pe.harness_admission(_manifest(), tmp_path)["form"] == "valid"
+
+
+def test_a_harness_invalidity_outside_the_sampling_gap_form_is_not_admitted() -> None:
+    """The three harness reasons the joint check of 2026-09-25 named (P2:
+    the evaluator supported beside the driver's NOT ELIGIBLE), each exactly
+    as run.compute_validity writes it for a run whose only failure it is:
+    not admitted (E-12), every reason quoted, and the run not eligible
+    although every criterion holds. This replaces the case that expected
+    'supports' for 'no controller confirmation marker' and a missing
+    sut_environment.json ('the harness validity never decides the proof by
+    itself, whatever its reason'): it encoded the blanket exclusion of the
+    harness's invalidity that the Project Manager did not confirm (review
+    of PR #47, section 6, P-8)."""
+    base = _manifest()
+    for changes, begins in (
+        ({"confirmation_marker_ok": False}, "no controller confirmation marker: "),
+        ({"collector_problems": ["the collector did not stop cleanly"]}, "collector output not accounted for: "),
+        ({"sut_env_missing_fields": ["os_release"]}, "sut_environment.json unusable, missing required field(s): os_release"),
+    ):
+        arguments: dict[str, Any] = dict(
+            timed=True, sut_env_present=True, allow_missing_sut_env=False, resource_source="sut-collector",
+            allow_missing_resources=False, restart_required=True, restart_ok=True, simulator_returncode=0,
+            skip_warmup=True, condition_id="controller_restart", allow_protocol_deviation=True,
+            confirmation_marker_ok=True, collector_hooks=[], missing_artifacts=[], collector_problems=[],
+            sut_log_fetches=base["sut_log_fetches"], twin_snapshots=base["twin_snapshots"], drain=base["drain"],
+            events_post_drain_fetch=base["events_post_drain_fetch"], config_identity_ok=True,
+        )
+        arguments.update(changes)
+        validity, reasons = run_mod.compute_validity(**arguments)
+        assert validity == "invalid" and len(reasons) == 1 and reasons[0].startswith(begins), reasons
+        doc = _evaluate(manifest=_manifest(validity=validity, validity_reasons=reasons))
+        assert doc["instrumentation"]["harness_validity_reasons"] == reasons
+        admission = doc["instrumentation"]["harness_admission"]
+        assert (admission["admitted"], admission["form"], admission["collector_file"]) == (False, "not-admitted", None)
+        assert f"harness validity reason (quoted): {reasons[0]}" in admission["reasons"]
+        _assert_not_eligible(doc, "harness validity: not admitted for the proof (E-12, form 'not-admitted')", reasons[0])
+        assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS), begins
+        assert any(r.startswith("not eligible (E-11): harness validity: not admitted") for r in _outcome(doc)["inconclusive_reasons"])
     for text in (pe.IDENTIFICATION_RULES["E-11"], _eligibility(doc)["note"], pe.__doc__):
-        assert "never decides the proof by itself" in text or "never decisive by itself" in text, text[:80]
-        assert "rule alone" not in text, text[:80]
-    assert "MAX_SAMPLE_GAP_S" in pe.IDENTIFICATION_RULES["E-11"] and "reported, not decisive" in pe.IDENTIFICATION_RULES["E-11"]
+        assert "never decides the proof by itself" not in text and "never decisive by itself" not in text, text[:80]
+        assert "E-12" in text, text[:80]
+    assert "reported, not decisive" not in pe.IDENTIFICATION_RULES["E-11"]
+    assert "any other harness invalidity makes the run not eligible" in pe.IDENTIFICATION_RULES["E-11"]
 
 
 # ---------------------------------------------------------------------------
-# 27a-27g. the Project Manager's review of PR #47 (2026-09-25): F1, the proof's
-# eligibility (E-11), and the drain verified before R1
+# 27a-27k. the Project Manager's review of PR #47 (2026-09-25) and the joint
+# check of the same day: F1, the proof's eligibility (E-11), the harness's
+# validity admitted only as E-12 states (27h-27j), the fault's instant, and
+# the drain verified before R1
 # ---------------------------------------------------------------------------
 
 
@@ -2268,6 +2539,302 @@ def test_the_collector_file_is_required_in_the_inventory() -> None:
     assert set(present) == FULL_FILES - {"manifest.json"} and all(present.values())
 
 
+#: The measured window the collector file of the sampling-gap form covers.
+GAP_WINDOW = ("2026-09-25T10:00:00Z", "2026-09-25T10:01:05Z")
+
+
+def _gap_collector_csv(path: Path, *, other_problem: bool = False) -> None:
+    """The collector file as the SUT collector writes it (resources.py's
+    CSV_HEADER): one container sampled every second over GAP_WINDOW but for
+    one 6 s gap (10:00:19 to 10:00:25), and, with ``other_problem``, one
+    row whose cpu_pct is not a finite number."""
+    rows = [",".join(resources_mod.CSV_HEADER)]
+    for n, second in enumerate([*range(0, 20), *range(25, 66)]):
+        cpu = "nan" if other_problem and n == 3 else "1.0"
+        rows.append(f"2026-09-25T10:{second // 60:02d}:{second % 60:02d}Z,egw-controller-1,{cpu},1048576,0.1,egw")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(rows) + "\n", "utf-8")
+
+
+def _sampling_gap_run(
+    tmp_path: Path,
+    *,
+    other_problem: bool = False,
+    validity_changes: dict[str, Any] | None = None,
+    seal: bool = False,
+    collector: str = "kept",
+) -> tuple[Path, dict]:
+    """The campaign's sampling-gap deviation exactly as the harness records
+    it, built with run.py's and resources.py's own functions and no reason
+    string written here: the builder's complete run directory without
+    resources.csv; the collector file the harness's own fetch writes
+    (logs/collector/resources-<run_id>.csv) with a 6 s gap, handed to
+    run.ingest_resources with the fetch's source label and the measured
+    window, which rejects it and records the warning; the mandatory
+    artefacts missing as run.missing_mandatory_artifacts finds them; and the
+    validity run.compute_validity gives with resource_source 'none' and the
+    records of a complete item-18 run. SHA256SUMS is withheld, as run.py
+    withholds it while a mandatory artefact is missing, unless ``seal``;
+    ``collector`` 'removed' or 'emptied' takes the collector file away
+    after the harness's run."""
+    run_dir = _write_run_dir(tmp_path, seal=False)
+    (run_dir / "resources.csv").unlink()
+    fetched = run_dir / pe.fetch_collector_rel(RID)
+    _gap_collector_csv(fetched, other_problem=other_problem)
+    warnings: list[str] = []
+    ingested = run_mod.ingest_resources(
+        run_dir,
+        fetched,
+        warnings,
+        expected_window_start_utc=GAP_WINDOW[0],
+        expected_window_end_utc=GAP_WINDOW[1],
+        source_label=pe.INGEST_SOURCE_FETCH,
+    )
+    assert ingested is False and not (run_dir / "resources.csv").exists()
+    missing = run_mod.missing_mandatory_artifacts(run_dir, "controller_restart")
+    base = _manifest()
+    arguments: dict[str, Any] = dict(
+        timed=True, sut_env_present=True, allow_missing_sut_env=False, resource_source="none",
+        allow_missing_resources=False, restart_required=True, restart_ok=True, simulator_returncode=0,
+        skip_warmup=True, condition_id="controller_restart", allow_protocol_deviation=True,
+        confirmation_marker_ok=True, collector_hooks=[], missing_artifacts=missing, collector_problems=[],
+        sut_log_fetches=base["sut_log_fetches"], twin_snapshots=base["twin_snapshots"], drain=base["drain"],
+        events_post_drain_fetch=base["events_post_drain_fetch"], config_identity_ok=True,
+    )
+    arguments.update(validity_changes or {})
+    validity, reasons = run_mod.compute_validity(**arguments)
+    manifest = _manifest(
+        validity=validity, validity_reasons=reasons, resource_source="none", warnings=warnings,
+        missing_mandatory_artifacts=missing,
+    )
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", "utf-8")
+    if collector == "removed":
+        fetched.unlink()
+    elif collector == "emptied":
+        fetched.write_text("", "utf-8")
+    if seal:
+        write_sha256sums(run_dir)
+    return run_dir, manifest
+
+
+def test_the_campaign_sampling_gap_deviation_as_the_harness_records_it_is_admitted_and_supports(tmp_path, capsys) -> None:
+    """The ADR anticipates the harness marking the proof's run invalid under
+    MAX_SAMPLE_GAP_S ('What it cannot show'), as it marked r01 and r02. The
+    harness records that deviation in one form only: its ingest rejects the
+    collector file, so resources.csv is never written, resource_source is
+    'none', the validity reasons are 'no SUT resources' and 'mandatory
+    artefact(s) missing ... resources.csv', MAX_SAMPLE_GAP_S appears only
+    in the rejection's warning, the rejected file stays at
+    logs/collector/resources-<run_id>.csv and SHA256SUMS is withheld (the
+    archived r02 manifest has exactly this shape). Built here with the
+    harness's own functions and with every other check holding, it is
+    admitted (E-12) by the function the driver calls as well, the evidence
+    inventory takes the rejected collector file and the withheld seal with
+    the reasons stated, and the proof supports. Sealed afterwards and
+    verifying, the same form is admitted with nothing withheld."""
+    run_dir, manifest = _sampling_gap_run(tmp_path)
+    # What the harness wrote, from its own functions.
+    assert manifest["validity"] == "invalid" and manifest["validity_reasons"] == pe.sampling_gap_validity_reasons()
+    assert manifest["validity_reasons"][0].startswith("no SUT resources: ")
+    assert manifest["validity_reasons"][1].startswith("mandatory artefact(s) missing from the run directory: resources.csv ")
+    assert not any("MAX_SAMPLE_GAP_S" in reason for reason in manifest["validity_reasons"])
+    (rejection,) = [w for w in manifest["warnings"] if pe.INGEST_REJECTED_MARK in w]
+    assert rejection.startswith(pe.INGEST_SOURCE_FETCH + " ") and "sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S)" in rejection
+    problems = resources_mod.validate_resources_csv(
+        run_dir / pe.fetch_collector_rel(RID), expected_window_start_utc=GAP_WINDOW[0], expected_window_end_utc=GAP_WINDOW[1]
+    )
+    assert len(problems) == 1 and rejection.endswith(problems[0])
+    assert manifest["missing_mandatory_artifacts"] == ["resources.csv"] and manifest["resource_source"] == "none"
+    assert not (run_dir / "SHA256SUMS").exists() and not (run_dir / "resources.csv").exists()
+    # The shared admission, as the driver calls it.
+    admission = pe.harness_admission(manifest, run_dir)
+    assert set(admission) == {"admitted", "form", "reasons", "collector_file", "seal_withheld_for", "rule"}
+    assert (admission["admitted"], admission["form"]) == (True, "sampling-gap-only")
+    assert admission["collector_file"] == f"logs/collector/resources-{RID}.csv"
+    assert admission["seal_withheld_for"] == (
+        "the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)"
+    )
+    assert admission["rule"] == pe.IDENTIFICATION_RULES["E-12"]
+    assert f"ingest rejection (quoted): {rejection}" in admission["reasons"]
+    assert all(f"harness validity reason (quoted): {r}" in admission["reasons"] for r in manifest["validity_reasons"])
+    # The evaluator over the same directory: every other check holds.
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["system_outcome"]["result"] == "supports" and doc["system_outcome"]["inconclusive_reasons"] == []
+    assert doc["instrumentation"]["harness_admission"] == admission
+    assert doc["instrumentation"]["harness_validity"] == "invalid"
+    assert doc["instrumentation"]["harness_validity_reasons"] == manifest["validity_reasons"]
+    eligibility = doc["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is True and eligibility["reasons"] == [] and eligibility["unknown"] == []
+    assert eligibility["checks"]["harness_admission"] == admission
+    evidence = doc["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is True and evidence["missing"] == [] and evidence["fetch_failures"] == []
+    assert evidence["present"]["resources.csv"] is False and evidence["present"][admission["collector_file"]] is True
+    accepted = evidence["accepted_in_the_sampling_gap_form"]
+    assert len(accepted) == 2
+    assert accepted[0].startswith("resources.csv: absent from the top of the run directory") and admission["collector_file"] in accepted[0]
+    assert accepted[1].startswith("SHA256SUMS: absent, withheld by the harness for the missing mandatory artefact resources.csv alone")
+    assert "sha256 of every file it read" in accepted[1]
+    assert doc["instrumentation"]["seal"] == "unsealed"
+    assert len(doc["sources"][admission["collector_file"]]) == 64
+    assert "(admission 'sampling-gap-only', E-12)" in capsys.readouterr().err
+    # Sealed afterwards and verifying: admitted, nothing withheld.
+    sealed_dir, sealed = _sampling_gap_run(tmp_path / "sealed", seal=True)
+    admission = pe.harness_admission(sealed, sealed_dir)
+    assert (admission["form"], admission["seal_withheld_for"]) == ("sampling-gap-only", None)
+    assert _main(sealed_dir, tmp_path / "sealed.json", _session_file(tmp_path / "sealed")) == 0
+    evidence = json.loads((tmp_path / "sealed.json").read_text(encoding="utf-8"))["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is True and len(evidence["accepted_in_the_sampling_gap_form"]) == 1
+
+
+@pytest.mark.parametrize(
+    "variant, fragment",
+    [
+        ("another-problem", "the ingest rejection lists a problem other than a MAX_SAMPLE_GAP_S sampling gap"),
+        ("third-reason", "validity 'invalid' for reason(s) other than exactly the two run.compute_validity writes"),
+        ("collector-removed", f"the rejected collector file logs/collector/resources-{RID}.csv is absent from the run directory"),
+        ("collector-emptied", f"the rejected collector file logs/collector/resources-{RID}.csv is empty"),
+    ],
+    ids=["another-problem", "third-reason", "collector-removed", "collector-emptied"],
+)
+def test_the_sampling_gap_form_is_admitted_only_whole(tmp_path, variant: str, fragment: str) -> None:
+    """E-12 admits the sampling-gap form only whole: the same run with the
+    rejection also listing a problem that is not a sampling gap (a row
+    whose cpu_pct is not a finite number), with a third validity reason
+    (no controller confirmation marker), or with the rejected collector
+    file missing from logs/collector or empty, is not admitted, every
+    harness reason quoted, and the run is not eligible."""
+    kwargs: dict[str, Any] = {
+        "another-problem": {"other_problem": True},
+        "third-reason": {"validity_changes": {"confirmation_marker_ok": False}},
+        "collector-removed": {"collector": "removed"},
+        "collector-emptied": {"collector": "emptied"},
+    }[variant]
+    run_dir, manifest = _sampling_gap_run(tmp_path, **kwargs)
+    if variant == "another-problem":
+        problems = resources_mod.validate_resources_csv(
+            run_dir / pe.fetch_collector_rel(RID), expected_window_start_utc=GAP_WINDOW[0], expected_window_end_utc=GAP_WINDOW[1]
+        )
+        assert len(problems) == 2 and "MAX_SAMPLE_GAP_S" in problems[-1] and "MAX_SAMPLE_GAP_S" not in problems[0]
+        assert manifest["validity_reasons"] == pe.sampling_gap_validity_reasons()
+    if variant == "third-reason":
+        assert len(manifest["validity_reasons"]) == 3
+        assert any(r.startswith("no controller confirmation marker: ") for r in manifest["validity_reasons"])
+    admission = pe.harness_admission(manifest, run_dir)
+    assert (admission["admitted"], admission["form"], admission["collector_file"]) == (False, "not-admitted", None)
+    assert any(fragment in reason for reason in admission["reasons"]), admission["reasons"]
+    for reason in manifest["validity_reasons"]:
+        assert f"harness validity reason (quoted): {reason}" in admission["reasons"]
+    doc = pe.evaluate(pe.load_run_dir(run_dir), _session())
+    assert doc["instrumentation"]["harness_admission"] == admission
+    _assert_not_eligible(doc, "harness validity: not admitted for the proof (E-12, form 'not-admitted')", fragment)
+    assert doc["instrumentation"]["proof_evidence"]["accepted_in_the_sampling_gap_form"] == []
+    assert _outcome(doc)["refutations"] == []
+
+
+def test_the_sampling_gap_form_is_recognised_from_the_records_run_py_writes_alone(tmp_path) -> None:
+    """E-12 reads each record of the form, each derived from run.py's code
+    path, and admits nothing short of all of them: resource_source 'none',
+    missing_mandatory_artifacts ['resources.csv'] alone, exactly one
+    rejection warning, no resources.csv at the top of the run directory, the
+    harness's own fetch rejected where run.py writes it, a source label
+    run.py passes, a file inside the run directory and a sampling-gap
+    problem in the form validate_resources_csv writes. A rejection through
+    '--resources-from' naming a file inside the run directory (as r02
+    recorded it) is the same form."""
+    run_dir, manifest = _sampling_gap_run(tmp_path)
+    artefacts = pe.load_run_dir(run_dir)
+    (rejection,) = [w for w in manifest["warnings"] if pe.INGEST_REJECTED_MARK in w]
+    fetched = pe.fetch_collector_rel(RID)
+
+    def _admit(changes: dict[str, Any] | None = None, add: tuple[str, ...] = ()) -> dict:
+        return pe.admission_of({**manifest, **(changes or {})}, artefacts.files_present | set(add), artefacts.empty_files, artefacts.integrity)
+
+    assert _admit()["form"] == "sampling-gap-only" and _admit()["collector_file"] == fetched
+    moved = rejection.replace(f"/{fetched}", f"/logs/collector/resources-from/resources-{RID}.csv")
+    for changes, add, fragment in (
+        ({"resource_source": "sut-collector"}, (), "resource_source 'sut-collector', not 'none'"),
+        ({"missing_mandatory_artifacts": ["resources.csv", "events.jsonl"]}, (), "missing_mandatory_artifacts ['resources.csv', 'events.jsonl'], not ['resources.csv'] alone"),
+        ({"warnings": [rejection, rejection]}, (), "2 warning(s) of the ingest rejection"),
+        ({"warnings": []}, (), "0 warning(s) of the ingest rejection"),
+        ({}, ("resources.csv",), "resources.csv is present at the top of the run directory"),
+        (
+            {"warnings": [moved]}, (f"logs/collector/resources-from/resources-{RID}.csv",),
+            f"the rejected file of the harness's own fetch is at logs/collector/resources-from/resources-{RID}.csv, not at {fetched}",
+        ),
+        ({"warnings": [rejection.replace(pe.INGEST_SOURCE_FETCH, "--another-source", 1)]}, (), "names a source that run.py does not pass"),
+        (
+            {"warnings": [pe.INGEST_SOURCE_RESOURCES_FROM + " /elsewhere/resources.csv" + rejection[rejection.index(pe.INGEST_REJECTED_MARK):]]}, (),
+            "the rejected file '/elsewhere/resources.csv' is not in the run directory",
+        ),
+        (
+            {"warnings": [rejection.replace("1 sampling gap(s)", "2 sampling gap(s)", 1)]}, (),
+            "sampling-gap problem is not in the form resources.validate_resources_csv writes",
+        ),
+    ):
+        admission = _admit(changes, add)
+        assert (admission["admitted"], admission["form"], admission["collector_file"]) == (False, "not-admitted", None), changes
+        assert any(fragment in reason for reason in admission["reasons"]), (fragment, admission["reasons"])
+    manual = rejection.replace(pe.INGEST_SOURCE_FETCH, pe.INGEST_SOURCE_RESOURCES_FROM, 1)
+    admission = _admit({"warnings": [manual]})
+    assert (admission["form"], admission["collector_file"]) == ("sampling-gap-only", fetched)
+    # On disk, the same through the function the driver calls.
+    (run_dir / "resources.csv").write_text(RESOURCES_CSV, "utf-8")
+    assert pe.harness_admission(manifest, run_dir)["form"] == "not-admitted"
+
+
+def test_a_seal_that_fails_beside_the_sampling_gap_form_is_never_accepted(tmp_path, capsys) -> None:
+    """A SHA256SUMS present that does not verify is never accepted: the
+    evaluator does not evaluate the directory (exit 2, as today), the
+    shared admission refuses the form, and in memory the failed seal is a
+    failed record that leaves the run not eligible."""
+    run_dir, manifest = _sampling_gap_run(tmp_path, seal=True)
+    (run_dir / "sent_events.jsonl").write_text("{}\n", "utf-8")  # bytes changed after the seal
+    admission = pe.harness_admission(manifest, run_dir)
+    assert (admission["admitted"], admission["form"]) == (False, "not-admitted")
+    assert "SHA256SUMS is present and does not verify (seal 'false')" in admission["reasons"]
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 2
+    assert json.loads(out.read_text(encoding="utf-8"))["system_outcome"]["result"] == "not-evaluated"
+    capsys.readouterr()
+    artefacts = pe.load_run_dir(run_dir)
+    assert artefacts.integrity == "false"
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(doc, "SHA256SUMS: the seal does not verify", "harness validity: not admitted")
+    assert doc["instrumentation"]["proof_evidence"]["accepted_in_the_sampling_gap_form"] == []
+
+
+def test_the_fault_is_required_at_the_plans_instant() -> None:
+    """E-11 checks the prescribed fault instant (ADR 0011's table: 'fault |
+    at t+150 s', issued through --restart-at-s so that the instant is in
+    the manifest): run.py records the instant it scheduled as the restart
+    record's requested_at_s. Another instant, an absent one or one that is
+    not a number is not eligible; 150 s, as an integer or a float, is."""
+    for value in (120.0, 150.5, "150", None, "absent"):
+        restart = {**_manifest()["restart"], "requested_at_s": value}
+        if value == "absent":
+            restart.pop("requested_at_s")
+            value = None
+        doc = _evaluate(manifest=_manifest(restart=restart))
+        _assert_not_eligible(
+            doc,
+            f"fault: the manifest's restart was requested at {value!r} s (restart.requested_at_s), not at the "
+            "plan's t+150 s (ADR 0011: 'fault | at t+150 s'): the prescribed fault instant is not shown",
+        )
+        fault = _eligibility(doc)["checks"]["fault"]
+        assert fault["at_the_prescribed_instant"] is False and fault["prescribed_at_s"] == 150
+        assert _outcome(doc)["refutations"] == []
+        assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS)
+    doc = _evaluate(manifest=_manifest(restart={**_manifest()["restart"], "requested_at_s": 150}))
+    assert _eligibility(doc)["eligible"] is True and _outcome(doc)["result"] == "supports"
+    adr = " ".join(pe.ADR_PATH.read_text(encoding="utf-8").split())
+    assert f"| fault | at t+{pe.PROOF_RESTART_AT_S} s, SIGKILL of the controller's container" in adr
+    driver = (Path(__file__).resolve().parents[2] / "tools" / "session" / "proof.sh").read_text(encoding="utf-8")
+    assert f"healthy_seconds EGW_PROOF_RESTART_AT_S {pe.PROOF_RESTART_AT_S})" in driver
+    assert "requested_at_s" in pe.IDENTIFICATION_RULES["E-11"] and "t+150 s" in pe.IDENTIFICATION_RULES["E-11"]
+
+
 def test_r1_needs_the_drain_record_verified_not_merely_the_quiet_string() -> None:
     """R1 asserts missing identities after a completed drain: the drain
     record must be verified by the harness with outcome 'quiet', never the
@@ -2390,7 +2957,7 @@ def test_the_verdict_document_has_three_separate_sections_and_every_rule_text() 
     assert doc["cannot_show"] == pe.RULES["cannot_show"]
     assert doc["instrumentation"]["proof_eligibility"]["rule"] == pe.IDENTIFICATION_RULES["E-11"]
     assert doc["instrumentation"]["proof_eligibility"]["eligible"] is True
-    assert set(pe.IDENTIFICATION_RULES) == {f"P-{n}" for n in range(1, 8)} | {f"E-{n}" for n in range(1, 12)}
+    assert set(pe.IDENTIFICATION_RULES) == {f"P-{n}" for n in range(1, 8)} | {f"E-{n}" for n in range(1, 13)}
     assert doc["system_outcome"]["report"]["method"]["criteria_copy"] == POST_DRAIN_EVENTS_FILENAME
     assert doc["system_outcome"]["report"]["copies"]["events.jsonl"]["lines"] == 2
     assert doc["system_outcome"]["report"]["copies"][POST_DRAIN_EVENTS_FILENAME]["lines"] == 4
@@ -2659,12 +3226,24 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, fast_run, monkeypatch
         return rc
 
     sim.sleep_s = 0.0
+    # The fault at the plan's instant (E-11): the harness schedules the
+    # restart at t+150 s and records that instant; the fake run lasts about
+    # a second, so the timer the harness starts fires at once instead. Only
+    # run.py's view of the threading module is stubbed.
+    class _PromptTimer(threading.Timer):
+        def __init__(self, interval, function, args=None, kwargs=None):
+            super().__init__(0.05, function, args=args, kwargs=kwargs)
+
+    threading_view = types.SimpleNamespace(**{name: getattr(threading, name) for name in dir(threading) if not name.startswith("__")})
+    threading_view.Timer = _PromptTimer
+    monkeypatch.setattr(run_mod, "threading", threading_view)
     rc, run_dir, _record = _item18_run(
         tmp_path,
         plan_path,
         sim,
         monkeypatch,
         run_id=run_id,
+        restart_at_s=float(pe.PROOF_RESTART_AT_S),
         controller_url="http://127.0.0.1:8000",
         twin_snapshot_cmd=(
             f'"{PY}" "{snapshot_script.as_posix()}" {{run_id}} "{{dest}}" '
@@ -2692,6 +3271,8 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, fast_run, monkeypatch
     assert pe.simulator_manifest_rel(run_id) in artefacts.files_present and "resources.csv" in artefacts.files_present
     assert (manifest["scenario"], manifest["duration_s"], manifest["rate_msg_s"], manifest["warmup_s"]) == ("nominal", 300, 11.2, 0)
     assert manifest["events_fetch"]["ok"] is True and manifest["resource_source"] == "sut-collector"
+    assert manifest["restart"]["requested_at_s"] == 150.0 and manifest["restart"]["executed"] is True
+    assert pe.harness_admission(manifest, run_dir)["form"] == "valid"
 
     out = tmp_path / "proof_verdict.json"
     session = _session_file(tmp_path)

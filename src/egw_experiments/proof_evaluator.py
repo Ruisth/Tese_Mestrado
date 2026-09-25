@@ -14,17 +14,20 @@ with the item-18 records), the session facts the driver writes beside it,
 and prints one verdict document, ``proof_verdict.json``, with three
 sections that are never merged:
 
-- ``instrumentation``: the harness's own ``validity`` kept as recorded and
-  never decisive by itself (the proof's requirements are checked apart,
-  E-11), the seal, whether the proof's evidence is complete (both twin snapshots
+- ``instrumentation``: the harness's own ``validity`` quoted as recorded
+  and admitted for the proof in two forms only (E-12: 'valid', or the
+  campaign's MAX_SAMPLE_GAP_S deviation in the one form the harness
+  records it; :func:`harness_admission`, which the driver calls too), the
+  seal, whether the proof's evidence is complete (both twin snapshots
   verified, a verified drain that was quiet or gave up, the harness copy of
   the events fetched, the post-drain copy fetched and verified, the three
   SUT logs fetched, the collector file, the configuration identity embedded
   with W, a readable pre-kill reading, the directory sealed and verified) -
   every absence named, so that "any fetch listed above fails" can be
   applied - and whether the run is eligible for the proof at all (E-11: the
-  prescribed load and fault, the publication completed, the population
-  record whole, the fault demonstrated), every failed requirement named;
+  harness's validity admitted, the prescribed load and fault at its
+  instant, the publication completed, the population record whole, the
+  fault demonstrated), every failed requirement named;
 - ``system_outcome``: the result, each criterion with the ADR's text
   verbatim, whether it holds (S) or was observed (R) and the evidence it
   rests on; the refutations, the inconclusive reasons, the report by class
@@ -52,10 +55,12 @@ duplicate-only identity whose line falls in the sampling band around the
 kill, or whose publication falls inside the restart command's window, can
 be shown neither way (E-8), never refuted on that ground; the twin's
 figures on such an identity's device refute only when no naming of it
-fits them (E-9), the namings respecting the sources the run evidences and
-their capacity across the whole run (E-10); and a run that is not the
-prescribed execution with its records is not eligible: inconclusive, never
-support (E-11).
+fits them (E-9), the namings respecting the sources the run evidences,
+their capacity across the whole run and their order against each
+candidate's redelivery on the controller clock (E-10); and a run that is
+not the prescribed execution with its records, or whose harness validity
+is not admitted, is not eligible: inconclusive, never support (E-11,
+E-12).
 
 Exit codes, as ``broker_measure.sh`` reads the broker verdict: 0 supports,
 1 refutes, 3 inconclusive, 2 not evaluated (an input unreadable, a seal
@@ -70,11 +75,12 @@ import bisect
 import csv
 import json
 import math
+import re
 import sys
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .analyze import (
     INTEGRITY_FAILED,
@@ -87,7 +93,9 @@ from .analyze import (
 from .checksums import SUMS_FILENAME, sha256_file
 from .controller_metrics import CSV_HEADER, METRIC_FIELDS
 from .itest_reconcile import HelperError, INGESTION_KEYS, load_devices
+from .protocol import MAX_SAMPLE_GAP_S
 from .run import (
+    COLLECTOR_FETCH_SUBDIR,
     CONFIG_IDENTITY_FILENAME,
     DRAIN_OUTCOMES,
     DRAIN_TRANSCRIPT_FILENAME,
@@ -100,6 +108,7 @@ from .run import (
     SUT_LOG_SUBDIR,
     TWIN_SNAPSHOT_FILES,
     classify_drain_output,
+    compute_validity,
     configuration_identity_problems,
     expected_twin_devices,
 )
@@ -149,6 +158,11 @@ PROOF_LOAD: dict[str, Any] = {
 #: show when the simulator's manifest is absent and the file's line count
 #: is the only source (E-11), with no tolerance.
 PROOF_EXPECTED_MESSAGES = 3360
+#: The prescribed fault instant (ADR 0011, the finite proof's table: "fault |
+#: at t+150 s, ... issued through the harness restart hook (`--restart-cmd`,
+#: `--restart-at-s`) so that both instants are in the manifest"): run.py
+#: records the instant it scheduled as the restart record's requested_at_s.
+PROOF_RESTART_AT_S = 150
 #: The simulator's own manifest, where the harness keeps it
 #: (run.simulator_run_dir, analyze.read_simulator_manifest): its `completed`
 #: and `totals.sent` are the record of what was published (CONTRACTS 7).
@@ -157,6 +171,35 @@ SIMULATOR_MANIFEST_REL = "logs/simulator/{run_id}/manifest.json"
 #: the SUT collector (the manifest's resource_source).
 COLLECTOR_FILENAME = "resources.csv"
 SUT_COLLECTOR_SOURCE = "sut-collector"
+
+#: The forms of the harness's validity E-12 names (harness_admission).
+ADMISSION_VALID = "valid"
+ADMISSION_SAMPLING_GAP_ONLY = "sampling-gap-only"
+ADMISSION_NOT_ADMITTED = "not-admitted"
+ADMISSION_UNKNOWN = "unknown"
+#: run.ingest_resources' rejection warning, word for word: f"{source_label}
+#: {src} REJECTED (SUT resources treated as missing): " followed by
+#: resources.validate_resources_csv's problems joined by "; ". The two
+#: source labels are the ones execute_run passes: '--collector-fetch-cmd
+#: output' for the file the harness's own fetch hook wrote, and
+#: '--resources-from' (ingest_resources' default) otherwise.
+INGEST_REJECTED_MARK = " REJECTED (SUT resources treated as missing): "
+INGEST_SOURCE_FETCH = "--collector-fetch-cmd output"
+INGEST_SOURCE_RESOURCES_FROM = "--resources-from"
+#: resources.validate_resources_csv's sampling-gap problem, which is always
+#: the last problem it lists: f"{n} sampling gap(s) exceed the protocol
+#: maximum of {max_sample_gap_s:g} s (MAX_SAMPLE_GAP_S): " followed by the
+#: first three gaps, each f"{label} ({gap:.1f} s)" with a label beginning
+#: f"container {name!r}: ", joined by "; ", then "; ..." when there are more
+#: (ingest_resources calls it with the protocol's MAX_SAMPLE_GAP_S).
+_GAP_PROBLEM_RE = re.compile(
+    r"(\d+) sampling gap\(s\) exceed the protocol maximum of "
+    + re.escape(f"{MAX_SAMPLE_GAP_S:g}")
+    + r" s \(MAX_SAMPLE_GAP_S\): (.+)",
+    re.S,
+)
+_GAP_ITEM_RE = re.compile(r"container (?:'[^']*'|\"[^\"]*\"): .+ \((\d+\.\d) s\)", re.S)
+_GAP_ITEMS_SHOWN = 3
 
 #: The controller's log lines the evaluator reads (egw_controller.mqtt): an
 #: A5 occurrence is the connection-end message at ERROR (the controller's
@@ -387,11 +430,24 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "was in progress at the kill and claims no case. When the readings "
         "record more than one controller process start after the pre-kill "
         "one, a further death is recorded that the plan did not prescribe and "
-        "P-4 never names as a source: a claimant of the kill cannot be told "
-        "from an identity in progress at that further death, so no kill case "
-        "is named and every claimant is neither named nor R3, its device "
-        "undecided (E-9); each recorded death counts one to the capacity "
-        "(E-10)."
+        "P-4 never names as a source. Each death is placed on the controller "
+        "clock between the last reading of the process that died and the "
+        "first reading of the next (monotonic_ns), and it may have preceded a "
+        "candidate's redelivery only when the lower bound of that interval is "
+        "below the received_monotonic_ns of the candidate's first duplicate "
+        "line, or equal to it (a tie the readings cannot order, read "
+        "inclusively as the band of P-3 and E-8 is), or when either cannot be "
+        "read or the readings contradict the interval (the dying process read "
+        "at or after the next one's first reading); a death wholly after the "
+        "redelivery cannot be its source. Beside a further death that may have preceded a claimant's "
+        "redelivery, a claimant of the kill cannot be told from an identity "
+        "in progress at that further death, so no kill case is named and "
+        "every claimant is neither named nor R3, its device undecided (E-9); "
+        "a further death wholly after every claimant's redelivery leaves this "
+        "rule as under one death, and a further death that may have preceded "
+        "no duplicate-only candidate's redelivery explains nothing and is "
+        "reported. Each recorded death counts one to the capacity, for the "
+        "candidates whose redelivery it may have preceded (E-10)."
     ),
     "E-5": (
         "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
@@ -459,70 +515,117 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "evidences and their capacity across the whole run (E-10)."
     ),
     "E-10": (
-        "The namings E-9 tries respect the sources the run evidences and "
-        "their capacity across the whole run, each source serving what it "
-        "can (N1: at most one such identity per death, or per connection "
-        "ended under A3 after a PATCH, since there is one consumer): a "
-        "recorded death gives at most one N1 case in the run, whichever "
-        "device's - the deaths are every controller process start the "
-        "readings record after the pre-kill one, or the manifest's kill "
-        "(P-4's conditions on its restart record) when they record none, "
-        "less the kill case already named - and each A5 occurrence read from "
-        "the controller log at most one, of its own device alone (none when "
-        "it named a case, or when its delivery was received after every "
-        "undecided candidate's redelivery on its device); occurrences on one "
-        "device never serve another's need. With the log read, an undecided "
-        "candidate (E-8, E-4) can have only a death as its source, since an "
-        "occurrence that could serve it names it under P-4. So the cases an "
-        "undecided device needs beyond the occurrences on it can be served "
-        "only by the deaths, and the deaths must cover every undecided "
-        "device's such cases together. When they cannot (a surplus of two on "
-        "one device, or of one on each of two, with one death and no such "
-        "occurrence), no source-consistent naming explains the twins: R4 is "
-        "observed and S5 does not hold, on the twin's evidence and the "
-        "record, which were read, with every undecided device's figures "
-        "shown; a device whose need beyond its own occurrences exceeds every "
-        "recorded death is the mismatch by itself, whatever the deaths "
-        "served, and otherwise only the aggregate is established and no "
-        "device is named as the mismatch; no identity is named as the case, "
-        "with no A3 event assumed that the log does not record; S4 and R3 "
-        "stay null for the candidates. When the controller log cannot serve "
-        "the criteria (E-7) the number of A3 connection ends is unknown, so "
-        "the capacity is unknown: E-9's count alone applies and the run "
-        "stays inconclusive, never refuted on capacity grounds, since an "
-        "unread log is not proof of zero A3 events."
+        "The namings E-9 tries respect the sources the run evidences, their "
+        "capacity across the whole run and P-4's order rule (a source "
+        "precedes the candidate's redelivered duplicate line), each source "
+        "serving what it can (N1: at most one such identity per death, or "
+        "per connection ended under A3 after a PATCH, since there is one "
+        "consumer): a recorded death gives at most one N1 case in the run, "
+        "whichever device's, and only to a candidate whose redelivery it may "
+        "have preceded on the controller clock (placed as E-4 states) - the "
+        "deaths are every controller process start the readings record "
+        "after the pre-kill one, or the manifest's kill (P-4's conditions on "
+        "its restart record) when they record none, less the kill case "
+        "already named - and each A5 occurrence read from the controller log "
+        "at most one, of its own device alone, and only to a candidate whose "
+        "redelivery its in-progress delivery may have preceded (received "
+        "before the candidate's first duplicate line, or either stamp "
+        "unreadable; none when it named a case); occurrences on one device "
+        "never serve another's need. With the log read, an undecided "
+        "candidate (E-8, E-4) can have an occurrence as its source only when "
+        "their order cannot be read, since an occurrence that precedes it "
+        "names it under P-4. The check is a matching of the candidates each "
+        "undecided device's count requires to these sources, each source "
+        "used once, the counts being small. When no such matching exists (a "
+        "surplus of two on one device, or of one on each of two, with one "
+        "death and no occurrence that may precede them; or a further death "
+        "wholly after the redeliveries it would have to explain), no "
+        "source-consistent naming explains the twins: R4 is observed and S5 "
+        "does not hold, on the twin's evidence and the record, which were "
+        "read, with every undecided device's figures, the deaths as placed "
+        "and the sources each candidate may have had shown; a device that no "
+        "matching of its own candidates to the sources serves, even with "
+        "every recorded death available to it, is the mismatch by itself, "
+        "whatever the deaths served elsewhere, and otherwise only the "
+        "aggregate is established and no device is named as the mismatch; "
+        "no identity is named as the case, with no A3 event assumed that the "
+        "log does not record; S4 and R3 stay null for the candidates. When "
+        "the controller log cannot serve the criteria (E-7) the number of A3 "
+        "connection ends is unknown, so the capacity is unknown: E-9's count "
+        "alone applies and the run stays inconclusive, never refuted on "
+        "capacity grounds, since an unread log is not proof of zero A3 "
+        "events."
     ),
     "E-11": (
         "The proof is evaluated only on the execution the ADR prescribes and "
-        "the records it lists ('The finite proof', 'What it records'), checked "
-        "apart from the harness's own validity, which stays quoted and never "
-        "decides the proof by itself: what the proof needs of the run is "
-        "required here and in the evidence inventory, whatever the harness's "
-        "verdict, and a harness reason outside these requirements is "
-        "reported, not decisive (the ADR names the campaign's "
-        "MAX_SAMPLE_GAP_S rule as one the proof's reconciliation does not "
-        "touch, 'What it cannot show'): the load and fault of the plan (condition "
-        "controller_restart, the nominal scenario, 300 s at 11.2 msg/s, no "
-        "warm-up, as the manifest's entry records them) with the simulator "
-        "exited 0; the publication completed and the population whole (the "
-        "simulator's own manifest, logs/simulator/<run_id>/manifest.json, "
-        "says completed under the same load and its totals.sent equals the "
-        "records of this run in sent_events.jsonl, none of which is skipped "
-        "(E-5), without a message_id, repeated or of another run: a skipped "
-        "or malformed line never shrinks the denominator; without that "
-        "manifest the only count is the file's, which must then equal the "
-        "plan's 300 x 11.2 = 3,360 with no tolerance); the fault demonstrated "
-        "(the manifest's restart executed with exit 0 and the session facts' "
-        "restart_shown true; absent or null, it is unknown, P-6); and every "
-        "record of 'What it records' present with its fetch recorded "
-        "successful: the harness copy events.jsonl with events_fetch ok (a "
-        "readable file beside a failed or unrecorded fetch is not the copy) "
-        "and the collector file resources.csv from the SUT collector, beside "
+        "the records it lists ('The finite proof', 'What it records'), with "
+        "the harness's own validity quoted as recorded and admitted only as "
+        "E-12 states: 'valid', or the campaign's MAX_SAMPLE_GAP_S deviation "
+        "in the one form the harness records it (the ADR names that rule as "
+        "one the proof's reconciliation does not touch, 'What it cannot "
+        "show'); any other harness invalidity makes the run not eligible, "
+        "every harness reason quoted, and an admission that cannot be read "
+        "leaves the eligibility unknown (P-6), never met. Required besides, "
+        "whatever the harness's verdict: the load and fault of the plan "
+        "(condition controller_restart, the nominal scenario, 300 s at 11.2 "
+        "msg/s, no warm-up, as the manifest's entry records them) with the "
+        "simulator exited 0; the publication completed and the population "
+        "whole (the simulator's own manifest, "
+        "logs/simulator/<run_id>/manifest.json, says completed under the same "
+        "load and its totals.sent equals the records of this run in "
+        "sent_events.jsonl, none of which is skipped (E-5), without a "
+        "message_id, repeated or of another run: a skipped or malformed line "
+        "never shrinks the denominator; without that manifest the only count "
+        "is the file's, which must then equal the plan's 300 x 11.2 = 3,360 "
+        "with no tolerance); the fault at the plan's instant and demonstrated "
+        "(the manifest's restart record requested at t+150 s, its "
+        "requested_at_s, executed with exit 0, and the session facts' "
+        "restart_shown true; absent or null, restart_shown is unknown, P-6); "
+        "and every record of 'What it records' present with its fetch "
+        "recorded successful: the harness copy events.jsonl with events_fetch "
+        "ok (a readable file beside a failed or unrecorded fetch is not the "
+        "copy) and the collector file resources.csv from the SUT collector "
+        "(in E-12's sampling-gap form, the rejected collector file where the "
+        "rejection names it, and the seal the harness withheld for the "
+        "missing resources.csv alone accepted with the reason stated), beside "
         "the twin snapshots, the drain, the post-drain copy, the three SUT "
         "logs, the readings, the configuration identity and the seal. A run "
         "that fails any of these is not eligible: inconclusive with every "
         "reason named, never 'supports'; a refutation observed on evidence "
         "that was read and verified stands (P-7)."
+    ),
+    "E-12": (
+        "The harness's validity is admitted for the proof in two forms only, "
+        "recognised from what run.py writes and never from free text: "
+        "'valid' (validity 'valid' with no reason); or the campaign's "
+        "sampling-gap deviation the ADR anticipates (the harness 'may again "
+        "mark the run invalid under MAX_SAMPLE_GAP_S'), in the one form the "
+        "harness records it when its ingest rejects the collector file: "
+        "validity 'invalid' with exactly the two reasons run.compute_validity "
+        "writes for it ('no SUT resources' and 'mandatory artefact(s) missing "
+        "from the run directory' for resources.csv alone), "
+        "missing_mandatory_artifacts ['resources.csv'], resource_source "
+        "'none', and exactly one warning of the ingest rejection "
+        "(run.ingest_resources: '<source> <file> REJECTED (SUT resources "
+        "treated as missing): <problems>') whose every problem is "
+        "resources.validate_resources_csv's MAX_SAMPLE_GAP_S sampling-gap "
+        "problem; the rejected collector file present and non-empty in the "
+        "run directory at the path the rejection names, relative to the run "
+        "directory (logs/collector/resources-<run_id>.csv for the harness's "
+        "own fetch); no resources.csv at the top of the run directory; and "
+        "SHA256SUMS absent, which run.py withholds for the missing "
+        "resources.csv alone, or present and verifying. A rejection that also "
+        "lists another problem, a further validity reason, a rejected file "
+        "outside the run directory, absent or empty, or any other invalidity "
+        "is not admitted, every harness reason quoted; a manifest field that "
+        "cannot be read leaves the admission unknown (P-6), never admitted. "
+        "In the sampling-gap form the evidence inventory (E-11) requires the "
+        "collector file where the rejection names it instead of "
+        "resources.csv, and accepts the withheld seal with the reason stated: "
+        "the evaluator's own sha256 of every file it read, in the document's "
+        "sources, carries the integrity of what it used; a SHA256SUMS present "
+        "that does not verify is never accepted. The driver applies the same "
+        "function (harness_admission), so the two parts cannot disagree."
     ),
 }
 
@@ -594,6 +697,327 @@ def _str_cell(text: Any) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# The harness's validity, admitted for the proof (E-12)
+# ---------------------------------------------------------------------------
+
+
+def sampling_gap_validity_reasons() -> list[str]:
+    """The validity reasons run.compute_validity writes, and only those, for
+    a timed run whose one departure is the collector file its ingest
+    rejected: resource_source 'none' gives the 'no SUT resources' reason and
+    resources.csv missing from the run directory the 'mandatory artefact(s)
+    missing' reason (which also withholds the seal). Obtained from the
+    harness's own function, so the recognition follows its wording; the
+    restart evidence is left out of the call because, complete, it adds no
+    reason (a controller_restart run with a failed item-18 step carries a
+    further reason and is not this form)."""
+    _validity, reasons = compute_validity(
+        timed=True,
+        sut_env_present=True,
+        allow_missing_sut_env=False,
+        resource_source="none",
+        allow_missing_resources=False,
+        restart_required=False,
+        restart_ok=True,
+        missing_artifacts=[COLLECTOR_FILENAME],
+    )
+    return reasons
+
+
+def _directory_files(run_dir: Path) -> tuple[set[str], set[str]]:
+    """Every file of the run directory by its relative path, and those of
+    them that are empty (the loader and harness_admission read the same
+    facts, so the evaluator and the driver cannot disagree on them)."""
+    present: set[str] = set()
+    empty: set[str] = set()
+    for path in run_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(run_dir).as_posix()
+        present.add(rel)
+        if path.stat().st_size == 0:
+            empty.add(rel)
+    return present, empty
+
+
+def _ingest_rejections(warnings: list[str]) -> list[str]:
+    return [w for w in warnings if INGEST_REJECTED_MARK in w]
+
+
+def _parse_rejection(text: str) -> tuple[str, str, str] | None:
+    """(source label, rejected file, problems) of one ingest rejection, or
+    None when its source is not one of the two run.py passes."""
+    for label in (INGEST_SOURCE_FETCH, INGEST_SOURCE_RESOURCES_FROM):
+        if text.startswith(label + " "):
+            at = text.find(INGEST_REJECTED_MARK, len(label) + 1)
+            if at < 0:
+                return None
+            return label, text[len(label) + 1 : at], text[at + len(INGEST_REJECTED_MARK) :]
+    return None
+
+
+def _not_sampling_gaps_only(problems: str) -> str | None:
+    """Why the rejection's problems are not resources.validate_resources_csv's
+    sampling-gap problem alone, or None when they are. That problem is the
+    last the function lists, so a rejection whose text does not start with
+    it lists another problem first."""
+    match = _GAP_PROBLEM_RE.fullmatch(problems)
+    if match is None:
+        return (
+            "the ingest rejection lists a problem other than a MAX_SAMPLE_GAP_S sampling gap "
+            f"(resources.validate_resources_csv): {problems!r}"
+        )
+    count = int(match.group(1))
+    items = match.group(2).split("; ")
+    more = items[-1] == "..."
+    if more:
+        items = items[:-1]
+    shaped = (
+        0 < len(items) <= _GAP_ITEMS_SHOWN
+        and (count > _GAP_ITEMS_SHOWN and len(items) == _GAP_ITEMS_SHOWN if more else count == len(items))
+    )
+    if not shaped:
+        return (
+            "the ingest rejection's sampling-gap problem is not in the form "
+            f"resources.validate_resources_csv writes: {problems!r}"
+        )
+    for item in items:
+        gap = _GAP_ITEM_RE.fullmatch(item)
+        if gap is None or float(gap.group(1)) < MAX_SAMPLE_GAP_S:
+            return (
+                f"the ingest rejection lists {item!r}, which is not a container's sampling gap "
+                f"over MAX_SAMPLE_GAP_S ({MAX_SAMPLE_GAP_S:g} s)"
+            )
+    return None
+
+
+def _run_dir_relative(src: str, run_id: str) -> str | None:
+    """The rejected file's path relative to the run directory the harness
+    wrote (base/raw/<run_id>): what follows the last path segment equal to
+    the run id, or None when the path names no such segment (a file outside
+    the run directory) or climbs out of it."""
+    parts = [part for part in src.replace("\\", "/").split("/") if part]
+    at = max((i for i, part in enumerate(parts[:-1]) if part == run_id), default=None)
+    if at is None:
+        return None
+    tail = parts[at + 1 :]
+    if any(part in (".", "..") for part in tail):
+        return None
+    return "/".join(tail)
+
+
+def fetch_collector_rel(run_id: str) -> str:
+    """Where the harness's own fetch hook writes the collector file
+    (run.execute_run: logs_dir / COLLECTOR_FETCH_SUBDIR /
+    f"resources-{run_id}.csv"), relative to the run directory."""
+    return f"logs/{COLLECTOR_FETCH_SUBDIR}/resources-{run_id}.csv"
+
+
+def rejected_collector_file(manifest: dict[str, Any]) -> str | None:
+    """The collector file the manifest's one ingest rejection names,
+    relative to the run directory, or None (no single rejection, a source
+    run.py does not use, or a file outside the run directory)."""
+    warnings = manifest.get("warnings") if isinstance(manifest, dict) else None
+    run_id = manifest.get("run_id") if isinstance(manifest, dict) else None
+    if not isinstance(warnings, list) or not isinstance(run_id, str) or not run_id:
+        return None
+    rejections = _ingest_rejections([w for w in warnings if isinstance(w, str)])
+    parsed = _parse_rejection(rejections[0]) if len(rejections) == 1 else None
+    return _run_dir_relative(parsed[1], run_id) if parsed is not None else None
+
+
+def admission_of(
+    manifest: Any,
+    files_present: set[str],
+    empty_files: set[str],
+    integrity: str | Callable[[], str],
+) -> dict[str, Any]:
+    """E-12 on the facts of a run directory: its files by relative path, the
+    empty ones, and the state of its seal (analyze.check_run_integrity's
+    'true', 'false' or 'unsealed', or a callable giving it, read only when
+    the seal matters). harness_admission reads these facts from the
+    directory; evaluate passes the loader's, which are the same."""
+    rule = IDENTIFICATION_RULES["E-12"]
+
+    def _result(
+        admitted: bool | None,
+        form: str,
+        reasons: list[str],
+        collector_file: str | None = None,
+        seal_withheld_for: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "admitted": admitted,
+            "form": form,
+            "reasons": reasons,
+            "collector_file": collector_file,
+            "seal_withheld_for": seal_withheld_for,
+            "rule": rule,
+        }
+
+    if not isinstance(manifest, dict):
+        return _result(None, ADMISSION_UNKNOWN, ["the manifest is not a JSON object: its validity cannot be read"])
+    validity = manifest.get("validity")
+    reasons = manifest.get("validity_reasons")
+    if validity not in ("valid", "invalid"):
+        return _result(
+            None, ADMISSION_UNKNOWN,
+            [f"validity {validity!r} cannot be read: run.py writes 'valid' or 'invalid'"],
+        )
+    if not isinstance(reasons, list) or not all(isinstance(r, str) for r in reasons):
+        return _result(
+            None, ADMISSION_UNKNOWN,
+            [f"validity_reasons {reasons!r} cannot be read: run.py writes a list of texts"],
+        )
+    quoted = [f"harness validity reason (quoted): {reason}" for reason in reasons]
+    if validity == "valid":
+        if reasons:
+            return _result(
+                None, ADMISSION_UNKNOWN,
+                ["validity 'valid' beside validity reason(s): run.py writes 'valid' only with none", *quoted],
+            )
+        return _result(True, ADMISSION_VALID, [])
+    if reasons != sampling_gap_validity_reasons():
+        return _result(
+            False, ADMISSION_NOT_ADMITTED,
+            [
+                "validity 'invalid' for reason(s) other than exactly the two run.compute_validity "
+                "writes when its ingest rejects the collector file ('no SUT resources' and "
+                "'mandatory artefact(s) missing from the run directory' for resources.csv alone): "
+                "not the campaign's sampling-gap deviation",
+                *quoted,
+            ],
+        )
+    run_id = manifest.get("run_id")
+    resource_source = manifest.get("resource_source")
+    missing = manifest.get("missing_mandatory_artifacts")
+    warnings = manifest.get("warnings")
+    unreadable: list[str] = []
+    if not isinstance(run_id, str) or not run_id:
+        unreadable.append(f"run_id {run_id!r} cannot be read")
+    if not isinstance(resource_source, str):
+        unreadable.append(f"resource_source {resource_source!r} cannot be read")
+    if not isinstance(missing, list) or not all(isinstance(m, str) for m in missing):
+        unreadable.append(f"missing_mandatory_artifacts {missing!r} cannot be read")
+    if not isinstance(warnings, list) or not all(isinstance(w, str) for w in warnings):
+        unreadable.append(f"warnings {warnings!r} cannot be read")
+    if unreadable:
+        return _result(
+            None, ADMISSION_UNKNOWN,
+            [
+                "the manifest carries the sampling-gap form's two validity reasons, but what "
+                "decides the form cannot be read: " + "; ".join(unreadable),
+                *quoted,
+            ],
+        )
+    failures: list[str] = []
+    if resource_source != "none":
+        failures.append(f"resource_source {resource_source!r}, not 'none' as the rejected ingest leaves it")
+    if missing != [COLLECTOR_FILENAME]:
+        failures.append(
+            f"missing_mandatory_artifacts {missing!r}, not ['{COLLECTOR_FILENAME}'] alone"
+        )
+    rejections = _ingest_rejections(warnings)
+    collector_file: str | None = None
+    if len(rejections) != 1:
+        failures.append(
+            f"{len(rejections)} warning(s) of the ingest rejection ('{INGEST_REJECTED_MARK.strip()}'), "
+            "not exactly one"
+        )
+    else:
+        parsed = _parse_rejection(rejections[0])
+        if parsed is None:
+            failures.append(
+                "the ingest rejection names a source that run.py does not pass "
+                f"({INGEST_SOURCE_FETCH!r} or {INGEST_SOURCE_RESOURCES_FROM!r}): {rejections[0]!r}"
+            )
+        else:
+            label, src, problems = parsed
+            why = _not_sampling_gaps_only(problems)
+            if why is not None:
+                failures.append(why)
+            rel = _run_dir_relative(src, run_id)
+            if rel is None:
+                failures.append(
+                    f"the rejected file {src!r} is not in the run directory (no path segment "
+                    f"{run_id!r} before it): it cannot be read where the rejection names it"
+                )
+            elif label == INGEST_SOURCE_FETCH and rel != fetch_collector_rel(run_id):
+                failures.append(
+                    f"the rejected file of the harness's own fetch is at {rel}, not at "
+                    f"{fetch_collector_rel(run_id)} where run.py writes it"
+                )
+            elif rel not in files_present:
+                failures.append(f"the rejected collector file {rel} is absent from the run directory")
+            elif rel in empty_files:
+                failures.append(f"the rejected collector file {rel} is empty")
+            else:
+                collector_file = rel
+    if COLLECTOR_FILENAME in files_present:
+        failures.append(
+            f"{COLLECTOR_FILENAME} is present at the top of the run directory, which run.py "
+            "writes only when its ingest accepts the collector file"
+        )
+    seal_withheld_for: str | None = None
+    if SUMS_FILENAME in files_present:
+        state = integrity() if callable(integrity) else integrity
+        if state != INTEGRITY_OK:
+            failures.append(f"{SUMS_FILENAME} is present and does not verify (seal {state!r})")
+    else:
+        seal_withheld_for = (
+            f"the missing mandatory artefact {COLLECTOR_FILENAME} alone (run.py withholds "
+            f"{SUMS_FILENAME} while a mandatory artefact is missing)"
+        )
+    if failures:
+        return _result(
+            False, ADMISSION_NOT_ADMITTED,
+            [*failures, *quoted, *(f"ingest rejection (quoted): {w}" for w in rejections)],
+        )
+    return _result(
+        True, ADMISSION_SAMPLING_GAP_ONLY,
+        [
+            "the campaign's MAX_SAMPLE_GAP_S deviation alone, in the form the harness records "
+            f"it: the collector file rejected at ingest and kept at {collector_file}",
+            *quoted,
+            f"ingest rejection (quoted): {rejections[0]}",
+        ],
+        collector_file,
+        seal_withheld_for,
+    )
+
+
+def harness_admission(manifest: dict, run_dir: Path) -> dict:
+    """E-12 for the driver and the evaluator alike: whether the harness's
+    validity is admitted for the proof, read from the manifest and the run
+    directory (no file is written). Returns ``{"admitted": True | False |
+    None, "form": "valid" | "sampling-gap-only" | "not-admitted" |
+    "unknown", "reasons": [str], "collector_file": relpath | None,
+    "seal_withheld_for": str | None, "rule": str}``: 'valid' when the
+    manifest's validity is 'valid'; 'sampling-gap-only' in the one form
+    E-12 names, with the rejected collector file's path relative to the run
+    directory and, when SHA256SUMS is absent, what the harness withheld it
+    for; 'not-admitted' for any other invalidity, every harness reason
+    quoted; 'unknown' (admitted None) when a field that decides it, or the
+    run directory itself, cannot be read. ``manifest`` may be any JSON
+    value (anything but an object is unknown)."""
+    run_dir = Path(run_dir)
+    try:
+        if not run_dir.is_dir():
+            raise OSError(f"{run_dir} is not a directory")
+        files_present, empty_files = _directory_files(run_dir)
+    except OSError as exc:
+        return {
+            "admitted": None,
+            "form": ADMISSION_UNKNOWN,
+            "reasons": [f"the run directory cannot be read: {exc}"],
+            "collector_file": None,
+            "seal_withheld_for": None,
+            "rule": IDENTIFICATION_RULES["E-12"],
+        }
+    return admission_of(manifest, files_present, empty_files, lambda: check_run_integrity(run_dir)[0])
+
+
+# ---------------------------------------------------------------------------
 # I/O layer: the artefacts of one proof session, read once, no logic
 # ---------------------------------------------------------------------------
 
@@ -629,6 +1053,9 @@ class RunArtefacts:
     #: what it published (E-11); None when absent or unreadable (then named
     #: in ``problems``).
     simulator_manifest: dict[str, Any] | None = None
+    #: The files of ``files_present`` that are empty (E-12 needs the
+    #: rejected collector file non-empty).
+    empty_files: set[str] = field(default_factory=set)
 
 
 def simulator_manifest_rel(run_id: str) -> str:
@@ -681,9 +1108,7 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
     run_dir = Path(run_dir)
     if not run_dir.is_dir():
         raise ProofInputError(f"{run_dir} is not a directory")
-    files_present = {
-        p.relative_to(run_dir).as_posix() for p in run_dir.rglob("*") if p.is_file()
-    }
+    files_present, empty_files = _directory_files(run_dir)
     manifest = _read_json_object(run_dir / MANIFEST_FILENAME)
     problems: list[str] = []
     notes: list[str] = []
@@ -788,6 +1213,11 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
             _sha(sim_rel)
     if COLLECTOR_FILENAME in files_present:
         _sha(COLLECTOR_FILENAME)
+    # The collector file the harness's ingest rejected, where its rejection
+    # names it (E-12): inventoried in that form, so its digest is carried.
+    rejected = rejected_collector_file(manifest)
+    if rejected is not None and rejected in files_present:
+        _sha(rejected)
 
     logs = "logs/" + SUT_LOG_SUBDIR
     controller_log = _text_lines(f"{logs}/{SUT_LOG_FILES['controller_log']}")
@@ -831,6 +1261,7 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
         problems=problems,
         notes=notes,
         simulator_manifest=simulator_manifest,
+        empty_files=empty_files,
     )
 
 
@@ -997,6 +1428,98 @@ def kill_band(pre_kill: list[MetricsRow], post_kill: list[MetricsRow]) -> KillBa
         lower_row=lower_row,
         upper_row=upper_row,
     )
+
+
+@dataclass(frozen=True)
+class Death:
+    """One recorded death of the controller, placed on its clock (E-4):
+    after the last reading of the process that died (``after``) and before
+    the first reading of the next (``before``), both monotonic_ns as the
+    controller reported them. The first is the kill (the pre-kill process's
+    death); the others are further deaths the plan did not prescribe."""
+
+    index: int
+    dying_started_at: str | None
+    next_started_at: str | None
+    after: int | None
+    before: int | None
+
+    @property
+    def placed(self) -> bool:
+        """Its lower bound is read and the readings do not contradict it
+        (the dying process read at or after the next one's first reading)."""
+        return self.after is not None and (self.before is None or self.after < self.before)
+
+    def may_precede(self, redelivered: int | None) -> bool:
+        """Whether the death may have preceded a redelivered duplicate line
+        received at ``redelivered`` (None: the line's stamp is unread): only a
+        death wholly after it cannot (E-4). A line received at the dying
+        process's last reading itself is a tie the readings cannot order,
+        read inclusively as the band of P-3 and E-8 is."""
+        if redelivered is None or not self.placed:
+            return True
+        return self.after <= redelivered
+
+    def placement(self) -> str:
+        if self.after is None:
+            return (
+                f"not placed on the controller clock (no readable monotonic_ns of process "
+                f"{self.dying_started_at}), so it may have preceded any redelivery"
+            )
+        span = (
+            f"between the last reading of process {self.dying_started_at} (monotonic_ns {self.after}) "
+            + (
+                f"and the first reading of process {self.next_started_at} ({self.before})"
+                if self.before is not None
+                else "and a next reading that cannot be read"
+            )
+        )
+        if not self.placed:
+            return span + ", which the readings contradict, so it may have preceded any redelivery"
+        return span
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "death": self.index,
+            "kind": "kill" if self.index == 0 else "further",
+            "dying_started_at": self.dying_started_at,
+            "next_started_at": self.next_started_at,
+            "after_monotonic_ns": self.after,
+            "before_monotonic_ns": self.before,
+            "placed": self.placed,
+            "placement": self.placement(),
+        }
+
+
+def recorded_deaths(split: ProcessSplit, restart_ok: bool) -> list[Death]:
+    """The deaths the readings record, in order (E-4, E-10): one per
+    controller process after the pre-kill one, the processes ordered by
+    their first reading on the controller clock (then by started_at), each
+    death placed between the last reading of the process that died and the
+    first reading of the next; or, when they record none, the manifest's
+    kill if it executed with exit 0, placed after the last pre-kill reading."""
+    rows_of: dict[str | None, list[MetricsRow]] = {split.pre_started_at: list(split.pre_kill)}
+    for row in split.post_kill:
+        rows_of.setdefault(row.started_at, []).append(row)
+
+    def _first(started_at: str | None) -> int | None:
+        return min((r.monotonic_ns for r in rows_of.get(started_at, []) if r.monotonic_ns is not None), default=None)
+
+    def _last(started_at: str | None) -> int | None:
+        return max((r.monotonic_ns for r in rows_of.get(started_at, []) if r.monotonic_ns is not None), default=None)
+
+    order = sorted(
+        {r.started_at for r in split.post_kill if r.started_at is not None},
+        key=lambda s: (_first(s) is None, _first(s) or 0, s),
+    )
+    chain = [split.pre_started_at, *order]
+    deaths = [
+        Death(index, chain[index], chain[index + 1], _last(chain[index]), _first(chain[index + 1]))
+        for index in range(len(order))
+    ]
+    if not deaths and restart_ok:
+        deaths.append(Death(0, split.pre_started_at, None, _last(split.pre_started_at), None))
+    return deaths
 
 
 # ---------------------------------------------------------------------------
@@ -1729,6 +2252,7 @@ def name_n1_cases(
     twins_problem: str | None = None,
     log_problem: str | None = None,
     post_kill_started_at: list[str] | None = None,
+    deaths: list[Death] | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -1743,16 +2267,29 @@ def name_n1_cases(
     (E-8), or because it claims the kill beside such a candidate that may
     have been in progress at it (E-4): its device is then undecided for
     S5/R4 (E-9). ``post_kill_started_at`` is every controller process the
-    readings record after the pre-kill one: each is a death (E-10); more
-    than one is a death the plan did not prescribe, never named as a
-    source (P-4), beside which no claimant of the kill is named (E-4)."""
+    readings record after the pre-kill one and ``deaths`` the deaths they
+    record, placed on the controller clock (:func:`recorded_deaths`): each
+    counts one to the capacity for the candidates whose redelivery it may
+    have preceded (E-10); a further death, which the plan did not prescribe,
+    is never named as a source (P-4), and no claimant of the kill is named
+    beside one that may have preceded its redelivery (E-4). Without
+    ``deaths`` every death recorded may have preceded every redelivery."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
     #: The deaths the run records: every process start the readings show
     #: after the pre-kill process, or the manifest's kill when the readings
-    #: show none (E-10).
+    #: show none (E-10), each placed on the controller clock (E-4).
     starts = list(post_kill_started_at or [])
-    deaths = max(len(starts), 1 if restart_ok else 0)
+    if deaths is None:
+        deaths = [
+            Death(index, None, None, None, None) for index in range(max(len(starts), 1 if restart_ok else 0))
+        ]
+    death_count = len(deaths)
+    further_deaths = deaths[1:]
+    #: Each candidate's redelivery on the controller clock for the order
+    #: rule of E-4 and E-10: its first duplicate line's received stamp, or
+    #: None when a duplicate line carries none (any source may precede it).
+    redelivery_of: dict[str, int | None] = {}
     restart_class = set(classification.restart_class)
     ambiguous = set(classification.ambiguous)
     before_kill = set(classification.published_before_kill)
@@ -1766,6 +2303,7 @@ def name_n1_cases(
         sent = valid[message_id]
         duplicates = [_received(line) for line in identity_lines if line.get("outcome") == "duplicate"]
         known = [r for r in duplicates if r is not None]
+        redelivery_of[message_id] = min(known) if known and len(known) == len(duplicates) else None
         candidates.append(
             {
                 **_identity(sent),
@@ -1981,17 +2519,38 @@ def name_n1_cases(
                     "no A5 occurrence names its device before its redelivery and the kill cannot "
                     "be its source: " + "; ".join(why),
                 )
-    if deaths > 1:
+
+    def _further_before(candidate: dict[str, Any]) -> list[Death]:
+        """The further deaths that may have preceded the candidate's
+        redelivered duplicate line on the controller clock (E-4)."""
+        redelivered = redelivery_of.get(candidate["message_id"])
+        return [death for death in further_deaths if death.may_precede(redelivered)]
+
+    def _redelivery_text(candidate: dict[str, Any]) -> str:
+        redelivered = redelivery_of.get(candidate["message_id"])
+        return (
+            f"received at {redelivered}" if redelivered is not None
+            else "a duplicate line without received_monotonic_ns"
+        )
+
+    def _deaths_text(found: list[Death]) -> str:
+        return "; ".join(f"death {death.index} {death.placement()}" for death in found)
+
+    if further_deaths:
         notes.append(
-            f"the readings record {deaths} controller process starts after the pre-kill one "
+            f"the readings record {death_count} controller process starts after the pre-kill one "
             f"({', '.join(starts)}): the plan prescribes one kill, so a further death is "
             "recorded that P-4 never names as a source; each recorded death counts one to "
-            "the capacity (E-10) and no claimant of the kill is named beside it (E-4)"
+            "the capacity for the candidates whose redelivery it may have preceded (E-10), and "
+            "no claimant of the kill is named beside a further death that may have preceded its "
+            "redelivery (E-4): " + _deaths_text(deaths)
         )
-    if len(kill_claimants) == 1 and deaths > 1:
-        # E-4 with a further death recorded: the claimant may have been in
-        # progress at the command's kill or at the other death, which P-4
-        # cannot name; the twin shows it applied, so it is not R3 either.
+    claimant_further = {candidate["message_id"]: _further_before(candidate) for candidate, _facts in kill_claimants}
+    if len(kill_claimants) == 1 and claimant_further[kill_claimants[0][0]["message_id"]]:
+        # E-4 with a further death that may have preceded the claimant's
+        # redelivery: it may have been in progress at the command's kill or
+        # at that death, which P-4 cannot name; the twin shows it applied,
+        # so it is not R3 either.
         candidate, facts = kill_claimants[0]
         if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
             _reject(
@@ -2003,7 +2562,9 @@ def name_n1_cases(
                 candidate, "E-4",
                 "it claims the kill as its source (restart-class, published before the restart "
                 f"command's start, the restart executed with exit 0), but the readings record "
-                f"{deaths} controller process starts after the pre-kill one ({', '.join(starts)}): "
+                f"{death_count} controller process starts after the pre-kill one ({', '.join(starts)}), "
+                "and a further death may have preceded its redelivered duplicate line "
+                f"({_redelivery_text(candidate)}): {_deaths_text(claimant_further[candidate['message_id']])}; "
                 "at most one N1 case per death (E-4), and whether it was in progress at the "
                 "command's kill or at the further death, which is never named as a source "
                 "(P-4), cannot be told, so it is neither named nor R3",
@@ -2034,17 +2595,25 @@ def name_n1_cases(
                 "neither named nor R3",
             )
         else:
+            source_evidence = {
+                "restart_started_utc": restart.get("started_utc"),
+                "restart_finished_utc": restart.get("finished_utc"),
+                "restart_returncode": restart.get("returncode"),
+                "restart_stderr_tail": restart.get("stderr_tail"),
+                "inference": IDENTIFICATION_RULES["P-4"],
+            }
+            if further_deaths:
+                # E-4: every further death recorded follows its redelivery on
+                # the controller clock, so none of them can be its source.
+                source_evidence["further_deaths_after_its_redelivery"] = (
+                    f"its redelivered duplicate line ({_redelivery_text(candidate)}) precedes every "
+                    f"further death recorded: {_deaths_text(further_deaths)} (E-4)"
+                )
             named.append(
                 {
                     **candidate,
                     "source": "kill",
-                    "source_evidence": {
-                        "restart_started_utc": restart.get("started_utc"),
-                        "restart_finished_utc": restart.get("finished_utc"),
-                        "restart_returncode": restart.get("returncode"),
-                        "restart_stderr_tail": restart.get("stderr_tail"),
-                        "inference": IDENTIFICATION_RULES["P-4"],
-                    },
+                    "source_evidence": source_evidence,
                     "twin_evidence": _twin_evidence(facts),
                 }
             )
@@ -2053,13 +2622,23 @@ def name_n1_cases(
             f"{len(kill_claimants)} duplicate-only identities claim the kill as their source; at "
             "most one N1 case per death (N1), so none is named"
         )
+        # E-4: the further-death reading applies only when a further death
+        # may have preceded some claimant's redelivery; deaths wholly after
+        # every claimant's redelivery leave them claiming the one kill.
+        preceded = sorted(message_id for message_id, found in claimant_further.items() if found)
+        after_all = (
+            "; the further death(s) recorded follow every claimant's redelivered duplicate line "
+            "on the controller clock, so none of them can be a claimant's source (E-4)"
+            if further_deaths else ""
+        )
         for candidate, _facts in kill_claimants:
-            if deaths > 1:
+            if preceded:
                 _cannot_show(
                     candidate, "E-4",
                     f"{len(kill_claimants)} identities claim the kill as their source and the "
-                    f"readings record {deaths} controller process starts after the pre-kill one "
-                    f"({', '.join(starts)}): at most one N1 case per death (E-4), and which of "
+                    f"readings record {death_count} controller process starts after the pre-kill one "
+                    f"({', '.join(starts)}), a further death having possibly preceded the redelivery "
+                    f"of {', '.join(preceded)}: at most one N1 case per death (E-4), and which of "
                     "them, if any, was in progress at the command's kill rather than at the "
                     "further death, which is never named as a source (P-4), cannot be told, so "
                     "none is named and none is R3",
@@ -2069,12 +2648,14 @@ def name_n1_cases(
                     candidate, "E-7",
                     "more than one identity claims the one death (at most one N1 case per "
                     "death, E-4) and no A5 occurrence can be read that would name another "
-                    f"source: the controller log cannot serve the criteria ({log_problem}) (E-7)",
+                    f"source: the controller log cannot serve the criteria ({log_problem}) (E-7)"
+                    + after_all,
                 )
             else:
                 _reject(
                     candidate,
-                    "more than one identity claims the one death: at most one N1 case per death (E-4)",
+                    "more than one identity claims the one death: at most one N1 case per death (E-4)"
+                    + after_all,
                 )
     for device in sorted(surplus or {}):
         facts = surplus[device]
@@ -2097,40 +2678,76 @@ def name_n1_cases(
     for entry in undecided.values():
         entry["message_ids"].sort()
     # E-10: the sources the run evidences, for the namings E-9 tries on the
-    # undecided devices. With the log read, an undecided candidate's only
-    # possible source is a death (an occurrence that could serve it named
-    # it above); an unused occurrence on its device counts only when its
-    # order against some undecided candidate's redelivery cannot be read or
-    # precedes it, and serves that device alone. With the log unusable, the
+    # undecided devices, each with P-4's order rule. With the log read, an
+    # undecided candidate can have an occurrence as its source only when
+    # their order cannot be read (an occurrence that precedes it named it
+    # above), and an occurrence serves its own device alone; a death serves
+    # a candidate of any device whose redelivery it may have preceded (E-4),
+    # the kill no longer once its case is named. With the log unusable, the
     # number of A3 connection ends, and so the capacity, is unknown.
     kill_named = [case["message_id"] for case in named if case["source"] == "kill"]
+    available = [death for death in deaths if not (death.index == 0 and kill_named)]
+
+    def _a5_may_serve(occ: dict[str, Any], redelivered: int | None) -> bool:
+        received = occ["identity"].get("received_monotonic_ns")
+        return not _is_int(received) or redelivered is None or received < redelivered
+
+    possible: dict[str, dict[str, list[int]]] = {}
     a5_possible: dict[str, list[int]] = {}
     for device, entry in undecided.items():
-        stamps = [
-            candidate["first_duplicate_received_monotonic_ns"]
-            for candidate in by_device.get(device, [])
-            if candidate["message_id"] in entry["message_ids"]
-        ]
-        a5_possible[device] = sorted(
-            occ["line"]
-            for occ in occurrences
-            if occ["line"] not in used_occurrences
-            and occ["device_uuid"] == device
-            and (
-                not _is_int(occ["identity"].get("received_monotonic_ns"))
-                or any(s is None or occ["identity"]["received_monotonic_ns"] < s for s in stamps)
+        lines_here: set[int] = set()
+        for message_id in entry["message_ids"]:
+            redelivered = redelivery_of.get(message_id)
+            a5 = sorted(
+                occ["line"]
+                for occ in occurrences
+                if occ["line"] not in used_occurrences
+                and occ["device_uuid"] == device
+                and _a5_may_serve(occ, redelivered)
             )
+            lines_here.update(a5)
+            possible[message_id] = {
+                "a5_lines": a5,
+                "deaths": [death.index for death in available if death.may_precede(redelivered)],
+            }
+        a5_possible[device] = sorted(lines_here)
+    # A further death that may have preceded no duplicate-only candidate's
+    # redelivery explains nothing (E-4): reported, never a source.
+    explains_nothing = [
+        death.index
+        for death in further_deaths
+        if not any(death.may_precede(redelivery_of.get(c["message_id"])) for c in candidates)
+    ]
+    if explains_nothing:
+        notes.append(
+            f"further death(s) {', '.join(str(i) for i in explains_nothing)} may have preceded no "
+            "duplicate-only candidate's redelivered duplicate line on the controller clock: they "
+            "explain nothing and serve no case (E-4, E-10)"
         )
+    death_records = [
+        {
+            **death.as_dict(),
+            "may_precede": sorted(
+                c["message_id"] for c in candidates if death.may_precede(redelivery_of.get(c["message_id"]))
+            ),
+            "spent_on_named_kill_case": kill_named[0] if death.index == 0 and kill_named else None,
+        }
+        for death in deaths
+    ]
     sources = {
         "known": log_problem is None,
         "why_unknown": log_problem,
-        "deaths_recorded": deaths,
+        "deaths_recorded": death_count,
         "post_kill_started_at": starts,
-        "kill_available": max(0, deaths - len(kill_named)),
+        "kill_available": max(0, death_count - len(kill_named)),
         "kill_named": kill_named,
         "a5_occurrences_read": len(occurrences),
         "a5_occurrences_used": sorted(used_occurrences),
         "a5_possible_by_device": dict(sorted(a5_possible.items())),
+        "deaths": death_records,
+        "deaths_available": [death.index for death in available],
+        "deaths_explaining_nothing": explains_nothing,
+        "possible_sources": dict(sorted(possible.items())),
     }
     return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())), sources)
 
@@ -2278,6 +2895,53 @@ def _namings_of_undecided(
     return namings
 
 
+def _source_matching(
+    demands: dict[str, int], members: dict[str, list[str]], options: dict[str, list[str]]
+) -> int:
+    """E-10's matching: the most candidates the sources can serve, each
+    device ``d`` contributing at most ``demands[d]`` of its ``members[d]``,
+    each candidate served by one of its ``options`` (the sources that may
+    have preceded its redelivery) and each source serving one candidate.
+    A maximum flow over device -> candidate -> source, by augmenting
+    paths; the counts are small. Every device's count is served when the
+    result equals the sum of the demands."""
+    source_node, sink = ("s",), ("t",)
+    graph: dict[tuple[str, ...], dict[tuple[str, ...], int]] = {source_node: {}, sink: {}}
+
+    def _edge(u: tuple[str, ...], v: tuple[str, ...], capacity: int) -> None:
+        graph.setdefault(u, {})
+        graph.setdefault(v, {})
+        graph[u][v] = graph[u].get(v, 0) + capacity
+        graph[v].setdefault(u, 0)
+
+    for device, demand in demands.items():
+        if demand <= 0:
+            continue
+        _edge(source_node, ("d", device), demand)
+        for message_id in members.get(device, []):
+            _edge(("d", device), ("c", message_id), 1)
+            for option in options.get(message_id, []):
+                _edge(("c", message_id), ("x", option), 1)
+    for node in [node for node in graph if node[0] == "x"]:
+        _edge(node, sink, 1)
+
+    def _augment(node: tuple[str, ...], seen: set[tuple[str, ...]]) -> bool:
+        if node == sink:
+            return True
+        seen.add(node)
+        for nxt in sorted(graph[node]):
+            if graph[node][nxt] > 0 and nxt not in seen and _augment(nxt, seen):
+                graph[node][nxt] -= 1
+                graph[nxt][node] += 1
+                return True
+        return False
+
+    flow = 0
+    while _augment(source_node, set()):
+        flow += 1
+    return flow
+
+
 def s5_r4_delta(
     surplus: dict[str, Surplus] | None,
     run_id: str,
@@ -2386,18 +3050,34 @@ def s5_r4_delta(
             regressions.append({"device_uuid": device, "regressed": regressed})
     # E-10: the namings that explain each undecided device's count must,
     # together, fit the sources the run evidences, each source serving what
-    # it can: an A5 occurrence a candidate of its own device alone, a death
-    # at most one candidate of the whole run. So the cases a device needs
-    # beyond the occurrences on it can be served only by the deaths, and
-    # the deaths must cover every device's such cases together. With the
+    # it can and only a candidate whose redelivery it may have preceded: an
+    # A5 occurrence a candidate of its own device alone, a death at most
+    # one candidate of the whole run. The check is a matching of the
+    # candidates each device's count requires to those sources. With the
     # log unusable the capacity is unknown and nothing is decided on it.
     sources = naming.sources
+    possible = sources.get("possible_sources") or {}
+    members = {device: list(row["undecided"]["message_ids"]) for device, _count, row in pending}
+    a5_options = {
+        m: [f"A5 line {line}" for line in (possible.get(m) or {}).get("a5_lines", [])]
+        for ids in members.values() for m in ids
+    }
+    all_options = {
+        m: a5_options[m] + [f"death {index}" for index in (possible.get(m) or {}).get("deaths", [])]
+        for ids in members.values() for m in ids
+    }
     a5_possible = {
         device: list((sources.get("a5_possible_by_device") or {}).get(device, []))
         for device, _count, _row in pending
     }
     needed_by_device = {device: count for device, count, _row in pending}
-    beyond_a5 = {device: max(0, count - len(a5_possible[device])) for device, count in needed_by_device.items()}
+    # The cases a device needs beyond what its own occurrences can serve,
+    # each occurrence only a candidate it may precede: only a death can
+    # serve them.
+    beyond_a5 = {
+        device: count - _source_matching({device: count}, members, a5_options)
+        for device, count in needed_by_device.items()
+    }
     capacity_evidence: dict[str, Any] = {
         "applied": bool(pending) and bool(sources.get("known")),
         "known": bool(sources.get("known")),
@@ -2411,30 +3091,56 @@ def s5_r4_delta(
         "beyond_a5_by_device": beyond_a5,
         "kill_needed": sum(beyond_a5.values()) if pending else None,
         "consistent": None,
+        "matched": None,
+        "deaths": sources.get("deaths"),
+        "possible_sources": {m: possible.get(m) for ids in members.values() for m in sorted(ids)},
+        "deaths_preceding_none": [],
         "rule": (
             "an A5 occurrence serves a candidate of its own device alone; a recorded death "
-            "serves at most one candidate of the whole run (E-10)"
+            "serves at most one candidate of the whole run; each serves only a candidate whose "
+            "redelivered duplicate line it may have preceded on the controller clock, a death "
+            "placed as E-4 states (E-10)"
         ),
     }
     on_sources: dict[str, Any] | None = None
+    late: list[int] = []
     if capacity_evidence["applied"]:
         kill_needed = int(capacity_evidence["kill_needed"])
         kill_available = int(sources.get("kill_available") or 0)
-        consistent = kill_needed <= kill_available
+        matched = _source_matching(needed_by_device, members, all_options)
+        consistent = matched == sum(needed_by_device.values())
+        capacity_evidence["matched"] = matched
         capacity_evidence["consistent"] = consistent
         for device, _count, row in pending:
             # A device whose own occurrences cover its count is explained
             # whatever the deaths served; one that needs a death is
-            # consistent only when the deaths cover every such device.
+            # consistent only when the deaths serve every such device.
             row["undecided"]["source_consistent"] = beyond_a5[device] == 0 or consistent
         if not consistent:
             competing = [device for device, _count, _row in pending if beyond_a5[device] > 0]
-            # A device whose need beyond its own occurrences exceeds every
-            # recorded death is the mismatch by itself, whatever the deaths
-            # served; otherwise only the aggregate is established.
-            on_own = [device for device in competing if beyond_a5[device] > kill_available]
-            ids = sorted(
-                m for device, _count, row in pending if device in competing for m in row["undecided"]["message_ids"]
+            # A device that no matching of its own candidates serves, even
+            # with every death available to it, is the mismatch by itself,
+            # whatever the deaths served elsewhere; otherwise only the
+            # aggregate is established.
+            on_own = [
+                device for device in competing
+                if _source_matching({device: needed_by_device[device]}, members, all_options) < needed_by_device[device]
+            ]
+            ids = sorted(m for device in competing for m in members[device])
+            # The available deaths that may have preceded none of these
+            # candidates' redeliveries explain none of them (E-4).
+            late = [
+                index for index in sources.get("deaths_available") or []
+                if not any(index in ((possible.get(m) or {}).get("deaths") or []) for m in ids)
+            ]
+            capacity_evidence["deaths_preceding_none"] = late
+            order = (
+                f", {len(late)} of which may have preceded none of their redelivered duplicate lines "
+                "on the controller clock"
+                if late
+                else ", which their order against the redeliveries cannot assign to them"
+                if kill_needed <= kill_available
+                else ""
             )
             on_sources = {
                 "device_uuid": on_own[0] if len(on_own) == 1 else None,
@@ -2444,15 +3150,16 @@ def s5_r4_delta(
                     f"the undecided device(s) {', '.join(competing)} need {kill_needed} N1 case(s) "
                     "beyond the named ones that no A5 occurrence on their own device can serve "
                     f"({', '.join(f'{device}: {beyond_a5[device]}' for device in competing)}), "
-                    f"against {kill_available} recorded death(s) available, each serving at most "
-                    "one candidate of the whole run: no source-consistent naming explains the twins"
+                    f"against {kill_available} recorded death(s) available{order}, each serving at most "
+                    "one candidate of the whole run and only one whose redelivery it may have "
+                    "preceded: no source-consistent naming explains the twins"
                 ],
                 "undecided_candidates": ids,
                 "note": (
                     (
                         f"the mismatch stands on {', '.join(on_own)} by itself, whatever the death(s) "
-                        "served, since its need beyond its own occurrences exceeds every recorded "
-                        "death; "
+                        "served, since no matching of its own candidates to the sources that may "
+                        "have preceded them serves its count, even with every recorded death; "
                         if on_own
                         else
                         "which device's figures are the mismatch cannot be told when more than one "
@@ -2493,8 +3200,13 @@ def s5_r4_delta(
                 f"{len(on_sources['devices'])} undecided device(s) whose twins need "
                 f"{capacity_evidence['kill_needed']} N1 case(s) that only a death could serve "
                 "(no A5 occurrence on their own device can), against "
-                f"{capacity_evidence['kill_available']} recorded death(s): a delta mismatch "
-                "beyond the named cases stands on "
+                f"{capacity_evidence['kill_available']} recorded death(s)"
+                + (
+                    f", {len(late)} of which may have preceded none of their redeliveries"
+                    if late
+                    else ""
+                )
+                + ": a delta mismatch beyond the named cases stands on "
                 + (
                     f"{', '.join(on_sources['stands_on'])} whatever the death(s) served"
                     if on_sources["stands_on"]
@@ -2586,6 +3298,9 @@ class EvidenceStatus:
     fetch_failures: list[str]
     drain: dict[str, Any]
     unusable: dict[str, str] = field(default_factory=dict)
+    #: What the inventory accepts in E-12's sampling-gap form in place of a
+    #: record it otherwise requires, each with its reason stated.
+    accepted: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -2595,6 +3310,7 @@ class EvidenceStatus:
             "fetch_failures": self.fetch_failures,
             "drain": self.drain,
             "cannot_serve_the_criteria": dict(sorted(self.unusable.items())),
+            "accepted_in_the_sampling_gap_form": self.accepted,
         }
 
 
@@ -2615,6 +3331,7 @@ def evidence_status(
     config_problems: list[str],
     read_problems: list[str] | None = None,
     run_id: str | None = None,
+    admission: dict[str, Any] | None = None,
 ) -> EvidenceStatus:
     """Whether the proof's evidence is complete, every absence named: the
     manifest's item-18 records (both snapshots verified, the drain verified
@@ -2626,13 +3343,20 @@ def evidence_status(
     manifest is inventoried (E-11 reads it) and never a failed fetch by its
     absence. ``read_problems`` are the loader's (a file present but
     unreadable): each is a failed fetch of that file, since nothing of it
-    can be read."""
+    can be read. When ``admission`` (E-12) is the sampling-gap form, the
+    collector file is required where the harness's rejection names it
+    instead of resources.csv, and the seal the harness withheld for the
+    missing resources.csv alone is accepted with the reason stated; a seal
+    present that does not verify is never accepted."""
     read_problems = list(read_problems or [])
     missing: list[str] = []
     failures: list[str] = []
+    accepted: list[str] = []
     unusable: dict[str, str] = {}
     logs = "logs/" + SUT_LOG_SUBDIR
     run_id = str(run_id or manifest.get("run_id") or "")
+    gap_form = isinstance(admission, dict) and admission.get("form") == ADMISSION_SAMPLING_GAP_ONLY
+    rejected_file = admission.get("collector_file") if gap_form else None
 
     def _read_problem(rel: str) -> str | None:
         return next((p for p in read_problems if p.startswith(rel)), None)
@@ -2651,6 +3375,8 @@ def evidence_status(
         simulator_manifest_rel(run_id),
         SUMS_FILENAME,
     ]
+    if isinstance(rejected_file, str) and rejected_file not in watched:
+        watched.append(rejected_file)
     present = {rel: rel in files_present for rel in watched}
 
     # Item 3's first copy: the harness fetch of events.jsonl, recorded by
@@ -2673,8 +3399,23 @@ def evidence_status(
     elif _read_problem(timed) is not None:
         failures.append(_read_problem(timed))
 
-    # Item 5's collector file, from the SUT collector.
-    if not present[COLLECTOR_FILENAME]:
+    # Item 5's collector file, from the SUT collector; in E-12's sampling-gap
+    # form, the file the harness rejected, where its rejection names it.
+    if gap_form:
+        if not isinstance(rejected_file, str) or not present.get(rejected_file):
+            missing.append(
+                f"{rejected_file}: absent (the collector file, item 5 of 'What it records', which "
+                "the harness's ingest rejected under MAX_SAMPLE_GAP_S and keeps where its "
+                "rejection names it, E-12)"
+            )
+        else:
+            accepted.append(
+                f"{COLLECTOR_FILENAME}: absent from the top of the run directory, as run.py leaves it "
+                "when its ingest rejects the collector file under MAX_SAMPLE_GAP_S alone; the "
+                f"collector file is required at {rejected_file}, where the rejection names it, and "
+                "is present (E-12)"
+            )
+    elif not present[COLLECTOR_FILENAME]:
         missing.append(f"{COLLECTOR_FILENAME}: absent (the collector file, item 5 of 'What it records')")
     elif manifest.get("resource_source") != SUT_COLLECTOR_SOURCE:
         failures.append(
@@ -2797,7 +3538,13 @@ def evidence_status(
             "controller_metrics.csv: no readable reading of the pre-kill process (a row "
             "with started_at is needed for S1)"
         )
-    if integrity == INTEGRITY_UNSEALED:
+    if integrity == INTEGRITY_UNSEALED and gap_form and admission.get("seal_withheld_for"):
+        accepted.append(
+            f"{SUMS_FILENAME}: absent, withheld by the harness for "
+            f"{admission.get('seal_withheld_for')} (E-12); the evaluator's own sha256 of every file "
+            "it read, in the document's sources, carries the integrity of what it used"
+        )
+    elif integrity == INTEGRITY_UNSEALED:
         failures.append(f"{SUMS_FILENAME}: absent, the run directory was never sealed")
     elif integrity != INTEGRITY_OK:
         failures.append(f"{SUMS_FILENAME}: the seal does not verify")
@@ -2814,6 +3561,7 @@ def evidence_status(
         fetch_failures=failures,
         drain=drain_facts,
         unusable=unusable,
+        accepted=accepted,
     )
 
 
@@ -2861,11 +3609,12 @@ class Eligibility:
             "unknown": self.unknown,
             "checks": self.checks,
             "note": (
-                "checked apart from the harness's validity, which is quoted and never "
-                "decides the proof by itself (E-11 states what the proof requires; the "
-                "campaign's MAX_SAMPLE_GAP_S rule is the one the ADR names as not touching "
-                "the proof); a run that is not eligible is inconclusive, never 'supports', "
-                "and a refutation observed on evidence that was read and verified stands (P-7)"
+                "the harness's validity is quoted and admitted only as E-12 states ('valid', or "
+                "the campaign's MAX_SAMPLE_GAP_S deviation in the one form the harness records "
+                "it, which the ADR names as not touching the proof; checks.harness_admission); "
+                "E-11 states what else the proof requires; a run that is not eligible is "
+                "inconclusive, never 'supports', and a refutation observed on evidence that "
+                "was read and verified stands (P-7)"
             ),
         }
 
@@ -2888,11 +3637,14 @@ def proof_eligibility(
     sim_problem: str | None,
     evidence: EvidenceStatus,
     session: dict[str, Any] | None,
+    admission: dict[str, Any] | None = None,
 ) -> Eligibility:
-    """E-11: the prescribed load and fault of the manifest's entry with the
-    simulator exited 0; the publication completed and the population whole,
-    on the simulator's own manifest (or, without it, the file's count
-    against the plan's, with no tolerance); the fault demonstrated (the
+    """E-11: the harness's validity admitted (E-12, ``admission``: not
+    admitted is not eligible, unknown or absent is unknown); the prescribed
+    load and fault of the manifest's entry with the simulator exited 0; the
+    publication completed and the population whole, on the simulator's own
+    manifest (or, without it, the file's count against the plan's, with no
+    tolerance); the fault at the plan's instant and demonstrated (the
     restart record and the session facts' restart_shown); and the evidence
     complete. Every failed requirement is named; an absent required fact
     is unknown, never read as satisfied."""
@@ -3025,13 +3777,24 @@ def proof_eligibility(
         and restart.get("returncode") == 0
     )
     shown = restart_shown_of(session)
+    requested_at = restart.get("requested_at_s")
+    at_the_instant = _same_number(requested_at, PROOF_RESTART_AT_S)
     checks["fault"] = {
         "restart_executed": restart.get("executed"),
         "restart_returncode": restart.get("returncode"),
         "restart_ok": restart_ok,
+        "restart_requested_at_s": requested_at,
+        "prescribed_at_s": PROOF_RESTART_AT_S,
+        "at_the_prescribed_instant": at_the_instant,
         "restart_shown": shown,
         "session_facts_present": session is not None,
     }
+    if not at_the_instant:
+        reasons.append(
+            f"fault: the manifest's restart was requested at {requested_at!r} s "
+            f"(restart.requested_at_s), not at the plan's t+{PROOF_RESTART_AT_S} s (ADR 0011: "
+            f"'fault | at t+{PROOF_RESTART_AT_S} s'): the prescribed fault instant is not shown"
+        )
     if not restart_ok:
         reasons.append(
             f"fault: the manifest's restart did not execute with exit 0 (executed "
@@ -3052,6 +3815,24 @@ def proof_eligibility(
         reasons.append(
             "fault: the session facts record the restart as not shown (restart_shown false): "
             "the fault was not applied"
+        )
+
+    # The harness's validity, admitted only as E-12 states.
+    checks["harness_admission"] = admission
+    admitted = admission.get("admitted") if isinstance(admission, dict) else None
+    if admitted is False:
+        reasons.append(
+            f"harness validity: not admitted for the proof (E-12, form {admission.get('form')!r}): "
+            + " | ".join(admission.get("reasons") or [])
+        )
+    elif admitted is not True:
+        unknown.append(
+            "harness validity: whether it is admitted for the proof is unknown (E-12, P-6): "
+            + (
+                " | ".join(admission.get("reasons") or [])
+                if isinstance(admission, dict)
+                else "no admission was read"
+            )
         )
 
     # The records of 'What it records', as the evidence inventory names them.
@@ -3075,9 +3856,10 @@ def inconclusive_reasons(
     eligibility: Eligibility | None = None,
 ) -> list[str]:
     """The ADR's five conditions, in its order, plus the evaluator's own
-    (P-2, P-6, E-3, E-7, E-8, E-11), each stated with what was read. A
-    criterion of S2 to S5 that is null is always named here (E-7, or E-8
-    when the band is the ground), so a run that is inconclusive for that
+    (P-2, P-6, E-3, E-7, E-8, E-11, E-12), each stated with what was read. A
+    criterion of S2 to S5 that is null is always named here (E-7, E-8 when
+    the band or the command's window is the ground, E-4 when a claimant
+    stands beside a further death on evidence that was read), so a run that is inconclusive for that
     cause never goes without a stated reason; a run that is not eligible
     is named with every failed requirement (the evidence ones under "any
     fetch listed above fails")."""
@@ -3145,7 +3927,12 @@ def inconclusive_reasons(
         if criterion.holds is None:
             unshown.setdefault(criterion.reason or "no reason recorded", []).append(rule_id)
     for why, rule_ids in unshown.items():
-        label = "E-8" if "(E-8)" in why else "E-7"
+        # The rule that leaves the criteria unshown: E-8 (a band or window
+        # placement), E-7 (evidence not read, and the default when the reason
+        # names no rule: a copy, snapshot or log that cannot serve), or E-4
+        # (a claimant beside a further death or an unshown candidate, on
+        # evidence that was read) - never E-7 for what was read.
+        label = next((rule for rule in ("E-8", "E-7", "E-4") if f"({rule})" in why), "E-7")
         reasons.append(f"{', '.join(rule_ids)} cannot be shown ({label}): {why}")
     return reasons
 
@@ -3207,6 +3994,9 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
 
     rows, row_notes = read_metrics_rows(artefacts.metrics_rows or [])
     split = split_by_process(rows)
+    # E-12: the harness's validity admitted for the proof, on the same facts
+    # of the run directory harness_admission reads for the driver.
+    admission = admission_of(manifest, artefacts.files_present, artefacts.empty_files, artefacts.integrity)
     evidence = evidence_status(
         manifest,
         artefacts.files_present,
@@ -3215,6 +4005,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         config_problems,
         artefacts.problems,
         run_id=run_id,
+        admission=admission,
     )
     # E-7: the post-drain copy serves the criteria only when it was fetched,
     # verified as this run's and read; the twins only when both snapshots
@@ -3251,6 +4042,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         sim_problem,
         evidence,
         session,
+        admission,
     )
     post = lines_by_identity(artefacts.events_post_drain or [], run_id)
     timed = lines_by_identity(artefacts.events_timed, run_id) if artefacts.events_timed is not None else None
@@ -3285,6 +4077,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         twins_problem,
         log_problem,
         split.post_started_ats,
+        recorded_deaths(split, restart.get("executed") is True and restart.get("returncode") == 0),
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))
@@ -3328,6 +4121,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         "instrumentation": {
             "harness_validity": manifest.get("validity"),
             "harness_validity_reasons": manifest.get("validity_reasons"),
+            "harness_admission": admission,
             "harness_condition_id": manifest.get("condition_id"),
             "seal": artefacts.integrity,
             "seal_problems": artefacts.integrity_problems,
@@ -3342,8 +4136,10 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
             "configuration_identity_problems": config_problems,
             "note": (
                 "the harness verdict belongs to the campaign rules and is kept as recorded "
-                "(ADR 0011, what the proof cannot show); it does not decide the proof, whose "
-                "own requirements are checked apart (proof_evidence, proof_eligibility)"
+                "(ADR 0011, what the proof cannot show); it is admitted for the proof only as "
+                "E-12 states (harness_admission: 'valid', or the campaign's MAX_SAMPLE_GAP_S "
+                "deviation in the one form the harness records it), and the proof's other "
+                "requirements are checked apart (proof_evidence, proof_eligibility)"
             ),
         },
         "system_outcome": {
@@ -3448,7 +4244,8 @@ def not_evaluated(artefacts: RunArtefacts, why: str, session: dict[str, Any] | N
             "not_evaluated": why,
             "note": (
                 "the harness verdict belongs to the campaign rules and is kept as recorded "
-                "(ADR 0011, what the proof cannot show); it does not decide the proof"
+                "(ADR 0011, what the proof cannot show); the proof was not evaluated, so "
+                "nothing was admitted or decided"
             ),
         },
         "system_outcome": {"result": RESULT_NOT_EVALUATED, "criteria": {}, "refutations": [], "inconclusive_reasons": [why]},
@@ -3475,9 +4272,15 @@ def summary_line(document: dict[str, Any]) -> str:
     if outcome.get("inconclusive_reasons"):
         line += "; inconclusive: " + " | ".join(outcome["inconclusive_reasons"])
     instrumentation = document["instrumentation"]
+    admission = instrumentation.get("harness_admission")
     line += (
-        f"; harness validity {instrumentation.get('harness_validity')!r} kept as recorded; "
-        f"seal {instrumentation.get('seal')}"
+        f"; harness validity {instrumentation.get('harness_validity')!r} kept as recorded"
+        + (
+            f" (admission {admission.get('form')!r}, E-12)"
+            if isinstance(admission, dict)
+            else ""
+        )
+        + f"; seal {instrumentation.get('seal')}"
     )
     return line
 
