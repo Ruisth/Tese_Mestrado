@@ -319,7 +319,7 @@ reason, in the next action and in the `headline` on the final line, so that a
 run which stopped in that window never leaves an operator believing the stack
 is up. No volume is ever removed, so the stored state is intact either way.
 | `nominal.sh` | a plan run id, the open session, the plan's seed, a fresh raw directory, the attempt's fields, identity and source, the collector copy and sync (the deployed hash must equal the clone's), the guest state **before** the run, `pre` | the harness run (its manifest decides validity), **the copy of the before/after snapshots into `analysis/snapshots/`**, the guest state after, `guest_state_delta.py --expect` when it cannot compare the two records at all (exit 2: a record that does not hold the six expected services in the *before* state, or that names one twice or without its id and start instant — any fault it saw all the same is kept in the observed table above), the clock domain the 60 s confirmation deadline rests on (`controller_marker.ok`, `confirmation_deadline_source`, read only when the accounting that carries them succeeded), and any of these steps whose console capture was lost (74) | — |
-| `proof.sh` | a fresh run id and a 7–40 hex source commit, the open session, `timeout` on the host, every value of the table below as a whole number (a quiet window below 130 s, a rate that is not a number, a master seed that is not set, an extension flag other than `yes`/`no`), a run directory, a plan and prefix files that do not exist yet (write-once), the attempt, its fields, identity and sources, the deployed helper file byte-equal to the runbook's 6.1 heredoc (`proof_helpers_check.py`), the collector copy and sync, the guest clock read as a whole number, the session facts written, the stack running and healthy within `EGW_HEALTH_LIMIT_S` (the **first stop rule**: reached, it is recorded in `proof_session.json` and the proof is not run), the SUT environment captured and fetched, the guest state and the containers before, the controller process read (`_mline`), the diagnostic plan written (a run id the pilot plan holds is refused; the load equals the plan's), `pre` (`wait_ready`, `drained`, `metrics before`, `config_identity`) and the identity check (the expected source commit, `broker_reloaded` false, W readable): each is outcome `not-run`, 2, and **the harness is not started** | the harness run (exit 2 or any code other than 0, 1, 124, 137: 1 is read from the manifest and 124/137 are the second stop rule), the restart **shown** from the driver's own records (the controller's `started_at` changed, its container the same object started later; not shown means the fault was not applied, and a pair that cannot be judged is the same requirement failed), the copy of the prefix snapshots into `analysis/snapshots/`, the session facts updated, the evaluator that could not run (exit 2: not evaluated), the proof's evidence complete (`proof_verdict.json` `instrumentation.proof_evidence.complete`), the guest state after, `guest_state_delta.py` when it cannot compare the records or the expected restart is not shown by the pair (exit 2), whether the stack is healthy again could not be determined, and any of these steps whose console capture was lost (74) | the clocks' offset, `environment/containers.*.txt`, the extension when it was not asked for |
+| `proof.sh` | a fresh run id and a 7–40 hex source commit, the open session, `timeout` on the host, every value of the table below as a whole number (a quiet window below 130 s, a rate that is not a number, a master seed that is not set, an extension flag other than `yes`/`no`), `EGW_PROOF_RESTART_AT_S` strictly between 0 and `EGW_PROOF_DURATION_S` (P-13), a results base and a plan that do not lie under `~/egw-tcg/pilot/` (P-14), a drivers' path the hook templates can hold double-quoted, a run directory, a plan and prefix files that do not exist yet (write-once), the attempt, its fields, identity and sources, the deployed helper file byte-equal to the runbook's 6.1 heredoc (`proof_helpers_check.py`), the collector copy and sync, the guest clock read as a whole number, the session facts written, the stack running and healthy within `EGW_HEALTH_LIMIT_S` (the **first stop rule**: reached, it is recorded in `proof_session.json` and the proof is not run), the SUT environment captured and fetched, the guest state and the containers before, the controller process read (`_mline`), the diagnostic plan written (a run id the pilot plan holds is refused; the load equals the plan's), `ready` (`wait_ready`, a step of its own before the attempt's clock starts — P-10), `pre` (`drained`, `metrics before`, `config_identity`; the instant the 50-minute rule runs from is taken immediately before it) and the identity check (the expected source commit, `broker_reloaded` false, W readable): each is outcome `not-run`, 2, and **the harness is not started** | the harness run (exit 2 or any code other than 0, 1, 124, 137: 1 is read from the manifest and 124/137 are the second stop rule), the restart **shown** from the driver's own records (the controller's `started_at` changed, its container the same object started later; not shown means the fault was not applied, and a pair that cannot be judged is the same requirement failed), the copy of the prefix snapshots into `analysis/snapshots/`, the session facts updated, the evaluator that could not run (exit 2: not evaluated), the proof's evidence complete (`proof_verdict.json` `instrumentation.proof_evidence.complete`), the guest state after, `guest_state_delta.py` when it cannot compare the records or the expected restart is not shown by the pair (exit 2), whether the stack is healthy again could not be determined, and any of these steps whose console capture was lost (74) | the clocks' offset, `environment/containers.*.txt`, the extension when it was not asked for |
 | `guest_session_close.sh` | an open session | the stack stop, a `dmesg` that can be read at all for the OOM record (an OOM it *finds* is exit 3 of that step: the record is sound and the system failed — outcome `fail`, exit 1), the power-off (`guest/session_close.sh`, which also checks the sealed G1 artefacts) and no `qemu-system-aarch64` left — each failure gives 5, while a `pgrep` that could not answer at all is not a failed stop but an undecided close (3, below); the record of the artefacts after the power-off (the rootfs hash **and** the data-disk listing, each judged, not only the last command of the step), the boot journal and the final guest state that `guest/session_close.sh` keeps (exit 3: the guest IS off and the record of the close is not complete), and any of these steps whose console capture was lost (74), leave the session closed but its record incomplete: invalid, inconclusive, 3 | the tunnel teardown (a lost console capture of it is still named) |
 
 `$EXEC/current_session` is removed only when no `qemu-system-aarch64` process
@@ -348,7 +348,9 @@ changes no threshold, deadline, load or rule, and one run supports the
 property for that run only. It runs inside a session opened by
 `guest_session_open.sh` and never boots or powers off the guest, never
 builds, pulls, loads or retags an image, never edits the pilot plan or writes
-under `~/egw-tcg/pilot/` (the plan is read only to refuse a run id it holds),
+under `~/egw-tcg/pilot/` (the plan is read only to refuse a run id it holds;
+a results base or a plan given there, as written or as it resolves, is
+refused before anything starts — P-14),
 never repeats C3, never runs a second attempt by itself (a repeat is the
 student's decision), never lowers `DRAIN_QUIET_S` below 130 s and never runs
 the optional extension unless the student sets `EGW_PROOF_EXTENSION=yes`.
@@ -381,7 +383,16 @@ after the run, through the shared `healthy_wait`, never cut short by the
 attempt's allowance; a `pass` is never reported when the stack is not
 healthy again (it becomes `inconclusive` with "the guest was NOT fully
 restored"), and every reason — the interrupt handler's included — ends with
-the state the guest was left in. The reason keeps the groups in this order:
+the state the guest was left in. The evaluator runs only after that wait,
+so the write-once `analysis/proof_verdict.json` echoes in its `restoration`
+section the state the driver observed (it decides nothing on it); the
+extension's own restoration, after its second kill + start, is recorded
+apart as `extension.restoration` in the session facts, whose top-level
+`restoration` is the state the guest was finally left in. An evaluator
+that exits 2 without an `error:` line (the not-evaluated document of a seal
+that does not verify prints only its `[proof]` summary) has that summary,
+or "no reason printed on stderr", as the cause in the mandatory note. The
+reason keeps the groups in this order:
 observed system fault(s); evidence requirement(s) not met; post-window
 observation(s) incomplete; stop rule(s) reached; the proof's result with the
 criteria that failed, the refutations and the inconclusive reasons; the
@@ -405,14 +416,14 @@ set other values before the session, as the ADR allows.
 | `DRAIN_LIMIT_S` | `900` | the helper's limit, the 900 s of the planning ceiling "900 + 300 + 60 + 900 s" |
 | `EGW_HEALTH_LIMIT_S` | `1200` | the first stop rule: "the stack with the candidate healthy within 20 minutes of its start (as for the broker measurement, and on the same records)"; the same wait bounds the restoration (`broker_measure.sh` uses 1200 too; `gate_health.sh` and `persistence.sh` default to 1800) |
 | `EGW_HEALTH_STEP_S` | `15` | how often that wait samples; every sample is kept |
-| `EGW_READY_LIMIT_S` | `300` | the `wait_ready` of `pre`, the 300 s of the planning ceiling |
-| `EGW_PROOF_ATTEMPT_LIMIT_S` | `3000` | the second stop rule: "the attempt stopped 50 minutes after its first `drained` starts — the 36 minutes of the helper's limits plus 14 minutes"; measured on `/proc/uptime` and enforced on the harness step with `timeout` (124 or 137 = reached; an allowance spent before the harness leaves it unstarted and records the rule once). The step's host shell keeps `timeout` and the harness as a job and forwards the driver's interrupt to them: `timeout` moves itself and the harness into a process group of their own, which the terminal's Ctrl-C would otherwise never reach (the harness would then go on to apply the fault after the driver ended) |
-| `EGW_PROOF_RESTART_AT_S` | `150` | "at t+150 s, SIGKILL of the controller's container followed by a start" (`--restart-at-s`, passed explicitly) |
+| `EGW_READY_LIMIT_S` | `300` | none: the ADR gives no `/ready` figure — its planning figure "excludes the `/ready` wait", and the 300 s in "900 + 300 + 60 + 900 s" are the publication. 300 s is the driver's own choice for the `ready` step (`wait_ready`), above the runbook's `wait_ready` default of 60 s; that wait runs before the attempt's clock starts, so it is no part of the 50-minute rule (P-10) |
+| `EGW_PROOF_ATTEMPT_LIMIT_S` | `3000` | the second stop rule: "the attempt stopped 50 minutes after its first `drained` starts — the 36 minutes of the helper's limits plus 14 minutes"; measured on `/proc/uptime` from the instant taken immediately before `pre`, whose first command is `drained` (the `/ready` wait comes before it, in the `ready` step, and is not counted — P-10; the instant is recorded as `instants.first_drained_started_*`), and enforced on the harness step with `timeout` (124 or 137 = reached; an allowance spent before the harness leaves it unstarted and records the rule once). The step's host shell keeps `timeout` and the harness as a job and forwards the driver's interrupt to them: `timeout` moves itself and the harness into a process group of their own, which the terminal's Ctrl-C would otherwise never reach (the harness would then go on to apply the fault after the driver ended) |
+| `EGW_PROOF_RESTART_AT_S` | `150` | "at t+150 s, SIGKILL of the controller's container followed by a start" (`--restart-at-s`, passed explicitly); refused before anything starts unless strictly between 0 and `EGW_PROOF_DURATION_S`, because the harness cancels its restart timer when the measured run ends and the fault would then never fire (P-13) |
 | `EGW_PROOF_DURATION_S` | `300` | "300 s of publication = 3,360 messages"; fixed by `proof_plan.py`, so a different value stops the driver (it changes no load) |
 | `EGW_PROOF_RATE` | `11.2` | "the `nominal` scenario at 11.2 msg/s, three wearables, no warm-up"; fixed by `proof_plan.py` likewise |
 | `EGW_PROOF_MASTER_SEED` | none | the master seed the plan's entry seed is derived from (`derive_run_seed`): the student's decision, so it has no default and the driver stops without it |
-| `EGW_PROOF_EXTENSION` | `no` | the optional extension of item 4 §9 ("it changes the proof's plan, so it is the student's decision; it is not needed to decide"); `yes` runs it after the restoration — the second kill + start, `wait_ready` and one `/metrics` reading (the restart shown), `drained` with nothing published, the `/metrics` reading after it that decides `received`, the second post-drain fetch; every step under what is left of `EGW_PROOF_EXTENSION_LIMIT_S`, and the second restoration wait after it — and records its result apart (`extension` on the attempt and in the session facts: `not-refuted`, `refutes`, `inconclusive`), never changing the proof's three verdicts. Chosen but not runnable (a stop rule reached, the stack not healthy again after the run, no post-drain copy to compare with), it is recorded `inconclusive` with the reason, never `not-chosen` |
-| `EGW_PROOF_EXTENSION_LIMIT_S` | `1790` | the extension's ceiling, "the `stop_grace_period` recorded under C6 plus 1,660 s" with the 130 s grace period C6 recorded |
+| `EGW_PROOF_EXTENSION` | `no` | the optional extension of item 4 §9 ("it changes the proof's plan, so it is the student's decision; it is not needed to decide"); `yes` runs it after the restoration — the second kill + start, `wait_ready` and one `/metrics` reading (the restart shown only against the `started_at` the driver read after the run, P-12), `drained` with nothing published, the `/metrics` reading after it that decides `received`, the second post-drain fetch; every step under what is left of `EGW_PROOF_EXTENSION_LIMIT_S` and, besides, the restart command and the second fetch under the ADR's two per-step stop rules (P-11), and the second restoration wait after it, recorded apart as `extension.restoration` — and records its result apart (`extension` on the attempt and in the session facts: `not-refuted`, `refutes`, `inconclusive`), never changing the proof's three verdicts. Chosen but not runnable (a stop rule reached, the stack not healthy again after the run, no post-drain copy to compare with, no baseline `started_at` read after the run — `controller-process-after` failed — or no `stop_grace_period` readable as seconds), it is recorded `inconclusive` with the reason, never `not-chosen` |
+| `EGW_PROOF_EXTENSION_LIMIT_S` | `1790` | the extension's ceiling, "the `stop_grace_period` recorded under C6 plus 1,660 s" with the 130 s grace period C6 recorded. Inside it, the ADR's two per-step stop rules "imposed by design, not measured durations" (P-11): `ext-restart` under "the restart command within the grace period plus 5 minutes" — the `stop_grace_period` the configuration identity captured at `pre` reports, the value the guest reported (`130s` read as 130 s), plus 300 s — and `ext-fetch` under "the second fetch within 5 minutes", 300 s; each step runs under the smaller of its rule's bound and what is left of the ceiling, under `timeout`, and reaching a rule records the extension `inconclusive` with the rule named (`extension.stop_rules`, `extension.stop_rule_reached` in the session facts) |
 | `EGW_PROOF_BASE` | `~/egw-tcg/proof/results` | the harness results base of the proof, apart from the pilot's (`--base-dir`); the run directory is `raw/RUN_ID` under it, write-once |
 | `EGW_PROOF_PLAN` | `~/egw-tcg/proof/plan-RUN_ID.json` | the one-entry diagnostic plan `proof_plan.py` writes, write-once, "never an edit of the pilot plan" |
 | `EGW_PROOF_RUNBOOK` | the clone's `docs/setup/qemu_integrated_gateway.md` | the runbook whose section 6.1 heredoc the deployed `~/egw-tcg/itest-helpers.sh` must equal byte for byte (a path override for the bench; the sha256 of both is in `environment/helpers-check.txt`) |
@@ -429,8 +440,38 @@ the plan's seed for `before`, `--like before` for `after`), `--drain-cmd`
 (`proof_hook_drained.sh`, the runbook's `drained` with the three `DRAIN_*`
 values exported into the step), `--post-drain-fetch-cmd` and the three
 `--fetch-*-log-cmd` (`proof_fetch_sut_log.sh`, bounded from the guest epoch
-the driver read: a failed or empty read leaves no file). A test pins the
-fixed arguments to the runbook's function line by line.
+the driver read: a failed or empty read leaves no file). The harness splits
+each template without a shell (`shlex.split`), so the hook's path and
+`"{dest}"` are double-quoted in every template, as the runbook's
+`harness_cmd` quotes its own `"{dest}"`: a results base with a space in its
+path works, and a drivers' path holding a double quote or a backslash is
+refused before anything starts. A test pins the fixed arguments to the
+runbook's function line by line, and another renders the templates as the
+harness does against a base with a space.
+
+**Rules of the driver's own, by label** (beside the design flags P-1 to
+P-9 of the evaluator and the driver, each to be confirmed by the Project
+Manager):
+
+- **P-10** — the 50-minute rule is measured from the instant taken
+  immediately before `pre`, whose first command is `drained`; the `/ready`
+  wait is a step of its own (`ready`) before it and is not counted.
+- **P-11** — the extension's restart command is bounded by the
+  `stop_grace_period` the configuration identity captured at `pre` reports
+  (the guest's value, read as whole seconds) plus 300 s, and its second fetch
+  by 300 s, each under `timeout` and inside the extension's ceiling; a rule
+  reached records the extension `inconclusive` with the rule named. A
+  `stop_grace_period` not readable as seconds keeps the extension from
+  running (it is recorded `inconclusive`) and touches nothing of the proof.
+- **P-12** — the extension's restart is shown only against the recorded
+  baseline, the `started_at` read after the run; without it the extension
+  is not run and is `inconclusive` ("the restart cannot be shown"), never
+  `not-refuted`.
+- **P-13** — `EGW_PROOF_RESTART_AT_S` must lie strictly between 0 and
+  `EGW_PROOF_DURATION_S`, or the driver refuses before anything starts.
+- **P-14** — `EGW_PROOF_BASE` and `EGW_PROOF_PLAN` must not lie under
+  `~/egw-tcg/pilot/`, as given or as they resolve, or the driver refuses
+  before anything starts.
 
 The package holds the harness capsule byte for byte under `raw/RUN_ID/`,
 the prefix files (`RUN_ID.config_identity.json`, `.metrics.before/.after.json`,
@@ -473,7 +514,7 @@ after, and the helper file check.
 | `EGW_GUEST_KNOWN_HOSTS`, `EGW_G1_REFERENCE` | the 2026-09-18 capsules | the guest's pinned host key; the G1 artefact checksums |
 | `EGW_HEALTH_LIMIT_S` | `1800` | bounded wait for the six services `running` and `healthy` (`gate_health.sh`, `persistence.sh`; `broker_measure.sh` and `proof.sh` default to `1200`, the 20-minute rule of ADR 0011) |
 | `EGW_HEALTH_STEP_S` | `15` | how often that wait takes a sample; every sample is kept |
-| `EGW_READY_LIMIT_S` | `3600` | bounded `wait_ready` after the restart (runbook 6.5: an hour is the upper bound for the JVM start-up under TCG; `proof.sh` defaults to `300`, the ADR's planning figure) |
+| `EGW_READY_LIMIT_S` | `3600` | bounded `wait_ready` after the restart (runbook 6.5: an hour is the upper bound for the JVM start-up under TCG; `proof.sh` defaults to `300`, its own choice for its `ready` step: the ADR gives no `/ready` figure) |
 | `EGW_DEPLOYED_DIR` | `/opt/egw/deployment` | the deployment tree on the guest |
 | `EGW_CONTROLLER_IDENTITY` | `/opt/egw/images/egw-controller-0.1.0-arm64.identity.txt` | the controller build identity recorded on the guest |
 

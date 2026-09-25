@@ -19,7 +19,8 @@ on top of it this module installs:
   services, steerable through ``EGW_STUB_FAIL``;
 * the section 6.1 helper stub extended with the runbook's own ``keep`` and
   stubs of ``_mline`` (thirteen fields, ``started_at`` moving with the
-  fault), ``metrics`` and ``config_identity``;
+  fault; one reading can be made to fail), ``wait_ready`` (one that can take
+  its time), ``metrics`` and ``config_identity``;
 * a "runbook" whose 6.1 heredoc is that helper stub, named to the driver
   with ``EGW_PROOF_RUNBOOK``, so the helpers check passes on the bench and
   fails against the real runbook.
@@ -388,17 +389,29 @@ print("2026-09-25T10:00:00Z" if starts == 0 else "2026-09-25T10:%02d:35Z" % (2 +
 PY
 }
 _mline() {
-    stub_fails mline && { stop "_mline: GET $CTRL/metrics failed or was not valid JSON"; return 1; }
     # Every reading is counted (LOG.mline-calls, one line each): 'received' is
     # EGW_STUB_MLINE_RECEIVED from the reading EGW_STUB_MLINE_RECEIVED_FROM_CALL
     # on (the first, by default), and 0 before it. The proof's readings are
     # the first (before) and the second (after); the extension's are the
     # third (after ready) and the fourth (after its 'drained').
+    # EGW_STUB_MLINE_FAIL_CALL names the one reading that fails (2: the
+    # reading after the run, which is the extension's baseline).
     echo x >> "$EGW_STUB_LOG.mline-calls"
     local calls received=0
     calls=$(wc -l < "$EGW_STUB_LOG.mline-calls")
+    stub_fails mline && { stop "_mline: GET $CTRL/metrics failed or was not valid JSON"; return 1; }
+    [ "$calls" != "${EGW_STUB_MLINE_FAIL_CALL:-}" ] || { stop "_mline: GET $CTRL/metrics failed or was not valid JSON (reading $calls)"; return 1; }
     [ "$calls" -lt "${EGW_STUB_MLINE_RECEIVED_FROM_CALL:-1}" ] || received=${EGW_STUB_MLINE_RECEIVED:-0}
     echo "0 0 0 true $(_proof_started_at) 1 $received 0 0 0 0 0 0"
+}
+wait_ready() {
+    stub_fails wait_ready \
+        && { stop "wait_ready: /ready answered '503', not 200, for ${1:-60} s (tunnel of 5.7 down? stack not healthy?)"; return 1; }
+    # A /ready that takes its time (EGW_STUB_READY_HANG_S): the attempt's
+    # clock must not run meanwhile, since the 50-minute rule runs from the
+    # first 'drained'.
+    [ -z "${EGW_STUB_READY_HANG_S:-}" ] || sleep "$EGW_STUB_READY_HANG_S"
+    echo "stub: /ready 200 (limit ${1:-60} s)"
 }
 metrics() {
     stub_fails metrics && { stop "metrics $1 $2: GET /metrics failed"; return 1; }
@@ -717,6 +730,12 @@ def test_refuses_a_used_run_id_a_pilot_plan_run_id_or_an_existing_raw_dir(pbench
     ({"EGW_PROOF_MASTER_SEED": None}, "EGW_PROOF_MASTER_SEED='' is not a whole number"),
     ({"EGW_PROOF_EXTENSION": "maybe"}, "is neither 'yes' nor 'no'"),
     ({"EGW_PROOF_RATE": "fast"}, "EGW_PROOF_RATE='fast' is not a number"),
+    # The fault must fall inside the measured window: the harness cancels its
+    # restart timer when the run ends, so at or beyond the duration it would
+    # never fire, and 0 is no instant into the run.
+    ({"EGW_PROOF_RESTART_AT_S": "300"}, "EGW_PROOF_RESTART_AT_S=300 is not strictly between 0 and EGW_PROOF_DURATION_S=300"),
+    ({"EGW_PROOF_RESTART_AT_S": "0"}, "EGW_PROOF_RESTART_AT_S=0 is not strictly between 0 and EGW_PROOF_DURATION_S=300"),
+    ({"EGW_PROOF_RESTART_AT_S": "301"}, "the harness cancels its restart timer when the measured run ends, so the fault would never fire"),
 ])
 def test_refuses_a_value_that_is_not_a_whole_number_and_a_quiet_window_below_130(pbench, overrides, says):
     result = pbench.run(**overrides)
@@ -733,6 +752,30 @@ def test_refuses_a_bad_run_id_or_commit_and_needs_timeout(pbench):
     usage = pbench.run(RID)
     assert usage.returncode == 2 and "usage: proof.sh RUN_ID EXPECTED_SOURCE_COMMIT" in usage.stdout
     assert pbench.attempts() == []
+
+
+def test_refuses_a_results_base_or_a_plan_under_the_pilot_directory_before_anything_starts(pbench):
+    # The driver never writes under ~/egw-tcg/pilot/: a results base or a
+    # plan given there - as written, or resolving there through '..' - is
+    # refused before anything starts, and the pilot directory is as it was.
+    pilot = pbench.bench.home / "egw-tcg" / "pilot"
+    before = sorted(p.name for p in pilot.iterdir())
+    for overrides, says in (
+        ({"EGW_PROOF_BASE": str(pilot / "results")}, f"EGW_PROOF_BASE='{pilot / 'results'}' lies under {pilot}/"),
+        ({"EGW_PROOF_PLAN": str(pilot / f"plan-{RID}.json")}, f"EGW_PROOF_PLAN='{pilot / f'plan-{RID}.json'}' lies under {pilot}/"),
+        ({"EGW_PROOF_BASE": str(pbench.bench.home / "egw-tcg" / "proof" / ".." / "pilot" / "results")}, "lies under"),
+    ):
+        result = pbench.run(**overrides)
+        assert result.returncode == 2, report(result)
+        assert says in result.stdout and "where this driver never writes; nothing was started" in result.stdout
+        assert pbench.attempts() == [] and pbench.harness() is None
+        assert sorted(p.name for p in pilot.iterdir()) == before
+    # A base beside the pilot directory, whose name merely starts with it, is
+    # not under it.
+    beside = pbench.bench.home / "egw-tcg" / "pilot-proof" / "results"
+    result = pbench.run(EGW_PROOF_BASE=str(beside), EGW_STUB_FAIL="drained")
+    assert result.returncode == 2, report(result)
+    assert "lies under" not in result.stdout and pbench.verdicts()["workload"]["values"]["EGW_PROOF_BASE"] == str(beside)
 
 
 def test_refuses_when_the_deployed_helper_file_differs_from_the_runbook_heredoc(pbench):
@@ -924,15 +967,20 @@ def test_the_harness_is_given_the_proof_plan_base_hooks_identity_and_restart_at_
     assert _argv_value(argv, "--plan") == str(pbench.plan)
     assert _argv_value(argv, "--base-dir") == str(pbench.base)
     assert _argv_value(argv, "--sut-env-from") == str(attempt / "environment" / "sut_environment.json")
-    assert _argv_value(argv, "--restart-cmd") == f"bash {drivers}/proof_restart_controller.sh {{run_id}}"
+    # The hook path and "{dest}" are double-quoted in every template, as the
+    # runbook's harness_cmd quotes "{dest}": the harness splits them without
+    # a shell.
+    assert _argv_value(argv, "--restart-cmd") == f'bash "{drivers}/proof_restart_controller.sh" {{run_id}}'
     assert _argv_value(argv, "--restart-at-s") == "150"
     assert _argv_value(argv, "--config-identity-from") == str(pbench.prefix / f"{RID}.config_identity.json")
-    assert _argv_value(argv, "--twin-snapshot-cmd") == f"bash {drivers}/proof_hook_twins.sh {{run_id}} {{dest}} {seed}"
-    assert _argv_value(argv, "--drain-cmd") == f"bash {drivers}/proof_hook_drained.sh {{run_id}}"
-    assert _argv_value(argv, "--post-drain-fetch-cmd") == "scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl {dest}"
+    assert _argv_value(argv, "--twin-snapshot-cmd") == f'bash "{drivers}/proof_hook_twins.sh" {{run_id}} "{{dest}}" {seed}'
+    assert _argv_value(argv, "--drain-cmd") == f'bash "{drivers}/proof_hook_drained.sh" {{run_id}}'
+    assert _argv_value(argv, "--post-drain-fetch-cmd") == 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl "{dest}"'
     for kind, flag in (("broker", "--fetch-broker-log-cmd"), ("controller", "--fetch-controller-log-cmd"),
                        ("docker-events", "--fetch-docker-events-cmd")):
-        assert _argv_value(argv, flag) == f"bash {drivers}/proof_fetch_sut_log.sh {kind} {{dest}} {guest_epoch}"
+        assert _argv_value(argv, flag) == f'bash "{drivers}/proof_fetch_sut_log.sh" {kind} "{{dest}}" {guest_epoch}'
+    runbook_argv = _harness_argv_of(runbook_function("harness_cmd"), f"harness_cmd {RID}", pbench.bench.home)
+    assert _argv_value(runbook_argv, "--fetch-events-cmd").endswith('"{dest}"')
     assert str(guest_epoch).isdigit()
     # The runbook's fixed arguments, expanded in the host step (the secret
     # from the exported .env, the alias, the clone's fetch script).
@@ -976,6 +1024,53 @@ def test_the_restart_template_is_sigkill_then_start_of_the_controller_container_
     record = (package / "analysis" / "snapshots" / f"{RID}.restart.txt").read_text(encoding="utf-8")
     assert "phase=before" in record and "phase=after" in record and record.count("guest_epoch=") == 2
     assert pbench.verdicts()["workload"]["fault"].startswith("SIGKILL of the controller's container followed by a start")
+
+
+def test_hook_templates_survive_the_harness_split_under_a_base_and_a_drivers_path_with_a_space(pbench):
+    # The harness renders {run_id} and {dest} and splits each template with
+    # shlex.split, without a shell: unquoted, a results base or a drivers'
+    # path with a space in it - both accepted by the driver's own
+    # prerequisites - would break every hook. The templates are rendered
+    # here exactly as the harness renders them, against such a base.
+    from egw_experiments import run as run_mod
+    spaced = pbench.bench.tmp / "drivers with a space"
+    shutil.copytree(pbench.bench.drivers, spaced)
+    pbench.bench.drivers = spaced
+    base = pbench.bench.tmp / "proof results"
+    result = pbench.run(EGW_PROOF_BASE=str(base))
+    assert result.returncode == 0, report(result)
+    argv = pbench.harness()["argv"]
+    assert _argv_value(argv, "--base-dir") == str(base)
+    seed = plan_gen.derive_run_seed(int(MASTER_SEED), RID)
+    guest_epoch = str(pbench.session_facts()["clocks"]["guest_epoch"])
+    dest = base / "raw" / RID / "twins.before.json"
+    expected = {
+        "--restart-cmd": ["bash", str(spaced / "proof_restart_controller.sh"), RID],
+        "--twin-snapshot-cmd": ["bash", str(spaced / "proof_hook_twins.sh"), RID, dest.as_posix(), str(seed)],
+        "--drain-cmd": ["bash", str(spaced / "proof_hook_drained.sh"), RID],
+        "--fetch-broker-log-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "broker", dest.as_posix(), guest_epoch],
+        "--fetch-controller-log-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "controller", dest.as_posix(), guest_epoch],
+        "--fetch-docker-events-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "docker-events", dest.as_posix(), guest_epoch],
+    }
+    for flag, words in expected.items():
+        rendered = run_mod.format_collector_template(_argv_value(argv, flag), RID, duration_s=300, dest=dest,
+                                                     expect_services=list(EXPECT_SERVICES))
+        assert shlex.split(rendered, posix=True) == words, flag
+    rendered = run_mod.format_cmd_template(_argv_value(argv, "--post-drain-fetch-cmd"), RID, dest.as_posix())
+    assert shlex.split(rendered, posix=True) == [
+        "scp", "-q", f"egw-tcg:/opt/egw/deployment/data/events/{RID}/events.jsonl", dest.as_posix()]
+    # And the whole session ran from the spaced drivers' path: the package
+    # holds the hook's record and the verdict.
+    assert pbench.package() is not None and pbench.verdicts()["system_outcome"] == "pass"
+    # A drivers' path the templates cannot hold double-quoted is refused
+    # before anything starts.
+    quoted = pbench.bench.tmp / 'drivers "quoted"'
+    shutil.copytree(spaced, quoted)
+    pbench.bench.drivers = quoted
+    shutil.rmtree(pbench.attempt())
+    refused = pbench.run(EGW_PROOF_BASE=str(pbench.bench.tmp / "other results"))
+    assert refused.returncode == 2, report(refused)
+    assert "holds a double quote or a backslash" in refused.stdout and pbench.attempts() == []
 
 
 def _harness_argv_of(function_text: str, call: str, home: Path) -> list[str]:
@@ -1035,18 +1130,21 @@ def test_evaluator_supports_gives_pass_only_with_complete_evidence_and_a_healthy
     assert pbench.package() is not None
     steps = pbench.commands()
     for step in ("helpers-check", "session-facts", "services-healthy", "guest-state-before", "containers-before",
-                 "controller-process-before", "proof-plan", "pre", "identity-check", "harness-run",
+                 "controller-process-before", "proof-plan", "ready", "pre", "identity-check", "harness-run",
                  "controller-process-after", "containers-after", "restart-shown", "metrics-after", "delta",
-                 "evaluate", "guest-state-after", "guest-state-delta", "services-healthy-after"):
+                 "guest-state-after", "guest-state-delta", "services-healthy-after", "evaluate"):
         assert step in steps, step
-    assert steps.index("services-healthy-after") > steps.index("evaluate")
-    assert steps.index("session-facts") < steps.index("pre") < steps.index("harness-run")
+    # The evaluator runs AFTER the guest state after and the restoration, so
+    # that the write-once verdict document echoes the restoration observed.
+    assert steps.index("guest-state-delta") < steps.index("services-healthy-after") < steps.index("evaluate")
+    assert steps.index("session-facts") < steps.index("ready") < steps.index("pre") < steps.index("harness-run")
     document = pbench.verdict_document()
     assert document["instrumentation"]["proof_evidence"]["complete"] is True
     assert document["system_outcome"]["result"] == "supports"
-    # At evaluation time the restoration has not been observed yet: the
-    # evaluator echoes what the driver knew then, and decides nothing on it.
-    assert document["restoration"]["state"] == "stack=unknown restart_shown=yes"
+    # The document's restoration section is the echo of what the driver
+    # observed before evaluating (it decides nothing on it): never 'unknown'
+    # in a session whose restoration wait ran.
+    assert document["restoration"]["state"] == "stack=healthy restart_shown=yes"
     facts = pbench.session_facts()
     assert facts["restoration"] == "stack=healthy restart_shown=yes" and facts["restart_shown"] is True
     assert facts["instants"]["harness_exit"] == 0 and facts["verdicts"]["system_outcome"] == "pass"
@@ -1068,6 +1166,10 @@ def test_evaluator_supports_gives_pass_only_with_complete_evidence_and_a_healthy
     assert "the guest was NOT fully restored: the stack was not running and healthy again within 3 s" in verdicts["reason"]
     assert verdicts["reason"].endswith("; the guest was left with stack=not-healthy restart_shown=yes")
     assert "observed system fault" not in verdicts["reason"]
+    # The restoration wait is never cut short and precedes the evaluator, so
+    # the document echoes the stack NOT healthy again as observed.
+    assert pbench.verdict_document()["restoration"]["state"] == "stack=not-healthy restart_shown=yes"
+    assert pbench.verdict_document()["system_outcome"]["result"] == "supports"
 
 
 def test_evaluator_refutes_gives_valid_fail_exit_1(pbench):
@@ -1097,8 +1199,11 @@ def test_evaluator_inconclusive_gives_exit_3_and_is_never_a_pass(pbench):
 
 @pytest.mark.parametrize("token, evaluator, says", [
     # A seal that fails: the evaluator does not evaluate (exit 2), which is
-    # a mandatory record missing, never a result.
-    ("harness-tampered", "not-computed", "the proof was not evaluated (evaluate exit 2)"),
+    # a mandatory record missing, never a result. Its not-evaluated path
+    # prints no 'error: ' line, only its '[proof] ' summary, which is then
+    # the cause in the note (never nothing after the colon).
+    ("harness-tampered", "not-computed",
+     f"the proof was not evaluated (evaluate exit 2): {RID}: not-evaluated; inconclusive: SHA256SUMS does not verify"),
     # An unsealed directory: evaluated, inconclusive (exit 3), and the
     # proof's evidence is not complete, so the attempt is invalid as well.
     ("harness-unsealed", "inconclusive", "proof evidence incomplete"),
@@ -1112,8 +1217,35 @@ def test_an_evaluator_that_could_not_run_or_whose_evidence_is_incomplete_is_mand
     assert verdicts["proof_verdict"] == evaluator
     assert "evidence requirement(s) not met:" in verdicts["reason"]
     assert says in verdicts["reason"]
+    assert "(evaluate exit 2): ;" not in verdicts["reason"]
     assert "the proof's evidence is not complete" in verdicts["reason"]
     assert "services-healthy-after" in pbench.commands()
+
+
+PY_EVALUATOR_SILENT = '''#!/usr/bin/env python3
+"""A $PY whose `-m egw_experiments.proof_evaluator` exits 2 printing nothing
+at all. Every other call is this interpreter, unchanged."""
+import os
+import subprocess
+import sys
+
+args = sys.argv[1:]
+if args[:2] == ["-m", "egw_experiments.proof_evaluator"]:
+    sys.exit(2)
+sys.exit(subprocess.run([os.environ["EGW_REAL_PYTHON"]] + args).returncode)
+'''
+
+
+def test_an_evaluator_that_exits_2_printing_nothing_is_noted_as_such(pbench):
+    # No 'error: ' line and no '[proof] ' line: the mandatory note still says
+    # what it can - that no reason was printed - and never ends with nothing
+    # after the colon, since that note can be the headline of the result.
+    result = pbench.run(**pbench.bench.python_stub(PY_EVALUATOR_SILENT))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["proof_verdict"] == "not-computed"
+    assert "the proof was not evaluated (evaluate exit 2): no reason printed on stderr" in verdicts["reason"]
+    assert 'headline="the proof was not evaluated (evaluate exit 2): no reason printed on stderr"' in result.stdout
 
 
 def test_a_harness_that_refuses_is_mandatory_never_not_run(pbench):
@@ -1297,6 +1429,31 @@ def test_an_allowance_spent_before_the_harness_records_the_stop_rule_once_and_st
     assert verdicts["restoration"].startswith("stack=healthy")
 
 
+def test_the_ready_wait_runs_before_the_attempts_clock_starts(pbench):
+    # The 50-minute rule runs "after its first 'drained' starts" (ADR 0011):
+    # a /ready that takes 20 s under an allowance of 15 s must not spend it.
+    # The wait is a step of its own ('ready') before the instant the rule is
+    # measured from, and 'pre' is the step whose first command is 'drained'.
+    result = pbench.run(EGW_STUB_READY_HANG_S="20", EGW_PROOF_ATTEMPT_LIMIT_S="15")
+    assert result.returncode == 0, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "pass" and "stop rule" not in verdicts["reason"]
+    steps = pbench.commands()
+    assert steps.index("session-facts") < steps.index("ready") < steps.index("pre") < steps.index("harness-run")
+    records = {json.loads(line)["name"]: json.loads(line)
+               for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()}
+    assert records["ready"]["argv"][-1].endswith("\nwait_ready 5")
+    pre = records["pre"]["argv"][-1]
+    assert f"\ndrained && metrics {RID} before && config_identity" in pre and "wait_ready" not in pre
+    facts = pbench.session_facts()
+    # The recorded instant is after the /ready wait (taken at step 3, the
+    # clocks record precedes it by at least the hang) and the allowance the
+    # harness ran under was measured from it, not from before the wait.
+    assert facts["instants"]["first_drained_started_host_uptime_s"] - facts["clocks"]["host_uptime_s"] >= 20
+    assert 0 < facts["instants"]["harness_allowance_s"] <= 15
+    assert not [r for r in facts["stop_rules"] if r["reached"]]
+
+
 def test_interrupt_restores_and_names_the_stack_state_on_the_final_line(pbench):
     # The operator's Ctrl-C goes to the driver's whole process group. 'timeout'
     # moves itself and the harness into a group of their own, which that
@@ -1440,17 +1597,37 @@ def test_the_extension_runs_bounded_when_asked_and_is_recorded_apart(pbench):
     assert verdicts["workload"]["values"]["EGW_PROOF_EXTENSION"] == "yes"
     assert verdicts["restoration"] == "stack=healthy restart_shown=yes"
     # Each step of the extension ran under 'bounded' with what was left of
-    # the ceiling, and the extension's own restart record reached the
-    # package beside the proof's snapshots and as a simulator sibling.
+    # the ceiling - and the restart command under the ADR's "grace period
+    # plus 5 minutes" (the 130 s stop_grace_period the configuration
+    # identity reports, plus 300 s), the second fetch under its "5 minutes",
+    # each the smaller bound at that point - and the extension's own restart
+    # record reached the package beside the proof's snapshots and as a
+    # simulator sibling.
     records = [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()]
+    limits = {}
     for record in records:
         if record["name"].startswith("ext-"):
             text = record["argv"][-1]
             assert "\nbounded " in text and "timeout -k 30" in text, record["name"]
             # The call is the last line ('bounded LIMIT CMD...'); the first
             # 'bounded' line is the function's own definition.
-            limit = int(text.rsplit("\nbounded ", 1)[1].split()[0])
-            assert 0 < limit <= 1790
+            limits[record["name"]] = int(text.rsplit("\nbounded ", 1)[1].split()[0])
+    assert limits["ext-restart"] == 130 + 300 and limits["ext-fetch"] == 300
+    for name in ("ext-ready", "ext-drained", "ext-metrics"):
+        assert 0 < limits[name] <= 1790, name
+    assert facts["values"]["stop_grace_period_s"] == 130 and facts["identity"]["stop_grace_period"] == "130s"
+    assert facts["extension"]["stop_rules"] == [
+        {"id": "ext-restart", "rule": "the restart command within the grace period plus 5 minutes",
+         "limit_s": 430, "grace_period_s": 130},
+        {"id": "ext-fetch", "rule": "the second fetch within 5 minutes", "limit_s": 300}]
+    adr = " ".join(ADR.read_text(encoding="utf-8").split())
+    for rule in facts["extension"]["stop_rules"]:
+        assert rule["rule"] in adr, rule
+    assert "stop_rule_reached" not in facts["extension"]
+    # The extension's own restoration (after its second kill + start) is
+    # recorded apart; the verdict document echoes the proof's, taken before.
+    assert facts["extension"]["restoration"] == "stack=healthy restart_shown=yes"
+    assert pbench.verdict_document()["restoration"]["state"] == "stack=healthy restart_shown=yes"
     package = pbench.package()
     assert (package / "analysis" / "snapshots" / f"{RID}.extension.restart.txt").is_file()
     assert (package / "simulator" / f"{RID}.extension.restart.txt").is_file()
@@ -1518,6 +1695,108 @@ def test_the_extension_ceiling_ends_its_step_and_records_inconclusive(pbench):
     assert "ext-restart" in steps and "ext-fetch" not in steps and "ext-metrics" not in steps
     assert steps.count("services-healthy-after") == 2
     assert verdicts["restoration"] == "stack=healthy restart_shown=yes"
+    # Under a ceiling of 5 s the restart's own rule (430 s) was not the
+    # bound, so the ceiling is what is named, and no rule is recorded reached.
+    assert "stop_rule_reached" not in facts["extension"]
+
+
+def test_the_extensions_per_step_stop_rules_bound_the_step_and_are_named_when_reached():
+    # ext_step runs a step under the smaller of its rule's bound and what is
+    # left of the ceiling; ext_cut names what 'timeout' reached - the rule,
+    # in the ADR's words, or the ceiling. The two functions are run on their
+    # own here (a rule of 300 s cannot be reached on the bench in time), with
+    # the ceiling's remainder and the host step replaced.
+    restart_rule = "the restart command within the grace period plus 5 minutes"
+    fetch_rule = "the second fetch within 5 minutes"
+    adr = " ".join(ADR.read_text(encoding="utf-8").split())
+    assert restart_rule in adr and fetch_rule in adr
+    driver = (SESSION_DIR / "proof.sh").read_text(encoding="utf-8")
+    assert f"EXT_RULE_RESTART='{restart_rule}'" in driver and f"EXT_RULE_FETCH='{fetch_rule}'" in driver
+    assert "EXT_FETCH_LIMIT=300" in driver and "EXT_RESTART_LIMIT=$((GRACE_S + 300))" in driver
+    functions = _driver_function("ext_step") + _driver_function("ext_cut")
+
+    def run(left: int, bound: str, rule: str, rc: int) -> str:
+        script = (functions
+                  + "\nA=attempt\nEXTENSION_LIMIT=1790\next_reasons=()\nEXT_STEP_RULE=''\nEXT_STEP_LIMIT=''\n"
+                  + "bounded() { :; }\n"
+                  + f"ext_left() {{ echo {left}; }}\n"
+                  + "hx() { printf 'hx %s: %s\\n' \"$2\" \"${3##*$'\\n'}\"; }\n"
+                  + "session_update() { printf 'session_update %s\\n' \"$*\"; }\n"
+                  + f"ext_step ext-restart '{bound}' '{rule}' true\n"
+                  + f"ext_cut ext-restart {rc}; echo \"cut=$?\"\n"
+                  + "printf 'reason: %s\\n' \"${ext_reasons[@]}\"\n")
+        result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+        assert result.returncode == 0, report(result)
+        return result.stdout
+
+    # The rule's bound is the smaller: the step runs under it, and a
+    # 'timeout' (124) names the rule and records it reached.
+    out = run(1000, "430", restart_rule, 124)
+    assert "hx ext-restart: bounded 430 true\n" in out and "cut=0" in out
+    assert (f"reason: the extension's stop rule reached: {restart_rule} (430 s; 'ext-restart' was ended by "
+            "'timeout', exit 124)\n") in out
+    assert f"session_update extension.stop_rule_reached={restart_rule}\n" in out
+    # The ceiling's remainder is the smaller: the step runs under it, and the
+    # kill after the grace (137) names the ceiling, not the rule.
+    out = run(100, "430", restart_rule, 137)
+    assert "hx ext-restart: bounded 100 true\n" in out
+    assert "reason: the extension's ceiling of 1790 s was reached during 'ext-restart' (exit 137)\n" in out
+    assert "stop_rule_reached" not in out
+    # A step without a rule of its own runs under the remainder alone.
+    out = run(1000, "", "", 124)
+    assert "hx ext-restart: bounded 1000 true\n" in out
+    assert "reason: the extension's ceiling of 1790 s was reached during 'ext-restart' (exit 124)\n" in out
+    # Any other status is not a bound reached: nothing is recorded.
+    out = run(1000, "430", restart_rule, 1)
+    assert "cut=1" in out and "reason: \n" in out and "stop rule" not in out
+
+
+def test_the_extension_without_the_baseline_reading_after_the_run_is_inconclusive_never_not_refuted(pbench):
+    # The controller process is not read after the run (the second _mline
+    # fails): the proof's restart is NOT JUDGED, a mandatory record missing
+    # that does not stop the driver. The extension, chosen, then has no
+    # baseline to show its own restart against - any reading would differ
+    # from an empty one - so it is not run and is inconclusive with that
+    # reason, never not-refuted; no second kill reaches the guest.
+    result = pbench.run(EGW_PROOF_EXTENSION="yes", EGW_STUB_MLINE_FAIL_CALL="2")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["instrumentation_validity"] == "invalid" and verdicts["restart_shown"] == "unknown"
+    assert "the controller process could not be read after the run (_mline exit 1)" in verdicts["reason"]
+    assert "could not be judged from the records (restart-shown exit 2)" in verdicts["reason"]
+    assert verdicts["extension"] == "inconclusive"
+    assert "optional extension: inconclusive (recorded apart, it decides nothing of the proof)" in verdicts["reason"]
+    facts = pbench.session_facts()
+    assert facts["extension"]["chosen"] is True and facts["extension"]["ran"] is False
+    assert facts["extension"]["result"] == "inconclusive"
+    assert ("the restart cannot be shown: no baseline started_at was read after the run (controller-process-after)"
+            in facts["extension"]["reasons"])
+    assert not any(step.startswith("ext-") for step in pbench.commands())
+    assert "kill" not in pbench.docker_log()
+    assert pbench.docker_state()["controller"]["starts"] == 1
+
+
+def test_the_extension_is_not_run_when_the_grace_period_cannot_be_read_as_seconds(pbench):
+    # The restart's stop rule is bounded from the stop_grace_period the
+    # configuration identity reports: one that is not a whole number of
+    # seconds in the compose form leaves the rule unbounded, so the
+    # extension is not run (inconclusive, with the reason) while the proof
+    # itself, which does not rest on it, is what it was.
+    identity = dict(CONFIG_IDENTITY, stop_grace_period="soon")
+    result = pbench.run(EGW_PROOF_EXTENSION="yes", EGW_STUB_CONFIG_IDENTITY=json.dumps(identity))
+    assert result.returncode == 0, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    assert verdicts["extension"] == "inconclusive"
+    facts = pbench.session_facts()
+    assert facts["values"]["stop_grace_period_s"] is None and facts["identity"]["stop_grace_period"] == "soon"
+    assert facts["extension"]["ran"] is False and facts["extension"]["result"] == "inconclusive"
+    assert ("the stop rule 'the restart command within the grace period plus 5 minutes' cannot be bounded: "
+            "the configuration identity's stop_grace_period was not read as whole seconds" in facts["extension"]["reasons"])
+    assert facts["extension"]["stop_rules"][0]["limit_s"] is None and facts["extension"]["stop_rules"][0]["grace_period_s"] is None
+    assert facts["extension"]["stop_rules"][1]["limit_s"] == 300
+    assert not any(step.startswith("ext-") for step in pbench.commands())
+    assert "stop_grace_period=soon stop_grace_period_s= " in pbench.console("identity-check")
 
 
 def test_an_interrupt_during_the_extension_restores_after_its_kill_and_names_the_state(pbench):
@@ -1570,3 +1849,10 @@ def test_the_readme_names_the_driver_its_values_and_the_three_verdicts():
                   "`EGW_PROOF_RUNBOOK`", "`EGW_PROOF_RESTART_AT_S`"):
         assert value in readme, value
     assert "not decisive" in readme and "P-8" in readme
+    # The driver's own rules, each stated with its label: the allowance from
+    # the first 'drained', the extension's two per-step stop rules, its
+    # baseline, the restart instant inside the window, no path under the pilot.
+    for label in ("P-10", "P-11", "P-12", "P-13", "P-14"):
+        assert f"**{label}**" in readme, label
+    assert "the ADR gives no `/ready` figure" in readme and "runbook's `wait_ready` default of 60 s" in readme
+    assert "the 300 s of the planning ceiling" not in readme
