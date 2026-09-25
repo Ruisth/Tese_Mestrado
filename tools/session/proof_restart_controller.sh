@@ -21,14 +21,25 @@
 # itself, one ssh session:
 #   cd /opt/egw/deployment && docker kill --signal=KILL egw-controller-1 \
 #     && docker compose --env-file .env --env-file images.lock.env start controller
-# then the same reading again. The two guest instants are printed on stderr,
-# which the manifest's stderr_tail keeps. A 'docker kill' followed by a
-# 'start' keeps the container OBJECT: the same id with a later StartedAt is
-# what the driver's restart-shown step expects (contrast persistence.sh,
-# whose 'down'/'up -d' expects new ids). The record notes whether the id was
-# the same and whether StartedAt moved, as observations; the verdict that
-# the restart was shown belongs to the driver, which reads its own
+# then the same reading again. A 'docker kill' followed by a 'start' keeps
+# the container OBJECT: the same id with a later StartedAt is what the
+# driver's restart-shown step expects (contrast persistence.sh, whose
+# 'down'/'up -d' expects new ids). The record notes whether the id was the
+# same and whether StartedAt moved, as observations; the verdict that the
+# restart was shown belongs to the driver, which reads its own
 # containers-after record.
+#
+# WHAT REACHES THE MANIFEST. The harness keeps the LAST 500 characters of
+# this hook's stderr and no other copy of it (contrast the collector hooks,
+# whose full streams go to hook-<hook>.stderr.txt). Whatever the guest
+# writes to stderr during the fault passes through this hook's stderr
+# (compose prints its ' Container ... Starting/Started' progress there, and
+# ssh may add a warning), so a line printed BEFORE the fault can be cut from
+# the tail. The line the hook prints LAST therefore carries both guest
+# instants by itself and stays well under 250 characters, and each STOP line
+# printed after the reading before the fault names that reading's instant:
+# the tail always ends with a line that holds every instant the hook read.
+# The line printed before the fault is context in time order, nothing more.
 #
 # Design flag V-1 (to record before the session, not decided here): the exact
 # command - 'docker kill' against 'docker compose kill' - and whether the
@@ -135,9 +146,14 @@ parse_reading "$before" || hook_stop 1 "the reading before the fault is not of t
 ( set -C; printf '%s\n' "run_id=$RID" "container=egw-controller-1" "phase=before" > "$RECORD" ) \
     || hook_stop 1 "$RECORD could not be created write-once: nothing was killed"
 record "$before"
-echo "proof_restart_controller: before the fault: guest $R_UTC (epoch $R_EPOCH), egw-controller-1 id $R_ID started $R_STARTED status $R_STATUS" >&2
+# The id is in the record; this line stays short (see WHAT REACHES THE
+# MANIFEST above).
+echo "proof_restart_controller: before the fault: guest $R_UTC (epoch $R_EPOCH), egw-controller-1 started $R_STARTED status $R_STATUS" >&2
+before_utc=$R_UTC
+before_epoch=$R_EPOCH
 before_id=$R_ID
 before_started=$R_STARTED
+BEFORE_INSTANT="before the fault: guest $before_utc (epoch $before_epoch)"
 
 # --- the fault: SIGKILL of the controller's container, then a start -----
 FAULT_CMD='cd /opt/egw/deployment && docker kill --signal=KILL egw-controller-1 && docker compose --env-file .env --env-file images.lock.env start controller'
@@ -145,18 +161,21 @@ record "phase=fault" "fault_command=$FAULT_CMD" "fault_dispatched_host_utc=$(dat
 ssh egw-tcg "$FAULT_CMD"
 frc=$?
 record "fault_exit=$frc"
-[ "$frc" -eq 0 ] || hook_stop 1 "the fault command exited $frc (kill --signal=KILL then compose start controller): whether the controller was killed and started again is NOT established by this record; the driver's containers-after record says what the guest holds"
+[ "$frc" -eq 0 ] || hook_stop 1 "the fault command exited $frc (kill --signal=KILL then compose start controller): whether the controller was killed and started again is NOT established by this record; the driver's containers-after record says what the guest holds; $BEFORE_INSTANT"
 
 # --- after the fault ---------------------------------------------------
 after=$(ssh egw-tcg "$(read_script)")
 rc=$?
-[ "$rc" -eq 0 ] || hook_stop 1 "the controller container was NOT read on the guest after the fault (ssh egw-tcg exit $rc): the fault command exited 0, and the instant after it is not recorded"
-parse_reading "$after" || hook_stop 1 "the reading after the fault is not of the expected form (the line above names the field): the fault command exited 0, and the instant after it is not recorded"
+[ "$rc" -eq 0 ] || hook_stop 1 "the controller container was NOT read on the guest after the fault (ssh egw-tcg exit $rc): the fault command exited 0, and the instant after it is not recorded; $BEFORE_INSTANT"
+parse_reading "$after" || hook_stop 1 "the reading after the fault is not of the expected form (the line above names the field): the fault command exited 0, and the instant after it is not recorded; $BEFORE_INSTANT"
 record "phase=after" "$after"
 same_id=no
 [ "$R_ID" != "$before_id" ] || same_id=yes
 moved=no
 [ "$R_STARTED" = "$before_started" ] || moved=yes
 record "phase=observation" "container_id_same=$same_id" "started_at_changed=$moved"
-echo "proof_restart_controller: after the fault: guest $R_UTC (epoch $R_EPOCH), egw-controller-1 id $R_ID started $R_STARTED status $R_STATUS (container_id_same=$same_id started_at_changed=$moved; the restart-shown step decides)" >&2
+# The LAST line on stderr, and the one the manifest's tail is sure to hold:
+# both guest instants and the two observations, nothing else (the ids and
+# StartedAt values are in the record).
+echo "proof_restart_controller: guest instants: before $before_utc (epoch $before_epoch), after $R_UTC (epoch $R_EPOCH); container_id_same=$same_id started_at_changed=$moved; the restart-shown step decides" >&2
 echo "proof_restart_controller: $RID: the fault was issued and both readings are in $RECORD"

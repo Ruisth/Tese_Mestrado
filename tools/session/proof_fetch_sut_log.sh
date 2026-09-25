@@ -29,10 +29,13 @@
 # a non-zero status or an empty output says the log was NOT read on the
 # guest, and what that log would show is then neither observed nor excluded
 # (the rule of config_identity's broker-log read, runbook 6.1, review of
-# 2026-09-25 item D2). The hook then removes the temporary file, prints a
-# STOP line and exits 1, so that DEST is absent: a fetch that exits 0 without
-# its file is a validity reason for the harness (ADR 0011 item 18), and an
-# empty DEST would be read as a log that showed nothing. On success the line
+# 2026-09-25 item D2). The hook then prints the last 400 bytes of whatever
+# the failed read answered (the controller read merges the daemon's error
+# into its output, so that is where its reason is), removes the temporary
+# file, prints a STOP line and exits 1, so that DEST is absent: a fetch that
+# exits 0 without its file is a validity reason for the harness (ADR 0011
+# item 18), and an empty DEST would be read as a log that showed nothing. A
+# read that answered nothing has nothing to excerpt. On success the line
 # count and the sha256 of DEST are printed, so the manifest's hook record and
 # the capsule's SHA256SUMS can be read against each other. The harness keeps
 # this hook's full stdout and stderr as logs/sut/hook-<hook>.stdout.txt and
@@ -103,6 +106,18 @@ ssh egw-tcg "$GUEST_CMD" > "$TMP"
 rc=$?
 bytes=$(wc -c < "$TMP" 2> /dev/null) || bytes=unreadable
 if [ "$rc" -ne 0 ] || [ "$bytes" = unreadable ] || [ "$bytes" -eq 0 ]; then
+    if [ "$bytes" != unreadable ] && [ "$bytes" -gt 0 ]; then
+        # A failed read that answered something: the controller read merges
+        # the daemon's stderr on the guest, so its reason ('No such
+        # container', 'permission denied') is in the output and nowhere
+        # else. The last 400 bytes go to this hook's stderr before the file
+        # does, so that the capsule (hook-<hook>.stderr.txt, the manifest's
+        # stderr_tail) says what the guest answered, and the STOP line
+        # stays the last line.
+        echo "proof_fetch_sut_log: the $KIND read exited $rc after answering $bytes bytes; the last of them (up to 400) follow:" >&2
+        tail -c 400 "$TMP" >&2
+        [ -z "$(tail -c 1 "$TMP")" ] || echo >&2
+    fi
     rm -f "$TMP"
     hook_stop 1 "the $KIND log was NOT read on the guest (ssh egw-tcg exit $rc, $bytes bytes): what it would show is neither observed nor excluded - $DEST was NOT written"
 fi

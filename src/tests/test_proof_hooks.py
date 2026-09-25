@@ -21,10 +21,14 @@ argv and is write-once like the real one.
 What these cases show is the wrappers' own behaviour: the byte-stable lines
 the harness classifies, the write-once files, the D2 rule ("the log was NOT
 read on the guest ... neither observed nor excluded") applied to a failed
-and to an empty read, the bounded events read, the SIGKILL-then-start
-sequence with both guest readings in the record, and a helper file that
-cannot be loaded ending every hook before it touches the guest. They say
-nothing about a real broker, controller, docker engine, guest or network.
+and to an empty read, with the guest's reason kept in the capsule, the
+bounded events read, the SIGKILL-then-start sequence with both guest
+readings in the record and both instants in the manifest's 500-character
+``stderr_tail`` (the restart hook is run by ``_execute_restart_cmd`` itself,
+under a guest whose fault-time stderr passes through, as compose's does),
+and a helper file that cannot be loaded ending every hook before it touches
+the guest. They say nothing about a real broker, controller, docker engine,
+guest or network.
 """
 from __future__ import annotations
 
@@ -90,7 +94,8 @@ DOCKER_STUB = r'''#!/usr/bin/env python3
 on disk, the broker and controller logs, the events read, the kill and the
 compose start. What the tests steer through EGW_STUB_FAIL: a log read that
 fails or that answers nothing, an events read that fails, a kill or a start
-that is refused, a start without effect, an inspect that does not answer."""
+that is refused, a start without effect, a start that writes past the
+harness's stderr budget, an inspect that does not answer."""
 import json
 import os
 import sys
@@ -151,6 +156,13 @@ if compose and cmd == "start":
     if fails("start-fails"):
         print("Error response from daemon: stub start refused", file=sys.stderr)
         sys.exit(1)
+    if fails("start-verbose"):
+        # A guest that writes more than the harness keeps of the hook's
+        # stderr (500 characters) between the two readings: eight warning
+        # lines of some 80 characters each, before the progress lines.
+        for i in range(8):
+            print(f"WARN[0000] stub compose warning {i}: a line the guest wrote to stderr during the fault",
+                  file=sys.stderr)
     if not fails("start-no-effect"):
         # A 'start' after a 'kill' keeps the container OBJECT: the same id,
         # a later StartedAt.
@@ -158,7 +170,10 @@ if compose and cmd == "start":
         state["started"] = f"2026-09-25T10:05:{state['starts']:02d}.200000000Z"
         state["status"] = "running"
     save(state)
-    print(" Container egw-controller-1  Started")
+    # Compose v2 prints its progress on STDERR, where the ssh session relays
+    # it into the hook's own stderr and so into the manifest's tail.
+    print(" Container egw-controller-1  Starting", file=sys.stderr)
+    print(" Container egw-controller-1  Started", file=sys.stderr)
     sys.exit(0)
 if compose:
     print(f"stub docker compose: nothing to do for {cmd!r}", file=sys.stderr)
@@ -303,6 +318,18 @@ class Hooks:
         """The restart hook, as _execute_restart_cmd renders and splits it."""
         cmd = run_mod.format_cmd_template(self.template("proof_restart_controller.sh", "{run_id}"), RID)
         return self.run_argv(shlex.split(cmd, posix=True), **overrides)
+
+    def run_restart_by_the_harness(self, monkeypatch, **overrides) -> dict:
+        """The restart hook run by _execute_restart_cmd itself, in the
+        driver's environment: the manifest's restart record, whose
+        ``stderr_tail`` (the LAST 500 characters of the hook's stderr) is the
+        only copy of that stderr the harness keeps - no hook-*.stderr.txt is
+        written for the restart hook."""
+        for key, val in self.env(**overrides).items():
+            monkeypatch.setenv(key, val)
+        record: dict = {}
+        run_mod._execute_restart_cmd(self.template("proof_restart_controller.sh", "{run_id}"), RID, record)
+        return record
 
     # -- what the stubs recorded ------------------------------------------
     def ssh_commands(self) -> list[str]:
@@ -490,24 +517,42 @@ def _fetch(hooks: Hooks, kind: str, **overrides) -> tuple[subprocess.CompletedPr
     return hooks.run_hook(template, dest, **overrides), dest
 
 
-@pytest.mark.parametrize("kind, token, exit_text", [
+@pytest.mark.parametrize("kind, token, exit_text, reason", [
     # A read that FAILED (ssh non-zero: the daemon's error on stderr, which
     # the controller read merges on the guest and so counts as bytes) and a
     # read that ANSWERED NOTHING (exit 0, empty) are both a log that was not
-    # read: neither leaves a file.
-    ("broker", "broker-log-fails", r"ssh egw-tcg exit 1, 0 bytes"),
-    ("broker", "broker-log-empty", r"ssh egw-tcg exit 0, 0 bytes"),
-    ("controller", "controller-log-fails", r"ssh egw-tcg exit 1, [1-9][0-9]* bytes"),
-    ("controller", "controller-log-empty", r"ssh egw-tcg exit 0, 0 bytes"),
-    ("docker-events", "docker-events-fails", r"ssh egw-tcg exit 1, 0 bytes"),
-    ("docker-events", "docker-events-empty", r"ssh egw-tcg exit 0, 0 bytes"),
+    # read: neither leaves a file. The daemon's reason, when there is one,
+    # stays in the capsule either way.
+    ("broker", "broker-log-fails", r"ssh egw-tcg exit 1, 0 bytes", "no such service: mosquitto"),
+    ("broker", "broker-log-empty", r"ssh egw-tcg exit 0, 0 bytes", None),
+    ("controller", "controller-log-fails", r"ssh egw-tcg exit 1, [1-9][0-9]* bytes",
+     "Error: No such container: egw-controller-1"),
+    ("controller", "controller-log-empty", r"ssh egw-tcg exit 0, 0 bytes", None),
+    ("docker-events", "docker-events-fails", r"ssh egw-tcg exit 1, 0 bytes", "Cannot connect to the Docker daemon"),
+    ("docker-events", "docker-events-empty", r"ssh egw-tcg exit 0, 0 bytes", None),
 ])
-def test_fetch_sut_log_writes_no_dest_on_a_failed_or_empty_read_and_says_so(hooks, kind, token, exit_text):
+def test_fetch_sut_log_writes_no_dest_on_a_failed_or_empty_read_and_says_so(hooks, kind, token, exit_text, reason):
     result, dest = _fetch(hooks, kind, EGW_STUB_FAIL=token)
     assert result.returncode == 1, report(result)
-    expected = (rf"^STOP: proof_fetch_sut_log: the {kind} log was NOT read on the guest \({exit_text}\): "
-                rf"what it would show is neither observed nor excluded - {re.escape(str(dest))} was NOT written$")
-    assert re.search(expected, result.stderr, re.MULTILINE), report(result)
+    lines = result.stderr.splitlines()
+    # The STOP line is the LAST line of stderr, whatever came before it.
+    expected = (rf"STOP: proof_fetch_sut_log: the {kind} log was NOT read on the guest \({exit_text}\): "
+                rf"what it would show is neither observed nor excluded - {re.escape(str(dest))} was NOT written")
+    assert re.fullmatch(expected, lines[-1]), report(result)
+    if reason is not None:
+        assert reason in result.stderr, report(result)
+    if kind == "controller" and reason is not None:
+        # The controller read merges the daemon's stderr ON THE GUEST, so
+        # its reason is in the output that is about to be removed: the hook
+        # copies the last of it to stderr first, and the reason precedes
+        # the STOP line.
+        assert re.fullmatch(r"proof_fetch_sut_log: the controller read exited 1 after answering [1-9][0-9]* bytes; "
+                            r"the last of them \(up to 400\) follow:", lines[-3]), report(result)
+        assert lines[-2] == reason
+    else:
+        # Unmerged, the reason reaches stderr by itself; an empty answer has
+        # nothing to excerpt.
+        assert "after answering" not in result.stderr, report(result)
     assert not dest.exists()
     assert not Path(str(dest) + ".tmp").exists()
     assert hooks.ssh_commands(), "the read was attempted on the guest"
@@ -568,27 +613,40 @@ def test_fetch_docker_events_is_bounded_by_since_and_until(hooks):
     assert "KIND 'journal' is not broker, controller or docker-events: nothing was read" in unknown.stderr
 
 
-def test_fetch_sut_log_run_by_the_harness_hook_runner_keeps_the_stop_line_in_the_capsule(hooks, monkeypatch):
+@pytest.mark.parametrize("kind, token, flag, reason", [
+    ("broker", "broker-log-empty", "--fetch-broker-log-cmd", None),
+    ("controller", "controller-log-fails", "--fetch-controller-log-cmd", "Error: No such container: egw-controller-1"),
+])
+def test_fetch_sut_log_run_by_the_harness_hook_runner_keeps_the_stop_line_in_the_capsule(hooks, monkeypatch, kind, token,
+                                                                                         flag, reason):
     """The wrapper through execute_collector_hook itself: the record the
-    manifest keeps and the hook-<hook>.stderr.txt the seal covers."""
-    for key, val in hooks.env(EGW_STUB_FAIL="broker-log-empty").items():
+    manifest keeps and the hook-<hook>.stderr.txt the seal covers, with the
+    guest's reason when the failed read gave one."""
+    for key, val in hooks.env(EGW_STUB_FAIL=token).items():
         monkeypatch.setenv(key, val)
-    dest = hooks.sut_logs / run_mod.SUT_LOG_FILES["broker_log"]
-    template = hooks.template("proof_fetch_sut_log.sh", "broker", "{dest}", GUEST_T0)
-    record = run_mod.execute_collector_hook("broker_log", template, RID, duration_s=300, dest=dest,
+    label = FETCH_KINDS[kind]
+    dest = hooks.sut_logs / run_mod.SUT_LOG_FILES[label]
+    template = hooks.template("proof_fetch_sut_log.sh", kind, "{dest}", GUEST_T0)
+    record = run_mod.execute_collector_hook(label, template, RID, duration_s=300, dest=dest,
                                             expect_services=list(EXPECT_SERVICES),
                                             log_dir=hooks.sut_logs, timeout_s=120)
     assert record["returncode"] == 1
-    assert record["flag"] == "--fetch-broker-log-cmd"
-    assert "the broker log was NOT read on the guest" in record["stderr_tail"]
+    assert record["flag"] == flag
+    assert f"the {kind} log was NOT read on the guest" in record["stderr_tail"]
     assert "neither observed nor excluded" in record["stderr_tail"]
-    kept = (hooks.sut_logs / "hook-broker_log.stderr.txt").read_text(encoding="utf-8")
-    assert kept.startswith("STOP: proof_fetch_sut_log: the broker log was NOT read on the guest")
+    kept = (hooks.sut_logs / f"hook-{label}.stderr.txt").read_text(encoding="utf-8")
+    stop = f"STOP: proof_fetch_sut_log: the {kind} log was NOT read on the guest"
+    assert kept.splitlines()[-1].startswith(stop)
+    if reason is None:
+        assert kept.startswith(stop)
+    else:
+        assert kept.startswith(f"proof_fetch_sut_log: the {kind} read exited 1 after answering")
+        assert reason in kept and reason in record["stderr_tail"]
     assert not dest.exists()
     record["dest_exists"] = dest.is_file()
-    record["dest_file"] = "logs/sut/broker.log"
+    record["dest_file"] = f"logs/sut/{run_mod.SUT_LOG_FILES[label]}"
     reasons = run_mod.sut_log_fetch_failures([record])
-    assert len(reasons) == 1 and reasons[0].startswith("SUT log fetch --fetch-broker-log-cmd failed with exit code 1")
+    assert len(reasons) == 1 and reasons[0].startswith(f"SUT log fetch {flag} failed with exit code 1")
 
 
 # --------------------------------------------------------------------------
@@ -596,9 +654,9 @@ def test_fetch_sut_log_run_by_the_harness_hook_runner_keeps_the_stop_line_in_the
 # --------------------------------------------------------------------------
 
 
-def test_the_restart_template_is_sigkill_then_start_of_the_controller_container_and_records_both_guest_instants(hooks):
-    result = hooks.run_restart()
-    assert result.returncode == 0, report(result)
+def test_the_restart_template_is_sigkill_then_start_of_the_controller_container_and_records_both_guest_instants(hooks, monkeypatch):
+    manifest = hooks.run_restart_by_the_harness(monkeypatch)
+    assert manifest["returncode"] == 0, manifest
     # The fault, in one ssh session and in this order: a SIGKILL of the
     # controller's container, then a compose start of the controller service.
     fault = [line for line in hooks.ssh_commands() if "docker kill" in line]
@@ -626,12 +684,23 @@ def test_the_restart_template_is_sigkill_then_start_of_the_controller_container_
     assert value(record["fault"], "fault_command").startswith("cd /opt/egw/deployment && docker kill --signal=KILL")
     assert value(record["observation"], "container_id_same") == "yes"
     assert value(record["observation"], "started_at_changed") == "yes"
-    # Both guest instants on stderr, which the manifest's stderr_tail keeps.
-    before = value(record["before"], "guest_utc")
-    after = value(record["after"], "guest_utc")
-    assert f"proof_restart_controller: before the fault: guest {before} (epoch {value(record['before'], 'guest_epoch')})" in result.stderr
-    assert f"proof_restart_controller: after the fault: guest {after} (epoch {value(record['after'], 'guest_epoch')})" in result.stderr
-    assert "the restart-shown step decides" in result.stderr
+    # Both guest instants reach the manifest, whose restart record keeps ONLY
+    # the last 500 characters of the hook's stderr: the line the hook prints
+    # LAST carries both by itself, well under 250 characters, after whatever
+    # the guest wrote to stderr during the fault (compose's progress lines,
+    # which the stub prints to stderr as compose does).
+    before = f"{value(record['before'], 'guest_utc')} (epoch {value(record['before'], 'guest_epoch')})"
+    after = f"{value(record['after'], 'guest_utc')} (epoch {value(record['after'], 'guest_epoch')})"
+    tail = manifest["stderr_tail"]
+    assert len(tail) <= 500
+    last = tail.splitlines()[-1]
+    assert last == (f"proof_restart_controller: guest instants: before {before}, after {after}; "
+                    "container_id_same=yes started_at_changed=yes; the restart-shown step decides")
+    assert len(last) < 250, len(last)
+    assert tail.index(" Container egw-controller-1  Started") < tail.index("guest instants:")
+    # The line printed before the fault is context in time order; it is
+    # whole here because this guest wrote little.
+    assert f"proof_restart_controller: before the fault: guest {before}, egw-controller-1 started" in tail
     # A run id gets one fault: the second call stops on the record and kills
     # nothing.
     again = hooks.run_restart()
@@ -639,6 +708,27 @@ def test_the_restart_template_is_sigkill_then_start_of_the_controller_container_
     assert f"STOP: proof_restart_controller: {hooks.prefix / f'{RID}.restart.txt'} exists" in again.stderr
     assert "nothing was killed" in again.stderr
     assert hooks.docker_calls().count("kill --signal=KILL egw-controller-1") == 1
+
+
+def test_restart_keeps_both_guest_instants_in_the_manifests_tail_when_the_guest_writes_past_the_budget(hooks, monkeypatch):
+    """The scenario of the review of 2026-09-25: the guest writes more than
+    500 characters to stderr between the two readings (compose warnings and
+    progress, an ssh notice), so the tail starts inside that noise."""
+    manifest = hooks.run_restart_by_the_harness(monkeypatch, EGW_STUB_FAIL="start-verbose")
+    assert manifest["returncode"] == 0, manifest
+    record = hooks.restart_record()
+    tail = manifest["stderr_tail"]
+    assert len(tail) == 500
+    # The line printed before the fault is gone from the tail, and the noise
+    # is what the tail begins with...
+    assert "before the fault: guest" not in tail
+    assert "stub compose warning" in tail
+    # ...and the last line still holds both instants, as the manifest reads.
+    last = tail.splitlines()[-1]
+    assert last.startswith("proof_restart_controller: guest instants: before ")
+    for phase in ("before", "after"):
+        assert f"{value(record[phase], 'guest_utc')} (epoch {value(record[phase], 'guest_epoch')})" in last
+    assert last.endswith("; container_id_same=yes started_at_changed=yes; the restart-shown step decides")
 
 
 def test_restart_kills_nothing_when_the_container_was_not_read_before_the_fault(hooks):
@@ -660,18 +750,25 @@ def test_restart_kills_nothing_when_the_container_was_not_read_before_the_fault(
 
 
 @pytest.mark.parametrize("token, killed", [("kill-fails", False), ("start-fails", True)])
-def test_restart_whose_fault_command_fails_keeps_the_reading_before_it_and_exits_non_zero(hooks, token, killed):
-    result = hooks.run_restart(EGW_STUB_FAIL=token)
-    assert result.returncode == 1, report(result)
-    assert ("STOP: proof_restart_controller: the fault command exited 1 (kill --signal=KILL then compose start "
-            "controller): whether the controller was killed and started again is NOT established by this record")\
-        in result.stderr
+def test_restart_whose_fault_command_fails_keeps_the_reading_before_it_and_exits_non_zero(hooks, monkeypatch, token, killed):
+    manifest = hooks.run_restart_by_the_harness(monkeypatch, EGW_STUB_FAIL=token)
+    assert manifest["returncode"] == 1, manifest
     record = hooks.restart_record()
     assert list(record) == ["head", "before", "fault"]
     assert value(record["fault"], "fault_exit") == "1"
     assert re.fullmatch(r"[0-9a-f]{64}", value(record["before"], "container_id"))
-    assert "proof_restart_controller: before the fault: guest" in result.stderr
-    assert "after the fault" not in result.stderr
+    # The STOP line is the last line of the manifest's tail, after the
+    # daemon's refusal that the guest wrote to stderr, and it names the
+    # instant read before the fault: the tail ends with every instant the
+    # hook read, whatever came before it.
+    tail = manifest["stderr_tail"]
+    last = tail.splitlines()[-1]
+    assert last.startswith("STOP: proof_restart_controller: the fault command exited 1 (kill --signal=KILL then compose start "
+                           "controller): whether the controller was killed and started again is NOT established by this record")
+    assert last.endswith(f"; before the fault: guest {value(record['before'], 'guest_utc')} "
+                         f"(epoch {value(record['before'], 'guest_epoch')})")
+    assert f"Error response from daemon: stub {token.partition('-')[0]} refused" in tail
+    assert "after the fault" not in tail and "guest instants:" not in tail
     calls = hooks.docker_calls()
     # The '&&' chain: a refused kill dispatches no start at all; a refused
     # start was dispatched after a kill that was carried out (the stub's
