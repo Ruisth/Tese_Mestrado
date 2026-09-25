@@ -529,15 +529,17 @@ copy of the events, the two twin snapshots, `controller_metrics.csv` (read in
 file order, with `started_at` telling the pre-kill process from the next and
 an empty cell read as absent, never zero) and the controller log's A5
 occurrences, and writes one verdict document with three sections never
-merged: `instrumentation` (the harness's `validity` quoted verbatim and never
-decisive, the seal, whether the proof's evidence is complete with every
-absence named), `system_outcome` (`supports`, `refutes` or `inconclusive`;
+merged: `instrumentation` (the harness's `validity` quoted verbatim and, for
+the campaign's `MAX_SAMPLE_GAP_S` rule alone, never decisive, the seal,
+whether the proof's evidence is complete with every absence named, and
+whether the run is eligible for the proof at all, `E-11` below, with every
+failed requirement named), `system_outcome` (`supports`, `refutes` or `inconclusive`;
 each criterion with the ADR's text verbatim, its result and the evidence it
 rests on; the named N1 cases with their source and the twin's surplus; the
 report by class of identity) and `restoration` (echoed from the driver's
 session facts). Where a criterion needs a rule to become code, the rule is
 stated in the document, labelled with its flag (`P-1` to `P-7`, `E-1` to
-`E-9`), and is conservative: what cannot be shown is never read as support,
+`E-11`), and is conservative: what cannot be shown is never read as support,
 and a refutation rests only on evidence that was read and verified (`E-7`: a
 post-drain copy, a twin snapshot or the controller log that is absent,
 unverified or unreadable leaves the criteria that depend on it null and the
@@ -555,7 +557,41 @@ device of an unshown identity is undecided for S5/R4 only while some naming
 of it that the twin's count allows leaves `delta` right — a surplus beyond
 the unshown identities, a `last_seq` regressed against the before snapshot,
 or a `last_run_id` wrong whether or not they are named, is R4 on the twin's
-evidence, which was read).
+evidence, which was read; `E-10`, from the Project Manager's review of PR #47
+(2026-09-25): those namings respect the sources the run evidences and their
+capacity across the whole run, never per device — the kill gives at most one
+N1 case in the run and each A5 occurrence read from the controller log at
+most one, so an unshown identity's device is explained only while the
+undecided devices together need no more cases than the sources allow; a
+surplus of two on one device, or of one on each of two devices, with one kill
+and no such occurrence, is R4 on the read evidence, without naming one
+identity or device as the mismatch when only the aggregate is established,
+and without assuming an A3 event the log does not record; with the
+controller log unusable the capacity is unknown, so E-9's count alone
+applies and the run stays inconclusive, never refuted on capacity grounds;
+`E-11`, from the same review: the run must be the execution the ADR
+prescribes with the records it lists, checked apart from the harness's
+`validity` (which stays quoted and, for the campaign's `MAX_SAMPLE_GAP_S`
+rule alone, never decisive) — the manifest's entry the diagnostic plan's
+(`controller_restart`, `nominal`, 300 s at 11.2 msg/s, no warm-up) with the
+simulator exited 0; the publication completed and the population whole,
+on the simulator's own manifest (`logs/simulator/<run_id>/manifest.json`:
+`completed` true under the same load, `totals.sent` equal to this run's
+records in `sent_events.jsonl`, none skipped, malformed, repeated or another
+run's — a torn line never shrinks the denominator; without that manifest the
+file's count must equal the plan's 3,360 with no tolerance); the fault
+demonstrated (the manifest's restart executed with exit 0 and the session
+facts' `restart_shown` true; absent or null, it is unknown under `P-6`,
+never read as shown); and the harness copy `events.jsonl` with its
+`events_fetch` recorded ok and the collector file `resources.csv` from the
+SUT collector in the evidence inventory beside the snapshots, the drain, the
+post-drain copy, the SUT logs, the readings, the configuration identity and
+the seal — a run that fails any of these is not eligible: `inconclusive`
+with every reason named in `instrumentation.proof_eligibility`, never
+`supports`, while a refutation observed on evidence that was read and
+verified stands; and R1 (missing after a completed drain) needs the
+manifest's drain record verified with outcome `quiet`, never the string
+alone).
 No timestamp enters the document, so repeated runs are byte-identical; the
 run directory is never written to; exit codes 0 supports, 1 refutes, 3
 inconclusive, 2 not evaluated (an input unreadable, a seal that fails, a rule

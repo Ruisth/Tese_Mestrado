@@ -6,15 +6,21 @@ session, and writes one verdict document with three sections never merged.
 These cases pin: every rule text to the ADR (read when the test runs, so a
 later edit of the ADR is tested as it is); the readings in file order with
 empty cells read as absent, never zero; each identification rule the design
-flags (P-1 to P-7, E-1 to E-8) on a small in-memory scenario (three
+flags (P-1 to P-7, E-1 to E-11) on a small in-memory scenario (three
 devices, one kill on the controller clock, a host anchor for the report);
 the precedence of an observed refutation, and that a refutation is never
 recorded on evidence that was not read (E-7) nor on a duplicate line inside
 the sampling band around the kill (E-8); the CLI's exit codes; the loader
 against a run directory the harness itself built with the fixtures of
 test_experiments_run (the fake simulator and the recorded item-18 hooks: no
-broker, no docker, no network); and, in the section after test 22, the
-branch review's findings, each with the mutation it must catch.
+broker, no docker, no network) under the proof's own diagnostic plan; in
+the section after test 22, the branch review's findings, each with the
+mutation it must catch; and, in the section after test 27, the Project
+Manager's review of PR #47 (2026-09-25): the proof's eligibility (E-11: the
+prescribed load, the publication completed, the population record whole,
+the fault demonstrated, the harness copy and the collector file in the
+inventory), the N1 sources' capacity across the run (E-10) and the drain
+verified before R1.
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -54,8 +60,8 @@ from test_experiments_run import (  # noqa: F401  (fixtures registered by import
     _plan_seed,
     _snapshot_devices,
     fast_run,
-    plan_path,
 )
+from test_proof_plan import _write as _write_proof_plan
 
 RID = "proof-adr0011-r01"
 NS = 1_000_000_000
@@ -96,6 +102,7 @@ LINES = [
     ("c-mid", D2, 0, "accepted", 1_210 * NS, None),
 ]
 BEFORE = {D1: (5, "earlier", 9), D2: (5, "earlier", 9), D3: (5, "earlier", 9)}
+SIM_MANIFEST_REL = pe.simulator_manifest_rel(RID)
 FULL_FILES = {
     "manifest.json",
     "sent_events.jsonl",
@@ -103,10 +110,16 @@ FULL_FILES = {
     POST_DRAIN_EVENTS_FILENAME,
     *TWIN_SNAPSHOT_FILES.values(),
     "controller_metrics.csv",
+    "resources.csv",
     "configuration_identity.json",
     *(f"logs/sut/{name}" for name in SUT_LOG_FILES.values()),
+    SIM_MANIFEST_REL,
     "SHA256SUMS",
 }
+#: The collector file as the SUT collector writes it (one row is enough
+#: for the inventory: its content is the campaign's validity, not the
+#: proof's).
+RESOURCES_CSV = "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host\n2026-09-25T10:00:00Z,egw-controller-1,1.0,1048576,0.1,egw\n"
 STOP_RULE_HEALTHY = (
     "the stack with the candidate healthy within 20 minutes of its start (as for "
     "the broker measurement, and on the same records)"
@@ -249,9 +262,23 @@ def _manifest(**changes: Any) -> dict:
         "manifest_version": "1.4",
         "run_id": RID,
         "condition_id": "controller_restart",
+        "scenario": "nominal",
         "seed": 7,
+        "rate_msg_s": 11.2,
+        "duration_s": 300,
+        "warmup_s": 0,
+        "cooldown_s": 0,
         "validity": "valid",
         "validity_reasons": [],
+        "resource_source": "sut-collector",
+        "simulator_returncode": 0,
+        "events_source": "fetch-cmd: scp egw-tcg:/opt/egw/deployment/data/events/proof-adr0011-r01/events.jsonl events.jsonl",
+        "events_fetch": {
+            "template": "scp egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"",
+            "command": "scp egw-tcg:/opt/egw/deployment/data/events/proof-adr0011-r01/events.jsonl events.jsonl",
+            "attempts": [{"attempt": 1, "returncode": 0, "dest_exists": True}],
+            "ok": True,
+        },
         "restart": {
             "template": "bash proof_restart_controller.sh {run_id}",
             "requested_at_s": 150.0,
@@ -311,7 +338,7 @@ def _manifest(**changes: Any) -> dict:
     return manifest
 
 
-def _session(*, reached: bool = False) -> dict:
+def _session(*, reached: bool = False, restart_shown: bool | None = True) -> dict:
     return {
         "values": {"DRAIN_QUIET_S": 130, "EGW_PROOF_ATTEMPT_LIMIT_S": 3000},
         "stop_rules": [
@@ -319,8 +346,28 @@ def _session(*, reached: bool = False) -> dict:
             {"rule": STOP_RULE_ATTEMPT, "limit_s": 3000, "reached": reached},
         ],
         "restoration": "stack=healthy restart_shown=yes",
-        "restart_shown": True,
+        "restart_shown": restart_shown,
     }
+
+
+def _simulator_manifest(sent_count: int, *, run_id: str = RID, **changes: Any) -> dict:
+    """The simulator's own manifest as egw_simulator.output writes it,
+    reduced to what E-11 reads: the run, the load it was given, whether
+    its schedule ran to the end and what it published."""
+    manifest: dict[str, Any] = {
+        "protocol_version": "1.0",
+        "scenario": "nominal",
+        "seed": 7,
+        "run_id": run_id,
+        "egw_id": "egw-01",
+        "rates_hz": {"aggregate": 11.2, "per_device": {}},
+        "duration_s": 300.0,
+        "qos": 1,
+        "completed": True,
+        "totals": {"sent": sent_count, "intended_invalid": 0, "buffered_dropout": 0, "dropout_disconnects": 0},
+    }
+    manifest.update(changes)
+    return manifest
 
 
 def _artefacts(
@@ -335,14 +382,19 @@ def _artefacts(
     integrity: str = "true",
     files_present: set[str] | None = None,
     extra_after: dict | None = None,
+    simulator_manifest: dict | None = None,
 ) -> pe.RunArtefacts:
     """The artefacts of the scenario in memory: the loader is exercised
-    apart (test 33); every other case reads through this builder."""
+    apart (test 33); every other case reads through this builder. The
+    simulator's manifest declares what the sent list holds, unless one is
+    given."""
     sent = SENT if sent is None else sent
     lines = LINES if lines is None else lines
     before = BEFORE if before is None else before
     after = _after_from(before, lines, extra_after) if after is None else after
     manifest = _manifest() if manifest is None else manifest
+    if simulator_manifest is None:
+        simulator_manifest = _simulator_manifest(len(sent), run_id=str(manifest.get("run_id") or RID))
     return pe.RunArtefacts(
         run_dir=Path("in-memory") / RID,
         manifest=manifest,
@@ -364,6 +416,7 @@ def _artefacts(
         files_present=FULL_FILES if files_present is None else files_present,
         skipped_lines={},
         problems=[],
+        simulator_manifest=simulator_manifest,
     )
 
 
@@ -437,6 +490,11 @@ def _write_run_dir(
         writer.writeheader()
         writer.writerows(artefacts.metrics_rows)
     (run_dir / "configuration_identity.json").write_text(json.dumps(CONFIG_IDENTITY, indent=2) + "\n", "utf-8")
+    (run_dir / "resources.csv").write_text(RESOURCES_CSV, "utf-8")
+    if artefacts.simulator_manifest is not None:
+        sim_path = run_dir / pe.simulator_manifest_rel(str(artefacts.manifest.get("run_id") or name))
+        sim_path.parent.mkdir(parents=True, exist_ok=True)
+        sim_path.write_text(json.dumps(artefacts.simulator_manifest, indent=2) + "\n", "utf-8")
     (sut / "broker.log").write_text("2026-09-25T10:00:00: New client connected\n", "utf-8")
     (sut / "controller.log").write_text("".join(line + "\n" for line in (controller_log or ["not json"])), "utf-8")
     (sut / "docker-events.log").write_text("2026-09-25T10:02:30 container kill\n", "utf-8")
@@ -1476,23 +1534,32 @@ def test_a_twin_that_refutes_under_every_naming_of_an_undecided_candidate_is_r4_
     assert "(E-9)" in pe.IDENTIFICATION_RULES["E-7"] and "(E-9)" in pe.IDENTIFICATION_RULES["E-8"]
 
 
-def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3() -> None:
-    """E-4 with E-8/E-7: one consumer dies once. B (restart-class, published
-    before the restart command, its device's surplus of one) claims the
-    kill; G, on another device with the same twin evidence, has its
-    duplicate line inside the band and can be shown neither way (E-8). If
-    G was in progress at the kill B was not, and nothing read tells them
-    apart: B is neither named nor R3, with E-4 as its ground, its device
-    undecided, the run inconclusive. The same with F on B's own device and
-    with an E-7 candidate; two claimants shown by the record stay R3 (E-4)
-    whatever else is unshown."""
+def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3_and_the_one_death_cannot_explain_two_twins() -> None:
+    """E-4 with E-8/E-7, the namings read under E-10: one consumer dies
+    once. B (restart-class, published before the restart command, its
+    device's surplus of one) claims the kill; G, on another device with the
+    same twin evidence, has its duplicate line inside the band and can be
+    shown neither way (E-8). If G was in progress at the kill B was not,
+    and nothing read tells them apart: B is neither named nor R3, with E-4
+    as its ground, S4 and R3 null. But the twins were read: D1 and D3 each
+    advanced by one beyond their accepted lines, and the run evidences one
+    death and no A5 occurrence, so whichever identity was in progress at
+    the kill, the other device's surplus is a delta mismatch beyond the
+    named cases: R4 is observed on the aggregate, without naming the device
+    or the identity. The same with F on B's own device (surplus two, one
+    death: the Project Manager's counterexample of 2026-09-25). This case's
+    earlier expectation, 'inconclusive' in both halves, spent the one death
+    independently on each device and encoded the wrong rule. With the
+    controller log unusable (E-7) the capacity is unknown and the run stays
+    inconclusive; two claimants shown by the record stay R3 (E-4) whatever
+    else is unshown."""
     in_band = (K_LOWER + K_UPPER) // 2
     G = ("g-mid", D3, 1, 380 * NS)
     lines = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", in_band, None)]
     twins = {D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}
     doc = _evaluate(sent=SENT + [G], lines=lines, extra_after=twins)
     outcome = _outcome(doc)
-    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
     r3 = _criterion(doc, "R3")
     assert r3["observed"] is None and _criterion(doc, "S4")["holds"] is None
     assert r3["evidence"]["not_named_identities"] == []
@@ -1502,26 +1569,60 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3()
     assert "neither named nor R3" in shown["b-mid"] and "(E-8)" in shown["g-mid"]
     assert any("beside 1 duplicate-only identity(ies)" in n and "(E-4)" in n for n in r3["evidence"]["notes"])
     r4 = _criterion(doc, "R4")
-    assert r4["observed"] is None and _criterion(doc, "S5")["holds"] is None
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    assert outcome["refutations"] == [
+        "R4: 2 undecided device(s) whose twins together need 2 N1 case(s) against a source capacity "
+        "of 1: a delta mismatch beyond the named cases stands on at least one of them, which cannot "
+        "be told (E-10)"
+    ]
     assert [(u["device_uuid"], u["rule"], u["message_ids"]) for u in r4["evidence"]["undecided"]] == [
         (D1, "E-4", ["b-mid"]), (D3, "E-8", ["g-mid"]),
     ]
-    assert {"E-9", "E-4", "E-8"} <= set(r4["identification_rules"])
+    assert r4["evidence"]["source_capacity"] == {
+        "applied": True, "known": True, "why_unknown": None, "kill_available": 1,
+        "a5_possible_by_device": {D1: [], D3: []}, "needed": 2, "capacity": 1, "consistent": False,
+    }
+    mismatches = r4["evidence"]["mismatches"]
+    assert len(mismatches) == 1 and mismatches[0]["device_uuid"] is None and mismatches[0]["devices"] == [D1, D3]
+    assert mismatches[0]["undecided_candidates"] == ["b-mid", "g-mid"]
+    assert "no source-consistent naming explains the twins" in mismatches[0]["problems"][0]
+    assert "the kill (1 available) and 0 A5 occurrence(s)" in mismatches[0]["problems"][0]
+    assert "no identity is named as the case and none as the mismatch" in mismatches[0]["note"] and "(E-10)" in mismatches[0]["note"]
+    # Per device the figures stay as read: each count is explained on its
+    # own and marked inconsistent with the sources; neither is named.
+    for device in (D1, D3):
+        row = next(row for row in r4["evidence"]["devices"] if row["device_uuid"] == device)
+        assert row["ok"] is None and row["undecided"]["explained"] is True, device
+        assert row["undecided"]["source_consistent"] is False, device
+    assert r4["evidence"]["last_seq_regressions"] == [] and r4["evidence"]["surplus_unexplained"] == []
+    assert {"E-9", "E-10", "E-4", "E-8"} <= set(r4["identification_rules"])
     assert any(r.startswith("S4 cannot be shown (E-8)") and "(E-4)" in r for r in outcome["inconclusive_reasons"])
     # F on B's own device, surplus 2: B is unshown likewise and the device's
-    # one undecided entry lists both; naming both fits the twin's figures.
+    # one undecided entry lists both; naming both fits the twin's count and
+    # not the one death: R4 on the device, neither identity named.
     F = ("f-mid", D1, 2, 401 * NS)
     doc = _evaluate(sent=SENT + [F], lines=B_DUPLICATE + [("f-mid", D1, 2, "duplicate", in_band, None)], extra_after={D1: 2, "seqs": [(D1, 2)]})
-    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == []
+    assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
     assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["b-mid", "f-mid"]
-    undecided = _criterion(doc, "R4")["evidence"]["undecided"]
+    assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "S4")["holds"] is None
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    undecided = r4["evidence"]["undecided"]
     assert len(undecided) == 1 and undecided[0]["device_uuid"] == D1 and undecided[0]["rule"] == "E-8"
     assert undecided[0]["message_ids"] == ["b-mid", "f-mid"]
-    row = next(row for row in _criterion(doc, "R4")["evidence"]["devices"] if row["device_uuid"] == D1)
+    row = next(row for row in r4["evidence"]["devices"] if row["device_uuid"] == D1)
     assert row["ok"] is None and row["undecided"]["namings_tried"][0]["named_cases"] == 2
-    assert row["undecided"]["namings_tried"][0]["delta_ok"] is True
+    assert row["undecided"]["namings_tried"][0]["delta_ok"] is True and row["undecided"]["source_consistent"] is False
+    assert (r4["evidence"]["source_capacity"]["needed"], r4["evidence"]["source_capacity"]["capacity"]) == (2, 1)
+    assert r4["evidence"]["mismatches"][0]["device_uuid"] == D1 and r4["evidence"]["mismatches"][0]["devices"] == [D1]
+    assert r4["reason"] == (
+        "1 undecided device(s) whose twins together need 2 N1 case(s) against a source capacity of 1: "
+        "a delta mismatch beyond the named cases stands on at least one of them, which cannot be told (E-10)"
+    )
     # G unshown by the controller log instead (E-7): the claimant is unshown
-    # with that label, the run inconclusive for the failed fetch too.
+    # with that label, the capacity unknown (an unread log is not proof of
+    # zero A3 events), the run inconclusive for the failed fetch - never R4
+    # on capacity grounds.
     log_rel = f"logs/sut/{SUT_LOG_FILES['controller_log']}"
     fetches = _manifest()["sut_log_fetches"]
     fetches[1] = {**fetches[1], "returncode": 1, "dest_exists": False}
@@ -1529,9 +1630,13 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3()
     artefacts.controller_log = None
     artefacts.files_present = FULL_FILES - {log_rel}
     doc = pe.evaluate(artefacts, _session())
-    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == []
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == [] and _outcome(doc)["n1_cases"] == []
     shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
     assert list(shown) == ["b-mid", "g-mid"] and "g-mid (E-7)" in shown["b-mid"] and "(E-7)" in shown["g-mid"]
+    capacity = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert capacity["applied"] is False and capacity["known"] is False and capacity["consistent"] is None
+    assert capacity["why_unknown"].startswith(log_rel) and capacity["needed"] == 2
+    assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "S5")["holds"] is None
     # Two claimants shown by the record beside H, on a device neither
     # snapshot names: the two are R3 as E-4 states (test 22e), H unshown.
     G_above = [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)]
@@ -1541,6 +1646,70 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3()
     assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["not_named_identities"]] == ["b-mid", "g-mid"]
     assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["h-mid"]
     assert "beside" in pe.IDENTIFICATION_RULES["E-4"] and "(E-9)" in pe.IDENTIFICATION_RULES["E-4"]
+
+
+def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> None:
+    """E-10 (the review of PR #47, F3): the namings E-9 tries must fit the
+    sources evidenced across the whole run. A second evidenced A3 source
+    that suffices names its case (an A5 occurrence on G's device before its
+    redelivery): both twins are explained and the run supports; the same
+    occurrence after G's redelivery cannot be G's source, so the one death
+    is all there is and R4 stands; when G's line carries no received stamp
+    the occurrence's order against it cannot be read, so it may be G's
+    source: the capacity suffices and the cases stay unshown (inconclusive).
+    A single uncertain candidate against one death stays inconclusive; no
+    hypothetical A3 event is ever added; two candidates on one device with
+    the log unusable stay inconclusive on E-9's count alone."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", in_band, None)]
+    twins = {D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}
+    doc = _evaluate(sent=SENT + [G], lines=lines, extra_after=twins, controller_log=[_a5_line(D3, in_band - NS)])
+    assert _outcome(doc)["result"] == "supports"
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("b-mid", "kill"), ("g-mid", "a3-connection-end")]
+    assert _criterion(doc, "R4")["evidence"]["source_capacity"]["applied"] is False
+    # The occurrence after G's redelivery names nothing and serves no
+    # undecided candidate: the one death cannot explain both twins.
+    doc = _evaluate(sent=SENT + [G], lines=lines, extra_after=twins, controller_log=[_a5_line(D3, in_band + NS)])
+    assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
+    capacity = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert capacity["a5_possible_by_device"] == {D1: [], D3: []} and (capacity["needed"], capacity["capacity"]) == (2, 1)
+    assert _outcome(doc)["report"]["a5_occurrences"][0]["device_uuid"] == D3  # read, reported, not a source of G
+    # G's line without a received stamp: the occurrence may be its source.
+    unstamped = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", None, None)]
+    doc = _evaluate(sent=SENT + [G], lines=unstamped, extra_after=twins, controller_log=[_a5_line(D3, in_band + NS)])
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == [] and _outcome(doc)["n1_cases"] == []
+    capacity = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert capacity["a5_possible_by_device"] == {D1: [], D3: [1]} and (capacity["needed"], capacity["capacity"]) == (2, 2)
+    assert capacity["consistent"] is True and _criterion(doc, "R4")["observed"] is None
+    for row in _criterion(doc, "R4")["evidence"]["devices"]:
+        if row["device_uuid"] in (D1, D3):
+            assert row["undecided"]["source_consistent"] is True, row["device_uuid"]
+    # A single uncertain candidate against the one death: consistent, unshown.
+    doc = _evaluate(lines=[line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", in_band, None)], extra_after={D1: 1, "seqs": [(D1, 1)]})
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert _criterion(doc, "R4")["evidence"]["source_capacity"] == {
+        "applied": True, "known": True, "why_unknown": None, "kill_available": 1,
+        "a5_possible_by_device": {D1: []}, "needed": 1, "capacity": 1, "consistent": True,
+    }
+    # Two candidates on one device, surplus 2, the log unusable: E-7 leaves
+    # both unshown and the capacity unknown; the count alone is read.
+    F = ("f-mid", D1, 2, 401 * NS)
+    log_rel = f"logs/sut/{SUT_LOG_FILES['controller_log']}"
+    fetches = _manifest()["sut_log_fetches"]
+    fetches[1] = {**fetches[1], "returncode": 1, "dest_exists": False}
+    artefacts = _artefacts(sent=SENT + [F], lines=B_DUPLICATE + [("f-mid", D1, 2, "duplicate", in_band, None)], extra_after={D1: 2, "seqs": [(D1, 2)]}, manifest=_manifest(sut_log_fetches=fetches))
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["b-mid", "f-mid"]
+    capacity = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert capacity["applied"] is False and capacity["known"] is False and capacity["why_unknown"].startswith(log_rel)
+    assert _criterion(doc, "R4")["observed"] is None and "E-10" in _criterion(doc, "R4")["identification_rules"]
+    assert "E-10" in pe.IDENTIFICATION_RULES and "capacity" in pe.IDENTIFICATION_RULES["E-10"]
+    assert "(E-10)" in pe.IDENTIFICATION_RULES["E-9"] and "not proof of zero A3 events" in pe.IDENTIFICATION_RULES["E-10"]
+    assert "no A3 event assumed that the log does not record" in pe.IDENTIFICATION_RULES["E-10"]
 
 
 def test_a_publication_inside_the_restart_commands_window_cannot_be_shown_and_never_refutes() -> None:
@@ -1664,6 +1833,9 @@ def test_missing_session_facts_leave_the_stop_rules_unknown_and_the_proof_inconc
 
 
 def test_harness_validity_is_recorded_verbatim_and_does_not_decide_the_proof() -> None:
+    """A complete diagnostic with only the campaign's sampling-gap deviation
+    still supports: the harness's validity is quoted, and the proof's own
+    eligibility (E-11) is checked apart and met."""
     reasons = ["controller_metrics.csv: sample gap 12.0 s exceeds MAX_SAMPLE_GAP_S (5.0 s) after the restart"]
     doc = _evaluate(manifest=_manifest(validity="invalid", validity_reasons=reasons))
     assert doc["instrumentation"]["harness_validity"] == "invalid"
@@ -1672,6 +1844,273 @@ def test_harness_validity_is_recorded_verbatim_and_does_not_decide_the_proof() -
     assert doc["instrumentation"]["proof_evidence"]["complete"] is True
     assert "kept as recorded" in doc["instrumentation"]["note"]
     assert "MAX_SAMPLE_GAP_S" in doc["cannot_show"]
+    eligibility = doc["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is True and eligibility["reasons"] == [] and eligibility["unknown"] == []
+    assert eligibility["rule"] == pe.IDENTIFICATION_RULES["E-11"] and "MAX_SAMPLE_GAP_S" in eligibility["rule"]
+    assert eligibility["checks"]["load"]["ok"] is True and eligibility["checks"]["publication"]["ok"] is True
+    assert eligibility["checks"]["publication"]["source"] == "the simulator's own manifest"
+    assert eligibility["checks"]["fault"] == {
+        "restart_executed": True, "restart_returncode": 0, "restart_ok": True, "restart_shown": True, "session_facts_present": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 27a-27g. the Project Manager's review of PR #47 (2026-09-25): F1, the proof's
+# eligibility (E-11), and the drain verified before R1
+# ---------------------------------------------------------------------------
+
+
+def _eligibility(doc: dict) -> dict:
+    return doc["instrumentation"]["proof_eligibility"]
+
+
+def _assert_not_eligible(doc: dict, *fragments: str) -> None:
+    """Not eligible: inconclusive with every reason named, never supports;
+    each fragment is found in one of the eligibility's reasons."""
+    eligibility = _eligibility(doc)
+    assert eligibility["eligible"] is False, eligibility
+    assert _outcome(doc)["result"] == "inconclusive"
+    for fragment in fragments:
+        assert any(fragment in reason for reason in eligibility["reasons"]), (fragment, eligibility["reasons"])
+    assert any(r.startswith("not eligible (E-11)") or r.startswith("any fetch listed above fails") for r in _outcome(doc)["inconclusive_reasons"])
+
+
+def test_the_initial_event_copy_must_be_present_with_its_fetch_recorded_ok() -> None:
+    """The ADR keeps two event copies apart: the harness fetch and the
+    post-drain fetch, and a failed fetch is inconclusive. A successful
+    post-drain fetch with the harness copy absent, a harness fetch recorded
+    failed beside a stale readable file, or no fetch record at all, each
+    leave the run not eligible; the post-drain copy still serves the
+    criteria and refutes nothing here."""
+    artefacts = _artefacts()
+    artefacts.events_timed = None
+    artefacts.files_present = FULL_FILES - {"events.jsonl"}
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(doc, "records: the proof's evidence is not complete", "events.jsonl: recorded as fetched but absent from the run directory")
+    evidence = doc["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is False and evidence["present"]["events.jsonl"] is False
+    assert any(m.startswith("events.jsonl: recorded as fetched but absent") for m in evidence["missing"])
+    assert any(r.startswith("any fetch listed above fails") and "events.jsonl" in r for r in _outcome(doc)["inconclusive_reasons"])
+    assert _criterion(doc, "S2")["holds"] is True and _outcome(doc)["refutations"] == []
+    assert evidence["present"][POST_DRAIN_EVENTS_FILENAME] is True
+    # The harness fetch failed: the readable file beside it is not the copy.
+    failed = _manifest(
+        events_fetch={**_manifest()["events_fetch"], "ok": False, "attempts": [{"attempt": 1, "returncode": 1, "dest_exists": True}]},
+        events_source="/opt/egw/events/proof-adr0011-r01.jsonl (local fallback)",
+    )
+    doc = _evaluate(manifest=failed)
+    _assert_not_eligible(doc, "events.jsonl: the harness fetch failed after 1 attempt(s): the readable file beside it is not the copy")
+    assert doc["instrumentation"]["proof_evidence"]["present"]["events.jsonl"] is True
+    assert _outcome(doc)["report"]["copies"]["events.jsonl"]["lines"] == 2  # reported, never a criterion
+    # No fetch record at all: the copy is not shown fetched.
+    doc = _evaluate(manifest=_manifest(events_fetch=None))
+    _assert_not_eligible(doc, "events.jsonl: no harness fetch record (events_fetch, --fetch-events-cmd)")
+    assert any(m.startswith("events.jsonl: no harness fetch record") for m in doc["instrumentation"]["proof_evidence"]["missing"])
+
+
+def test_a_simulator_that_failed_or_stopped_early_after_a_shown_restart_never_supports() -> None:
+    """The simulator fails after the fault and before the 300 s: the harness
+    drains, fetches, seals and records the failure; every identity that was
+    published is accepted and the twins match. That is a shorter workload,
+    not the prescribed one: not eligible, every criterion holding on what
+    was published notwithstanding. The simulator's own manifest is the
+    record of the publication: not completed, a copy that is not whole, or
+    another run's or load's manifest, each disqualify; a refutation
+    observed on the copy still stands (P-7)."""
+    early = _manifest(simulator_returncode=1, validity="invalid", validity_reasons=[
+        "simulator exited with code 1: the measured run did not complete cleanly; there is no override for a failed measured run",
+    ])
+    doc = _evaluate(manifest=early, simulator_manifest=_simulator_manifest(4, completed=False))
+    _assert_not_eligible(
+        doc,
+        "publication: the simulator did not exit 0 (simulator_returncode 1)",
+        "completed is False: the schedule did not run to its end",
+    )
+    assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS)
+    assert _outcome(doc)["refutations"] == []
+    assert _eligibility(doc)["checks"]["publication"]["read"]["completed"] is False
+    assert _eligibility(doc)["checks"]["simulator_returncode"] == 1
+    assert any(r.startswith("not eligible (E-11): publication:") for r in _outcome(doc)["inconclusive_reasons"])
+    # The simulator exited 0 but its manifest says the schedule did not run
+    # to its end; a copy that is not whole; another run's or load's manifest.
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(4, completed=False)), "completed is False")
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(5)), "totals.sent 5 against 4 record(s) of this run in sent_events.jsonl: the copy is not whole")
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(4, run_id="other")), "its run_id is 'other'")
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(4, duration_s=600.0)), "its duration_s is 600.0")
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(4, rates_hz={"aggregate": 5.0, "per_device": {}})), "its rates_hz.aggregate is 5.0")
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(4, scenario="smoke")), "its scenario is 'smoke'")
+    _assert_not_eligible(_evaluate(simulator_manifest=_simulator_manifest(4, totals={"sent": "4"})), "totals.sent '4' is not an integer")
+    # A refutation observed on the copy that was read stands beside the
+    # ineligibility: never re-run away, and the eligibility still named.
+    twice = LINES + [("b-mid", D1, 1, "accepted", 1_300 * NS, None)]
+    doc = _evaluate(manifest=early, lines=twice, simulator_manifest=_simulator_manifest(4, completed=False))
+    assert _outcome(doc)["result"] == "refutes" and _eligibility(doc)["eligible"] is False
+    assert any(r.startswith("R2:") for r in _outcome(doc)["refutations"])
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"duration_s": 600}, {"rate_msg_s": 5.0}, {"scenario": "smoke"}, {"warmup_s": 60}, {"condition_id": "nominal"}, {"duration_s": None}],
+    ids=lambda change: next(iter(change)),
+)
+def test_the_prescribed_load_is_required_from_the_manifests_entry(change: dict) -> None:
+    doc = _evaluate(manifest=_manifest(**change))
+    key = next(iter(change))
+    _assert_not_eligible(doc, "load: the manifest's entry is not the diagnostic plan's", f"{key} {change[key]!r}")
+    checks = _eligibility(doc)["checks"]["load"]
+    assert checks["ok"] is False and checks["read"][key] == change[key] and checks["prescribed"] == pe.PROOF_LOAD
+    assert _outcome(doc)["refutations"] == []
+
+
+def test_the_prescribed_load_is_the_plan_helpers_and_the_adrs() -> None:
+    """The figures E-11 requires are the ones tools/session/proof_plan.py
+    writes and the ADR states ('300 s of publication = 3,360 messages')."""
+    helper = (Path(__file__).resolve().parents[2] / "tools" / "session" / "proof_plan.py").read_text(encoding="utf-8")
+    assert f'PROOF_CONDITION_ID = "{pe.PROOF_LOAD["condition_id"]}"' in helper
+    assert f"PROOF_DURATION_S = {pe.PROOF_LOAD['duration_s']}" in helper
+    assert f"PROOF_RATE_MSG_S = {pe.PROOF_LOAD['rate_msg_s']}" in helper
+    assert pe.PROOF_LOAD["scenario"] == "nominal" and pe.PROOF_LOAD["warmup_s"] == 0
+    assert pe.PROOF_EXPECTED_MESSAGES == 3360 == round(pe.PROOF_LOAD["duration_s"] * pe.PROOF_LOAD["rate_msg_s"])
+    adr = " ".join(pe.ADR_PATH.read_text(encoding="utf-8").split())
+    assert "no warm-up, 300 s of publication = 3,360 messages" in adr
+
+
+def test_an_unreliable_population_record_cannot_qualify_a_reduced_denominator() -> None:
+    """A skipped line (E-5), a record without a message_id, a repeated
+    message_id or another run's record make sent_events.jsonl unreliable
+    as the population: not eligible, and the count read is never reduced
+    to fit. Without the simulator's manifest the only count is the file's,
+    which must then equal the plan's 3,360 with no tolerance; with 3,360
+    records it is met."""
+    artefacts = _artefacts()
+    artefacts.skipped_lines = {"sent_events.jsonl": 1}
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(doc, "population: sent_events.jsonl is not a reliable record", "1 line(s) skipped (not a JSON object or not UTF-8, E-5)")
+    population = _eligibility(doc)["checks"]["population"]
+    assert population["reliable"] is False and population["records_of_this_run"] == 4 and population["skipped_lines"] == 1
+    assert "a smaller denominator is never read from it" in _eligibility(doc)["reasons"][0]
+    artefacts = _artefacts()
+    artefacts.sent_events.append({"run_id": RID, "seq": 9})
+    _assert_not_eligible(pe.evaluate(artefacts, _session()), "1 record(s) of this run without a message_id")
+    artefacts = _artefacts()
+    artefacts.sent_events.append(_sent(*A))
+    _assert_not_eligible(pe.evaluate(artefacts, _session()), "1 record(s) repeating a message_id")
+    artefacts = _artefacts()
+    artefacts.sent_events.append(_sent("z-mid", D1, 9, 900 * NS, run_id="other"))
+    _assert_not_eligible(pe.evaluate(artefacts, _session()), "1 record(s) of another run")
+    # The simulator's manifest absent: the file's count against the plan's.
+    artefacts = _artefacts()
+    artefacts.simulator_manifest = None
+    artefacts.files_present = FULL_FILES - {SIM_MANIFEST_REL}
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(
+        doc,
+        f"publication: the simulator's manifest ({SIM_MANIFEST_REL}) is absent or unreadable, so the only count is "
+        "sent_events.jsonl's: 4 record(s) of this run against the plan's 3360 (300 s x 11.2 msg/s), with no tolerance",
+    )
+    publication = _eligibility(doc)["checks"]["publication"]
+    assert publication["source"].startswith("sent_events.jsonl's count") and publication["expected_from_plan"] == 3360
+    assert doc["instrumentation"]["proof_evidence"]["present"][SIM_MANIFEST_REL] is False
+    # Present but unreadable: the loader's problem is named.
+    artefacts = _artefacts()
+    artefacts.simulator_manifest = None
+    artefacts.problems = [f"{SIM_MANIFEST_REL}: manifest.json is not a JSON object"]
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(doc, "manifest.json is not a JSON object")
+    assert f"{SIM_MANIFEST_REL}: manifest.json is not a JSON object" in doc["instrumentation"]["proof_evidence"]["fetch_failures"]
+    assert _eligibility(doc)["checks"]["publication"]["problem"] == f"{SIM_MANIFEST_REL}: manifest.json is not a JSON object"
+    # With the plan's 3,360 records, every one lined, the fallback is met.
+    devices = (D1, D2, D3)
+    big_sent = [(f"m-{i:04d}", devices[i % 3], i // 3, 360 * NS + i * 50_000_000) for i in range(3360)]
+    big_lines = [(f"m-{i:04d}", devices[i % 3], i // 3, "accepted", 1_200 * NS + i * 1_000_000, None) for i in range(3360)]
+    artefacts = _artefacts(sent=big_sent, lines=big_lines)
+    artefacts.simulator_manifest = None
+    artefacts.files_present = FULL_FILES - {SIM_MANIFEST_REL}
+    doc = pe.evaluate(artefacts, _session())
+    assert _eligibility(doc)["eligible"] is True and _eligibility(doc)["checks"]["publication"]["ok"] is True
+    assert _eligibility(doc)["checks"]["publication"]["records_of_this_run"] == 3360
+    assert _outcome(doc)["result"] == "supports"
+
+
+def test_all_accepted_evidence_with_a_failed_or_unshown_restart_is_never_a_standalone_supports() -> None:
+    """The fault must be demonstrated: the manifest's restart executed with
+    exit 0 AND the session facts' restart_shown true. Every identity
+    accepted and every criterion holding, the evaluator's own document
+    still says inconclusive when the restart is not shown; a null or absent
+    restart_shown is unknown (P-6), never read as shown."""
+    for change in ({"returncode": 1}, {"executed": False, "returncode": 0}, {"returncode": None}):
+        doc = _evaluate(manifest=_manifest(restart={**_manifest()["restart"], **change}))
+        _assert_not_eligible(doc, "fault: the manifest's restart did not execute with exit 0")
+        assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS), change
+        assert _outcome(doc)["refutations"] == [], change
+        assert _eligibility(doc)["checks"]["fault"]["restart_ok"] is False
+    doc = pe.evaluate(_artefacts(), _session(restart_shown=False))
+    _assert_not_eligible(doc, "fault: the session facts record the restart as not shown (restart_shown false): the fault was not applied")
+    assert doc["session_facts"]["restart_shown"] is False and _eligibility(doc)["checks"]["fault"]["restart_shown"] is False
+    assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS)
+    # Null: unknown, not false.
+    doc = pe.evaluate(_artefacts(), _session(restart_shown=None))
+    eligibility = _eligibility(doc)
+    assert eligibility["eligible"] is None and eligibility["reasons"] == []
+    assert eligibility["unknown"] == ["fault: whether the restart was shown is unknown: the session facts carry no restart_shown (null) (P-6)"]
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert eligibility["unknown"][0] in _outcome(doc)["inconclusive_reasons"]
+    assert not any(r.startswith("not eligible (E-11)") for r in _outcome(doc)["inconclusive_reasons"])
+    assert "restart_shown" in pe.IDENTIFICATION_RULES["P-6"] and "never read as false" in pe.IDENTIFICATION_RULES["P-6"]
+    # No session facts: the stop rules and the restart are both unknown.
+    doc = pe.evaluate(_artefacts(), None)
+    eligibility = _eligibility(doc)
+    assert eligibility["eligible"] is None and eligibility["checks"]["fault"]["session_facts_present"] is False
+    assert eligibility["unknown"] == ["fault: whether the restart was shown is unknown: no session facts (proof_session.json) were given (P-6)"]
+    reasons = _outcome(doc)["inconclusive_reasons"]
+    assert any("whether a stop rule of the ceiling was reached is unknown" in r for r in reasons)
+    assert eligibility["unknown"][0] in reasons
+
+
+def test_the_collector_file_is_required_in_the_inventory() -> None:
+    """Item 5 of 'What it records' lists the collector file: absent, or not
+    the SUT collector's (the manifest's resource_source), the evidence is
+    not complete and the run not eligible; the inventory names every
+    record the ADR lists."""
+    artefacts = _artefacts()
+    artefacts.files_present = FULL_FILES - {"resources.csv"}
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(doc, "resources.csv: absent (the collector file, item 5 of 'What it records')")
+    evidence = doc["instrumentation"]["proof_evidence"]
+    assert evidence["present"]["resources.csv"] is False and evidence["complete"] is False
+    assert any(r.startswith("any fetch listed above fails") and "resources.csv" in r for r in _outcome(doc)["inconclusive_reasons"])
+    doc = _evaluate(manifest=_manifest(resource_source="local-dev"))
+    _assert_not_eligible(doc, "resources.csv: resource_source 'local-dev', not the SUT collector's ('sut-collector')")
+    present = _evaluate()["instrumentation"]["proof_evidence"]["present"]
+    assert set(present) == FULL_FILES - {"manifest.json"} and all(present.values())
+
+
+def test_r1_needs_the_drain_record_verified_not_merely_the_quiet_string() -> None:
+    """R1 asserts missing identities after a completed drain: the drain
+    record must be verified by the harness with outcome 'quiet', never the
+    outcome string alone (P-7, E-7). Unverified, or without a record, R1
+    is null and the missing lines go to the inconclusive rule with the
+    drain named as a failed fetch."""
+    missing = [line for line in LINES if line[0] != "c-mid"]
+    unverified = _manifest(drain={**_manifest()["drain"], "verified": False})
+    doc = _evaluate(lines=missing, manifest=unverified)
+    r1 = _criterion(doc, "R1")
+    assert r1["observed"] is None and "no completed drain" in r1["reason"] and "verified False" in r1["reason"]
+    assert r1["evidence"] == {
+        "drain_outcome": "quiet", "drain_verified": False, "drain_completed": False,
+        "without_outcome_line": 1, "without_outcome_line_ids": ["c-mid"],
+    }
+    assert {"P-7", "E-7"} <= set(r1["identification_rules"])
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert any(f.startswith("drain: outcome 'quiet'") for f in doc["instrumentation"]["proof_evidence"]["fetch_failures"])
+    assert doc["instrumentation"]["proof_evidence"]["drain"] == {"source": "hook", "outcome": "quiet", "verified": False}
+    doc = _evaluate(lines=missing, manifest=_manifest(drain=None))
+    assert _criterion(doc, "R1")["observed"] is None and _criterion(doc, "R1")["evidence"]["drain_completed"] is False
+    assert any(m.startswith("drain: no record") for m in doc["instrumentation"]["proof_evidence"]["missing"])
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    # Verified and quiet: observed, as test 15 states.
+    doc = _evaluate(lines=missing)
+    assert _criterion(doc, "R1")["observed"] is True and _criterion(doc, "R1")["evidence"]["drain_completed"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -1766,6 +2205,9 @@ def test_the_verdict_document_has_three_separate_sections_and_every_rule_text() 
     assert set(doc["system_outcome"]["criteria"]["S2"]["identification_rules"]) == {"P-3", "E-1"}
     assert set(doc["system_outcome"]["criteria"]["R4"]["identification_rules"]) == {"P-5", "E-2"}
     assert doc["cannot_show"] == pe.RULES["cannot_show"]
+    assert doc["instrumentation"]["proof_eligibility"]["rule"] == pe.IDENTIFICATION_RULES["E-11"]
+    assert doc["instrumentation"]["proof_eligibility"]["eligible"] is True
+    assert set(pe.IDENTIFICATION_RULES) == {f"P-{n}" for n in range(1, 8)} | {f"E-{n}" for n in range(1, 12)}
     assert doc["system_outcome"]["report"]["method"]["criteria_copy"] == POST_DRAIN_EVENTS_FILENAME
     assert doc["system_outcome"]["report"]["copies"]["events.jsonl"]["lines"] == 2
     assert doc["system_outcome"]["report"]["copies"][POST_DRAIN_EVENTS_FILENAME]["lines"] == 4
@@ -1823,22 +2265,42 @@ def test_cli_exit_codes_0_1_3_2(tmp_path, capsys) -> None:
 def test_a_jsonl_line_that_is_not_utf8_is_skipped_and_counted_never_a_crash(tmp_path, capsys, monkeypatch) -> None:
     """CONTRACTS.md lets a torn final line exist on disk and tells a reader
     to skip a line that is not JSON: a line that is not UTF-8 is such a line
-    (E-5), counted and never a traceback, since exit 1 is 'refutes'. A CSV
-    that does not decode is a read problem the evidence names; a failure of
-    the evaluator itself is exit 2, never a result."""
+    (E-5), counted and never a traceback, since exit 1 is 'refutes'. A torn
+    line of the post-drain copy leaves the copy serving the criteria; a
+    torn line of sent_events.jsonl is skipped and counted likewise, but the
+    population record is then unreliable and the run not eligible (E-11):
+    exit 3, never a reduced denominator (this case's earlier expectation,
+    exit 0 with the torn sent line, encoded the wrong rule). A CSV that
+    does not decode is a read problem the evidence names; a failure of the
+    evaluator itself is exit 2, never a result."""
     run_dir = _write_run_dir(tmp_path, seal=False)
-    with (run_dir / "sent_events.jsonl").open("ab") as fh:
-        fh.write(b'{"run_id": "' + RID.encode() + b'", "message_id": "torn-\xff\xfe"}\n')
     with (run_dir / POST_DRAIN_EVENTS_FILENAME).open("ab") as fh:
         fh.write(b"\xff\n" + json.dumps(_line("c-mid", D2, 0, "duplicate", 1_290 * NS)).encode() + b"\n")
     write_sha256sums(run_dir)
-    records, skipped = pe._read_jsonl(run_dir / "sent_events.jsonl")
-    assert len(records) == 4 and skipped == 1
     out = tmp_path / "verdict.json"
     assert _main(run_dir, out, _session_file(tmp_path)) == 0
     doc = json.loads(out.read_text(encoding="utf-8"))
-    assert doc["instrumentation"]["skipped_lines"] == {"sent_events.jsonl": 1, "events.jsonl": 0, POST_DRAIN_EVENTS_FILENAME: 1}
+    assert doc["instrumentation"]["skipped_lines"] == {"sent_events.jsonl": 0, "events.jsonl": 0, POST_DRAIN_EVENTS_FILENAME: 1}
     assert doc["system_outcome"]["report"]["copies"][POST_DRAIN_EVENTS_FILENAME]["lines"] == 5  # the line after the torn one was read
+    assert doc["instrumentation"]["proof_eligibility"]["eligible"] is True
+    assert "Traceback" not in capsys.readouterr().err
+    # The torn line in sent_events.jsonl: skipped and counted, and the
+    # population is no longer a reliable record of what was published.
+    torn = _write_run_dir(tmp_path / "torn", seal=False)
+    with (torn / "sent_events.jsonl").open("ab") as fh:
+        fh.write(b'{"run_id": "' + RID.encode() + b'", "message_id": "torn-\xff\xfe"}\n')
+    write_sha256sums(torn)
+    records, skipped = pe._read_jsonl(torn / "sent_events.jsonl")
+    assert len(records) == 4 and skipped == 1
+    out_torn = tmp_path / "torn.json"
+    assert _main(torn, out_torn, _session_file(tmp_path / "torn")) == 3
+    doc = json.loads(out_torn.read_text(encoding="utf-8"))
+    assert doc["instrumentation"]["skipped_lines"]["sent_events.jsonl"] == 1
+    assert doc["system_outcome"]["result"] == "inconclusive" and doc["system_outcome"]["refutations"] == []
+    eligibility = doc["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is False and eligibility["checks"]["population"]["records_of_this_run"] == 4
+    assert any(r.startswith("population:") and "1 line(s) skipped" in r for r in eligibility["reasons"])
+    assert any(r.startswith("not eligible (E-11): population:") for r in doc["system_outcome"]["inconclusive_reasons"])
     assert "Traceback" not in capsys.readouterr().err
     # controller_metrics.csv that does not decode: a read problem, named as
     # a failed fetch; S1 cannot be read; still exit 3, no traceback.
@@ -1927,15 +2389,20 @@ shutil.copyfile(src, dest)
 """
 
 
-def test_end_to_end_over_a_harness_built_run_dir(tmp_path, plan_path, fast_run, monkeypatch, capsys) -> None:
-    """The harness executes one controller_restart run with the fake
-    simulator and the recorded item-18 hooks; the loader then reads the
-    sealed 1.4 layout it wrote. Builder: _item18_run with the twin snapshot
-    and post-drain hooks replaced by this module's copy scripts (the
-    fixture's `write` mode carries neither identities nor a differing after
-    snapshot), the sent lines rewritten by a wrapper of the fake simulator,
-    and the controller /metrics poll stubbed in-process."""
-    run_id = "controller_restart-r01"
+def test_end_to_end_over_a_harness_built_run_dir(tmp_path, fast_run, monkeypatch, capsys) -> None:
+    """The harness executes the proof's one-entry diagnostic plan (written
+    by tools/session/proof_plan.py: controller_restart, nominal, 300 s at
+    11.2 msg/s, no warm-up) with the fake simulator and the recorded item-18
+    hooks; the loader then reads the sealed 1.4 layout it wrote and the
+    run is eligible (E-11). Builder: _item18_run with the twin snapshot and
+    post-drain hooks replaced by this module's copy scripts (the fixture's
+    `write` mode carries neither identities nor a differing after
+    snapshot), the sent lines and the simulator's own manifest rewritten by
+    a wrapper of the fake simulator, and the controller /metrics poll
+    stubbed in-process."""
+    run_id = RID
+    written, plan_path = _write_proof_plan(tmp_path, master_seed="42")
+    assert written.returncode == 0, written.stderr
     seed = _plan_seed(plan_path, run_id)
     devices = list(run_mod.expected_twin_devices(seed))
     marker = tmp_path / "restart-marker.txt"
@@ -2001,6 +2468,11 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, plan_path, fast_run, 
             "".join(json.dumps({**line, "publish_monotonic_ns": stamp + n}) + "\n" for n, line in enumerate(sent_lines)),
             "utf-8",
         )
+        # The simulator's own record of the publication (E-11): the load it
+        # was given, its schedule completed, what it published.
+        (out_dir / "manifest.json").write_text(
+            json.dumps(_simulator_manifest(len(sent_lines), run_id=run_id), indent=2) + "\n", "utf-8"
+        )
         return rc
 
     sim.sleep_s = 0.0
@@ -2033,6 +2505,10 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, plan_path, fast_run, 
     assert artefacts.controller_log is not None and artefacts.broker_log is not None
     assert artefacts.configuration_identity == CONFIG_IDENTITY
     assert artefacts.drain_text is not None and "drained: queue_depth 0" in artefacts.drain_text
+    assert artefacts.simulator_manifest is not None and artefacts.simulator_manifest["totals"]["sent"] == 6
+    assert pe.simulator_manifest_rel(run_id) in artefacts.files_present and "resources.csv" in artefacts.files_present
+    assert (manifest["scenario"], manifest["duration_s"], manifest["rate_msg_s"], manifest["warmup_s"]) == ("nominal", 300, 11.2, 0)
+    assert manifest["events_fetch"]["ok"] is True and manifest["resource_source"] == "sut-collector"
 
     out = tmp_path / "proof_verdict.json"
     session = _session_file(tmp_path)
@@ -2047,6 +2523,10 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, plan_path, fast_run, 
     assert doc["instrumentation"]["seal"] == "true"
     assert doc["instrumentation"]["proof_evidence"]["complete"] is True
     assert doc["instrumentation"]["proof_evidence"]["drain"] == {"source": "hook", "outcome": "quiet", "verified": True}
+    eligibility = doc["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is True and eligibility["reasons"] == [] and eligibility["unknown"] == []
+    assert eligibility["checks"]["publication"]["source"] == "the simulator's own manifest"
+    assert eligibility["checks"]["publication"]["read"]["totals_sent"] == 6
     assert doc["instrumentation"]["drain_text_outcome"] == "quiet"
     assert doc["instrumentation"]["controller_log_non_json_lines"] == 1
     s1 = doc["system_outcome"]["criteria"]["S1"]
@@ -2059,5 +2539,5 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, plan_path, fast_run, 
     assert report["by_class"]["other_valid"]["identities"] == 3
     assert report["classification"]["published_before_kill"] == 6
     assert report["devices"]["expected_from_seed"] == run_mod.expected_twin_devices(seed)
-    assert set(doc["sources"]) >= {"manifest.json", "controller_metrics.csv", "logs/sut/controller.log", "SHA256SUMS"}
+    assert set(doc["sources"]) >= {"manifest.json", "controller_metrics.csv", "logs/sut/controller.log", "SHA256SUMS", "resources.csv", pe.simulator_manifest_rel(run_id)}
     assert json.loads(capsys.readouterr().out) == doc
