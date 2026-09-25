@@ -298,7 +298,7 @@ verdict of that window.
 | `guest_session_close.sh` | `oom-before-poweroff` exit 3: the kernel reports memory-cgroup OOM line(s) in this boot | — |
 | `gate_health.sh` | a service that did not reach `running` and `healthy` within the limit (the shared wait's exit 1), `/health` or `/ready` **answering** anything other than 200 with `{"status":"ok"}` (a 503 is the system's answer), a `/metrics` counter or `queue_depth` that is not 0, and a broker whose configuration is not TLS with anonymous access refused. Each names the service, the code or the counter, and the reason names the **first** thing that was not as G2 requires, which is also the `headline` on the final line. A request that never reached the controller is not one of these: curl prints the code `000` and writes an empty body for its own 7 or 28, so each of the three readings keeps curl's status beside the code and a reading that was not made is invalid (3), never "the controller answered 000" | — |
 | `persistence.sh` | a `ready-again` whose own record carries `wait_ready`'s give-up (`STOP: wait_ready: /ready answered …, not 200, for … s`) and a stack that did not come back `healthy` — the steps after either are then not run, which the reason says — `$REC same` reporting DIFFERENT, a twin the API answers **404** for after the restart (the volume did not hold it) or one that comes back without the state this run stored in it, and a stored state that did not come back unchanged (`stored-state` exit 1). A `ready-again` that ended any other way (a preamble that failed, a transport that dropped) reported nothing about `/ready`, and a twin that could not be READ at all (the API not reached, another code, a body that is not JSON) is a reading that was not made: both are invalid (3), never the stack failing to come back or the state failing to survive | — |
-| `proof.sh` | the evaluator's **refutation** (exit 1: one of R1–R4 rests on something observed — a valid negative result, "recorded and preserved, never re-run away"), and the faults `guest_state_delta.py --expect-restarted egw-controller-1` printed beside the proof's own restart (a container OOM-killed, replaced or gone, a restart count that moved, any other container's restart), whether it could complete the comparison (exit 1) or not (exit 2, where the comparison is `mandatory` as well) | the `/metrics` reading after (`metrics-after`), a `delta` that did not run (0 and 4 are both results: a named N1 case gives 4 by exactly one, and the evaluator applies S5's tolerance — design flag P-9), and, after a stop rule, the restart-shown check, the reading after and the delta, which are then not run; the outcome is then `inconclusive` unless a refutation or a fault was observed |
+| `proof.sh` | the evaluator's **refutation** (exit 1: one of R1–R4 rests on something observed — a valid negative result, "recorded and preserved, never re-run away"), and the faults `guest_state_delta.py --expect-restarted egw-controller-1` printed beside the proof's own restart (a container OOM-killed, replaced or gone, a restart count that moved, any other container's restart), whether it could complete the comparison (exit 1) or not (exit 2, where the comparison is `mandatory` as well) | the `/metrics` reading after (`metrics-after`), a `delta` that did not run (0 and 4 are both results: a named N1 case gives 4 by exactly one, and the evaluator applies S5's tolerance — design flag P-9), a live observation ended by `timeout` when the attempt's allowance ran out (its record kept as partial), and, after the attempt's stop rule, every live observation not yet made — the controller process and the containers after, the restart-shown check, the reading after, the delta, the guest state after and its delta — which are then not started and are listed by name (P-10); the outcome is then `inconclusive` unless a refutation or a fault was observed |
 
 | Driver | Prerequisites | Mandatory | Informational |
 |---|---|---|---|
@@ -319,7 +319,7 @@ reason, in the next action and in the `headline` on the final line, so that a
 run which stopped in that window never leaves an operator believing the stack
 is up. No volume is ever removed, so the stored state is intact either way.
 | `nominal.sh` | a plan run id, the open session, the plan's seed, a fresh raw directory, the attempt's fields, identity and source, the collector copy and sync (the deployed hash must equal the clone's), the guest state **before** the run, `pre` | the harness run (its manifest decides validity), **the copy of the before/after snapshots into `analysis/snapshots/`**, the guest state after, `guest_state_delta.py --expect` when it cannot compare the two records at all (exit 2: a record that does not hold the six expected services in the *before* state, or that names one twice or without its id and start instant — any fault it saw all the same is kept in the observed table above), the clock domain the 60 s confirmation deadline rests on (`controller_marker.ok`, `confirmation_deadline_source`, read only when the accounting that carries them succeeded), and any of these steps whose console capture was lost (74) | — |
-| `proof.sh` | a fresh run id and a 7–40 hex source commit, the open session, `timeout` on the host, every value of the table below as a whole number (a quiet window below 130 s, a rate that is not a number, a master seed that is not set, an extension flag other than `yes`/`no`), `EGW_PROOF_RESTART_AT_S` strictly between 0 and `EGW_PROOF_DURATION_S` (P-13), a results base and a plan that do not lie under `~/egw-tcg/pilot/` (P-14), a drivers' path the hook templates can hold double-quoted, a run directory, a plan and prefix files that do not exist yet (write-once), the attempt, its fields, identity and sources, the deployed helper file byte-equal to the runbook's 6.1 heredoc (`proof_helpers_check.py`), the collector copy and sync, the guest clock read as a whole number, the session facts written, the stack running and healthy within `EGW_HEALTH_LIMIT_S` (the **first stop rule**: reached, it is recorded in `proof_session.json` and the proof is not run), the SUT environment captured and fetched, the guest state and the containers before, the controller process read (`_mline`), the diagnostic plan written (a run id the pilot plan holds is refused; the load equals the plan's), `ready` (`wait_ready`, a step of its own before the attempt's clock starts — P-10), `pre` (`drained`, `metrics before`, `config_identity`; the instant the 50-minute rule runs from is taken immediately before it) and the identity check (the expected source commit, `broker_reloaded` false, W readable): each is outcome `not-run`, 2, and **the harness is not started** | the harness run (exit 2 or any code other than 0, 1, 124, 137: 1 is read from the manifest and 124/137 are the second stop rule), the restart **shown** from the driver's own records (the controller's `started_at` changed, its container the same object started later; not shown means the fault was not applied, and a pair that cannot be judged is the same requirement failed), the copy of the prefix snapshots into `analysis/snapshots/`, the session facts updated, the evaluator that could not run (exit 2: not evaluated), the proof's evidence complete (`proof_verdict.json` `instrumentation.proof_evidence.complete`), the guest state after, `guest_state_delta.py` when it cannot compare the records or the expected restart is not shown by the pair (exit 2), whether the stack is healthy again could not be determined, and any of these steps whose console capture was lost (74) | the clocks' offset, `environment/containers.*.txt`, the extension when it was not asked for |
+| `proof.sh` | a fresh run id and a 7–40 hex source commit, the open session, `timeout` on the host, every value of the table below as a whole number (a quiet window below 130 s, a rate that is not a number, a master seed that is not set, an extension flag other than `yes`/`no`), `EGW_PROOF_RESTART_AT_S` strictly between 0 and `EGW_PROOF_DURATION_S` (P-13), a results base and a plan that do not lie under `~/egw-tcg/pilot/` (P-14), a drivers' path the hook templates can hold double-quoted, a run directory, a plan and prefix files that do not exist yet (write-once), the attempt, its fields, identity and sources, the deployed helper file byte-equal to the runbook's 6.1 heredoc (`proof_helpers_check.py`), the collector copy and sync, the guest clock read as a whole number, the session facts written, the containers before (their ids and `StartedAt`, read **before** the wait: the candidate's start is their earliest `StartedAt` — P-15), the first stop rule established from that start (`healthy-rule`: the remainder of `EGW_HEALTH_LIMIT_S` from the candidate's start bounds the wait; spent, the rule is **reached** before the wait can start; an earlier healthy transition named with `EGW_PROOF_HEALTHY_RECORD` establishes it only when it is of this same start; an unknown start or transition cannot establish it), the stack running and healthy within that remainder (the **first stop rule**: reached, it is recorded in `proof_session.json` and the proof is not run) and its first healthy sample within `EGW_HEALTH_LIMIT_S` of the candidate's start (`healthy-rule-check`), the SUT environment captured and fetched, the guest state before, the controller process read (`_mline`), the diagnostic plan written (a run id the pilot plan holds is refused; the load equals the plan's), `ready` (`wait_ready`, a step of its own before the attempt's clock starts — P-10), `pre` (`drained`, `metrics before`, `config_identity`; the instant the 50-minute rule runs from is taken immediately before it, and `pre` runs under that allowance: spent before it, `pre` is not started; ended by `timeout`, the rule was reached during it — either way the harness is not started and the rule is recorded once, with the step) and the identity check (the expected source commit, `broker_reloaded` false, W readable): each is outcome `not-run`, 2, and **the harness is not started** | the harness run (exit 2 or any code other than 0, 1, 124, 137: 1 is admitted only as the eligibility step reads it, and 124/137 are the second stop rule), the **eligibility** of the run read from the manifest (P-16: the simulator exited 0, the harness copy of the events fetched with its file, the collector file present, the post-drain copy fetched and verified, both twin snapshots verified, the three SUT logs fetched, the fault record executed and 0, and a harness validity that is valid or invalid for the `MAX_SAMPLE_GAP_S` deviation alone), the restart **shown** from the driver's own records (the controller's `started_at` changed, its container the same object started later; not shown means the fault was not applied, and a pair that cannot be judged is the same requirement failed), the copy of the prefix snapshots into `analysis/snapshots/`, the session facts updated, the evaluator that could not run (exit 2: not evaluated), the proof's evidence complete (`proof_verdict.json` `instrumentation.proof_evidence.complete`), the guest state after, `guest_state_delta.py` when it cannot compare the records or the expected restart is not shown by the pair (exit 2), whether the stack is healthy again could not be determined, and any of these steps whose console capture was lost (74) | the clocks' offset, `environment/containers.*.txt`, `environment/healthy-record.txt` (the earlier transition named, kept as given), the extension when it was not asked for |
 | `guest_session_close.sh` | an open session | the stack stop, a `dmesg` that can be read at all for the OOM record (an OOM it *finds* is exit 3 of that step: the record is sound and the system failed — outcome `fail`, exit 1), the power-off (`guest/session_close.sh`, which also checks the sealed G1 artefacts) and no `qemu-system-aarch64` left — each failure gives 5, while a `pgrep` that could not answer at all is not a failed stop but an undecided close (3, below); the record of the artefacts after the power-off (the rootfs hash **and** the data-disk listing, each judged, not only the last command of the step), the boot journal and the final guest state that `guest/session_close.sh` keeps (exit 3: the guest IS off and the record of the close is not complete), and any of these steps whose console capture was lost (74), leave the session closed but its record incomplete: invalid, inconclusive, 3 | the tunnel teardown (a lost console capture of it is still named) |
 
 `$EXEC/current_session` is removed only when no `qemu-system-aarch64` process
@@ -369,7 +369,13 @@ proof") and does **not** decide the proof: a run invalid under
 rules and is kept as recorded" (ADR 0011, "What the proof cannot show"). This
 is a deliberate departure from `nominal.sh`, which makes the manifest's
 validity mandatory — design flag **P-8**, to be confirmed by the Project
-Manager. The **system outcome** is the evaluator's exit code — 0 supports →
+Manager — and it is bounded by **P-16**: the sampling-gap deviation is the
+*only* invalidity the driver admits, and the `eligibility` step reads the
+manifest for everything else the ADR requires of the execution and the
+evidence (a completed publication, the harness copy of the events, the
+collector file, the post-drain copy, the twin snapshots, the SUT logs, the
+fault record), each absence an evidence requirement not met. The **system
+outcome** is the evaluator's exit code — 0 supports →
 `pass`, 1 refutes → `fail` (a valid negative result, exit 1, "never re-run
 away"), 3 inconclusive → `inconclusive`, 2 not evaluated → `inconclusive`
 with a mandatory record missing — and, beside it, any fault of the guest
@@ -397,11 +403,19 @@ observed system fault(s); evidence requirement(s) not met; post-window
 observation(s) incomplete; stop rule(s) reached; the proof's result with the
 criteria that failed, the refutations and the inconclusive reasons; the
 manifest's validity as recorded; the extension, if chosen; the restoration.
-The next action names the ADR's consequence: supports → the result stands
-for this run only and the candidate freeze is a separate decision; refutes →
-the option is re-decided by the student (option 4 next best, never
-automatic); inconclusive → the student decides whether to repeat (recorded
-as a repeat, this run kept) or to re-decide.
+The next action names the ADR's consequence for the attempt's **final**
+verdicts, never the evaluator's raw result (**P-17**): outcome `pass` → the
+result stands for this run only and the candidate freeze is a separate
+decision; `fail` → a refutation, or a fault the guest state showed, is a
+valid negative result, never re-run away, and the option is re-decided by
+the student (option 4 next best, never automatic); `inconclusive` → the
+attempt is not passing, and when the evaluator's component result was
+`supports` the text says what downgraded it (a stop rule, an evidence
+requirement not met, a fault observed, an observation not made, the guest
+not fully restored) and never that the supporting result stands; the
+student decides whether to repeat (recorded as a repeat, this run kept) or
+to re-decide. An invalid attempt and a stack left other than healthy are
+named on the same line.
 
 **The values, recorded before anything starts.** Every value is read from
 the environment as a whole number (or the driver stops with 2 before
@@ -414,10 +428,11 @@ set other values before the session, as the ADR allows.
 | `DRAIN_QUIET_S` | `130` | the quiet window of the runbook's `drained` under C5 ("quiet window 130 s by default; 490 s where a first-contact message may be in progress"); never lowered below 130 |
 | `DRAIN_STEP_S` | `5` | the helper's polling step (runbook 6.1) |
 | `DRAIN_LIMIT_S` | `900` | the helper's limit, the 900 s of the planning ceiling "900 + 300 + 60 + 900 s" |
-| `EGW_HEALTH_LIMIT_S` | `1200` | the first stop rule: "the stack with the candidate healthy within 20 minutes of its start (as for the broker measurement, and on the same records)"; the same wait bounds the restoration (`broker_measure.sh` uses 1200 too; `gate_health.sh` and `persistence.sh` default to 1800) |
+| `EGW_HEALTH_LIMIT_S` | `1200` | the first stop rule: "the stack with the candidate healthy within 20 minutes of its start (as for the broker measurement, and on the same records)" — measured **from the candidate's start**, the earliest `StartedAt` of the six expected services read before the wait, never from the first poll (P-15): the wait runs under what is left of this allowance from that start (time already spent counts; a late poll never resets it), a first healthy sample past start + limit is not accepted, and an unknown start cannot establish the rule; the same wait, under the full limit, bounds the restoration (`broker_measure.sh` uses 1200 too; `gate_health.sh` and `persistence.sh` default to 1800) |
+| `EGW_PROOF_HEALTHY_RECORD` | none | the path of a console record of the shared healthy wait made earlier in this session (`gate_health.sh`'s `services-healthy`), whose `ALL HEALTHY` transition establishes the first stop rule instead of the driver's own poll — only when that transition lies between the latest `StartedAt` of the six services and the candidate's start + `EGW_HEALTH_LIMIT_S`, which makes it a transition of this same start (P-15); a transition of another start, one beyond the allowance, or a record without a readable transition is refused (not-run, stated), and a file that cannot be read is refused before anything starts; the record named is kept as `environment/healthy-record.txt`; with the rule established by it, the driver's own poll before the run is the precondition of a healthy stack under the full limit, and its failure is a precondition failed, not the rule reached (P-15) |
 | `EGW_HEALTH_STEP_S` | `15` | how often that wait samples; every sample is kept |
 | `EGW_READY_LIMIT_S` | `300` | none: the ADR gives no `/ready` figure — its planning figure "excludes the `/ready` wait", and the 300 s in "900 + 300 + 60 + 900 s" are the publication. 300 s is the driver's own choice for the `ready` step (`wait_ready`), above the runbook's `wait_ready` default of 60 s; that wait runs before the attempt's clock starts, so it is no part of the 50-minute rule (P-10) |
-| `EGW_PROOF_ATTEMPT_LIMIT_S` | `3000` | the second stop rule: "the attempt stopped 50 minutes after its first `drained` starts — the 36 minutes of the helper's limits plus 14 minutes"; measured on `/proc/uptime` from the instant taken immediately before `pre`, whose first command is `drained` (the `/ready` wait comes before it, in the `ready` step, and is not counted — P-10; the instant is recorded as `instants.first_drained_started_*`), and enforced on the harness step with `timeout` (124 or 137 = reached; an allowance spent before the harness leaves it unstarted and records the rule once). The step's host shell keeps `timeout` and the harness as a job and forwards the driver's interrupt to them: `timeout` moves itself and the harness into a process group of their own, which the terminal's Ctrl-C would otherwise never reach (the harness would then go on to apply the fault after the driver ended) |
+| `EGW_PROOF_ATTEMPT_LIMIT_S` | `3000` | the second stop rule: "the attempt stopped 50 minutes after its first `drained` starts — the 36 minutes of the helper's limits plus 14 minutes"; measured on `/proc/uptime` from the instant taken immediately before `pre`, whose first command is `drained` (the `/ready` wait comes before it, in the `ready` step, and is not counted — P-10; the instant is recorded as `instants.first_drained_started_*`), and enforced as **one monotonic deadline** on `pre` itself and on every live proof observation after it — the harness run, the controller process and the containers after, the restart-shown check, the `/metrics` reading after, the `delta`, the guest state after and its delta: the remainder is checked before each is dispatched, each runs under `timeout` of the positive remainder (a spent allowance leaves the step unstarted, never `timeout 0`), and the expiry is recorded once with its instant and the step it fell before, during (124 or 137) or after (`instants.attempt_limit_reached_*`). After it no further proof or fault step starts (the steps not made are listed by name, `instants.not_started_after_stop_rule`), the partial records and the stop reason are kept, the restoration and the shutdown still run and are never force-killed to meet the elapsed time, and the packaging, hashing and evaluation may finish afterwards without acquiring a new live observation and without hiding the rule reached (the outcome is `inconclusive` with the rule named). The step's host shell keeps `timeout` and the command as a job and forwards the driver's interrupt to them: `timeout` moves itself and the command into a process group of their own, which the terminal's Ctrl-C would otherwise never reach (the harness would then go on to apply the fault after the driver ended) |
 | `EGW_PROOF_RESTART_AT_S` | `150` | "at t+150 s, SIGKILL of the controller's container followed by a start" (`--restart-at-s`, passed explicitly); refused before anything starts unless strictly between 0 and `EGW_PROOF_DURATION_S`, because the harness cancels its restart timer when the measured run ends and the fault would then never fire (P-13) |
 | `EGW_PROOF_DURATION_S` | `300` | "300 s of publication = 3,360 messages"; fixed by `proof_plan.py`, so a different value stops the driver (it changes no load) |
 | `EGW_PROOF_RATE` | `11.2` | "the `nominal` scenario at 11.2 msg/s, three wearables, no warm-up"; fixed by `proof_plan.py` likewise |
@@ -456,7 +471,31 @@ Manager):
 
 - **P-10** — the 50-minute rule is measured from the instant taken
   immediately before `pre`, whose first command is `drained`; the `/ready`
-  wait is a step of its own (`ready`) before it and is not counted.
+  wait is a step of its own (`ready`) before it and is not counted. It is
+  one monotonic deadline (`/proc/uptime`) that bounds `pre` itself and
+  every live proof observation after it (the harness run, the controller
+  process and the containers after, the restart-shown check, the `/metrics`
+  reading after, the `delta`, the guest state after and its delta): the
+  remainder is checked before each is dispatched, each runs under
+  `timeout` of the positive remainder (a spent allowance means the step is
+  not started, never a zero or negative timeout), and the expiry is
+  recorded once, with its instant and the step it fell before, during or
+  after — in the driver's own shell: the remainder is answered in a
+  variable (`LIVE_REST`), never through a command substitution, so the
+  latch, the stop rule and the headline are never set in a subshell and
+  lost, and the step the facts name is the first one skipped. The live
+  host steps (`pre`, the controller process after, the `/metrics` reading
+  after, the `delta`) load the runbook's 6.1 preamble inside that bound
+  (handed to the bounded shell as the value of `EGW_HOST_PRE` and loaded
+  with `eval`), so a preamble that blocks — a `tunnel_up` whose ssh never
+  completes — is ended by the allowance too; the harness step alone loads
+  the preamble before its bound, as `hx` does, its text being pinned to
+  the runbook's `harness_cmd`. After it no further proof or fault step starts, the partial
+  records and the stop reason are kept, the restoration and the shutdown
+  still run unbounded, and the offline packaging, hashing and evaluation
+  may finish afterwards but acquire no new live observation and never hide
+  that the deadline was reached (the outcome is `inconclusive` with the
+  rule named).
 - **P-11** — the extension's restart command is bounded by the
   `stop_grace_period` the configuration identity captured at `pre` reports
   (the guest's value, read as whole seconds) plus 300 s, and its second fetch
@@ -473,6 +512,62 @@ Manager):
 - **P-14** — `EGW_PROOF_BASE` and `EGW_PROOF_PLAN` must not lie under
   `~/egw-tcg/pilot/`, as given or as they resolve, or the driver refuses
   before anything starts.
+- **P-15** — the 20-minute rule is measured from the candidate stack's
+  actual start, never from the first poll: the candidate's start is the
+  earliest `StartedAt` of the six expected services, read from the
+  containers record taken before the wait (the guest clock in that same
+  record says how much is already spent); the wait runs under the positive
+  remainder of `EGW_HEALTH_LIMIT_S` from that start (spent, the rule is
+  reached before the wait can start), and the first `ALL HEALTHY` sample is
+  rejected when it lies after start + `EGW_HEALTH_LIMIT_S` — a late poll
+  never resets the allowance. A healthy transition of this same start
+  demonstrated earlier in the session (a console record of the shared wait
+  named with `EGW_PROOF_HEALTHY_RECORD`) is reused instead only when its
+  instant lies between the latest `StartedAt` of the six and start +
+  `EGW_HEALTH_LIMIT_S`; a healthy guest's later idle time is then not
+  charged as boot delay. An unknown start or transition cannot establish
+  the rule (not-run, stated); nothing is guessed. Every instant compared is
+  read on the guest wall clock, which on this host is stepped backwards by
+  2–3 s about every 30 s: an instant that precedes another by no more than
+  the 3 s band the evaluator applies to host instants is read as
+  simultaneous and noted (`clock_step_note`), a larger regression is a
+  clock that is not consistent (not-run), and the deadline is judged on the
+  instant as read (a backwards step only makes it read earlier). The
+  instant of a sample is read at its start, before its inspections of the
+  six services (the shared wait, untouched): the first healthy observation
+  followed that instant within the sample's duration, which the wait does
+  not record, so the check records the span from the previous sample's
+  instant (`previous_sample_span_s`, that sample's duration plus the step)
+  and a note beside the instant (`first_healthy_instant_note`), and refuses
+  nothing on it — the bias is on the record, not read as precision. When
+  the rule was established by the earlier record, the driver's own poll
+  before the run runs under the full `EGW_HEALTH_LIMIT_S` (as the
+  restoration's does) as the precondition of a healthy stack, not as the
+  allowance's remainder: a stack no longer healthy then fails that
+  precondition (not-run, stated, with the service named), and the rule is
+  not recorded as reached by a poll that did not measure it. The reading is
+  recorded as `healthy_rule` in the session facts.
+- **P-16** — the harness's exit 1 is admitted for one reason only, the
+  campaign's `MAX_SAMPLE_GAP_S` deviation; after the harness step the
+  `eligibility` step reads the manifest and requires the prescribed
+  publication completed (`simulator_returncode` 0), the harness copy of the
+  events fetched (`events_fetch.ok`, its file present — the first of the
+  two copies the ADR keeps apart, which a successful post-drain copy never
+  replaces), the collector file `resources.csv` present, the post-drain
+  copy fetched and verified, both twin snapshots verified, the three SUT
+  logs fetched with their files, the fault record executed and 0, and a
+  validity that is `valid` or `invalid` with every reason naming
+  `MAX_SAMPLE_GAP_S`. Anything else is the proof's execution or evidence
+  incomplete: mandatory, the attempt invalid, never a pass. The reading is
+  written into the session facts (`eligibility`, beside `harness_exit`)
+  before the evaluator runs.
+- **P-17** — the next action is chosen from the attempt's final validity,
+  outcome and restoration state, never the evaluator's raw result, which
+  stays visible in the reason as the component it is: a supporting
+  component result downgraded by an unshown restart, an incomplete
+  restoration, a stop rule, a missing record or an observed fault gives an
+  inconclusive (or failed) attempt whose next action says so and never that
+  the supporting result stands.
 
 The package holds the harness capsule byte for byte under `raw/RUN_ID/`,
 the prefix files (`RUN_ID.config_identity.json`, `.metrics.before/.after.json`,

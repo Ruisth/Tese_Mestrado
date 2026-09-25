@@ -58,16 +58,52 @@
 #
 # STOP RULES, IMPOSED BY DESIGN AND NOT MEASURED DURATIONS (ADR 0011, "The
 # finite proof", ceiling): the stack with the candidate healthy within
-# EGW_HEALTH_LIMIT_S (1200 s, the 20-minute rule) of its start, on the same
-# records as the broker measurement (the shared healthy_wait); the attempt
+# EGW_HEALTH_LIMIT_S (1200 s, the 20-minute rule) OF ITS START - the
+# candidate's start is the earliest StartedAt of the six expected services,
+# read from the containers before the wait; the wait (the shared
+# healthy_wait, on the same records as the broker measurement) is bounded
+# by what is left of that allowance from that start, so time already spent
+# counts and a late poll never resets it, and a first healthy observation
+# past start + EGW_HEALTH_LIMIT_S is not accepted; a healthy transition of
+# this same start demonstrated earlier in the session may be named
+# (EGW_PROOF_HEALTHY_RECORD, P-15) and is reused only when its instant lies
+# between the latest start of the six and start + EGW_HEALTH_LIMIT_S; an
+# unknown start cannot establish the rule (not-run, stated). The attempt
 # stopped EGW_PROOF_ATTEMPT_LIMIT_S (3000 s, the 50-minute rule) after its
 # first 'drained' starts, measured on /proc/uptime (the host's wall clock is
-# stepped backwards on this host) and enforced on the harness step with
-# 'timeout'. If a stop rule is reached the session stops and the proof is
-# recorded inconclusive; the restoration is never cut short to keep a total
+# stepped backwards on this host) from the instant taken immediately before
+# 'pre', and enforced as ONE monotonic deadline on 'pre' itself and on
+# every live proof observation after it (harness-run, the controller
+# process and the containers after, restart-shown, metrics-after, delta,
+# the guest state after and its delta): the remainder is checked before
+# each is dispatched, each runs under 'timeout' of the positive remainder
+# (a spent allowance means the step is not started, never 'timeout 0'; the
+# live host steps load the 6.1 preamble inside that bound, the harness step
+# before it), and the expiry is recorded once - in the driver's own shell,
+# never in a subshell - with its instant and the step, whether it fell
+# before, during or after a step. After it no further proof or fault step
+# starts; the partial records and the stop reason are kept; the
+# restoration and the shutdown still run and are never force-killed; the
+# packaging, the hashing and the evaluation may finish afterwards but
+# acquire no new live observation and never hide that the rule was
+# reached (the outcome is inconclusive with the rule named). If a stop
+# rule is reached the session stops and the proof is recorded
+# inconclusive; the restoration is never cut short to keep a total
 # duration. The values used are recorded before anything starts - on the
 # attempt (workload.values) and in analysis/proof_session.json - and the
 # student may set other values before the session.
+#
+# ELIGIBILITY (P-16). The harness's exit 1 is admitted for ONE reason only,
+# the campaign's MAX_SAMPLE_GAP_S deviation, which the ADR keeps as recorded
+# and not decisive. After the harness step the manifest is read
+# ('eligibility'): a simulator that did not exit 0 (the prescribed
+# publication did not complete), a missing or failed harness copy of the
+# events (the first of the two copies the ADR keeps apart), a missing
+# collector file (resources.csv), a missing or failed post-drain copy,
+# twin snapshot, SUT-log fetch or fault record, or a validity reason beyond
+# the sampling gap, is the proof's evidence or execution incomplete:
+# mandatory, the attempt invalid, never a pass. The reading is written into
+# the session facts (eligibility, harness_exit) before the evaluator runs.
 #
 # WHAT IT NEVER DOES WITHOUT AUTHORISATION. It never boots or powers off the
 # guest (guest_session_open.sh / guest_session_close.sh); never builds,
@@ -97,6 +133,11 @@
 #   load is fixed by proof_plan.py; a different value stops the driver, it
 #   never changes it
 #   EGW_PROOF_MASTER_SEED (no default: the student's decision)
+#   EGW_PROOF_HEALTHY_RECORD (no default: the path of a console record of
+#   the shared healthy wait made earlier in this session - gate_health.sh's
+#   'services-healthy' - whose ALL HEALTHY transition is reused for the
+#   20-minute rule when it is of this same start, P-15; unreadable, or not
+#   of this start, it is refused: nothing is guessed)
 #   EGW_PROOF_EXTENSION (no; 'yes' runs the optional extension)
 #   EGW_PROOF_EXTENSION_LIMIT_S (1790: the 130 s stop_grace_period recorded
 #   under C6 plus 1,660 s, ADR 0011; inside it the extension's restart
@@ -179,6 +220,15 @@ case "$EXTENSION" in
     yes | no) ;;
     *) driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_EXTENSION='$EXTENSION' is neither 'yes' nor 'no'; nothing was started" ;;
 esac
+# An earlier healthy transition of this session, named by the student (P-15):
+# a file that cannot be read is refused before anything starts, and whether
+# it is of this same start is judged against the containers' start instants
+# by the healthy-rule step (never assumed).
+HEALTHY_RECORD=${EGW_PROOF_HEALTHY_RECORD:-}
+if [ -n "$HEALTHY_RECORD" ]; then
+    [ -f "$HEALTHY_RECORD" ] && [ -r "$HEALTHY_RECORD" ] \
+        || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_HEALTHY_RECORD='$HEALTHY_RECORD' is not a readable file (the console record of an earlier healthy wait of this session); nothing was started"
+fi
 BASE=${EGW_PROOF_BASE:-$HOME/egw-tcg/proof/results}
 PLAN=${EGW_PROOF_PLAN:-$HOME/egw-tcg/proof/plan-$RID.json}
 RUNBOOK=${EGW_PROOF_RUNBOOK:-$REPO/docs/setup/qemu_integrated_gateway.md}
@@ -233,10 +283,12 @@ json_text() {
 }
 # The texts the record of the values holds, checked ONCE likewise: a path
 # the record cannot hold as it is would leave the values unrecorded.
-for value in "$BASE" "$PLAN" "$RUNBOOK" "$(basename "$SESSION")"; do
+for value in "$BASE" "$PLAN" "$RUNBOOK" "$HEALTHY_RECORD" "$(basename "$SESSION")"; do
     json_text "$value" > /dev/null \
         || driver_stop "$EXIT_PREREQUISITE" "'$value' cannot be written into the record of the values as the text it is (a control character); nothing was started"
 done
+HEALTHY_RECORD_JSON=null
+[ -z "$HEALTHY_RECORD" ] || HEALTHY_RECORD_JSON=$(json_text "$HEALTHY_RECORD")
 
 # --- write-once: a run id is used once, on the guest and on the host ------------
 [ ! -e "$RAWD" ] || driver_stop "$EXIT_PREREQUISITE" "$RAWD exists; use another run id (the run directory is write-once); nothing was started"
@@ -370,6 +422,445 @@ left() {
     printf '%s' "$rest"
 }
 
+# --- the attempt's allowance as ONE monotonic deadline (F2, P-10) --------------
+# Every live proof observation after the first 'drained' - 'pre' itself, the
+# harness run, the controller process and the containers after, the restart
+# shown, the /metrics reading after, the delta, the guest state after and
+# its delta - is dispatched only while something of the allowance is left,
+# runs under 'timeout' of the positive remainder (a spent allowance means
+# the step is not started: never 'timeout 0', which would disable the
+# bound), and the expiry is recorded ONCE with its instant and the step it
+# fell before, during or after. A live step that was not started answers
+# STEP_NOT_STARTED, a status of this driver's own (no command answers it:
+# local_export's 74 and the wrappers' 97 are the others), and is listed
+# among the observations not made. The restoration (restore), the shutdown
+# and the offline work after them (the snapshots copied, the evaluator)
+# never run under this bound.
+STEP_NOT_STARTED=98
+ATTEMPT_REACHED=0        # the 50-minute rule recorded (once)
+not_started=()           # live steps not dispatched after the rule was reached
+# attempt_reached WHEN NAME [RC]: the 50-minute rule reached before, during
+# or after NAME, recorded once in the session facts (the rule, the instant,
+# the step and when) and in the reason.
+attempt_reached() {
+    local when=$1 name=$2 rc=${3:-} text
+    [ "$ATTEMPT_REACHED" -eq 0 ] || return 0
+    ATTEMPT_REACHED=1
+    case "$when:$name" in
+        before:harness-run)
+            text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before the harness could start (the harness was NOT started; the run directory was never created)" ;;
+        during:harness-run)
+            text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step was ended by 'timeout', exit $rc); the run directory, sealed or not, is preserved as incomplete" ;;
+        before:*)
+            text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s from its first 'drained' was spent before '$name' could start ('$name' was NOT started); no further proof step was started" ;;
+        during:*)
+            text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('$name' was ended by 'timeout', exit $rc; its record is kept as partial); no further proof step was started" ;;
+        *)
+            text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s from its first 'drained' was spent when '$name' ended; no further proof step was started" ;;
+    esac
+    stoprule attempt "$text"
+    session_update "instants.attempt_limit_reached_step=$name" "instants.attempt_limit_reached_when=$when" \
+        "instants.attempt_limit_reached_host_uptime_s=$(uptime_s)"
+}
+# live_start NAME: what is left of the allowance for NAME, in LIVE_REST
+# (whole seconds, positive), or non-zero when NAME must not start (the rule
+# already reached, or reached now, before NAME, and recorded as such). It
+# answers in a variable and is called in the driver's own shell, NEVER in a
+# command substitution: run in a subshell, the latch (ATTEMPT_REACHED), the
+# stop rule and the headline it sets would be lost with the subshell - every
+# later live step would record the rule again (the facts naming the last
+# step skipped, not the first), the reason would carry no stop rule, and
+# the extension's blocker would not fire after the expiry.
+LIVE_REST=0
+live_start() {
+    LIVE_REST=0
+    [ "$ATTEMPT_REACHED" -eq 0 ] || return 1
+    LIVE_REST=$(left)
+    if [ "$LIVE_REST" -le 0 ]; then
+        attempt_reached before "$1"
+        return 1
+    fi
+    return 0
+}
+# live_end NAME RC: after NAME ran under the bound: 124 or 137 is the rule
+# reached during it (its observation is incomplete and its record partial);
+# nothing left afterwards is the rule reached when it ended. Answers RC.
+live_end() {
+    local name=$1 rc=$2
+    if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+        attempt_reached during "$name" "$rc"
+        incomplete+=("'$name' was ended by 'timeout' when the attempt's allowance ran out (exit $rc): its observation was not completed")
+    elif [ "$(left)" -le 0 ]; then
+        attempt_reached after "$name"
+    fi
+    return "$rc"
+}
+# live_hx NAME SCRIPT [ARG...]: a host step of runbook 6.1 under the bound,
+# the 6.1 preamble included. hx loads the preamble before and outside the
+# bound, so a preamble that blocks (a 'tunnel_up' whose ssh never completes
+# its banner) would run on across the expiry; here the whole step runs
+# inside 'bounded': the preamble is handed to the bounded shell as the value
+# of EGW_HOST_PRE, never as code text, and loaded there with 'eval', and a
+# preamble that fails is 97 as hx answers it (the step never ran). The
+# helpers thus run in a shell of their own, which 'timeout' can end; SCRIPT
+# reads its ARGs as $1, $2... and holds no single quote; each ARG is written
+# single-quoted (checked to be the literal it is).
+live_hx() {
+    local name=$1 script=$2 rest args="" arg
+    shift 2
+    for arg in "$@"; do
+        guest_literal "$arg" || { missed "'$arg' cannot be written into the step '$name' as the literal it is"; return 1; }
+        args="$args '$arg'"
+    done
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    rest=$LIVE_REST
+    ex "$A" "$name" env EGW_HOST_PRE="$HOST_PRE" bash -c "$(declare -f bounded)
+bounded $rest bash -c '{ eval \"\$EGW_HOST_PRE\" ; } || { echo \"STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran\" >&2; exit 97; }
+$script' _$args"
+    live_end "$name" $?
+}
+# live_gx NAME GUEST-COMMAND: one guest command over ssh under the bound: the
+# session's ssh helpers loaded as gx loads them (97 when they cannot be, or
+# when ssh itself answers 255), inside 'bounded'.
+live_gx() {
+    local name=$1 rc rest
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    rest=$LIVE_REST
+    ex "$A" "$name" bash -c "$(declare -f bounded)
+bounded $rest env E=\"\$2\" bash -c '. \"\$E/scripts/session_common.sh\" || { echo \"STOP: the session ssh helpers (\$E/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest\" >&2; exit 97; }
+gssh \"\$1\"' _ \"\$1\"" _ "$2" "$SESSION"
+    rc=$?
+    [ "$rc" -ne 255 ] || rc=$EXIT_NOT_REACHED
+    live_end "$name" "$rc"
+}
+# live_ex NAME CMD...: a host command under the bound.
+live_ex() {
+    local name=$1 rest
+    shift
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    rest=$LIVE_REST
+    ex "$A" "$name" bash -c "$(declare -f bounded)
+bounded $rest \"\$@\"" _ "$@"
+    live_end "$name" $?
+}
+# json_scalar VALUE: a whole number as a JSON number, anything else as a JSON
+# string (the harness exit is one or the other: 0, or 'not-started').
+json_scalar() {
+    case "$1" in
+        '' | *[!0-9]*) json_text "$1" ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+# --- the first stop rule from the candidate's start (F2, P-15) ------------------
+# The 20-minute rule is measured from the candidate stack's actual start,
+# never from the first poll: the candidate's start is the earliest StartedAt
+# of the six expected services in the containers record taken BEFORE the
+# wait (their latest StartedAt is kept beside it), and the guest clock read
+# in that same record says how much of the allowance is already spent. In
+# mode 'bound' the wait's own limit is the positive remainder of the
+# allowance from that start (never more than the limit: a late poll never
+# resets it), or the rule is reached before the wait can start (1); a
+# healthy transition demonstrated earlier in the session and named by the
+# student (a console record of the shared wait) establishes the rule
+# instead when its instant lies between the latest start of the six and
+# start + limit - it is then of this same start - and is refused otherwise
+# (a healthy guest's later idle time is never charged as boot delay, and a
+# transition of another start never counts); the wait then runs under the
+# full limit as the precondition of a healthy stack before the run, which
+# is no longer the rule's remainder. In mode 'check' the wait's first ALL
+# HEALTHY sample is judged against start + limit unless the rule was
+# established by the earlier record; the instant of that sample is read at
+# its start, before its inspections, and the span from the sample before it
+# is recorded beside it as the one bound of that bias the record gives
+# (the check refuses nothing on it). Anything that cannot be read is 2:
+# an unknown start or transition cannot establish the rule. Every instant
+# compared here is read on the guest wall clock (docker StartedAt and the
+# wait samples alike), which on this host is stepped backwards by 2-3 s
+# about every 30 s (LOG.md; the evaluator applies the same band,
+# HOST_CLOCK_STEP_BAND_S, to host instants): an instant that precedes
+# another by no more than that band is read as simultaneous, and recorded
+# as such, while a larger regression is a clock that is not consistent (2).
+# A backwards step only makes an instant read earlier, so the deadline is
+# judged on the instant as read. The text holds no single quote: it is
+# handed to the interpreter as one argument.
+HEALTHY_RULE_PY='
+import json, re, sys
+from datetime import datetime, timezone
+
+INSTANT = re.compile(r"(\d{4}-\d\d-\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d{1,9}))?Z$")
+CLOCK_STEP_BAND_S = 3.0
+
+
+def epoch(text):
+    """A guest instant (a StartedAt of docker, or a sample line of the shared
+    wait) as seconds since the epoch, or None when it is not of that form."""
+    m = INSTANT.match(str(text or "").strip())
+    if not m:
+        return None
+    base = datetime.strptime("%sT%s%s%s" % m.groups()[:4], "%Y-%m-%dT%H%M%S").replace(tzinfo=timezone.utc)
+    fraction = int(m.group(5).ljust(9, "0")) / 1e9 if m.group(5) else 0.0
+    return base.timestamp() + fraction
+
+
+def containers(path):
+    starts, guest_epoch, problems = {}, None, []
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        m = re.match(r"container (\S+) id=(\S+) started=(\S+)$", line)
+        if m:
+            at = epoch(m.group(3))
+            if at is None:
+                problems.append("%s: its start instant %r is not readable" % (m.group(1), m.group(3)))
+            else:
+                starts[m.group(1)] = (at, m.group(3))
+            continue
+        m = re.match(r"clock epoch=(\d+) utc=(\S+)$", line)
+        if m:
+            guest_epoch = int(m.group(1))
+    return starts, guest_epoch, problems
+
+
+def transition(path):
+    """The first ALL HEALTHY line of a record of the shared wait, with the
+    instant of the sample that saw it and the instant of the sample before
+    it: (epoch or None, text, sample, previous text or None), or None when
+    the record holds no such line."""
+    samples = {}
+    for line in open(path, encoding="utf-8"):
+        line = line.rstrip("\n")
+        m = re.match(r"(\S+) sample (\d+):", line)
+        if m:
+            samples[int(m.group(2))] = m.group(1)
+            continue
+        m = re.match(r"ALL HEALTHY: .*\(sample (\d+)\)$", line)
+        if m:
+            n = int(m.group(1))
+            return epoch(samples.get(n)), samples.get(n), n, samples.get(n - 1)
+    return None
+
+
+def stop(code, text, facts):
+    print(("CANNOT BE ESTABLISHED: " if code == 2 else "HEALTHY RULE REACHED: ") + text)
+    print("healthy_rule=" + json.dumps(facts))
+    sys.exit(code)
+
+
+mode, expected, containers_path, limit = sys.argv[1], sys.argv[2].split(","), sys.argv[3], int(sys.argv[4])
+facts = {"limit_s": limit, "clock_step_band_s": CLOCK_STEP_BAND_S,
+         "candidate_start_note": "the earliest StartedAt of the expected services, read before the wait (P-15)"}
+try:
+    starts, guest_epoch, problems = containers(containers_path)
+except OSError as exc:
+    stop(2, "the containers record could not be read: %s" % exc, facts)
+problems += ["%s: not named in the containers record" % s for s in expected if s not in starts]
+if problems:
+    stop(2, "the candidate start is unknown: " + "; ".join(problems), facts)
+earliest = min(starts.values())
+latest = max(starts.values())
+deadline = earliest[0] + limit
+facts.update({"candidate_start_utc": earliest[1], "latest_start_utc": latest[1]})
+if mode == "bound":
+    earlier = sys.argv[5] if len(sys.argv) > 5 else ""
+    if guest_epoch is None:
+        stop(2, "the containers record carries no guest clock line, so what is left of the allowance from the candidate start cannot be computed", facts)
+    facts.update({"guest_epoch_at_record": guest_epoch, "earlier_record": None})
+    if guest_epoch - earliest[0] < -CLOCK_STEP_BAND_S:
+        stop(2, "the guest clock at the containers record (%d) precedes the candidate start (%s) by more than the clock step band of %g s: the guest clock is not consistent" % (guest_epoch, earliest[1], CLOCK_STEP_BAND_S), facts)
+    spent = max(0, int(guest_epoch - earliest[0]))
+    facts["spent_before_wait_s"] = spent
+    if earlier:
+        try:
+            seen = transition(earlier)
+        except OSError as exc:
+            stop(2, "the named earlier record could not be read: %s" % exc, facts)
+        if seen is None or seen[0] is None:
+            stop(2, "the named earlier record %s holds no ALL HEALTHY transition with a readable instant" % earlier, facts)
+        at, text, n, _ = seen
+        facts.update({"earlier_record": earlier, "earlier_transition_utc": text, "earlier_transition_sample": n,
+                      "earlier_elapsed_s": max(0, int(at - earliest[0]))})
+        if at < latest[0] - CLOCK_STEP_BAND_S:
+            stop(2, "the named earlier record transition (%s, sample %d) precedes the latest start of the six services (%s) by more than the clock step band of %g s: it is not a healthy transition of this same start" % (text, n, latest[1], CLOCK_STEP_BAND_S), facts)
+        if at > deadline:
+            facts["established_by"] = None
+            stop(1, "the named earlier record transition (%s) lies %d s after the candidate start %s, beyond the %d s allowance: the stack with the candidate was not healthy within it" % (text, at - earliest[0], earliest[1], limit), facts)
+        facts["established_by"] = "earlier-record"
+        bound = limit
+        print("HEALTHY RULE: established by the earlier record %s (transition %s, %d s after the candidate start %s, within %d s); the wait runs under %d s" % (earlier, text, at - earliest[0], earliest[1], limit, bound))
+    else:
+        rest = int(deadline - guest_epoch)
+        facts["established_by"] = "own-observation"
+        if rest <= 0:
+            facts["established_by"] = None
+            stop(1, "the candidate start %s (the earliest StartedAt of the six services) lies %d s in the past, beyond the %d s allowance, and no earlier healthy transition of this start is named: the wait was NOT started" % (earliest[1], spent, limit), facts)
+        bound = min(limit, rest)
+        print("HEALTHY RULE: %d s of the %d s allowance from the candidate start %s already spent; the wait runs under the %d s left" % (spent, limit, earliest[1], bound))
+    facts["poll_bound_s"] = bound
+    print("healthy_rule=" + json.dumps(facts))
+    print("established=" + str(facts["established_by"]))
+    print("bound=%d" % bound)
+    sys.exit(0)
+if mode == "check":
+    record, established = sys.argv[5], sys.argv[6] if len(sys.argv) > 6 else ""
+    try:
+        seen = transition(record) if record else None
+    except OSError as exc:
+        stop(2, "the record of the wait could not be read: %s" % exc, facts)
+    if seen is None or seen[0] is None:
+        stop(2, "the record of the wait holds no ALL HEALTHY transition with a readable instant: the first healthy observation is unknown", facts)
+    at, text, n, previous = seen
+    elapsed = at - earliest[0]
+    # The instant of the sample is read at its START, before its inspections
+    # of the six services (the shared wait, untouched here): the observation
+    # itself followed it within the duration of the sample, which the wait
+    # does not record. The span from the instant of the sample before it is
+    # the one bound the record gives (the duration of that sample plus the
+    # step); the deadline is judged on the instant as read, and both are
+    # recorded so that the bias is on the record.
+    previous_at = epoch(previous)
+    span = None if previous_at is None else round(at - previous_at, 3)
+    print("first_healthy_utc=%s" % text)
+    print("first_healthy_sample=%d" % n)
+    print("first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services: the observation followed it within the duration of the sample, which the shared wait does not record")
+    print("previous_sample_utc=%s" % (previous if previous_at is not None else "null"))
+    print("previous_sample_span_s=%s" % ("null" if span is None else json.dumps(span)))
+    if elapsed < -CLOCK_STEP_BAND_S:
+        print("elapsed_s=%d" % int(elapsed))
+        stop(2, "the first healthy observation (%s) precedes the candidate start (%s) by more than the clock step band of %g s: the guest clock is not consistent" % (text, earliest[1], CLOCK_STEP_BAND_S), facts)
+    if elapsed < 0:
+        print("clock_step_note=the first healthy sample (%s) reads %.3f s before the candidate start (%s), within the clock step band of %g s: read as simultaneous" % (text, -elapsed, earliest[1], CLOCK_STEP_BAND_S))
+        elapsed = 0.0
+    print("elapsed_s=%d" % int(elapsed))
+    if established != "earlier-record" and at > deadline:
+        stop(1, "the stack was first observed healthy %d s after the candidate start %s, beyond the %d s allowance (a late poll never resets it)" % (elapsed, earliest[1], limit), facts)
+    print("HEALTHY RULE MET: first observed healthy %d s after the candidate start %s (sample %d at %s; allowance %d s%s)"
+          % (elapsed, earliest[1], n, text, limit, ", established by the earlier record" if established == "earlier-record" else ""))
+    sys.exit(0)
+print("CANNOT BE ESTABLISHED: unknown mode %r" % mode)
+sys.exit(2)
+'
+
+# --- the eligibility of the run (F1, P-16) --------------------------------------
+# After the harness step the manifest is read: the run is eligible only
+# when the prescribed publication completed (simulator_returncode 0), the
+# harness copy of the events was fetched (events_fetch ok, the first of the
+# two copies the ADR keeps apart, its file present), the collector file
+# resources.csv is present, the post-drain copy was fetched and verified,
+# both twin snapshots were verified, the three SUT logs were fetched with
+# their files, the fault command was executed and exited 0, and the
+# harness validity is either valid or invalid for the campaign sampling-gap
+# deviation ALONE (every reason names MAX_SAMPLE_GAP_S). Anything else is
+# NOT ELIGIBLE (1), an evidence requirement not met; a manifest that cannot
+# be read is 2. The reading is printed as one JSON line for the session
+# facts. The text holds no single quote (one interpreter argument).
+ELIGIBILITY_PY='
+import json, sys
+from pathlib import Path
+
+run_dir, harness_exit = Path(sys.argv[1]), sys.argv[2]
+SUT_LOGS = {"broker_log": "broker.log", "controller_log": "controller.log", "docker_events": "docker-events.log"}
+TWINS = ("twins.before.json", "twins.after.json")
+facts = {"complete": False, "harness_exit": int(harness_exit) if harness_exit.isdigit() else harness_exit,
+         "rule": "P-16: the harness exit 1 is admitted for the campaign MAX_SAMPLE_GAP_S deviation alone", "problems": []}
+problems = facts["problems"]
+
+
+def present(rel):
+    path = run_dir / rel
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+try:
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("not a JSON object")
+except (OSError, ValueError) as exc:
+    problems.append("manifest.json: could not be read (%s: %s)" % (type(exc).__name__, exc))
+    print("NOT ELIGIBLE: " + problems[-1])
+    print("eligibility=" + json.dumps(facts))
+    sys.exit(2)
+
+sim = manifest.get("simulator_returncode")
+facts["simulator_returncode"] = sim
+if sim != 0 or isinstance(sim, bool):
+    problems.append("simulator_returncode is %r, not 0: the prescribed publication did not complete (a run shorter than prescribed is not the proof)" % (sim,))
+fetch = manifest.get("events_fetch")
+facts["events_fetch_ok"] = fetch.get("ok") if isinstance(fetch, dict) else None
+if not isinstance(fetch, dict):
+    problems.append("events_fetch: no record of the harness copy of the events (--fetch-events-cmd), the first of the two copies the ADR keeps apart")
+elif fetch.get("ok") is not True:
+    problems.append("events_fetch: the harness copy of the events failed after %d attempt(s)" % len(fetch.get("attempts") or []))
+elif not present("events.jsonl"):
+    problems.append("events.jsonl: the harness copy of the events is absent or empty")
+facts["resources_csv_present"] = present("resources.csv")
+if not facts["resources_csv_present"]:
+    problems.append("resources.csv: the collector file is absent or empty")
+post = manifest.get("events_post_drain_fetch")
+if not isinstance(post, dict):
+    problems.append("events_post_drain_fetch: no record of the post-drain copy (--post-drain-fetch-cmd)")
+elif post.get("source") != "ingested" and post.get("ok") is not True:
+    problems.append("events_post_drain_fetch: the post-drain copy failed after %d attempt(s)" % len(post.get("attempts") or []))
+elif post.get("verified") is not True:
+    problems.append("events_post_drain_fetch: the post-drain copy is not verified as this run: " + "; ".join(post.get("problems") or []))
+elif not present("events.post-drain.jsonl"):
+    problems.append("events.post-drain.jsonl: recorded as fetched but absent or empty")
+snapshots = manifest.get("twin_snapshots")
+by_file = {r.get("file"): r for r in (snapshots if isinstance(snapshots, list) else []) if isinstance(r, dict)}
+for name in TWINS:
+    record = by_file.get(name)
+    if record is None:
+        problems.append("%s: no twin snapshot record (--twin-snapshot-cmd)" % name)
+    elif record.get("verified") is not True:
+        problems.append("%s: the twin snapshot is not verified (exit %r)" % (name, record.get("returncode")))
+    elif not present(name):
+        problems.append("%s: recorded as verified but absent or empty" % name)
+fetches = manifest.get("sut_log_fetches")
+by_hook = {r.get("hook"): r for r in (fetches if isinstance(fetches, list) else []) if isinstance(r, dict)}
+for hook, name in SUT_LOGS.items():
+    rel = "logs/sut/" + name
+    record = by_hook.get(hook)
+    if record is None:
+        problems.append("%s: no fetch record (%s)" % (rel, hook))
+    elif record.get("returncode") != 0 or not record.get("dest_exists"):
+        problems.append("%s: the fetch exited %r and %s" % (rel, record.get("returncode"), "wrote its file" if record.get("dest_exists") else "wrote no file"))
+    elif not present(rel):
+        problems.append("%s: recorded as fetched but absent or empty" % rel)
+restart = manifest.get("restart")
+if not isinstance(restart, dict):
+    problems.append("restart: no record of the fault (--restart-cmd)")
+elif restart.get("executed") is not True or restart.get("returncode") != 0:
+    problems.append("restart: the fault command was not executed cleanly (executed=%r, exit %r)" % (restart.get("executed"), restart.get("returncode")))
+validity = manifest.get("validity")
+reasons = manifest.get("validity_reasons")
+reasons = [str(r) for r in reasons] if isinstance(reasons, list) else []
+facts["harness_validity"] = validity
+facts["harness_validity_reasons"] = reasons
+facts["sampling_gap_only"] = None
+if validity == "valid":
+    if facts["harness_exit"] != 0:
+        problems.append("the harness exited %s although the manifest calls the run valid: a failure the manifest does not record" % harness_exit)
+elif validity == "invalid":
+    beyond = [r for r in reasons if "MAX_SAMPLE_GAP_S" not in r]
+    facts["sampling_gap_only"] = bool(reasons) and not beyond
+    if not reasons:
+        problems.append("the manifest calls the run invalid without a reason")
+    elif beyond:
+        problems.append("validity reason(s) beyond the campaign sampling-gap deviation, which is the one the ADR admits: " + " | ".join(beyond))
+else:
+    problems.append("the manifest validity is %r, neither valid nor invalid" % (validity,))
+facts["complete"] = not problems
+for problem in problems:
+    print("NOT ELIGIBLE: " + problem)
+if not problems:
+    print("ELIGIBLE: the prescribed publication completed, both copies of the events, the collector file, both twin snapshots, the three SUT logs and the fault record are present%s"
+          % (" (harness validity invalid for the campaign sampling gap alone, kept as recorded)" if validity == "invalid" else ""))
+print("eligibility=" + json.dumps(facts))
+sys.exit(0 if not problems else 1)
+'
+
 # --- the extension's bounds (ADR 0011, item 4 section 9) ----------------------
 # Every step of the optional extension runs under what is left of its ceiling
 # (EGW_PROOF_EXTENSION_LIMIT_S, from EXT_T0) and two of them, besides, under
@@ -431,8 +922,8 @@ ext_cut() {
 
 # --- identities and the record of the values ----------------------------------
 IDENTITIES=$(repo_identity) || IDENTITY_FAILED=1
-VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, "EGW_HEALTH_LIMIT_S": %s, "EGW_HEALTH_STEP_S": %s, "EGW_READY_LIMIT_S": %s, "EGW_PROOF_ATTEMPT_LIMIT_S": %s, "EGW_PROOF_RESTART_AT_S": %s, "EGW_PROOF_DURATION_S": %s, "EGW_PROOF_RATE": %s, "EGW_PROOF_MASTER_SEED": %s, "EGW_PROOF_EXTENSION": "%s", "EGW_PROOF_EXTENSION_LIMIT_S": %s, "extension_restart_limit_after_grace_s": 300, "extension_fetch_limit_s": 300, "EGW_PROOF_BASE": %s, "EGW_PROOF_PLAN": %s, "EGW_PROOF_RUNBOOK": %s, "expected_source_commit": "%s"}' \
-    "$DRAIN_QUIET_S" "$DRAIN_STEP_S" "$DRAIN_LIMIT_S" "$LIMIT" "$STEP" "$READY_LIMIT" "$ATTEMPT_LIMIT" "$RESTART_AT" "$DURATION" "$RATE" "$MASTER_SEED" "$EXTENSION" "$EXTENSION_LIMIT" "$(json_text "$BASE")" "$(json_text "$PLAN")" "$(json_text "$RUNBOOK")" "$EXPECTED_COMMIT")
+VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, "EGW_HEALTH_LIMIT_S": %s, "EGW_HEALTH_STEP_S": %s, "EGW_READY_LIMIT_S": %s, "EGW_PROOF_ATTEMPT_LIMIT_S": %s, "EGW_PROOF_RESTART_AT_S": %s, "EGW_PROOF_DURATION_S": %s, "EGW_PROOF_RATE": %s, "EGW_PROOF_MASTER_SEED": %s, "EGW_PROOF_EXTENSION": "%s", "EGW_PROOF_EXTENSION_LIMIT_S": %s, "extension_restart_limit_after_grace_s": 300, "extension_fetch_limit_s": 300, "EGW_PROOF_BASE": %s, "EGW_PROOF_PLAN": %s, "EGW_PROOF_RUNBOOK": %s, "EGW_PROOF_HEALTHY_RECORD": %s, "expected_source_commit": "%s"}' \
+    "$DRAIN_QUIET_S" "$DRAIN_STEP_S" "$DRAIN_LIMIT_S" "$LIMIT" "$STEP" "$READY_LIMIT" "$ATTEMPT_LIMIT" "$RESTART_AT" "$DURATION" "$RATE" "$MASTER_SEED" "$EXTENSION" "$EXTENSION_LIMIT" "$(json_text "$BASE")" "$(json_text "$PLAN")" "$(json_text "$RUNBOOK")" "$HEALTHY_RECORD_JSON" "$EXPECTED_COMMIT")
 (cd "$REPO/src" && $LE set --attempt "$A" "pid=$$" "identities=$IDENTITIES" \
     "workload={\"session\": $(json_text "$(basename "$SESSION")"), \"proof\": \"the finite proof (ADR 0011)\", \"engineering_diagnostic_not_a_g3_run\": true, \"harness_run_id\": \"$RID\", \"condition\": \"controller_restart\", \"scenario\": \"nominal\", \"warmup_s\": 0, \"duration_s\": $DURATION, \"rate_msg_s\": $RATE, \"restart_at_s\": $RESTART_AT, \"fault\": \"SIGKILL of the controller's container followed by a start (proof_restart_controller.sh)\", \"devices\": \"smartwatch, smart ring, smart clothing (nominal mix)\", \"values\": $VALUES}" \
     "proof_verdict=not-computed" "restoration=not-started" "restart_shown=unknown" "extension=$EXTENSION_RESULT" \
@@ -614,15 +1105,109 @@ rc=$?
 [ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" session-facts "the harness was NOT started"
 [ "$rc" -eq 0 ] && [ -s "$FACTS" ] || not_run "the session facts (analysis/proof_session.json) could not be written (session-facts exit $rc)"
 
-# --- 5. the stack healthy: the first stop rule --------------------------------------
-healthy_wait "$A" services-healthy "$LIMIT" "$STEP"
+# --- 5. the containers before, then the stack healthy: the first stop rule -------
+# containers_script: the guest clock, then the id and the start instant of
+# each expected container (persistence.sh), in the identical form before and
+# after the run; the restart-shown step reads the controller's pair from the
+# two records, and the healthy-rule step reads the candidate's start (the
+# earliest StartedAt of the six) and the clock from the record before.
+containers_script() {
+    printf "EXPECT='%s'\nDEPLOYED='%s'\n" "$EXPECT_SERVICES" "$DEPLOYED"
+    cat << 'GUEST_CONTAINERS'
+cd "$DEPLOYED" || { echo "STOP: $DEPLOYED could not be entered"; exit 1; }
+rc=0
+echo "clock epoch=$(date +%s) utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+IFS=,
+set -- $EXPECT
+unset IFS
+for s in "$@"; do
+    cid=$(docker inspect -f '{{.Id}}' "$s" 2> /dev/null) || rc=1
+    sat=$(docker inspect -f '{{.State.StartedAt}}' "$s" 2> /dev/null) || rc=1
+    echo "container $s id=${cid:-unknown} started=${sat:-unknown}"
+    [ -n "$cid" ] && [ -n "$sat" ] || rc=1
+done
+exit $rc
+GUEST_CONTAINERS
+}
+# The containers BEFORE the wait: the candidate's start is read from them
+# (P-15), and they are the 'before' side of the restart shown.
+gx "$A" containers-before "$(containers_script)"
+rc=$?
+[ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" containers-before "the harness was NOT started"
+[ "$rc" -eq 0 ] || not_run "the containers' ids and start instants were not recorded before the run (containers-before exit $rc)"
+keep_record containers-before containers.before.txt "the containers before the run" \
+    || not_run "the record of the containers before the run was not kept"
+# The allowance from the candidate's start: what is left of it bounds the
+# wait; spent, the rule is reached before the wait can start; an earlier
+# transition of this same start, when named, establishes it instead.
+ex "$A" healthy-rule "$PY" -c "$HEALTHY_RULE_PY" bound "$EXPECT_SERVICES" "$ENVD/containers.before.txt" "$LIMIT" "$HEALTHY_RECORD"
+rc=$?
+[ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" healthy-rule "the harness was NOT started"
+HEALTHY_FACTS=$(said healthy-rule 'healthy_rule=')
+[ -z "${HEALTHY_FACTS// /}" ] || session_update "healthy_rule=$HEALTHY_FACTS"
+case "$rc" in
+    0) ;;
+    1)
+        STACK_STATE=unknown
+        stoprule healthy "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start:$(said healthy-rule 'HEALTHY RULE REACHED: ')"
+        not_run "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start (healthy-rule exit 1: the allowance from the candidate's start, the earliest StartedAt of the six services, was spent before the wait could start; the wait was NOT started); the proof is recorded inconclusive by that rule"
+        ;;
+    *)
+        not_run "the first stop rule cannot be established (healthy-rule exit $rc):$(said healthy-rule 'CANNOT BE ESTABLISHED: ')"
+        ;;
+esac
+HEALTHY_BOUND=$(said healthy-rule 'bound=' | tr -d ' ')
+HEALTHY_ESTABLISHED=$(said healthy-rule 'established=' | tr -d ' ')
+case "$HEALTHY_BOUND" in
+    '' | *[!0-9]*) not_run "the bound of the healthy wait could not be read from healthy-rule's line" ;;
+esac
+[ "$HEALTHY_BOUND" -gt 0 ] && [ "$HEALTHY_BOUND" -le "$LIMIT" ] \
+    || not_run "the bound of the healthy wait ($HEALTHY_BOUND s) is not a positive remainder of EGW_HEALTH_LIMIT_S=$LIMIT"
+if [ -n "$HEALTHY_RECORD" ]; then
+    cp "$HEALTHY_RECORD" "$ENVD/healthy-record.txt" || not_run "the earlier healthy record named could not be kept in environment/healthy-record.txt"
+fi
+healthy_wait "$A" services-healthy "$HEALTHY_BOUND" "$STEP"
 rc=$?
 if [ "$rc" -eq 0 ]; then
-    STACK_STATE=healthy
+    # The first healthy sample is judged against start + limit (a late poll
+    # never resets the allowance) unless the earlier record established it.
+    ex "$A" healthy-rule-check "$PY" -c "$HEALTHY_RULE_PY" check "$EXPECT_SERVICES" "$ENVD/containers.before.txt" "$LIMIT" \
+        "$(record_file services-healthy || true)" "$HEALTHY_ESTABLISHED"
+    rc=$?
+    [ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" healthy-rule-check "the harness was NOT started"
+    session_update "healthy_rule.first_healthy_utc=$(said healthy-rule-check 'first_healthy_utc=' | tr -d ' ')" \
+        "healthy_rule.first_healthy_sample=$(said healthy-rule-check 'first_healthy_sample=' | tr -d ' ')" \
+        "healthy_rule.elapsed_s=$(said healthy-rule-check 'elapsed_s=' | tr -d ' ')" \
+        "healthy_rule.previous_sample_utc=$(said healthy-rule-check 'previous_sample_utc=' | tr -d ' ')" \
+        "healthy_rule.previous_sample_span_s=$(said healthy-rule-check 'previous_sample_span_s=' | tr -d ' ')"
+    instant_note_text=$(said healthy-rule-check 'first_healthy_instant_note=')
+    [ -z "${instant_note_text// /}" ] || session_update "healthy_rule.first_healthy_instant_note=${instant_note_text% }"
+    step_note_text=$(said healthy-rule-check 'clock_step_note=')
+    [ -z "${step_note_text// /}" ] || session_update "healthy_rule.clock_step_note=${step_note_text% }"
+    case "$rc" in
+        0) STACK_STATE=healthy ;;
+        1)
+            STACK_STATE=healthy
+            stoprule healthy "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start:$(said healthy-rule-check 'HEALTHY RULE REACHED: ')"
+            not_run "stop rule reached: the stack with the candidate was first observed healthy beyond ${LIMIT} s of its start (healthy-rule-check exit 1); the proof is recorded inconclusive by that rule"
+            ;;
+        *)
+            STACK_STATE=healthy
+            not_run "the first stop rule cannot be established (healthy-rule-check exit $rc):$(said healthy-rule-check 'CANNOT BE ESTABLISHED: ')"
+            ;;
+    esac
 elif [ "$rc" -eq 1 ] || [ "$rc" -eq 4 ]; then
     STACK_STATE=not-healthy
-    stoprule healthy "stop rule reached: the stack was not running and healthy within ${LIMIT} s:$(said services-healthy 'NOT HEALTHY[^:]*:')"
-    not_run "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s (services-healthy exit $rc); the proof is recorded inconclusive by that rule"
+    if [ "$HEALTHY_ESTABLISHED" = earlier-record ]; then
+        # The rule was established by the earlier record: this poll ran under
+        # the full limit (as the restoration's does) as the precondition of a
+        # healthy stack before the run, not as the allowance's remainder. A
+        # stack no longer healthy fails that precondition; the rule is not
+        # recorded reached by a poll that did not measure it (P-15).
+        not_run "precondition failed: the stack with the candidate was not running and healthy when polled before the run (services-healthy exit $rc under the full ${LIMIT} s); the 20-minute rule was established by the earlier record named and this poll does not reach it, but the proof cannot start on a stack that is not healthy:$(said services-healthy 'NOT HEALTHY[^:]*:')"
+    fi
+    stoprule healthy "stop rule reached: the stack was not running and healthy within the ${HEALTHY_BOUND} s left of ${LIMIT} s from the candidate's start:$(said services-healthy 'NOT HEALTHY[^:]*:')"
+    not_run "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy exit $rc under the ${HEALTHY_BOUND} s left of that allowance); the proof is recorded inconclusive by that rule"
 elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
     capture_stop "$A" services-healthy "the harness was NOT started"
 else
@@ -676,33 +1261,6 @@ elif [ "$before_rc" -ne 0 ]; then
 fi
 BEFORE=$(ls "$A"/console/*-guest-state-before.stdout.txt 2> /dev/null | tail -n 1)
 [ -n "$BEFORE" ] || not_run "the record of the guest state before the run was not kept"
-
-# containers_script: the id and the start instant of each expected container
-# (persistence.sh), in the identical form before and after the run; the
-# restart-shown step reads the controller's pair from the two records.
-containers_script() {
-    printf "EXPECT='%s'\nDEPLOYED='%s'\n" "$EXPECT_SERVICES" "$DEPLOYED"
-    cat << 'GUEST_CONTAINERS'
-cd "$DEPLOYED" || { echo "STOP: $DEPLOYED could not be entered"; exit 1; }
-rc=0
-IFS=,
-set -- $EXPECT
-unset IFS
-for s in "$@"; do
-    cid=$(docker inspect -f '{{.Id}}' "$s" 2> /dev/null) || rc=1
-    sat=$(docker inspect -f '{{.State.StartedAt}}' "$s" 2> /dev/null) || rc=1
-    echo "container $s id=${cid:-unknown} started=${sat:-unknown}"
-    [ -n "$cid" ] && [ -n "$sat" ] || rc=1
-done
-exit $rc
-GUEST_CONTAINERS
-}
-gx "$A" containers-before "$(containers_script)"
-rc=$?
-[ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" containers-before "the harness was NOT started"
-[ "$rc" -eq 0 ] || not_run "the containers' ids and start instants were not recorded before the run (containers-before exit $rc)"
-keep_record containers-before containers.before.txt "the containers before the run" \
-    || not_run "the record of the containers before the run was not kept"
 # The controller PROCESS before the run: one /metrics reading through the
 # runbook's _mline (thirteen fields; started_at is the fifth). Status 3 is a
 # reading whose accounting identity does not hold - still a reading of the
@@ -759,13 +1317,21 @@ elif [ "$ready_rc" -ne 0 ]; then
 fi
 # T0 is taken immediately before the step whose first command is 'drained',
 # and recorded as the instant the allowance runs from before that step runs.
+# 'pre' itself runs under that allowance (live_hx: the whole of it, from
+# T0): a spent allowance leaves it unstarted, and a 'pre' ended by 'timeout'
+# is the rule reached during it; either way the harness is NOT started and
+# the rule is recorded once, with the step.
 T0=$(uptime_s)
 T0_UTC=$(now_utc)
 session_update "instants.first_drained_started_utc=$T0_UTC" "instants.first_drained_started_host_uptime_s=$T0"
 [ "${#mandatory[@]}" -eq 0 ] || not_run "a mandatory record was not made before the harness: ${mandatory[0]}"
-hx "$A" pre "drained && metrics $RID before && config_identity \"\$P/$RID.config_identity.json\""
+live_hx pre 'drained && metrics "$1" before && config_identity "$P/$1.config_identity.json"' "$RID"
 pre_rc=$?
-if [ "$pre_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
+if [ "$pre_rc" -eq "$STEP_NOT_STARTED" ]; then
+    not_run "stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before 'pre' could start ('pre' was NOT started, so no 'drained' ran); the proof is recorded inconclusive by that rule"
+elif [ "$pre_rc" -eq 124 ] || [ "$pre_rc" -eq 137 ]; then
+    not_run "stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('pre' was ended by 'timeout', exit $pre_rc); the proof is recorded inconclusive by that rule"
+elif [ "$pre_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
     capture_stop "$A" pre "the harness was NOT started"
 elif [ "$pre_rc" -ne 0 ]; then
     not_run "precondition failed (drained/metrics/identity: pre exit $pre_rc)"
@@ -882,14 +1448,8 @@ HARNESS_STARTED=1
 # The fault mutates the stack from here on: its state is unknown until the
 # restoration reads it back.
 STACK_STATE=unknown
-LEFT=$(left)
-if [ "$LEFT" -le 0 ]; then
-    # The one stop rule reached; no harness step ran, so no step is recorded.
-    stoprule attempt "stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before the harness could start (the harness was NOT started; the run directory was never created)"
-    h_rc=not-started
-    echo "STOP: no time left in the attempt's allowance: the harness was NOT started" >&2
-    session_update "instants.harness_started_utc=null" "instants.harness_ended_utc=null" "instants.harness_exit=null" "instants.harness_allowance_s=0"
-else
+if live_start harness-run; then
+    LEFT=$LIVE_REST
     HARNESS_STARTED_UTC=$(now_utc)
     hx "$A" harness-run "$(declare -f proof_harness_args)
 $(declare -f bounded)
@@ -898,44 +1458,80 @@ bounded $LEFT python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cm
     h_rc=$?
     HARNESS_ENDED_UTC=$(now_utc)
     session_update "instants.harness_started_utc=$HARNESS_STARTED_UTC" "instants.harness_ended_utc=$HARNESS_ENDED_UTC" "instants.harness_exit=$h_rc" "instants.harness_allowance_s=$LEFT"
+    # 124 or 137 is the rule reached during the harness step; an allowance
+    # spent when it ended is the rule reached then: either way no further
+    # proof step starts, and the run directory is kept as it is.
+    live_end harness-run "$h_rc" || true
+else
+    # The one stop rule reached (recorded by live_start); no harness step
+    # ran, so no step is recorded.
+    h_rc=not-started
+    echo "STOP: no time left in the attempt's allowance: the harness was NOT started" >&2
+    session_update "instants.harness_started_utc=null" "instants.harness_ended_utc=null" "instants.harness_exit=null" "instants.harness_allowance_s=0"
 fi
 case "$h_rc" in
-    0 | 1 | not-started) ;;
-    124 | 137)
-        stoprule attempt "stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step was ended by 'timeout', exit $h_rc); the run directory, sealed or not, is preserved as incomplete"
-        ;;
+    0 | 1 | not-started | 124 | 137) ;;
     "$EXIT_CAPTURE_LOST") mandatory+=("$(capture_note harness-run)") ;;
     *) missed "$(step_note harness-run "$h_rc" "the harness run exited $h_rc (2 is a refusal: usage, plan or identity)")" ;;
+esac
+
+# --- 10b. the eligibility of the run, from the manifest (F1, P-16) -----------------
+# Offline (the manifest and the files the harness sealed), so not under the
+# bound; run only for a harness that ended 0 or 1. The reading goes into the
+# session facts before the evaluator runs, beside the harness exit.
+session_update "harness_exit=$(json_scalar "$h_rc")"
+case "$h_rc" in
+    0 | 1)
+        ex "$A" eligibility "$PY" -c "$ELIGIBILITY_PY" "$RAWD" "$h_rc"
+        elig_rc=$?
+        ELIG_FACTS=$(said eligibility 'eligibility=')
+        [ -z "${ELIG_FACTS// /}" ] || session_update "eligibility=$ELIG_FACTS"
+        case "$elig_rc" in
+            0) ;;
+            "$EXIT_CAPTURE_LOST") mandatory+=("$(capture_note eligibility)") ;;
+            *) missed "the proof's execution or evidence is incomplete (eligibility exit $elig_rc, P-16):$(said eligibility 'NOT ELIGIBLE: ')" ;;
+        esac
+        ;;
+    *)
+        session_update "eligibility={\"complete\": false, \"harness_exit\": $(json_scalar "$h_rc"), \"problems\": [\"the harness run did not complete (exit $h_rc), so the manifest was not read for the eligibility of the run\"]}"
+        ;;
 esac
 
 # --- 11. the restart shown, from this driver's own records ---------------------------
 # An issued command is not a restart: the controller PROCESS must be new
 # (started_at differs) and the container OBJECT the same, started later (a
 # kill + start keeps the object; a new id is a replacement, not the fault the
-# proof issued). Not shown -> the fault was not applied: mandatory.
-if [ "${#stoprules[@]}" -eq 0 ]; then
-    hx "$A" controller-process-after "_mline"
-    rc=$?
-    STARTED_AFTER=""
-    if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then
-        STARTED_AFTER=$(last_line controller-process-after | cut -d' ' -f5)
-    elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
-        mandatory+=("$(capture_note controller-process-after)")
-    else
-        missed "$(step_note controller-process-after "$rc" "the controller process could not be read after the run (_mline exit $rc)")"
-    fi
-    gx "$A" containers-after "$(containers_script)"
-    rc=$?
-    if [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
-        mandatory+=("$(capture_note containers-after)")
-    elif [ "$rc" -ne 0 ]; then
-        missed "$(step_note containers-after "$rc" "the containers' ids and start instants were not recorded after the run (containers-after exit $rc)")"
-    fi
-    keep_record containers-after containers.after.txt "the containers after the run" || true
-    # Exit 1 is NOT SHOWN only with the line that says so; a record that
-    # could not be read, or a failure of the check itself, is NOT JUDGED (2),
-    # as guest_state_delta.py keeps its own crash apart from a fault.
-    ex "$A" restart-shown "$PY" -c '
+# proof issued). Not shown -> the fault was not applied: mandatory. Each
+# step is a live observation under the attempt's allowance (live_*): after
+# the rule was reached none is started (STEP_NOT_STARTED, listed among the
+# observations not made), and one ended by 'timeout' is the rule reached
+# during it, never an instrument failure of its own.
+live_hx controller-process-after '_mline'
+rc=$?
+STARTED_AFTER=""
+if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then
+    STARTED_AFTER=$(last_line controller-process-after | cut -d' ' -f5)
+elif [ "$rc" -eq "$STEP_NOT_STARTED" ] || [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    :
+elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
+    mandatory+=("$(capture_note controller-process-after)")
+else
+    missed "$(step_note controller-process-after "$rc" "the controller process could not be read after the run (_mline exit $rc)")"
+fi
+live_gx containers-after "$(containers_script)"
+rc=$?
+if [ "$rc" -eq "$STEP_NOT_STARTED" ] || [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    :
+elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
+    mandatory+=("$(capture_note containers-after)")
+elif [ "$rc" -ne 0 ]; then
+    missed "$(step_note containers-after "$rc" "the containers' ids and start instants were not recorded after the run (containers-after exit $rc)")"
+fi
+[ "$rc" -eq "$STEP_NOT_STARTED" ] || keep_record containers-after containers.after.txt "the containers after the run" || true
+# Exit 1 is NOT SHOWN only with the line that says so; a record that
+# could not be read, or a failure of the check itself, is NOT JUDGED (2),
+# as guest_state_delta.py keeps its own crash apart from a fault.
+live_ex restart-shown "$PY" -c '
 import re, sys
 before_started, after_started, before_file, after_file, name = sys.argv[1:6]
 
@@ -989,23 +1585,21 @@ except Exception as exc:  # a record that could not be read is no judgement
     print("NOT JUDGED: the records could not be read or compared: %s: %s" % (type(exc).__name__, exc))
     sys.exit(2)
 ' "$STARTED_BEFORE" "$STARTED_AFTER" "$ENVD/containers.before.txt" "$ENVD/containers.after.txt" "$CONTROLLER"
-    shown_rc=$?
-    case "$shown_rc" in
-        0) RESTART_SHOWN=yes ;;
-        1)
-            if [ -n "$(said restart-shown 'NOT SHOWN:')" ]; then
-                RESTART_SHOWN=no
-                missed "the restart was not shown - the fault was not applied:$(said restart-shown 'NOT SHOWN:')"
-            else
-                missed "the restart was not shown: the check ended 1 without saying what was not shown (restart-shown exit 1), so it could not be judged from the records"
-            fi
-            ;;
-        "$EXIT_CAPTURE_LOST") mandatory+=("$(capture_note restart-shown)") ;;
-        *) missed "the restart was not shown: it could not be judged from the records (restart-shown exit $shown_rc):$(said restart-shown 'NOT JUDGED:')" ;;
-    esac
-else
-    incomplete+=("the restart-shown check, the /metrics reading after and the delta were not run: a stop rule was reached")
-fi
+shown_rc=$?
+case "$shown_rc" in
+    0) RESTART_SHOWN=yes ;;
+    1)
+        if [ -n "$(said restart-shown 'NOT SHOWN:')" ]; then
+            RESTART_SHOWN=no
+            missed "the restart was not shown - the fault was not applied:$(said restart-shown 'NOT SHOWN:')"
+        else
+            missed "the restart was not shown: the check ended 1 without saying what was not shown (restart-shown exit 1), so it could not be judged from the records"
+        fi
+        ;;
+    "$STEP_NOT_STARTED" | 124 | 137) ;;
+    "$EXIT_CAPTURE_LOST") mandatory+=("$(capture_note restart-shown)") ;;
+    *) missed "the restart was not shown: it could not be judged from the records (restart-shown exit $shown_rc):$(said restart-shown 'NOT JUDGED:')" ;;
+esac
 set_field "restart_shown=$RESTART_SHOWN"
 RESTART_SHOWN_JSON=null
 [ "$RESTART_SHOWN" != yes ] || RESTART_SHOWN_JSON=true
@@ -1013,19 +1607,25 @@ RESTART_SHOWN_JSON=null
 session_update "restart_shown=$RESTART_SHOWN_JSON" "restart_shown_detail=$(said restart-shown 'RESTART SHOWN: ')$(said restart-shown 'NOT SHOWN: ')$(said restart-shown 'NOT JUDGED: ')"
 
 # --- 12. the /metrics reading after, and the runbook's delta on the post-drain copy ---
-if [ "${#stoprules[@]}" -eq 0 ]; then
-    hx "$A" metrics-after "metrics $RID after"
-    post_window metrics-after $? "the /metrics reading after the run was not taken"
-    # 'delta' compares the twins with the post-drain copy sealed in the run
-    # directory (runbook test 6): 0 and 4 are both RESULTS (a named N1 case
-    # gives 4 by exactly one; the evaluator applies S5's tolerance, design
-    # flag P-9); anything else is no comparison.
-    hx "$A" delta "\$REC delta '$RAWD' --prefix \"\$P/$RID\" --events '$RAWD/events.post-drain.jsonl'"
-    delta_rc=$?
-    if [ "$delta_rc" -ne 0 ] && [ "$delta_rc" -ne 4 ]; then
-        post_window delta "$delta_rc" "the runbook's delta over the post-drain copy did not run" || true
-    fi
-fi
+live_hx metrics-after 'metrics "$1" after' "$RID"
+rc=$?
+case "$rc" in
+    0 | "$STEP_NOT_STARTED" | 124 | 137) ;;
+    *) post_window metrics-after "$rc" "the /metrics reading after the run was not taken" || true ;;
+esac
+# 'delta' compares the twins with the post-drain copy sealed in the run
+# directory (runbook test 6): 0 and 4 are both RESULTS (a named N1 case
+# gives 4 by exactly one; the evaluator applies S5's tolerance, design
+# flag P-9); anything else is no comparison. The helper's $REC and $P are
+# the inner shell's, after it loads the helper file; the run directory and
+# the run id are its arguments.
+live_hx delta '$REC delta "$1" --prefix "$P/$2" --events "$1/events.post-drain.jsonl"' "$RAWD" "$RID"
+delta_rc=$?
+case "$delta_rc" in
+    0 | 4 | 124 | 137) ;;
+    "$STEP_NOT_STARTED") delta_rc=not-started ;;
+    *) post_window delta "$delta_rc" "the runbook's delta over the post-drain copy did not run" || true ;;
+esac
 
 # --- 13. the prefix snapshots into the package -------------------------------------
 # The ONLY path by which the configuration identity, the two /metrics
@@ -1038,18 +1638,27 @@ else
 fi
 
 # --- 14. the guest state after, against the state before (nominal.sh) ---------------
-gx "$A" guest-state-after "$GUEST_STATE"
+live_gx guest-state-after "$GUEST_STATE"
 after_rc=$?
 after_trusted=1
 [ "$after_rc" -eq "$EXIT_CAPTURE_LOST" ] && after_trusted=0
-[ "$after_rc" -eq 0 ] || mandatory+=("$(step_note guest-state-after "$after_rc" "the guest state after the run was not recorded")")
-AFTER=$(ls "$A"/console/*-guest-state-after.stdout.txt 2> /dev/null | tail -n 1)
-if [ -n "$AFTER" ]; then
+if [ "$after_rc" -eq "$STEP_NOT_STARTED" ] || [ "$after_rc" -eq 124 ] || [ "$after_rc" -eq 137 ]; then
+    # The stop rule (recorded): not started, or a partial record nothing is
+    # read from - the comparison below is not started after the rule.
+    after_trusted=0
+elif [ "$after_rc" -ne 0 ]; then
+    mandatory+=("$(step_note guest-state-after "$after_rc" "the guest state after the run was not recorded")")
+fi
+AFTER=""
+[ "$after_rc" -eq "$STEP_NOT_STARTED" ] || AFTER=$(ls "$A"/console/*-guest-state-after.stdout.txt 2> /dev/null | tail -n 1)
+if [ "$after_rc" -eq "$STEP_NOT_STARTED" ]; then
+    not_started+=(guest-state-delta)
+elif [ -n "$AFTER" ]; then
     # The controller's one in-place restart is the fault this proof issued:
     # named as expected, it is not a fault; an OOM kill, a replacement, a
     # restart count that moved or any other container's restart stays one,
     # and an expected restart the pair does not show is a problem (exit 2).
-    ex "$A" guest-state-delta "$PY" "$DRIVERS/guest_state_delta.py" --expect "$EXPECT_SERVICES" --expect-restarted "$CONTROLLER" "$BEFORE" "$AFTER"
+    live_ex guest-state-delta "$PY" "$DRIVERS/guest_state_delta.py" --expect "$EXPECT_SERVICES" --expect-restarted "$CONTROLLER" "$BEFORE" "$AFTER"
     gsd_rc=$?
     DELTA_OUT=$(ls "$A"/console/*-guest-state-delta.stdout.txt 2> /dev/null | tail -n 1)
     seen_faults=$(delta_faults "$DELTA_OUT")
@@ -1065,7 +1674,9 @@ if [ -n "$AFTER" ]; then
             2) [ "$delta_problems" -gt 0 ] && delta_trusted=1 ;;
         esac
     fi
-    if [ "$gsd_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
+    if [ "$gsd_rc" -eq "$STEP_NOT_STARTED" ] || [ "$gsd_rc" -eq 124 ] || [ "$gsd_rc" -eq 137 ]; then
+        :   # the stop rule (recorded): no comparison was made
+    elif [ "$gsd_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
         mandatory+=("$(capture_note guest-state-delta)")
     elif [ "$delta_trusted" -eq 0 ]; then
         missed "the two guest states could not be compared (guest-state-delta exit $gsd_rc: the comparison itself failed, printing no 'guest-state-delta: faults=N problems=M' line that agrees with that status)"
@@ -1323,8 +1934,19 @@ fi
 set_field "extension=$EXTENSION_RESULT"
 
 # --- 18. the three verdicts, never merged ----------------------------------------------
+# The live observations not made after the attempt's stop rule was reached
+# are recorded as incomplete, by name, in the order they would have run.
+if [ "${#not_started[@]}" -ne 0 ]; then
+    skipped=""
+    for name in "${not_started[@]}"; do
+        skipped="${skipped:+$skipped, }$name"
+    done
+    incomplete+=("not run after the attempt's stop rule was reached (no further proof step starts): $skipped")
+    session_update "instants.not_started_after_stop_rule=$skipped"
+fi
 # Instrumentation validity: no mandatory record missing AND the proof's
-# evidence complete (P-8: the harness's own validity is quoted, not decisive).
+# evidence complete (P-8: the harness's own validity is quoted, not decisive;
+# P-16: the eligibility of the run is a mandatory reading of its own).
 validity=valid
 [ "$EVIDENCE_COMPLETE" = true ] || missed "the proof's evidence is not complete (analysis/proof_verdict.json instrumentation.proof_evidence.complete is not true)"
 # System outcome: the evaluator's result, and beside it any fault the guest
@@ -1367,12 +1989,41 @@ fi
 reason="${reason}${PROOF_NOTE} (evaluate exit $v_rc); ${HARNESS_NOTE} (harness exit $h_rc; restart shown: $RESTART_SHOWN; delta exit $delta_rc)"
 [ "$EXTENSION_RESULT" = not-chosen ] || reason="${reason}; optional extension: $EXTENSION_RESULT (recorded apart, it decides nothing of the proof)"
 reason="${reason}${restored_note}; the guest was left with $(guest_state_text)"
-case "$EVALUATOR_RESULT" in
-    supports) next="the result stands for this run only: one run supports the property for that run and does not prove it in general; the candidate freeze and any resumption of G3 runs are separate decisions" ;;
-    refutes) next="a refutation is a result: record it, never re-run it away; the option is re-decided by the student (option 4 next best, never automatic)" ;;
-    inconclusive) next="an inconclusive run is not passing: the student decides whether to repeat it with the same design (recorded as a repeat, this run kept) or to re-decide the option" ;;
-    *) next="read console/ and analysis/; the records are kept as they are, and the student decides whether to repeat (recorded as a repeat, this run kept) or to re-decide the option" ;;
+# The next action follows the attempt's FINAL verdicts - the validity, the
+# outcome and the restoration, after every downgrade above - never the
+# evaluator's raw result, which stays visible in the reason as the
+# component it is (R1, P-17): a supporting component result downgraded by
+# an unshown restart, an incomplete restoration, a stop rule, a missing
+# record or an observed fault never reads "the result stands".
+downgrade=""
+if [ "$EVALUATOR_RESULT" = supports ] && [ "$outcome" != pass ]; then
+    if [ "${#observed[@]}" -ne 0 ]; then downgrade="a fault the guest state showed"
+    elif [ "${#stoprules[@]}" -ne 0 ]; then downgrade="a stop rule reached"
+    elif [ "${#mandatory[@]}" -ne 0 ]; then downgrade="an evidence requirement not met (${mandatory[0]})"
+    elif [ "${#incomplete[@]}" -ne 0 ]; then downgrade="a post-window observation not made"
+    elif [ "$STACK_STATE" != healthy ]; then downgrade="the guest not fully restored (stack=$STACK_STATE)"
+    else downgrade="the attempt's final verdicts"
+    fi
+fi
+case "$outcome" in
+    pass)
+        next="the result stands for this run only: one run supports the property for that run and does not prove it in general; the candidate freeze and any resumption of G3 runs are separate decisions" ;;
+    fail)
+        if [ "$EVALUATOR_RESULT" = refutes ]; then
+            next="a refutation is a result: record it, never re-run it away; the option is re-decided by the student (option 4 next best, never automatic)"
+        else
+            next="a fault the guest state showed beside the proof's own restart is a valid negative result: record it, never re-run it away; the evaluator's component result ($EVALUATOR_RESULT) does not stand for the attempt; the option is re-decided by the student (option 4 next best, never automatic)"
+        fi
+        ;;
+    *)
+        next="the attempt is inconclusive, not passing"
+        [ -z "$downgrade" ] || next="$next (the evaluator's component result, supports, does not stand for the attempt: $downgrade)"
+        [ "$EVALUATOR_RESULT" != not-computed ] || next="$next (the proof was not evaluated: read console/ and analysis/)"
+        next="$next: the student decides whether to repeat it with the same design (recorded as a repeat, this run kept) or to re-decide the option"
+        ;;
 esac
+[ "$validity" = valid ] || next="$next; the attempt's instrumentation is invalid: the evidence requirement(s) not met are in the reason and in console/"
+[ "$STACK_STATE" = healthy ] || next="$next; the stack was left $STACK_STATE: resolve it before any other guest session"
 [ -n "$FIRST" ] || FIRST="$PROOF_NOTE"
 headline "$A" "$FIRST" || true
 set_field "restoration=$(guest_state_text)"
