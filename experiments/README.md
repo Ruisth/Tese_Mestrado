@@ -529,8 +529,10 @@ copy of the events, the two twin snapshots, `controller_metrics.csv` (read in
 file order, with `started_at` telling the pre-kill process from the next and
 an empty cell read as absent, never zero) and the controller log's A5
 occurrences, and writes one verdict document with three sections never
-merged: `instrumentation` (the harness's `validity` quoted verbatim and, for
-the campaign's `MAX_SAMPLE_GAP_S` rule alone, never decisive, the seal,
+merged: `instrumentation` (the harness's `validity` quoted verbatim and never
+decisive by itself — the proof's requirements are checked apart, `E-11`
+below, and the ADR names the campaign's `MAX_SAMPLE_GAP_S` rule as one the
+proof's reconciliation does not touch — the seal,
 whether the proof's evidence is complete with every absence named, and
 whether the run is eligible for the proof at all, `E-11` below, with every
 failed requirement named), `system_outcome` (`supports`, `refutes` or `inconclusive`;
@@ -552,27 +554,37 @@ restart command's window, from the command's start to its end plus the host
 band, where the kill lands — can be shown neither in progress at the kill
 nor not, so it is neither a named N1 case nor R3, and the run is
 inconclusive on that ground, never refuted; `E-4`: one identity claiming the
-kill beside such an unshown one is neither named nor R3 either; `E-9`: the
+kill beside such an unshown one is neither named nor R3 either, and with
+more than one controller process start recorded after the pre-kill one (a
+further death the plan did not prescribe, never named as a source) no
+claimant of the kill is named and each is unshown; `E-9`: the
 device of an unshown identity is undecided for S5/R4 only while some naming
 of it that the twin's count allows leaves `delta` right — a surplus beyond
 the unshown identities, a `last_seq` regressed against the before snapshot,
 or a `last_run_id` wrong whether or not they are named, is R4 on the twin's
 evidence, which was read; `E-10`, from the Project Manager's review of PR #47
 (2026-09-25): those namings respect the sources the run evidences and their
-capacity across the whole run, never per device — the kill gives at most one
-N1 case in the run and each A5 occurrence read from the controller log at
-most one, so an unshown identity's device is explained only while the
-undecided devices together need no more cases than the sources allow; a
-surplus of two on one device, or of one on each of two devices, with one kill
-and no such occurrence, is R4 on the read evidence, without naming one
-identity or device as the mismatch when only the aggregate is established,
-and without assuming an A3 event the log does not record; with the
-controller log unusable the capacity is unknown, so E-9's count alone
-applies and the run stays inconclusive, never refuted on capacity grounds;
+capacity across the whole run, each source serving what it can — a recorded
+death (every controller process start the readings record after the
+pre-kill one, or the manifest's kill when they record none) gives at most
+one N1 case in the run, whichever device's, and each A5 occurrence read from
+the controller log at most one, of its own device alone, so an unshown
+identity's device is explained only while the deaths cover, together, every
+undecided device's cases beyond the occurrences on it; a surplus of two on
+one device, or of one on each of two devices, with one death and no such
+occurrence, is R4 on the read evidence, naming a device as the mismatch
+only when its own need beyond its occurrences exceeds every recorded death,
+never an identity, and without assuming an A3 event the log does not record;
+with the controller log unusable the capacity is unknown, so E-9's count
+alone applies and the run stays inconclusive, never refuted on capacity
+grounds;
 `E-11`, from the same review: the run must be the execution the ADR
 prescribes with the records it lists, checked apart from the harness's
-`validity` (which stays quoted and, for the campaign's `MAX_SAMPLE_GAP_S`
-rule alone, never decisive) — the manifest's entry the diagnostic plan's
+`validity` (which stays quoted and never decides the proof by itself: what
+the proof needs is required here, whatever the harness's verdict, a harness
+reason outside these requirements is reported, not decisive, and the ADR
+names the campaign's `MAX_SAMPLE_GAP_S` rule as one the proof's
+reconciliation does not touch) — the manifest's entry the diagnostic plan's
 (`controller_restart`, `nominal`, 300 s at 11.2 msg/s, no warm-up) with the
 simulator exited 0; the publication completed and the population whole,
 on the simulator's own manifest (`logs/simulator/<run_id>/manifest.json`:

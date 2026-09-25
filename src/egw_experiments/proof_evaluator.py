@@ -14,9 +14,9 @@ with the item-18 records), the session facts the driver writes beside it,
 and prints one verdict document, ``proof_verdict.json``, with three
 sections that are never merged:
 
-- ``instrumentation``: the harness's own ``validity`` kept as recorded and,
-  for the campaign's ``MAX_SAMPLE_GAP_S`` rule alone, never decisive, the
-  seal, whether the proof's evidence is complete (both twin snapshots
+- ``instrumentation``: the harness's own ``validity`` kept as recorded and
+  never decisive by itself (the proof's requirements are checked apart,
+  E-11), the seal, whether the proof's evidence is complete (both twin snapshots
   verified, a verified drain that was quiet or gave up, the harness copy of
   the events fetched, the post-drain copy fetched and verified, the three
   SUT logs fetched, the collector file, the configuration identity embedded
@@ -384,7 +384,14 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "end) and can be shown neither way (E-7, E-8), the case may be the "
         "other's: the claimant is neither named nor R3, and its device is "
         "undecided (E-9). A candidate the twin shows unapplied is R3 whatever "
-        "was in progress at the kill and claims no case."
+        "was in progress at the kill and claims no case. When the readings "
+        "record more than one controller process start after the pre-kill "
+        "one, a further death is recorded that the plan did not prescribe and "
+        "P-4 never names as a source: a claimant of the kill cannot be told "
+        "from an identity in progress at that further death, so no kill case "
+        "is named and every claimant is neither named nor R3, its device "
+        "undecided (E-9); each recorded death counts one to the capacity "
+        "(E-10)."
     ),
     "E-5": (
         "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
@@ -453,37 +460,48 @@ IDENTIFICATION_RULES: dict[str, str] = {
     ),
     "E-10": (
         "The namings E-9 tries respect the sources the run evidences and "
-        "their capacity across the whole run, never per device (N1: at most "
-        "one such identity per death, or per connection ended under A3 after "
-        "a PATCH, since there is one consumer): the kill gives at most one N1 "
-        "case in the run (P-4's conditions on the manifest's restart record; "
-        "none when a kill case is already named), and each A5 occurrence read "
-        "from the controller log at most one (none when it named a case, or "
-        "when its delivery was received after every undecided candidate's "
-        "redelivery on its device). With the log read, an undecided candidate "
-        "(E-8, E-4) can have only the kill as its source, since an occurrence "
-        "that could serve it names it under P-4, so at most one undecided "
-        "candidate of the whole run is named in any naming. When the "
-        "undecided devices' figures together need more cases than the sources "
-        "allow (a surplus of two on one device, or of one on each of two, "
-        "with one kill and no such occurrence), no source-consistent naming "
-        "explains the twins: R4 is observed and S5 does not hold, on the "
-        "twin's evidence and the record, which were read, with every "
-        "undecided device's figures shown, no one identity or device named as "
-        "the mismatch when only the aggregate is established, and no A3 event "
-        "assumed that the log does not record; S4 and R3 stay null for the "
-        "candidates. When the controller log cannot serve the criteria (E-7) "
-        "the number of A3 connection ends is unknown, so the capacity is "
-        "unknown: E-9's count alone applies and the run stays inconclusive, "
-        "never refuted on capacity grounds, since an unread log is not proof "
-        "of zero A3 events."
+        "their capacity across the whole run, each source serving what it "
+        "can (N1: at most one such identity per death, or per connection "
+        "ended under A3 after a PATCH, since there is one consumer): a "
+        "recorded death gives at most one N1 case in the run, whichever "
+        "device's - the deaths are every controller process start the "
+        "readings record after the pre-kill one, or the manifest's kill "
+        "(P-4's conditions on its restart record) when they record none, "
+        "less the kill case already named - and each A5 occurrence read from "
+        "the controller log at most one, of its own device alone (none when "
+        "it named a case, or when its delivery was received after every "
+        "undecided candidate's redelivery on its device); occurrences on one "
+        "device never serve another's need. With the log read, an undecided "
+        "candidate (E-8, E-4) can have only a death as its source, since an "
+        "occurrence that could serve it names it under P-4. So the cases an "
+        "undecided device needs beyond the occurrences on it can be served "
+        "only by the deaths, and the deaths must cover every undecided "
+        "device's such cases together. When they cannot (a surplus of two on "
+        "one device, or of one on each of two, with one death and no such "
+        "occurrence), no source-consistent naming explains the twins: R4 is "
+        "observed and S5 does not hold, on the twin's evidence and the "
+        "record, which were read, with every undecided device's figures "
+        "shown; a device whose need beyond its own occurrences exceeds every "
+        "recorded death is the mismatch by itself, whatever the deaths "
+        "served, and otherwise only the aggregate is established and no "
+        "device is named as the mismatch; no identity is named as the case, "
+        "with no A3 event assumed that the log does not record; S4 and R3 "
+        "stay null for the candidates. When the controller log cannot serve "
+        "the criteria (E-7) the number of A3 connection ends is unknown, so "
+        "the capacity is unknown: E-9's count alone applies and the run "
+        "stays inconclusive, never refuted on capacity grounds, since an "
+        "unread log is not proof of zero A3 events."
     ),
     "E-11": (
         "The proof is evaluated only on the execution the ADR prescribes and "
         "the records it lists ('The finite proof', 'What it records'), checked "
-        "apart from the harness's own validity, which stays quoted and, for "
-        "the campaign's MAX_SAMPLE_GAP_S rule alone, non-decisive ('What it "
-        "cannot show'): the load and fault of the plan (condition "
+        "apart from the harness's own validity, which stays quoted and never "
+        "decides the proof by itself: what the proof needs of the run is "
+        "required here and in the evidence inventory, whatever the harness's "
+        "verdict, and a harness reason outside these requirements is "
+        "reported, not decisive (the ADR names the campaign's "
+        "MAX_SAMPLE_GAP_S rule as one the proof's reconciliation does not "
+        "touch, 'What it cannot show'): the load and fault of the plan (condition "
         "controller_restart, the nominal scenario, 300 s at 11.2 msg/s, no "
         "warm-up, as the manifest's entry records them) with the simulator "
         "exited 0; the publication completed and the population whole (the "
@@ -1710,6 +1728,7 @@ def name_n1_cases(
     restart: dict[str, Any],
     twins_problem: str | None = None,
     log_problem: str | None = None,
+    post_kill_started_at: list[str] | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -1723,9 +1742,17 @@ def name_n1_cases(
     controller clock or was published inside the restart command's window
     (E-8), or because it claims the kill beside such a candidate that may
     have been in progress at it (E-4): its device is then undecided for
-    S5/R4 (E-9)."""
+    S5/R4 (E-9). ``post_kill_started_at`` is every controller process the
+    readings record after the pre-kill one: each is a death (E-10); more
+    than one is a death the plan did not prescribe, never named as a
+    source (P-4), beside which no claimant of the kill is named (E-4)."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
+    #: The deaths the run records: every process start the readings show
+    #: after the pre-kill process, or the manifest's kill when the readings
+    #: show none (E-10).
+    starts = list(post_kill_started_at or [])
+    deaths = max(len(starts), 1 if restart_ok else 0)
     restart_class = set(classification.restart_class)
     ambiguous = set(classification.ambiguous)
     before_kill = set(classification.published_before_kill)
@@ -1954,7 +1981,34 @@ def name_n1_cases(
                     "no A5 occurrence names its device before its redelivery and the kill cannot "
                     "be its source: " + "; ".join(why),
                 )
-    if len(kill_claimants) == 1:
+    if deaths > 1:
+        notes.append(
+            f"the readings record {deaths} controller process starts after the pre-kill one "
+            f"({', '.join(starts)}): the plan prescribes one kill, so a further death is "
+            "recorded that P-4 never names as a source; each recorded death counts one to "
+            "the capacity (E-10) and no claimant of the kill is named beside it (E-4)"
+        )
+    if len(kill_claimants) == 1 and deaths > 1:
+        # E-4 with a further death recorded: the claimant may have been in
+        # progress at the command's kill or at the other death, which P-4
+        # cannot name; the twin shows it applied, so it is not R3 either.
+        candidate, facts = kill_claimants[0]
+        if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
+            _reject(
+                candidate,
+                f"the after snapshot's last_seq {facts.after_last_seq} is below the identity's seq {candidate['seq']}",
+            )
+        else:
+            _cannot_show(
+                candidate, "E-4",
+                "it claims the kill as its source (restart-class, published before the restart "
+                f"command's start, the restart executed with exit 0), but the readings record "
+                f"{deaths} controller process starts after the pre-kill one ({', '.join(starts)}): "
+                "at most one N1 case per death (E-4), and whether it was in progress at the "
+                "command's kill or at the further death, which is never named as a source "
+                "(P-4), cannot be told, so it is neither named nor R3",
+            )
+    elif len(kill_claimants) == 1:
         candidate, facts = kill_claimants[0]
         if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
             _reject(
@@ -2000,7 +2054,17 @@ def name_n1_cases(
             "most one N1 case per death (N1), so none is named"
         )
         for candidate, _facts in kill_claimants:
-            if log_problem is not None:
+            if deaths > 1:
+                _cannot_show(
+                    candidate, "E-4",
+                    f"{len(kill_claimants)} identities claim the kill as their source and the "
+                    f"readings record {deaths} controller process starts after the pre-kill one "
+                    f"({', '.join(starts)}): at most one N1 case per death (E-4), and which of "
+                    "them, if any, was in progress at the command's kill rather than at the "
+                    "further death, which is never named as a source (P-4), cannot be told, so "
+                    "none is named and none is R3",
+                )
+            elif log_problem is not None:
                 _cannot_show(
                     candidate, "E-7",
                     "more than one identity claims the one death (at most one N1 case per "
@@ -2034,11 +2098,11 @@ def name_n1_cases(
         entry["message_ids"].sort()
     # E-10: the sources the run evidences, for the namings E-9 tries on the
     # undecided devices. With the log read, an undecided candidate's only
-    # possible source is the kill (an occurrence that could serve it named
+    # possible source is a death (an occurrence that could serve it named
     # it above); an unused occurrence on its device counts only when its
     # order against some undecided candidate's redelivery cannot be read or
-    # precedes it. With the log unusable, the number of A3 connection ends,
-    # and so the capacity, is unknown.
+    # precedes it, and serves that device alone. With the log unusable, the
+    # number of A3 connection ends, and so the capacity, is unknown.
     kill_named = [case["message_id"] for case in named if case["source"] == "kill"]
     a5_possible: dict[str, list[int]] = {}
     for device, entry in undecided.items():
@@ -2060,7 +2124,9 @@ def name_n1_cases(
     sources = {
         "known": log_problem is None,
         "why_unknown": log_problem,
-        "kill_available": 1 if restart_ok and not kill_named else 0,
+        "deaths_recorded": deaths,
+        "post_kill_started_at": starts,
+        "kill_available": max(0, deaths - len(kill_named)),
         "kill_named": kill_named,
         "a5_occurrences_read": len(occurrences),
         "a5_occurrences_used": sorted(used_occurrences),
@@ -2319,50 +2385,81 @@ def s5_r4_delta(
         if regressed is not None:
             regressions.append({"device_uuid": device, "regressed": regressed})
     # E-10: the namings that explain each undecided device's count must,
-    # together, fit the sources the run evidences; with the log unusable
-    # the capacity is unknown and nothing is decided on it.
+    # together, fit the sources the run evidences, each source serving what
+    # it can: an A5 occurrence a candidate of its own device alone, a death
+    # at most one candidate of the whole run. So the cases a device needs
+    # beyond the occurrences on it can be served only by the deaths, and
+    # the deaths must cover every device's such cases together. With the
+    # log unusable the capacity is unknown and nothing is decided on it.
     sources = naming.sources
     a5_possible = {
         device: list((sources.get("a5_possible_by_device") or {}).get(device, []))
         for device, _count, _row in pending
     }
+    needed_by_device = {device: count for device, count, _row in pending}
+    beyond_a5 = {device: max(0, count - len(a5_possible[device])) for device, count in needed_by_device.items()}
     capacity_evidence: dict[str, Any] = {
         "applied": bool(pending) and bool(sources.get("known")),
         "known": bool(sources.get("known")),
         "why_unknown": sources.get("why_unknown"),
+        "deaths_recorded": sources.get("deaths_recorded"),
+        "post_kill_started_at": sources.get("post_kill_started_at"),
         "kill_available": sources.get("kill_available"),
         "a5_possible_by_device": a5_possible,
-        "needed": sum(count for _device, count, _row in pending) if pending else None,
-        "capacity": None,
+        "needed_by_device": needed_by_device,
+        "needed": sum(needed_by_device.values()) if pending else None,
+        "beyond_a5_by_device": beyond_a5,
+        "kill_needed": sum(beyond_a5.values()) if pending else None,
         "consistent": None,
+        "rule": (
+            "an A5 occurrence serves a candidate of its own device alone; a recorded death "
+            "serves at most one candidate of the whole run (E-10)"
+        ),
     }
     on_sources: dict[str, Any] | None = None
     if capacity_evidence["applied"]:
-        needed = int(capacity_evidence["needed"])
-        a5_count = sum(len(lines) for lines in a5_possible.values())
-        capacity = int(sources.get("kill_available") or 0) + a5_count
-        capacity_evidence["capacity"] = capacity
-        capacity_evidence["consistent"] = needed <= capacity
-        for _device, _count, row in pending:
-            row["undecided"]["source_consistent"] = needed <= capacity
-        if needed > capacity:
-            names = [device for device, _count, _row in pending]
-            ids = sorted(m for _device, _count, row in pending for m in row["undecided"]["message_ids"])
+        kill_needed = int(capacity_evidence["kill_needed"])
+        kill_available = int(sources.get("kill_available") or 0)
+        consistent = kill_needed <= kill_available
+        capacity_evidence["consistent"] = consistent
+        for device, _count, row in pending:
+            # A device whose own occurrences cover its count is explained
+            # whatever the deaths served; one that needs a death is
+            # consistent only when the deaths cover every such device.
+            row["undecided"]["source_consistent"] = beyond_a5[device] == 0 or consistent
+        if not consistent:
+            competing = [device for device, _count, _row in pending if beyond_a5[device] > 0]
+            # A device whose need beyond its own occurrences exceeds every
+            # recorded death is the mismatch by itself, whatever the deaths
+            # served; otherwise only the aggregate is established.
+            on_own = [device for device in competing if beyond_a5[device] > kill_available]
+            ids = sorted(
+                m for device, _count, row in pending if device in competing for m in row["undecided"]["message_ids"]
+            )
             on_sources = {
-                "device_uuid": names[0] if len(names) == 1 else None,
-                "devices": names,
+                "device_uuid": on_own[0] if len(on_own) == 1 else None,
+                "devices": competing,
+                "stands_on": on_own,
                 "problems": [
-                    f"the undecided device(s) together need {needed} N1 case(s) beyond the named "
-                    "ones, against the sources the run evidences: the kill "
-                    f"({sources.get('kill_available')} available) and {a5_count} A5 occurrence(s) "
-                    "that could serve them: no source-consistent naming explains the twins"
+                    f"the undecided device(s) {', '.join(competing)} need {kill_needed} N1 case(s) "
+                    "beyond the named ones that no A5 occurrence on their own device can serve "
+                    f"({', '.join(f'{device}: {beyond_a5[device]}' for device in competing)}), "
+                    f"against {kill_available} recorded death(s) available, each serving at most "
+                    "one candidate of the whole run: no source-consistent naming explains the twins"
                 ],
                 "undecided_candidates": ids,
                 "note": (
-                    "which device's figures are the mismatch cannot be told when more than one "
-                    "is undecided, so no identity is named as the case and none as the mismatch; "
-                    "each device's figures are shown as read, with the namings its count alone "
-                    "would allow (E-10)"
+                    (
+                        f"the mismatch stands on {', '.join(on_own)} by itself, whatever the death(s) "
+                        "served, since its need beyond its own occurrences exceeds every recorded "
+                        "death; "
+                        if on_own
+                        else
+                        "which device's figures are the mismatch cannot be told when more than one "
+                        "needs a death, so "
+                    )
+                    + "no identity is named as the case and none as the mismatch; each device's "
+                    "figures are shown as read, with the namings its count alone would allow (E-10)"
                 ),
             }
             mismatches.append(on_sources)
@@ -2393,10 +2490,17 @@ def s5_r4_delta(
             )
         if on_sources is not None:
             parts.append(
-                f"{len(on_sources['devices'])} undecided device(s) whose twins together need "
-                f"{capacity_evidence['needed']} N1 case(s) against a source capacity of "
-                f"{capacity_evidence['capacity']}: a delta mismatch beyond the named cases stands "
-                "on at least one of them, which cannot be told (E-10)"
+                f"{len(on_sources['devices'])} undecided device(s) whose twins need "
+                f"{capacity_evidence['kill_needed']} N1 case(s) that only a death could serve "
+                "(no A5 occurrence on their own device can), against "
+                f"{capacity_evidence['kill_available']} recorded death(s): a delta mismatch "
+                "beyond the named cases stands on "
+                + (
+                    f"{', '.join(on_sources['stands_on'])} whatever the death(s) served"
+                    if on_sources["stands_on"]
+                    else "at least one of them, which cannot be told"
+                )
+                + " (E-10)"
             )
         reason = "; ".join(parts)
     observed = bool(mismatches or regressions)
@@ -2758,9 +2862,10 @@ class Eligibility:
             "checks": self.checks,
             "note": (
                 "checked apart from the harness's validity, which is quoted and never "
-                "decisive for the campaign's MAX_SAMPLE_GAP_S rule alone; a run that is not "
-                "eligible is inconclusive, never 'supports', and a refutation observed on "
-                "evidence that was read and verified stands (P-7)"
+                "decides the proof by itself (E-11 states what the proof requires; the "
+                "campaign's MAX_SAMPLE_GAP_S rule is the one the ADR names as not touching "
+                "the proof); a run that is not eligible is inconclusive, never 'supports', "
+                "and a refutation observed on evidence that was read and verified stands (P-7)"
             ),
         }
 
@@ -3179,6 +3284,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         restart,
         twins_problem,
         log_problem,
+        split.post_started_ats,
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))

@@ -19,8 +19,10 @@ mutation it must catch; and, in the section after test 27, the Project
 Manager's review of PR #47 (2026-09-25): the proof's eligibility (E-11: the
 prescribed load, the publication completed, the population record whole,
 the fault demonstrated, the harness copy and the collector file in the
-inventory), the N1 sources' capacity across the run (E-10) and the drain
-verified before R1.
+inventory), the N1 sources' capacity across the run (E-10: an A5 occurrence
+serving its own device alone, a recorded death at most one candidate of the
+whole run, a further controller process start a recorded death that names
+no kill case) and the drain verified before R1.
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -430,6 +432,13 @@ def _outcome(doc: dict) -> dict:
 
 def _criterion(doc: dict, rule_id: str) -> dict:
     return doc["system_outcome"]["criteria"][rule_id]
+
+
+def _capacity(doc: dict) -> dict:
+    """The E-10 figures of R4's evidence, without the rule text they carry."""
+    figures = dict(_criterion(doc, "R4")["evidence"]["source_capacity"])
+    assert "own device alone" in figures.pop("rule") and "(E-10)" in _criterion(doc, "R4")["evidence"]["source_capacity"]["rule"]
+    return figures
 
 
 def _a5_line(device: str, received_ns: int, *, prefix: str = "2026-09-25T10:03:10.000000000Z ", cause: str = "write-failed") -> str:
@@ -1571,22 +1580,24 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3_a
     r4 = _criterion(doc, "R4")
     assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
     assert outcome["refutations"] == [
-        "R4: 2 undecided device(s) whose twins together need 2 N1 case(s) against a source capacity "
-        "of 1: a delta mismatch beyond the named cases stands on at least one of them, which cannot "
-        "be told (E-10)"
+        "R4: 2 undecided device(s) whose twins need 2 N1 case(s) that only a death could serve (no A5 "
+        "occurrence on their own device can), against 1 recorded death(s): a delta mismatch beyond the "
+        "named cases stands on at least one of them, which cannot be told (E-10)"
     ]
     assert [(u["device_uuid"], u["rule"], u["message_ids"]) for u in r4["evidence"]["undecided"]] == [
         (D1, "E-4", ["b-mid"]), (D3, "E-8", ["g-mid"]),
     ]
-    assert r4["evidence"]["source_capacity"] == {
-        "applied": True, "known": True, "why_unknown": None, "kill_available": 1,
-        "a5_possible_by_device": {D1: [], D3: []}, "needed": 2, "capacity": 1, "consistent": False,
+    assert _capacity(doc) == {
+        "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
+        "kill_available": 1, "a5_possible_by_device": {D1: [], D3: []}, "needed_by_device": {D1: 1, D3: 1},
+        "needed": 2, "beyond_a5_by_device": {D1: 1, D3: 1}, "kill_needed": 2, "consistent": False,
     }
     mismatches = r4["evidence"]["mismatches"]
     assert len(mismatches) == 1 and mismatches[0]["device_uuid"] is None and mismatches[0]["devices"] == [D1, D3]
-    assert mismatches[0]["undecided_candidates"] == ["b-mid", "g-mid"]
+    assert mismatches[0]["stands_on"] == [] and mismatches[0]["undecided_candidates"] == ["b-mid", "g-mid"]
     assert "no source-consistent naming explains the twins" in mismatches[0]["problems"][0]
-    assert "the kill (1 available) and 0 A5 occurrence(s)" in mismatches[0]["problems"][0]
+    assert f"({D1}: 1, {D3}: 1), against 1 recorded death(s) available" in mismatches[0]["problems"][0]
+    assert "cannot be told when more than one needs a death" in mismatches[0]["note"]
     assert "no identity is named as the case and none as the mismatch" in mismatches[0]["note"] and "(E-10)" in mismatches[0]["note"]
     # Per device the figures stay as read: each count is explained on its
     # own and marked inconsistent with the sources; neither is named.
@@ -1613,11 +1624,15 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3_a
     row = next(row for row in r4["evidence"]["devices"] if row["device_uuid"] == D1)
     assert row["ok"] is None and row["undecided"]["namings_tried"][0]["named_cases"] == 2
     assert row["undecided"]["namings_tried"][0]["delta_ok"] is True and row["undecided"]["source_consistent"] is False
-    assert (r4["evidence"]["source_capacity"]["needed"], r4["evidence"]["source_capacity"]["capacity"]) == (2, 1)
+    capacity = _capacity(doc)
+    assert (capacity["needed"], capacity["kill_needed"], capacity["kill_available"]) == (2, 2, 1)
     assert r4["evidence"]["mismatches"][0]["device_uuid"] == D1 and r4["evidence"]["mismatches"][0]["devices"] == [D1]
+    assert r4["evidence"]["mismatches"][0]["stands_on"] == [D1]
+    assert f"stands on {D1} by itself" in r4["evidence"]["mismatches"][0]["note"]
     assert r4["reason"] == (
-        "1 undecided device(s) whose twins together need 2 N1 case(s) against a source capacity of 1: "
-        "a delta mismatch beyond the named cases stands on at least one of them, which cannot be told (E-10)"
+        "1 undecided device(s) whose twins need 2 N1 case(s) that only a death could serve (no A5 "
+        f"occurrence on their own device can), against 1 recorded death(s): a delta mismatch beyond the "
+        f"named cases stands on {D1} whatever the death(s) served (E-10)"
     )
     # G unshown by the controller log instead (E-7): the claimant is unshown
     # with that label, the capacity unknown (an unread log is not proof of
@@ -1672,15 +1687,18 @@ def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> N
     # undecided candidate: the one death cannot explain both twins.
     doc = _evaluate(sent=SENT + [G], lines=lines, extra_after=twins, controller_log=[_a5_line(D3, in_band + NS)])
     assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
-    capacity = _criterion(doc, "R4")["evidence"]["source_capacity"]
-    assert capacity["a5_possible_by_device"] == {D1: [], D3: []} and (capacity["needed"], capacity["capacity"]) == (2, 1)
+    capacity = _capacity(doc)
+    assert capacity["a5_possible_by_device"] == {D1: [], D3: []} and capacity["beyond_a5_by_device"] == {D1: 1, D3: 1}
+    assert (capacity["needed"], capacity["kill_needed"], capacity["kill_available"]) == (2, 2, 1)
     assert _outcome(doc)["report"]["a5_occurrences"][0]["device_uuid"] == D3  # read, reported, not a source of G
-    # G's line without a received stamp: the occurrence may be its source.
+    # G's line without a received stamp: the occurrence may be its source,
+    # and D3 is then covered by its own occurrence, D1 by the death.
     unstamped = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", None, None)]
     doc = _evaluate(sent=SENT + [G], lines=unstamped, extra_after=twins, controller_log=[_a5_line(D3, in_band + NS)])
     assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == [] and _outcome(doc)["n1_cases"] == []
-    capacity = _criterion(doc, "R4")["evidence"]["source_capacity"]
-    assert capacity["a5_possible_by_device"] == {D1: [], D3: [1]} and (capacity["needed"], capacity["capacity"]) == (2, 2)
+    capacity = _capacity(doc)
+    assert capacity["a5_possible_by_device"] == {D1: [], D3: [1]} and capacity["beyond_a5_by_device"] == {D1: 1, D3: 0}
+    assert (capacity["needed"], capacity["kill_needed"], capacity["kill_available"]) == (2, 1, 1)
     assert capacity["consistent"] is True and _criterion(doc, "R4")["observed"] is None
     for row in _criterion(doc, "R4")["evidence"]["devices"]:
         if row["device_uuid"] in (D1, D3):
@@ -1688,9 +1706,10 @@ def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> N
     # A single uncertain candidate against the one death: consistent, unshown.
     doc = _evaluate(lines=[line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", in_band, None)], extra_after={D1: 1, "seqs": [(D1, 1)]})
     assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
-    assert _criterion(doc, "R4")["evidence"]["source_capacity"] == {
-        "applied": True, "known": True, "why_unknown": None, "kill_available": 1,
-        "a5_possible_by_device": {D1: []}, "needed": 1, "capacity": 1, "consistent": True,
+    assert _capacity(doc) == {
+        "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
+        "kill_available": 1, "a5_possible_by_device": {D1: []}, "needed_by_device": {D1: 1}, "needed": 1,
+        "beyond_a5_by_device": {D1: 1}, "kill_needed": 1, "consistent": True,
     }
     # Two candidates on one device, surplus 2, the log unusable: E-7 leaves
     # both unshown and the capacity unknown; the count alone is read.
@@ -1710,6 +1729,143 @@ def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> N
     assert "E-10" in pe.IDENTIFICATION_RULES and "capacity" in pe.IDENTIFICATION_RULES["E-10"]
     assert "(E-10)" in pe.IDENTIFICATION_RULES["E-9"] and "not proof of zero A3 events" in pe.IDENTIFICATION_RULES["E-10"]
     assert "no A3 event assumed that the log does not record" in pe.IDENTIFICATION_RULES["E-10"]
+
+
+def test_an_a5_occurrence_serves_its_own_device_alone_and_a_death_at_most_one_candidate_of_the_run() -> None:
+    """E-10, the independent review of 2026-09-25 (P1): the capacity is
+    read per device, never as one sum over the run. D1 needs two cases (B
+    claims the kill beside F in the band: E-4, E-8) and D3 one (G's line
+    carries no received stamp: E-8), with two A5 occurrences on D3: D3 is
+    covered by its own occurrences, but nothing serves D1's second case,
+    so the mismatch stands on D1 by itself and the run refutes, where the
+    sum (one kill plus two occurrences against three needed) read the
+    twins as consistent. With D1 needing one (B alone beside G) the one
+    death serves D1 and an occurrence D3: consistent, inconclusive. An
+    occurrence that cannot serve G lends nothing to D1 either."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    two_on_d3 = [_a5_line(D3, in_band + NS), _a5_line(D3, in_band + 2 * NS)]
+    lines = B_DUPLICATE + [("f-mid", D1, 2, "duplicate", in_band, None), ("g-mid", D3, 1, "duplicate", None, None)]
+    twins = {D1: 2, D3: 1, "seqs": [(D1, 2), (D3, 1)]}
+    doc = _evaluate(sent=SENT + [F, G], lines=lines, extra_after=twins, controller_log=two_on_d3)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
+    assert outcome["refutations"] == [
+        "R4: 1 undecided device(s) whose twins need 2 N1 case(s) that only a death could serve (no A5 "
+        f"occurrence on their own device can), against 1 recorded death(s): a delta mismatch beyond the "
+        f"named cases stands on {D1} whatever the death(s) served (E-10)"
+    ]
+    capacity = _capacity(doc)
+    assert capacity["a5_possible_by_device"] == {D1: [], D3: [1, 2]} and capacity["needed_by_device"] == {D1: 2, D3: 1}
+    assert capacity["beyond_a5_by_device"] == {D1: 2, D3: 0} and capacity["needed"] == 3
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (2, 1, False)
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] == D1 and mismatch["devices"] == [D1] and mismatch["stands_on"] == [D1]
+    assert mismatch["undecided_candidates"] == ["b-mid", "f-mid"]
+    assert f"({D1}: 2), against 1 recorded death(s) available" in mismatch["problems"][0]
+    assert "no A5 occurrence on their own device can serve" in mismatch["problems"][0]
+    assert f"stands on {D1} by itself" in mismatch["note"] and "no identity is named as the case" in mismatch["note"]
+    rows = {row["device_uuid"]: row for row in r4["evidence"]["devices"]}
+    assert rows[D1]["undecided"]["source_consistent"] is False and rows[D3]["undecided"]["source_consistent"] is True
+    assert rows[D1]["ok"] is None and rows[D3]["ok"] is None
+    assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
+    # D1 needing one: the death serves it and an occurrence serves D3.
+    lines = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", None, None)]
+    doc = _evaluate(sent=SENT + [G], lines=lines, extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, controller_log=two_on_d3)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    capacity = _capacity(doc)
+    assert capacity["beyond_a5_by_device"] == {D1: 1, D3: 0} and (capacity["kill_needed"], capacity["kill_available"]) == (1, 1)
+    assert capacity["consistent"] is True and _criterion(doc, "R4")["observed"] is None
+    for row in _criterion(doc, "R4")["evidence"]["devices"]:
+        if row["device_uuid"] in (D1, D3):
+            assert row["undecided"]["source_consistent"] is True, row["device_uuid"]
+    # An occurrence received after G's redelivery serves no one: D1 (two
+    # beyond its occurrences) is the mismatch by itself, D3 competes for
+    # the death with it.
+    lines = B_DUPLICATE + [("f-mid", D1, 2, "duplicate", in_band, None), ("g-mid", D3, 1, "duplicate", in_band, None)]
+    doc = _evaluate(sent=SENT + [F, G], lines=lines, extra_after=twins, controller_log=[_a5_line(D3, in_band + NS)])
+    assert _outcome(doc)["result"] == "refutes"
+    capacity = _capacity(doc)
+    assert capacity["a5_possible_by_device"] == {D1: [], D3: []} and capacity["beyond_a5_by_device"] == {D1: 2, D3: 1}
+    assert (capacity["kill_needed"], capacity["kill_available"]) == (3, 1)
+    mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+    assert mismatch["devices"] == [D1, D3] and mismatch["stands_on"] == [D1] and mismatch["device_uuid"] == D1
+    assert f"stands on {D1} whatever the death(s) served (E-10)" in _criterion(doc, "R4")["reason"]
+    assert "of its own device alone" in pe.IDENTIFICATION_RULES["E-10"]
+    assert "the mismatch by itself" in pe.IDENTIFICATION_RULES["E-10"]
+
+
+def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_the_capacity_and_names_no_kill_case() -> None:
+    """E-10 and E-4, the independent review of 2026-09-25 (P2): the
+    readings record a third started_at after the restart's process, a
+    second death the plan did not prescribe. B, its only duplicate line
+    received after that start, claims the kill beside F in the band, and
+    D1 needs two cases: the record evidences two deaths, so a
+    source-consistent naming exists (one per death) and the run is
+    inconclusive with the starts named, never R4 against a capacity of
+    one that the run's own readings contradict. Needing three refutes
+    still. A lone claimant beside the further death is neither named nor
+    R3 (which death it was in progress at cannot be told, and P-4 names
+    the command's kill alone); two claimants, R3 under one death (test
+    22e), are unshown under two, which cover both."""
+    P2 = "2026-09-25T10:04:50Z"
+    rows = _rows() + [
+        _row(_ts(290), P2, 0, 0, monotonic_ns=K_UPPER + 85 * NS, unacked=0),
+        _row(_ts(295), P2, 0, 0, monotonic_ns=K_UPPER + 95 * NS, unacked=0),
+    ]
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    late_b = ("b-mid", D1, 1, "duplicate", K_UPPER + 90 * NS, None)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [late_b, ("f-mid", D1, 2, "duplicate", in_band, None)]
+    doc = _evaluate(sent=SENT + [F], lines=lines, extra_after={D1: 2, "seqs": [(D1, 2)]}, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    assert outcome["report"]["processes"]["post_kill_started_at"] == [P1, P2]
+    capacity = _capacity(doc)
+    assert capacity["deaths_recorded"] == 2 and capacity["post_kill_started_at"] == [P1, P2]
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (2, 2, True)
+    r3 = _criterion(doc, "R3")
+    shown = {c["message_id"]: c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"]}
+    assert list(shown) == ["b-mid", "f-mid"]
+    assert f"2 controller process starts after the pre-kill one ({P1}, {P2})" in shown["b-mid"] and "(E-4)" in shown["b-mid"]
+    assert "never named as a source (P-4)" in shown["b-mid"]
+    assert any("a further death is recorded that P-4 never names" in n and "(E-10)" in n for n in r3["evidence"]["notes"])
+    assert r3["observed"] is None and _criterion(doc, "S4")["holds"] is None
+    assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "S5")["holds"] is None
+    row = next(row for row in _criterion(doc, "R4")["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert row["undecided"]["source_consistent"] is True and row["undecided"]["message_ids"] == ["b-mid", "f-mid"]
+    # Needing three against the two recorded deaths: R4 on D1 by itself.
+    F2 = ("f2-mid", D1, 3, 402 * NS)
+    doc = _evaluate(sent=SENT + [F, F2], lines=lines + [("f2-mid", D1, 3, "duplicate", in_band, None)], extra_after={D1: 3, "seqs": [(D1, 3)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (3, 2, False)
+    assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
+    assert "against 2 recorded death(s)" in _criterion(doc, "R4")["reason"]
+    # A lone claimant beside the further death: unshown, not the kill's
+    # named case (which it is under one death, test 16).
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == [] and _outcome(doc)["refutations"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
+    assert list(shown) == ["b-mid"] and "further death, which is never named as a source (P-4)" in shown["b-mid"]
+    assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
+    assert _capacity(doc)["kill_available"] == 2 and _criterion(doc, "R4")["observed"] is None
+    assert [u["rule"] for u in _criterion(doc, "R4")["evidence"]["undecided"]] == ["E-4"]
+    # Two claimants (test 22e's, each R3 under one death): unshown under two.
+    G = ("g-mid", D3, 1, 380 * NS)
+    doc = _evaluate(sent=SENT + [G], lines=B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)], extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["evidence"]["not_named_identities"] == []
+    assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["b-mid", "g-mid"]
+    assert all("2 identities claim the kill" in c["why_not_shown"] and "(E-4)" in c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"])
+    assert any("2 duplicate-only identities claim the kill" in n for n in r3["evidence"]["notes"])
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (2, 2, True)
+    assert "recorded death" in pe.IDENTIFICATION_RULES["E-10"] and "further death" in pe.IDENTIFICATION_RULES["E-4"]
 
 
 def test_a_publication_inside_the_restart_commands_window_cannot_be_shown_and_never_refutes() -> None:
@@ -1852,6 +2008,33 @@ def test_harness_validity_is_recorded_verbatim_and_does_not_decide_the_proof() -
     assert eligibility["checks"]["fault"] == {
         "restart_executed": True, "restart_returncode": 0, "restart_ok": True, "restart_shown": True, "session_facts_present": True,
     }
+
+
+def test_the_harness_validity_never_decides_the_proof_by_itself_whatever_its_reason() -> None:
+    """E-11's text says what the code does (the independent review of
+    2026-09-25, P3): the harness's validity is quoted and never decisive
+    by itself, whatever its reason - not for the campaign's sampling-gap
+    rule alone, which the ADR names as the one not touching the proof. A
+    harness reason outside the proof's requirements (no controller
+    confirmation marker, sut_environment.json missing) leaves the run
+    eligible and supporting when every requirement of E-11 is met; a
+    requirement the harness's reasons overlap (the simulator's exit) is
+    checked on the record itself, never read from the validity."""
+    for reason in (
+        "no controller confirmation marker: the run end was not stamped in the controller's clock "
+        "domain (GET /metrics 'monotonic_ns' via --controller-url)",
+        "sut_environment.json missing: timed runs require the SUT environment captured ON the VM",
+    ):
+        doc = _evaluate(manifest=_manifest(validity="invalid", validity_reasons=[reason]))
+        assert doc["instrumentation"]["harness_validity"] == "invalid"
+        assert doc["instrumentation"]["harness_validity_reasons"] == [reason]
+        assert _eligibility(doc)["eligible"] is True and _outcome(doc)["result"] == "supports", reason
+    doc = _evaluate(manifest=_manifest(validity="valid", validity_reasons=[], simulator_returncode=1))
+    _assert_not_eligible(doc, "the simulator did not exit 0")
+    for text in (pe.IDENTIFICATION_RULES["E-11"], _eligibility(doc)["note"], pe.__doc__):
+        assert "never decides the proof by itself" in text or "never decisive by itself" in text, text[:80]
+        assert "rule alone" not in text, text[:80]
+    assert "MAX_SAMPLE_GAP_S" in pe.IDENTIFICATION_RULES["E-11"] and "reported, not decisive" in pe.IDENTIFICATION_RULES["E-11"]
 
 
 # ---------------------------------------------------------------------------
