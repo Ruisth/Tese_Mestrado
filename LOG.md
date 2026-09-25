@@ -3525,7 +3525,14 @@ is unchanged.
   before the tests ran (attempt01 of the same selection is kept as the
   record of a failed identity capture, with a note and its first seal kept
   as `SHA256SUMS.1`); the link checker, the evidence verifier and shellcheck
-  pass; the CI of the final head is the record for the whole suite. A
+  pass. The CI of `7fd72d4` then failed one case, the runbook-parsing test
+  of `itest_reconcile` whose anchor was the withdrawn `--also` example (the
+  focused selection had not included the modules that read the runbook):
+  the anchor moved to test 6's `--events` line (`44d2e41`), and the six
+  modules that read the runbook or belong to the delta (679 passed) are
+  recorded in `HIST_2026-09-25-pr46-delta-regressions-attempt03` with the
+  commit `44d2e41`, the tree hash and a clean status captured before the
+  run; the CI of the final head is the record for the whole suite. A
   qualification of the full-suite statement above: the association of that
   run with `95ed23d` is a reconstruction from commit times, because the
   script's identity capture failed and its empty status lines do not
