@@ -141,7 +141,17 @@ that service's baseline and never also a fault about it, while one the *after*
 record names and nobody expected is a container that appeared during the run;
 in the *after* record that same silence is the fault "gone after
 the run", unless that record names no container at all — one nobody could read
-shows nothing, and no container is reported gone out of it); `collector_check.py`
+shows nothing, and no container is reported gone out of it; a driver that
+itself restarts a container during the run — the proof session of ADR 0011
+kills the controller's container and starts it again — names it with
+`--expect-restarted NAME`, once per container, and the one in-place restart of
+that container (the same container id, a later start instant, the restart count
+and the OOM state untouched) is then an **expected restart** under a heading of
+its own and not a fault, while an OOM kill, a replacement, a restart count that
+moved or any other container's restart stays the fault it is, and a named
+container the pair shows no restart of at all is a problem — an expectation the
+pair does not confirm is never satisfied by silence; without the option every
+line is what it always was); `collector_check.py`
 and `nominal_account.py` belong to the collector and the accounting, the second
 of which is told by the driver whether the post-drain log was fetched, because
 a transfer that died mid-way leaves a file that is not a complete tail.
