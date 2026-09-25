@@ -284,6 +284,9 @@ manifest["simulator_returncode"] = simulator_exit
 manifest["validity"] = "invalid" if reasons else "valid"
 manifest["validity_reasons"] = reasons
 events_fetch = os.environ.get("EGW_STUB_EVENTS_FETCH", "ok")
+# The evaluator's builder carries an ok events_fetch record by default:
+# "missing" means no record at all, so it is removed, never left behind.
+manifest.pop("events_fetch", None)
 if events_fetch != "missing":
     manifest["events_fetch"] = {
         "template": "scp egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"",
@@ -299,7 +302,10 @@ with tempfile.TemporaryDirectory() as tmp:
         (run_dir / "events.jsonl").unlink()
     # What the real harness seals beside the proof's evidence: the collector's
     # files and the item-18 hooks' streams.
-    if not os.environ.get("EGW_STUB_NO_RESOURCES"):
+    # The evaluator's builder writes resources.csv itself: the knob removes it.
+    if os.environ.get("EGW_STUB_NO_RESOURCES"):
+        (run_dir / "resources.csv").unlink(missing_ok=True)
+    else:
         (run_dir / "resources.csv").write_text(
             "ts_utc,service,cpu_usage_usec,memory_current_bytes\n2026-09-25T10:00:00Z,egw-controller-1,1000,1048576\n", "utf-8")
     collector = run_dir / "logs" / "collector"
@@ -1522,15 +1528,18 @@ def test_harness_validity_invalid_under_the_sample_gap_rule_is_quoted_and_does_n
 def test_a_simulator_that_failed_after_the_restart_is_incomplete_evidence_never_a_pass(pbench):
     # The simulator fails after the fault, before the prescribed 300 s: the
     # harness drains, fetches, seals, records the failure and exits 1. Every
-    # published identity is accepted, so the evaluator's component result
-    # is 'supports' - and the attempt is still invalid and inconclusive: the
-    # prescribed publication did not complete, which is not the sampling-gap
+    # published identity is accepted, and still neither part reads it as
+    # support: the evaluator refuses the run as not eligible (E-11: the
+    # prescribed publication did not complete) and the driver's own gate
+    # makes the attempt invalid, since this is not the sampling-gap
     # deviation the ADR admits (P-16).
     result = pbench.run(EGW_STUB_SIMULATOR_EXIT="1")
     assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
-    assert verdicts["proof_verdict"] == "supports"
+    assert verdicts["proof_verdict"] == "inconclusive"
+    eligibility = pbench.verdict_document()["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is False and any("simulator" in r for r in eligibility["reasons"])
     assert "the proof's execution or evidence is incomplete (eligibility exit 1, P-16):" in verdicts["reason"]
     assert "simulator_returncode is 1, not 0: the prescribed publication did not complete" in verdicts["reason"]
     assert "validity reason(s) beyond the campaign sampling-gap deviation" in verdicts["reason"]
@@ -1538,7 +1547,8 @@ def test_a_simulator_that_failed_after_the_restart_is_incomplete_evidence_never_
     facts = pbench.session_facts()
     assert facts["eligibility"]["complete"] is False and facts["eligibility"]["simulator_returncode"] == 1
     assert facts["eligibility"]["sampling_gap_only"] is False and facts["harness_exit"] == 1
-    assert "does not stand for the attempt: an evidence requirement not met" in verdicts["next_action"]
+    assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
+    assert "the attempt's instrumentation is invalid" in verdicts["next_action"]
     assert "stands for this run only" not in verdicts["next_action"]
     assert "services-healthy-after" in pbench.commands() and "evaluate" in pbench.commands()
 
@@ -1585,20 +1595,20 @@ def test_a_missing_collector_file_is_incomplete_evidence(pbench):
 
 
 def test_the_next_action_follows_the_final_outcome_never_the_raw_evaluator_result(pbench):
-    # A supporting component result downgraded by an unshown restart (an
-    # evidence requirement not met) gives an inconclusive, invalid attempt
-    # whose next action says so and never that the supporting result stands.
+    # An unshown restart: the evaluator itself no longer supports (E-11, the
+    # fault not demonstrated), the attempt is invalid and inconclusive, and
+    # the next action never says a result stands.
     result = pbench.run(EGW_STUB_FAIL="restart-not-shown")
     assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
-    assert verdicts["proof_verdict"] == "supports"
+    assert verdicts["proof_verdict"] == "inconclusive"
+    assert pbench.verdict_document()["instrumentation"]["proof_eligibility"]["eligible"] is False
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
-    assert "the attempt is inconclusive, not passing" in verdicts["next_action"]
-    assert "the evaluator's component result, supports, does not stand for the attempt: an evidence requirement not met" in verdicts["next_action"]
-    assert "the restart was not shown" in verdicts["next_action"]
+    assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
     assert "the attempt's instrumentation is invalid" in verdicts["next_action"]
     assert "stands for this run only" not in verdicts["next_action"]
-    assert "the proof's evaluator: supports" in verdicts["reason"]
+    # A supporting component result downgraded by the driver alone (R1):
+    # the incomplete restoration and the observed fault below.
     # The same component result downgraded by an incomplete restoration.
     pbench.reset()
     result = pbench.run(EGW_STUB_FAIL="healthy-again-fails")
