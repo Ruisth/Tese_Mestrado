@@ -77,10 +77,12 @@
 # process and the containers after, restart-shown, metrics-after, delta,
 # the guest state after and its delta): the remainder is checked before
 # each is dispatched, each runs under 'timeout' of the positive remainder
-# (a spent allowance means the step is not started, never 'timeout 0'),
-# and the expiry is recorded once, with its instant and the step, whether
-# it fell before, during or after a step. After it no further proof or
-# fault step starts; the partial records and the stop reason are kept; the
+# (a spent allowance means the step is not started, never 'timeout 0'; the
+# live host steps load the 6.1 preamble inside that bound, the harness step
+# before it), and the expiry is recorded once - in the driver's own shell,
+# never in a subshell - with its instant and the step, whether it fell
+# before, during or after a step. After it no further proof or fault step
+# starts; the partial records and the stop reason are kept; the
 # restoration and the shutdown still run and are never force-killed; the
 # packaging, the hashing and the evaluation may finish afterwards but
 # acquire no new live observation and never hide that the rule was
@@ -460,18 +462,25 @@ attempt_reached() {
     session_update "instants.attempt_limit_reached_step=$name" "instants.attempt_limit_reached_when=$when" \
         "instants.attempt_limit_reached_host_uptime_s=$(uptime_s)"
 }
-# live_start NAME: what is left of the allowance for NAME, printed, or
-# non-zero with nothing printed when NAME must not start (the rule already
-# reached, or reached now, before NAME, and recorded as such).
+# live_start NAME: what is left of the allowance for NAME, in LIVE_REST
+# (whole seconds, positive), or non-zero when NAME must not start (the rule
+# already reached, or reached now, before NAME, and recorded as such). It
+# answers in a variable and is called in the driver's own shell, NEVER in a
+# command substitution: run in a subshell, the latch (ATTEMPT_REACHED), the
+# stop rule and the headline it sets would be lost with the subshell - every
+# later live step would record the rule again (the facts naming the last
+# step skipped, not the first), the reason would carry no stop rule, and
+# the extension's blocker would not fire after the expiry.
+LIVE_REST=0
 live_start() {
-    local rest
+    LIVE_REST=0
     [ "$ATTEMPT_REACHED" -eq 0 ] || return 1
-    rest=$(left)
-    if [ "$rest" -le 0 ]; then
+    LIVE_REST=$(left)
+    if [ "$LIVE_REST" -le 0 ]; then
         attempt_reached before "$1"
         return 1
     fi
-    printf '%s' "$rest"
+    return 0
 }
 # live_end NAME RC: after NAME ran under the bound: 124 or 137 is the rule
 # reached during it (its observation is incomplete and its record partial);
@@ -486,11 +495,16 @@ live_end() {
     fi
     return "$rc"
 }
-# live_hx NAME SCRIPT [ARG...]: a host step of runbook 6.1 under the bound.
-# The helpers run in a shell of their own that loads the deployed helper
-# file again (as the extension's steps do), so that 'timeout' can end them;
-# SCRIPT reads its ARGs as $1, $2... and holds no single quote; each ARG is
-# written single-quoted (checked to be the literal it is).
+# live_hx NAME SCRIPT [ARG...]: a host step of runbook 6.1 under the bound,
+# the 6.1 preamble included. hx loads the preamble before and outside the
+# bound, so a preamble that blocks (a 'tunnel_up' whose ssh never completes
+# its banner) would run on across the expiry; here the whole step runs
+# inside 'bounded': the preamble is handed to the bounded shell as the value
+# of EGW_HOST_PRE, never as code text, and loaded there with 'eval', and a
+# preamble that fails is 97 as hx answers it (the step never ran). The
+# helpers thus run in a shell of their own, which 'timeout' can end; SCRIPT
+# reads its ARGs as $1, $2... and holds no single quote; each ARG is written
+# single-quoted (checked to be the literal it is).
 live_hx() {
     local name=$1 script=$2 rest args="" arg
     shift 2
@@ -498,9 +512,11 @@ live_hx() {
         guest_literal "$arg" || { missed "'$arg' cannot be written into the step '$name' as the literal it is"; return 1; }
         args="$args '$arg'"
     done
-    rest=$(live_start "$name") || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
-    hx "$A" "$name" "$(declare -f bounded)
-bounded $rest bash -c '. \"\$HOME/egw-tcg/itest-helpers.sh\" && $script' _$args"
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    rest=$LIVE_REST
+    ex "$A" "$name" env EGW_HOST_PRE="$HOST_PRE" bash -c "$(declare -f bounded)
+bounded $rest bash -c '{ eval \"\$EGW_HOST_PRE\" ; } || { echo \"STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran\" >&2; exit 97; }
+$script' _$args"
     live_end "$name" $?
 }
 # live_gx NAME GUEST-COMMAND: one guest command over ssh under the bound: the
@@ -508,7 +524,8 @@ bounded $rest bash -c '. \"\$HOME/egw-tcg/itest-helpers.sh\" && $script' _$args"
 # when ssh itself answers 255), inside 'bounded'.
 live_gx() {
     local name=$1 rc rest
-    rest=$(live_start "$name") || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    rest=$LIVE_REST
     ex "$A" "$name" bash -c "$(declare -f bounded)
 bounded $rest env E=\"\$2\" bash -c '. \"\$E/scripts/session_common.sh\" || { echo \"STOP: the session ssh helpers (\$E/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest\" >&2; exit 97; }
 gssh \"\$1\"' _ \"\$1\"" _ "$2" "$SESSION"
@@ -520,7 +537,8 @@ gssh \"\$1\"' _ \"\$1\"" _ "$2" "$SESSION"
 live_ex() {
     local name=$1 rest
     shift
-    rest=$(live_start "$name") || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    rest=$LIVE_REST
     ex "$A" "$name" bash -c "$(declare -f bounded)
 bounded $rest \"\$@\"" _ "$@"
     live_end "$name" $?
@@ -548,9 +566,14 @@ json_scalar() {
 # instead when its instant lies between the latest start of the six and
 # start + limit - it is then of this same start - and is refused otherwise
 # (a healthy guest's later idle time is never charged as boot delay, and a
-# transition of another start never counts). In mode 'check' the wait's
-# first ALL HEALTHY sample is judged against start + limit unless the rule
-# was established by the earlier record. Anything that cannot be read is 2:
+# transition of another start never counts); the wait then runs under the
+# full limit as the precondition of a healthy stack before the run, which
+# is no longer the rule's remainder. In mode 'check' the wait's first ALL
+# HEALTHY sample is judged against start + limit unless the rule was
+# established by the earlier record; the instant of that sample is read at
+# its start, before its inspections, and the span from the sample before it
+# is recorded beside it as the one bound of that bias the record gives
+# (the check refuses nothing on it). Anything that cannot be read is 2:
 # an unknown start or transition cannot establish the rule. Every instant
 # compared here is read on the guest wall clock (docker StartedAt and the
 # wait samples alike), which on this host is stepped backwards by 2-3 s
@@ -600,8 +623,9 @@ def containers(path):
 
 def transition(path):
     """The first ALL HEALTHY line of a record of the shared wait, with the
-    instant of the sample that saw it: (epoch or None, text, sample), or
-    None when the record holds no such line."""
+    instant of the sample that saw it and the instant of the sample before
+    it: (epoch or None, text, sample, previous text or None), or None when
+    the record holds no such line."""
     samples = {}
     for line in open(path, encoding="utf-8"):
         line = line.rstrip("\n")
@@ -612,7 +636,7 @@ def transition(path):
         m = re.match(r"ALL HEALTHY: .*\(sample (\d+)\)$", line)
         if m:
             n = int(m.group(1))
-            return epoch(samples.get(n)), samples.get(n), n
+            return epoch(samples.get(n)), samples.get(n), n, samples.get(n - 1)
     return None
 
 
@@ -652,7 +676,7 @@ if mode == "bound":
             stop(2, "the named earlier record could not be read: %s" % exc, facts)
         if seen is None or seen[0] is None:
             stop(2, "the named earlier record %s holds no ALL HEALTHY transition with a readable instant" % earlier, facts)
-        at, text, n = seen
+        at, text, n, _ = seen
         facts.update({"earlier_record": earlier, "earlier_transition_utc": text, "earlier_transition_sample": n,
                       "earlier_elapsed_s": max(0, int(at - earliest[0]))})
         if at < latest[0] - CLOCK_STEP_BAND_S:
@@ -684,10 +708,22 @@ if mode == "check":
         stop(2, "the record of the wait could not be read: %s" % exc, facts)
     if seen is None or seen[0] is None:
         stop(2, "the record of the wait holds no ALL HEALTHY transition with a readable instant: the first healthy observation is unknown", facts)
-    at, text, n = seen
+    at, text, n, previous = seen
     elapsed = at - earliest[0]
+    # The instant of the sample is read at its START, before its inspections
+    # of the six services (the shared wait, untouched here): the observation
+    # itself followed it within the duration of the sample, which the wait
+    # does not record. The span from the instant of the sample before it is
+    # the one bound the record gives (the duration of that sample plus the
+    # step); the deadline is judged on the instant as read, and both are
+    # recorded so that the bias is on the record.
+    previous_at = epoch(previous)
+    span = None if previous_at is None else round(at - previous_at, 3)
     print("first_healthy_utc=%s" % text)
     print("first_healthy_sample=%d" % n)
+    print("first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services: the observation followed it within the duration of the sample, which the shared wait does not record")
+    print("previous_sample_utc=%s" % (previous if previous_at is not None else "null"))
+    print("previous_sample_span_s=%s" % ("null" if span is None else json.dumps(span)))
     if elapsed < -CLOCK_STEP_BAND_S:
         print("elapsed_s=%d" % int(elapsed))
         stop(2, "the first healthy observation (%s) precedes the candidate start (%s) by more than the clock step band of %g s: the guest clock is not consistent" % (text, earliest[1], CLOCK_STEP_BAND_S), facts)
@@ -1141,7 +1177,11 @@ if [ "$rc" -eq 0 ]; then
     [ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" healthy-rule-check "the harness was NOT started"
     session_update "healthy_rule.first_healthy_utc=$(said healthy-rule-check 'first_healthy_utc=' | tr -d ' ')" \
         "healthy_rule.first_healthy_sample=$(said healthy-rule-check 'first_healthy_sample=' | tr -d ' ')" \
-        "healthy_rule.elapsed_s=$(said healthy-rule-check 'elapsed_s=' | tr -d ' ')"
+        "healthy_rule.elapsed_s=$(said healthy-rule-check 'elapsed_s=' | tr -d ' ')" \
+        "healthy_rule.previous_sample_utc=$(said healthy-rule-check 'previous_sample_utc=' | tr -d ' ')" \
+        "healthy_rule.previous_sample_span_s=$(said healthy-rule-check 'previous_sample_span_s=' | tr -d ' ')"
+    instant_note_text=$(said healthy-rule-check 'first_healthy_instant_note=')
+    [ -z "${instant_note_text// /}" ] || session_update "healthy_rule.first_healthy_instant_note=${instant_note_text% }"
     step_note_text=$(said healthy-rule-check 'clock_step_note=')
     [ -z "${step_note_text// /}" ] || session_update "healthy_rule.clock_step_note=${step_note_text% }"
     case "$rc" in
@@ -1158,6 +1198,14 @@ if [ "$rc" -eq 0 ]; then
     esac
 elif [ "$rc" -eq 1 ] || [ "$rc" -eq 4 ]; then
     STACK_STATE=not-healthy
+    if [ "$HEALTHY_ESTABLISHED" = earlier-record ]; then
+        # The rule was established by the earlier record: this poll ran under
+        # the full limit (as the restoration's does) as the precondition of a
+        # healthy stack before the run, not as the allowance's remainder. A
+        # stack no longer healthy fails that precondition; the rule is not
+        # recorded reached by a poll that did not measure it (P-15).
+        not_run "precondition failed: the stack with the candidate was not running and healthy when polled before the run (services-healthy exit $rc under the full ${LIMIT} s); the 20-minute rule was established by the earlier record named and this poll does not reach it, but the proof cannot start on a stack that is not healthy:$(said services-healthy 'NOT HEALTHY[^:]*:')"
+    fi
     stoprule healthy "stop rule reached: the stack was not running and healthy within the ${HEALTHY_BOUND} s left of ${LIMIT} s from the candidate's start:$(said services-healthy 'NOT HEALTHY[^:]*:')"
     not_run "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy exit $rc under the ${HEALTHY_BOUND} s left of that allowance); the proof is recorded inconclusive by that rule"
 elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
@@ -1400,7 +1448,8 @@ HARNESS_STARTED=1
 # The fault mutates the stack from here on: its state is unknown until the
 # restoration reads it back.
 STACK_STATE=unknown
-if LEFT=$(live_start harness-run); then
+if live_start harness-run; then
+    LEFT=$LIVE_REST
     HARNESS_STARTED_UTC=$(now_utc)
     hx "$A" harness-run "$(declare -f proof_harness_args)
 $(declare -f bounded)

@@ -58,7 +58,7 @@ if sys.platform == "win32":
 if shutil.which("bash") is None or shutil.which("timeout") is None:
     pytest.skip("bash and timeout are needed", allow_module_level=True)
 
-from test_session_drivers import EXPECT_SERVICES, ITEST_HELPERS, Bench, _write, report  # noqa: E402
+from test_session_drivers import EXPECT_SERVICES, ITEST_HELPERS, TUNNEL_SH, Bench, _write, report  # noqa: E402
 from test_proof_hooks import runbook_function  # noqa: E402
 from test_proof_evaluator import STOP_RULE_ATTEMPT, STOP_RULE_HEALTHY  # noqa: E402
 from test_experiments_run import CONFIG_IDENTITY  # noqa: E402
@@ -564,6 +564,29 @@ PY
 }
 '''
 
+# The bench's tunnel stub, extended: 'tunnel_up' may take its time
+# (EGW_STUB_TUNNEL_UP_HANG_S), which with EGW_STUB_TUNNEL=down is a runbook
+# 6.1 preamble that blocks - an ssh that never completes its banner.
+PROOF_TUNNEL_SH = TUNNEL_SH.replace(
+    '    echo "stub: tunnel up"\n',
+    '    [ -z "${EGW_STUB_TUNNEL_UP_HANG_S:-}" ] || sleep "$EGW_STUB_TUNNEL_UP_HANG_S"\n    echo "stub: tunnel up"\n')
+assert PROOF_TUNNEL_SH != TUNNEL_SH
+
+PY_SLOW_STEP = '''#!/usr/bin/env python3
+"""A $PY whose `local_export exec` of the step EGW_SLOW_STEP takes
+EGW_SLOW_STEP_S seconds longer: an offline step between two live ones that
+takes its time. Every other call is this interpreter, unchanged."""
+import os
+import subprocess
+import sys
+import time
+
+args = sys.argv[1:]
+if "--name" in args and args[args.index("--name") + 1] == os.environ["EGW_SLOW_STEP"]:
+    time.sleep(float(os.environ["EGW_SLOW_STEP_S"]))
+sys.exit(subprocess.run([os.environ["EGW_REAL_PYTHON"]] + args).returncode)
+'''
+
 
 # --------------------------------------------------------------------------
 # The bench, extended for the proof driver
@@ -579,6 +602,7 @@ class ProofBench:
         self.helpers = bench.home / "egw-tcg" / "itest-helpers.sh"
         self.helpers_text = ITEST_HELPERS + "\n" + runbook_function("keep") + PROOF_HELPERS_EXTRA
         _write(self.helpers, self.helpers_text)
+        _write(bench.home / "egw-tcg" / "tunnel.sh", PROOF_TUNNEL_SH)
         self.runbook = bench.tmp / "stub-runbook.md"
         _write(self.runbook, "# stub runbook for the proof driver\n\n```bash\n"
                              "host$ cat > ~/egw-tcg/itest-helpers.sh <<'EOF'\n" + self.helpers_text + "EOF\n```\n")
@@ -1638,7 +1662,16 @@ def test_late_polling_cannot_reset_the_candidate_health_allowance(pbench):
     result = pbench.run(EGW_STUB_HEALTHY_AFTER_S="3")
     assert result.returncode == 0, report(result)
     rule = pbench.session_facts()["healthy_rule"]
-    assert 3 <= rule["elapsed_s"] <= HEALTH_LIMIT_S and rule["established_by"] == "own-observation"
+    # The instant of the sample that saw ALL HEALTHY is read at the sample's
+    # start, before its inspections: a stack healthy 3 s after its boot is
+    # first seen by a sample whose instant may precede that by the sample's
+    # own duration (2 was observed on the bench), so the elapsed time is
+    # bounded by the allowance and not below by 3 - the earlier '3 <=' read
+    # the instant as the observation's, which the record does not say - and
+    # the record states that bias beside the instant.
+    assert 0 <= rule["elapsed_s"] <= HEALTH_LIMIT_S and rule["established_by"] == "own-observation"
+    assert rule["first_healthy_instant_note"].startswith("the instant of the sample that saw ALL HEALTHY is read at the sample start")
+    assert "previous_sample_span_s" in rule and "previous_sample_utc" in rule
 
 
 def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline(tmp_path):
@@ -1672,9 +1705,15 @@ def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline
     assert past.returncode == 1, report(past)
     assert "HEALTHY RULE REACHED: the stack was first observed healthy 1216 s after the candidate start" in past.stdout
     assert "elapsed_s=1216" in past.stdout and "first_healthy_utc=2026-09-25T10:20:16Z" in past.stdout
+    # The instant of the sample is its start: the span from the previous
+    # sample's instant (its duration plus the step) is recorded beside it
+    # with the note, and nothing is refused on it.
+    assert "previous_sample_utc=2026-09-25T10:20:01Z" in past.stdout and "previous_sample_span_s=15.0" in past.stdout
+    assert "first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start" in past.stdout
     met = check(early)
     assert met.returncode == 0, report(met)
     assert "HEALTHY RULE MET: first observed healthy 300 s after the candidate start 2026-09-25T10:00:00.000000000Z" in met.stdout
+    assert "previous_sample_utc=null" in met.stdout and "previous_sample_span_s=null" in met.stdout
     none = check(unreadable)
     assert none.returncode == 2, report(none)
     assert "CANNOT BE ESTABLISHED: the record of the wait holds no ALL HEALTHY transition" in none.stdout
@@ -1756,6 +1795,27 @@ def test_an_earlier_healthy_transition_of_this_same_start_is_reused_and_one_of_a
     assert "healthy-rule exit 1" in verdicts["reason"]
     assert next(r for r in pbench.session_facts()["stop_rules"] if r["id"] == "healthy")["reached"] is True
     assert "lies 30 s after the candidate start" in pbench.console("healthy-rule")
+    # Established by the record but not healthy NOW (a service unhealthy):
+    # the driver's own poll before the run is the precondition of a healthy
+    # stack, under the full limit, and its failure is a precondition failed
+    # - the rule the record established is not recorded as reached by a
+    # poll that did not measure it, and the reason says which service.
+    pbench.reset()
+    boot = pbench.boot_stack(3600)
+    record = pbench.healthy_record(boot + timedelta(seconds=5), "established-then-unhealthy.txt")
+    result = pbench.run(EGW_PROOF_HEALTHY_RECORD=str(record), EGW_STUB_FAIL="service-unhealthy")
+    assert result.returncode == 2, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "not-run"
+    assert ("precondition failed: the stack with the candidate was not running and healthy when polled before the run "
+            f"(services-healthy exit 1 under the full {HEALTH_LIMIT_S} s); the 20-minute rule was established by the earlier "
+            "record named and this poll does not reach it") in verdicts["reason"]
+    assert "stop rule reached" not in verdicts["reason"]
+    assert "egw-mongodb-1(status=running health=unhealthy)" in verdicts["reason"]
+    facts = pbench.session_facts()
+    assert facts["healthy_rule"]["established_by"] == "earlier-record" and facts["healthy_rule"]["poll_bound_s"] == HEALTH_LIMIT_S
+    assert not [r for r in facts["stop_rules"] if r["reached"]]
+    assert "services-healthy" in pbench.commands() and "pre" not in pbench.commands() and pbench.harness() is None
     # A record that cannot be read is refused before anything starts.
     pbench.reset()
     result = pbench.run(EGW_PROOF_HEALTHY_RECORD=str(pbench.bench.tmp / "absent.txt"))
@@ -1964,6 +2024,40 @@ def test_pre_blocking_across_the_expiry_is_ended_by_the_bound_and_starts_no_harn
     assert verdicts["restoration"].startswith("stack=healthy")
 
 
+def test_a_preamble_blocking_across_the_expiry_is_ended_by_the_bound_as_pre_itself_is(pbench):
+    # The tunnel is down and 'tunnel_up' blocks for 8 s (an ssh that never
+    # completes its banner) across an allowance of 3 s: the runbook's 6.1
+    # preamble of 'pre' runs INSIDE the bound, so the step is ended by
+    # 'timeout' before 'drained' could run, the rule is recorded once as
+    # reached during 'pre', and the harness is NOT started. (hx loads the
+    # preamble before and outside the bound: 'pre' would have run on across
+    # the expiry until the tunnel answered.)
+    result = pbench.run(EGW_STUB_TUNNEL="down", EGW_STUB_TUNNEL_UP_HANG_S="8", EGW_PROOF_ATTEMPT_LIMIT_S="3")
+    assert result.returncode == 2, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "not-run"
+    assert verdicts["reason"].count("stop rule reached") == 1
+    assert "('pre' was ended by 'timeout', exit 124)" in verdicts["reason"] or "('pre' was ended by 'timeout', exit 137)" in verdicts["reason"]
+    assert "the harness was NOT started" in verdicts["reason"]
+    steps = pbench.commands()
+    assert "ready" in steps and "pre" in steps and "harness-run" not in steps and pbench.harness() is None
+    assert "drained:" not in pbench.console("pre") and "stub: tunnel up" not in pbench.console("pre")
+    facts = pbench.session_facts()
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == ("pre", "during")
+    assert next(r for r in facts["stop_rules"] if r["id"] == "attempt")["reached"] is True
+    assert "kill" not in pbench.docker_log() and not (pbench.base / "raw" / RID).exists()
+    # The step's record: the preamble is handed to the bounded shell as the
+    # value of EGW_HOST_PRE and loaded with 'eval' after 'bounded', never as
+    # code text before it.
+    record = [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()
+              if json.loads(line)["name"] == "pre"][-1]
+    argv = record["argv"]
+    assert argv[0] == "env" and argv[1].startswith("EGW_HOST_PRE=") and "tunnel_check || tunnel_up" in argv[1]
+    before_bound, inner = argv[-1].rsplit("\nbounded ", 1)
+    assert 'eval "$EGW_HOST_PRE"' in inner and "exit 97" in inner and "tunnel_up" not in before_bound
+    assert 0 < int(inner.split()[0]) <= 3
+
+
 def test_a_later_observation_crossing_the_expiry_is_recorded_and_no_further_proof_step_runs(pbench):
     # The harness returns with a few seconds of the allowance left; the
     # next required live observation (the controller process after, whose
@@ -2009,6 +2103,107 @@ def test_a_later_observation_crossing_the_expiry_is_recorded_and_no_further_proo
     record = [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()
               if json.loads(line)["name"] == "controller-process-after"][-1]
     assert "\nbounded " in record["argv"][-1] and 0 < int(record["argv"][-1].rsplit("\nbounded ", 1)[1].split()[0]) <= 20
+
+
+def test_an_allowance_spent_between_two_live_steps_is_recorded_once_and_blocks_the_next_step_and_the_extension(pbench):
+    # The harness returns with most of the allowance left, and the offline
+    # eligibility reading between it and the next live observation takes
+    # longer than what is left: the allowance is spent BETWEEN two live
+    # steps, none in progress - the 'before' path with steps after it,
+    # which at 3f5b8d5 latched in a subshell and was lost. The next live
+    # step is not started; the rule is recorded once, and the session
+    # facts, the reason's stop-rule segment, the headline and the final
+    # line's count agree on it and on the FIRST step skipped; every later
+    # live step is listed as not run; the restoration still runs; and the
+    # extension, although asked for, is blocked by the rule: its kill +
+    # start is a fault step and never starts after the expiry.
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="25", EGW_PROOF_EXTENSION="yes",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="eligibility", EGW_SLOW_STEP_S="40"))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "inconclusive")
+    reason = verdicts["reason"]
+    assert reason.count("stop rule reached") == 1
+    assert ("stop rule(s) reached: stop rule reached: the attempt's allowance of 25 s from its first 'drained' was spent "
+            "before 'controller-process-after' could start ('controller-process-after' was NOT started); "
+            "no further proof step was started") in reason
+    assert ("not run after the attempt's stop rule was reached (no further proof step starts): controller-process-after, "
+            "containers-after, restart-shown, metrics-after, delta, guest-state-after, guest-state-delta") in reason
+    steps = pbench.commands()
+    assert "harness-run" in steps and "eligibility" in steps and "services-healthy-after" in steps and "evaluate" in steps
+    for step in ("controller-process-after", "containers-after", "restart-shown", "metrics-after", "delta",
+                 "guest-state-after", "guest-state-delta"):
+        assert step not in steps, step
+    assert not any(step.startswith("ext-") for step in steps)
+    facts = pbench.session_facts()
+    attempt_rule = next(r for r in facts["stop_rules"] if r["id"] == "attempt")
+    assert attempt_rule["reached"] is True and attempt_rule["reached_at"]
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == (
+        "controller-process-after", "before")
+    assert facts["instants"]["harness_exit"] == 0 and facts["eligibility"]["complete"] is True
+    assert facts["instants"]["not_started_after_stop_rule"] == (
+        "controller-process-after, containers-after, restart-shown, metrics-after, delta, guest-state-after, guest-state-delta")
+    assert facts["extension"]["chosen"] is True and facts["extension"]["ran"] is False
+    assert "the extension was not run: a stop rule of the proof was reached" in facts["extension"]["reasons"]
+    assert verdicts["extension"] == "inconclusive" and "kill" not in pbench.docker_log()
+    assert verdicts["headline"].startswith(
+        "stop rule reached: the attempt's allowance of 25 s from its first 'drained' was spent before 'controller-process-after'")
+    assert "stop_rules=1" in result.stdout and "extension=inconclusive" in result.stdout
+    assert verdicts["proof_verdict"] == "inconclusive" and verdicts["restart_shown"] == "unknown"
+    assert "the attempt is inconclusive, not passing" in verdicts["next_action"]
+    assert "stands for this run only" not in verdicts["next_action"]
+    assert verdicts["restoration"] == "stack=healthy restart_shown=unknown"
+
+
+def test_the_allowance_latch_is_set_in_the_drivers_own_shell_and_never_in_a_subshell():
+    # The review of 3f5b8d5 (P1): live_start printed the remainder and was
+    # called in a command substitution, so ATTEMPT_REACHED, the stop rule
+    # and the headline were set in a subshell and lost - every later live
+    # step recorded the rule again, the reason carried no stop rule, the
+    # final line said stop_rules=0 and the extension's blocker did not
+    # fire. live_start answers in LIVE_REST and is never substituted; the
+    # driver's own functions, run here with the clock and the recording
+    # stubbed, latch once and skip every later step.
+    text = (SESSION_DIR / "proof.sh").read_text(encoding="utf-8")
+    assert "$(live_start" not in text
+    functions = "".join(_driver_function(name) for name in
+                        ("left", "attempt_reached", "live_start", "live_end", "live_hx", "live_gx", "live_ex"))
+    script = "\n".join([
+        "set -u",
+        "ATTEMPT_LIMIT=10", "T0=0", "NOW=4",
+        "uptime_s() { printf '%s' \"$NOW\"; }",
+        "now_utc() { printf '%s' 2026-09-25T10:00:00Z; }",
+        "session_update() { echo \"session_update $*\"; }",
+        "first_note() { [ -n \"$FIRST\" ] || FIRST=$1; }",
+        "stoprule() { stoprules+=(\"$2\"); first_note \"$2\"; }",
+        "hx() { echo \"hx $2\"; }",
+        "ex() { echo \"ex $2\"; }",
+        "guest_literal() { return 0; }",
+        "STEP_NOT_STARTED=98", "ATTEMPT_REACHED=0", "not_started=()", "incomplete=()", "stoprules=()", "FIRST=''",
+        "A=/nowhere", "SESSION=/nowhere", "HOST_PRE=true", "EXIT_NOT_REACHED=97",
+        functions,
+        "live_ex fourth true; echo \"rc=$?\"",
+        "echo \"reached=$ATTEMPT_REACHED stoprules=${#stoprules[@]}\"",
+        "NOW=100",
+        "live_hx first 'true'; echo \"rc=$?\"",
+        "live_gx second 'true'; echo \"rc=$?\"",
+        "live_ex third true; echo \"rc=$?\"",
+        "echo \"reached=$ATTEMPT_REACHED stoprules=${#stoprules[@]} not_started=${not_started[*]}\"",
+        "echo \"first=$FIRST\"",
+    ])
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, report(result)
+    out = result.stdout
+    # With 6 s left the step runs (no latch); with the allowance spent the
+    # three steps that follow are not started, the latch is set once, one
+    # stop rule is recorded, and the facts name the FIRST step skipped.
+    assert "ex fourth\nrc=0\nreached=0 stoprules=0\n" in out
+    assert out.count("rc=98") == 3 and "hx first" not in out and "ex second" not in out and "ex third" not in out
+    assert "reached=1 stoprules=1 not_started=first second third" in out
+    assert out.count("session_update instants.attempt_limit_reached_step=") == 1
+    assert "instants.attempt_limit_reached_step=first instants.attempt_limit_reached_when=before" in out
+    assert ("first=stop rule reached: the attempt's allowance of 10 s from its first 'drained' was spent before 'first' "
+            "could start ('first' was NOT started); no further proof step was started") in out
 
 
 def test_the_ready_wait_runs_before_the_attempts_clock_starts(pbench):
