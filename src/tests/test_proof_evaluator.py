@@ -70,16 +70,21 @@ P1 = "2026-09-25T10:02:35Z"
 #: before the first post-kill one (monotonic_ns as the controller reports).
 K_LOWER = 1_150 * NS
 K_UPPER = 1_180 * NS
-#: The host: the measured window starts at host monotonic 350 s, the kill
-#: (restart.started_monotonic_ns) at 500 s = 150 s later, as the plan says.
+#: The host: the measured window starts at host monotonic 350 s, the
+#: restart command (restart.started_monotonic_ns) at 500 s = 150 s later,
+#: as the plan says; it returns 22 s later (finished_utc, as in r01/r02),
+#: so its window on the host clock, with the 3 s band, ends at 525 s and
+#: the kill lands inside it.
 HOST_START_NS = 350 * NS
 HOST_KILL_NS = 500 * NS
+HOST_RESTART_END_NS = HOST_KILL_NS + 25 * NS
 #: The four identities of the scenario: (message_id, device, seq,
 #: publish_monotonic_ns on the host): A and D lined before the kill, B
-#: published before it and lined only after, C published while away.
+#: published before it and lined only after, C published while away (after
+#: the restart command's window, before the resubscription at 530 s).
 A = ("a-mid", D1, 0, 360 * NS)
 B = ("b-mid", D1, 1, 400 * NS)
-C = ("c-mid", D2, 0, 510 * NS)
+C = ("c-mid", D2, 0, 528 * NS)
 D = ("d-mid", D3, 0, 370 * NS)
 SENT = [A, B, C, D]
 #: Their post-drain lines: (message_id, device, seq, outcome,
@@ -938,7 +943,7 @@ def test_surplus_beyond_the_named_cases_is_r4() -> None:
 
 def test_s5_tolerates_exactly_one_per_named_case_and_nothing_else() -> None:
     # Two named on one device: B from the kill, F from an A3 connection end.
-    F = ("f-mid", D1, 2, 515 * NS)  # published while away: never the kill's
+    F = ("f-mid", D1, 2, 528 * NS)  # published while away: never the kill's
     lines = B_DUPLICATE + [("f-mid", D1, 2, "duplicate", 1_240 * NS, None)]
     log = [_a5_line(D1, 1_215 * NS)]
     doc = _evaluate(sent=SENT + [F], lines=lines, extra_after={D1: 2, "seqs": [(D1, 1), (D1, 2)]}, controller_log=log)
@@ -1360,6 +1365,248 @@ def test_no_surplus_unexplained_entry_when_the_surplus_equals_the_named_cases() 
         {"device_uuid": D1, "surplus": 2, "named_n1_cases": 1, "unexplained": 1}
     ]
     assert _criterion(doc, "R4")["observed"] is True
+
+
+# ---------------------------------------------------------------------------
+# 22j-22l. the review of the review: E-9 (the twin refutes on an undecided
+# device only under every naming), E-4 beside an unshown candidate, and the
+# restart command's window on the host clock (E-8)
+# ---------------------------------------------------------------------------
+
+
+def test_a_twin_that_refutes_under_every_naming_of_an_undecided_candidate_is_r4_on_read_evidence() -> None:
+    """E-9: an undecided duplicate-only candidate (E-8 here, E-7 over the
+    log at the end) leaves S5/R4 null only while naming it could leave the
+    twin's figures right. A surplus beyond every undecided candidate, a
+    last_seq regressed against the before snapshot, or a last_run_id wrong
+    whether or not the candidate is named, was read from the twin whatever
+    the candidate was: R4 stands on it, with S4/R3 still null for the
+    candidate. E-7 nulls what was not read, never a refutation that was."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    lines = [line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", in_band, None)]
+    # accepted_count advanced by 4 against 1 accepted line and one undecided
+    # candidate: at most one case could be named, so two remain unexplained.
+    doc = _evaluate(lines=lines, extra_after={D1: 3, "seqs": [(D1, 1)]})
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes"
+    assert outcome["refutations"] == [
+        "R4: 1 device(s) with a delta mismatch beyond the named cases; 1 of them under every "
+        "naming of its unshown duplicate-only candidate(s) (E-9)"
+    ]
+    assert _criterion(doc, "R4")["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["b-mid"]
+    assert outcome["n1_cases"] == []
+    r4 = _criterion(doc, "R4")
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] == D1 and mismatch["undecided_candidates"] == ["b-mid"]
+    assert mismatch["problems"][0] == "accepted_count advanced by 4 against 1 accepted line(s) and 0 named N1 case(s)"
+    assert mismatch["namings_tried"] == [] and "the count fits none" in mismatch["note"] and "(E-9)" in mismatch["note"]
+    assert r4["evidence"]["undecided"] == [] and r4["evidence"]["last_seq_regressions"] == []
+    row = next(row for row in r4["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert row["ok"] is False and row["undecided"]["explained"] is False and row["undecided"]["rule"] == "E-8"
+    assert row["surplus"] == 3 and row["undecided"]["message_ids"] == ["b-mid"]
+    for rule_id in ("S5", "R4"):
+        assert {"E-9", "E-8"} <= set(_criterion(doc, rule_id)["identification_rules"]), rule_id
+    assert any(r.startswith("S4 cannot be shown (E-8)") for r in outcome["inconclusive_reasons"])
+    # A last_seq regressed against the before snapshot under its run_id: no
+    # naming touches it (P-5), and the one naming the count allows leaves
+    # the twin's last_run_id wrong as well.
+    after = _after_from(BEFORE, lines, {D1: 1, "seqs": [(D1, 1)]})
+    after[D1] = (after[D1][0], "earlier", 3)
+    doc = _evaluate(lines=lines, after=after)
+    r4 = _criterion(doc, "R4")
+    assert _outcome(doc)["result"] == "refutes" and r4["observed"] is True
+    assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
+    regression = r4["evidence"]["last_seq_regressions"][0]
+    assert regression["device_uuid"] == D1 and regression["undecided_candidates"] == ["b-mid"]
+    assert regression["regressed"] == "last_seq 3 is below the before snapshot's 9 under the same run_id 'earlier'"
+    tried = r4["evidence"]["mismatches"][0]["namings_tried"]
+    assert len(tried) == 1 and tried[0]["named_cases"] == 1 and tried[0]["highest_named_seq"] == 1
+    assert tried[0]["expected_last_seq"] == 1 and tried[0]["delta_ok"] is False
+    assert tried[0]["problems"] == ["last_run_id 'earlier' last_seq 3 against this run's highest applied seq 1"]
+    assert tried[0]["regressed"] == regression["regressed"]
+    assert "1 device(s) whose last_seq regressed" in r4["reason"] and "(E-9)" in r4["reason"]
+    # The count fits the one naming, but the twin's last_run_id is not this
+    # run's although the run then applied seq 1 on the device: wrong under
+    # the naming as without it, a mismatch that stands; no regression.
+    after = _after_from(BEFORE, lines, {D1: 1, "seqs": [(D1, 1)]})
+    after[D1] = (after[D1][0], "earlier", 9)
+    doc = _evaluate(lines=lines, after=after)
+    r4 = _criterion(doc, "R4")
+    assert _outcome(doc)["result"] == "refutes" and r4["observed"] is True
+    assert r4["evidence"]["last_seq_regressions"] == []
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert "each naming tried leaves a problem or a regression" in mismatch["note"]
+    assert mismatch["namings_tried"][0]["problems"] == [
+        "last_run_id 'earlier' last_seq 9 against this run's highest applied seq 1"
+    ]
+    assert mismatch["namings_tried"][0]["regressed"] is None
+    # The figures that naming the candidate would leave right (test 22a's)
+    # stay undecided: nothing is decided on them, and the naming tried says
+    # what it would leave.
+    doc = _evaluate(lines=lines, extra_after={D1: 1, "seqs": [(D1, 1)]})
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "S5")["holds"] is None
+    row = next(row for row in _criterion(doc, "R4")["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert row["ok"] is None and row["undecided"]["explained"] is True and "note" not in row["undecided"]
+    assert row["undecided"]["namings_tried"] == [
+        {"named_cases": 1, "highest_named_seq": 1, "expected_last_seq": 1, "problems": [], "regressed": None, "delta_ok": True}
+    ]
+    assert _criterion(doc, "R4")["evidence"]["undecided"] == [
+        {"device_uuid": D1, "rule": "E-8", "why": row["undecided"]["why"], "message_ids": ["b-mid"]}
+    ]
+    # The same over the controller log (E-7): a surplus of three beyond the
+    # one candidate the unread log might have named is R4 all the same.
+    log_rel = f"logs/sut/{SUT_LOG_FILES['controller_log']}"
+    fetches = _manifest()["sut_log_fetches"]
+    fetches[1] = {**fetches[1], "returncode": 1, "dest_exists": False}
+    c_lines = [line for line in LINES if line[0] != "c-mid"] + [("c-mid", D2, 0, "duplicate", 1_230 * NS, None)]
+    artefacts = _artefacts(lines=c_lines, extra_after={D2: 3, "seqs": [(D2, 0)]}, manifest=_manifest(sut_log_fetches=fetches))
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R4")["observed"] is True
+    assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "S4")["holds"] is None
+    mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] == D2 and mismatch["undecided_candidates"] == ["c-mid"] and mismatch["namings_tried"] == []
+    assert {"E-9", "E-7"} <= set(_criterion(doc, "R4")["identification_rules"])
+    assert any(r.startswith("any fetch listed above fails") for r in _outcome(doc)["inconclusive_reasons"])
+    assert "E-9" in pe.IDENTIFICATION_RULES and "no naming fits the count" in pe.IDENTIFICATION_RULES["E-9"]
+    assert "(E-9)" in pe.IDENTIFICATION_RULES["E-7"] and "(E-9)" in pe.IDENTIFICATION_RULES["E-8"]
+
+
+def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3() -> None:
+    """E-4 with E-8/E-7: one consumer dies once. B (restart-class, published
+    before the restart command, its device's surplus of one) claims the
+    kill; G, on another device with the same twin evidence, has its
+    duplicate line inside the band and can be shown neither way (E-8). If
+    G was in progress at the kill B was not, and nothing read tells them
+    apart: B is neither named nor R3, with E-4 as its ground, its device
+    undecided, the run inconclusive. The same with F on B's own device and
+    with an E-7 candidate; two claimants shown by the record stay R3 (E-4)
+    whatever else is unshown."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", in_band, None)]
+    twins = {D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}
+    doc = _evaluate(sent=SENT + [G], lines=lines, extra_after=twins)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and _criterion(doc, "S4")["holds"] is None
+    assert r3["evidence"]["not_named_identities"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"]}
+    assert list(shown) == ["b-mid", "g-mid"]
+    assert "at most one N1 case per death (E-4)" in shown["b-mid"] and "g-mid (E-8)" in shown["b-mid"]
+    assert "neither named nor R3" in shown["b-mid"] and "(E-8)" in shown["g-mid"]
+    assert any("beside 1 duplicate-only identity(ies)" in n and "(E-4)" in n for n in r3["evidence"]["notes"])
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and _criterion(doc, "S5")["holds"] is None
+    assert [(u["device_uuid"], u["rule"], u["message_ids"]) for u in r4["evidence"]["undecided"]] == [
+        (D1, "E-4", ["b-mid"]), (D3, "E-8", ["g-mid"]),
+    ]
+    assert {"E-9", "E-4", "E-8"} <= set(r4["identification_rules"])
+    assert any(r.startswith("S4 cannot be shown (E-8)") and "(E-4)" in r for r in outcome["inconclusive_reasons"])
+    # F on B's own device, surplus 2: B is unshown likewise and the device's
+    # one undecided entry lists both; naming both fits the twin's figures.
+    F = ("f-mid", D1, 2, 401 * NS)
+    doc = _evaluate(sent=SENT + [F], lines=B_DUPLICATE + [("f-mid", D1, 2, "duplicate", in_band, None)], extra_after={D1: 2, "seqs": [(D1, 2)]})
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == []
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["b-mid", "f-mid"]
+    undecided = _criterion(doc, "R4")["evidence"]["undecided"]
+    assert len(undecided) == 1 and undecided[0]["device_uuid"] == D1 and undecided[0]["rule"] == "E-8"
+    assert undecided[0]["message_ids"] == ["b-mid", "f-mid"]
+    row = next(row for row in _criterion(doc, "R4")["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert row["ok"] is None and row["undecided"]["namings_tried"][0]["named_cases"] == 2
+    assert row["undecided"]["namings_tried"][0]["delta_ok"] is True
+    # G unshown by the controller log instead (E-7): the claimant is unshown
+    # with that label, the run inconclusive for the failed fetch too.
+    log_rel = f"logs/sut/{SUT_LOG_FILES['controller_log']}"
+    fetches = _manifest()["sut_log_fetches"]
+    fetches[1] = {**fetches[1], "returncode": 1, "dest_exists": False}
+    artefacts = _artefacts(sent=SENT + [G], lines=lines, extra_after=twins, manifest=_manifest(sut_log_fetches=fetches))
+    artefacts.controller_log = None
+    artefacts.files_present = FULL_FILES - {log_rel}
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
+    assert list(shown) == ["b-mid", "g-mid"] and "g-mid (E-7)" in shown["b-mid"] and "(E-7)" in shown["g-mid"]
+    # Two claimants shown by the record beside H, on a device neither
+    # snapshot names: the two are R3 as E-4 states (test 22e), H unshown.
+    G_above = [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)]
+    H = ("h-mid", D4, 0, 400 * NS)
+    doc = _evaluate(sent=SENT + [G, H], lines=B_DUPLICATE + G_above + [("h-mid", D4, 0, "duplicate", 1_230 * NS, None)], extra_after=twins)
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R3")["observed"] is True
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["not_named_identities"]] == ["b-mid", "g-mid"]
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["h-mid"]
+    assert "beside" in pe.IDENTIFICATION_RULES["E-4"] and "(E-9)" in pe.IDENTIFICATION_RULES["E-4"]
+
+
+def test_a_publication_inside_the_restart_commands_window_cannot_be_shown_and_never_refutes() -> None:
+    """E-8 on the host clock: the manifest's started_monotonic_ns is the
+    instant the harness spawned the restart command, and the SIGKILL lands
+    during it (finished_utc 22 s later here, as in r01/r02). X, published
+    5 s after that start, duplicate-only, restart-class and with its
+    device's surplus, is neither 'published before the kill' nor after it:
+    it is neither named nor R3 and the run is inconclusive, where the
+    hook's start alone would have refuted it (R3 and R4). Published at the
+    window's end (plus the 3 s host band) it is R3 as before; a publication
+    that cannot be placed at all is unshown too, and without a readable
+    end the window has none."""
+    X = ("x-mid", D3, 1, 505 * NS)
+    lines = LINES + [("x-mid", D3, 1, "duplicate", K_UPPER + 20 * NS, None)]
+    twin = {D3: 1, "seqs": [(D3, 1)]}
+    doc = _evaluate(sent=SENT + [X], lines=lines, extra_after=twin)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and _criterion(doc, "S4")["holds"] is None
+    assert r3["evidence"]["not_named_identities"] == []
+    shown = r3["evidence"]["cannot_show_identities"]
+    assert [c["message_id"] for c in shown] == ["x-mid"] and shown[0]["class"] == "restart_class"
+    why = shown[0]["why_not_shown"]
+    assert "inside the restart command's window" in why and "(E-8)" in why and "the restart class" not in why
+    assert str(505 * NS) in why and str(HOST_KILL_NS) in why and str(HOST_RESTART_END_NS) in why
+    assert shown[0]["published_before_kill"] is False and shown[0]["published_during_restart"] is True
+    assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "S5")["holds"] is None
+    assert _criterion(doc, "R4")["evidence"]["undecided"][0]["message_ids"] == ["x-mid"]
+    report = outcome["report"]["classification"]
+    assert report["published_before_kill"] == 3 and report["published_during_restart"] == 1
+    assert report["published_while_away"] == 1 and report["published_after_resubscription"] == 0
+    assert report["away_window"]["restart_command_end_host_monotonic_ns"] == HOST_RESTART_END_NS
+    assert "restart command's window" in report["away_window"]["note"]
+    assert _classify(lines, SENT + [X]).published_during_restart == ["x-mid"]
+    assert any(r.startswith("S4 cannot be shown (E-8)") and "restart command's window" in r for r in outcome["inconclusive_reasons"])
+    # At the window's end: published after the kill on the host clock, R3
+    # (and its surplus R4), as before.
+    at_end = SENT + [("x-mid", D3, 1, HOST_RESTART_END_NS)]
+    doc = _evaluate(sent=at_end, lines=lines, extra_after=twin)
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R3")["observed"] is True
+    not_named = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert [c["message_id"] for c in not_named] == ["x-mid"]
+    assert "published after the restart command's end on the host clock" in not_named[0]["why_not_named"]
+    assert _criterion(doc, "R4")["observed"] is True
+    assert _classify(lines, at_end).published_while_away == ["c-mid", "x-mid"]
+    # A publication that cannot be placed against the command's start (no
+    # publish_monotonic_ns on the sent line) is unshown, not R3.
+    doc = _evaluate(sent=SENT + [("x-mid", D3, 1, None)], lines=lines, extra_after=twin)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    shown = _criterion(doc, "R3")["evidence"]["cannot_show_identities"]
+    assert [c["message_id"] for c in shown] == ["x-mid"] and shown[0]["publication_unplaced"] is True
+    assert "cannot be placed against the restart command's start" in shown[0]["why_not_shown"]
+    # Without a readable finished_utc the window has no end: every identity
+    # published after the command's start is inside it, and the note says so.
+    manifest = _manifest(restart={**_manifest()["restart"], "finished_utc": None})
+    doc = _evaluate(sent=at_end, lines=lines, extra_after=twin, manifest=manifest)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    report = _outcome(doc)["report"]["classification"]
+    assert report["published_during_restart"] == 2 and report["published_while_away"] == 0
+    assert report["away_window"]["restart_command_end_host_monotonic_ns"] is None
+    assert any("the restart command's end is unplaced" in n for n in report["notes"])
+    assert "an instant that cannot be read" in _criterion(doc, "R3")["evidence"]["cannot_show_identities"][0]["why_not_shown"]
+    assert "restart command's window" in pe.IDENTIFICATION_RULES["E-8"]
+    assert "restart command's window" in pe.IDENTIFICATION_RULES["P-4"] and "restart command's window" in pe.IDENTIFICATION_RULES["P-3"]
 
 
 # ---------------------------------------------------------------------------
