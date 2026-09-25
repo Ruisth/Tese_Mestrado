@@ -406,12 +406,12 @@ set other values before the session, as the ADR allows.
 | `EGW_HEALTH_LIMIT_S` | `1200` | the first stop rule: "the stack with the candidate healthy within 20 minutes of its start (as for the broker measurement, and on the same records)"; the same wait bounds the restoration (`broker_measure.sh` uses 1200 too; `gate_health.sh` and `persistence.sh` default to 1800) |
 | `EGW_HEALTH_STEP_S` | `15` | how often that wait samples; every sample is kept |
 | `EGW_READY_LIMIT_S` | `300` | the `wait_ready` of `pre`, the 300 s of the planning ceiling |
-| `EGW_PROOF_ATTEMPT_LIMIT_S` | `3000` | the second stop rule: "the attempt stopped 50 minutes after its first `drained` starts — the 36 minutes of the helper's limits plus 14 minutes"; measured on `/proc/uptime` and enforced on the harness step with `timeout` (124 or 137 = reached) |
+| `EGW_PROOF_ATTEMPT_LIMIT_S` | `3000` | the second stop rule: "the attempt stopped 50 minutes after its first `drained` starts — the 36 minutes of the helper's limits plus 14 minutes"; measured on `/proc/uptime` and enforced on the harness step with `timeout` (124 or 137 = reached; an allowance spent before the harness leaves it unstarted and records the rule once). The step's host shell keeps `timeout` and the harness as a job and forwards the driver's interrupt to them: `timeout` moves itself and the harness into a process group of their own, which the terminal's Ctrl-C would otherwise never reach (the harness would then go on to apply the fault after the driver ended) |
 | `EGW_PROOF_RESTART_AT_S` | `150` | "at t+150 s, SIGKILL of the controller's container followed by a start" (`--restart-at-s`, passed explicitly) |
 | `EGW_PROOF_DURATION_S` | `300` | "300 s of publication = 3,360 messages"; fixed by `proof_plan.py`, so a different value stops the driver (it changes no load) |
 | `EGW_PROOF_RATE` | `11.2` | "the `nominal` scenario at 11.2 msg/s, three wearables, no warm-up"; fixed by `proof_plan.py` likewise |
 | `EGW_PROOF_MASTER_SEED` | none | the master seed the plan's entry seed is derived from (`derive_run_seed`): the student's decision, so it has no default and the driver stops without it |
-| `EGW_PROOF_EXTENSION` | `no` | the optional extension of item 4 §9 ("it changes the proof's plan, so it is the student's decision; it is not needed to decide"); `yes` runs it after the restoration, bounded, and records its result apart (`extension` on the attempt and in the session facts: `not-refuted`, `refutes`, `inconclusive`), never changing the proof's three verdicts |
+| `EGW_PROOF_EXTENSION` | `no` | the optional extension of item 4 §9 ("it changes the proof's plan, so it is the student's decision; it is not needed to decide"); `yes` runs it after the restoration — the second kill + start, `wait_ready` and one `/metrics` reading (the restart shown), `drained` with nothing published, the `/metrics` reading after it that decides `received`, the second post-drain fetch; every step under what is left of `EGW_PROOF_EXTENSION_LIMIT_S`, and the second restoration wait after it — and records its result apart (`extension` on the attempt and in the session facts: `not-refuted`, `refutes`, `inconclusive`), never changing the proof's three verdicts. Chosen but not runnable (a stop rule reached, the stack not healthy again after the run, no post-drain copy to compare with), it is recorded `inconclusive` with the reason, never `not-chosen` |
 | `EGW_PROOF_EXTENSION_LIMIT_S` | `1790` | the extension's ceiling, "the `stop_grace_period` recorded under C6 plus 1,660 s" with the 130 s grace period C6 recorded |
 | `EGW_PROOF_BASE` | `~/egw-tcg/proof/results` | the harness results base of the proof, apart from the pilot's (`--base-dir`); the run directory is `raw/RUN_ID` under it, write-once |
 | `EGW_PROOF_PLAN` | `~/egw-tcg/proof/plan-RUN_ID.json` | the one-entry diagnostic plan `proof_plan.py` writes, write-once, "never an edit of the pilot plan" |
@@ -434,7 +434,7 @@ fixed arguments to the runbook's function line by line.
 
 The package holds the harness capsule byte for byte under `raw/RUN_ID/`,
 the prefix files (`RUN_ID.config_identity.json`, `.metrics.before/.after.json`,
-`.twins.before/.after.json`, `.restart.txt`) under `analysis/snapshots/`
+`.twins.before/.after.json`, `.restart.txt`, and `.extension.restart.txt` when the extension ran) under `analysis/snapshots/`
 and as `simulator/` siblings, `analysis/proof_session.json` and
 `analysis/proof_verdict.json`, and under `environment/` the plan and its
 sha256, the SUT environment, the clocks (guest and host, their offset

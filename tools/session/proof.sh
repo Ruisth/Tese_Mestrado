@@ -140,14 +140,22 @@ DURATION=$(healthy_seconds EGW_PROOF_DURATION_S 300) \
     || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_DURATION_S is not a whole number of seconds; nothing was started"
 EXTENSION_LIMIT=$(healthy_seconds EGW_PROOF_EXTENSION_LIMIT_S 1790) \
     || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_EXTENSION_LIMIT_S is not a whole number of seconds; nothing was started"
+# Every whole number is written into the record as a JSON number and read by
+# the shell's arithmetic: a leading zero is neither ('0600' is octal to
+# '$((...))' and not a JSON number), so it is refused, as is a rate that is
+# not one plain decimal number.
+for pair in "EGW_HEALTH_LIMIT_S=$LIMIT" "EGW_HEALTH_STEP_S=$STEP" "EGW_READY_LIMIT_S=$READY_LIMIT" \
+    "EGW_PROOF_ATTEMPT_LIMIT_S=$ATTEMPT_LIMIT" "EGW_PROOF_RESTART_AT_S=$RESTART_AT" "EGW_PROOF_DURATION_S=$DURATION" \
+    "EGW_PROOF_EXTENSION_LIMIT_S=$EXTENSION_LIMIT" "DRAIN_QUIET_S=$DRAIN_QUIET_S" "DRAIN_STEP_S=$DRAIN_STEP_S" "DRAIN_LIMIT_S=$DRAIN_LIMIT_S"; do
+    [[ ${pair#*=} =~ ^(0|[1-9][0-9]*)$ ]] \
+        || driver_stop "$EXIT_PREREQUISITE" "${pair%%=*}='${pair#*=}' is not a plain whole number of seconds (no leading zero); nothing was started"
+done
 RATE=${EGW_PROOF_RATE:-11.2}
-case "$RATE" in
-    '' | *[!0-9.]* | .* | *.) driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_RATE='$RATE' is not a number; nothing was started" ;;
-esac
+[[ $RATE =~ ^(0|[1-9][0-9]*)(\.[0-9]+)?$ ]] \
+    || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_RATE='$RATE' is not a number; nothing was started"
 MASTER_SEED=${EGW_PROOF_MASTER_SEED:-}
-case "$MASTER_SEED" in
-    '' | *[!0-9]*) driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_MASTER_SEED='$MASTER_SEED' is not a whole number (the master seed is the student's decision, and it has no default); nothing was started" ;;
-esac
+[[ $MASTER_SEED =~ ^(0|[1-9][0-9]*)$ ]] \
+    || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_MASTER_SEED='$MASTER_SEED' is not a whole number (the master seed is the student's decision, and it has no default); nothing was started"
 EXTENSION=${EGW_PROOF_EXTENSION:-no}
 case "$EXTENSION" in
     yes | no) ;;
@@ -167,6 +175,22 @@ CONTROLLER=egw-controller-1
 for value in "$RID" "$EXPECT_SERVICES" "$DEPLOYED" "$DC" "$BASE" "$PLAN" "$P" "$DRIVERS" "$REPO" "$HOME"; do
     guest_literal "$value" \
         || driver_stop "$EXIT_PREREQUISITE" "'$value' cannot be written into a command as the literal it is; nothing was started"
+done
+# json_text VALUE: VALUE as a JSON string literal (quotes and backslashes
+# escaped); non-zero for a control character, which the record could not
+# hold as the text it is.
+json_text() {
+    local v=$1
+    case "$v" in *[[:cntrl:]]*) return 1 ;; esac
+    v=${v//\\/\\\\}
+    v=${v//\"/\\\"}
+    printf '"%s"' "$v"
+}
+# The texts the record of the values holds, checked ONCE likewise: a path
+# the record cannot hold as it is would leave the values unrecorded.
+for value in "$BASE" "$PLAN" "$RUNBOOK" "$(basename "$SESSION")"; do
+    json_text "$value" > /dev/null \
+        || driver_stop "$EXIT_PREREQUISITE" "'$value' cannot be written into the record of the values as the text it is (a control character); nothing was started"
 done
 
 # --- write-once: a run id is used once, on the guest and on the host ------------
@@ -210,31 +234,64 @@ now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 uptime_s() { local up; read -r up _ < /proc/uptime; printf '%s' "${up%.*}"; }
 set_field() { (cd "$REPO/src" && $LE set --attempt "$A" "$1") > /dev/null 2>&1 || true; }
 guest_state_text() { printf 'stack=%s restart_shown=%s' "$STACK_STATE" "$RESTART_SHOWN"; }
+# record_file NAME: the path of NAME's console record (its stdout), or
+# non-zero with nothing printed when the step left none.
+record_file() {
+    local f
+    f=$(ls "$A"/console/*-"$1".stdout.txt 2> /dev/null | tail -n 1)
+    [ -n "$f" ] && [ -f "$f" ] || return 1
+    printf '%s' "$f"
+}
 # said NAME PREFIX: the lines of NAME's console record that start with PREFIX,
 # without it, on one line (broker_measure.sh).
 said() {
     local f
-    f=$(ls "$A"/console/*-"$1".stdout.txt 2> /dev/null | tail -n 1)
-    [ -n "$f" ] && [ -f "$f" ] || return 0
+    f=$(record_file "$1") || return 0
     sed -n "s/^$2//p" "$f" | tr '\n' ' '
 }
 # last_line NAME: the last line of NAME's console record (one /metrics reading
 # of _mline is the last line the step printed), or nothing.
 last_line() {
     local f
-    f=$(ls "$A"/console/*-"$1".stdout.txt 2> /dev/null | tail -n 1)
-    [ -n "$f" ] && [ -f "$f" ] || return 0
+    f=$(record_file "$1") || return 0
     tail -n 1 "$f"
 }
 # keep_record NAME FILE WHAT: the console record of NAME kept as environment/FILE.
 keep_record() {
     local f
-    f=$(ls "$A"/console/*-"$1".stdout.txt 2> /dev/null | tail -n 1)
-    if [ -n "$f" ] && [ -f "$f" ] && cp "$f" "$ENVD/$2"; then
+    if f=$(record_file "$1") && cp "$f" "$ENVD/$2"; then
         return 0
     fi
     missed "$3 was not kept in environment/$2"
     return 1
+}
+# bounded LIMIT CMD...: CMD under 'timeout -k 30 LIMIT', run so that an
+# interrupt of the driver reaches it. 'timeout' moves itself and CMD into a
+# process group of their own (so that a limit reached ends CMD's whole tree),
+# which the terminal's Ctrl-C - sent to the driver's group - never reaches:
+# the step's shell therefore keeps them as a job, forwards INT and TERM to
+# 'timeout' (which passes them on to CMD and to that group) and answers with
+# CMD's own status once it has ended. Its text is written into a host step
+# with 'declare -f', as proof_harness_args is; LIMIT is never 0, which
+# would disable the bound instead of enforcing it.
+bounded() {
+    local limit=$1 pid rc
+    shift
+    [ "$limit" -gt 0 ] 2> /dev/null || limit=1
+    timeout -k 30 "$limit" "$@" &
+    pid=$!
+    trap 'kill -INT "$pid" 2> /dev/null' INT
+    trap 'kill -TERM "$pid" 2> /dev/null' TERM
+    wait "$pid"
+    rc=$?
+    # A trapped signal returns 'wait' at once, above 128: wait again until the
+    # job has really ended, then answer with its status.
+    while [ "$rc" -gt 128 ] && kill -0 "$pid" 2> /dev/null; do
+        wait "$pid"
+        rc=$?
+    done
+    trap - INT TERM
+    return "$rc"
 }
 # session_update KEY=VALUE...: the session facts, merged into the record the
 # evaluator reads (proof_session.py keeps it a whole document at every step).
@@ -268,10 +325,10 @@ left() {
 
 # --- identities and the record of the values ----------------------------------
 IDENTITIES=$(repo_identity) || IDENTITY_FAILED=1
-VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, "EGW_HEALTH_LIMIT_S": %s, "EGW_HEALTH_STEP_S": %s, "EGW_READY_LIMIT_S": %s, "EGW_PROOF_ATTEMPT_LIMIT_S": %s, "EGW_PROOF_RESTART_AT_S": %s, "EGW_PROOF_DURATION_S": %s, "EGW_PROOF_RATE": %s, "EGW_PROOF_MASTER_SEED": %s, "EGW_PROOF_EXTENSION": "%s", "EGW_PROOF_EXTENSION_LIMIT_S": %s, "EGW_PROOF_BASE": "%s", "EGW_PROOF_PLAN": "%s", "expected_source_commit": "%s"}' \
-    "$DRAIN_QUIET_S" "$DRAIN_STEP_S" "$DRAIN_LIMIT_S" "$LIMIT" "$STEP" "$READY_LIMIT" "$ATTEMPT_LIMIT" "$RESTART_AT" "$DURATION" "$RATE" "$MASTER_SEED" "$EXTENSION" "$EXTENSION_LIMIT" "$BASE" "$PLAN" "$EXPECTED_COMMIT")
+VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, "EGW_HEALTH_LIMIT_S": %s, "EGW_HEALTH_STEP_S": %s, "EGW_READY_LIMIT_S": %s, "EGW_PROOF_ATTEMPT_LIMIT_S": %s, "EGW_PROOF_RESTART_AT_S": %s, "EGW_PROOF_DURATION_S": %s, "EGW_PROOF_RATE": %s, "EGW_PROOF_MASTER_SEED": %s, "EGW_PROOF_EXTENSION": "%s", "EGW_PROOF_EXTENSION_LIMIT_S": %s, "EGW_PROOF_BASE": %s, "EGW_PROOF_PLAN": %s, "EGW_PROOF_RUNBOOK": %s, "expected_source_commit": "%s"}' \
+    "$DRAIN_QUIET_S" "$DRAIN_STEP_S" "$DRAIN_LIMIT_S" "$LIMIT" "$STEP" "$READY_LIMIT" "$ATTEMPT_LIMIT" "$RESTART_AT" "$DURATION" "$RATE" "$MASTER_SEED" "$EXTENSION" "$EXTENSION_LIMIT" "$(json_text "$BASE")" "$(json_text "$PLAN")" "$(json_text "$RUNBOOK")" "$EXPECTED_COMMIT")
 (cd "$REPO/src" && $LE set --attempt "$A" "pid=$$" "identities=$IDENTITIES" \
-    "workload={\"session\": \"$(basename "$SESSION")\", \"proof\": \"the finite proof (ADR 0011)\", \"engineering_diagnostic_not_a_g3_run\": true, \"harness_run_id\": \"$RID\", \"condition\": \"controller_restart\", \"scenario\": \"nominal\", \"warmup_s\": 0, \"duration_s\": $DURATION, \"rate_msg_s\": $RATE, \"restart_at_s\": $RESTART_AT, \"fault\": \"SIGKILL of the controller's container followed by a start (proof_restart_controller.sh)\", \"devices\": \"smartwatch, smart ring, smart clothing (nominal mix)\", \"values\": $VALUES}" \
+    "workload={\"session\": $(json_text "$(basename "$SESSION")"), \"proof\": \"the finite proof (ADR 0011)\", \"engineering_diagnostic_not_a_g3_run\": true, \"harness_run_id\": \"$RID\", \"condition\": \"controller_restart\", \"scenario\": \"nominal\", \"warmup_s\": 0, \"duration_s\": $DURATION, \"rate_msg_s\": $RATE, \"restart_at_s\": $RESTART_AT, \"fault\": \"SIGKILL of the controller's container followed by a start (proof_restart_controller.sh)\", \"devices\": \"smartwatch, smart ring, smart clothing (nominal mix)\", \"values\": $VALUES}" \
     "proof_verdict=not-computed" "restoration=not-started" "restart_shown=unknown" "extension=$EXTENSION_RESULT" \
     'expected_artefacts=["raw/*/manifest.json", "raw/*/sent_events.jsonl", "raw/*/events.jsonl", "raw/*/events.post-drain.jsonl", "raw/*/twins.before.json", "raw/*/twins.after.json", "raw/*/configuration_identity.json", "raw/*/controller_metrics.csv", "raw/*/resources.csv", "raw/*/logs/sut/broker.log", "raw/*/logs/sut/controller.log", "raw/*/logs/sut/docker-events.log", "raw/*/SHA256SUMS", "analysis/proof_session.json", "analysis/proof_verdict.json", "analysis/snapshots/*.config_identity.json", "analysis/snapshots/*.metrics.before.json", "analysis/snapshots/*.metrics.after.json", "analysis/snapshots/*.twins.before.json", "analysis/snapshots/*.twins.after.json", "analysis/snapshots/*.restart.txt", "environment/proof_plan.json", "environment/sut_environment.json", "environment/clocks.txt", "environment/containers.before.txt", "environment/containers.after.txt", "environment/helpers-check.txt"]') \
     || PREREQ="the attempt fields could not be recorded"
@@ -353,8 +410,13 @@ rc=$?
 if [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
     capture_stop "$A" helpers-check "the harness was NOT started"
 fi
-keep_record helpers-check helpers-check.txt "the helper file check" || true
+# The record is kept whatever the check said (a difference is read from it);
+# before the harness every failure is a prerequisite (design 2.2), so a
+# record that could not be kept stops the driver here, never after the fault.
+kept=1
+keep_record helpers-check helpers-check.txt "the helper file check" || kept=0
 [ "$rc" -eq 0 ] || not_run "the deployed helper file $HELPERS is not the runbook's section 6.1 heredoc, so the 'drained', '_mline' and 'config_identity' in use are not the reviewed ones (helpers-check exit $rc: regenerate it with regen_helpers.py)"
+[ "$kept" -eq 1 ] || not_run "the record of the helper file check was not kept in environment/helpers-check.txt"
 
 # --- 2. the deployed collector is the clean clone's (nominal.sh) ----------------
 NEW=$REPO/src/deployment/scripts/collect-resources.sh
@@ -411,7 +473,10 @@ OFFSET=$((GUEST_EPOCH - HOST_EPOCH))
     echo "guest_utc=$GUEST_UTC"
     echo "offset_s=$OFFSET"
     echo "note=the offset is informational: no criterion of the proof involves timing, and the host wall clock is stepped on this host; the driver's budget runs on /proc/uptime"
-    said guest-clock '' | tr ' ' '\n' | sed -n '3,$p' | sed 's/^/guest_timedatectl=/'
+    # timedatectl's lines, each as it was printed (a value holds spaces).
+    if clock_record=$(record_file guest-clock); then
+        sed -n '3,$p' "$clock_record" | sed 's/^/guest_timedatectl=/'
+    fi
 } > "$ENVD/clocks.txt" || not_run "environment/clocks.txt could not be written"
 
 # --- 4. the session facts: the values and the stop rules, before anything starts ----
@@ -556,6 +621,10 @@ session_update "plan.path=$PLAN" "plan.sha256=$PLAN_SHA" "plan.seed=$SEED" "plan
 T0=$(uptime_s)
 T0_UTC=$(now_utc)
 session_update "instants.first_drained_started_utc=$T0_UTC" "instants.first_drained_started_host_uptime_s=$T0"
+# A mandatory record that could not be made before the harness (the session
+# facts not updated) is a prerequisite failed: the harness is not started
+# for an attempt already known to be invalid (design 2.2).
+[ "${#mandatory[@]}" -eq 0 ] || not_run "a mandatory record was not made before the harness: ${mandatory[0]}"
 hx "$A" pre "wait_ready $READY_LIMIT && drained && metrics $RID before && config_identity \"\$P/$RID.config_identity.json\""
 pre_rc=$?
 if [ "$pre_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
@@ -642,27 +711,35 @@ proof_harness_args() {
 # allowance is never 'timeout 0', which would disable the bound); 124 (or 137,
 # when the kill after the grace was needed) is the stop rule reached. The
 # harness's exit 1 is read from the manifest afterwards: a run invalid under
-# MAX_SAMPLE_GAP_S is expected and does not decide the proof.
+# MAX_SAMPLE_GAP_S is expected and does not decide the proof. The step runs
+# the harness through 'bounded', so that the driver's interrupt reaches it
+# (the harness has no handler of its own: the interrupt ends it where it is,
+# its restart timer - a daemon thread - with it; a hook already running in a
+# session of its own, run.py execute_collector_hook, ends on its own).
+[ "${#mandatory[@]}" -eq 0 ] || not_run "a mandatory record was not made before the harness: ${mandatory[0]}"
 HARNESS_STARTED=1
 # The fault mutates the stack from here on: its state is unknown until the
 # restoration reads it back.
 STACK_STATE=unknown
 LEFT=$(left)
-HARNESS_STARTED_UTC=$(now_utc)
 if [ "$LEFT" -le 0 ]; then
-    stoprule attempt "stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before the harness could start"
-    h_rc=124
+    # The one stop rule reached; no harness step ran, so no step is recorded.
+    stoprule attempt "stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before the harness could start (the harness was NOT started; the run directory was never created)"
+    h_rc=not-started
     echo "STOP: no time left in the attempt's allowance: the harness was NOT started" >&2
+    session_update "instants.harness_started_utc=null" "instants.harness_ended_utc=null" "instants.harness_exit=null" "instants.harness_allowance_s=0"
 else
+    HARNESS_STARTED_UTC=$(now_utc)
     hx "$A" harness-run "$(declare -f proof_harness_args)
+$(declare -f bounded)
 proof_harness_args '$RID' '$PLAN' '$BASE' '$ENVD/sut_environment.json'
-timeout -k 30 $LEFT python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cmd 'bash $DRIVERS/proof_restart_controller.sh {run_id}' --restart-at-s $RESTART_AT --config-identity-from '$P/$RID.config_identity.json' --twin-snapshot-cmd 'bash $DRIVERS/proof_hook_twins.sh {run_id} {dest} $SEED' --drain-cmd 'bash $DRIVERS/proof_hook_drained.sh {run_id}' --post-drain-fetch-cmd 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl {dest}' --fetch-broker-log-cmd 'bash $DRIVERS/proof_fetch_sut_log.sh broker {dest} $GUEST_EPOCH' --fetch-controller-log-cmd 'bash $DRIVERS/proof_fetch_sut_log.sh controller {dest} $GUEST_EPOCH' --fetch-docker-events-cmd 'bash $DRIVERS/proof_fetch_sut_log.sh docker-events {dest} $GUEST_EPOCH'"
+bounded $LEFT python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cmd 'bash $DRIVERS/proof_restart_controller.sh {run_id}' --restart-at-s $RESTART_AT --config-identity-from '$P/$RID.config_identity.json' --twin-snapshot-cmd 'bash $DRIVERS/proof_hook_twins.sh {run_id} {dest} $SEED' --drain-cmd 'bash $DRIVERS/proof_hook_drained.sh {run_id}' --post-drain-fetch-cmd 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl {dest}' --fetch-broker-log-cmd 'bash $DRIVERS/proof_fetch_sut_log.sh broker {dest} $GUEST_EPOCH' --fetch-controller-log-cmd 'bash $DRIVERS/proof_fetch_sut_log.sh controller {dest} $GUEST_EPOCH' --fetch-docker-events-cmd 'bash $DRIVERS/proof_fetch_sut_log.sh docker-events {dest} $GUEST_EPOCH'"
     h_rc=$?
+    HARNESS_ENDED_UTC=$(now_utc)
+    session_update "instants.harness_started_utc=$HARNESS_STARTED_UTC" "instants.harness_ended_utc=$HARNESS_ENDED_UTC" "instants.harness_exit=$h_rc" "instants.harness_allowance_s=$LEFT"
 fi
-HARNESS_ENDED_UTC=$(now_utc)
-session_update "instants.harness_started_utc=$HARNESS_STARTED_UTC" "instants.harness_ended_utc=$HARNESS_ENDED_UTC" "instants.harness_exit=$h_rc" "instants.harness_allowance_s=$LEFT"
 case "$h_rc" in
-    0 | 1) ;;
+    0 | 1 | not-started) ;;
     124 | 137)
         stoprule attempt "stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step was ended by 'timeout', exit $h_rc); the run directory, sealed or not, is preserved as incomplete"
         ;;
@@ -694,6 +771,9 @@ if [ "${#stoprules[@]}" -eq 0 ]; then
         missed "$(step_note containers-after "$rc" "the containers' ids and start instants were not recorded after the run (containers-after exit $rc)")"
     fi
     keep_record containers-after containers.after.txt "the containers after the run" || true
+    # Exit 1 is NOT SHOWN only with the line that says so; a record that
+    # could not be read, or a failure of the check itself, is NOT JUDGED (2),
+    # as guest_state_delta.py keeps its own crash apart from a fault.
     ex "$A" restart-shown "$PY" -c '
 import re, sys
 before_started, after_started, before_file, after_file, name = sys.argv[1:6]
@@ -711,39 +791,53 @@ def instant(text):
         return None
     return (m.group(1), m.group(2), (m.group(3) or "").ljust(9, "0"))
 
-old_id, old_started = container(before_file)
-new_id, new_started = container(after_file)
-print("controller process started_at: %s -> %s" % (before_started or "(not read)", after_started or "(not read)"))
-print("%s: id %s -> %s, started %s -> %s" % (name, (old_id or "unknown")[:12], (new_id or "unknown")[:12], old_started, new_started))
-unjudged = []
-if not before_started or not after_started:
-    unjudged.append("the controller process was not read on one side")
-if old_id in (None, "unknown") or new_id in (None, "unknown") or instant(old_started) is None or instant(new_started) is None:
-    unjudged.append("the container records do not name %s with a usable id and start instant on both sides" % name)
-if unjudged:
-    for what in unjudged:
-        print("NOT JUDGED: " + what)
+def judge():
+    old_id, old_started = container(before_file)
+    new_id, new_started = container(after_file)
+    print("controller process started_at: %s -> %s" % (before_started or "(not read)", after_started or "(not read)"))
+    print("%s: id %s -> %s, started %s -> %s" % (name, (old_id or "unknown")[:12], (new_id or "unknown")[:12], old_started, new_started))
+    unjudged = []
+    if not before_started or not after_started:
+        unjudged.append("the controller process was not read on one side")
+    if old_id in (None, "unknown") or new_id in (None, "unknown") or instant(old_started) is None or instant(new_started) is None:
+        unjudged.append("the container records do not name %s with a usable id and start instant on both sides" % name)
+    if unjudged:
+        for what in unjudged:
+            print("NOT JUDGED: " + what)
+        return 2
+    not_shown = []
+    if after_started == before_started:
+        not_shown.append("the controller started_at did not change (%s): the process is the one that ran before the fault" % before_started)
+    if new_id != old_id:
+        not_shown.append("the container id of %s changed (%s -> %s): the object was replaced, not killed and started" % (name, old_id[:12], new_id[:12]))
+    elif not instant(new_started) > instant(old_started):
+        not_shown.append("%s did not start later than before the fault (%s, then %s)" % (name, old_started, new_started))
+    if not_shown:
+        for what in not_shown:
+            print("NOT SHOWN: " + what)
+        return 1
+    print("RESTART SHOWN: the controller process is new (%s, then %s) and its container is the same object (%s), started later (%s, then %s)"
+          % (before_started, after_started, old_id[:12], old_started, new_started))
+    return 0
+
+try:
+    sys.exit(judge())
+except SystemExit:
+    raise
+except Exception as exc:  # a record that could not be read is no judgement
+    print("NOT JUDGED: the records could not be read or compared: %s: %s" % (type(exc).__name__, exc))
     sys.exit(2)
-not_shown = []
-if after_started == before_started:
-    not_shown.append("the controller started_at did not change (%s): the process is the one that ran before the fault" % before_started)
-if new_id != old_id:
-    not_shown.append("the container id of %s changed (%s -> %s): the object was replaced, not killed and started" % (name, old_id[:12], new_id[:12]))
-elif not instant(new_started) > instant(old_started):
-    not_shown.append("%s did not start later than before the fault (%s, then %s)" % (name, old_started, new_started))
-if not_shown:
-    for what in not_shown:
-        print("NOT SHOWN: " + what)
-    sys.exit(1)
-print("RESTART SHOWN: the controller process is new (%s, then %s) and its container is the same object (%s), started later (%s, then %s)"
-      % (before_started, after_started, old_id[:12], old_started, new_started))
 ' "$STARTED_BEFORE" "$STARTED_AFTER" "$ENVD/containers.before.txt" "$ENVD/containers.after.txt" "$CONTROLLER"
     shown_rc=$?
     case "$shown_rc" in
         0) RESTART_SHOWN=yes ;;
         1)
-            RESTART_SHOWN=no
-            missed "the restart was not shown - the fault was not applied:$(said restart-shown 'NOT SHOWN:')"
+            if [ -n "$(said restart-shown 'NOT SHOWN:')" ]; then
+                RESTART_SHOWN=no
+                missed "the restart was not shown - the fault was not applied:$(said restart-shown 'NOT SHOWN:')"
+            else
+                missed "the restart was not shown: the check ended 1 without saying what was not shown (restart-shown exit 1), so it could not be judged from the records"
+            fi
             ;;
         "$EXIT_CAPTURE_LOST") mandatory+=("$(capture_note restart-shown)") ;;
         *) missed "the restart was not shown: it could not be judged from the records (restart-shown exit $shown_rc):$(said restart-shown 'NOT JUDGED:')" ;;
@@ -892,18 +986,34 @@ restore
 
 # --- 17. the optional extension (ADR 0011 item 4 section 9), only when asked ------------
 # One more kill + start under the same client id and persistent session, then
-# 'wait_ready', one /metrics reading and 'drained' with nothing published, and a
-# second post-drain fetch. It changes the proof's plan, so it is the student's
+# 'wait_ready' and one /metrics reading (the restart shown), 'drained' with
+# nothing published, one more /metrics reading after it and a second
+# post-drain fetch. It changes the proof's plan, so it is the student's
 # decision (EGW_PROOF_EXTENSION=yes); its result is recorded APART, in
 # proof_session.json.extension and on the attempt, and never changes the
 # proof's three verdicts. Refutes the assumption if the new process received
-# anything (received > 0) or an identity gained its first outcome line after
-# the first quiet window; inconclusive if the restart is not shown, /ready is
-# not reached, 'drained' reaches its limit, a fetch fails or its own ceiling
-# (EGW_PROOF_EXTENSION_LIMIT_S) is reached.
-if [ "$EXTENSION" = yes ] && [ "${#stoprules[@]}" -eq 0 ] && [ "$STACK_STATE" = healthy ] && [ -s "$RAWD/events.post-drain.jsonl" ]; then
+# anything with nothing published (received > 0 in the reading after its
+# 'drained') or an identity gained its first outcome line after the first
+# quiet window; inconclusive if the restart is not shown, /ready is not
+# reached, 'drained' reaches its limit, a fetch fails, its own ceiling
+# (EGW_PROOF_EXTENSION_LIMIT_S) is reached - every step of it runs under what
+# is left of that ceiling - or it could not be run at all (a stop rule
+# reached, the stack not healthy again, no post-drain copy to compare with):
+# chosen, it is never recorded as not chosen.
+ext_blockers=()
+if [ "$EXTENSION" = yes ]; then
     EXTENSION_RESULT=inconclusive
     ext_reasons=()
+    [ "${#stoprules[@]}" -eq 0 ] || ext_blockers+=("a stop rule of the proof was reached")
+    [ "$STACK_STATE" = healthy ] || ext_blockers+=("the stack was not running and healthy again after the run (stack=$STACK_STATE)")
+    [ -s "$RAWD/events.post-drain.jsonl" ] || ext_blockers+=("the run directory holds no post-drain copy of the events to compare with")
+    session_update "extension.chosen=true" "extension.limit_s=$EXTENSION_LIMIT" "extension.result=$EXTENSION_RESULT"
+    if [ "${#ext_blockers[@]}" -ne 0 ]; then
+        ext_reasons+=("the extension was not run: $(printf '%s; ' "${ext_blockers[@]}")")
+        session_update "extension.ran=false" "extension.reasons=$(printf '%s; ' "${ext_reasons[@]}")"
+    fi
+fi
+if [ "$EXTENSION" = yes ] && [ "${#ext_blockers[@]}" -eq 0 ]; then
     EXT_T0=$(uptime_s)
     ext_left() {
         local rest
@@ -916,51 +1026,98 @@ if [ "$EXTENSION" = yes ] && [ "${#stoprules[@]}" -eq 0 ] && [ "$STACK_STATE" = 
         ext_reasons+=("the extension's ceiling of ${EXTENSION_LIMIT} s was reached before '$1'")
         return 0
     }
-    session_update "extension.chosen=true" "extension.started_utc=$(now_utc)" "extension.limit_s=$EXTENSION_LIMIT" "extension.result=$EXTENSION_RESULT"
+    # ext_step NAME CMD...: one host step of the extension under what is left
+    # of its ceiling, through 'bounded' (an interrupt reaches it). The
+    # helpers of runbook 6.1 run in a shell of their own that loads the
+    # deployed helper file, as the hook wrappers do, so that 'timeout' can
+    # end them; a ceiling reached during the step is 124 or 137.
+    ext_step() {
+        local name=$1
+        shift
+        hx "$A" "$name" "$(declare -f bounded)
+bounded $(ext_left) $*"
+    }
+    # ext_cut NAME RC: non-zero, with the reason recorded, when the step was
+    # ended by the ceiling.
+    ext_cut() {
+        [ "$2" -eq 124 ] || [ "$2" -eq 137 ] || return 1
+        ext_reasons+=("the extension's ceiling of ${EXTENSION_LIMIT} s was reached during '$1' (exit $2)")
+        return 0
+    }
+    session_update "extension.ran=true" "extension.started_utc=$(now_utc)"
     ext_ok=1
-    rc=124
     if ext_spent ext-restart; then
         ext_ok=0
     else
-        hx "$A" ext-restart "timeout -k 15 $(ext_left) bash '$DRIVERS/proof_restart_controller.sh' '$RID.extension'"
+        # The second kill + start mutates the stack again: its state is
+        # unknown until the restoration reads it back, and an interrupt from
+        # here on runs that reading before the ending names the state.
+        RESTORED=0
+        STACK_STATE=unknown
+        ext_step ext-restart "bash '$DRIVERS/proof_restart_controller.sh' '$RID.extension'"
         rc=$?
+        if ext_cut ext-restart "$rc"; then
+            ext_ok=0
+        elif [ "$rc" -ne 0 ]; then
+            ext_ok=0
+            ext_reasons+=("the second kill + start was not issued cleanly (ext-restart exit $rc)")
+        fi
     fi
-    if [ "$ext_ok" -eq 0 ]; then
-        :
-    elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-        ext_ok=0
-        ext_reasons+=("the extension's ceiling was reached during the second kill + start (exit $rc)")
-    elif [ "$rc" -ne 0 ]; then
-        ext_ok=0
-        ext_reasons+=("the second kill + start was not issued cleanly (ext-restart exit $rc)")
-    fi
+    EXT_RECEIVED=""
     if [ "$ext_ok" -eq 1 ] && ! ext_spent ext-ready; then
-        hx "$A" ext-ready "wait_ready $READY_LIMIT && _mline"
+        ext_step ext-ready "bash -c '. \"\$HOME/egw-tcg/itest-helpers.sh\" && wait_ready $READY_LIMIT && _mline'"
         rc=$?
         if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then
             EXT_LINE=$(last_line ext-ready)
             EXT_STARTED=$(printf '%s' "$EXT_LINE" | cut -d' ' -f5)
-            EXT_RECEIVED=$(printf '%s' "$EXT_LINE" | cut -d' ' -f7)
+            EXT_RECEIVED_READY=$(printf '%s' "$EXT_LINE" | cut -d' ' -f7)
             if [ -z "$EXT_STARTED" ] || [ "$EXT_STARTED" = "${STARTED_AFTER:-}" ]; then
                 ext_ok=0
                 ext_reasons+=("the extension's restart is not shown (started_at '$EXT_STARTED' after, '${STARTED_AFTER:-}' before it)")
             fi
-            session_update "extension.started_at_after=$EXT_STARTED" "extension.received_after_ready=${EXT_RECEIVED:-null}"
+            session_update "extension.started_at_after=$EXT_STARTED" "extension.received_after_ready=${EXT_RECEIVED_READY:-null}"
+        elif ext_cut ext-ready "$rc"; then
+            ext_ok=0
         else
             ext_ok=0
             ext_reasons+=("/ready was not reached, or the controller process was not read, after the second kill + start (ext-ready exit $rc)")
         fi
     fi
     if [ "$ext_ok" -eq 1 ] && ! ext_spent ext-drained; then
-        hx "$A" ext-drained "drained"
+        ext_step ext-drained "bash '$DRIVERS/proof_hook_drained.sh' '$RID'"
         rc=$?
-        [ "$rc" -eq 0 ] || { ext_ok=0; ext_reasons+=("the extension's 'drained' did not report a quiet window (ext-drained exit $rc)"); }
+        if ext_cut ext-drained "$rc"; then
+            ext_ok=0
+        elif [ "$rc" -ne 0 ]; then
+            ext_ok=0
+            ext_reasons+=("the extension's 'drained' did not report a quiet window (ext-drained exit $rc)")
+        fi
+    fi
+    # The reading that decides 'received': after the extension's 'drained'
+    # (ADR 0011: one more 'drained' with nothing published, then one /metrics
+    # reading), so that a redelivery arriving during the quiet window counts.
+    if [ "$ext_ok" -eq 1 ] && ! ext_spent ext-metrics; then
+        ext_step ext-metrics "bash -c '. \"\$HOME/egw-tcg/itest-helpers.sh\" && _mline'"
+        rc=$?
+        if [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; then
+            EXT_RECEIVED=$(last_line ext-metrics | cut -d' ' -f7)
+            session_update "extension.received_after_drained=${EXT_RECEIVED:-null}"
+        elif ext_cut ext-metrics "$rc"; then
+            ext_ok=0
+        else
+            ext_ok=0
+            ext_reasons+=("the controller process was not read after the extension's 'drained' (ext-metrics exit $rc)")
+        fi
     fi
     if [ "$ext_ok" -eq 1 ] && ! ext_spent ext-fetch; then
-        hx "$A" ext-fetch "scp -q 'egw-tcg:/opt/egw/deployment/data/events/$RID/events.jsonl' '$ANALYSIS/events.post-extension.jsonl' && wc -l '$ANALYSIS/events.post-extension.jsonl'"
+        ext_step ext-fetch "scp -q 'egw-tcg:/opt/egw/deployment/data/events/$RID/events.jsonl' '$ANALYSIS/events.post-extension.jsonl' && wc -l '$ANALYSIS/events.post-extension.jsonl'"
         rc=$?
-        [ "$rc" -eq 0 ] && [ -s "$ANALYSIS/events.post-extension.jsonl" ] \
-            || { ext_ok=0; ext_reasons+=("the post-extension copy of the events was not fetched (ext-fetch exit $rc)"); }
+        if ext_cut ext-fetch "$rc"; then
+            ext_ok=0
+        elif [ "$rc" -ne 0 ] || [ ! -s "$ANALYSIS/events.post-extension.jsonl" ]; then
+            ext_ok=0
+            ext_reasons+=("the post-extension copy of the events was not fetched (ext-fetch exit $rc)")
+        fi
     fi
     if [ "$ext_ok" -eq 1 ]; then
         EXT_NEW=$("$PY" - "$RAWD/events.post-drain.jsonl" "$ANALYSIS/events.post-extension.jsonl" "$RID" 2> /dev/null <<'PYEOF' || echo unreadable
@@ -979,25 +1136,31 @@ print(len(ids(sys.argv[2]) - ids(sys.argv[1])))
 PYEOF
 )
         case "$EXT_NEW$EXT_RECEIVED" in
-            *[!0-9]*)
+            '' | *[!0-9]*)
                 ext_reasons+=("the extension's readings could not be compared (new outcome lines '$EXT_NEW', received '$EXT_RECEIVED')")
                 ;;
             *)
                 if [ "$EXT_RECEIVED" -gt 0 ] || [ "$EXT_NEW" -gt 0 ]; then
                     EXTENSION_RESULT=refutes
-                    ext_reasons+=("the new process received $EXT_RECEIVED delivery(ies) with nothing published, and $EXT_NEW identity(ies) gained a first outcome line after the first quiet window")
+                    ext_reasons+=("the new process received $EXT_RECEIVED delivery(ies) with nothing published (the /metrics reading after its 'drained'), and $EXT_NEW identity(ies) gained a first outcome line after the first quiet window")
                 else
                     EXTENSION_RESULT=not-refuted
-                    ext_reasons+=("the new process received nothing and no identity gained a first outcome line after the first quiet window")
+                    ext_reasons+=("the new process received nothing (the /metrics reading after its 'drained') and no identity gained a first outcome line after the first quiet window")
                 fi
                 ;;
         esac
         session_update "extension.new_outcome_lines=${EXT_NEW}"
     fi
+    # The extension's own restart record (write-once, $RID.extension.restart.txt)
+    # into the package beside the proof's snapshots; it is also a simulator
+    # sibling. Not reaching it is noted with the extension, never with the proof.
+    if compgen -G "$P/$RID.extension.*" > /dev/null; then
+        cp "$P/$RID.extension".* "$SNAPS/" 2> /dev/null \
+            || ext_reasons+=("the extension's restart record ($RID.extension.restart.txt) was not copied into analysis/snapshots/")
+    fi
     session_update "extension.result=$EXTENSION_RESULT" "extension.ended_utc=$(now_utc)" "extension.reasons=$(printf '%s; ' "${ext_reasons[@]}")"
-    # The stack must be running and healthy again after the second restart too.
-    RESTORED=0
-    STACK_STATE=unknown
+    # The stack must be running and healthy again after the second restart
+    # too (RESTORED was reset when the kill + start was dispatched).
     restore
 fi
 set_field "extension=$EXTENSION_RESULT"

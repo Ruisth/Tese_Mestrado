@@ -93,10 +93,14 @@ exec "$EGW_REAL_PYTHON" "$@"
 HARNESS_STUB = r'''"""Stub of 'egw_experiments run' for the proof driver: records what it was
 given, applies the fault to the guest's docker state as the restart hook
 would have, and writes a sealed run directory shaped by the evaluator tests'
-builders, so the real evaluator evaluates it."""
+builders, so the real evaluator evaluates it. A signal that reaches it
+(the real harness has no handler and dies where it is) is recorded in
+LOG.harness-signalled before it ends, so a case can tell whether the
+driver's interrupt reached the harness at all."""
 import json
 import os
 import shutil
+import signal
 import sys
 import tempfile
 import time
@@ -111,6 +115,15 @@ failures = "," + os.environ.get("EGW_STUB_FAIL", "") + ","
 def fails(token):
     return f",{token}," in failures
 
+
+def signalled(signum, frame):
+    with open(LOG + ".harness-signalled", "a", encoding="utf-8") as fh:
+        fh.write(f"{signum}\n")
+    sys.exit(128 + signum)
+
+
+signal.signal(signal.SIGINT, signalled)
+signal.signal(signal.SIGTERM, signalled)
 
 argv = sys.argv[1:]
 with open(LOG + ".harness-argv", "w", encoding="utf-8") as fh:
@@ -376,7 +389,16 @@ PY
 }
 _mline() {
     stub_fails mline && { stop "_mline: GET $CTRL/metrics failed or was not valid JSON"; return 1; }
-    echo "0 0 0 true $(_proof_started_at) 1 ${EGW_STUB_MLINE_RECEIVED:-0} 0 0 0 0 0 0"
+    # Every reading is counted (LOG.mline-calls, one line each): 'received' is
+    # EGW_STUB_MLINE_RECEIVED from the reading EGW_STUB_MLINE_RECEIVED_FROM_CALL
+    # on (the first, by default), and 0 before it. The proof's readings are
+    # the first (before) and the second (after); the extension's are the
+    # third (after ready) and the fourth (after its 'drained').
+    echo x >> "$EGW_STUB_LOG.mline-calls"
+    local calls received=0
+    calls=$(wc -l < "$EGW_STUB_LOG.mline-calls")
+    [ "$calls" -lt "${EGW_STUB_MLINE_RECEIVED_FROM_CALL:-1}" ] || received=${EGW_STUB_MLINE_RECEIVED:-0}
+    echo "0 0 0 true $(_proof_started_at) 1 $received 0 0 0 0 0 0"
 }
 metrics() {
     stub_fails metrics && { stop "metrics $1 $2: GET /metrics failed"; return 1; }
@@ -443,9 +465,29 @@ class ProofBench:
         return self.bench.run("proof.sh", *argv, timeout=600, **overrides)
 
     def start(self, **overrides) -> subprocess.Popen:
+        """The driver as a terminal job of its own (a process group whose
+        leader it is), so that an interrupt can be sent as Ctrl-C sends it:
+        to the whole group, never to the driver's shell alone."""
         return subprocess.Popen(["bash", str(self.bench.drivers / "proof.sh"), RID, COMMIT],
                                 env=self.bench.env(**overrides), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True)
+                                text=True, start_new_session=True)
+
+    @staticmethod
+    def interrupt(proc: subprocess.Popen) -> None:
+        """The operator's Ctrl-C: SIGINT to the driver's whole process group."""
+        os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+
+    def harness_signalled(self) -> list[int]:
+        """The signals the stub harness received, in order (none: it was
+        never signalled, so an interrupt of the driver did not reach it)."""
+        path = Path(str(self.bench.log) + ".harness-signalled")
+        if not path.exists():
+            return []
+        return [int(line) for line in path.read_text(encoding="utf-8").split()]
+
+    def docker_state(self) -> dict:
+        path = Path(str(self.bench.log) + ".proof-docker.json")
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
     def attempt(self) -> Path:
         return self.bench.attempt(SLUG)
@@ -742,7 +784,7 @@ def test_the_values_and_stop_rules_are_recorded_before_the_first_drained(pbench)
         "EGW_PROOF_ATTEMPT_LIMIT_S": 600, "EGW_PROOF_RESTART_AT_S": 150, "EGW_PROOF_DURATION_S": 300,
         "EGW_PROOF_RATE": 11.2, "EGW_PROOF_MASTER_SEED": 42, "EGW_PROOF_EXTENSION": "no",
         "EGW_PROOF_EXTENSION_LIMIT_S": 1790, "EGW_PROOF_BASE": str(pbench.base), "EGW_PROOF_PLAN": str(pbench.plan),
-        "expected_source_commit": COMMIT,
+        "EGW_PROOF_RUNBOOK": str(pbench.runbook), "expected_source_commit": COMMIT,
     }
     assert verdicts["workload"]["engineering_diagnostic_not_a_g3_run"] is True
     # In the session facts, written as a step of its own BEFORE 'pre' (the
@@ -772,6 +814,79 @@ def test_the_stack_not_healthy_within_the_limit_is_a_stop_rule_and_the_proof_is_
     assert healthy["reached"] is True and healthy["reached_at"]
     assert [r["id"] for r in pe.stop_rules_of(facts)["reached"]] == ["healthy"]
     assert "pre" not in pbench.commands() and pbench.harness() is None
+
+
+PY_SESSION_UPDATE_FAILS = '''#!/usr/bin/env python3
+"""A $PY whose `proof_session.py update` always fails, as a full attempts
+area makes it. Every other call is this interpreter, unchanged."""
+import os
+import subprocess
+import sys
+
+args = sys.argv[1:]
+if args and args[0].endswith("proof_session.py") and args[1:2] == ["update"]:
+    print("STOP: proof_session: stub: the attempts area is full", file=sys.stderr)
+    sys.exit(2)
+sys.exit(subprocess.run([os.environ["EGW_REAL_PYTHON"]] + args).returncode)
+'''
+
+
+def test_a_record_not_kept_or_facts_not_updated_before_the_harness_leave_it_unstarted(pbench):
+    # Before the harness every failure is a prerequisite (design 2.2): a
+    # mandatory record that could not be made never lets the fault reach the
+    # guest for an attempt already known to be invalid. The helper file
+    # check's record not kept:
+    _write(pbench.bench.bin / "cp", CP_REFUSES.format(name="helpers-check.txt"), executable=True)
+    result = pbench.run()
+    assert result.returncode == 2, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "not-run"
+    assert "the record of the helper file check was not kept in environment/helpers-check.txt" in verdicts["reason"]
+    assert "the harness was NOT started" in verdicts["reason"]
+    steps = pbench.commands()
+    assert "harness-run" not in steps and "pre" not in steps and pbench.harness() is None
+    # The session facts not updated (the plan's facts, before 'pre'):
+    shutil.rmtree(pbench.attempt())
+    (pbench.bench.bin / "cp").unlink()
+    result = pbench.run(**pbench.bench.python_stub(PY_SESSION_UPDATE_FAILS))
+    assert result.returncode == 2, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "not-run"
+    assert "a mandatory record was not made before the harness: the session facts could not be updated" in verdicts["reason"]
+    steps = pbench.commands()
+    assert "proof-plan" in steps and "pre" not in steps and "harness-run" not in steps
+    assert pbench.harness() is None and not pbench.docker_log().count("kill")
+
+
+def test_a_rate_that_is_not_one_number_is_refused_and_a_path_with_a_quote_is_recorded_as_it_is(pbench):
+    # The values are one JSON record: a rate of two dots passes no check
+    # that only refuses a leading or trailing one, and a quote in a path
+    # would end its string early; both would leave the values unrecorded.
+    for rate in ("11.2.0", "011.2", "1e3"):
+        result = pbench.run(EGW_PROOF_RATE=rate)
+        assert result.returncode == 2, report(result)
+        assert f"EGW_PROOF_RATE='{rate}' is not a number" in result.stdout and pbench.attempts() == []
+    leading_zero = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="0600")
+    assert leading_zero.returncode == 2, report(leading_zero)
+    assert "EGW_PROOF_ATTEMPT_LIMIT_S='0600' is not a plain whole number" in leading_zero.stdout
+    base = pbench.bench.tmp / 'res"ults\\here'
+    result = pbench.run(EGW_PROOF_BASE=str(base), EGW_STUB_FAIL="drained")
+    assert result.returncode == 2, report(result)
+    values = pbench.verdicts()["workload"]["values"]
+    assert values["EGW_PROOF_BASE"] == str(base) and values["EGW_PROOF_RATE"] == 11.2
+    assert pbench.session_facts()["values"]["EGW_PROOF_BASE"] == str(base)
+
+
+def test_clocks_txt_keeps_each_timedatectl_line_whole(pbench):
+    _write(pbench.bench.guest_bin / "timedatectl", "#!/bin/sh\necho 'Timezone=UTC'\n"
+                                                    "echo 'TimeUSec=Thu 2026-09-25 10:00:00 UTC'\n", executable=True)
+    result = pbench.run(EGW_STUB_FAIL="drained")
+    assert result.returncode == 2, report(result)
+    lines = (pbench.attempt() / "environment" / "clocks.txt").read_text(encoding="utf-8").splitlines()
+    assert "guest_timedatectl=Timezone=UTC" in lines
+    assert "guest_timedatectl=TimeUSec=Thu 2026-09-25 10:00:00 UTC" in lines
+    assert not [line for line in lines if line in ("guest_timedatectl=Thu", "guest_timedatectl=UTC")]
+    assert lines[0].startswith("host_utc=") and any(line.startswith("offset_s=") for line in lines)
 
 
 # --------------------------------------------------------------------------
@@ -838,7 +953,11 @@ def test_the_harness_is_given_the_proof_plan_base_hooks_identity_and_restart_at_
                   if json.loads(line)["name"] == "harness-run")
     assert "stub-simulator-password" not in json.dumps(record["argv"])
     assert "$MOSQUITTO_SIMULATOR_PASSWORD" in json.dumps(record["argv"])
-    assert "timeout -k 30" in json.dumps(record["argv"])
+    # Under the attempt's allowance, as a job of the step's shell that
+    # forwards the driver's interrupt ('bounded'), never a bare 'timeout'.
+    step_text = record["argv"][-1]
+    assert "timeout -k 30" in step_text and "\nbounded " in step_text and "bounded ()" in step_text
+    assert "\ntimeout " not in step_text
 
 
 def test_the_restart_template_is_sigkill_then_start_of_the_controller_container_and_records_both_guest_instants(pbench):
@@ -1047,6 +1166,41 @@ def test_a_replaced_controller_is_not_the_restart_the_proof_issued(pbench):
     assert verdicts["instrumentation_validity"] == "invalid"
 
 
+CP_REFUSES = """#!/bin/sh
+# A 'cp' that refuses one destination, as a full disk does.
+for a in "$@"; do
+    case "$a" in
+        */environment/{name})
+            echo "cp: cannot create regular file '$a': No space left on device" >&2
+            exit 1
+            ;;
+    esac
+done
+exec /bin/cp "$@"
+"""
+
+
+def test_a_containers_after_record_that_cannot_be_read_is_not_judged_never_not_shown(pbench):
+    # The record of the containers after the run is not kept (the copy
+    # fails): the restart-shown check cannot read it. That is NOT JUDGED
+    # (exit 2), a mandatory record missing - never NOT SHOWN, which would
+    # attribute "the fault was not applied" to the system out of a record
+    # that could not be read.
+    _write(pbench.bench.bin / "cp", CP_REFUSES.format(name="containers.after.txt"), executable=True)
+    result = pbench.run()
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["restart_shown"] == "unknown"
+    assert "the containers after the run was not kept in environment/containers.after.txt" in verdicts["reason"]
+    assert "could not be judged from the records (restart-shown exit 2)" in verdicts["reason"]
+    assert "the fault was not applied" not in verdicts["reason"]
+    assert "NOT JUDGED: the records could not be read or compared: FileNotFoundError" in pbench.console("restart-shown")
+    assert "NOT SHOWN" not in pbench.console("restart-shown")
+    assert pbench.session_facts()["restart_shown"] is None
+    assert verdicts["restoration"] == "stack=healthy restart_shown=unknown"
+
+
 def test_delta_exit_4_on_a_named_n1_case_is_a_result_not_a_failure(pbench):
     result = pbench.run(EGW_STUB_REC_DELTA="4")
     assert result.returncode == 0, report(result)
@@ -1112,14 +1266,55 @@ def test_the_50_minute_rule_ends_the_attempt_inconclusive_and_still_restores(pbe
     # evaluator could not run, which is mandatory, never a result.
     assert verdicts["instrumentation_validity"] == "invalid"
     assert verdicts["proof_verdict"] == "not-computed"
+    # 'timeout' ended the harness (SIGTERM reached it), and the rule is
+    # recorded once.
+    assert pbench.harness_signalled() == [signal.SIGTERM]
+    assert verdicts["reason"].count("stop rule reached") == 1
+
+
+def test_an_allowance_spent_before_the_harness_records_the_stop_rule_once_and_starts_nothing(pbench):
+    # An allowance of 0 s is spent by the time 'pre' has ended: the stop rule
+    # is reached before the harness, which is NOT started, and the record
+    # says so once - never a harness step "ended by timeout" that never ran.
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="0")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert verdicts["reason"].count("stop rule reached") == 1
+    assert "was spent before the harness could start (the harness was NOT started" in verdicts["reason"]
+    assert "ended by 'timeout'" not in verdicts["reason"]
+    assert "harness exit not-started" in verdicts["reason"]
+    steps = pbench.commands()
+    assert "harness-run" not in steps and pbench.harness() is None
+    assert "pre" in steps and "services-healthy-after" in steps and "evaluate" in steps
+    facts = pbench.session_facts()
+    attempt_rule = next(r for r in facts["stop_rules"] if r["id"] == "attempt")
+    assert attempt_rule["reached"] is True and attempt_rule["reached_at"]
+    assert facts["instants"]["harness_exit"] is None and facts["instants"]["harness_started_utc"] is None
+    assert facts["instants"]["harness_allowance_s"] == 0
+    assert "harness_exit=not-started" in result.stdout
+    assert not (pbench.base / "raw" / RID).exists()
+    assert verdicts["restoration"].startswith("stack=healthy")
 
 
 def test_interrupt_restores_and_names_the_stack_state_on_the_final_line(pbench):
-    proc = pbench.start(EGW_STUB_HANG_S="4")
+    # The operator's Ctrl-C goes to the driver's whole process group. 'timeout'
+    # moves itself and the harness into a group of their own, which that
+    # signal never reaches: the step's shell must forward it, or the harness
+    # goes on detached and applies the fault after the driver has ended,
+    # outside any record. The stub harness hangs before its fault for longer
+    # than the driver takes to end, and records the signal it received.
+    proc = pbench.start(EGW_STUB_HANG_S="25")
     pbench.wait_for(lambda: pbench.harness() is not None, 120)
-    proc.send_signal(signal.SIGINT)
+    interrupted_at = time.monotonic()
+    pbench.interrupt(proc)
     out, err = proc.communicate(timeout=300)
     assert proc.returncode == 130, f"exit={proc.returncode}\n{out}\n{err}"
+    # The interrupt reached the harness, which ended where it was: no fault
+    # was applied, no run directory was written, then or afterwards.
+    pbench.wait_for(lambda: pbench.harness_signalled() == [signal.SIGINT], 30)
+    assert not Path(str(pbench.bench.log) + ".midrun").exists()
+    assert not (pbench.base / "raw" / RID).exists()
     verdicts = pbench.verdicts()
     assert verdicts["status"] == "interrupted" and verdicts["system_outcome"] == "interrupted"
     assert verdicts["restoration"] == "stack=healthy restart_shown=unknown"
@@ -1128,11 +1323,20 @@ def test_interrupt_restores_and_names_the_stack_state_on_the_final_line(pbench):
     assert 'headline="interrupted; the guest was left with stack=healthy restart_shown=unknown"' in out
     assert "DRIVER RESULT" in out and "exit=130" in out
     steps = pbench.commands()
-    assert "harness-run" in steps and "services-healthy-after" in steps
+    assert "services-healthy-after" in steps
     assert "evaluate" not in steps
     facts = pbench.session_facts()
     assert facts["instants"]["interrupted_utc"] and facts["restoration"] == "stack=healthy restart_shown=unknown"
     assert pbench.package() is not None
+    # Long after the hang would have ended, the guest is as the ending said:
+    # the controller was never killed and started again.
+    remaining = 25 - (time.monotonic() - interrupted_at)
+    if remaining > 0:
+        time.sleep(min(remaining + 3, 30))
+    assert not Path(str(pbench.bench.log) + ".midrun").exists()
+    assert not (pbench.base / "raw" / RID).exists()
+    assert pbench.docker_state().get("controller", {}).get("starts", 0) == 0
+    assert "kill" not in pbench.docker_log()
 
 
 def test_snapshots_session_facts_and_verdict_reach_the_package(pbench):
@@ -1203,7 +1407,8 @@ def test_the_optional_extension_never_runs_unless_asked(pbench):
 def test_the_extension_runs_bounded_when_asked_and_is_recorded_apart(pbench):
     # With EGW_PROOF_EXTENSION=yes the second kill + start (the restart hook
     # itself, on the guest), the ready wait and one /metrics reading, the
-    # drain and the second fetch run after the restoration, and the result
+    # drain, the /metrics reading after it and the second fetch run after the
+    # restoration, every step under the extension's ceiling, and the result
     # is recorded APART: the proof's three verdicts are what they were.
     result = pbench.run(EGW_PROOF_EXTENSION="yes")
     assert result.returncode == 0, report(result)
@@ -1211,17 +1416,22 @@ def test_the_extension_runs_bounded_when_asked_and_is_recorded_apart(pbench):
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
     assert verdicts["proof_verdict"] == "supports"
     steps = pbench.commands()
-    for step in ("ext-restart", "ext-ready", "ext-drained", "ext-fetch"):
+    for step in ("ext-restart", "ext-ready", "ext-drained", "ext-metrics", "ext-fetch"):
         assert step in steps, step
     assert steps.index("ext-restart") > steps.index("services-healthy-after")
+    assert (steps.index("ext-restart") < steps.index("ext-ready") < steps.index("ext-drained")
+            < steps.index("ext-metrics") < steps.index("ext-fetch"))
     assert steps.count("services-healthy-after") == 2
+    assert steps.index("services-healthy-after", steps.index("ext-fetch")) > steps.index("ext-fetch")
     log = pbench.docker_log()
     assert "kill --signal=KILL egw-controller-1" in log and "compose start controller" in log
     assert log.count("kill --signal=KILL") == 1
     facts = pbench.session_facts()
-    assert facts["extension"]["chosen"] is True and facts["extension"]["limit_s"] == 1790
+    assert facts["extension"]["chosen"] is True and facts["extension"]["ran"] is True
+    assert facts["extension"]["limit_s"] == 1790
     assert facts["extension"]["result"] == "not-refuted"
-    assert facts["extension"]["received_after_ready"] == 0 and facts["extension"]["new_outcome_lines"] == 0
+    assert facts["extension"]["received_after_ready"] == 0 and facts["extension"]["received_after_drained"] == 0
+    assert facts["extension"]["new_outcome_lines"] == 0
     assert facts["extension"]["started_at_after"] == "2026-09-25T10:04:35Z"
     assert verdicts["extension"] == "not-refuted"
     assert "optional extension: not-refuted (recorded apart, it decides nothing of the proof)" in verdicts["reason"]
@@ -1229,19 +1439,114 @@ def test_the_extension_runs_bounded_when_asked_and_is_recorded_apart(pbench):
     assert (pbench.attempt() / "analysis" / "events.post-extension.jsonl").is_file()
     assert verdicts["workload"]["values"]["EGW_PROOF_EXTENSION"] == "yes"
     assert verdicts["restoration"] == "stack=healthy restart_shown=yes"
+    # Each step of the extension ran under 'bounded' with what was left of
+    # the ceiling, and the extension's own restart record reached the
+    # package beside the proof's snapshots and as a simulator sibling.
+    records = [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()]
+    for record in records:
+        if record["name"].startswith("ext-"):
+            text = record["argv"][-1]
+            assert "\nbounded " in text and "timeout -k 30" in text, record["name"]
+            # The call is the last line ('bounded LIMIT CMD...'); the first
+            # 'bounded' line is the function's own definition.
+            limit = int(text.rsplit("\nbounded ", 1)[1].split()[0])
+            assert 0 < limit <= 1790
+    package = pbench.package()
+    assert (package / "analysis" / "snapshots" / f"{RID}.extension.restart.txt").is_file()
+    assert (package / "simulator" / f"{RID}.extension.restart.txt").is_file()
 
 
-def test_the_extension_refutes_when_the_new_process_received_a_delivery(pbench):
-    result = pbench.run(EGW_PROOF_EXTENSION="yes", EGW_STUB_MLINE_RECEIVED="3")
+@pytest.mark.parametrize("from_reading, after_ready", [
+    # 'received' in every reading, and only in the reading after the
+    # extension's 'drained' (the fourth _mline: before, after, ready, drained):
+    # the reading that decides is the one after 'drained' (ADR 0011), so a
+    # redelivery that arrives during the quiet window refutes as well.
+    ("1", 3),
+    ("4", 0),
+])
+def test_the_extension_refutes_when_the_new_process_received_a_delivery(pbench, from_reading, after_ready):
+    result = pbench.run(EGW_PROOF_EXTENSION="yes", EGW_STUB_MLINE_RECEIVED="3",
+                        EGW_STUB_MLINE_RECEIVED_FROM_CALL=from_reading)
     assert result.returncode == 0, report(result)
     facts = pbench.session_facts()
     assert facts["extension"]["result"] == "refutes"
-    assert facts["extension"]["received_after_ready"] == 3
+    assert facts["extension"]["received_after_ready"] == after_ready
+    assert facts["extension"]["received_after_drained"] == 3
     assert "the new process received 3 delivery(ies) with nothing published" in facts["extension"]["reasons"]
     verdicts = pbench.verdicts()
     assert verdicts["extension"] == "refutes"
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
     assert "optional extension: refutes (recorded apart, it decides nothing of the proof)" in verdicts["reason"]
+    steps = pbench.commands()
+    assert steps.index("ext-drained") < steps.index("ext-metrics") < steps.index("ext-fetch")
+
+
+def test_the_extension_chosen_but_not_runnable_is_recorded_inconclusive_never_not_chosen(pbench):
+    # Chosen, the extension is answered for: a stack not healthy again after
+    # the run keeps it from running, and that is recorded as inconclusive
+    # with the reason, never as an extension nobody asked for.
+    result = pbench.run(EGW_PROOF_EXTENSION="yes", EGW_STUB_FAIL="healthy-again-fails")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["extension"] == "inconclusive"
+    assert "optional extension: inconclusive (recorded apart, it decides nothing of the proof)" in verdicts["reason"]
+    assert verdicts["workload"]["values"]["EGW_PROOF_EXTENSION"] == "yes"
+    facts = pbench.session_facts()
+    assert facts["extension"]["chosen"] is True and facts["extension"]["ran"] is False
+    assert facts["extension"]["result"] == "inconclusive"
+    assert ("the extension was not run: the stack was not running and healthy again after the run (stack=not-healthy)"
+            in facts["extension"]["reasons"])
+    assert not any(step.startswith("ext-") for step in pbench.commands())
+    assert "kill" not in pbench.docker_log()
+    assert verdicts["restoration"] == "stack=not-healthy restart_shown=yes"
+
+
+def test_the_extension_ceiling_ends_its_step_and_records_inconclusive(pbench):
+    # The ceiling bounds every step of the extension, not only the start of
+    # one: a 'drained' that would wait 8 s under a ceiling of 5 s is ended
+    # by 'timeout', the extension is inconclusive with the ceiling named,
+    # nothing after it runs, and the stack is still restored afterwards.
+    result = pbench.run(EGW_PROOF_EXTENSION="yes", EGW_PROOF_EXTENSION_LIMIT_S="5", EGW_STUB_QUIESCE_HANG_S="8")
+    assert result.returncode == 0, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    assert verdicts["extension"] == "inconclusive"
+    facts = pbench.session_facts()
+    assert facts["extension"]["result"] == "inconclusive" and facts["extension"]["limit_s"] == 5
+    assert "the extension's ceiling of 5 s was reached" in facts["extension"]["reasons"]
+    steps = pbench.commands()
+    assert "ext-restart" in steps and "ext-fetch" not in steps and "ext-metrics" not in steps
+    assert steps.count("services-healthy-after") == 2
+    assert verdicts["restoration"] == "stack=healthy restart_shown=yes"
+
+
+def test_an_interrupt_during_the_extension_restores_after_its_kill_and_names_the_state(pbench):
+    # The extension's kill + start mutates the stack again: an interrupt
+    # while its 'drained' waits must read the stack back (the restoration
+    # wait a second time) before the ending names the state, never repeat
+    # the state the first restoration found.
+    proc = pbench.start(EGW_PROOF_EXTENSION="yes", EGW_STUB_QUIESCE_HANG_S="8")
+    console = pbench.bench.attempts
+
+    def draining() -> bool:
+        return any(console.glob(f"*_{SLUG}_attempt*/console/*-ext-drained.stdout.txt"))
+
+    pbench.wait_for(draining, 180)
+    pbench.interrupt(proc)
+    out, err = proc.communicate(timeout=300)
+    assert proc.returncode == 130, f"exit={proc.returncode}\n{out}\n{err}"
+    verdicts = pbench.verdicts()
+    assert verdicts["status"] == "interrupted"
+    assert verdicts["restoration"] == "stack=healthy restart_shown=yes"
+    assert verdicts["reason"].endswith("; the guest was left with stack=healthy restart_shown=yes")
+    steps = pbench.commands()
+    assert steps.count("services-healthy-after") == 2
+    assert steps.index("services-healthy-after", steps.index("ext-restart")) > steps.index("ext-restart")
+    assert "ext-fetch" not in steps and "ext-metrics" not in steps
+    assert pbench.docker_log().count("kill --signal=KILL") == 1
+    facts = pbench.session_facts()
+    assert facts["instants"]["interrupted_utc"] and facts["restoration"] == "stack=healthy restart_shown=yes"
+    assert facts["extension"]["ran"] is True and facts["extension"]["result"] == "inconclusive"
 
 
 # --------------------------------------------------------------------------
