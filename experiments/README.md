@@ -587,7 +587,22 @@ occurrence read from the controller log at most one, of its own device
 alone, and only to a candidate whose redelivery its in-progress delivery may
 have preceded — and the check is a small matching of the candidates each
 undecided device's count requires to those sources, each used once, so an
-unshown identity's device is explained only while such a matching exists; a
+unshown identity's device is explained only while such a matching exists;
+since which of a device's occurrences served which of its cases is
+inference, the cases named with an occurrence on those devices take part in
+the matching and each keeps one source there, any occurrence of its device
+or, when nothing read excludes it from the kill, any death that may have
+preceded its redelivery, so a named case may leave its occurrence to an
+unshown candidate and the occurrence recorded against it never decides the
+capacity (`P-4`: each occurrence names one case at most, and a device's
+occurrences are offered first to the candidates the kill cannot explain, so
+an occurrence two candidates contend for goes to the one no other source
+could explain, each candidate taking the unused occurrence received last
+before its redelivery, so the occurrences name as many candidates as their
+order allows whatever the order of the log lines;
+the read-only check of 2026-09-25 on `E-10` found a false R4 when the
+earliest occurrence was taken, and a false R3 when the candidate order gave
+the contended occurrence away); a
 surplus of two on one device, or of one on each of two devices, with one
 death that may precede them and no such occurrence, or a further death
 wholly after the redeliveries it would have to explain (the joint check of

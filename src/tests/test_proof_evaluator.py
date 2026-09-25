@@ -2034,7 +2034,11 @@ def test_an_a5_occurrence_serves_only_a_candidate_whose_redelivery_it_may_preced
     B and F need the one death: R4 stands on D1. Before, the device-wide
     count read the two occurrences against the three cases and found the
     twins consistent. With X's line stamped after both occurrences the
-    first names X (P-4) and the run refutes all the same."""
+    later one names X (P-4: the unused occurrence received last before
+    its redelivery; this docstring said the first, the rule before the
+    check of 2026-09-25 on E-10) and the run refutes all the same: X
+    keeps a source in the matching, and neither occurrence may precede
+    B's or F's redelivery."""
     in_band = (K_LOWER + K_UPPER) // 2
     F = ("f-mid", D1, 2, 401 * NS)
     X = ("x-mid", D1, 3, 402 * NS)
@@ -2057,13 +2061,168 @@ def test_an_a5_occurrence_serves_only_a_candidate_whose_redelivery_it_may_preced
         "x-mid": {"a5_lines": [1, 2], "deaths": [0]},
     }
     assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
-    # X stamped after both occurrences: the first names it (P-4), and B and
-    # F, redelivered before the second, still need the one death.
+    # X stamped after both occurrences: the later one names it (P-4), and
+    # B and F, redelivered before both, still need the one death.
     stamped = lines[:-1] + [("x-mid", D1, 3, "duplicate", K_UPPER + 50 * NS, None)]
     doc = _evaluate(sent=SENT + [F, X], lines=stamped, extra_after={D1: 3, "seqs": [(D1, 3)]}, controller_log=log)
     assert _outcome(doc)["result"] == "refutes"
     assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("x-mid", "a3-connection-end")]
     assert (_capacity(doc)["needed_by_device"], _capacity(doc)["matched"]) == ({D1: 2}, 1)
+    assert _outcome(doc)["n1_cases"][0]["source_evidence"]["controller_log_line"] == 2
+    assert _criterion(doc, "R4")["evidence"]["source_capacity"]["possible_sources"]["x-mid"] == {
+        "a5_lines": [1, 2], "deaths": [0], "named": {"source": "a3-connection-end", "controller_log_line": 2},
+    }
+
+
+def test_the_occurrences_name_as_many_candidates_as_their_order_allows_whatever_the_order_of_the_log_lines() -> None:
+    """The check of 2026-09-25 on E-10 (P2): P-4 gave each candidate the
+    EARLIEST unused A5 occurrence before its redelivery, and E-10's
+    matching left the named cases out. D1: B (seq 1) redelivered at
+    1,300 s and Y (seq 2, published at 510 s inside the restart command's
+    window, E-8) at 1,250 s; two occurrences on D1 received at 1,190 s and
+    1,290 s; D3: G in the kill band. Twins: D1 surplus 2, D3 surplus 1.
+    With the log in its chronological order B took the 1,190 s occurrence,
+    Y found none before it and needed the one death beside G: R4 against
+    one death, although B <- 1,290 s, Y <- 1,190 s and G <- the kill is
+    source-consistent; with the two lines swapped the same facts read
+    inconclusive. Each candidate now takes the unused occurrence received
+    last before its redelivery: B and Y are named in either order, with
+    the same occurrences, and G alone needs the death."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    Y = ("y-mid", D1, 2, 510 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", 1_300 * NS, None),
+        ("y-mid", D1, 2, "duplicate", 1_250 * NS, None),
+        ("g-mid", D3, 1, "duplicate", in_band, None),
+    ]
+    twins = {D1: 2, D3: 1, "seqs": [(D1, 2), (D3, 1)]}
+    chronological = [_a5_line(D1, 1_190 * NS), _a5_line(D1, 1_290 * NS)]
+    results = []
+    for log in (chronological, list(reversed(chronological))):
+        doc = _evaluate(sent=SENT + [Y, G], lines=lines, extra_after=twins, controller_log=log)
+        outcome = _outcome(doc)
+        assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+        cases = {c["message_id"]: c for c in outcome["n1_cases"]}
+        assert sorted(cases) == ["b-mid", "y-mid"] and {c["source"] for c in cases.values()} == {"a3-connection-end"}
+        received = {m: c["source_evidence"]["identity"]["received_monotonic_ns"] for m, c in cases.items()}
+        assert received == {"b-mid": 1_290 * NS, "y-mid": 1_190 * NS}
+        r4 = _criterion(doc, "R4")
+        assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+        assert [(u["device_uuid"], u["rule"], u["message_ids"]) for u in r4["evidence"]["undecided"]] == [(D3, "E-8", ["g-mid"])]
+        capacity = _capacity(doc)
+        assert (capacity["needed_by_device"], capacity["kill_needed"], capacity["kill_available"]) == ({D3: 1}, 1, 1)
+        assert (capacity["matched"], capacity["consistent"]) == (1, True)
+        assert _criterion(doc, "R3")["evidence"]["not_named_identities"] == []
+        assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "S4")["holds"] is None
+        results.append((outcome["result"], sorted(received.items()), capacity))
+    assert results[0] == results[1]
+    assert "received last before its redelivered duplicate line" in pe.IDENTIFICATION_RULES["P-4"]
+    assert "whatever the order of the log lines" in pe.IDENTIFICATION_RULES["P-4"]
+
+
+def test_a_case_named_with_an_occurrence_may_leave_it_to_an_undecided_candidate_and_take_a_death() -> None:
+    """The same check (E-10): which of a device's occurrences served which
+    of its cases is inference, so a case named with an occurrence takes
+    part in the matching. D1: B (restart-class, published before the kill)
+    redelivered at 1,300 s and Y (published inside the restart command's
+    window, E-8) at 1,230 s; one occurrence on D1 received at 1,190 s,
+    which precedes both and names B (P-4); a further death placed between
+    1,245 s and 1,265 s may precede B's redelivery but not Y's; D3: G in
+    the kill band. With B left out of the matching, Y and G each needed
+    the kill and R4 was observed against it, although B <- the further
+    death, Y <- the occurrence and G <- the kill is source-consistent. B
+    now keeps a source in the matching and the run is inconclusive. A B
+    that the kill cannot explain (published after the restart command's
+    end) has no death as its source, as it would have none unnamed, and
+    R4 stands on the aggregate."""
+    rows = _rows_with_a_further_death()
+    in_band = (K_LOWER + K_UPPER) // 2
+    Y = ("y-mid", D1, 2, 510 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", 1_300 * NS, None),
+        ("y-mid", D1, 2, "duplicate", 1_230 * NS, None),
+        ("g-mid", D3, 1, "duplicate", in_band, None),
+    ]
+    twins = {D1: 2, D3: 1, "seqs": [(D1, 2), (D3, 1)]}
+    log = [_a5_line(D1, 1_190 * NS)]
+    doc = _evaluate(sent=SENT + [Y, G], lines=lines, extra_after=twins, controller_log=log, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert [(c["message_id"], c["source"]) for c in outcome["n1_cases"]] == [("b-mid", "a3-connection-end")]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    capacity = _capacity(doc)
+    assert (capacity["needed_by_device"], capacity["beyond_a5_by_device"]) == ({D1: 1, D3: 1}, {D1: 1, D3: 1})
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 2, True)
+    assert r4["evidence"]["source_capacity"]["possible_sources"] == {
+        "y-mid": {"a5_lines": [1], "deaths": [0]},
+        "g-mid": {"a5_lines": [], "deaths": [0]},
+        "b-mid": {"a5_lines": [1], "deaths": [0, 1], "named": {"source": "a3-connection-end", "controller_log_line": 1}},
+    }
+    rows_by_device = {row["device_uuid"]: row for row in r4["evidence"]["devices"]}
+    assert rows_by_device[D1]["undecided"]["source_consistent"] is True and rows_by_device[D3]["undecided"]["source_consistent"] is True
+    assert "keeping one" in pe.IDENTIFICATION_RULES["E-10"] and "beside the cases named with an occurrence" in pe.IDENTIFICATION_RULES["E-10"]
+    # B published after the restart command's end: the occurrence is its
+    # only source, and Y and G still need the one death that may precede
+    # them (the further death follows both redeliveries).
+    late_b = [sent if sent[0] != "b-mid" else ("b-mid", D1, 1, 530 * NS) for sent in SENT]
+    doc = _evaluate(sent=late_b + [Y, G], lines=lines, extra_after=twins, controller_log=log, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and [c["message_id"] for c in outcome["n1_cases"]] == ["b-mid"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    assert r4["evidence"]["source_capacity"]["possible_sources"]["b-mid"]["deaths"] == []
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 1, False)
+    assert capacity["deaths_preceding_none"] == [1]
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] is None and mismatch["stands_on"] == [] and mismatch["undecided_candidates"] == ["g-mid", "y-mid"]
+
+
+def test_an_occurrence_two_candidates_contend_for_goes_to_the_one_the_kill_cannot_explain() -> None:
+    """The same check (P-4): the candidate order decided which of two
+    candidates an occurrence named. D1: E (seq 2, published inside the
+    restart command's window, E-8) redelivered at 1,250 s and N (seq 3)
+    lined before the kill at 1,100 s; one occurrence on D1 received at
+    1,050 s, which precedes both. E came first and took it, and N was R3
+    ('no A5 occurrence names its device before its redelivery', which was
+    false) with R4 beside it, although N <- the occurrence and E <- the
+    kill is source-consistent. The occurrences are now offered first to
+    the candidates the kill cannot explain: N is named, E is unshown
+    (E-8) and the run is inconclusive. Two candidates lined before the
+    kill against the one occurrence still refute: one of them has no
+    source, and the one left is R3 with the occurrence stated that names
+    the other."""
+    E = ("e-mid", D1, 2, 510 * NS)
+    N = ("n-mid", D1, 3, 380 * NS)
+    lines = list(LINES) + [("e-mid", D1, 2, "duplicate", 1_250 * NS, None), ("n-mid", D1, 3, "duplicate", 1_100 * NS, None)]
+    log = [_a5_line(D1, 1_050 * NS)]
+    doc = _evaluate(sent=SENT + [E, N], lines=lines, extra_after={D1: 2, "seqs": [(D1, 3)]}, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert [(c["message_id"], c["source"]) for c in outcome["n1_cases"]] == [("n-mid", "a3-connection-end")]
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == []
+    assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["e-mid"]
+    assert _criterion(doc, "R4")["observed"] is None
+    assert (_capacity(doc)["needed_by_device"], _capacity(doc)["consistent"]) == ({D1: 1}, True)
+    assert "the kill cannot explain" in pe.IDENTIFICATION_RULES["P-4"]
+    # Two candidates lined before the kill, one occurrence: one is named,
+    # the other has no source and is R3, the occurrence it lost stated.
+    M = ("m-mid", D1, 2, 385 * NS)
+    lines = list(LINES) + [("m-mid", D1, 2, "duplicate", 1_120 * NS, None), ("n-mid", D1, 3, "duplicate", 1_100 * NS, None)]
+    doc = _evaluate(sent=SENT + [M, N], lines=lines, extra_after={D1: 2, "seqs": [(D1, 3)]}, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and len(outcome["n1_cases"]) == 1
+    rejected = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert _criterion(doc, "R3")["observed"] is True and len(rejected) == 1
+    assert {rejected[0]["message_id"], outcome["n1_cases"][0]["message_id"]} == {"m-mid", "n-mid"}
+    assert rejected[0]["why_not_named"].startswith(
+        "each A5 occurrence naming its device before its redelivery (controller log line(s) 1) names another case"
+    )
+    assert "lined before the kill on the controller clock" in rejected[0]["why_not_named"]
 
 
 def test_a_publication_inside_the_restart_commands_window_cannot_be_shown_and_never_refutes() -> None:

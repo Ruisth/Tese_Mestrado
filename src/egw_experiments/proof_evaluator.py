@@ -373,7 +373,16 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "neither way (E-8). A candidate is named only with the twin's "
         "evidence: the device's surplus equals the number of cases named on "
         "it and the after snapshot's last_seq is not below the candidate's "
-        "seq."
+        "seq. Each occurrence names one case at most (N1): a device's "
+        "occurrences are offered first to its candidates the kill cannot "
+        "explain (lined before the kill, published after the restart "
+        "command's end, or the restart not executed with exit 0), so an "
+        "occurrence two candidates contend for goes to the one no other "
+        "source could explain, and each candidate takes the unused "
+        "occurrence received last before its redelivered duplicate line "
+        "(the earlier log line on a tie), so the occurrences name as many "
+        "candidates as their order allows, whatever the order of the log "
+        "lines."
     ),
     "P-5": (
         "R4's \"last_seq regressed\": the after snapshot's last_run_id is this "
@@ -530,14 +539,21 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "at most one, of its own device alone, and only to a candidate whose "
         "redelivery its in-progress delivery may have preceded (received "
         "before the candidate's first duplicate line, or either stamp "
-        "unreadable; none when it named a case); occurrences on one device "
-        "never serve another's need. With the log read, an undecided "
-        "candidate (E-8, E-4) can have an occurrence as its source only when "
-        "their order cannot be read, since an occurrence that precedes it "
-        "names it under P-4. The check is a matching of the candidates each "
-        "undecided device's count requires to these sources, each source "
-        "used once, the counts being small. When no such matching exists (a "
-        "surplus of two on one device, or of one on each of two, with one "
+        "unreadable); occurrences on one device never serve another's need. "
+        "With the log read, an occurrence that precedes an undecided "
+        "candidate (E-8, E-4) names another case under P-4, and which of a "
+        "device's occurrences served which of its cases is inference: the "
+        "check is a matching of the candidates each undecided device's count "
+        "requires, beside the cases named with an occurrence on those "
+        "devices, to these sources, each source used once and each such "
+        "named case keeping one - any occurrence of its device that may have "
+        "preceded its redelivery or, when nothing read excludes it from the "
+        "kill (not lined before it, not published after the restart "
+        "command's end, the restart executed with exit 0), any death that "
+        "may have - so a named case may leave its occurrence to an undecided "
+        "candidate, and the occurrence P-4 recorded against a case never "
+        "decides the capacity; the counts are small. When no such matching "
+        "exists (a surplus of two on one device, or of one on each of two, with one "
         "death and no occurrence that may precede them; or a further death "
         "wholly after the redeliveries it would have to explain), no "
         "source-consistent naming explains the twins: R4 is observed and S5 "
@@ -2230,8 +2246,9 @@ class N1Naming:
     #: The sources the run evidences and their capacity for the namings
     #: E-9 tries on the undecided devices (E-10): whether they are known
     #: (the controller log read), the kill's availability, the A5
-    #: occurrences read and used, and per undecided device the unused
-    #: occurrences that could still serve one of its candidates.
+    #: occurrences read and used, per undecided device the occurrences
+    #: that may have preceded one of its candidates, and the sources that
+    #: may have been those of each case named with an occurrence.
     sources: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -2433,9 +2450,19 @@ def name_n1_cases(
                     f"surplus of {facts.surplus}: they cannot be told apart, so none is named",
                 )
             continue
-        for candidate in device_candidates:
+        # P-4 with N1's capacity, each occurrence naming one case at most:
+        # the candidates the kill cannot explain are offered the device's
+        # occurrences first (an occurrence two candidates contend for goes
+        # to the one no other source could explain), and each takes the
+        # unused occurrence received last before its redelivery (the
+        # earlier log line on a tie). An occurrence's candidates are then
+        # every one redelivered after it, so taking the latest leaves the
+        # earlier ones to the candidates redelivered sooner: the
+        # occurrences name as many candidates as their order allows,
+        # whatever the order of the log lines.
+        for candidate in sorted(device_candidates, key=_may_have_been_at_the_kill):
             redelivered = candidate["first_duplicate_received_monotonic_ns"]
-            occurrence = next(
+            occurrence = max(
                 (
                     occ
                     for occ in occurrences
@@ -2445,7 +2472,8 @@ def name_n1_cases(
                     and redelivered is not None
                     and occ["identity"]["received_monotonic_ns"] < redelivered
                 ),
-                None,
+                key=lambda occ: (occ["identity"]["received_monotonic_ns"], -occ["line"]),
+                default=None,
             )
             if occurrence is not None:
                 if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
@@ -2514,10 +2542,25 @@ def name_n1_cases(
                     continue
                 if unshown:
                     why.append("(" + "; ".join(unshown) + ": which alone would not reject it, E-8)")
+                taken = sorted(
+                    occ["line"]
+                    for occ in occurrences
+                    if occ["line"] in used_occurrences
+                    and occ["device_uuid"] == device
+                    and _is_int(occ["identity"].get("received_monotonic_ns"))
+                    and redelivered is not None
+                    and occ["identity"]["received_monotonic_ns"] < redelivered
+                )
                 _reject(
                     candidate,
-                    "no A5 occurrence names its device before its redelivery and the kill cannot "
-                    "be its source: " + "; ".join(why),
+                    (
+                        "each A5 occurrence naming its device before its redelivery (controller log "
+                        f"line(s) {', '.join(str(line) for line in taken)}) names another case, one "
+                        "case per connection end (N1),"
+                        if taken
+                        else "no A5 occurrence names its device before its redelivery"
+                    )
+                    + " and the kill cannot be its source: " + "; ".join(why),
                 )
 
     def _further_before(candidate: dict[str, Any]) -> list[Death]:
@@ -2678,13 +2721,19 @@ def name_n1_cases(
     for entry in undecided.values():
         entry["message_ids"].sort()
     # E-10: the sources the run evidences, for the namings E-9 tries on the
-    # undecided devices, each with P-4's order rule. With the log read, an
-    # undecided candidate can have an occurrence as its source only when
-    # their order cannot be read (an occurrence that precedes it named it
-    # above), and an occurrence serves its own device alone; a death serves
-    # a candidate of any device whose redelivery it may have preceded (E-4),
-    # the kill no longer once its case is named. With the log unusable, the
-    # number of A3 connection ends, and so the capacity, is unknown.
+    # undecided devices, each with P-4's order rule, an occurrence serving
+    # its own device alone and a death a candidate of any device whose
+    # redelivery it may have preceded (E-4), the kill no longer once its
+    # case is named. With the log read, an occurrence that precedes an
+    # undecided candidate names a case above: which of a device's
+    # occurrences served which of its cases is inference, so the cases
+    # named with an occurrence take part in the matching too, each with
+    # every occurrence of its device that may have preceded its redelivery
+    # and, when nothing read excludes it from the kill, every death that
+    # may have; an undecided candidate is offered every occurrence of its
+    # device that may have preceded it, one such a case holds included.
+    # With the log unusable, the number of A3 connection ends, and so the
+    # capacity, is unknown.
     kill_named = [case["message_id"] for case in named if case["source"] == "kill"]
     available = [death for death in deaths if not (death.index == 0 and kill_named)]
 
@@ -2692,25 +2741,41 @@ def name_n1_cases(
         received = occ["identity"].get("received_monotonic_ns")
         return not _is_int(received) or redelivered is None or received < redelivered
 
+    def _a5_lines(device: str, redelivered: int | None) -> list[int]:
+        return sorted(
+            occ["line"] for occ in occurrences if occ["device_uuid"] == device and _a5_may_serve(occ, redelivered)
+        )
+
     possible: dict[str, dict[str, list[int]]] = {}
     a5_possible: dict[str, list[int]] = {}
     for device, entry in undecided.items():
         lines_here: set[int] = set()
         for message_id in entry["message_ids"]:
             redelivered = redelivery_of.get(message_id)
-            a5 = sorted(
-                occ["line"]
-                for occ in occurrences
-                if occ["line"] not in used_occurrences
-                and occ["device_uuid"] == device
-                and _a5_may_serve(occ, redelivered)
-            )
+            a5 = _a5_lines(device, redelivered)
             lines_here.update(a5)
             possible[message_id] = {
                 "a5_lines": a5,
                 "deaths": [death.index for death in available if death.may_precede(redelivered)],
             }
         a5_possible[device] = sorted(lines_here)
+    #: The cases named with an A5 occurrence, each with the sources that may
+    #: have been its own for the matching of E-10.
+    named_sources: dict[str, dict[str, Any]] = {}
+    for case in named:
+        if case["source"] != "a3-connection-end":
+            continue
+        redelivered = redelivery_of.get(case["message_id"])
+        named_sources[case["message_id"]] = {
+            "device_uuid": case["device_uuid"] or "",
+            "named_with_line": case["source_evidence"]["controller_log_line"],
+            "a5_lines": _a5_lines(case["device_uuid"] or "", redelivered),
+            "deaths": (
+                [death.index for death in available if death.may_precede(redelivered)]
+                if _may_have_been_at_the_kill(case)
+                else []
+            ),
+        }
     # A further death that may have preceded no duplicate-only candidate's
     # redelivery explains nothing (E-4): reported, never a source.
     explains_nothing = [
@@ -2748,6 +2813,7 @@ def name_n1_cases(
         "deaths_available": [death.index for death in available],
         "deaths_explaining_nothing": explains_nothing,
         "possible_sources": dict(sorted(possible.items())),
+        "named_sources": dict(sorted(named_sources.items())),
     }
     return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())), sources)
 
@@ -3053,29 +3119,56 @@ def s5_r4_delta(
     # it can and only a candidate whose redelivery it may have preceded: an
     # A5 occurrence a candidate of its own device alone, a death at most
     # one candidate of the whole run. The check is a matching of the
-    # candidates each device's count requires to those sources. With the
-    # log unusable the capacity is unknown and nothing is decided on it.
+    # candidates each device's count requires to those sources, beside the
+    # cases named with an occurrence on those devices, each of which keeps
+    # a source there: which occurrence served which case is inference, so
+    # a named case may leave its occurrence to an undecided candidate and
+    # take another source that may have preceded it. With the log unusable
+    # the capacity is unknown and nothing is decided on it.
     sources = naming.sources
     possible = sources.get("possible_sources") or {}
+    named_sources = sources.get("named_sources") or {}
     members = {device: list(row["undecided"]["message_ids"]) for device, _count, row in pending}
-    a5_options = {
-        m: [f"A5 line {line}" for line in (possible.get(m) or {}).get("a5_lines", [])]
-        for ids in members.values() for m in ids
+    named_here = {
+        device: sorted(m for m, entry in named_sources.items() if entry.get("device_uuid") == device)
+        for device in members
     }
+    sources_of = {
+        **{m: possible.get(m) or {} for ids in members.values() for m in ids},
+        **{m: named_sources[m] for ids in named_here.values() for m in ids},
+    }
+    a5_options = {m: [f"A5 line {line}" for line in entry.get("a5_lines", [])] for m, entry in sources_of.items()}
     all_options = {
-        m: a5_options[m] + [f"death {index}" for index in (possible.get(m) or {}).get("deaths", [])]
-        for ids in members.values() for m in ids
+        m: a5_options[m] + [f"death {index}" for index in entry.get("deaths", [])]
+        for m, entry in sources_of.items()
     }
+
+    def _served(devices: list[str], counts: dict[str, int], options: dict[str, list[str]]) -> int:
+        """The most of the devices' needed cases the sources serve while
+        every case named with an occurrence on them keeps one: each named
+        case is a group of its own that needs one source, and the naming
+        itself serves them all, so a maximum matching keeps every one of
+        them served and the rest of its size is the needed cases'."""
+        demands: dict[str, int] = {}
+        groups: dict[str, list[str]] = {}
+        for device in devices:
+            demands[device] = counts[device]
+            groups[device] = members[device]
+            for m in named_here[device]:
+                demands["named case " + m] = 1
+                groups["named case " + m] = [m]
+        return _source_matching(demands, groups, options) - sum(len(named_here[d]) for d in devices)
+
     a5_possible = {
         device: list((sources.get("a5_possible_by_device") or {}).get(device, []))
         for device, _count, _row in pending
     }
     needed_by_device = {device: count for device, count, _row in pending}
     # The cases a device needs beyond what its own occurrences can serve,
-    # each occurrence only a candidate it may precede: only a death can
-    # serve them.
+    # each occurrence only a candidate it may precede, beside the cases it
+    # names: only a death can serve them.
     beyond_a5 = {
-        device: count - _source_matching({device: count}, members, a5_options)
+        device: count - _served([device], needed_by_device, a5_options)
         for device, count in needed_by_device.items()
     }
     capacity_evidence: dict[str, Any] = {
@@ -3093,13 +3186,25 @@ def s5_r4_delta(
         "consistent": None,
         "matched": None,
         "deaths": sources.get("deaths"),
-        "possible_sources": {m: possible.get(m) for ids in members.values() for m in sorted(ids)},
+        "possible_sources": {
+            **{m: possible.get(m) for ids in members.values() for m in sorted(ids)},
+            **{
+                m: {
+                    "a5_lines": named_sources[m]["a5_lines"],
+                    "deaths": named_sources[m]["deaths"],
+                    "named": {"source": "a3-connection-end", "controller_log_line": named_sources[m]["named_with_line"]},
+                }
+                for ids in named_here.values() for m in ids
+            },
+        },
         "deaths_preceding_none": [],
         "rule": (
             "an A5 occurrence serves a candidate of its own device alone; a recorded death "
             "serves at most one candidate of the whole run; each serves only a candidate whose "
             "redelivered duplicate line it may have preceded on the controller clock, a death "
-            "placed as E-4 states (E-10)"
+            "placed as E-4 states; a case named with an occurrence on an undecided device keeps "
+            "one source in the matching, any occurrence of its device or, when nothing read "
+            "excludes it from the kill, any death that may have preceded its redelivery (E-10)"
         ),
     }
     on_sources: dict[str, Any] | None = None
@@ -3107,7 +3212,7 @@ def s5_r4_delta(
     if capacity_evidence["applied"]:
         kill_needed = int(capacity_evidence["kill_needed"])
         kill_available = int(sources.get("kill_available") or 0)
-        matched = _source_matching(needed_by_device, members, all_options)
+        matched = _served(list(needed_by_device), needed_by_device, all_options)
         consistent = matched == sum(needed_by_device.values())
         capacity_evidence["matched"] = matched
         capacity_evidence["consistent"] = consistent
@@ -3124,14 +3229,18 @@ def s5_r4_delta(
             # aggregate is established.
             on_own = [
                 device for device in competing
-                if _source_matching({device: needed_by_device[device]}, members, all_options) < needed_by_device[device]
+                if _served([device], needed_by_device, all_options) < needed_by_device[device]
             ]
             ids = sorted(m for device in competing for m in members[device])
             # The available deaths that may have preceded none of these
-            # candidates' redeliveries explain none of them (E-4).
+            # candidates' redeliveries, nor those of the cases named with an
+            # occurrence beside them, explain none of them (E-4).
             late = [
                 index for index in sources.get("deaths_available") or []
-                if not any(index in ((possible.get(m) or {}).get("deaths") or []) for m in ids)
+                if not any(
+                    index in (sources_of[m].get("deaths") or [])
+                    for m in ids + [n for device in competing for n in named_here[device]]
+                )
             ]
             capacity_evidence["deaths_preceding_none"] = late
             order = (
