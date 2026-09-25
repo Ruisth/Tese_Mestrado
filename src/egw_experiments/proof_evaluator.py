@@ -15,12 +15,16 @@ and prints one verdict document, ``proof_verdict.json``, with three
 sections that are never merged:
 
 - ``instrumentation``: the harness's own ``validity`` kept as recorded and
-  never decisive, the seal, and whether the proof's evidence is complete
-  (both twin snapshots verified, a verified drain that was quiet or gave
-  up, the post-drain copy fetched and verified, the three SUT logs fetched,
-  the configuration identity embedded with W, a readable pre-kill reading,
-  the directory sealed and verified) - every absence named, so that "any
-  fetch listed above fails" can be applied;
+  never decisive by itself (the proof's requirements are checked apart,
+  E-11), the seal, whether the proof's evidence is complete (both twin snapshots
+  verified, a verified drain that was quiet or gave up, the harness copy of
+  the events fetched, the post-drain copy fetched and verified, the three
+  SUT logs fetched, the collector file, the configuration identity embedded
+  with W, a readable pre-kill reading, the directory sealed and verified) -
+  every absence named, so that "any fetch listed above fails" can be
+  applied - and whether the run is eligible for the proof at all (E-11: the
+  prescribed load and fault, the publication completed, the population
+  record whole, the fault demonstrated), every failed requirement named;
 - ``system_outcome``: the result, each criterion with the ADR's text
   verbatim, whether it holds (S) or was observed (R) and the evidence it
   rests on; the refutations, the inconclusive reasons, the report by class
@@ -46,9 +50,12 @@ snapshot or the controller log that is absent, unverified or unreadable
 leaves the criteria that depend on it null, never observed; a
 duplicate-only identity whose line falls in the sampling band around the
 kill, or whose publication falls inside the restart command's window, can
-be shown neither way (E-8), never refuted on that ground; and the twin's
+be shown neither way (E-8), never refuted on that ground; the twin's
 figures on such an identity's device refute only when no naming of it
-fits them (E-9).
+fits them (E-9), the namings respecting the sources the run evidences and
+their capacity across the whole run (E-10); and a run that is not the
+prescribed execution with its records is not eligible: inconclusive, never
+support (E-11).
 
 Exit codes, as ``broker_measure.sh`` reads the broker verdict: 0 supports,
 1 refutes, 3 inconclusive, 2 not evaluated (an input unreadable, a seal
@@ -124,6 +131,32 @@ EXIT_CODES = {
 #: (LOG.md); every host wall-clock comparison the report makes carries this
 #: band and never decides a criterion.
 HOST_CLOCK_STEP_BAND_S = 3.0
+
+#: The proof's prescribed execution (ADR 0011, "The finite proof": "the
+#: `nominal` scenario at 11.2 msg/s, three wearables, no warm-up, 300 s of
+#: publication = 3,360 messages", the fault "issued through the harness
+#: restart hook"), as the manifest's entry records it (run.py writes the
+#: entry's scenario, duration_s, rate_msg_s, warmup_s and condition_id at
+#: the top level) and as tools/session/proof_plan.py writes the plan.
+PROOF_LOAD: dict[str, Any] = {
+    "condition_id": "controller_restart",
+    "scenario": "nominal",
+    "duration_s": 300,
+    "rate_msg_s": 11.2,
+    "warmup_s": 0,
+}
+#: The plan's own count, 300 s x 11.2 msg/s: the count the population must
+#: show when the simulator's manifest is absent and the file's line count
+#: is the only source (E-11), with no tolerance.
+PROOF_EXPECTED_MESSAGES = 3360
+#: The simulator's own manifest, where the harness keeps it
+#: (run.simulator_run_dir, analyze.read_simulator_manifest): its `completed`
+#: and `totals.sent` are the record of what was published (CONTRACTS 7).
+SIMULATOR_MANIFEST_REL = "logs/simulator/{run_id}/manifest.json"
+#: The collector file the ADR lists under "What it records" (item 5), from
+#: the SUT collector (the manifest's resource_source).
+COLLECTOR_FILENAME = "resources.csv"
+SUT_COLLECTOR_SOURCE = "sut-collector"
 
 #: The controller's log lines the evaluator reads (egw_controller.mqtt): an
 #: A5 occurrence is the connection-end message at ERROR (the controller's
@@ -308,7 +341,10 @@ IDENTIFICATION_RULES: dict[str, str] = {
     ),
     "P-6": (
         "Without the session facts (proof_session.json) whether a stop rule "
-        "of the ceiling was reached is unknown, and the proof is inconclusive."
+        "of the ceiling was reached is unknown, and the proof is inconclusive; "
+        "so is whether the restart was shown when the facts are absent or "
+        "carry no restart_shown (null): an absent required fact is never read "
+        "as false or zero, and the fault is then not demonstrated (E-11)."
     ),
     "P-7": (
         "Precedence: a refutation observed (R2, R3 or R4 on what was read; R1 "
@@ -348,7 +384,14 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "end) and can be shown neither way (E-7, E-8), the case may be the "
         "other's: the claimant is neither named nor R3, and its device is "
         "undecided (E-9). A candidate the twin shows unapplied is R3 whatever "
-        "was in progress at the kill and claims no case."
+        "was in progress at the kill and claims no case. When the readings "
+        "record more than one controller process start after the pre-kill "
+        "one, a further death is recorded that the plan did not prescribe and "
+        "P-4 never names as a source: a claimant of the kill cannot be told "
+        "from an identity in progress at that further death, so no kill case "
+        "is named and every claimant is neither named nor R3, its device "
+        "undecided (E-9); each recorded death counts one to the capacity "
+        "(E-10)."
     ),
     "E-5": (
         "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
@@ -412,7 +455,74 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "regressed against the before snapshot or below the seqs the run is "
         "shown to have applied (P-5), the twin refutes on evidence that was "
         "read: R4 is observed and S5 does not hold, with S4 and R3 still null "
-        "for the candidate."
+        "for the candidate. Every naming tried respects the sources the run "
+        "evidences and their capacity across the whole run (E-10)."
+    ),
+    "E-10": (
+        "The namings E-9 tries respect the sources the run evidences and "
+        "their capacity across the whole run, each source serving what it "
+        "can (N1: at most one such identity per death, or per connection "
+        "ended under A3 after a PATCH, since there is one consumer): a "
+        "recorded death gives at most one N1 case in the run, whichever "
+        "device's - the deaths are every controller process start the "
+        "readings record after the pre-kill one, or the manifest's kill "
+        "(P-4's conditions on its restart record) when they record none, "
+        "less the kill case already named - and each A5 occurrence read from "
+        "the controller log at most one, of its own device alone (none when "
+        "it named a case, or when its delivery was received after every "
+        "undecided candidate's redelivery on its device); occurrences on one "
+        "device never serve another's need. With the log read, an undecided "
+        "candidate (E-8, E-4) can have only a death as its source, since an "
+        "occurrence that could serve it names it under P-4. So the cases an "
+        "undecided device needs beyond the occurrences on it can be served "
+        "only by the deaths, and the deaths must cover every undecided "
+        "device's such cases together. When they cannot (a surplus of two on "
+        "one device, or of one on each of two, with one death and no such "
+        "occurrence), no source-consistent naming explains the twins: R4 is "
+        "observed and S5 does not hold, on the twin's evidence and the "
+        "record, which were read, with every undecided device's figures "
+        "shown; a device whose need beyond its own occurrences exceeds every "
+        "recorded death is the mismatch by itself, whatever the deaths "
+        "served, and otherwise only the aggregate is established and no "
+        "device is named as the mismatch; no identity is named as the case, "
+        "with no A3 event assumed that the log does not record; S4 and R3 "
+        "stay null for the candidates. When the controller log cannot serve "
+        "the criteria (E-7) the number of A3 connection ends is unknown, so "
+        "the capacity is unknown: E-9's count alone applies and the run "
+        "stays inconclusive, never refuted on capacity grounds, since an "
+        "unread log is not proof of zero A3 events."
+    ),
+    "E-11": (
+        "The proof is evaluated only on the execution the ADR prescribes and "
+        "the records it lists ('The finite proof', 'What it records'), checked "
+        "apart from the harness's own validity, which stays quoted and never "
+        "decides the proof by itself: what the proof needs of the run is "
+        "required here and in the evidence inventory, whatever the harness's "
+        "verdict, and a harness reason outside these requirements is "
+        "reported, not decisive (the ADR names the campaign's "
+        "MAX_SAMPLE_GAP_S rule as one the proof's reconciliation does not "
+        "touch, 'What it cannot show'): the load and fault of the plan (condition "
+        "controller_restart, the nominal scenario, 300 s at 11.2 msg/s, no "
+        "warm-up, as the manifest's entry records them) with the simulator "
+        "exited 0; the publication completed and the population whole (the "
+        "simulator's own manifest, logs/simulator/<run_id>/manifest.json, "
+        "says completed under the same load and its totals.sent equals the "
+        "records of this run in sent_events.jsonl, none of which is skipped "
+        "(E-5), without a message_id, repeated or of another run: a skipped "
+        "or malformed line never shrinks the denominator; without that "
+        "manifest the only count is the file's, which must then equal the "
+        "plan's 300 x 11.2 = 3,360 with no tolerance); the fault demonstrated "
+        "(the manifest's restart executed with exit 0 and the session facts' "
+        "restart_shown true; absent or null, it is unknown, P-6); and every "
+        "record of 'What it records' present with its fetch recorded "
+        "successful: the harness copy events.jsonl with events_fetch ok (a "
+        "readable file beside a failed or unrecorded fetch is not the copy) "
+        "and the collector file resources.csv from the SUT collector, beside "
+        "the twin snapshots, the drain, the post-drain copy, the three SUT "
+        "logs, the readings, the configuration identity and the seal. A run "
+        "that fails any of these is not eligible: inconclusive with every "
+        "reason named, never 'supports'; a refutation observed on evidence "
+        "that was read and verified stands (P-7)."
     ),
 }
 
@@ -515,6 +625,14 @@ class RunArtefacts:
     #: What was read but not as expected (a CSV header that is not the
     #: sampler's): reported, never a failed fetch.
     notes: list[str] = field(default_factory=list)
+    #: The simulator's own manifest (SIMULATOR_MANIFEST_REL): the record of
+    #: what it published (E-11); None when absent or unreadable (then named
+    #: in ``problems``).
+    simulator_manifest: dict[str, Any] | None = None
+
+
+def simulator_manifest_rel(run_id: str) -> str:
+    return SIMULATOR_MANIFEST_REL.format(run_id=run_id)
 
 
 def _read_jsonl(path: Path) -> tuple[list[dict[str, Any]], int]:
@@ -655,6 +773,22 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
         else:
             _sha(CONFIG_IDENTITY_FILENAME)
 
+    # The simulator's own manifest (E-11): read where the harness keeps it;
+    # the problem names the relative path, as every other does.
+    simulator_manifest: dict[str, Any] | None = None
+    sim_rel = simulator_manifest_rel(str(manifest.get("run_id") or run_dir.name))
+    if sim_rel in files_present:
+        try:
+            simulator_manifest = _read_json_object(run_dir / sim_rel)
+        except ProofInputError as exc:
+            text = str(exc)
+            name = Path(sim_rel).name
+            problems.append(sim_rel + text[len(name):] if text.startswith(name) else f"{sim_rel}: {text}")
+        else:
+            _sha(sim_rel)
+    if COLLECTOR_FILENAME in files_present:
+        _sha(COLLECTOR_FILENAME)
+
     logs = "logs/" + SUT_LOG_SUBDIR
     controller_log = _text_lines(f"{logs}/{SUT_LOG_FILES['controller_log']}")
     broker_log = _text_lines(f"{logs}/{SUT_LOG_FILES['broker_log']}")
@@ -696,6 +830,7 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
         skipped_lines=skipped,
         problems=problems,
         notes=notes,
+        simulator_manifest=simulator_manifest,
     )
 
 
@@ -1569,6 +1704,12 @@ class N1Naming:
     notes: list[str]
     cannot_show: list[dict[str, Any]] = field(default_factory=list)
     undecided_devices: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: The sources the run evidences and their capacity for the namings
+    #: E-9 tries on the undecided devices (E-10): whether they are known
+    #: (the controller log read), the kill's availability, the A5
+    #: occurrences read and used, and per undecided device the unused
+    #: occurrences that could still serve one of its candidates.
+    sources: dict[str, Any] = field(default_factory=dict)
 
     @property
     def named_ids(self) -> list[str]:
@@ -1587,6 +1728,7 @@ def name_n1_cases(
     restart: dict[str, Any],
     twins_problem: str | None = None,
     log_problem: str | None = None,
+    post_kill_started_at: list[str] | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -1600,9 +1742,17 @@ def name_n1_cases(
     controller clock or was published inside the restart command's window
     (E-8), or because it claims the kill beside such a candidate that may
     have been in progress at it (E-4): its device is then undecided for
-    S5/R4 (E-9)."""
+    S5/R4 (E-9). ``post_kill_started_at`` is every controller process the
+    readings record after the pre-kill one: each is a death (E-10); more
+    than one is a death the plan did not prescribe, never named as a
+    source (P-4), beside which no claimant of the kill is named (E-4)."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
+    #: The deaths the run records: every process start the readings show
+    #: after the pre-kill process, or the manifest's kill when the readings
+    #: show none (E-10).
+    starts = list(post_kill_started_at or [])
+    deaths = max(len(starts), 1 if restart_ok else 0)
     restart_class = set(classification.restart_class)
     ambiguous = set(classification.ambiguous)
     before_kill = set(classification.published_before_kill)
@@ -1831,7 +1981,34 @@ def name_n1_cases(
                     "no A5 occurrence names its device before its redelivery and the kill cannot "
                     "be its source: " + "; ".join(why),
                 )
-    if len(kill_claimants) == 1:
+    if deaths > 1:
+        notes.append(
+            f"the readings record {deaths} controller process starts after the pre-kill one "
+            f"({', '.join(starts)}): the plan prescribes one kill, so a further death is "
+            "recorded that P-4 never names as a source; each recorded death counts one to "
+            "the capacity (E-10) and no claimant of the kill is named beside it (E-4)"
+        )
+    if len(kill_claimants) == 1 and deaths > 1:
+        # E-4 with a further death recorded: the claimant may have been in
+        # progress at the command's kill or at the other death, which P-4
+        # cannot name; the twin shows it applied, so it is not R3 either.
+        candidate, facts = kill_claimants[0]
+        if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
+            _reject(
+                candidate,
+                f"the after snapshot's last_seq {facts.after_last_seq} is below the identity's seq {candidate['seq']}",
+            )
+        else:
+            _cannot_show(
+                candidate, "E-4",
+                "it claims the kill as its source (restart-class, published before the restart "
+                f"command's start, the restart executed with exit 0), but the readings record "
+                f"{deaths} controller process starts after the pre-kill one ({', '.join(starts)}): "
+                "at most one N1 case per death (E-4), and whether it was in progress at the "
+                "command's kill or at the further death, which is never named as a source "
+                "(P-4), cannot be told, so it is neither named nor R3",
+            )
+    elif len(kill_claimants) == 1:
         candidate, facts = kill_claimants[0]
         if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
             _reject(
@@ -1877,7 +2054,17 @@ def name_n1_cases(
             "most one N1 case per death (N1), so none is named"
         )
         for candidate, _facts in kill_claimants:
-            if log_problem is not None:
+            if deaths > 1:
+                _cannot_show(
+                    candidate, "E-4",
+                    f"{len(kill_claimants)} identities claim the kill as their source and the "
+                    f"readings record {deaths} controller process starts after the pre-kill one "
+                    f"({', '.join(starts)}): at most one N1 case per death (E-4), and which of "
+                    "them, if any, was in progress at the command's kill rather than at the "
+                    "further death, which is never named as a source (P-4), cannot be told, so "
+                    "none is named and none is R3",
+                )
+            elif log_problem is not None:
                 _cannot_show(
                     candidate, "E-7",
                     "more than one identity claims the one death (at most one N1 case per "
@@ -1909,7 +2096,43 @@ def name_n1_cases(
     cannot.sort(key=_candidate_order)
     for entry in undecided.values():
         entry["message_ids"].sort()
-    return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())))
+    # E-10: the sources the run evidences, for the namings E-9 tries on the
+    # undecided devices. With the log read, an undecided candidate's only
+    # possible source is a death (an occurrence that could serve it named
+    # it above); an unused occurrence on its device counts only when its
+    # order against some undecided candidate's redelivery cannot be read or
+    # precedes it, and serves that device alone. With the log unusable, the
+    # number of A3 connection ends, and so the capacity, is unknown.
+    kill_named = [case["message_id"] for case in named if case["source"] == "kill"]
+    a5_possible: dict[str, list[int]] = {}
+    for device, entry in undecided.items():
+        stamps = [
+            candidate["first_duplicate_received_monotonic_ns"]
+            for candidate in by_device.get(device, [])
+            if candidate["message_id"] in entry["message_ids"]
+        ]
+        a5_possible[device] = sorted(
+            occ["line"]
+            for occ in occurrences
+            if occ["line"] not in used_occurrences
+            and occ["device_uuid"] == device
+            and (
+                not _is_int(occ["identity"].get("received_monotonic_ns"))
+                or any(s is None or occ["identity"]["received_monotonic_ns"] < s for s in stamps)
+            )
+        )
+    sources = {
+        "known": log_problem is None,
+        "why_unknown": log_problem,
+        "deaths_recorded": deaths,
+        "post_kill_started_at": starts,
+        "kill_available": max(0, deaths - len(kill_named)),
+        "kill_named": kill_named,
+        "a5_occurrences_read": len(occurrences),
+        "a5_occurrences_used": sorted(used_occurrences),
+        "a5_possible_by_device": dict(sorted(a5_possible.items())),
+    }
+    return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())), sources)
 
 
 def _candidate_order(candidate: dict[str, Any]) -> tuple[str, int, str]:
@@ -2073,7 +2296,10 @@ def s5_r4_delta(
     neither way: E-7 over the controller log, E-8, E-4) is read under E-9:
     null while some naming of its undecided candidates that the count
     allows leaves the figures right, a mismatch or regression that stands
-    under every one otherwise, on the twin's evidence, which was read."""
+    under every one otherwise, on the twin's evidence, which was read; and
+    the namings of every undecided device together must fit the sources
+    the run evidences (E-10): when they cannot, R4 is observed on the
+    aggregate, no one device or identity named as the mismatch."""
     if surplus is None:
         why = cannot or "a twin snapshot is missing"
         evidence = {"devices": [], "note": f"no delta can be computed: {why}"}
@@ -2088,6 +2314,9 @@ def s5_r4_delta(
     undecided: list[dict[str, Any]] = []
     stands: list[str] = []
     undecided_rules: set[str] = set()
+    #: The undecided devices whose count some naming explains: (device, the
+    #: cases that naming needs, the row), for the capacity check (E-10).
+    pending: list[tuple[str, int, dict[str, Any]]] = []
     for device in sorted(surplus):
         facts = surplus[device]
         cases = named_on(naming.named, device)
@@ -2123,6 +2352,7 @@ def s5_r4_delta(
                 row["ok"] = None
                 devices.append(row)
                 undecided.append({"device_uuid": device, **undecided_here})
+                pending.append((device, facts.delta - facts.accepted_lines - len(cases), row))
                 continue
             note = (
                 f"no naming of the device's {len(ids)} undecided candidate(s) ({', '.join(ids)}) "
@@ -2154,12 +2384,92 @@ def s5_r4_delta(
             mismatches.append({"device_uuid": device, "problems": problems})
         if regressed is not None:
             regressions.append({"device_uuid": device, "regressed": regressed})
+    # E-10: the namings that explain each undecided device's count must,
+    # together, fit the sources the run evidences, each source serving what
+    # it can: an A5 occurrence a candidate of its own device alone, a death
+    # at most one candidate of the whole run. So the cases a device needs
+    # beyond the occurrences on it can be served only by the deaths, and
+    # the deaths must cover every device's such cases together. With the
+    # log unusable the capacity is unknown and nothing is decided on it.
+    sources = naming.sources
+    a5_possible = {
+        device: list((sources.get("a5_possible_by_device") or {}).get(device, []))
+        for device, _count, _row in pending
+    }
+    needed_by_device = {device: count for device, count, _row in pending}
+    beyond_a5 = {device: max(0, count - len(a5_possible[device])) for device, count in needed_by_device.items()}
+    capacity_evidence: dict[str, Any] = {
+        "applied": bool(pending) and bool(sources.get("known")),
+        "known": bool(sources.get("known")),
+        "why_unknown": sources.get("why_unknown"),
+        "deaths_recorded": sources.get("deaths_recorded"),
+        "post_kill_started_at": sources.get("post_kill_started_at"),
+        "kill_available": sources.get("kill_available"),
+        "a5_possible_by_device": a5_possible,
+        "needed_by_device": needed_by_device,
+        "needed": sum(needed_by_device.values()) if pending else None,
+        "beyond_a5_by_device": beyond_a5,
+        "kill_needed": sum(beyond_a5.values()) if pending else None,
+        "consistent": None,
+        "rule": (
+            "an A5 occurrence serves a candidate of its own device alone; a recorded death "
+            "serves at most one candidate of the whole run (E-10)"
+        ),
+    }
+    on_sources: dict[str, Any] | None = None
+    if capacity_evidence["applied"]:
+        kill_needed = int(capacity_evidence["kill_needed"])
+        kill_available = int(sources.get("kill_available") or 0)
+        consistent = kill_needed <= kill_available
+        capacity_evidence["consistent"] = consistent
+        for device, _count, row in pending:
+            # A device whose own occurrences cover its count is explained
+            # whatever the deaths served; one that needs a death is
+            # consistent only when the deaths cover every such device.
+            row["undecided"]["source_consistent"] = beyond_a5[device] == 0 or consistent
+        if not consistent:
+            competing = [device for device, _count, _row in pending if beyond_a5[device] > 0]
+            # A device whose need beyond its own occurrences exceeds every
+            # recorded death is the mismatch by itself, whatever the deaths
+            # served; otherwise only the aggregate is established.
+            on_own = [device for device in competing if beyond_a5[device] > kill_available]
+            ids = sorted(
+                m for device, _count, row in pending if device in competing for m in row["undecided"]["message_ids"]
+            )
+            on_sources = {
+                "device_uuid": on_own[0] if len(on_own) == 1 else None,
+                "devices": competing,
+                "stands_on": on_own,
+                "problems": [
+                    f"the undecided device(s) {', '.join(competing)} need {kill_needed} N1 case(s) "
+                    "beyond the named ones that no A5 occurrence on their own device can serve "
+                    f"({', '.join(f'{device}: {beyond_a5[device]}' for device in competing)}), "
+                    f"against {kill_available} recorded death(s) available, each serving at most "
+                    "one candidate of the whole run: no source-consistent naming explains the twins"
+                ],
+                "undecided_candidates": ids,
+                "note": (
+                    (
+                        f"the mismatch stands on {', '.join(on_own)} by itself, whatever the death(s) "
+                        "served, since its need beyond its own occurrences exceeds every recorded "
+                        "death; "
+                        if on_own
+                        else
+                        "which device's figures are the mismatch cannot be told when more than one "
+                        "needs a death, so "
+                    )
+                    + "no identity is named as the case and none as the mismatch; each device's "
+                    "figures are shown as read, with the namings its count alone would allow (E-10)"
+                ),
+            }
+            mismatches.append(on_sources)
     evidence = {
         "devices": devices,
         "mismatches": mismatches,
         "last_seq_regressions": regressions,
         "undecided": undecided,
         "surplus_unexplained": naming.r4_unexplained,
+        "source_capacity": capacity_evidence,
         "note": (
             "the /metrics counters of `delta` are not compared: they restart from zero "
             "with the controller process"
@@ -2168,8 +2478,9 @@ def s5_r4_delta(
     reason = None
     if mismatches or regressions:
         parts = []
-        if mismatches:
-            parts.append(f"{len(mismatches)} device(s) with a delta mismatch beyond the named cases")
+        per_device = len(mismatches) - (1 if on_sources is not None else 0)
+        if per_device:
+            parts.append(f"{per_device} device(s) with a delta mismatch beyond the named cases")
         if regressions:
             parts.append(f"{len(regressions)} device(s) whose last_seq regressed")
         if stands:
@@ -2177,9 +2488,23 @@ def s5_r4_delta(
                 f"{len(stands)} of them under every naming of its unshown duplicate-only "
                 "candidate(s) (E-9)"
             )
+        if on_sources is not None:
+            parts.append(
+                f"{len(on_sources['devices'])} undecided device(s) whose twins need "
+                f"{capacity_evidence['kill_needed']} N1 case(s) that only a death could serve "
+                "(no A5 occurrence on their own device can), against "
+                f"{capacity_evidence['kill_available']} recorded death(s): a delta mismatch "
+                "beyond the named cases stands on "
+                + (
+                    f"{', '.join(on_sources['stands_on'])} whatever the death(s) served"
+                    if on_sources["stands_on"]
+                    else "at least one of them, which cannot be told"
+                )
+                + " (E-10)"
+            )
         reason = "; ".join(parts)
     observed = bool(mismatches or regressions)
-    extra = ("E-9", *sorted(undecided_rules)) if undecided_rules else ()
+    extra = ("E-9", "E-10", *sorted(undecided_rules)) if undecided_rules else ()
     if not observed and undecided:
         reason = (
             f"{len(undecided)} device(s) whose delta tolerance depends on a duplicate-only "
@@ -2197,23 +2522,32 @@ def s5_r4_delta(
 
 
 def r1_missing_after_drain(
-    valid: dict[str, Sent], lines: dict[str, list[dict[str, Any]]], drain_outcome: str | None
+    valid: dict[str, Sent], lines: dict[str, list[dict[str, Any]]], drain: dict[str, Any] | None
 ) -> Criterion:
-    """R1 only after a completed drain (``drain.outcome == 'quiet'``): a
-    drain that gave up leaves the missing lines to the inconclusive rule."""
+    """R1 only after a completed drain: the manifest's drain record
+    verified by the harness (the helper's own quiet line, read and checked)
+    with outcome 'quiet', never the outcome string alone. A drain that gave
+    up, is not verified or has no record leaves the missing lines to the
+    inconclusive rule (a refutation rests on verified evidence, E-7)."""
+    drain = drain if isinstance(drain, dict) else {}
+    outcome = drain.get("outcome")
+    verified = drain.get("verified")
+    completed = verified is True and outcome == "quiet"
     missing = _sorted_ids([m for m in valid if not lines.get(m)], valid)
     evidence = {
-        "drain_outcome": drain_outcome,
+        "drain_outcome": outcome,
+        "drain_verified": verified,
+        "drain_completed": completed,
         "without_outcome_line": len(missing),
         "without_outcome_line_ids": missing,
     }
-    if drain_outcome != "quiet":
-        return Criterion(
-            "R1", None, evidence, ("P-7",),
-            f"no completed drain (drain outcome {drain_outcome!r}): R1 cannot be observed",
-        )
+    if not completed:
+        why = f"no completed drain (drain outcome {outcome!r}"
+        if outcome == "quiet":
+            why += f", verified {verified!r}: a quiet outcome the harness did not verify is not a completed drain"
+        return Criterion("R1", None, evidence, ("P-7", "E-7"), why + "): R1 cannot be observed")
     reason = None if not missing else f"{len(missing)} published valid identity(ies) without an outcome line after a completed drain"
-    return Criterion("R1", bool(missing), evidence, ("P-7",), reason)
+    return Criterion("R1", bool(missing), evidence, ("P-7", "E-7"), reason)
 
 
 def failed_only_restart_class(
@@ -2280,19 +2614,25 @@ def evidence_status(
     pre_kill_rows: int,
     config_problems: list[str],
     read_problems: list[str] | None = None,
+    run_id: str | None = None,
 ) -> EvidenceStatus:
     """Whether the proof's evidence is complete, every absence named: the
     manifest's item-18 records (both snapshots verified, the drain verified
     and quiet or gave-up, the post-drain copy fetched and verified, the
-    three SUT logs fetched with their files), the configuration identity
-    with W, a readable pre-kill reading and the seal. ``read_problems`` are
-    the loader's (a file present but unreadable): each is a failed fetch
-    of that file, since nothing of it can be read."""
+    three SUT logs fetched with their files), the harness copy of the
+    events with its fetch recorded ok (item 3's first copy), the collector
+    file from the SUT collector (item 5), the configuration identity with
+    W, a readable pre-kill reading and the seal; the simulator's own
+    manifest is inventoried (E-11 reads it) and never a failed fetch by its
+    absence. ``read_problems`` are the loader's (a file present but
+    unreadable): each is a failed fetch of that file, since nothing of it
+    can be read."""
     read_problems = list(read_problems or [])
     missing: list[str] = []
     failures: list[str] = []
     unusable: dict[str, str] = {}
     logs = "logs/" + SUT_LOG_SUBDIR
+    run_id = str(run_id or manifest.get("run_id") or "")
 
     def _read_problem(rel: str) -> str | None:
         return next((p for p in read_problems if p.startswith(rel)), None)
@@ -2305,11 +2645,42 @@ def evidence_status(
         POST_DRAIN_EVENTS_FILENAME,
         *TWIN_SNAPSHOT_FILES.values(),
         "controller_metrics.csv",
+        COLLECTOR_FILENAME,
         CONFIG_IDENTITY_FILENAME,
         *(f"{logs}/{name}" for name in SUT_LOG_FILES.values()),
+        simulator_manifest_rel(run_id),
         SUMS_FILENAME,
     ]
     present = {rel: rel in files_present for rel in watched}
+
+    # Item 3's first copy: the harness fetch of events.jsonl, recorded by
+    # the harness (events_fetch); a readable file beside a failed or
+    # unrecorded fetch is not the copy (a stale file, or the local fallback).
+    fetch = manifest.get("events_fetch")
+    timed = "events.jsonl"
+    if not isinstance(fetch, dict):
+        missing.append(
+            f"{timed}: no harness fetch record (events_fetch, --fetch-events-cmd): the "
+            "harness copy of the events is not shown fetched"
+        )
+    elif fetch.get("ok") is not True:
+        failures.append(
+            f"{timed}: the harness fetch failed after {len(fetch.get('attempts') or [])} attempt(s)"
+            + (": the readable file beside it is not the copy" if present[timed] else "")
+        )
+    elif not present[timed]:
+        missing.append(f"{timed}: recorded as fetched but absent from the run directory")
+    elif _read_problem(timed) is not None:
+        failures.append(_read_problem(timed))
+
+    # Item 5's collector file, from the SUT collector.
+    if not present[COLLECTOR_FILENAME]:
+        missing.append(f"{COLLECTOR_FILENAME}: absent (the collector file, item 5 of 'What it records')")
+    elif manifest.get("resource_source") != SUT_COLLECTOR_SOURCE:
+        failures.append(
+            f"{COLLECTOR_FILENAME}: resource_source {manifest.get('resource_source')!r}, not the SUT "
+            f"collector's ({SUT_COLLECTOR_SOURCE!r})"
+        )
 
     def _record_outcome(record: dict[str, Any]) -> str:
         if record.get("error"):
@@ -2459,6 +2830,241 @@ def stop_rules_of(session: dict[str, Any] | None) -> dict[str, Any]:
     return {"known": not unreadable, "reached": reached, "unreadable": unreadable, "rules": rules}
 
 
+def restart_shown_of(session: dict[str, Any] | None) -> bool | None:
+    """Whether the driver showed the restart, as the session facts record
+    it: True, False, or None when the facts are absent or carry no boolean
+    (unknown, never false: P-6)."""
+    if session is None:
+        return None
+    shown = session.get("restart_shown")
+    return shown if isinstance(shown, bool) else None
+
+
+@dataclass
+class Eligibility:
+    """Whether the run is the prescribed execution with its records (E-11):
+    ``eligible`` False when a requirement fails, None when a required fact
+    is unknown (the restart shown, P-6) and nothing fails, True otherwise;
+    every failed requirement in ``reasons``, every unknown one in
+    ``unknown``, what was read in ``checks``."""
+
+    eligible: bool | None
+    reasons: list[str]
+    unknown: list[str]
+    checks: dict[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "rule": IDENTIFICATION_RULES["E-11"],
+            "eligible": self.eligible,
+            "reasons": self.reasons,
+            "unknown": self.unknown,
+            "checks": self.checks,
+            "note": (
+                "checked apart from the harness's validity, which is quoted and never "
+                "decides the proof by itself (E-11 states what the proof requires; the "
+                "campaign's MAX_SAMPLE_GAP_S rule is the one the ADR names as not touching "
+                "the proof); a run that is not eligible is inconclusive, never 'supports', "
+                "and a refutation observed on evidence that was read and verified stands (P-7)"
+            ),
+        }
+
+
+def _same_number(value: Any, expected: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and float(value) == float(expected)
+    )
+
+
+def proof_eligibility(
+    manifest: dict[str, Any],
+    run_id: str,
+    sent: SentIndex,
+    skipped_sent: int,
+    simulator_manifest: dict[str, Any] | None,
+    sim_problem: str | None,
+    evidence: EvidenceStatus,
+    session: dict[str, Any] | None,
+) -> Eligibility:
+    """E-11: the prescribed load and fault of the manifest's entry with the
+    simulator exited 0; the publication completed and the population whole,
+    on the simulator's own manifest (or, without it, the file's count
+    against the plan's, with no tolerance); the fault demonstrated (the
+    restart record and the session facts' restart_shown); and the evidence
+    complete. Every failed requirement is named; an absent required fact
+    is unknown, never read as satisfied."""
+    reasons: list[str] = []
+    unknown: list[str] = []
+    checks: dict[str, Any] = {}
+
+    # The load and fault of the plan, as the manifest's entry records them.
+    wrong: list[str] = []
+    for key, expected in PROOF_LOAD.items():
+        value = manifest.get(key)
+        ok = value == expected if isinstance(expected, str) else _same_number(value, expected)
+        if not ok:
+            wrong.append(f"{key} {value!r} (the plan's: {expected!r})")
+    checks["load"] = {
+        "read": {key: manifest.get(key) for key in PROOF_LOAD},
+        "prescribed": dict(PROOF_LOAD),
+        "ok": not wrong,
+    }
+    if wrong:
+        reasons.append("load: the manifest's entry is not the diagnostic plan's: " + "; ".join(wrong))
+
+    # The publication: the simulator exited 0 and, on its own manifest, ran
+    # its schedule to the end and published what the copy holds.
+    returncode = manifest.get("simulator_returncode")
+    sim_exit_ok = _is_int(returncode) and returncode == 0
+    checks["simulator_returncode"] = returncode
+    if not sim_exit_ok:
+        reasons.append(
+            f"publication: the simulator did not exit 0 (simulator_returncode {returncode!r}): "
+            "the publication is not shown completed"
+        )
+
+    # The population record: every line of this run read as one record.
+    this_run = len(sent.valid) + len(sent.intended_invalid)
+    unreliable: list[str] = []
+    if skipped_sent:
+        unreliable.append(f"{skipped_sent} line(s) skipped (not a JSON object or not UTF-8, E-5)")
+    if sent.malformed:
+        unreliable.append(f"{sent.malformed} record(s) of this run without a message_id")
+    if sent.repeated:
+        unreliable.append(f"{sent.repeated} record(s) repeating a message_id")
+    if sent.other_run_id:
+        unreliable.append(f"{sent.other_run_id} record(s) of another run")
+    checks["population"] = {
+        "records_of_this_run": this_run,
+        "valid": len(sent.valid),
+        "intended_invalid": len(sent.intended_invalid),
+        "skipped_lines": skipped_sent,
+        "malformed": sent.malformed,
+        "repeated": sent.repeated,
+        "other_run_id": sent.other_run_id,
+        "reliable": not unreliable,
+    }
+    if unreliable:
+        reasons.append(
+            "population: sent_events.jsonl is not a reliable record of what was published, and "
+            "a smaller denominator is never read from it: " + "; ".join(unreliable)
+        )
+
+    sim_rel = simulator_manifest_rel(run_id)
+    sim = simulator_manifest if isinstance(simulator_manifest, dict) else None
+    if sim is not None:
+        totals = sim.get("totals") if isinstance(sim.get("totals"), dict) else {}
+        rates = sim.get("rates_hz") if isinstance(sim.get("rates_hz"), dict) else {}
+        declared = totals.get("sent")
+        problems: list[str] = []
+        if sim.get("run_id") != run_id:
+            problems.append(f"its run_id is {sim.get('run_id')!r}")
+        if sim.get("scenario") != PROOF_LOAD["scenario"]:
+            problems.append(f"its scenario is {sim.get('scenario')!r}")
+        if not _same_number(sim.get("duration_s"), PROOF_LOAD["duration_s"]):
+            problems.append(f"its duration_s is {sim.get('duration_s')!r}")
+        if not _same_number(rates.get("aggregate"), PROOF_LOAD["rate_msg_s"]):
+            problems.append(f"its rates_hz.aggregate is {rates.get('aggregate')!r}")
+        if sim.get("completed") is not True:
+            problems.append(f"completed is {sim.get('completed')!r}: the schedule did not run to its end")
+        if not _is_int(declared):
+            problems.append(f"totals.sent {declared!r} is not an integer")
+        elif declared != this_run:
+            problems.append(
+                f"totals.sent {declared} against {this_run} record(s) of this run in "
+                "sent_events.jsonl: the copy is not whole"
+            )
+        checks["publication"] = {
+            "source": "the simulator's own manifest",
+            "file": sim_rel,
+            "read": {
+                "run_id": sim.get("run_id"),
+                "scenario": sim.get("scenario"),
+                "duration_s": sim.get("duration_s"),
+                "aggregate_rate_hz": rates.get("aggregate"),
+                "completed": sim.get("completed"),
+                "totals_sent": declared,
+            },
+            "expected_from_plan": PROOF_EXPECTED_MESSAGES,
+            "ok": not problems,
+        }
+        if problems:
+            reasons.append(
+                "publication: the simulator's manifest does not show the prescribed publication "
+                "completed and whole: " + "; ".join(problems)
+            )
+    else:
+        count_ok = this_run == PROOF_EXPECTED_MESSAGES
+        checks["publication"] = {
+            "source": (
+                "sent_events.jsonl's count of this run's records against the plan's "
+                "(the simulator's manifest is absent or unreadable)"
+            ),
+            "file": sim_rel,
+            "problem": sim_problem,
+            "records_of_this_run": this_run,
+            "expected_from_plan": PROOF_EXPECTED_MESSAGES,
+            "ok": count_ok and not unreliable,
+        }
+        if not count_ok:
+            reasons.append(
+                f"publication: the simulator's manifest ({sim_rel}) is absent or unreadable"
+                + (f" ({sim_problem})" if sim_problem else "")
+                + f", so the only count is sent_events.jsonl's: {this_run} record(s) of this run "
+                f"against the plan's {PROOF_EXPECTED_MESSAGES} (300 s x 11.2 msg/s), with no tolerance"
+            )
+
+    # The fault demonstrated: the manifest's record and the driver's facts.
+    restart = manifest.get("restart") if isinstance(manifest.get("restart"), dict) else {}
+    restart_ok = (
+        restart.get("executed") is True
+        and _is_int(restart.get("returncode"))
+        and restart.get("returncode") == 0
+    )
+    shown = restart_shown_of(session)
+    checks["fault"] = {
+        "restart_executed": restart.get("executed"),
+        "restart_returncode": restart.get("returncode"),
+        "restart_ok": restart_ok,
+        "restart_shown": shown,
+        "session_facts_present": session is not None,
+    }
+    if not restart_ok:
+        reasons.append(
+            f"fault: the manifest's restart did not execute with exit 0 (executed "
+            f"{restart.get('executed')!r}, returncode {restart.get('returncode')!r}): the fault "
+            "is not demonstrated"
+        )
+    if shown is None:
+        unknown.append(
+            "fault: whether the restart was shown is unknown: "
+            + (
+                "no session facts (proof_session.json) were given"
+                if session is None
+                else "the session facts carry no restart_shown (null)"
+            )
+            + " (P-6)"
+        )
+    elif shown is False:
+        reasons.append(
+            "fault: the session facts record the restart as not shown (restart_shown false): "
+            "the fault was not applied"
+        )
+
+    # The records of 'What it records', as the evidence inventory names them.
+    checks["evidence_complete"] = evidence.complete
+    if not evidence.complete:
+        reasons.append(
+            "records: the proof's evidence is not complete (see proof_evidence): "
+            + "; ".join(evidence.missing + evidence.fetch_failures)
+        )
+    eligible: bool | None = False if reasons else (None if unknown else True)
+    return Eligibility(eligible, reasons, unknown, checks)
+
+
 def inconclusive_reasons(
     evidence: EvidenceStatus,
     criteria: dict[str, Criterion],
@@ -2466,12 +3072,15 @@ def inconclusive_reasons(
     session: dict[str, Any] | None,
     failed_only: list[dict[str, Any]],
     r_any: bool,
+    eligibility: Eligibility | None = None,
 ) -> list[str]:
     """The ADR's five conditions, in its order, plus the evaluator's own
-    (P-2, P-6, E-3, E-7, E-8), each stated with what was read. A criterion
-    of S2 to S5 that is null is always named here (E-7, or E-8 when the
-    band is the ground), so a run that is inconclusive for that cause never
-    goes without a stated reason."""
+    (P-2, P-6, E-3, E-7, E-8, E-11), each stated with what was read. A
+    criterion of S2 to S5 that is null is always named here (E-7, or E-8
+    when the band is the ground), so a run that is inconclusive for that
+    cause never goes without a stated reason; a run that is not eligible
+    is named with every failed requirement (the evidence ones under "any
+    fetch listed above fails")."""
     s1, s2, s6 = criteria["S1"], criteria["S2"], criteria["S6"]
     reasons: list[str] = []
     if s1.holds is False:
@@ -2502,6 +3111,11 @@ def inconclusive_reasons(
             + str(rule.get("rule") or rule.get("name") or "unnamed rule")
             + (f" (limit {rule.get('limit_s')} s)" if rule.get("limit_s") is not None else "")
         )
+    if eligibility is not None:
+        reasons.extend(eligibility.unknown)
+        named_apart = [why for why in eligibility.reasons if not why.startswith("records:")]
+        if named_apart:
+            reasons.append("not eligible (E-11): " + " | ".join(named_apart))
     if failed_only and not r_any:
         reasons.append(
             "when none of R1 to R4 holds, a restart-class identity ends with only `failed` "
@@ -2600,6 +3214,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         len(split.pre_kill),
         config_problems,
         artefacts.problems,
+        run_id=run_id,
     )
     # E-7: the post-drain copy serves the criteria only when it was fetched,
     # verified as this run's and read; the twins only when both snapshots
@@ -2621,6 +3236,22 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         log_problem = f"{log_rel}: not read"
 
     sent = valid_identities(artefacts.sent_events, run_id)
+    # E-11: the run is evaluated on the prescribed execution and its
+    # records, or it is not eligible (inconclusive, never support).
+    sim_rel = simulator_manifest_rel(run_id)
+    sim_problem = next((p for p in artefacts.problems if p.startswith(sim_rel)), None)
+    if sim_problem is None and artefacts.simulator_manifest is None and evidence.present.get(sim_rel):
+        sim_problem = f"{sim_rel}: not read"
+    eligibility = proof_eligibility(
+        manifest,
+        run_id,
+        sent,
+        artefacts.skipped_lines.get("sent_events.jsonl", 0),
+        artefacts.simulator_manifest,
+        sim_problem,
+        evidence,
+        session,
+    )
     post = lines_by_identity(artefacts.events_post_drain or [], run_id)
     timed = lines_by_identity(artefacts.events_timed, run_id) if artefacts.events_timed is not None else None
     band = kill_band(split.pre_kill, split.post_kill)
@@ -2653,6 +3284,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         restart,
         twins_problem,
         log_problem,
+        split.post_started_ats,
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))
@@ -2661,7 +3293,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         s2 = s2_outcome_lines(sent.valid, post.by_id, classification, naming.named_ids)
         s3, r2 = s3_r2_double_accepted(post.by_id, sent.valid)
         s4, r3 = s4_r3_duplicates(naming)
-        r1 = r1_missing_after_drain(sent.valid, post.by_id, drain_outcome)
+        r1 = r1_missing_after_drain(sent.valid, post.by_id, drain)
     else:
         why = str(cannot)
         unread = {"post_drain_copy": post_problem, "note": "no line of the post-drain copy was read"}
@@ -2676,7 +3308,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     refutations = {"R1": r1, "R2": r2, "R3": r3, "R4": r4}
     failed_only = failed_only_restart_class(sent.valid, post.by_id, classification) if post_copy_usable else []
     r_any = any(c.holds is True for c in refutations.values())
-    reasons = inconclusive_reasons(evidence, criteria, drain_outcome, session, failed_only, r_any)
+    reasons = inconclusive_reasons(evidence, criteria, drain_outcome, session, failed_only, r_any, eligibility)
     result = decide(criteria, refutations, reasons)
 
     seed = manifest.get("seed")
@@ -2700,6 +3332,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
             "seal": artefacts.integrity,
             "seal_problems": artefacts.integrity_problems,
             "proof_evidence": evidence.as_dict(),
+            "proof_eligibility": eligibility.as_dict(),
             "drain_text_outcome": drain_text_outcome,
             "skipped_lines": dict(sorted(artefacts.skipped_lines.items())),
             "controller_log_non_json_lines": log_notes["non_json_lines"],
@@ -2709,7 +3342,8 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
             "configuration_identity_problems": config_problems,
             "note": (
                 "the harness verdict belongs to the campaign rules and is kept as recorded "
-                "(ADR 0011, what the proof cannot show); it does not decide the proof"
+                "(ADR 0011, what the proof cannot show); it does not decide the proof, whose "
+                "own requirements are checked apart (proof_evidence, proof_eligibility)"
             ),
         },
         "system_outcome": {

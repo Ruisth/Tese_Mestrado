@@ -480,10 +480,27 @@ class ProofBench:
     def start(self, **overrides) -> subprocess.Popen:
         """The driver as a terminal job of its own (a process group whose
         leader it is), so that an interrupt can be sent as Ctrl-C sends it:
-        to the whole group, never to the driver's shell alone."""
+        to the whole group, never to the driver's shell alone. Its output
+        goes to files that ``finish`` reads back, never to a pipe nobody
+        drains while the test waits: the evaluate step echoes the whole
+        verdict document, and a driver blocked on a full pipe never reaches
+        the step the test waits for."""
+        self.driver_out = open(self.bench.tmp / "driver.stdout.txt", "w", encoding="utf-8")
+        self.driver_err = open(self.bench.tmp / "driver.stderr.txt", "w", encoding="utf-8")
         return subprocess.Popen(["bash", str(self.bench.drivers / "proof.sh"), RID, COMMIT],
-                                env=self.bench.env(**overrides), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                env=self.bench.env(**overrides), stdout=self.driver_out, stderr=self.driver_err,
                                 text=True, start_new_session=True)
+
+    def finish(self, proc: subprocess.Popen, timeout: float) -> tuple[str, str]:
+        """Wait for a driver ``start`` began and return what it wrote to
+        stdout and stderr, as ``communicate`` would have."""
+        try:
+            proc.wait(timeout=timeout)
+        finally:
+            self.driver_out.close()
+            self.driver_err.close()
+        return (Path(self.driver_out.name).read_text(encoding="utf-8"),
+                Path(self.driver_err.name).read_text(encoding="utf-8"))
 
     @staticmethod
     def interrupt(proc: subprocess.Popen) -> None:
@@ -1477,7 +1494,7 @@ def test_interrupt_restores_and_names_the_stack_state_on_the_final_line(pbench):
     pbench.wait_for(lambda: pbench.harness() is not None, 120)
     interrupted_at = time.monotonic()
     pbench.interrupt(proc)
-    out, err = proc.communicate(timeout=300)
+    out, err = pbench.finish(proc, timeout=300)
     assert proc.returncode == 130, f"exit={proc.returncode}\n{out}\n{err}"
     # The interrupt reached the harness, which ended where it was: no fault
     # was applied, no run directory was written, then or afterwards.
@@ -1824,7 +1841,7 @@ def test_an_interrupt_during_the_extension_restores_after_its_kill_and_names_the
 
     pbench.wait_for(draining, 180)
     pbench.interrupt(proc)
-    out, err = proc.communicate(timeout=300)
+    out, err = pbench.finish(proc, timeout=300)
     assert proc.returncode == 130, f"exit={proc.returncode}\n{out}\n{err}"
     verdicts = pbench.verdicts()
     assert verdicts["status"] == "interrupted"
