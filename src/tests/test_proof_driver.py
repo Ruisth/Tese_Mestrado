@@ -10,10 +10,12 @@ on top of it this module installs:
   - the harness step the driver runs through the host preamble - and hands
   it to a stub harness which records its argv and environment, applies the
   fault to the guest's docker state as the restart hook would, and writes a
-  sealed run directory shaped by ``test_proof_evaluator``'s own builders
-  (the scenario that supports, one that refutes, one that is inconclusive,
-  a manifest invalid under MAX_SAMPLE_GAP_S), so the REAL evaluator runs
-  over it; every other call goes to this interpreter unchanged;
+  run directory shaped by ``test_proof_evaluator``'s own builders (the
+  scenario that supports, one that refutes, one that is inconclusive, the
+  campaign's MAX_SAMPLE_GAP_S deviation in the one form run.py records it),
+  with the validity, the reasons, the warnings and the seal run.py's own
+  functions give for it, so the REAL evaluator runs over it; every other
+  call goes to this interpreter unchanged;
 * a guest ``docker`` that holds the controller container's state on disk
   (the same object, started later, after the fault) and the five other
   services, steerable through ``EGW_STUB_FAIL``;
@@ -29,8 +31,9 @@ What these cases show is the driver's own behaviour: the prerequisites that
 leave the harness unstarted, the values and stop rules recorded before the
 first ``drained``, the harness command line, the restart shown from the
 driver's records, the three verdicts kept apart (the harness's own validity
-quoted and never decisive), the 50-minute rule, the restoration in every
-ending, the optional extension never run unless asked, and what reaches the
+quoted as recorded and admitted only as E-12 states, by the evaluator's own
+``harness_admission``), the 50-minute rule, the restoration in every ending,
+the optional extension never run unless asked, and what reaches the
 package. They say nothing about a real broker, controller, guest or network.
 """
 from __future__ import annotations
@@ -255,8 +258,11 @@ with open(state_path, "w", encoding="utf-8") as fh:
     json.dump(state, fh)
 open(LOG + ".midrun", "w", encoding="utf-8").close()
 
+from egw_experiments import proof_evaluator as pe  # noqa: E402
+from egw_experiments import run as run_mod  # noqa: E402
 from egw_experiments.checksums import write_sha256sums  # noqa: E402
-from test_proof_evaluator import D1, LINES, NS, _manifest, _rows, _write_run_dir  # noqa: E402
+from test_proof_evaluator import (  # noqa: E402
+    D1, GAP_WINDOW, LINES, NS, _gap_collector_csv, _manifest, _rows, _write_run_dir)
 
 result = os.environ.get("EGW_STUB_PROOF_RESULT", "supports")
 kwargs = {}
@@ -266,23 +272,25 @@ elif result == "inconclusive":
     kwargs["rows"] = _rows(last_pre=(0, 0))
 # The manifest as the harness writes it: the simulator's exit status and the
 # record of its own copy of the events (the first of the two copies), beside
-# the item-18 records the evaluator tests' builder holds. Steered through
-# EGW_STUB_MANIFEST_VALIDITY (invalid under MAX_SAMPLE_GAP_S alone),
-# EGW_STUB_SIMULATOR_EXIT (the simulator failed: the run is invalid with
-# the harness's own reason), EGW_STUB_EVENTS_FETCH ('failed': the copy
-# failed and a stale file is left; 'missing': no record and no file) and
-# EGW_STUB_NO_RESOURCES (no collector file sealed).
+# the item-18 records the evaluator tests' builder holds; its validity, its
+# reasons, the resource source, the mandatory artefacts missing and the
+# warnings are what run.py's own functions give for the run directory as
+# written (compute_validity, missing_mandatory_artifacts, ingest_resources),
+# and SHA256SUMS is withheld while a mandatory artefact is missing, as
+# run.py withholds it - no validity reason is written here. Steered
+# through EGW_STUB_SAMPLING_GAP ('gap': the collector file the harness's
+# own fetch wrote has a 6 s sampling gap, so the ingest rejects it and the
+# run is the campaign's MAX_SAMPLE_GAP_S deviation exactly as the harness
+# records it; 'gap-and-other-problem': the same file with one row whose
+# cpu_pct is not a finite number beside the gap), EGW_STUB_SIMULATOR_EXIT
+# (the simulator failed), EGW_STUB_EVENTS_FETCH ('failed': the copy failed
+# and a stale file is left; 'missing': no record and no file) and
+# EGW_STUB_NO_RESOURCES (no collector file ingested into the run
+# directory).
 manifest = _manifest()
-validity = os.environ.get("EGW_STUB_MANIFEST_VALIDITY", "valid")
-reasons = []
-if validity != "valid":
-    reasons.append("resources.csv: egw-controller-1 has a 6.0 s gap (00:18:29Z to 00:18:35Z) exceeding MAX_SAMPLE_GAP_S (5 s)")
 simulator_exit = int(os.environ.get("EGW_STUB_SIMULATOR_EXIT", "0"))
-if simulator_exit != 0:
-    reasons.append("simulator exited with code %d: the measured run did not complete cleanly; there is no override for a failed measured run" % simulator_exit)
 manifest["simulator_returncode"] = simulator_exit
-manifest["validity"] = "invalid" if reasons else "valid"
-manifest["validity_reasons"] = reasons
+sampling_gap = os.environ.get("EGW_STUB_SAMPLING_GAP", "")
 events_fetch = os.environ.get("EGW_STUB_EVENTS_FETCH", "ok")
 # The evaluator's builder carries an ok events_fetch record by default:
 # "missing" means no record at all, so it is removed, never left behind.
@@ -295,19 +303,12 @@ if events_fetch != "missing":
         "ok": events_fetch == "ok",
     }
 kwargs["manifest"] = manifest
-harness_exit = 0 if manifest["validity"] == "valid" and events_fetch == "ok" else 1
 with tempfile.TemporaryDirectory() as tmp:
     run_dir = _write_run_dir(Path(tmp), name=run_id, seal=False, **kwargs)
     if events_fetch == "missing":
         (run_dir / "events.jsonl").unlink()
-    # What the real harness seals beside the proof's evidence: the collector's
+    # What the real harness keeps beside the proof's evidence: the collector's
     # files and the item-18 hooks' streams.
-    # The evaluator's builder writes resources.csv itself: the knob removes it.
-    if os.environ.get("EGW_STUB_NO_RESOURCES"):
-        (run_dir / "resources.csv").unlink(missing_ok=True)
-    else:
-        (run_dir / "resources.csv").write_text(
-            "ts_utc,service,cpu_usage_usec,memory_current_bytes\n2026-09-25T10:00:00Z,egw-controller-1,1000,1048576\n", "utf-8")
     collector = run_dir / "logs" / "collector"
     collector.mkdir(parents=True)
     (collector / f"resources-{run_id}.csv").write_text("ts_utc,service\n2026-09-25T10:00:00Z,egw-controller-1\n", "utf-8")
@@ -318,7 +319,39 @@ with tempfile.TemporaryDirectory() as tmp:
         "service,container_id,started_at\negw-controller-1,stub,2026-09-25T09:58:00Z\n", "utf-8")
     for name in ("hook-drain.stderr.txt", "hook-twin_snapshot_before.stdout.txt", "hook-twin_snapshot_after.stdout.txt"):
         (run_dir / "logs" / "sut" / name).write_text("", "utf-8")
-    if not fails("harness-unsealed"):
+    # The collector file: ingested as resources.csv (the evaluator's builder
+    # wrote it), none at all (EGW_STUB_NO_RESOURCES), or, in the sampling-gap
+    # form, the file the harness's own fetch wrote at
+    # logs/collector/resources-<run_id>.csv handed to run.ingest_resources
+    # with the fetch's source label and the measured window, which rejects
+    # it (resources.csv is never written) and records the warning.
+    warnings = []
+    resource_source = "sut-collector"
+    if sampling_gap or os.environ.get("EGW_STUB_NO_RESOURCES"):
+        (run_dir / "resources.csv").unlink(missing_ok=True)
+        resource_source = "none"
+    if sampling_gap:
+        fetched = run_dir / pe.fetch_collector_rel(run_id)
+        _gap_collector_csv(fetched, other_problem=sampling_gap == "gap-and-other-problem")
+        ingested = run_mod.ingest_resources(
+            run_dir, fetched, warnings, expected_window_start_utc=GAP_WINDOW[0],
+            expected_window_end_utc=GAP_WINDOW[1], source_label=pe.INGEST_SOURCE_FETCH)
+        assert ingested is False and not (run_dir / "resources.csv").exists()
+    missing = run_mod.missing_mandatory_artifacts(run_dir, "controller_restart")
+    validity, reasons = run_mod.compute_validity(
+        timed=True, sut_env_present=True, allow_missing_sut_env=False, resource_source=resource_source,
+        allow_missing_resources=False, restart_required=True, restart_ok=True, simulator_returncode=simulator_exit,
+        skip_warmup=True, condition_id="controller_restart", allow_protocol_deviation=True,
+        confirmation_marker_ok=True, collector_hooks=[], missing_artifacts=missing, collector_problems=[],
+        sut_log_fetches=manifest["sut_log_fetches"], twin_snapshots=manifest["twin_snapshots"], drain=manifest["drain"],
+        events_post_drain_fetch=manifest["events_post_drain_fetch"], config_identity_ok=True)
+    manifest.update(validity=validity, validity_reasons=reasons, resource_source=resource_source,
+                    missing_mandatory_artifacts=missing, warnings=warnings)
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", "utf-8")
+    harness_exit = 0 if validity == "valid" and events_fetch == "ok" else 1
+    # SHA256SUMS last, and only when no mandatory artefact is missing (run.py
+    # withholds it otherwise).
+    if not missing and not fails("harness-unsealed"):
         write_sha256sums(run_dir)
     if fails("harness-tampered"):
         # Bytes changed after the seal: SHA256SUMS no longer verifies.
@@ -346,7 +379,8 @@ if not record.exists():
         "status=running\nphase=fault\nfault_exit=0\nphase=after\nguest_epoch=1700000172\n"
         "guest_utc=2026-09-25T10:02:52Z\ncontainer_id=" + controller["id"] + "\nstarted_at=" + controller["started"]
         + "\nstatus=running\nphase=observation\ncontainer_id_same=yes\nstarted_at_changed=yes\n", "utf-8")
-print(f"[harness] {run_id}: run directory sealed at {dest}; validity {manifest['validity']}")
+print(f"[harness] {run_id}: run directory written at {dest} ({'sealed' if (dest / 'SHA256SUMS').exists() else 'NOT sealed'}); "
+      f"validity {manifest['validity']}")
 sys.exit(harness_exit)
 '''.replace("@@CLOCK@@", STUB_CLOCK)
 
@@ -1355,7 +1389,11 @@ def test_evaluator_supports_gives_pass_only_with_complete_evidence_and_a_healthy
     assert verdicts["restoration"] == "stack=healthy restart_shown=yes"
     assert verdicts["restart_shown"] == "yes"
     assert "the proof's evaluator: supports" in verdicts["reason"]
-    assert "manifest validity valid kept as recorded, not decisive for the proof" in verdicts["reason"]
+    # The harness's validity as recorded, with the form E-12 admitted it in.
+    # (It read "not decisive for the proof" until the blanket reading of P-8,
+    # which the Project Manager did not confirm, was replaced by E-12.)
+    assert ("manifest validity valid kept as recorded, admitted for the proof only as E-12 states "
+            "(harness_admission form 'valid')") in verdicts["reason"]
     assert verdicts["reason"].endswith("; the guest was left with stack=healthy restart_shown=yes")
     assert "stands for this run only" in verdicts["next_action"]
     assert "PROOF proof-adr0011-r01: validity=valid outcome=pass evaluator=supports (exit 0)" in result.stdout
@@ -1382,6 +1420,11 @@ def test_evaluator_supports_gives_pass_only_with_complete_evidence_and_a_healthy
     assert facts["eligibility"]["complete"] is True and facts["eligibility"]["problems"] == []
     assert facts["eligibility"]["harness_exit"] == 0 and facts["harness_exit"] == 0
     assert "ELIGIBLE:" in pbench.console("eligibility")
+    # The harness validity was read by the evaluator's own function (E-12):
+    # the driver's reading and the verdict document's are the same object.
+    assert facts["eligibility"]["harness_admission"]["form"] == "valid"
+    assert facts["eligibility"]["harness_admission"] == pbench.verdict_document()["instrumentation"]["harness_admission"]
+    assert (facts["eligibility"]["collector_file"], facts["eligibility"]["collector_file_present"]) == ("resources.csv", True)
     assert "clock epoch=" in (pbench.attempt() / "environment" / "containers.before.txt").read_text(encoding="utf-8")
     document = pbench.verdict_document()
     assert document["instrumentation"]["proof_evidence"]["complete"] is True
@@ -1498,26 +1541,112 @@ def test_a_harness_that_refuses_is_mandatory_never_not_run(pbench):
     assert verdicts["status"] == "failed"
 
 
-def test_harness_validity_invalid_under_the_sample_gap_rule_is_quoted_and_does_not_invalidate_the_proof(pbench):
-    result = pbench.run(EGW_STUB_MANIFEST_VALIDITY="invalid")
+def test_the_campaign_sampling_gap_deviation_as_the_harness_records_it_is_admitted_and_the_attempt_passes(pbench):
+    # The ADR anticipates the harness marking the run invalid under
+    # MAX_SAMPLE_GAP_S, as it marked both earlier restart runs. The harness
+    # records that deviation in one form only (the archived r02 manifest has
+    # exactly this shape): its ingest rejects the collector file, so
+    # resources.csv is never written, resource_source is 'none', the two
+    # validity reasons are 'no SUT resources' and 'mandatory artefact(s)
+    # missing ... resources.csv', MAX_SAMPLE_GAP_S appears only in the
+    # rejection's warning, the rejected file stays at
+    # logs/collector/resources-<run_id>.csv, SHA256SUMS is withheld and the
+    # harness exits 1. The stub builds it with run.py's own functions. The
+    # driver reads it with the evaluator's own harness_admission (E-12,
+    # P-16): admitted, the collector file taken where the admission names
+    # it, and the evaluator supports over the same directory - the attempt
+    # passes. (This case used to feed a validity reason naming
+    # MAX_SAMPLE_GAP_S beside a sealed resources.csv, a form run.py never
+    # writes, and the driver matched the literal: that encoded a wrong rule,
+    # under which the real form could never be admitted.)
+    result = pbench.run(EGW_STUB_SAMPLING_GAP="gap")
     assert result.returncode == 0, report(result)
     verdicts = pbench.verdicts()
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
-    assert "manifest validity invalid (resources.csv: egw-controller-1 has a 6.0 s gap" in verdicts["reason"]
-    assert "MAX_SAMPLE_GAP_S" in verdicts["reason"]
-    assert "kept as recorded, not decisive for the proof (ADR 0011) (harness exit 1;" in verdicts["reason"]
+    assert verdicts["proof_verdict"] == "supports" and verdicts["status"] == "finished"
+    raw = pbench.base / "raw" / RID
+    manifest = json.loads((raw / "manifest.json").read_text(encoding="utf-8"))
+    # What the harness recorded, from its own functions.
+    assert manifest["validity"] == "invalid" and manifest["validity_reasons"] == pe.sampling_gap_validity_reasons()
+    assert not any("MAX_SAMPLE_GAP_S" in reason for reason in manifest["validity_reasons"])
+    (rejection,) = [w for w in manifest["warnings"] if pe.INGEST_REJECTED_MARK in w]
+    assert rejection.startswith(pe.INGEST_SOURCE_FETCH + " ") and "(MAX_SAMPLE_GAP_S)" in rejection
+    assert (manifest["resource_source"], manifest["missing_mandatory_artifacts"]) == ("none", ["resources.csv"])
+    assert not (raw / "resources.csv").exists() and not (raw / "SHA256SUMS").exists()
+    assert (raw / "logs" / "collector" / f"resources-{RID}.csv").stat().st_size > 0
+    # The reason quotes the harness validity as recorded and names the form.
+    assert "manifest validity invalid (no SUT resources: " in verdicts["reason"]
+    assert "kept as recorded, admitted for the proof only as E-12 states (harness_admission form 'sampling-gap-only')" in verdicts["reason"]
+    assert "(harness exit 1;" in verdicts["reason"]
     assert "evidence requirement(s) not met" not in verdicts["reason"]
+    # The two parts read the same admission, from the same function.
     document = pbench.verdict_document()
-    assert document["instrumentation"]["harness_validity"] == "invalid"
-    assert document["instrumentation"]["proof_evidence"]["complete"] is True
     facts = pbench.session_facts()
+    admission = facts["eligibility"]["harness_admission"]
+    assert admission == document["instrumentation"]["harness_admission"]
+    assert (admission["admitted"], admission["form"]) == (True, "sampling-gap-only")
+    assert admission["collector_file"] == f"logs/collector/resources-{RID}.csv"
+    assert admission["seal_withheld_for"].startswith("the missing mandatory artefact resources.csv alone")
+    assert f"ingest rejection (quoted): {rejection}" in admission["reasons"]
+    assert document["instrumentation"]["harness_validity"] == "invalid"
+    assert document["instrumentation"]["proof_eligibility"]["eligible"] is True
+    assert document["instrumentation"]["proof_evidence"]["complete"] is True
+    assert len(document["instrumentation"]["proof_evidence"]["accepted_in_the_sampling_gap_form"]) == 2
+    # The eligibility reading (P-16): complete, in the sampling-gap form,
+    # with the collector file where the admission names it.
+    eligibility = facts["eligibility"]
+    assert eligibility["complete"] is True and eligibility["problems"] == [] and eligibility["sampling_gap_only"] is True
+    assert (eligibility["collector_file"], eligibility["collector_file_present"]) == (admission["collector_file"], True)
+    assert eligibility["resources_csv_present"] is False
+    assert eligibility["harness_validity"] == "invalid" and eligibility["simulator_returncode"] == 0
     assert facts["instants"]["harness_exit"] == 1 and facts["harness_exit"] == 1
-    # The one admitted reason for a harness exit 1 (P-16): the eligibility
-    # reading says so, and the run is complete.
-    assert facts["eligibility"]["complete"] is True and facts["eligibility"]["sampling_gap_only"] is True
-    assert facts["eligibility"]["harness_validity"] == "invalid" and facts["eligibility"]["simulator_returncode"] == 0
-    assert "harness validity invalid for the campaign sampling gap alone" in pbench.console("eligibility")
+    console = pbench.console("eligibility")
+    assert "ELIGIBLE: " in console and "harness validity is admitted as E-12 states (form 'sampling-gap-only')" in console
+    assert f"the collector file the ingest rejected is kept at logs/collector/resources-{RID}.csv" in console
     assert "stands for this run only" in verdicts["next_action"]
+    # The package's declared artefacts follow the same inventory: amended on
+    # the attempt, with what was changed and why (the harness never writes
+    # resources.csv, and withholds SHA256SUMS, in this form), and the package
+    # is complete against them.
+    assert "raw/*/resources.csv" not in verdicts["expected_artefacts"]
+    assert "raw/*/SHA256SUMS" not in verdicts["expected_artefacts"]
+    assert f"raw/*/logs/collector/resources-{RID}.csv" in verdicts["expected_artefacts"]
+    amended = verdicts["expected_artefacts_amended"]
+    assert amended["replaced"] == {"raw/*/resources.csv": f"raw/*/logs/collector/resources-{RID}.csv"}
+    assert amended["dropped"] == ["raw/*/SHA256SUMS"] and amended["rule"].startswith("E-12")
+    assert "package exported and verified" in result.stdout and pbench.package() is not None
+
+
+def test_a_rejection_that_is_not_the_sampling_gap_alone_is_not_admitted_and_the_attempt_is_invalid(pbench):
+    # The same run, but the collector file the ingest rejected also holds a
+    # row whose cpu_pct is not a finite number: the rejection lists a
+    # problem beside the sampling gap, so the invalidity is not the
+    # campaign's deviation alone (E-12). The driver's gate refuses it
+    # (P-16) - and, the form not being admitted, the top-level resources.csv
+    # is what the evidence then lacks - and the evaluator, applying the same
+    # function, refuses it too: invalid, inconclusive, never a pass.
+    result = pbench.run(EGW_STUB_SAMPLING_GAP="gap-and-other-problem")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert verdicts["proof_verdict"] == "inconclusive"
+    assert "the proof's execution or evidence is incomplete (eligibility exit 1, P-16):" in verdicts["reason"]
+    assert "harness validity not admitted for the proof (E-12, form 'not-admitted'" in verdicts["reason"]
+    assert "the ingest rejection lists a problem other than a MAX_SAMPLE_GAP_S sampling gap" in verdicts["reason"]
+    assert "resources.csv: the collector file is absent or empty" in verdicts["reason"]
+    facts = pbench.session_facts()
+    eligibility = facts["eligibility"]
+    assert eligibility["complete"] is False and eligibility["sampling_gap_only"] is False
+    assert eligibility["harness_admission"]["form"] == "not-admitted"
+    assert eligibility["harness_admission"] == pbench.verdict_document()["instrumentation"]["harness_admission"]
+    document_eligibility = pbench.verdict_document()["instrumentation"]["proof_eligibility"]
+    assert document_eligibility["eligible"] is False
+    assert any("harness validity: not admitted for the proof (E-12, form 'not-admitted')" in r
+               for r in document_eligibility["reasons"])
+    assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
+    assert "stands for this run only" not in verdicts["next_action"]
+    # Not the admitted form: the declared artefacts are not amended.
+    assert "raw/*/resources.csv" in verdicts["expected_artefacts"] and "expected_artefacts_amended" not in verdicts
 
 
 # --------------------------------------------------------------------------
@@ -1532,7 +1661,8 @@ def test_a_simulator_that_failed_after_the_restart_is_incomplete_evidence_never_
     # support: the evaluator refuses the run as not eligible (E-11: the
     # prescribed publication did not complete) and the driver's own gate
     # makes the attempt invalid, since this is not the sampling-gap
-    # deviation the ADR admits (P-16).
+    # deviation the ADR admits (P-16, E-12). The harness's reason is the one
+    # run.compute_validity writes for it.
     result = pbench.run(EGW_STUB_SIMULATOR_EXIT="1")
     assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
@@ -1542,11 +1672,12 @@ def test_a_simulator_that_failed_after_the_restart_is_incomplete_evidence_never_
     assert eligibility["eligible"] is False and any("simulator" in r for r in eligibility["reasons"])
     assert "the proof's execution or evidence is incomplete (eligibility exit 1, P-16):" in verdicts["reason"]
     assert "simulator_returncode is 1, not 0: the prescribed publication did not complete" in verdicts["reason"]
-    assert "validity reason(s) beyond the campaign sampling-gap deviation" in verdicts["reason"]
-    assert "simulator exited with code 1" in verdicts["reason"]
+    assert "harness validity not admitted for the proof (E-12, form 'not-admitted'" in verdicts["reason"]
+    assert "harness validity reason (quoted): simulator exited with code 1" in verdicts["reason"]
     facts = pbench.session_facts()
     assert facts["eligibility"]["complete"] is False and facts["eligibility"]["simulator_returncode"] == 1
     assert facts["eligibility"]["sampling_gap_only"] is False and facts["harness_exit"] == 1
+    assert facts["eligibility"]["harness_admission"]["form"] == "not-admitted"
     assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
     assert "the attempt's instrumentation is invalid" in verdicts["next_action"]
     assert "stands for this run only" not in verdicts["next_action"]
@@ -1578,15 +1709,20 @@ def test_a_missing_or_failed_initial_copy_of_the_events_is_incomplete_evidence(p
 
 def test_a_missing_collector_file_is_incomplete_evidence(pbench):
     # The collector file (resources.csv) is among the records the ADR lists
-    # ("the collector file and the manifest, as today"): absent from the
-    # sealed run directory, the evidence is incomplete whatever the seal
-    # covers.
+    # ("the collector file and the manifest, as today"): never ingested into
+    # the run directory, and no rejection of it recorded, the evidence is
+    # incomplete - the harness's two reasons for a missing resources.csv
+    # without the ingest's sampling-gap rejection are not the form E-12
+    # admits, so the collector file is not taken from anywhere else.
     result = pbench.run(EGW_STUB_NO_RESOURCES="1")
     assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
     assert "resources.csv: the collector file is absent or empty" in verdicts["reason"]
-    assert pbench.session_facts()["eligibility"]["resources_csv_present"] is False
+    eligibility = pbench.session_facts()["eligibility"]
+    assert eligibility["resources_csv_present"] is False and eligibility["collector_file_present"] is False
+    assert eligibility["harness_admission"]["form"] == "not-admitted"
+    assert "0 warning(s) of the ingest rejection" in verdicts["reason"]
 
 
 # --------------------------------------------------------------------------
@@ -1776,6 +1912,37 @@ def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline
                              capture_output=True, text=True)
     assert unknown.returncode == 2, report(unknown)
     assert "CANNOT BE ESTABLISHED: the candidate start is unknown: egw-controller-1: not named" in unknown.stdout
+
+
+def test_dockers_zero_started_at_is_an_unknown_start_never_a_start_in_year_1(tmp_path):
+    # docker reports the StartedAt 0001-01-01T00:00:00Z for a container
+    # created but never started. That is no start: the candidate's start is
+    # then unknown and the 20-minute rule cannot be established (2) - before
+    # the wait and in the check after it, with or without an earlier record
+    # named - never the rule REACHED with a candidate start in year 1 (the
+    # joint check's case, which the rule read as a real start).
+    code = _driver_variable("HEALTHY_RULE_PY")
+    clock = int(datetime(2026, 9, 25, 10, 1, 40, tzinfo=timezone.utc).timestamp())
+    record = tmp_path / "wait.txt"
+    record.write_text("2026-09-25T10:05:00Z sample 1: x=running/healthy\n"
+                      "ALL HEALTHY: the 6 expected services are running and healthy (sample 1)\n", encoding="utf-8")
+    for zero in ("0001-01-01T00:00:00Z", "0001-01-01T00:00:00.000000000Z"):
+        lines = [f"clock epoch={clock} utc=2026-09-25T10:01:40Z"]
+        for i, service in enumerate(EXPECT_SERVICES):
+            started = zero if service == "egw-controller-1" else f"2026-09-25T10:00:0{i}.000000000Z"
+            lines.append(f"container {service} id={'ab' * 32} started={started}")
+        containers = tmp_path / "containers.before.txt"
+        containers.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for args in (["bound", ",".join(EXPECT_SERVICES), str(containers), "1200", ""],
+                     ["bound", ",".join(EXPECT_SERVICES), str(containers), "1200", str(record)],
+                     ["check", ",".join(EXPECT_SERVICES), str(containers), "1200", str(record), "own-observation"]):
+            result = subprocess.run([sys.executable, "-c", code, *args], capture_output=True, text=True)
+            assert result.returncode == 2, report(result)
+            assert (f"CANNOT BE ESTABLISHED: the candidate start is unknown: egw-controller-1: its start instant '{zero}' "
+                    "is the zero StartedAt docker reports for a container created but never started, which is no start") in result.stdout
+            assert "HEALTHY RULE REACHED" not in result.stdout and "0001-01-01" not in result.stdout.split("healthy_rule=")[-1]
+            # Named in the record, it is not also reported as missing from it.
+            assert "not named in the containers record" not in result.stdout
 
 
 def test_an_earlier_healthy_transition_of_this_same_start_is_reused_and_one_of_another_start_is_refused(pbench):
@@ -2004,13 +2171,19 @@ def test_an_allowance_spent_before_pre_records_the_stop_rule_once_and_starts_not
     # started, and the rule is recorded once, with the step it fell before.
     # (Before F2 this case expected 'pre' to run under a spent allowance and
     # the rule to be checked only at the harness: that encoded the wrong
-    # rule.)
+    # rule.) No 'drained' started, so the attempt never began and it is
+    # not-run - the one ending of the 50-minute rule that is not
+    # inconclusive: from 'pre' on (during it, between it and the harness,
+    # during or after any later step) the proof is recorded inconclusive.
+    # The allowance spent between 'pre' and the harness is the case below.
     result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="0")
     assert result.returncode == 2, report(result)
     verdicts = pbench.verdicts()
     assert verdicts["system_outcome"] == "not-run"
     assert verdicts["reason"].count("stop rule reached") == 1
-    assert "was spent before 'pre' could start ('pre' was NOT started, so no 'drained' ran)" in verdicts["reason"]
+    assert ("was spent before 'pre' could start ('pre' was NOT started, so no 'drained' ran and the attempt never "
+            "began: not-run)") in verdicts["reason"]
+    assert "recorded inconclusive" not in verdicts["reason"]
     assert "ended by 'timeout'" not in verdicts["reason"]
     assert "the harness was NOT started" in verdicts["reason"]
     steps = pbench.commands()
@@ -2032,11 +2205,21 @@ def test_pre_blocking_across_the_expiry_is_ended_by_the_bound_and_starts_no_harn
     # 'pre' blocks (its 'drained' waits 8 s) across an allowance of 3 s: it
     # is ended by 'timeout' under the bound, the rule is recorded once as
     # reached during 'pre', the harness is NOT started and no fault reaches
-    # the guest.
+    # the guest. The rule was reached after the first 'drained' started, so
+    # the proof is recorded inconclusive, as the ADR's stop-rule text says
+    # ("If a stop rule is reached, the session stops and the proof is
+    # recorded inconclusive"): exit 3, the instrumentation invalid (no run,
+    # no evidence). (This case expected the attempt not-run, exit 2, since
+    # the change that bounded 'pre' - a reading that was not the Project
+    # Manager's and contradicts that text: the expectation is corrected.)
     result = pbench.run(EGW_STUB_QUIESCE_HANG_S="8", EGW_PROOF_ATTEMPT_LIMIT_S="3")
-    assert result.returncode == 2, report(result)
+    assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
-    assert verdicts["system_outcome"] == "not-run"
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert verdicts["status"] == "failed"
+    assert "the proof is recorded inconclusive by that rule" in verdicts["reason"]
+    assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
+    assert "the student decides whether to repeat it" in verdicts["next_action"]
     assert verdicts["reason"].count("stop rule reached") == 1
     assert "('pre' was ended by 'timeout', exit 124)" in verdicts["reason"] or "('pre' was ended by 'timeout', exit 137)" in verdicts["reason"]
     assert "the harness was NOT started" in verdicts["reason"]
@@ -2058,11 +2241,17 @@ def test_a_preamble_blocking_across_the_expiry_is_ended_by_the_bound_as_pre_itse
     # 'timeout' before 'drained' could run, the rule is recorded once as
     # reached during 'pre', and the harness is NOT started. (hx loads the
     # preamble before and outside the bound: 'pre' would have run on across
-    # the expiry until the tunnel answered.)
+    # the expiry until the tunnel answered.) 'pre' was dispatched under the
+    # attempt's clock, which runs from the instant recorded as the first
+    # 'drained' start, and the rule was reached during it: the proof is
+    # recorded inconclusive (exit 3), as the ADR's stop-rule text says, not
+    # not-run (the expectation this case had, corrected: whether 'drained'
+    # itself had begun inside the step is not what the step's status says).
     result = pbench.run(EGW_STUB_TUNNEL="down", EGW_STUB_TUNNEL_UP_HANG_S="8", EGW_PROOF_ATTEMPT_LIMIT_S="3")
-    assert result.returncode == 2, report(result)
+    assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
-    assert verdicts["system_outcome"] == "not-run"
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
     assert verdicts["reason"].count("stop rule reached") == 1
     assert "('pre' was ended by 'timeout', exit 124)" in verdicts["reason"] or "('pre' was ended by 'timeout', exit 137)" in verdicts["reason"]
     assert "the harness was NOT started" in verdicts["reason"]
@@ -2182,6 +2371,200 @@ def test_an_allowance_spent_between_two_live_steps_is_recorded_once_and_blocks_t
     assert verdicts["restoration"] == "stack=healthy restart_shown=unknown"
 
 
+def test_an_allowance_spent_between_pre_and_the_harness_starts_no_harness_and_is_inconclusive(pbench):
+    # 'pre' ends in time; the offline identity check after it takes longer
+    # than what is left of the allowance (the bench's PY_SLOW_STEP delays
+    # that step, deterministically): the allowance is spent BETWEEN 'pre'
+    # and the harness. The harness step is not dispatched (the remainder is
+    # checked before it), the rule is recorded once as reached before
+    # 'harness-run', no fault reaches the guest, the restoration still runs,
+    # and the attempt is inconclusive - 'pre' and its 'drained' ran, so the
+    # proof is recorded inconclusive, never not-run. (This path lost its only
+    # case when the case of an allowance of 0 s became the case before 'pre',
+    # its replacement declared impossible without a clock stub; the joint
+    # check showed PY_SLOW_STEP forces it, so it is covered again.)
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="10",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="identity-check", EGW_SLOW_STEP_S="15"))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert reason.count("stop rule reached") == 1
+    assert ("stop rule reached: the attempt's allowance of 10 s was spent before the harness could start "
+            "(the harness was NOT started; the run directory was never created)") in reason
+    assert "ended by 'timeout'" not in reason and "(harness exit not-started;" in reason
+    assert ("not run after the attempt's stop rule was reached (no further proof step starts): controller-process-after, "
+            "containers-after, restart-shown, metrics-after, delta, guest-state-after, guest-state-delta") in reason
+    steps = pbench.commands()
+    assert "pre" in steps and "identity-check" in steps and "harness-run" not in steps and pbench.harness() is None
+    assert "services-healthy-after" in steps and "evaluate" in steps
+    facts = pbench.session_facts()
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == (
+        "harness-run", "before")
+    assert facts["instants"]["harness_exit"] is None and facts["instants"]["harness_started_utc"] is None
+    assert facts["instants"]["harness_allowance_s"] == 0
+    assert "harness_exit=not-started" in result.stdout
+    assert not (pbench.base / "raw" / RID).exists()
+    assert "kill" not in pbench.docker_log() and pbench.docker_state()["controller"]["starts"] == 0
+    assert verdicts["restoration"].startswith("stack=healthy")
+    assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
+
+
+# The tunnel answers until 'pre' has written the configuration identity, then
+# drops once; reopening it takes EGW_STUB_TUNNEL_UP_HANG_S (the joint check's
+# probe): the 6.1 preamble of the harness step - the first host step after
+# 'pre' - takes its time, and every later one finds the tunnel open.
+PREAMBLE_TUNNEL = """# shellcheck shell=bash
+tunnel_check() { [ ! -e "$HOME/egw-tcg/itest/@RID@.config_identity.json" ] || [ -e "$HOME/egw-tcg/tunnel-reopened" ]; }
+tunnel_up() { sleep "${EGW_STUB_TUNNEL_UP_HANG_S:-0}"; : > "$HOME/egw-tcg/tunnel-reopened"; echo "stub: tunnel up"; }
+tunnel_down() { echo "stub: tunnel down"; }
+""".replace("@RID@", RID)
+
+
+def test_the_harness_steps_bound_is_computed_after_its_preamble_and_a_spent_allowance_starts_no_harness(pbench):
+    # 'pre' ends well inside a 10 s allowance and the harness step is
+    # dispatched with most of it left; its own 6.1 preamble (loaded before
+    # its bound, as hx loads it) then takes 20 s reopening the tunnel. The
+    # step was handed the absolute deadline (T0 + the allowance on
+    # /proc/uptime) and computes its bound AFTER the preamble: nothing is
+    # left, so the harness - and its fault hook - is NOT started (the step
+    # answers 98) and the rule is recorded once as reached before
+    # 'harness-run'. (The joint check's probe showed the harness starting
+    # 34 s into a 20 s allowance under a bound computed before the preamble,
+    # with the dispatch instant recorded as the harness's start.)
+    _write(pbench.bench.home / "egw-tcg" / "tunnel.sh", PREAMBLE_TUNNEL)
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="10", EGW_STUB_TUNNEL_UP_HANG_S="20")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert verdicts["reason"].count("stop rule reached") == 1
+    assert ("stop rule reached: the attempt's allowance of 10 s was spent before the harness could start "
+            "(the harness was NOT started; the run directory was never created)") in verdicts["reason"]
+    assert "harness-run" in pbench.commands() and pbench.harness() is None
+    assert "kill" not in pbench.docker_log() and pbench.docker_state()["controller"]["starts"] == 0
+    assert not (pbench.base / "raw" / RID).exists()
+    stderr = pbench.console("harness-run", "stderr")
+    assert ("STOP: the attempt's allowance of 10 s from its first 'drained' was spent when the host preamble of this "
+            "step had loaded") in stderr and "the harness was NOT started" in stderr
+    assert "stub: tunnel up" in pbench.console("harness-run") and "harness_started_utc=" not in pbench.console("harness-run")
+    record = [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()
+              if json.loads(line)["name"] == "harness-run"][-1]
+    assert record["exit_code"] == 98
+    facts = pbench.session_facts()
+    instants = facts["instants"]
+    # The deadline is in the step's text, and the bound is computed from it
+    # after the preamble, before 'bounded'.
+    step_text = record["argv"][-1]
+    deadline = instants["first_drained_started_host_uptime_s"] + 10
+    assert f"HARNESS_LEFT=$(({deadline} - HARNESS_UP))" in step_text
+    assert step_text.index("HARNESS_LEFT=") < step_text.index('\nbounded "$HARNESS_LEFT" python -m egw_experiments run')
+    assert (instants["attempt_limit_reached_step"], instants["attempt_limit_reached_when"]) == ("harness-run", "before")
+    assert instants["harness_started_utc"] is None and instants["harness_exit"] is None
+    assert instants["harness_allowance_s"] == 0 and instants["harness_step_dispatched_utc"]
+    assert "harness_exit=not-started" in result.stdout
+    assert verdicts["restoration"].startswith("stack=healthy")
+    # A preamble that takes its time but leaves some of the allowance: the
+    # harness starts under what is left AFTER the preamble, and the start
+    # recorded is the harness's own, taken inside the step immediately before
+    # it, not the instant the step was dispatched.
+    pbench.reset()
+    (pbench.bench.home / "egw-tcg" / "tunnel-reopened").unlink()
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="60", EGW_STUB_TUNNEL_UP_HANG_S="6")
+    assert result.returncode == 0, report(result)
+    instants = pbench.session_facts()["instants"]
+    started_after = instants["harness_started_host_uptime_s"] - instants["first_drained_started_host_uptime_s"]
+    assert started_after >= 6
+    assert instants["harness_allowance_s"] == 60 - started_after
+    assert instants["harness_started_utc"] and instants["harness_step_dispatched_utc"]
+    assert "harness_started_utc=" + instants["harness_started_utc"] in pbench.console("harness-run")
+
+
+def test_an_allowance_spent_during_the_restoration_blocks_the_extension_and_leaves_the_proof_as_it_was(pbench):
+    # Every live proof observation ends inside a 20 s allowance; the
+    # restoration (never bounded, as it must be) then takes 30 s longer, so
+    # the allowance runs out while it runs and no live step records it. The
+    # extension, asked for, must still not start after the expiry: its kill
+    # + start is a fault step and its readings are live (P-10). It is blocked
+    # with that reason - the extension's own, not a stop rule of the proof,
+    # whose live observations all ended in time: the proof passes as it was.
+    # (The joint check's probe showed the extension's kill + start 42 s into
+    # a 25 s allowance, the rule never recorded.)
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="20", EGW_PROOF_EXTENSION="yes",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="services-healthy-after", EGW_SLOW_STEP_S="30"))
+    assert result.returncode == 0, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    assert verdicts["proof_verdict"] == "supports" and "stop rule" not in verdicts["reason"]
+    assert verdicts["extension"] == "inconclusive"
+    assert "optional extension: inconclusive (recorded apart, it decides nothing of the proof)" in verdicts["reason"]
+    facts = pbench.session_facts()
+    assert not [r for r in facts["stop_rules"] if r["reached"]]
+    assert "attempt_limit_reached_step" not in facts["instants"]
+    assert facts["extension"]["chosen"] is True and facts["extension"]["ran"] is False
+    assert ("the extension was not run: the attempt's allowance of 20 s from its first 'drained' was spent before the "
+            "extension could start") in facts["extension"]["reasons"]
+    assert "a stop rule of the proof was reached" not in facts["extension"]["reasons"]
+    assert not any(step.startswith("ext-") for step in pbench.commands())
+    assert "kill" not in pbench.docker_log() and pbench.docker_state()["controller"]["starts"] == 1
+    assert "stop_rules=0" in result.stdout and "extension=inconclusive" in result.stdout
+
+
+def test_the_offline_comparisons_still_judge_complete_records_after_the_expiry(pbench):
+    # restart-shown and the guest-state delta compare records already taken
+    # and acquire no live observation, so offline analysis may finish them
+    # after the expiry (Project Manager's review, F2). The guest state after
+    # is taken whole, but the allowance is spent when it ends (PY_SLOW_STEP
+    # delays the step's dispatch past it, deterministically): the rule is
+    # recorded as reached after 'guest-state-after', and the delta still
+    # compares the two records - the OOM kill the complete record shows is
+    # judged, and the attempt fails with the fault named, instead of ending
+    # inconclusive by the rule with the fault never read.
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="20", EGW_STUB_FAIL="service-oomkilled",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="guest-state-after", EGW_SLOW_STEP_S="30"))
+    assert result.returncode == 1, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "fail")
+    reason = verdicts["reason"]
+    assert reason.startswith("observed system fault(s): a container was OOM-killed, replaced or gone") and "egw-mongodb-1" in reason
+    assert ("stop rule(s) reached: stop rule reached: the attempt's allowance of 20 s from its first 'drained' was spent "
+            "when 'guest-state-after' ended") in reason
+    assert "not run after the attempt's stop rule was reached" not in reason
+    steps = pbench.commands()
+    assert steps.index("guest-state-after") < steps.index("guest-state-delta") < steps.index("services-healthy-after")
+    assert "FAULT: egw-mongodb-1" in pbench.console("guest-state-delta")
+    facts = pbench.session_facts()
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == (
+        "guest-state-after", "after")
+    assert "not_started_after_stop_rule" not in facts["instants"]
+    assert "a fault the guest state showed beside the proof's own restart is a valid negative result" in verdicts["next_action"]
+    # The containers after taken whole, the allowance spent when that step
+    # ends: the restart-shown check still compares the two readings and the
+    # two container records, and the replacement they show is judged - not
+    # the restart the proof issued, a mandatory record failed - while the
+    # live observations after it are not started, and the delta, whose
+    # record after was never taken, is not run.
+    pbench.reset()
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="20", EGW_STUB_FAIL="controller-replaced",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="containers-after", EGW_SLOW_STEP_S="30"))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert verdicts["restart_shown"] == "no"
+    assert "the restart was not shown - the fault was not applied:" in verdicts["reason"]
+    assert "the object was replaced, not killed and started" in verdicts["reason"]
+    assert ("not run after the attempt's stop rule was reached (no further proof step starts): metrics-after, delta, "
+            "guest-state-after, guest-state-delta") in verdicts["reason"]
+    steps = pbench.commands()
+    assert steps.index("containers-after") < steps.index("restart-shown")
+    for step in ("metrics-after", "delta", "guest-state-after", "guest-state-delta"):
+        assert step not in steps, step
+    facts = pbench.session_facts()
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == (
+        "containers-after", "after")
+    assert facts["restart_shown"] is False
+    assert facts["instants"]["not_started_after_stop_rule"] == "metrics-after, delta, guest-state-after, guest-state-delta"
+
+
 def test_the_allowance_latch_is_set_in_the_drivers_own_shell_and_never_in_a_subshell():
     # The review of 3f5b8d5 (P1): live_start printed the remainder and was
     # called in a command substitution, so ATTEMPT_REACHED, the stop rule
@@ -2261,6 +2644,12 @@ def test_the_ready_wait_runs_before_the_attempts_clock_starts(pbench):
     # harness ran under was measured from it, not from before the wait.
     assert facts["instants"]["first_drained_started_host_uptime_s"] - facts["clocks"]["host_uptime_s"] >= 20
     assert 0 < facts["instants"]["harness_allowance_s"] <= 15
+    # The harness's own start, taken inside its step after the preamble, on
+    # the same monotonic clock: the allowance it ran under is what was left
+    # of the 15 s from the first 'drained' at that instant.
+    started_after = facts["instants"]["harness_started_host_uptime_s"] - facts["instants"]["first_drained_started_host_uptime_s"]
+    assert 0 <= started_after < 15 and facts["instants"]["harness_allowance_s"] == 15 - started_after
+    assert facts["instants"]["harness_started_utc"] and facts["instants"]["harness_step_dispatched_utc"]
     assert not [r for r in facts["stop_rules"] if r["reached"]]
 
 
@@ -2658,7 +3047,11 @@ def test_the_readme_names_the_driver_its_values_and_the_three_verdicts():
     for value in ("`DRAIN_QUIET_S`", "`EGW_PROOF_ATTEMPT_LIMIT_S`", "`EGW_PROOF_MASTER_SEED`", "`EGW_PROOF_EXTENSION`",
                   "`EGW_PROOF_RUNBOOK`", "`EGW_PROOF_RESTART_AT_S`", "`EGW_PROOF_HEALTHY_RECORD`"):
         assert value in readme, value
-    assert "not decisive" in readme and "P-8" in readme
+    # The harness's own validity is admitted only as E-12 states, through the
+    # evaluator's own function. (This asserted "not decisive", the blanket
+    # reading of P-8 the Project Manager did not confirm: corrected.)
+    assert "P-8" in readme and "E-12" in readme and "`harness_admission`" in readme
+    assert "not decisive" not in readme
     # The driver's own rules, each stated with its label: the allowance from
     # the first 'drained' as one deadline over every live observation, the
     # extension's two per-step stop rules, its baseline, the restart instant
@@ -2669,5 +3062,12 @@ def test_the_readme_names_the_driver_its_values_and_the_three_verdicts():
         assert f"**{label}**" in readme, label
     assert "every live proof observation" in readme and "candidate's start" in readme
     assert "MAX_SAMPLE_GAP_S" in readme and "never the evaluator's raw result" in readme
+    # P-10 as it now reads: the harness step's bound after its preamble, the
+    # offline comparisons after an expiry, the extension blocked by it, and
+    # the rule reached from 'pre' on recorded inconclusive; P-15: docker's
+    # zero StartedAt is an unknown start.
+    assert "after its preamble" in readme and "offline comparisons" in readme
+    assert "the attempt's allowance spent before it could start" in readme
+    assert "from `pre` on" in readme and "`0001-01-01T00:00:00Z`" in readme
     assert "the ADR gives no `/ready` figure" in readme and "runbook's `wait_ready` default of 60 s" in readme
     assert "the 300 s of the planning ceiling" not in readme
