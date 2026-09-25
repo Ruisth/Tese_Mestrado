@@ -336,7 +336,11 @@ def test_every_rec_command_line_of_the_runbook_parses() -> None:
     # anchors: an extraction that no longer finds the lines FAILS, never skips
     assert len(fragments) >= 15
     assert {argv[0] for argv in fragments} == set(rec.COMMANDS)
-    assert any("--also" in argv for argv in fragments)
+    # --events is exercised by test 6's delta line; the runbook's only --also
+    # example (the warm-up variant) was withdrawn on 2026-09-25 and the variant
+    # deferred, so --also is documented by the parser's own tests, not anchored
+    # here (test_runbook_itest_helpers holds test 6's commands to no --also).
+    assert any("--events" in argv for argv in fragments)
     assert any("--like" in argv for argv in fragments)
     parser = rec.build_parser()
     for argv in fragments:
