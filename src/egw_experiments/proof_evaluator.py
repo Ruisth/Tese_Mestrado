@@ -40,11 +40,15 @@ restart classes, how an N1 case's source is established), the rule is
 stated in :data:`IDENTIFICATION_RULES`, labelled with its flag, and carried
 into the verdict beside the criterion it serves. No rule changes a
 criterion, a threshold or a count of the ADR; every one is conservative:
-what cannot be shown is never read as support.
+what cannot be shown is never read as support, and a refutation rests only
+on evidence that was read and verified (E-7): a post-drain copy or a twin
+snapshot that is absent, unverified or unreadable leaves the criteria that
+depend on it null, never observed.
 
 Exit codes, as ``broker_measure.sh`` reads the broker verdict: 0 supports,
 1 refutes, 3 inconclusive, 2 not evaluated (an input unreadable, a seal
-that fails, a rule text that drifted from the ADR, a usage error).
+that fails, a rule text that drifted from the ADR, a usage error, or a
+failure of the evaluator itself - never exit 1, which is a result).
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ import csv
 import json
 import math
 import sys
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -244,10 +249,12 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "misorder them by 2-3 s."
     ),
     "P-2": (
-        "S6 with no readable reading of queue_depth and in_progress cannot be "
-        "stated and is treated as an inconclusive condition, although the "
-        "ADR's rule does not list it: nothing can then be said about the "
-        "window."
+        "S6 with no readable reading of queue_depth and in_progress, or "
+        "without W (the embedded configuration identity's "
+        "broker_conf_values.max_inflight_messages is not a positive integer), "
+        "cannot be stated and is treated as an inconclusive condition, "
+        "although the ADR's rule does not list it: nothing can then be said "
+        "about the window."
     ),
     "P-3": (
         "Restart-class membership is decided on the controller's clock: an "
@@ -260,8 +267,9 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "reading run over the restart class and the ambiguous identities "
         "together, so an ambiguous identity is never read as support. "
         "\"Published before the kill\" and \"published while the controller "
-        "was away\" are report figures on the host clocks, with a stated band, "
-        "and never decide."
+        "was away\" are report figures on the host clocks, with a stated band; "
+        "they never decide a restart class, and only P-4 reads \"published "
+        "before the kill\" to attribute the kill as an N1 case's source."
     ),
     "P-4": (
         "An N1 case's source is established by inference, since the "
@@ -323,7 +331,8 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "each is R3."
     ),
     "E-5": (
-        "A JSONL line that is not a JSON object is skipped and counted, as "
+        "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
+        "truncated or torn final line), is skipped and counted, as "
         "CONTRACTS.md's write rule tells a reader; the count is reported in "
         "the instrumentation section."
     ),
@@ -331,6 +340,15 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "The device of an A5 occurrence is the third segment of its "
         "identity.topic (c2dt/<egw_id>/<device_uuid>/telemetry); a compose or "
         "docker prefix before the JSON object is stripped before parsing."
+    ),
+    "E-7": (
+        "A refutation rests only on evidence that was read and verified: when "
+        "the post-drain copy is absent, not verified by the harness as this "
+        "run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way "
+        "and are null; when a twin snapshot is so, or names no twin for the "
+        "device, S4, S5, R3 and R4 are null for what depends on it. The "
+        "absence is named as a failed fetch and the run is inconclusive unless "
+        "a refutation was observed on evidence that was read."
     ),
 }
 
@@ -430,20 +448,25 @@ class RunArtefacts:
     files_present: set[str]
     skipped_lines: dict[str, int]
     problems: list[str]
+    #: What was read but not as expected (a CSV header that is not the
+    #: sampler's): reported, never a failed fetch.
+    notes: list[str] = field(default_factory=list)
 
 
 def _read_jsonl(path: Path) -> tuple[list[dict[str, Any]], int]:
     """The JSON objects of a JSONL file in file order, and the count of
-    lines that are not one (E-5): skipped, never guessed at."""
+    lines that are not one (E-5): skipped, never guessed at. Each line is
+    decoded on its own, so a line that is not UTF-8 (a torn write) is one
+    skipped line and not a failure of the whole file."""
     records: list[dict[str, Any]] = []
     skipped = 0
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            if not line.strip():
+    with open(path, "rb") as fh:
+        for raw in fh:
+            if not raw.strip():
                 continue
             try:
-                obj = json.loads(line)
-            except ValueError:
+                obj = json.loads(raw.decode("utf-8"))
+            except ValueError:  # UnicodeDecodeError is one
                 skipped += 1
                 continue
             if isinstance(obj, dict):
@@ -481,6 +504,7 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
     }
     manifest = _read_json_object(run_dir / MANIFEST_FILENAME)
     problems: list[str] = []
+    notes: list[str] = []
     skipped: dict[str, int] = {}
     sha256s: dict[str, str] = {}
 
@@ -511,7 +535,14 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
         try:
             devices = load_devices(run_dir / rel)
         except HelperError as exc:
-            problems.append(str(exc))
+            # The helper names the file by its full path; the document
+            # carries the relative one, so the bytes do not depend on where
+            # the run directory sits.
+            text = str(exc)
+            full = str(run_dir / rel)
+            if text.startswith(full):
+                text = rel + text[len(full):]
+            problems.append(text if text.startswith(rel) else f"{rel}: {text}")
             return None
         _sha(rel)
         return devices
@@ -540,12 +571,12 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
                 reader = csv.DictReader(fh)
                 metrics_rows = list(reader)
                 metrics_header = list(reader.fieldnames or [])
-        except (OSError, csv.Error) as exc:
+        except (OSError, csv.Error, ValueError) as exc:  # a decode error is a ValueError
             problems.append(f"controller_metrics.csv unreadable: {exc}")
         else:
             _sha("controller_metrics.csv")
             if metrics_header != CSV_HEADER:
-                problems.append(
+                notes.append(
                     "controller_metrics.csv: the header is not the sampler's "
                     f"{len(CSV_HEADER)}-column header; absent columns read as "
                     "absent fields"
@@ -600,6 +631,7 @@ def load_run_dir(run_dir: Path) -> RunArtefacts:
         files_present=files_present,
         skipped_lines=skipped,
         problems=problems,
+        notes=notes,
     )
 
 
@@ -1318,7 +1350,10 @@ def device_surplus(
 ) -> dict[str, Surplus] | None:
     """The surplus of every device named by either snapshot or by an
     accepted line; None when a snapshot is missing (nothing can be
-    compared)."""
+    compared). Absence is read as `delta` reads it: a device with accepted
+    lines absent from the before snapshot, and a device of the before
+    snapshot absent from the after one, are problems; a device only the
+    after snapshot names, without an accepted line, is not compared."""
     if twins_before is None or twins_after is None:
         return None
     accepted_by_device: dict[str, list[dict[str, Any]]] = {}
@@ -1335,9 +1370,9 @@ def device_surplus(
         acc = accepted_by_device.get(device, [])
         seqs = [line["seq"] for line in acc if line.get("run_id") == run_id and _is_int(line.get("seq"))]
         problems: list[str] = []
-        if before is None:
+        if before is None and acc:
             problems.append("absent from the before snapshot")
-        if after is None:
+        if before is not None and after is None:
             problems.append("absent from the after snapshot")
         b_count = ib["accepted_count"] if _is_int(ib["accepted_count"]) else None
         a_count = ia["accepted_count"] if _is_int(ia["accepted_count"]) else None
@@ -1425,11 +1460,18 @@ def a5_occurrences(log_lines: list[str]) -> tuple[list[dict[str, Any]], dict[str
 
 @dataclass
 class N1Naming:
+    """The duplicate-only candidates sorted three ways: ``named`` (an N1
+    case with its source and the twin's evidence), ``r3`` (the twin shows
+    the identity was not applied, or no source can be established) and
+    ``cannot_show`` (no twin evidence exists for the device, E-7: neither
+    named nor R3)."""
+
     named: list[dict[str, Any]]
     r3: list[dict[str, Any]]
     r4_unexplained: list[dict[str, Any]]
     candidates: list[dict[str, Any]]
     notes: list[str]
+    cannot_show: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def named_ids(self) -> list[str]:
@@ -1446,10 +1488,15 @@ def name_n1_cases(
     occurrences: list[dict[str, Any]],
     classification: Classification,
     restart: dict[str, Any],
+    twins_problem: str | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
-    and a device surplus beyond its named cases is R4."""
+    and a device surplus beyond its named cases is R4. A candidate on a
+    device without twin evidence (``surplus`` None because a snapshot is
+    absent, not verified or unreadable - ``twins_problem`` says which - or
+    a device neither snapshot names) is neither named nor R3: nothing shows
+    whether it was applied (E-7)."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
     restart_class = set(classification.restart_class)
@@ -1478,6 +1525,7 @@ def name_n1_cases(
     named: list[dict[str, Any]] = []
     r3: list[dict[str, Any]] = []
     r4: list[dict[str, Any]] = []
+    cannot: list[dict[str, Any]] = []
     notes: list[str] = []
     kill_claimants: list[tuple[dict[str, Any], Surplus]] = []
     used_occurrences: set[int] = set()
@@ -1487,10 +1535,16 @@ def name_n1_cases(
 
     for device in sorted(by_device):
         device_candidates = by_device[device]
-        facts = surplus.get(device) if surplus else None
+        facts = surplus.get(device) if surplus is not None else None
         if facts is None or facts.surplus is None:
+            if surplus is None:
+                why = "no twin evidence: " + (twins_problem or "a twin snapshot is missing")
+            elif facts is None:
+                why = "no twin evidence for the device: neither snapshot names it"
+            else:
+                why = "no twin evidence for the device: " + "; ".join(facts.problems)
             for candidate in device_candidates:
-                _reject(candidate, "no twin evidence for the device (a snapshot is missing or does not name it)")
+                cannot.append({**candidate, "why_not_shown": why})
             continue
         if facts.surplus <= 0:
             for candidate in device_candidates:
@@ -1603,9 +1657,16 @@ def name_n1_cases(
                         "unexplained": facts.surplus - named_here,
                     }
                 )
-    named.sort(key=lambda c: (c["device_uuid"] or "", c["seq"] if c["seq"] is not None else -1, c["message_id"]))
-    r3.sort(key=lambda c: (c["device_uuid"] or "", c["seq"] if c["seq"] is not None else -1, c["message_id"]))
-    return N1Naming(named, r3, r4, candidates, notes)
+    named.sort(key=_candidate_order)
+    r3.sort(key=_candidate_order)
+    cannot.sort(key=_candidate_order)
+    return N1Naming(named, r3, r4, candidates, notes, cannot)
+
+
+def _candidate_order(candidate: dict[str, Any]) -> tuple[str, int, str]:
+    """Device, seq, message_id: the document's stable order of candidates."""
+    seq = candidate["seq"]
+    return (candidate["device_uuid"] or "", seq if seq is not None else -1, candidate["message_id"])
 
 
 def named_on(named: list[dict[str, Any]], device: str) -> list[dict[str, Any]]:
@@ -1625,37 +1686,60 @@ def _twin_evidence(facts: Surplus) -> dict[str, Any]:
 
 def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
     """S4 holds when every duplicate-lined identity has an accepted line or
-    is a named N1 case; R3 is observed for every one that is neither."""
+    is a named N1 case; R3 is observed for every one that is neither. A
+    candidate without twin evidence (E-7) can be shown neither way: with no
+    R3 observed elsewhere, S4 and R3 are then null."""
     evidence = {
         "duplicate_only_identities": len(naming.candidates),
         "named_n1_cases": len(naming.named),
         "not_named": len(naming.r3),
         "not_named_identities": naming.r3,
+        "cannot_show": len(naming.cannot_show),
+        "cannot_show_identities": naming.cannot_show,
         "notes": naming.notes,
     }
-    reason = None if not naming.r3 else (
-        f"{len(naming.r3)} identity(ies) with only duplicate lines and no named N1 case"
-    )
+    rules = ("P-4", "E-4", "E-7")
+    if naming.r3:
+        reason = f"{len(naming.r3)} identity(ies) with only duplicate lines and no named N1 case"
+        return (
+            Criterion("S4", False, dict(evidence), rules, reason),
+            Criterion("R3", True, dict(evidence), rules, reason),
+        )
+    if naming.cannot_show:
+        reason = (
+            f"{len(naming.cannot_show)} identity(ies) with only duplicate lines on a device "
+            "without twin evidence: " + "; ".join(sorted({c["why_not_shown"] for c in naming.cannot_show}))
+        )
+        return (
+            Criterion("S4", None, dict(evidence), rules, reason),
+            Criterion("R3", None, dict(evidence), rules, reason),
+        )
     return (
-        Criterion("S4", not naming.r3, dict(evidence), ("P-4", "E-4"), reason),
-        Criterion("R3", bool(naming.r3), dict(evidence), ("P-4", "E-4"), reason),
+        Criterion("S4", True, dict(evidence), rules),
+        Criterion("R3", False, dict(evidence), rules),
     )
 
 
 def s5_r4_delta(
-    surplus: dict[str, Surplus] | None, run_id: str, naming: N1Naming
+    surplus: dict[str, Surplus] | None,
+    run_id: str,
+    naming: N1Naming,
+    cannot: str | None = None,
 ) -> tuple[Criterion, Criterion]:
     """S5 with its tolerance and R4: itest_reconcile's per-device rule
     (delta equals the device's accepted lines; last_run_id is this run's
     and last_seq the highest accepted seq when the run accepted on the
     device; a device with accepted lines absent from the before snapshot is
     a mismatch), tolerating exactly one per named N1 case on the device
-    (E-2), plus the last_seq regression rule (P-5)."""
+    (E-2), plus the last_seq regression rule (P-5). Without a surplus
+    (``cannot`` says why: a snapshot or the post-drain copy absent, not
+    verified or unreadable) both are null (E-7)."""
     if surplus is None:
-        evidence = {"devices": [], "note": "a twin snapshot is missing: no delta can be computed"}
+        why = cannot or "a twin snapshot is missing"
+        evidence = {"devices": [], "note": f"no delta can be computed: {why}"}
         return (
-            Criterion("S5", None, dict(evidence), ("E-2",), "a twin snapshot is missing"),
-            Criterion("R4", None, dict(evidence), ("P-5",), "a twin snapshot is missing"),
+            Criterion("S5", None, dict(evidence), ("E-2", "E-7"), why),
+            Criterion("R4", None, dict(evidence), ("P-5", "E-2", "E-7"), why),
         )
     devices: list[dict[str, Any]] = []
     mismatches: list[dict[str, Any]] = []
@@ -1706,8 +1790,14 @@ def s5_r4_delta(
             "expected_last_seq": expected_last_seq,
             "problems": problems,
             "regressed": regressed,
+            "compared": facts.delta is not None,
             "ok": not problems and regressed is None,
         }
+        if facts.delta is None and not problems:
+            row["note"] = (
+                "not compared: named by the after snapshot only and without an "
+                "accepted line, which the runbook's `delta` does not compare"
+            )
         devices.append(row)
         if problems:
             mismatches.append({"device_uuid": device, "problems": problems})
@@ -1784,11 +1874,16 @@ def failed_only_restart_class(
 
 @dataclass
 class EvidenceStatus:
+    """Whether the proof's evidence is complete, every absence named;
+    ``unusable`` maps each file that cannot serve the criteria (the
+    post-drain copy, the twin snapshots) to why (E-7)."""
+
     complete: bool
     present: dict[str, bool]
     missing: list[str]
     fetch_failures: list[str]
     drain: dict[str, Any]
+    unusable: dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -1797,6 +1892,7 @@ class EvidenceStatus:
             "missing": self.missing,
             "fetch_failures": self.fetch_failures,
             "drain": self.drain,
+            "cannot_serve_the_criteria": dict(sorted(self.unusable.items())),
         }
 
 
@@ -1815,15 +1911,26 @@ def evidence_status(
     integrity: str,
     pre_kill_rows: int,
     config_problems: list[str],
+    read_problems: list[str] | None = None,
 ) -> EvidenceStatus:
     """Whether the proof's evidence is complete, every absence named: the
     manifest's item-18 records (both snapshots verified, the drain verified
     and quiet or gave-up, the post-drain copy fetched and verified, the
     three SUT logs fetched with their files), the configuration identity
-    with W, a readable pre-kill reading and the seal."""
+    with W, a readable pre-kill reading and the seal. ``read_problems`` are
+    the loader's (a file present but unreadable): each is a failed fetch
+    of that file, since nothing of it can be read."""
+    read_problems = list(read_problems or [])
     missing: list[str] = []
     failures: list[str] = []
+    unusable: dict[str, str] = {}
     logs = "logs/" + SUT_LOG_SUBDIR
+
+    def _read_problem(rel: str) -> str | None:
+        return next((p for p in read_problems if p.startswith(rel)), None)
+
+    def _cannot_serve(rel: str, why: str) -> None:
+        unusable.setdefault(rel, why)
     watched = [
         "sent_events.jsonl",
         "events.jsonl",
@@ -1849,13 +1956,19 @@ def evidence_status(
         record = by_file.get(file)
         if record is None:
             missing.append(f"{file}: no twin snapshot record ({RESTART_EVIDENCE_FLAGS[hook]})")
+            _cannot_serve(file, missing[-1])
         elif record.get("verified") is not True:
             failures.append(
                 f"{file}: the twin snapshot is not verified ({_record_outcome(record)}): "
                 + ("; ".join(record.get("problems") or []) or "no file or a refused file")
             )
+            _cannot_serve(file, failures[-1])
         elif not present[file]:
             missing.append(f"{file}: recorded as verified but absent from the run directory")
+            _cannot_serve(file, missing[-1])
+        elif _read_problem(file) is not None:
+            failures.append(_read_problem(file))
+            _cannot_serve(file, failures[-1])
 
     drain = manifest.get("drain")
     drain_facts = {
@@ -1872,20 +1985,28 @@ def evidence_status(
         )
 
     post = manifest.get("events_post_drain_fetch")
+    post_file = POST_DRAIN_EVENTS_FILENAME
     if not isinstance(post, dict):
-        missing.append(f"{POST_DRAIN_EVENTS_FILENAME}: no post-drain fetch record (--post-drain-fetch-cmd)")
+        missing.append(f"{post_file}: no post-drain fetch record (--post-drain-fetch-cmd)")
+        _cannot_serve(post_file, missing[-1])
     elif post.get("source") != "ingested" and post.get("ok") is not True:
         failures.append(
-            f"{POST_DRAIN_EVENTS_FILENAME}: the post-drain fetch failed after "
+            f"{post_file}: the post-drain fetch failed after "
             f"{len(post.get('attempts') or [])} attempt(s)"
         )
+        _cannot_serve(post_file, failures[-1])
     elif post.get("verified") is not True:
         failures.append(
-            f"{POST_DRAIN_EVENTS_FILENAME}: fetched but not the post-drain copy of this run: "
+            f"{post_file}: fetched but not the post-drain copy of this run: "
             + "; ".join(post.get("problems") or [])
         )
-    elif not present[POST_DRAIN_EVENTS_FILENAME]:
-        missing.append(f"{POST_DRAIN_EVENTS_FILENAME}: recorded as verified but absent from the run directory")
+        _cannot_serve(post_file, failures[-1])
+    elif not present[post_file]:
+        missing.append(f"{post_file}: recorded as verified but absent from the run directory")
+        _cannot_serve(post_file, missing[-1])
+    elif _read_problem(post_file) is not None:
+        failures.append(_read_problem(post_file))
+        _cannot_serve(post_file, failures[-1])
 
     fetches = manifest.get("sut_log_fetches")
     by_hook = {
@@ -1903,6 +2024,8 @@ def evidence_status(
             )
         elif not present[rel]:
             missing.append(f"{rel}: recorded as fetched but absent from the run directory")
+        elif _read_problem(rel) is not None:
+            failures.append(_read_problem(rel))
 
     identity = manifest.get("configuration_identity")
     if not isinstance(identity, dict):
@@ -1918,6 +2041,8 @@ def evidence_status(
         missing.append("sent_events.jsonl: absent")
     if not present["controller_metrics.csv"]:
         missing.append("controller_metrics.csv: absent")
+    elif _read_problem("controller_metrics.csv") is not None:
+        failures.append(_read_problem("controller_metrics.csv"))
     elif pre_kill_rows < 1:
         failures.append(
             "controller_metrics.csv: no readable reading of the pre-kill process (a row "
@@ -1927,12 +2052,19 @@ def evidence_status(
         failures.append(f"{SUMS_FILENAME}: absent, the run directory was never sealed")
     elif integrity != INTEGRITY_OK:
         failures.append(f"{SUMS_FILENAME}: the seal does not verify")
+    named = set(missing) | set(failures)
+    for problem in read_problems:
+        # A read problem of a file no record above covers (events.jsonl,
+        # configuration_identity.json, the CSV header) is still named.
+        if problem not in named:
+            failures.append(problem)
     return EvidenceStatus(
         complete=not missing and not failures,
         present=present,
         missing=missing,
         fetch_failures=failures,
         drain=drain_facts,
+        unusable=unusable,
     )
 
 
@@ -1951,16 +2083,17 @@ def stop_rules_of(session: dict[str, Any] | None) -> dict[str, Any]:
 
 def inconclusive_reasons(
     evidence: EvidenceStatus,
-    s1: Criterion,
-    s2: Criterion,
-    s6: Criterion,
+    criteria: dict[str, Criterion],
     drain_outcome: str | None,
     session: dict[str, Any] | None,
     failed_only: list[dict[str, Any]],
     r_any: bool,
 ) -> list[str]:
     """The ADR's five conditions, in its order, plus the evaluator's own
-    (P-2, P-6, E-3), each stated with what was read."""
+    (P-2, P-6, E-3, E-7), each stated with what was read. A criterion of
+    S2 to S5 that is null is always named here (E-7), so a run that is
+    inconclusive for that cause never goes without a stated reason."""
+    s1, s2, s6 = criteria["S1"], criteria["S2"], criteria["S6"]
     reasons: list[str] = []
     if s1.holds is False:
         reasons.append(f"the kill found nothing in flight (S1 fails): {s1.reason}")
@@ -2013,6 +2146,13 @@ def inconclusive_reasons(
                 "does not support (E-3): S2 does not hold while no refutation is observed: "
                 + s2.reason
             )
+    unshown: dict[str, list[str]] = {}
+    for rule_id in ("S2", "S3", "S4", "S5"):
+        criterion = criteria[rule_id]
+        if criterion.holds is None:
+            unshown.setdefault(criterion.reason or "no reason recorded", []).append(rule_id)
+    for why, rule_ids in unshown.items():
+        reasons.append(f"{', '.join(rule_ids)} cannot be shown (E-7): {why}")
     return reasons
 
 
@@ -2020,7 +2160,9 @@ def decide(
     criteria: dict[str, Criterion], refutations: dict[str, Criterion], reasons: list[str]
 ) -> str:
     """P-7: an observed refutation stands; else any inconclusive reason;
-    else supports only when all six hold."""
+    else supports only when all six hold. The last line is reached only by
+    a criterion that neither holds nor gave a reason; inconclusive_reasons
+    names every null one, so it is a safety net, not a path."""
     if any(c.holds is True for c in refutations.values()):
         return RESULT_REFUTES
     if reasons:
@@ -2072,8 +2214,26 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     rows, row_notes = read_metrics_rows(artefacts.metrics_rows or [])
     split = split_by_process(rows)
     evidence = evidence_status(
-        manifest, artefacts.files_present, artefacts.integrity, len(split.pre_kill), config_problems
+        manifest,
+        artefacts.files_present,
+        artefacts.integrity,
+        len(split.pre_kill),
+        config_problems,
+        artefacts.problems,
     )
+    # E-7: the post-drain copy serves the criteria only when it was fetched,
+    # verified as this run's and read; the twins only when both snapshots
+    # were. Otherwise what depends on them is null, never a refutation.
+    post_problem = evidence.unusable.get(POST_DRAIN_EVENTS_FILENAME)
+    if post_problem is None and artefacts.events_post_drain is None:
+        post_problem = f"{POST_DRAIN_EVENTS_FILENAME}: not read"
+    twins_problem = next(
+        (evidence.unusable[f] for f in TWIN_SNAPSHOT_FILES.values() if f in evidence.unusable), None
+    )
+    if twins_problem is None and (artefacts.twins_before is None or artefacts.twins_after is None):
+        twins_problem = "a twin snapshot was not read"
+    post_copy_usable = post_problem is None
+
     sent = valid_identities(artefacts.sent_events, run_id)
     post = lines_by_identity(artefacts.events_post_drain or [], run_id)
     timed = lines_by_identity(artefacts.events_timed, run_id) if artefacts.events_timed is not None else None
@@ -2082,21 +2242,48 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     classification = classify_identities(
         sent.valid, post.by_id, band, restart, manifest, split.post_kill, log_notes["subscription_granted_ts"]
     )
-    surplus = device_surplus(artefacts.twins_before, artefacts.twins_after, post, run_id)
-    naming = name_n1_cases(sent.valid, post.by_id, surplus, occurrences, classification, restart)
+    if not post_copy_usable:
+        classification.notes.append(
+            "the post-drain copy cannot serve the criteria, so no identity has a line "
+            "here: the classes are a report figure only"
+        )
+    surplus = (
+        device_surplus(artefacts.twins_before, artefacts.twins_after, post, run_id)
+        if post_copy_usable and twins_problem is None
+        else None
+    )
+    if post_problem is not None:
+        cannot: str | None = f"the post-drain copy cannot serve the criteria: {post_problem}"
+    elif twins_problem is not None:
+        cannot = f"the twin evidence cannot serve the criteria: {twins_problem}"
+    else:
+        cannot = None
+    naming = name_n1_cases(
+        sent.valid, post.by_id, surplus, occurrences, classification, restart, twins_problem
+    )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))
-    s2 = s2_outcome_lines(sent.valid, post.by_id, classification, naming.named_ids)
-    s3, r2 = s3_r2_double_accepted(post.by_id, sent.valid)
-    s4, r3 = s4_r3_duplicates(naming)
-    s5, r4 = s5_r4_delta(surplus, run_id, naming)
     s6 = s6_window(rows, w)
-    r1 = r1_missing_after_drain(sent.valid, post.by_id, drain_outcome)
+    if post_copy_usable:
+        s2 = s2_outcome_lines(sent.valid, post.by_id, classification, naming.named_ids)
+        s3, r2 = s3_r2_double_accepted(post.by_id, sent.valid)
+        s4, r3 = s4_r3_duplicates(naming)
+        r1 = r1_missing_after_drain(sent.valid, post.by_id, drain_outcome)
+    else:
+        why = str(cannot)
+        unread = {"post_drain_copy": post_problem, "note": "no line of the post-drain copy was read"}
+        s2 = Criterion("S2", None, dict(unread), ("P-3", "E-1", "E-7"), why)
+        s3 = Criterion("S3", None, dict(unread), ("E-7",), why)
+        r2 = Criterion("R2", None, dict(unread), ("E-7",), why)
+        s4 = Criterion("S4", None, dict(unread), ("P-4", "E-4", "E-7"), why)
+        r3 = Criterion("R3", None, dict(unread), ("P-4", "E-4", "E-7"), why)
+        r1 = Criterion("R1", None, {**unread, "drain_outcome": drain_outcome}, ("P-7", "E-7"), why)
+    s5, r4 = s5_r4_delta(surplus, run_id, naming, cannot)
     criteria = {"S1": s1, "S2": s2, "S3": s3, "S4": s4, "S5": s5, "S6": s6}
     refutations = {"R1": r1, "R2": r2, "R3": r3, "R4": r4}
-    failed_only = failed_only_restart_class(sent.valid, post.by_id, classification)
+    failed_only = failed_only_restart_class(sent.valid, post.by_id, classification) if post_copy_usable else []
     r_any = any(c.holds is True for c in refutations.values())
-    reasons = inconclusive_reasons(evidence, s1, s2, s6, drain_outcome, session, failed_only, r_any)
+    reasons = inconclusive_reasons(evidence, criteria, drain_outcome, session, failed_only, r_any)
     result = decide(criteria, refutations, reasons)
 
     seed = manifest.get("seed")
@@ -2124,6 +2311,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
             "skipped_lines": dict(sorted(artefacts.skipped_lines.items())),
             "controller_log_non_json_lines": log_notes["non_json_lines"],
             "read_problems": artefacts.problems,
+            "read_notes": artefacts.notes,
             "metrics_notes": row_notes,
             "configuration_identity_problems": config_problems,
             "note": (
@@ -2182,6 +2370,9 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
                     "outcome_precedence": list(OUTCOME_CLASSES),
                     "identification_rules": dict(IDENTIFICATION_RULES),
                     "criteria_copy": POST_DRAIN_EVENTS_FILENAME,
+                    "criteria_copy_usable": post_copy_usable,
+                    "criteria_copy_problem": post_problem,
+                    "twin_evidence_problem": twins_problem,
                     "note": (
                         "the timed copy (events.jsonl) is reported beside the post-drain copy and "
                         "never enters a criterion"
@@ -2289,18 +2480,25 @@ def main(argv: list[str] | None = None) -> int:
                 )
         artefacts = load_run_dir(Path(args.run_dir))
         session = load_session_facts(Path(args.session) if args.session else None)
+        if artefacts.integrity == INTEGRITY_FAILED:
+            document = not_evaluated(
+                artefacts,
+                f"{SUMS_FILENAME} does not verify: " + "; ".join(artefacts.integrity_problems),
+                session,
+            )
+        else:
+            document = evaluate(artefacts, session)
+        text = render(document)
     except ProofInputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CODES[RESULT_NOT_EVALUATED]
-    if artefacts.integrity == INTEGRITY_FAILED:
-        document = not_evaluated(
-            artefacts,
-            f"{SUMS_FILENAME} does not verify: " + "; ".join(artefacts.integrity_problems),
-            session,
-        )
-    else:
-        document = evaluate(artefacts, session)
-    text = render(document)
+    except Exception as exc:  # broad on purpose: exit 1 is a result, never a crash
+        # A failure of the evaluator itself must not read as a refutation
+        # (exit 1) or as anything else the driver treats as a result: the
+        # traceback is kept for the diagnosis and the proof is not evaluated.
+        traceback.print_exc()
+        print(f"error: the proof was not evaluated: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_CODES[RESULT_NOT_EVALUATED]
     sys.stdout.write(text)
     sys.stdout.flush()
     try:

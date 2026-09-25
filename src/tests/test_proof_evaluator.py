@@ -6,9 +6,10 @@ session, and writes one verdict document with three sections never merged.
 These cases pin: every rule text to the ADR (read when the test runs, so a
 later edit of the ADR is tested as it is); the readings in file order with
 empty cells read as absent, never zero; each identification rule the design
-flags (P-1 to P-7, E-1 to E-6) on a small in-memory scenario (three
+flags (P-1 to P-7, E-1 to E-7) on a small in-memory scenario (three
 devices, one kill on the controller clock, a host anchor for the report);
-the precedence of an observed refutation; the CLI's exit codes; and, last,
+the precedence of an observed refutation, and that a refutation is never
+recorded on evidence that was not read (E-7); the CLI's exit codes; and, last,
 the loader against a run directory the harness itself built with the
 fixtures of test_experiments_run (the fake simulator and the recorded
 item-18 hooks: no broker, no docker, no network).
@@ -582,6 +583,19 @@ def test_s6_cannot_be_stated_without_a_readable_row() -> None:
     assert any(r.startswith("S6 cannot be stated (P-2)") for r in _outcome(doc)["inconclusive_reasons"])
 
 
+def test_s6_cannot_be_stated_without_w_and_p2_says_so() -> None:
+    """W unknown (max_inflight_messages not a positive integer) is the other
+    reading S6 cannot make; the P-2 text the document carries covers it."""
+    identity = {**CONFIG_IDENTITY, "broker_conf_values": {**CONFIG_IDENTITY["broker_conf_values"], "max_inflight_messages": 0}}
+    doc = _evaluate(manifest=_manifest(configuration_identity=identity))
+    s6 = _criterion(doc, "S6")
+    assert s6["holds"] is None and "W" in s6["reason"] and set(s6["identification_rules"]) == {"P-2"}
+    assert "max_inflight_messages" in pe.IDENTIFICATION_RULES["P-2"] and "W" in pe.IDENTIFICATION_RULES["P-2"]
+    assert _outcome(doc)["result"] == "inconclusive"
+    assert any(r.startswith("S6 cannot be stated (P-2)") for r in _outcome(doc)["inconclusive_reasons"])
+    assert any("(W) is not a positive integer" in f for f in doc["instrumentation"]["proof_evidence"]["fetch_failures"])
+
+
 # ---------------------------------------------------------------------------
 # 9-10. the restart classes
 # ---------------------------------------------------------------------------
@@ -725,6 +739,73 @@ def test_r1_needs_a_completed_drain() -> None:
     assert _outcome(doc)["result"] == "refutes"
 
 
+def _without_post_drain_copy(**changes: Any) -> pe.RunArtefacts:
+    """The scenario with the post-drain copy absent from the run directory."""
+    artefacts = _artefacts(**changes)
+    artefacts.events_post_drain = None
+    artefacts.files_present = FULL_FILES - {POST_DRAIN_EVENTS_FILENAME}
+    return artefacts
+
+
+def _assert_nothing_shown_by_identity(doc: dict, problem: str) -> None:
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    for rule_id in ("S2", "S3", "S4", "S5"):
+        assert _criterion(doc, rule_id)["holds"] is None, rule_id
+        assert "E-7" in _criterion(doc, rule_id)["identification_rules"], rule_id
+    for rule_id in pe.REFUTATION_RULE_IDS:
+        assert _criterion(doc, rule_id)["observed"] is None, rule_id
+    assert _criterion(doc, "S1")["holds"] is True and _criterion(doc, "S6")["holds"] is True
+    assert any(r.startswith("any fetch listed above fails") and problem in r for r in outcome["inconclusive_reasons"])
+    assert any(r.startswith("S2, S3, S4, S5 cannot be shown (E-7)") and problem in r for r in outcome["inconclusive_reasons"])
+    assert doc["instrumentation"]["proof_evidence"]["complete"] is False
+    assert POST_DRAIN_EVENTS_FILENAME in doc["instrumentation"]["proof_evidence"]["cannot_serve_the_criteria"]
+    assert outcome["report"]["method"]["criteria_copy_usable"] is False
+    assert outcome["n1_cases"] == [] and outcome["failed_only_restart_class"] == []
+
+
+def test_a_post_drain_copy_not_fetched_or_not_verified_is_never_a_refutation() -> None:
+    """The ADR lists a failed fetch under Inconclusive and a refutation is
+    'never re-run away', so R1 (every identity without a line) and R4 (a
+    delta against zero accepted lines) must not be observed on a copy that
+    was not read: after a quiet drain with every other evidence complete,
+    the run is inconclusive and S2 to S5, R1 to R4 are null (E-7)."""
+    failed_fetch = _manifest(events_post_drain_fetch={
+        "template": "scp {dest}", "ok": False, "file": POST_DRAIN_EVENTS_FILENAME, "source": "hook",
+        "verified": False, "problems": [], "attempts": [{"attempt": 1, "returncode": 1, "dest_exists": False}],
+    })
+    doc = pe.evaluate(_without_post_drain_copy(manifest=failed_fetch), _session())
+    _assert_nothing_shown_by_identity(doc, "the post-drain fetch failed after 1 attempt(s)")
+    assert doc["instrumentation"]["proof_evidence"]["drain"]["outcome"] == "quiet"
+    # Recorded as verified but absent from the directory: the same.
+    doc = pe.evaluate(_without_post_drain_copy(), _session())
+    _assert_nothing_shown_by_identity(doc, "recorded as verified but absent")
+    # Fetched, present and readable, but not verified as this run's copy:
+    # its lines are not the criteria's evidence either.
+    unverified = _manifest(events_post_drain_fetch={
+        **_manifest()["events_post_drain_fetch"], "verified": False, "problems": ["run_id of line 3 is 'other'"],
+    })
+    doc = _evaluate(manifest=unverified, lines=B_DUPLICATE)
+    _assert_nothing_shown_by_identity(doc, "not the post-drain copy of this run: run_id of line 3 is 'other'")
+    # A refutation observed on evidence that WAS read still stands: none
+    # depends on the post-drain copy, so nothing refutes here, while with the
+    # copy read the same lines refute (R3).
+    assert _outcome(_evaluate(lines=B_DUPLICATE))["result"] == "refutes"
+
+
+def test_an_unsealed_directory_without_its_post_drain_copy_exits_3_not_1(tmp_path, capsys) -> None:
+    run_dir = _write_run_dir(tmp_path, seal=False)
+    (run_dir / POST_DRAIN_EVENTS_FILENAME).unlink()
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 3
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["system_outcome"]["result"] == "inconclusive" and doc["system_outcome"]["refutations"] == []
+    assert doc["system_outcome"]["criteria"]["R1"]["observed"] is None
+    assert doc["system_outcome"]["criteria"]["R4"]["observed"] is None
+    assert any("recorded as verified but absent" in m for m in doc["instrumentation"]["proof_evidence"]["missing"])
+    assert "refutations: " not in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # 16-22. N1 cases, R3, S5, R4
 # ---------------------------------------------------------------------------
@@ -788,6 +869,48 @@ def test_duplicate_only_without_surplus_is_r3() -> None:
     assert any(r.startswith("R3:") for r in _outcome(doc)["refutations"])
 
 
+def test_duplicate_only_without_twin_evidence_cannot_be_shown_and_is_not_r3() -> None:
+    """R3 reads 'without the surplus the identity was not applied': a surplus
+    of zero, not a surplus unknown. With the after snapshot's hook failed
+    (no file, not verified) the candidate is neither named nor R3, S4 and
+    R3 are null like S5 and R4, and the failed fetch leaves the run
+    inconclusive (E-7) instead of refuted."""
+    snapshots = _manifest()["twin_snapshots"]
+    snapshots[1] = {**snapshots[1], "returncode": 1, "dest_exists": False, "verified": False}
+    artefacts = _artefacts(lines=B_DUPLICATE, manifest=_manifest(twin_snapshots=snapshots))
+    artefacts.twins_after = None
+    artefacts.files_present = FULL_FILES - {TWIN_SNAPSHOT_FILES["twin_snapshot_after"]}
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    for rule_id in ("S4", "S5"):
+        assert _criterion(doc, rule_id)["holds"] is None, rule_id
+    for rule_id in ("R3", "R4"):
+        assert _criterion(doc, rule_id)["observed"] is None, rule_id
+    r3 = _criterion(doc, "R3")
+    assert r3["evidence"]["not_named_identities"] == []
+    assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["b-mid"]
+    assert "twins.after.json: the twin snapshot is not verified (exit 1)" in r3["evidence"]["cannot_show_identities"][0]["why_not_shown"]
+    assert "E-7" in r3["identification_rules"]
+    reasons = _outcome(doc)["inconclusive_reasons"]
+    assert any(r.startswith("any fetch listed above fails") and "twins.after.json" in r for r in reasons)
+    assert any(r.startswith("S4 cannot be shown (E-7)") for r in reasons)
+    assert any(r.startswith("S5 cannot be shown (E-7)") for r in reasons)
+    assert _outcome(doc)["n1_cases"] == []
+    # A candidate on a device neither (present, verified) snapshot names is
+    # not shown either; an R3 observed on a device with evidence still
+    # stands beside it.
+    H = ("h-mid", D4, 0, 400 * NS)
+    lines = LINES + [("h-mid", D4, 0, "duplicate", 1_230 * NS, None)]
+    doc = _evaluate(sent=SENT + [H], lines=lines)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
+    assert "neither snapshot names it" in _criterion(doc, "R3")["evidence"]["cannot_show_identities"][0]["why_not_shown"]
+    doc = _evaluate(sent=SENT + [H], lines=[line for line in lines if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", 1_200 * NS, None)])
+    assert _outcome(doc)["result"] == "refutes" and _criterion(doc, "R3")["observed"] is True
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["not_named_identities"]] == ["b-mid"]
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]] == ["h-mid"]
+
+
 def test_more_duplicate_only_than_surplus_names_none_and_is_r3() -> None:
     F = ("f-mid", D1, 2, 401 * NS)
     lines = B_DUPLICATE + [("f-mid", D1, 2, "duplicate", 1_202 * NS, None)]
@@ -833,6 +956,26 @@ def test_s5_tolerates_exactly_one_per_named_case_and_nothing_else() -> None:
     doc = _evaluate(before=before, after=_after_from(before, LINES))
     problems = next(row for row in _criterion(doc, "S5")["evidence"]["devices"] if row["device_uuid"] == D3)["problems"]
     assert "absent from the before snapshot" in problems and _outcome(doc)["result"] == "refutes"
+
+
+def test_a_device_only_the_after_snapshot_names_without_an_accepted_line_is_not_compared() -> None:
+    """The runbook's `delta` flags absence from the before snapshot only for
+    a device with accepted records and loops over the before snapshot's
+    devices, so a device that only the after snapshot names, with no line,
+    is reported and not compared: no mismatch, no R4."""
+    after = {**_after_from(BEFORE, LINES), D4: (3, "earlier", 2)}
+    doc = _evaluate(after=after)
+    assert _outcome(doc)["result"] == "supports"
+    row = next(row for row in _criterion(doc, "S5")["evidence"]["devices"] if row["device_uuid"] == D4)
+    assert row["compared"] is False and row["ok"] is True and row["problems"] == [] and "not compared" in row["note"]
+    assert _criterion(doc, "R4")["observed"] is False and _criterion(doc, "R4")["evidence"]["mismatches"] == []
+    compared = next(row for row in _criterion(doc, "S5")["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert compared["compared"] is True and "note" not in compared
+    # A device of the before snapshot absent from the after one stays a
+    # mismatch, as `delta` prints it.
+    doc = _evaluate(after={k: v for k, v in _after_from(BEFORE, LINES).items() if k != D2})
+    assert _outcome(doc)["result"] == "refutes"
+    assert _criterion(doc, "R4")["evidence"]["mismatches"] == [{"device_uuid": D2, "problems": ["absent from the after snapshot"]}]
 
 
 def test_r4_last_seq_regression_within_the_run_and_against_the_before_snapshot() -> None:
@@ -1063,6 +1206,89 @@ def test_cli_exit_codes_0_1_3_2(tmp_path, capsys) -> None:
         pe.main(["--out", str(tmp_path / "u.json")])
     assert raised.value.code == 2
     assert _main(supports, tmp_path / "s4.json", None) == 3  # no session facts: P-6
+
+
+def test_a_jsonl_line_that_is_not_utf8_is_skipped_and_counted_never_a_crash(tmp_path, capsys, monkeypatch) -> None:
+    """CONTRACTS.md lets a torn final line exist on disk and tells a reader
+    to skip a line that is not JSON: a line that is not UTF-8 is such a line
+    (E-5), counted and never a traceback, since exit 1 is 'refutes'. A CSV
+    that does not decode is a read problem the evidence names; a failure of
+    the evaluator itself is exit 2, never a result."""
+    run_dir = _write_run_dir(tmp_path, seal=False)
+    with (run_dir / "sent_events.jsonl").open("ab") as fh:
+        fh.write(b'{"run_id": "' + RID.encode() + b'", "message_id": "torn-\xff\xfe"}\n')
+    with (run_dir / POST_DRAIN_EVENTS_FILENAME).open("ab") as fh:
+        fh.write(b"\xff\n" + json.dumps(_line("c-mid", D2, 0, "duplicate", 1_290 * NS)).encode() + b"\n")
+    write_sha256sums(run_dir)
+    records, skipped = pe._read_jsonl(run_dir / "sent_events.jsonl")
+    assert len(records) == 4 and skipped == 1
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["instrumentation"]["skipped_lines"] == {"sent_events.jsonl": 1, "events.jsonl": 0, POST_DRAIN_EVENTS_FILENAME: 1}
+    assert doc["system_outcome"]["report"]["copies"][POST_DRAIN_EVENTS_FILENAME]["lines"] == 5  # the line after the torn one was read
+    assert "Traceback" not in capsys.readouterr().err
+    # controller_metrics.csv that does not decode: a read problem, named as
+    # a failed fetch; S1 cannot be read; still exit 3, no traceback.
+    bad_csv = _write_run_dir(tmp_path / "csv", seal=False)
+    with (bad_csv / "controller_metrics.csv").open("ab") as fh:
+        fh.write(b"\xff,,,,,,,,,,,,,,,,\n")
+    write_sha256sums(bad_csv)
+    out2 = tmp_path / "csv.json"
+    assert _main(bad_csv, out2, _session_file(tmp_path / "csv")) == 3
+    doc = json.loads(out2.read_text(encoding="utf-8"))
+    assert any(p.startswith("controller_metrics.csv unreadable") for p in doc["instrumentation"]["read_problems"])
+    assert any(f.startswith("controller_metrics.csv unreadable") for f in doc["instrumentation"]["proof_evidence"]["fetch_failures"])
+    assert doc["system_outcome"]["criteria"]["S1"]["holds"] is None
+    assert "Traceback" not in capsys.readouterr().err
+    # The evaluator's own failure: exit 2 with the traceback on stderr, no
+    # document written, never exit 1.
+    def boom(artefacts, session):
+        raise RuntimeError("an unexpected failure of the evaluator")
+
+    monkeypatch.setattr(pe, "evaluate", boom)
+    assert _main(run_dir, tmp_path / "crash.json", _session_file(tmp_path)) == 2
+    err = capsys.readouterr().err
+    assert "error: the proof was not evaluated: RuntimeError: an unexpected failure of the evaluator" in err
+    assert "Traceback" in err and not (tmp_path / "crash.json").exists()
+
+
+def test_a_present_but_unreadable_twin_snapshot_is_a_failed_fetch_with_a_stated_reason(tmp_path) -> None:
+    """A snapshot the harness verified but that load_devices refuses at
+    evaluation time (scenario D) is neither 'missing' nor a record failure:
+    the loader's problem is fed to the evidence as a failed fetch, S5/R4 and
+    the naming are null, and the reasons are never left empty. The problem
+    names the file by its relative path, so the bytes do not depend on where
+    the run directory sits."""
+    run_dir = _write_run_dir(tmp_path, seal=False, lines=B_DUPLICATE)
+    (run_dir / "twins.after.json").write_text(json.dumps({"label": "after", "seed": None, "devices": {"x": {}}}), "utf-8")
+    write_sha256sums(run_dir)
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 3
+    text = out.read_text(encoding="utf-8")
+    assert str(tmp_path) not in text and str(run_dir) not in text
+    doc = json.loads(text)
+    outcome = doc["system_outcome"]
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert doc["instrumentation"]["read_problems"] == ["twins.after.json: malformed entry for x"]
+    assert doc["instrumentation"]["proof_evidence"]["complete"] is False
+    assert "twins.after.json: malformed entry for x" in doc["instrumentation"]["proof_evidence"]["fetch_failures"]
+    assert doc["instrumentation"]["proof_evidence"]["cannot_serve_the_criteria"] == {"twins.after.json": "twins.after.json: malformed entry for x"}
+    assert outcome["inconclusive_reasons"] != []
+    assert any(r.startswith("any fetch listed above fails") and "malformed entry for x" in r for r in outcome["inconclusive_reasons"])
+    assert any(r.startswith("S4 cannot be shown (E-7)") for r in outcome["inconclusive_reasons"])
+    assert any(r.startswith("S5 cannot be shown (E-7)") and "malformed entry for x" in r for r in outcome["inconclusive_reasons"])
+    for rule_id in ("S4", "S5"):
+        assert outcome["criteria"][rule_id]["holds"] is None, rule_id
+    for rule_id in ("R3", "R4"):
+        assert outcome["criteria"][rule_id]["observed"] is None, rule_id
+    # In memory the same, and a CSV header that is not the sampler's is a
+    # note, never a failed fetch (the CSV's completeness rule is a readable
+    # pre-kill row).
+    artefacts = _artefacts()
+    artefacts.notes = ["controller_metrics.csv: the header is not the sampler's 17-column header; absent columns read as absent fields"]
+    doc = pe.evaluate(artefacts, _session())
+    assert _outcome(doc)["result"] == "supports" and doc["instrumentation"]["read_notes"] == artefacts.notes
 
 
 # ---------------------------------------------------------------------------
