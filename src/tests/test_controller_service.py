@@ -4,7 +4,12 @@ Covers all four outcomes (``accepted``/``rejected``/``duplicate``/``failed``),
 first-contact twin creation, dedupe seeding from an existing twin, latency
 semantics (ack and latency null unless accepted), the metrics counters and
 the accounting identity of the progress counters (CONTRACTS 5), asserted
-after every step of scripted runs and on the fault paths.
+after every step of scripted runs and on the fault paths; and, for ADR 0011,
+the acknowledgement point (a PUBACK is requested by the consumer only after
+the delivery's line was written, for QoS 1 only), the connection end on a
+delivery without a line, the purge and skip of an ended connection's
+deliveries, the residual ``failed`` line before the PATCH and the stop
+order without a queue marker.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from egw_controller import schema as schema_module
 from egw_controller import service as service_module
 from egw_controller.dedupe import DedupeCache
 from egw_controller.ditto import DittoUnavailableError
-from egw_controller.events import EVENT_FIELDS, EventLogger
+from egw_controller.events import EVENT_FIELDS, ControllerEvent, EventLogger
 from egw_controller.metrics import MetricsCounters
 from egw_controller.schema import SchemaRepository
 from egw_controller.service import ControllerService, InboundMessage
@@ -43,9 +48,57 @@ from test_controller_helpers import (
     make_raw_twin,
     read_events,
     topic_for,
+    until,
 )
 
 WATCH = DEVICE_UUIDS["smartwatch"]
+
+
+class _BridgeRecorder:
+    """Stands in for the bridge's ``ack`` and ``end_connection`` callables."""
+
+    def __init__(self, *, ack_result: bool = True) -> None:
+        self.acks: list[InboundMessage] = []
+        self.ends: list[tuple[str, InboundMessage | None]] = []
+        self.ack_result = ack_result
+        self.queue_depth: Callable[[], int] | None = None
+        self.depth_at_ack: list[int] = []
+        self.order: list[tuple[str, int]] = []
+
+    def acknowledge(self, message: InboundMessage) -> bool:
+        self.acks.append(message)
+        self.order.append(("ack", message.mid))
+        if self.queue_depth is not None:
+            self.depth_at_ack.append(self.queue_depth())
+        return self.ack_result
+
+    def end_connection(self, cause: str, message: InboundMessage | None) -> None:
+        self.ends.append((cause, message))
+
+
+class _OrderRecordingEventLogger(EventLogger):
+    """Appends ``("line", seq)`` to a shared order list when a line is written."""
+
+    def __init__(self, log_dir: Path, order: list[tuple[str, int]]) -> None:
+        super().__init__(log_dir)
+        self.order = order
+
+    def log(self, event: ControllerEvent) -> None:
+        super().log(event)
+        self.order.append(("line", event.seq if event.seq is not None else -1))
+
+
+async def _run_until_idle_then_stop(
+    service: ControllerService, metrics: MetricsCounters
+) -> None:
+    """Consume the submitted backlog, then request the stop and wait for the
+    consumer to exit (the stop request drains nothing by itself)."""
+    task = asyncio.create_task(service.run())
+    await until(
+        lambda: metrics.snapshot()["in_progress"] == 0 and service.queue_depth() == 0
+    )
+    await service.stop()
+    await task
 
 
 @pytest.fixture(scope="module")
@@ -674,15 +727,35 @@ async def test_failed_seeding_get_twin(
 # ---------------------------------------------------------------------------
 
 
-async def test_run_drains_queue_until_stop(
+async def test_run_processes_the_backlog_then_exits_on_the_stop_request(
     service: ControllerService, tmp_path: Path, metrics: MetricsCounters
 ) -> None:
+    """``stop`` queues no marker (ADR 0011, item 13): the consumer processes
+    what it takes while running and exits once the stop is requested."""
     service.submit(make_inbound(make_payload("smartwatch", seq=0)))
     service.submit(make_inbound(make_payload("smartwatch", seq=1)))
-    await service.stop()  # sentinel queued after the two messages
-    await service.run()
+    await _run_until_idle_then_stop(service, metrics)
     assert len(read_events(tmp_path)) == 2
     assert metrics.snapshot()["accepted"] == 2
+    assert service.queue_depth() == 0
+
+
+async def test_stop_requested_before_run_processes_nothing(
+    service: ControllerService, tmp_path: Path, metrics: MetricsCounters
+) -> None:
+    """The backlog is left for redelivery, unacknowledged, when the stop
+    was requested before the consumer took anything."""
+    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
+    await service.stop()
+    await service.run()
+    assert read_events(tmp_path) == []
+    snapshot = metrics.snapshot()
+    assert (snapshot["received"], service.queue_depth(), snapshot["accepted"]) == (
+        1,
+        1,
+        0,
+    )
+    assert _gap(metrics, service) == 0
 
 
 async def test_mixed_batch_counts_all_four_outcomes(
@@ -803,9 +876,10 @@ async def test_identity_holds_after_every_step_of_a_scripted_run(
 ) -> None:
     """``received == outcomes + dropped + processing_errors + in_progress +
     queue_depth`` after every step: enqueue, drop on a full queue, a message
-    held by a slow Ditto, and shutdown with work in progress. While the
-    shutdown marker is queued ``queue_depth`` counts it, so the gap is
-    exactly -1 (stated exclusion of CONTRACTS 5)."""
+    held by a slow Ditto, and a stop requested with work in progress. The
+    stop request takes no queue slot, so the gap is 0 at every instant; the
+    delivery in progress completes and the queued one is left in
+    ``queue_depth`` for redelivery (ADR 0011, item 13)."""
     ditto = _GapRecordingDittoClient()
     service = _make_service(repository, ditto, events, metrics, queue_maxsize=2)
     ditto.probe = lambda: _gap(metrics, service)
@@ -832,9 +906,9 @@ async def test_identity_holds_after_every_step_of_a_scripted_run(
     ) == (1, 1, 0)
     assert _gap(metrics, service) == 0
 
-    await service.stop()  # marker queued behind the second message
-    assert service.queue_depth() == 2
-    assert _gap(metrics, service) == -1
+    await service.stop()  # no marker: the queue is untouched
+    assert service.queue_depth() == 1
+    assert _gap(metrics, service) == 0
 
     ditto.release.set()
     await task
@@ -844,14 +918,13 @@ async def test_identity_holds_after_every_step_of_a_scripted_run(
         service.queue_depth(),
         snapshot["accepted"],
         snapshot["processing_errors"],
-    ) == (0, 0, 2, 0)
+    ) == (0, 1, 1, 0)
     assert snapshot["received"] == 3
     assert snapshot["dropped"] == 1
     assert _gap(metrics, service) == 0
-    # Seen from inside processing: 0 for the first message (before stop()),
-    # -1 for the second (the marker was queued behind it).
-    assert ditto.gaps == [0, -1]
-    assert len(read_events(tmp_path)) == 2
+    # Seen from inside processing: 0 for the only message processed.
+    assert ditto.gaps == [0]
+    assert len(read_events(tmp_path)) == 1
 
 
 def test_received_includes_messages_dropped_on_a_full_queue(
@@ -919,9 +992,9 @@ async def test_process_exception_counts_processing_error_and_keeps_pipeline_aliv
         service = _make_service(repository, ditto, events, metrics)
         service.submit(make_inbound(make_payload("smartwatch", seq=0)))
         service.submit(make_inbound(make_payload("smartwatch", seq=1)))
-        await service.stop()
         with caplog.at_level(logging.ERROR, logger="egw_controller.service"):
-            await service.run()  # returns: the pipeline stayed alive
+            # Returns: the pipeline stayed alive after the failed write.
+            await _run_until_idle_then_stop(service, metrics)
 
     snapshot = metrics.snapshot()
     assert snapshot["received"] == 2
@@ -949,7 +1022,7 @@ async def test_outcome_counted_then_failure_is_not_a_processing_error(
     count the message a second time."""
 
     class RaisesAfterOutcome(ControllerService):
-        async def process(self, message: InboundMessage) -> None:
+        async def process(self, message: InboundMessage) -> bool:
             await super().process(message)
             raise RuntimeError("after the outcome was counted")
 
@@ -961,8 +1034,7 @@ async def test_outcome_counted_then_failure_is_not_a_processing_error(
         metrics=metrics,
     )
     service.submit(make_inbound(make_payload("smartwatch", seq=0)))
-    await service.stop()
-    await service.run()
+    await _run_until_idle_then_stop(service, metrics)
     snapshot = metrics.snapshot()
     assert snapshot["accepted"] == 1
     assert snapshot["processing_errors"] == 0
@@ -980,24 +1052,30 @@ async def test_process_returning_without_outcome_counts_processing_error(
     counter: no exit path is on neither side of the identity."""
 
     class ReturnsWithoutOutcome(ControllerService):
-        async def process(self, message: InboundMessage) -> None:
-            return None
+        async def process(self, message: InboundMessage) -> bool:
+            return False
 
+    recorder = _BridgeRecorder()
     service = ReturnsWithoutOutcome(
         repository=repository,
         dedupe=DedupeCache(),
         ditto=ditto,
         events=events,
         metrics=metrics,
+        acknowledge=recorder.acknowledge,
+        end_connection=recorder.end_connection,
     )
-    service.submit(make_inbound(make_payload("smartwatch", seq=0)))
-    await service.stop()
-    await service.run()
+    message = make_inbound(make_payload("smartwatch", seq=0), mid=4, qos=1)
+    service.submit(message)
+    await _run_until_idle_then_stop(service, metrics)
     snapshot = metrics.snapshot()
     assert snapshot["received"] == 1
     assert snapshot["processing_errors"] == 1
     assert snapshot["in_progress"] == 0
     assert _gap(metrics, service) == 0
+    # No line, so no PUBACK, and acknowledgement ends on that connection.
+    assert recorder.acks == []
+    assert recorder.ends == [("no-outcome-line", message)]
 
 
 async def test_identity_holds_for_mixed_batch_through_the_queue(
@@ -1028,8 +1106,7 @@ async def test_identity_holds_for_mixed_batch_through_the_queue(
     )
     service.submit(make_inbound(make_payload("smartwatch", seq=2)))  # failed
     assert _gap(metrics, service) == 0
-    await service.stop()
-    await service.run()
+    await _run_until_idle_then_stop(service, metrics)
 
     snapshot = metrics.snapshot()
     assert snapshot["received"] == 4
@@ -1175,21 +1252,25 @@ class _YieldingFaultyDittoClient(FakeDittoClient):
 
 async def test_identity_holds_at_every_loop_iteration_while_messages_arrive(
     repository: SchemaRepository,
-    events: EventLogger,
     metrics: MetricsCounters,
+    tmp_path: Path,
 ) -> None:
     """A reader on the loop evaluates the identity at EVERY loop iteration
     while messages arrive and the consumer is suspended inside Ditto calls
-    that end in an update, in a ``DittoError`` and in an exception that
-    escapes ``process()``: the gap is 0 every time, and the reader does see
-    a message in progress. An ``await`` inside one of the transitions of
-    ``run`` (taken -> in progress, outcome -> finished) would show here."""
+    that end in an update, in a ``DittoError``, in an exception raised by
+    the PATCH call that is not a ``DittoError`` (a ``failed`` line since
+    ADR 0011, item 8) and, for the very first message, in an event-write
+    failure after the twin was updated (no line: a ``processing_errors``):
+    the gap is 0 every time, and the reader does see a message in progress.
+    An ``await`` inside one of the transitions of ``run`` (taken -> in
+    progress, outcome -> finished) would show here."""
     ditto = _YieldingFaultyDittoClient(
         {
             2: DittoUnavailableError("down", attempts=3),  # -> failed
-            3: RuntimeError("escapes process()"),  # -> processing_errors
+            3: RuntimeError("raised by the PATCH call"),  # -> failed (item 8)
         }
     )
+    events = FailingEventLogger(tmp_path, failures=1)  # first line: no line
     service = _make_service(repository, ditto, events, metrics, queue_maxsize=3)
     readings: list[tuple[int, int]] = []
     probing = True
@@ -1240,42 +1321,51 @@ async def test_identity_holds_at_every_loop_iteration_while_messages_arrive(
     await probe_task
     await service.stop()
     await run_task
+    events.close()
 
     assert {gap for gap, _ in readings} == {0}
     assert {in_progress for _, in_progress in readings} == {0, 1}
     snapshot = metrics.snapshot()
     assert snapshot["received"] == 17
-    assert snapshot["failed"] == 1
+    assert snapshot["failed"] == 2
     assert snapshot["processing_errors"] == 1
-    assert snapshot["accepted"] == len(ditto.patch_calls) - 2
+    # Every PATCH call but the two faulted ones and the one whose line
+    # failed to be written ended accepted.
+    assert snapshot["accepted"] == len(ditto.patch_calls) - 3
     assert snapshot["accepted"] >= 2
     assert snapshot["rejected"] >= 1
     assert snapshot["dropped"] >= 2
     assert snapshot["duplicate"] == 0
     assert _gap(metrics, service) == 0
+    failed = [
+        record for record in read_events(tmp_path) if record["outcome"] == "failed"
+    ]
+    assert sorted(record["error"] for record in failed) == [
+        "RuntimeError: raised by the PATCH call",
+        "down",
+    ]
 
 
-async def test_shutdown_marker_occupies_one_queue_slot(
+async def test_stop_request_takes_no_queue_slot(
     repository: SchemaRepository,
     ditto: FakeDittoClient,
     events: EventLogger,
     metrics: MetricsCounters,
 ) -> None:
-    """While the marker of ``stop()`` is queued it takes one slot (behaviour
-    that predates the progress counters): a message arriving then is counted
-    as ``dropped`` one slot before the configured capacity, and the gap
-    stays at the stated -1."""
+    """The stop request is a flag, not a queued marker (ADR 0011, item 13):
+    the queue keeps its full capacity for deliveries and the gap is 0."""
     service = _make_service(repository, ditto, events, metrics, queue_maxsize=2)
     service.submit(make_inbound(make_payload("smartwatch", seq=0)))
     await service.stop()
     service.submit(make_inbound(make_payload("smartwatch", seq=1)))
     snapshot = metrics.snapshot()
-    assert (snapshot["received"], snapshot["dropped"]) == (2, 1)
+    assert (snapshot["received"], snapshot["dropped"]) == (2, 0)
     assert service.queue_depth() == 2
-    assert _gap(metrics, service) == -1
-    await service.run()
+    assert _gap(metrics, service) == 0
+    await service.run()  # exits at once: nothing is drained after a stop
     snapshot = metrics.snapshot()
-    assert (snapshot["accepted"], snapshot["dropped"]) == (1, 1)
+    assert (snapshot["accepted"], snapshot["dropped"]) == (0, 0)
+    assert service.queue_depth() == 2
     assert _gap(metrics, service) == 0
 
 
@@ -1292,14 +1382,15 @@ async def test_direct_process_call_touches_no_progress_counter(
     assert snapshot["processing_errors"] == 0
 
 
-async def test_message_behind_the_shutdown_marker_stays_in_queue_depth(
+async def test_message_submitted_after_the_stop_request_stays_in_queue_depth(
     service: ControllerService, metrics: MetricsCounters, tmp_path: Path
 ) -> None:
-    """A message enqueued behind the marker during teardown is counted by
-    ``submit`` and never taken: it stays in ``queue_depth``."""
+    """A message enqueued after the stop request during teardown is counted
+    by ``submit`` and never taken: it stays in ``queue_depth``, left to the
+    broker for redelivery."""
     await service.stop()
     service.submit(make_inbound(make_payload("smartwatch", seq=0)))
-    await service.run()  # reads the marker first and ends
+    await service.run()  # sees the stop request first and ends
     snapshot = metrics.snapshot()
     assert snapshot["received"] == 1
     assert service.queue_depth() == 1
@@ -1315,3 +1406,611 @@ def test_inbound_message_is_immutable() -> None:
     message = InboundMessage(topic="t", payload=b"x", received_monotonic_ns=1)
     with pytest.raises(AttributeError):
         message.topic = "other"  # type: ignore[misc]
+    with pytest.raises(AttributeError):
+        message.mid = 5  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# ADR 0011: delivery identity, acknowledgement point, connection end, purge,
+# skip, residual handler, stop order
+# ---------------------------------------------------------------------------
+
+
+def test_inbound_message_carries_the_delivery_identity_with_defaults() -> None:
+    """Item 2: ``mid``, ``qos``, ``dup`` and ``connection`` travel with the
+    delivery; the defaults keep every existing constructor call valid and
+    describe a QoS 0 delivery, which is never acknowledged."""
+    message = InboundMessage(topic="t", payload=b"x", received_monotonic_ns=1)
+    assert (message.mid, message.qos, message.dup, message.connection) == (
+        0,
+        0,
+        False,
+        0,
+    )
+    stamped = InboundMessage(
+        topic="t", payload=b"x", received_monotonic_ns=1, mid=7, qos=1, dup=True,
+        connection=3,
+    )
+    assert (stamped.mid, stamped.qos, stamped.dup, stamped.connection) == (
+        7,
+        1,
+        True,
+        3,
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "raw"),
+    [
+        ("deeply_nested_document", b"[" * 100_000),
+        ("five_thousand_digit_integer", b'{"seq": ' + b"9" * 5_000 + b"}"),
+    ],
+    ids=["deeply_nested_document", "five_thousand_digit_integer"],
+)
+async def test_decode_failures_beyond_json_errors_are_rejected(
+    service: ControllerService,
+    ditto: FakeDittoClient,
+    tmp_path: Path,
+    metrics: MetricsCounters,
+    label: str,
+    raw: bytes,
+) -> None:
+    """Item 5: a ``RecursionError`` from a deeply nested document and the
+    ``ValueError`` of the integer-digit limit end in a ``rejected`` line,
+    with no Ditto call, like any other malformed payload."""
+    topic = topic_for(make_payload("smartwatch"))
+    written = await service.process(make_inbound(raw, topic=topic))
+    assert written is True
+    (record,) = read_events(tmp_path, "unknown")
+    assert record["outcome"] == "rejected", label
+    assert "invalid JSON payload" in record["error"]
+    assert record["attempts"] == 0
+    assert ditto.get_calls == [] and ditto.patch_calls == []
+    assert metrics.snapshot()["rejected"] == 1
+
+
+@pytest.mark.parametrize(
+    ("label", "kwargs", "expected_error", "expected_attempts"),
+    [
+        ("get_twin_raises", {"fail_get": RuntimeError("twin body unusable")},
+         "RuntimeError: twin body unusable", 0),
+        ("patch_raises_non_ditto_error", {"fail_patch": ValueError("odd body")},
+         "ValueError: odd body", 0),
+    ],
+)
+async def test_unexpected_exception_before_the_patch_returned_is_a_failed_line(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    label: str,
+    kwargs: dict[str, Any],
+    expected_error: str,
+    expected_attempts: int,
+) -> None:
+    """Item 8: any exception raised before the PATCH returned, in the Ditto
+    exchange or elsewhere, ends in one ``failed`` line naming the exception,
+    with the identity of the envelope and null ack and latency."""
+    ditto = FakeDittoClient(**kwargs)
+    service = _make_service(repository, ditto, events, metrics)
+    payload = make_payload("smartwatch", seq=0)
+    with caplog.at_level(logging.ERROR, logger="egw_controller.service"):
+        written = await service.process(make_inbound(payload, received_monotonic_ns=42))
+    assert written is True
+    (record,) = read_events(tmp_path)
+    assert record["outcome"] == "failed", label
+    assert record["error"] == expected_error
+    assert record["attempts"] == expected_attempts
+    assert record["message_id"] == payload["message_id"]
+    assert record["received_monotonic_ns"] == 42
+    assert record["ditto_ack_monotonic_ns"] is None
+    assert record["latency_ms"] is None
+    assert metrics.snapshot()["failed"] == 1
+    assert "unhandled error before the Ditto update" in caplog.text
+
+
+async def test_residual_failed_line_carries_the_exceptions_attempts(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """An exception that carries a usable ``attempts`` keeps it; a negative
+    or non-integer one is replaced by 0 (the event record requires >= 0)."""
+
+    class CountingError(Exception):
+        attempts = 2
+
+    class OddError(Exception):
+        attempts = -4
+
+    for exc, expected in ((CountingError("x"), 2), (OddError("y"), 0)):
+        ditto = FakeDittoClient(fail_patch=exc)
+        service = _make_service(repository, ditto, events, metrics)
+        await service.process(make_inbound(make_payload("smartwatch", seq=0)))
+    assert [record["attempts"] for record in read_events(tmp_path)] == [2, 0]
+
+
+async def test_exception_after_the_ditto_2xx_leaves_no_line_and_no_puback(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A1's fourth exception (T06): raised after the twin was updated, it
+    propagates with no line (a ``failed`` line would misreport an applied
+    twin), no PUBACK is requested and the connection is ended."""
+
+    class RecordFails(DedupeCache):
+        def record(self, *args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("after the 2xx")
+
+    recorder = _BridgeRecorder()
+    service = ControllerService(
+        repository=repository,
+        dedupe=RecordFails(),
+        ditto=ditto,
+        events=events,
+        metrics=metrics,
+        acknowledge=recorder.acknowledge,
+        end_connection=recorder.end_connection,
+    )
+    message = make_inbound(make_payload("smartwatch", seq=0), mid=9, qos=1)
+    service.submit(message)
+    with caplog.at_level(logging.ERROR, logger="egw_controller.service"):
+        await _run_until_idle_then_stop(service, metrics)
+    assert len(ditto.patch_calls) == 1  # the twin was updated
+    assert read_events(tmp_path) == []
+    assert recorder.acks == []
+    assert recorder.ends == [("no-outcome-line", message)]
+    snapshot = metrics.snapshot()
+    assert (snapshot["processing_errors"], snapshot["failed"]) == (1, 0)
+    assert "unhandled error while processing message" in caplog.text
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "rejected", "duplicate", "failed"])
+async def test_process_returns_true_only_once_the_line_is_written(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+    outcome: str,
+) -> None:
+    """Item 4: ``process`` reports a written line from a flag set after
+    ``EventLogger.log`` returned, for every outcome; when ``log`` raises,
+    no flag is set and the exception propagates."""
+    ditto = FakeDittoClient()
+    service = _make_service(repository, ditto, events, metrics)
+    payload = make_payload("smartwatch", seq=0)
+    if outcome == "duplicate":
+        await service.process(make_inbound(payload))
+    elif outcome == "rejected":
+        payload = make_payload("smartwatch", seq=0, heart_rate_bpm=999)
+    elif outcome == "failed":
+        ditto.fail_patch = DittoUnavailableError("down", attempts=3)
+    assert await service.process(make_inbound(payload)) is True
+    assert read_events(tmp_path)[-1]["outcome"] == outcome
+
+    failing = _make_service(
+        repository, FakeDittoClient(), FailingEventLogger(tmp_path, failures=1),
+        MetricsCounters(),
+    )
+    with pytest.raises(OSError):
+        await failing.process(make_inbound(make_payload("smartwatch", seq=1)))
+
+
+async def test_run_requests_the_puback_after_the_line_and_before_the_next_take(
+    repository: SchemaRepository,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """T01, T02, T24 at the pipeline level: exactly one acknowledgement per
+    QoS 1 delivery, requested after its line was written and before the
+    next delivery is taken (receipt order; the next one still queued),
+    across the four outcomes."""
+
+    class FailsSecondPatch(FakeDittoClient):
+        async def patch_thing(
+            self, device_uuid: str, patch: Mapping[str, Any]
+        ) -> int:
+            if len(self.patch_calls) == 1:
+                self.fail_patch = DittoUnavailableError("down", attempts=3)
+            return await super().patch_thing(device_uuid, patch)
+
+    ditto = FailsSecondPatch()
+    order: list[tuple[str, int]] = []
+    recorder = _BridgeRecorder()
+    recorder.order = order
+    with _OrderRecordingEventLogger(tmp_path, order) as events:
+        service = ControllerService(
+            repository=repository,
+            dedupe=DedupeCache(),
+            ditto=ditto,
+            events=events,
+            metrics=metrics,
+            acknowledge=recorder.acknowledge,
+            end_connection=recorder.end_connection,
+        )
+        recorder.queue_depth = service.queue_depth
+        accepted = make_payload("smartwatch", seq=0)
+        service.submit(make_inbound(accepted, mid=11, qos=1))  # accepted
+        service.submit(make_inbound(accepted, mid=12, qos=1))  # duplicate
+        service.submit(  # rejected
+            make_inbound(make_payload("smartwatch", seq=1, heart_rate_bpm=999),
+                         mid=13, qos=1)
+        )
+        service.submit(  # failed
+            make_inbound(make_payload("smartwatch", seq=2), mid=14, qos=1)
+        )
+        await _run_until_idle_then_stop(service, metrics)
+    assert [record["outcome"] for record in read_events(tmp_path)] == [
+        "accepted",
+        "duplicate",
+        "rejected",
+        "failed",
+    ]
+    assert [message.mid for message in recorder.acks] == [11, 12, 13, 14]
+    assert order == [
+        ("line", 0), ("ack", 11),
+        ("line", 0), ("ack", 12),
+        ("line", 1), ("ack", 13),
+        ("line", 2), ("ack", 14),
+    ]
+    # The next delivery was still queued when each PUBACK was requested.
+    assert recorder.depth_at_ack == [3, 2, 1, 0]
+    assert recorder.ends == []
+
+
+async def test_run_never_acknowledges_a_qos0_delivery(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """T09: a QoS 0 delivery obtains its line and no PUBACK."""
+    recorder = _BridgeRecorder()
+    service = _make_service(
+        repository, ditto, events, metrics,
+        acknowledge=recorder.acknowledge, end_connection=recorder.end_connection,
+    )
+    service.submit(make_inbound(make_payload("smartwatch", seq=0), mid=0, qos=0))
+    await _run_until_idle_then_stop(service, metrics)
+    assert [record["outcome"] for record in read_events(tmp_path)] == ["accepted"]
+    assert recorder.acks == []
+    assert recorder.ends == []
+
+
+async def test_run_ends_the_connection_when_process_raises(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """T03 at the pipeline level: a failed event write leaves no line, no
+    PUBACK, and ends acknowledgement on the delivery's connection; the
+    consumer stays alive and later deliveries still obtain their lines."""
+    recorder = _BridgeRecorder()
+    with FailingEventLogger(tmp_path, failures=1) as events:
+        service = _make_service(
+            repository, ditto, events, metrics,
+            acknowledge=recorder.acknowledge,
+            end_connection=recorder.end_connection,
+        )
+        first = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1)
+        second = make_inbound(make_payload("smartwatch", seq=1), mid=2, qos=1)
+        service.submit(first)
+        service.submit(second)
+        with caplog.at_level(logging.ERROR, logger="egw_controller.service"):
+            await _run_until_idle_then_stop(service, metrics)
+    assert recorder.ends == [("no-outcome-line", first)]
+    # The pipeline asks the bridge for the second one's PUBACK; whether it
+    # is sent is the bridge's decision (acknowledgement is closed there).
+    assert [message.mid for message in recorder.acks] == [2]
+    assert [record["seq"] for record in read_events(tmp_path)] == [1]
+
+
+async def test_cancelled_consumer_requests_no_puback(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """T04 and F3: cancellation with a delivery in flight: no line, no
+    PUBACK, the connection ended with the cause ``consumer-cancelled`` and
+    the delivery in progress named; the cancellation propagates and the
+    service reports that it no longer consumes."""
+    ditto = GatedDittoClient()
+    recorder = _BridgeRecorder()
+    service = _make_service(
+        repository, ditto, events, metrics,
+        acknowledge=recorder.acknowledge, end_connection=recorder.end_connection,
+    )
+    inbound = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1)
+    service.submit(inbound)
+    assert service.consuming is False
+    task = asyncio.create_task(service.run())
+    await ditto.entered.wait()
+    assert service.consuming is True
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert recorder.acks == []
+    assert recorder.ends == [("consumer-cancelled", inbound)]
+    assert read_events(tmp_path) == []
+    assert service.consuming is False
+
+
+async def test_idle_consumer_cancelled_ends_the_connection_with_no_delivery(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """F3: a consumer cancelled while waiting ends the connection too (no
+    delivery in progress), so the bridge halts rather than staying
+    subscribed with nothing consuming."""
+    recorder = _BridgeRecorder()
+    service = _make_service(
+        repository, ditto, events, metrics, end_connection=recorder.end_connection
+    )
+    task = asyncio.create_task(service.run())
+    await asyncio.sleep(0)
+    assert service.consuming is True
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert recorder.ends == [("consumer-cancelled", None)]
+    assert service.consuming is False
+
+
+async def test_a_retired_connection_never_applies_a_later_seq_before_the_resent_one(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """F1: seq 0 fails its PATCH and the write of its failed line also
+    fails, so the connection is ended; the queued seq 1 of the same device
+    must not be processed before the socket closes — it is skipped and left
+    to the broker — so that the resent seq 0 is accepted, never read as a
+    duplicate of a later seq applied ahead of it."""
+    from egw_controller.ditto import DittoUnavailableError
+
+    ditto = FakeDittoClient(
+        fail_patch=DittoUnavailableError("ditto down", attempts=3, status=503)
+    )
+    failing_events = FailingEventLogger(tmp_path, failures=1)
+    ends: list[tuple[str, InboundMessage | None]] = []
+
+    def end_connection(cause: str, message: InboundMessage | None) -> int | None:
+        ends.append((cause, message))
+        return message.connection if message is not None else None
+
+    acks: list[InboundMessage] = []
+    service = _make_service(
+        repository, ditto, failing_events, metrics,
+        acknowledge=lambda m: acks.append(m) or True,
+        end_connection=end_connection,
+    )
+    first = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1, connection=1)
+    second = make_inbound(make_payload("smartwatch", seq=1), mid=2, qos=1, connection=1)
+    service.submit(first)
+    service.submit(second)
+    task = asyncio.create_task(service.run())
+    await until(lambda: service.queue_depth() == 0 and metrics.snapshot()["in_progress"] == 0)
+    # seq 0: PATCH failed, its failed line could not be written: the
+    # connection is ended and retired; seq 1 is skipped, not applied.
+    assert ends == [("no-outcome-line", first)]
+    assert ditto.patch_calls == [] or all(
+        patch["features"]["ingestion"]["properties"]["last_seq"] == 0
+        for _, patch in ditto.patch_calls
+    )
+    assert metrics.snapshot()["dropped"] == 1
+    assert acks == []
+    # The socket closes and the broker resends both on the next connection.
+    service.purge(1)
+    ditto.fail_patch = None
+    resent_first = make_inbound(
+        make_payload("smartwatch", seq=0), mid=1, qos=1, dup=True, connection=2
+    )
+    resent_second = make_inbound(
+        make_payload("smartwatch", seq=1), mid=2, qos=1, dup=True, connection=2
+    )
+    service.submit(resent_first)
+    service.submit(resent_second)
+    await until(lambda: len(acks) == 2)
+    await service.stop()
+    await task
+    outcomes = [(r["seq"], r["outcome"]) for r in read_events(tmp_path)]
+    assert outcomes == [(0, "accepted"), (1, "accepted")]
+    assert [m.mid for m in acks] == [1, 2]
+    assert [p["features"]["ingestion"]["properties"]["last_seq"] for _, p in ditto.patch_calls][-2:] == [0, 1]
+
+
+def test_queue_overflow_ends_the_connection_after_counting_dropped(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """Item 12 (T07): a delivery dropped on a full queue is counted
+    ``received`` and ``dropped`` and then ends acknowledgement on its
+    connection with the cause ``overflow``; it is never acknowledged."""
+    ends: list[tuple[str, InboundMessage | None]] = []
+    dropped_at_end: list[int] = []
+    acks: list[InboundMessage] = []
+
+    def end_connection(cause: str, message: InboundMessage | None) -> None:
+        ends.append((cause, message))
+        dropped_at_end.append(metrics.snapshot()["dropped"])
+
+    def acknowledge(message: InboundMessage) -> bool:
+        acks.append(message)
+        return True
+
+    service = _make_service(
+        repository, ditto, events, metrics, queue_maxsize=1,
+        acknowledge=acknowledge, end_connection=end_connection,
+    )
+    kept = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1)
+    overflowed = make_inbound(make_payload("smartwatch", seq=1), mid=2, qos=1)
+    service.submit(kept)
+    service.submit(overflowed)
+    assert ends == [("overflow", overflowed)]
+    assert dropped_at_end == [1]
+    assert acks == []
+    assert _gap(metrics, service) == 0
+
+
+async def test_purge_removes_the_ended_connections_deliveries_in_order(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    metrics: MetricsCounters,
+) -> None:
+    """Item 3 (T20): the purge drains the queue, keeps the other connections'
+    deliveries in their order, counts each removed one as ``dropped`` (left
+    for redelivery) and keeps the identity."""
+    service = _make_service(repository, ditto, events, metrics)
+    for mid, connection in ((1, 1), (2, 2), (3, 1), (4, 2), (5, 1)):
+        service.submit(
+            make_inbound(make_payload("smartwatch", seq=mid), mid=mid, qos=1,
+                         connection=connection)
+        )
+    assert service.queue_depth() == 5
+    service.purge(1)
+    snapshot = metrics.snapshot()
+    assert (service.queue_depth(), snapshot["dropped"], snapshot["received"]) == (
+        2,
+        3,
+        5,
+    )
+    assert _gap(metrics, service) == 0
+    remaining = [service._queue.get_nowait().mid for _ in range(2)]
+    assert remaining == [2, 4]
+
+
+async def test_run_skips_a_delivery_of_an_ended_connection_without_processing(
+    repository: SchemaRepository,
+    ditto: FakeDittoClient,
+    events: EventLogger,
+    tmp_path: Path,
+) -> None:
+    """Item 4: a delivery of an ended connection taken after the purge (it
+    arrived late) is counted ``dropped`` with no line, no PUBACK and no
+    ``processing_started``; one of the current connection is processed."""
+    started: list[int] = []
+
+    class SpyCounters(MetricsCounters):
+        def processing_started(self) -> None:
+            started.append(1)
+            super().processing_started()
+
+    metrics = SpyCounters()
+    recorder = _BridgeRecorder()
+    service = _make_service(
+        repository, ditto, events, metrics,
+        acknowledge=recorder.acknowledge, end_connection=recorder.end_connection,
+    )
+    service.purge(1)  # connection 1 ended; the current one is 2
+    stale = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1, connection=1)
+    fresh = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1, dup=True,
+                         connection=2)
+    service.submit(stale)
+    service.submit(fresh)
+    await _run_until_idle_then_stop(service, metrics)
+    snapshot = metrics.snapshot()
+    assert (snapshot["dropped"], snapshot["accepted"], snapshot["processing_errors"]) == (
+        1,
+        1,
+        0,
+    )
+    assert started == [1]
+    assert recorder.acks == [fresh]
+    assert [record["seq"] for record in read_events(tmp_path)] == [0]
+    assert _gap(metrics, service) == 0
+
+
+async def test_stop_completes_the_delivery_in_progress_and_leaves_the_rest(
+    repository: SchemaRepository,
+    events: EventLogger,
+    metrics: MetricsCounters,
+    tmp_path: Path,
+) -> None:
+    """Item 13 (T28, pipeline half): after the stop request the delivery in
+    progress is recorded and acknowledged, the consumer exits, and the rest
+    of the queue stays unacknowledged for the next process."""
+    ditto = GatedDittoClient()
+    recorder = _BridgeRecorder()
+    service = _make_service(
+        repository, ditto, events, metrics,
+        acknowledge=recorder.acknowledge, end_connection=recorder.end_connection,
+    )
+    first = make_inbound(make_payload("smartwatch", seq=0), mid=1, qos=1)
+    second = make_inbound(make_payload("smartwatch", seq=1), mid=2, qos=1)
+    service.submit(first)
+    task = asyncio.create_task(service.run())
+    await ditto.entered.wait()
+    service.submit(second)
+    await service.stop()
+    ditto.release.set()
+    await task
+    assert [record["seq"] for record in read_events(tmp_path)] == [0]
+    assert recorder.acks == [first]
+    assert service.queue_depth() == 1
+    assert recorder.ends == []
+    assert _gap(metrics, service) == 0
+
+
+class _ApplyingDittoClient(FakeDittoClient):
+    """Fake twin that applies each PATCH's ingestion properties, so that a
+    new process seeds its dedupe state from what the last one wrote."""
+
+    async def patch_thing(
+        self, device_uuid: str, patch: Mapping[str, Any]
+    ) -> int:
+        attempts = await super().patch_thing(device_uuid, patch)
+        twin = self.twins[device_uuid]
+        twin["features"]["ingestion"]["properties"].update(
+            patch["features"]["ingestion"]["properties"]
+        )
+        return attempts
+
+
+async def test_redelivery_after_a_simulated_restart(
+    repository: SchemaRepository,
+    events: EventLogger,
+    tmp_path: Path,
+) -> None:
+    """T29: the broker resends the unacknowledged deliveries to the next
+    process; those applied to the twin end ``duplicate``, the one not
+    applied ends ``accepted``, ``last_seq`` never regresses and the
+    per-device order is preserved."""
+    ditto = _ApplyingDittoClient()
+    first_process = _make_service(repository, ditto, events, MetricsCounters())
+    for seq in range(3):
+        await first_process.process(
+            make_inbound(make_payload("smartwatch", seq=seq), mid=seq + 1, qos=1)
+        )
+    # The process died before the PUBACKs of seq 1 and 2 were written, and
+    # seq 3 was published while it was away.
+    second_process = _make_service(repository, ditto, events, MetricsCounters())
+    for seq in (1, 2, 3):
+        await second_process.process(
+            make_inbound(make_payload("smartwatch", seq=seq), mid=seq + 1, qos=1,
+                         dup=seq < 3)
+        )
+    outcomes = [record["outcome"] for record in read_events(tmp_path)]
+    assert outcomes == ["accepted"] * 3 + ["duplicate", "duplicate", "accepted"]
+    last_seqs = [
+        patch["features"]["ingestion"]["properties"]["last_seq"]
+        for _, patch in ditto.patch_calls
+    ]
+    assert last_seqs == [0, 1, 2, 3]
+    assert ditto.twins[WATCH]["features"]["ingestion"]["properties"]["last_seq"] == 3
+    assert ditto.twins[WATCH]["features"]["ingestion"]["properties"]["accepted_count"] == 4

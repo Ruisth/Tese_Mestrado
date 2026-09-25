@@ -888,3 +888,145 @@ def test_cli_campaign_parser_accepts_run_level_passthrough() -> None:
     assert args.start_from == "nominal-r03"
     assert args.continue_on_invalid is True
     assert args.no_cooldown is True
+
+
+# ---------------------------------------------------------------------------
+# ADR 0011 item 18: the log fetches and the configuration identity reach
+# every run; the drain, the twin snapshots and the post-drain fetch only the
+# controller_restart runs (as --restart-cmd does)
+# ---------------------------------------------------------------------------
+
+
+RESTART_RUN_ID = "restart-r01"
+
+ITEM18_RUN_FLAGS = {
+    "fetch_broker_log_cmd": "broker {run_id} {dest}",
+    "fetch_controller_log_cmd": "controller {run_id} {dest}",
+    "fetch_docker_events_cmd": "events {run_id} {dest}",
+}
+
+ITEM18_RESTART_FLAGS = {
+    "twin_snapshot_cmd": "snap {run_id} {dest}",
+    "drain_cmd": "drain {run_id}",
+    "post_drain_fetch_cmd": "post {run_id} {dest}",
+    "restart_cmd": "restart {run_id}",
+    "restart_at_s": 15.0,
+}
+
+#: The restart evidence taken outside the harness (F6), addressed per run
+#: like --resources-from and --config-identity-from; it reaches ONLY the
+#: controller_restart runs, as the restart hooks do.
+ITEM18_RESTART_FILES = {
+    "twins_before_from": "evidence/{run_id}.twins.before.json",
+    "twins_after_from": "evidence/{run_id}.twins.after.json",
+    "post_drain_events_from": "evidence/{run_id}.events.post-drain.jsonl",
+    "drain_transcript_from": "evidence/{run_id}.drained.txt",
+}
+
+
+def _add_restart_entry(plan_path: Path) -> None:
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    entry = _sim_entry(RESTART_RUN_ID, 5, cooldown_s=0)
+    entry["condition_id"] = campaign_mod.RESTART_CONDITION_ID
+    entry["scenario"] = "nominal"
+    plan["runs"].append(entry)
+    plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", "utf-8")
+
+
+def test_campaign_passes_the_item_18_flags_and_gates_the_restart_steps(
+    plan_path, fake_env, tmp_path, monkeypatch
+) -> None:
+    _add_restart_entry(plan_path)
+    seen: dict[str, dict] = {}
+
+    def fake_execute_run(plan_path_, run_id, **kwargs):
+        seen[run_id] = kwargs
+        return 0
+
+    monkeypatch.setattr(campaign_mod, "execute_run", fake_execute_run)
+    identity_template = (tmp_path / "identity-{run_id}.json").as_posix()
+    rc = campaign_mod.run_campaign(
+        plan_path,
+        **fake_env.kwargs,
+        only_conditions=["smoke_sequence", campaign_mod.RESTART_CONDITION_ID],
+        config_identity_from=identity_template,
+        **ITEM18_RUN_FLAGS,
+        **ITEM18_RESTART_FLAGS,
+        **ITEM18_RESTART_FILES,
+    )
+    assert rc == 0
+    assert set(seen) == {*SIM_RUN_IDS, RESTART_RUN_ID}
+    for run_id, kwargs in seen.items():
+        for key, value in ITEM18_RUN_FLAGS.items():
+            assert kwargs[key] == value, (run_id, key)
+        # The identity file may be addressed per run, like --resources-from.
+        assert kwargs["config_identity_from"] == (
+            tmp_path / f"identity-{run_id}.json"
+        ).as_posix()
+        restart = run_id == RESTART_RUN_ID
+        for key, value in ITEM18_RESTART_FLAGS.items():
+            assert kwargs[key] == (value if restart else None), (run_id, key)
+        # The external restart evidence: {run_id} substituted, restart runs only.
+        for key, template in ITEM18_RESTART_FILES.items():
+            expected = template.replace("{run_id}", run_id) if restart else None
+            assert kwargs[key] == expected, (run_id, key)
+        assert "allow_missing_restart_evidence" not in kwargs
+
+
+def test_cli_campaign_passes_the_item_18_flags_through(monkeypatch) -> None:
+    seen: dict = {}
+
+    def fake_run_campaign(plan_path, **kwargs):
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(cli, "run_campaign", fake_run_campaign)
+    rc = cli.main(
+        [
+            "campaign",
+            "--fetch-broker-log-cmd",
+            "broker {dest}",
+            "--fetch-controller-log-cmd",
+            "controller {dest}",
+            "--fetch-docker-events-cmd",
+            "events {dest}",
+            "--twin-snapshot-cmd",
+            "snap {dest}",
+            "--drain-cmd",
+            "drain {run_id}",
+            "--post-drain-fetch-cmd",
+            "post {dest}",
+            "--config-identity-from",
+            "identity-{run_id}.json",
+            "--twins-before-from",
+            "ev/{run_id}.twins.before.json",
+            "--twins-after-from",
+            "ev/{run_id}.twins.after.json",
+            "--post-drain-events-from",
+            "ev/{run_id}.events.post-drain.jsonl",
+            "--drain-transcript-from",
+            "ev/{run_id}.drained.txt",
+        ]
+    )
+    assert rc == 0
+    assert "allow_missing_restart_evidence" not in seen
+    assert seen["fetch_broker_log_cmd"] == "broker {dest}"
+    assert seen["fetch_controller_log_cmd"] == "controller {dest}"
+    assert seen["fetch_docker_events_cmd"] == "events {dest}"
+    assert seen["twin_snapshot_cmd"] == "snap {dest}"
+    assert seen["drain_cmd"] == "drain {run_id}"
+    assert seen["post_drain_fetch_cmd"] == "post {dest}"
+    assert seen["config_identity_from"] == "identity-{run_id}.json"
+    assert seen["twins_before_from"] == "ev/{run_id}.twins.before.json"
+    assert seen["twins_after_from"] == "ev/{run_id}.twins.after.json"
+    assert seen["post_drain_events_from"] == "ev/{run_id}.events.post-drain.jsonl"
+    assert seen["drain_transcript_from"] == "ev/{run_id}.drained.txt"
+
+
+def test_cli_campaign_refuses_the_retired_allow_missing_restart_evidence_flag(
+    capsys,
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["campaign", "--allow-missing-restart-evidence"])
+    assert exc.value.code == 2
+    assert "--allow-missing-restart-evidence" in capsys.readouterr().err

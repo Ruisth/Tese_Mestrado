@@ -3398,3 +3398,149 @@ is unchanged.
   hours, whichever comes first. The finite proof, the resumption of the
   qualifying battery and the G4 pilot each need the student's separate
   authorisation.
+
+## Entry #C042 — The bounded implementation of ADR 0011: acknowledgement after the outcome line on a persistent session, the connection end, the stop, the session fields, the harness and runbook evidence, the hashed dependency lock
+
+- **Date:** 2026-09-24. **Scope:** the twenty items of ADR 0011's "What must
+  change" except item 17 (the `$SYS` grant, declined by the student), the
+  contract v1.2, the regression tests with fakes, and the record of the
+  implementer's choices in the ADR. Verified with fakes only: no broker,
+  Ditto, guest, image build or measurement is part of this entry. The
+  qualifying G3 runs stay paused; the finite proof, the battery and the G4
+  pilot each need the student's separate authorisation.
+- **What.** Controller (`src/egw_controller/`): the client built with a
+  persistent session and manual acknowledgement; the delivery identity
+  stamped on the network thread; one lock for the connection identity, the
+  acknowledgement window, `unacked`, the CONNACK count and the subscription;
+  the PUBACK of a QoS 1 delivery requested by the consumer from the flag set
+  after its outcome line was written, before the next delivery is taken, and
+  only on the connection that delivered it; a delivery without a line — the
+  event log unwritable, an exception after the Ditto 2xx — ends
+  acknowledgement and the connection, in process, through a supervisor
+  thread with a back-off (1 to 30 s) and a bound (ten consecutive ends
+  without an acknowledged delivery leave the client disconnected, visibly);
+  the purge and skip of an ended connection's deliveries, counted `dropped`;
+  every other exception before the `PATCH` a `failed` line naming it, the
+  decode stage catching `ValueError` and `RecursionError`, a non-string
+  `device_type` rejected, an unusable twin body and a non-transport `httpx`
+  error `failed` and never retried, odd twin containers read as empty;
+  `on_message` never raising; readiness only on a QoS 1 grant; the stop
+  without a marker or a post-disconnect drain; `mqtt_subscribed`,
+  `mqtt_connection` and `unacked` in `/metrics`; one unbuffered write per
+  event line with nothing kept for a later flush. Deployment: the six C1
+  options in `mosquitto.conf`, `stop_grace_period: 130s`,
+  `src/requirements-runtime.lock` (hashed; paho-mqtt 2.1.0) installed by the
+  Dockerfile with `--require-hashes`. Harness (`src/egw_experiments/`): ten
+  added columns in `controller_metrics.csv`; the broker-log, controller-log
+  and docker-events fetches; for `controller_restart`, the twin snapshots,
+  the blocking drain and the post-drain fetch, or the same artefacts
+  ingested from the runbook helpers' files and verified against the run;
+  the configuration identity validated and embedded in the manifest; a
+  configured hook that fails, a file that does not verify and a drain
+  that errs are validity reasons, a drain that gives up a valid
+  observation of failed recovery. Runbook 6.1:
+  `_mline` with the thirteen fields and the identity, `drained` quiet only
+  on a subscribed connection with nothing unacknowledged, the Section 7 and
+  Appendix B passages restated, test 6's expected list. Contract v1.2
+  (`src/CONTRACTS.md` sections 1, 5, 9). ADR 0011: the implementation record
+  (choices, deviations, what stays outside); ADR 0010 amended (#C041).
+- **Corrections after the reviews of 2026-09-24**, each with a regression:
+  the bot review of the pull request — one A5 occurrence per connection;
+  the restart evidence required; the configuration identity validated
+  (F4) — and the project manager's findings F1, F2, F3, F5 and F6: an
+  ended connection is retired the moment the end is requested, so no
+  later delivery of it is applied ahead of the one the broker resends (a
+  never-applied identity can no longer become a duplicate); a drain that
+  gives up is a valid observation of failed recovery, not invalid
+  evidence; a cancelled consumer ends the connection, the bridge stays
+  disconnected, readiness needs a live consumer and shutdown cleans up
+  whatever awaiting the pipeline raised; the collector's window carries
+  the snapshot's allowance; the missing-evidence flag is gone — the
+  runbook helpers' files are ingested and verified instead. The ADR's
+  implementation record and the contract state the repaired rules.
+- **Why.** The student decided option 5 on 2026-09-24 (#C041). The
+  implementation is the second of the four things the record requires
+  before the behaviour becomes the one it proposes; the third and fourth —
+  the finite proof and its support — follow on the guest under separate
+  authorisation.
+- **How it was verified.** The full suite ran in the WSL venv (Python 3.12)
+  on `95ed23d`, after which only the ADR's implementation record changed (a
+  file no test reads): 2,283 passed, 64 skipped, 3 failed, in 18 min 15 s.
+  The package `HIST_2026-09-24-pr46-full-suite-attempt01` under the local
+  `output_test` holds the output with every skip reason, the JUnit report,
+  the isolated reruns, the clock evidence and the checksums. The three
+  failures are cases of the broker-measurement driver's stub bench
+  (`test_generate_never_inherits_a_schema_directory_from_the_callers_environment`,
+  `test_a_recorder_stop_that_failed_is_never_declared_stopped_even_with_a_readable_csv`,
+  `test_a_volume_whose_label_is_not_exactly_the_attempt_id_is_left_alone`),
+  whose files this entry does not touch: the WSL2 host clock is stepped
+  backwards by 2–3 s about every 30 s, the recorder script the bench runs
+  stamps its rows with `date +%s`, and the probe's verdict rightly calls a
+  run with a decreasing epoch inconclusive, so a bench case fails whenever a
+  step falls inside its window. Rerun alone, two passed and one failed again
+  with the same reason; the whole bench module failed four cases; the same
+  module on plain `dev` (`f64a57f`) failed one case with the same reason.
+  The failures are recorded as they happened; no bench rule was changed, and
+  the bench's immunity to a backward host clock step is a separate task. The
+  64 skips are the platform skips (53 guest-shell cases that need the
+  BusyBox wrappers, 11 NTFS-junction cases). The Markdown link checker, the
+  evidence verifier and shellcheck at error severity pass on the final tree;
+  the hashed lock was resolved inside the pinned base image under
+  `linux/arm64` user-mode emulation on the workstation (the container
+  reports `aarch64`), by the lock script's own steps, with `pip check` clean.
+- **What it does not establish.** Nothing about the controller's recovery,
+  timely delivery or the broker's behaviour with this controller: the code
+  ran only against fakes. The changed candidate is unmeasured. The controller
+  image for the proof is not built; the log-fetch helpers, the regeneration
+  of the deployed helper file and the proof's evaluator (S1–S6, R1–R4, S4
+  with the twin's evidence of a named N1 case) are the next work, before the
+  proof (the capture of the configuration identity is the runbook's
+  `config_identity` helper, corrected on 2026-09-25, below).
+- **Delta of 2026-09-25 (review at `d561978`).** Three corrections, each
+  with a regression. D1: `qualify_recovery` fails its criterion whenever the
+  campaign plan lists no `controller_restart` run, whatever `raw/` holds
+  (an unplanned directory stays listed, marked unplanned, and never stands
+  for a planned run); an unreadable plan is named as such in the detail.
+  D2: the runbook's `config_identity` reads the broker log into a variable
+  with the exit status of `docker compose logs`; a non-zero status or an
+  empty output stops on the guest with the reason and exit 5, the host stops
+  naming it, and no identity is written, so a count of zero reload lines
+  comes only from a log that was read; the regressions execute the remote
+  fragment itself under stubs (the ssh stub's executing mode runs it with
+  `sh -c`, `cd` sent to a stub deployment directory, stub `docker` and
+  `sudo`): a read without a reload line gives false, one with a reload line
+  true, a failed read with nothing streamed or with part of the log streamed
+  stops, an empty read stops. D3: the warm-up variant's example of test 6
+  (which named the preceding restart run's post-drain copy) is withdrawn;
+  the passage states that no executable procedure is given and what the
+  variant needs (its own `before` snapshot, a drain, its own post-drain copy
+  with `--events`, the warm-up log with `--also`, the `after` snapshot after
+  the drain); test 6's main lines are unchanged and a test holds the section
+  to that. The ADR's implementation record now names the capture helper as
+  part of the pull request. Verified: the three modules
+  `test_recovery_qualification.py`, `test_runbook_itest_helpers.py` and
+  `test_experiments_cli.py`, 194 passed, in the WSL venv, recorded in the
+  local package `HIST_2026-09-25-pr46-delta-regressions-attempt02` with the
+  commit (`178775a`), the tree hash, the branch and a clean status captured
+  before the tests ran (attempt01 of the same selection is kept as the
+  record of a failed identity capture, with a note and its first seal kept
+  as `SHA256SUMS.1`); the link checker, the evidence verifier and shellcheck
+  pass. The CI of `7fd72d4` then failed one case, the runbook-parsing test
+  of `itest_reconcile` whose anchor was the withdrawn `--also` example (the
+  focused selection had not included the modules that read the runbook):
+  the anchor moved to test 6's `--events` line (`44d2e41`), and the six
+  modules that read the runbook or belong to the delta (679 passed) are
+  recorded in `HIST_2026-09-25-pr46-delta-regressions-attempt03` with the
+  commit `44d2e41`, the tree hash and a clean status captured before the
+  run; the CI of the final head is the record for the whole suite. A
+  qualification of the full-suite statement above: the association of that
+  run with `95ed23d` is a reconstruction from commit times, because the
+  script's identity capture failed and its empty status lines do not
+  establish a clean tree; the correction note beside that capsule
+  (`HIST_2026-09-24-pr46-full-suite-attempt01_CORRECTION_NOTE_2026-09-25.txt`)
+  states this, the inferred causes of two of the three bench failures and
+  the replaced first seal.
+- **Decisions and next steps.** No decision; nothing accepted. Next: the
+  progress return of the 2026-09-27 checkpoint (or the eighth reported
+  engineering hour), the proof's session driver, evaluator and identified
+  image, then the finite proof under the student's authorisation.

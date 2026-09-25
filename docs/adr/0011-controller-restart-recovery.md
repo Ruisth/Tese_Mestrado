@@ -1792,6 +1792,174 @@ gate note.
 
 ---
 
+## Implementation record (2026-09-24)
+
+The bounded implementation of "What must change" was written on 2026-09-24 in
+pull request #46 (branch `feat/adr-0011-option-5`), with fakes only: no
+broker, Ditto or guest ran. Items 1 to 16 and 18 to 20 are implemented; item
+17 (the `$SYS` grant of C2) is not, by the decision recorded above. The
+contract is v1.2 (`src/CONTRACTS.md`). Where this record left a point to the
+implementer, the choice made is stated here; each is pinned by a regression
+test and none changes a count, a threshold or a stop rule of the proof.
+
+- **Delivery identity.** `InboundMessage` carries `mid`, `qos`, `dup` and
+  `connection`, stamped on the network thread; the defaults (0, 0, false, 0)
+  describe a QoS 0 delivery of no connection, so every earlier constructor
+  stays valid.
+- **Connection identity and lock.** One re-entrant lock in the bridge guards
+  the connection number (1 before the first CONNACK, advanced at every socket
+  close), the acknowledgement window, `unacked`, the CONNACK count and the
+  subscription. `on_socket_close` advances the number, resets `unacked`,
+  clears the subscription and schedules the purge onto the event loop; it
+  never raises. `ack()` sends only for a QoS 1 delivery of the current
+  connection while acknowledgement is open on it; `client.ack` runs under
+  the lock, which is safe because with the network thread alive it takes no
+  paho mutex, and re-entrant because with the thread absent paho writes on
+  the caller's thread and a write error would run the close handler there.
+- **A3(a) and A5.** `end_connection(cause, identity)` closes acknowledgement,
+  writes an ERROR line `MQTT connection ended by the controller` with the
+  cause (`no-outcome-line`, `overflow`, `no-event-loop`, `on-message-error`),
+  the connection, the identity in progress (topic, mid, qos, dup, connection,
+  arrival stamp), the occurrence and the back-off, and wakes a supervisor
+  thread that runs `disconnect()`, `loop_stop()`, the back-off and the
+  reconnection. Back-off: 1, 2, 4 … 30 s for the n-th consecutive end; bound:
+  after ten consecutive ends with no delivery acknowledged in between the
+  client is left disconnected — `disconnect` and `loop_stop` run before the
+  bound is checked, so "staying disconnected" is real — with `/ready` at 503,
+  `mqtt_subscribed` false and `/metrics` still served. An acknowledged
+  delivery resets the count. One connection counts one occurrence: the
+  first delivery that cannot be acknowledged closes acknowledgement and
+  requests the end; a further such delivery on the same connection, before
+  the socket closes, is logged and counts nothing *(from the review of the
+  pull request: otherwise several queued deliveries of one connection could
+  reach the bound by themselves)*. The graceful stop closes acknowledgement with
+  the cause `stop`, logged at INFO, counting no occurrence. The occurrence
+  log is the medium the proof reads (item 18 fetches the controller's log).
+- **PUBACK from the written line.** `_emit` returns true after
+  `EventLogger.log` returned; `process()` returns it; `run()` requests the
+  PUBACK before taking the next delivery. `process()` is split into the
+  decision — every stage up to and including the `PATCH`, any other exception
+  a `failed` line naming it (item 8), the decode stage catching `ValueError`
+  and `RecursionError` (item 5) — and the emit, which runs after the decision
+  so that the clock read, the dedupe record and the write raise with no line
+  (A1's fourth exception). A `RuntimeError` raised inside `patch_thing` is
+  therefore `failed`, as a timeout is; the regression that pinned it as a
+  processing error now raises after the 2xx.
+- **Purge and skip.** `purge(ended)` re-queues the other connections'
+  deliveries in order and counts each removed one `dropped`; `run()` skips a
+  taken delivery of a connection below the current one, counted `dropped`,
+  never in progress. The ending connection is retired the moment the end
+  is requested: `end_connection` returns the connection it closed and the
+  consumer skips every later delivery of it from that instant, and the
+  bridge schedules the purge at once as well as at the socket close. No
+  later delivery of an ended connection can therefore advance the twin or
+  the cache ahead of an earlier one left to the broker *(from the review
+  of the pull request: a failed `PATCH` whose `failed` line also failed,
+  followed by a later `seq` of the same device applied before the socket
+  closed, would have turned the resent first identity into a false
+  duplicate — the order break R3 exists to detect; the earlier text here
+  had called that window a source of duplicates only, which was wrong)*.
+- **Overflow and the callback without a loop.** Both count the delivery in
+  `unacked` (QoS 1 only, the gauge's definition) and end the connection;
+  `dropped` keeps its counting point.
+- **Consumer and stop.** `run()` takes with `get_nowait` and waits on an event
+  set by `submit` and `stop` — a `get` task would take a delivery in a step
+  of its own, so a reader on the loop could see it in no term and a
+  cancellation could lose it; `stop()` sets the event and queues nothing.
+  A cancelled consumer (A1's second exception) ends the connection with
+  the cause `consumer-cancelled`, naming the delivery in progress, and the
+  bridge stays disconnected, since nothing consumes any more — whatever the
+  connection's acknowledgement state (an earlier end request does not turn
+  the cancellation into a reconnection), re-checked by the supervisor after
+  its back-off; readiness requires a live consumer. The lifespan stops the
+  consumer, then the bridge in an executor (the join of the network thread
+  never blocks the loop), then Ditto and the event log, each clean-up
+  running whatever the previous step raised; a cancellation of the shutdown
+  itself — which cancels the awaited pipeline too — propagates after those
+  clean-ups, read from the pending cancellation of the current task, while
+  a pipeline cancelled earlier is logged and the shutdown goes on *(from the
+  reviews of the pull request)*.
+- **Event log (item 9).** One unbuffered `write` of the encoded line on an
+  append-only handle; an `OSError` or a short write (reported as `EIO`)
+  closes and forgets the handle; a partial line can remain and is terminated
+  with a newline at the next open, so no later line merges with it; a reader
+  skips a line that is not JSON. `close()` flushes nothing because nothing is
+  buffered.
+- **Items 6 and 7.** A non-string `device_type` is refused by a type check
+  before the validator lookup; `DittoProtocolError(DittoError)`, never
+  retried, covers an `httpx` error outside the transport layer and a 2xx
+  `GET` whose body is not a JSON object — `null` included, so only a 404 means
+  "no twin" and a `null` body no longer re-creates the twin; a twin whose
+  `features`, `ingestion` or `properties` is not an object is read as empty.
+- **Deployment (items 15, 16, 20).** `stop_grace_period: 130s`; the six C1
+  options explicit in `mosquitto.conf` (`sys_interval 10`, the default, so
+  that the file's hash carries it); `src/requirements-runtime.lock`, resolved
+  by the steps of `generate-runtime-lock.sh` inside the pinned base image
+  under `linux/arm64` user-mode emulation on the workstation (the container
+  reports `aarch64`; the script's own host check refuses the x86-64 host, so
+  its `docker run` was issued directly with the same arguments) and installed
+  by the Dockerfile with `--require-hashes`; paho-mqtt 2.1.0, the version of
+  the analysis environment and of the r02 container. Images built before
+  that commit are unlocked and are not admissible for the proof.
+- **Harness (item 18).** Ten columns after `queue_depth`; the raw fields are
+  written verbatim only when of their documented type (a mistyped one is an
+  empty cell counted as invalid); the three log fetches run last, after the
+  drain, so they cover it; a fetch or snapshot that exits 0 without its file
+  is a validity reason; a drain that gives up is not — it is the valid
+  observation of a failed recovery stated below (`--drain-cmd` bounded at
+  1,800 s, twice the helper's own limit); `twins.before.json` is taken
+  after the warm-up; `--config-identity-from` is also accepted by `collect`
+  and may carry `{run_id}` in a campaign; the manifest keys are
+  `sut_log_fetches`, `twin_snapshots`, `drain`, `events_post_drain_fetch`,
+  `configuration_identity` and `configuration_identity_file`, additive
+  within version 1.4. For a `controller_restart` run the before snapshot,
+  the drain and — when the drain was quiet — the after snapshot and the
+  post-drain copy of the events are required, taken by the hooks or
+  ingested from the runbook helpers' files with `--twins-before-from`,
+  `--twins-after-from`, `--post-drain-events-from` and
+  `--drain-transcript-from` (each verified against the run before it
+  counts — the snapshot's label and seed, every post-drain event's
+  `run_id` and outcome, the helper's own lines in the transcript — with
+  its source and hash recorded); no flag excuses a missing step, and a
+  hook's file is verified by the same rules. The drain's outcome is
+  classified from the helper's lines: `quiet`; `gave-up`, a valid
+  observation of failed recovery, recorded with a warning, never a
+  validity reason, the after evidence then not required; or `error`, an
+  instrument failure and a reason — the proof's evaluator applies the
+  ADR's inconclusive rule to `drain.outcome` itself. The twin snapshot
+  hooks run under `SNAPSHOT_TIMEOUT_S`, which the collector's
+  `{duration_s}` includes when a snapshot is configured, so the before
+  snapshot cannot outlast the collector. The runbook's test 6 captures the
+  drain's transcript, fetches the post-drain copy, takes the after
+  snapshot and ingests the four files with `collect` before `delta`. The
+  identity document must be a JSON object carrying `broker_conf_sha256`, the
+  six C1 values, `broker_reloaded`, `stop_grace_period`,
+  `controller_image_id`, `controller_source_commit`, `paho_version` and
+  `a3_choice`, each of the stated type; anything else is refused with a
+  warning and embeds nothing *(both from the review of the pull request)*.
+- **Runbook (item 19).** `_mline` exits 3 with the line when the identity
+  fails in the response; `metrics()` keeps its seven keys, since `accounted`
+  reads only those; `regen_helpers.py` is unchanged and now pinned by a
+  regeneration-equality test.
+
+**In the pull request, by the review corrections:** the guest-side capture
+that writes `configuration_identity.json` is the runbook's `config_identity`
+helper (6.1; test 6 hands its file to the harness): the broker
+configuration's hash and C1 values, whether the broker reloaded since its
+container started, read from a log the guest read to its end with the exit
+status of that read (a failed or empty read stops with no file, so a count
+of zero never stands for a log that was not read; review of 2026-09-25,
+D2), `stop_grace_period`, the controller image's id and source commit, the
+paho version, the A3 choice. **Not in the pull request, needed before the
+proof:** the three log-fetch helpers and the proof's own capture of that
+identity, which belong to the proof's session driver; the identified
+controller image built from the commit that carries the lock; the regeneration of the deployed helper file
+with `regen_helpers.py` (the new `_mline` refuses a controller build without
+the thirteen fields); the proof's evaluator, which applies S1–S6 and R1–R4 —
+S4 with the twin's evidence of a named N1 case — to the post-drain copy and
+the snapshots. None of this runs on the guest without the student's separate
+authorisation.
+
 ## Consequences
 
 - **Positive, if the broker measurement and the proof support the option.** The

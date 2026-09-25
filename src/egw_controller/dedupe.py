@@ -10,6 +10,13 @@ run). The authoritative state lives in the twin's ``ingestion`` feature
 (including ``last_run_id``) so it survives controller restarts; this local
 cache is rebuilt via :meth:`DedupeCache.seed_from_twin` on the first event of
 each device after startup.
+
+The raw twin is read tolerantly: a ``features``, ``ingestion`` or
+``properties`` container that is missing, null or not a JSON object is read
+as empty, and a property of the wrong type as unknown, so an odd twin seeds
+unknown state instead of failing every delivery of its device until the twin
+is repaired (ADR 0011, item 7). Nothing in ``seed_from_twin`` raises on the
+content of a twin.
 """
 
 from __future__ import annotations
@@ -27,6 +34,16 @@ class UnknownDeviceError(KeyError):
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _mapping_or_empty(value: Any) -> Mapping[str, Any]:
+    """Return ``value`` when it is a mapping, otherwise an empty one.
+
+    A twin container (``features``, ``ingestion``, ``properties``) that is
+    missing, null, or a list, string, number or boolean is read as empty; a
+    truthy non-mapping used to escape as an ``AttributeError`` on ``.get``.
+    """
+    return value if isinstance(value, Mapping) else {}
 
 
 @dataclass(slots=True)
@@ -55,17 +72,19 @@ class DedupeCache:
         """Mark the device known, restoring state from the twin's ``ingestion`` feature.
 
         ``twin`` is the raw Ditto thing JSON (or ``None`` for a twin created just
-        now, which starts empty). Missing/null ingestion properties are treated
-        as unknown state. A legacy twin without ``last_run_id`` yields an
-        unknown run: the seq floor is then never applied (it only binds within
-        a proven-identical ``run_id``) and normal state is written back on the
-        first accepted event.
+        now, which starts empty). A ``features``, ``ingestion`` or
+        ``properties`` container that is missing, null or not a JSON object is
+        read as empty, and a missing, null or wrongly typed property as unknown
+        state, so nothing here raises on an odd twin. A legacy twin without
+        ``last_run_id`` yields an unknown run: the seq floor is then never
+        applied (it only binds within a proven-identical ``run_id``) and normal
+        state is written back on the first accepted event.
         """
         state = _DeviceState()
         if twin is not None:
-            features = twin.get("features") or {}
-            ingestion = features.get("ingestion") or {}
-            properties = ingestion.get("properties") or {}
+            features = _mapping_or_empty(twin.get("features"))
+            ingestion = _mapping_or_empty(features.get("ingestion"))
+            properties = _mapping_or_empty(ingestion.get("properties"))
             last_seq = properties.get("last_seq")
             if _is_int(last_seq):
                 state.last_seq = last_seq

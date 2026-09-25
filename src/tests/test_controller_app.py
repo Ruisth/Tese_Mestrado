@@ -252,6 +252,11 @@ async def test_metrics_counts_and_uptime(
     assert body.pop("received") == 0
     assert body.pop("in_progress") == 0
     assert body.pop("processing_errors") == 0
+    # And the bridge fields (ADR 0011, item 14): no bridge here, so the
+    # zero values.
+    assert body.pop("mqtt_subscribed") is False
+    assert body.pop("mqtt_connection") == 0
+    assert body.pop("unacked") == 0
     assert body == {
         "accepted": 2,
         "rejected": 1,
@@ -348,8 +353,71 @@ async def test_metrics_marker_does_not_touch_latency_fields(
         "uptime_s",
         "monotonic_ns",
         "wall_utc",
+        "mqtt_subscribed",
+        "mqtt_connection",
+        "unacked",
     }
     assert not [key for key in body if "latency" in key]
+
+
+# ---------------------------------------------------------------------------
+# GET /metrics bridge fields (ADR 0011, item 14)
+# ---------------------------------------------------------------------------
+
+
+async def test_metrics_bridge_fields_default_to_not_subscribed_and_zero(
+    client: httpx.AsyncClient,
+) -> None:
+    """Without a bridge the three additive fields are present with their
+    zero values, typed as the contract states: a boolean and two
+    non-negative integers, never absent."""
+    body = (await client.get("/metrics")).json()
+    assert body["mqtt_subscribed"] is False
+    assert type(body["mqtt_connection"]) is int and body["mqtt_connection"] == 0
+    assert type(body["unacked"]) is int and body["unacked"] == 0
+    assert accounting_gap(body) == 0  # unacked is not a term of the identity
+
+
+async def test_metrics_reads_the_bridge_state_live(
+    metrics: MetricsCounters, ditto: FakeDittoClient
+) -> None:
+    state = {"mqtt_subscribed": True, "mqtt_connection": 3, "unacked": 7}
+    reads = 0
+
+    def bridge_state() -> dict[str, Any]:
+        nonlocal reads
+        reads += 1
+        return dict(state)
+
+    app = create_app(
+        AppDeps(
+            metrics=metrics,
+            ditto=ditto,
+            mqtt_connected=lambda: True,
+            bridge_state=bridge_state,
+        )
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as http:
+        body = (await http.get("/metrics")).json()
+        assert (body["mqtt_subscribed"], body["mqtt_connection"], body["unacked"]) == (
+            True,
+            3,
+            7,
+        )
+        state.update(mqtt_subscribed=False, mqtt_connection=4, unacked=0)
+        body = (await http.get("/metrics")).json()
+        assert (body["mqtt_subscribed"], body["mqtt_connection"], body["unacked"]) == (
+            False,
+            4,
+            0,
+        )
+    assert reads == 2  # read at request time, once per response
+    # The bridge fields never shadow a counter or the queue depth.
+    assert body["queue_depth"] == 0
+    assert body["received"] == 0
 
 
 async def test_metrics_wall_utc_is_rfc3339_zulu(client: httpx.AsyncClient) -> None:
@@ -415,6 +483,8 @@ class MinimalPahoClient:
         self.on_disconnect: Any = None
         self.on_message: Any = None
         self.on_subscribe: Any = None
+        self.on_socket_close: Any = None
+        self.acks: list[tuple[int, int]] = []
 
     def connect_async(self, host: str, port: int, keepalive: int = 60) -> None:
         return None
@@ -427,6 +497,10 @@ class MinimalPahoClient:
 
     def disconnect(self) -> None:
         return None
+
+    def ack(self, mid: int, qos: int) -> int:
+        self.acks.append((mid, qos))
+        return 0
 
 
 def make_real_service(
@@ -548,7 +622,8 @@ async def test_every_metrics_response_is_one_snapshot_under_a_second_thread(
     show the message held by Ditto, the first one being held until a
     response has shown it; and ``submit``, the counting point of
     ``received`` and ``dropped``, only ever runs on the loop thread, the
-    bridge having handed each message over."""
+    bridge having handed each message over. The bridge's own ``unacked``
+    is read in the same stretch; it is not a term of the identity."""
     total = 3000
     paho = MinimalPahoClient()
     ditto = GatedDittoClient()
@@ -572,16 +647,23 @@ async def test_every_metrics_response_is_one_snapshot_under_a_second_thread(
                 ditto=ditto,
                 mqtt_connected=lambda: True,
                 queue_depth=service.queue_depth,
+                bridge_state=bridge.state,
             )
         )
-        # Invalid JSON: rejected with no Ditto call and no retries.
-        invalid = SimpleNamespace(topic="c2dt/egw-01/x/telemetry", payload=b"{")
+        # Invalid JSON: rejected with no Ditto call and no retries. QoS 0:
+        # the pipeline requests no PUBACK (the bridge is not wired to it).
+        invalid = SimpleNamespace(
+            topic="c2dt/egw-01/x/telemetry", payload=b"{", mid=0, qos=0, dup=False
+        )
 
         def valid(seq: int) -> SimpleNamespace:
             payload = make_payload("smartwatch", seq=seq)
             return SimpleNamespace(
                 topic=topic_for(payload),
                 payload=json.dumps(payload).encode("utf-8"),
+                mid=seq + 1,
+                qos=1,
+                dup=False,
             )
 
         # Every tenth message goes through Ditto, the very first included.
@@ -616,6 +698,7 @@ async def test_every_metrics_response_is_one_snapshot_under_a_second_thread(
                 body = (await http.get("/metrics")).json()
                 # Every response, not only the last one.
                 assert accounting_gap(body) == 0, body
+                assert type(body["unacked"]) is int and body["unacked"] >= 0
                 assert submit_threads <= {loop_thread}
                 # A callback that failed on the producer thread would
                 # otherwise only show as the deadline below.
@@ -646,3 +729,278 @@ async def test_every_metrics_response_is_one_snapshot_under_a_second_thread(
     assert final["accepted"] + final["rejected"] + final["dropped"] == total
     assert final["processing_errors"] == 0
     assert final["duplicate"] == final["failed"] == 0
+    # The QoS 1 deliveries were handed to the client and, the pipeline not
+    # being wired to the bridge here, never acknowledged.
+    assert final["unacked"] == total // 10
+    assert paho.acks == []
+
+
+# ---------------------------------------------------------------------------
+# create_app_from_env: wiring and the stop order (ADR 0011, items 3 and 13)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingBridge:
+    """Stands in for ``MqttBridge`` in ``create_app_from_env``."""
+
+    instances: list["_RecordingBridge"] = []
+    order: list[str] = []
+
+    def __init__(self, settings: Settings, submit: Any, **kwargs: Any) -> None:
+        self.settings = settings
+        self.submit = submit
+        self.kwargs = kwargs
+        self.stop_thread: int | None = None
+        self.acked: list[Any] = []
+        self.ends: list[tuple[str, Any]] = []
+        _RecordingBridge.instances.append(self)
+
+    def start(self, loop: Any = None) -> None:
+        _RecordingBridge.order.append("bridge.start")
+
+    def stop(self) -> None:
+        self.stop_thread = threading.get_ident()
+        _RecordingBridge.order.append("bridge.stop")
+
+    def ack(self, delivery: Any) -> bool:
+        self.acked.append(delivery)
+        return True
+
+    def end_connection(self, cause: str, identity: Any) -> int | None:
+        self.ends.append((cause, identity))
+        return getattr(identity, "connection", None) if identity is not None else 1
+
+    def state(self) -> dict[str, Any]:
+        return {"mqtt_subscribed": True, "mqtt_connection": 2, "unacked": 5}
+
+    @property
+    def connected(self) -> bool:
+        return True
+
+
+async def test_a_cancelled_consumer_leaves_the_app_not_ready_and_shutdown_still_cleans_up(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """F3: when the pipeline task is cancelled while the app runs, the
+    connection is ended with the cause ``consumer-cancelled``, ``/ready`` is
+    503 although the bridge says it is subscribed, and the lifespan's shutdown
+    still stops the bridge, closes Ditto and closes the event log, in that
+    order, without raising."""
+    import egw_controller.app as app_module
+    from egw_controller.ditto import DittoClient
+
+    order: list[str] = []
+
+    class TaskRecordingService(ControllerService):
+        instances: list["TaskRecordingService"] = []
+
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+            self.task: asyncio.Task[None] | None = None
+            TaskRecordingService.instances.append(self)
+
+        async def run(self) -> None:
+            self.task = asyncio.current_task()
+            await super().run()
+
+    class RecordingEvents(EventLogger):
+        def close(self) -> None:
+            order.append("events.close")
+            super().close()
+
+    class RecordingDitto(DittoClient):
+        async def aclose(self) -> None:
+            order.append("ditto.aclose")
+            await super().aclose()
+
+    monkeypatch.setattr("egw_controller.mqtt.MqttBridge", _RecordingBridge)
+    monkeypatch.setattr(app_module, "ControllerService", TaskRecordingService)
+    monkeypatch.setattr(app_module, "EventLogger", RecordingEvents)
+    monkeypatch.setattr(app_module, "DittoClient", RecordingDitto)
+    monkeypatch.setattr(app_module, "configure_logging", lambda: None)
+    monkeypatch.setenv("EGW_MQTT_TLS", "false")
+    monkeypatch.setenv("EGW_SCHEMA_DIR", str(SCHEMA_DIR))
+    monkeypatch.setenv("EGW_EVENT_LOG_DIR", str(tmp_path))
+    _RecordingBridge.instances.clear()
+    _RecordingBridge.order = order
+    TaskRecordingService.instances.clear()
+
+    app = app_module.create_app_from_env()
+    (bridge,) = _RecordingBridge.instances
+    (service,) = TaskRecordingService.instances
+    async with app.router.lifespan_context(app):
+        await asyncio.sleep(0)
+        assert service.task is not None and service.consuming is True
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as http:
+            # Ditto is not reachable here, so /ready is 503 throughout; the
+            # MQTT half of readiness is what the consumer's state changes.
+            assert (await http.get("/ready")).json()["mqtt_connected"] is True
+            service.task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await service.task
+            assert service.consuming is False
+            assert bridge.ends == [("consumer-cancelled", None)]
+            # The bridge still claims a subscription; readiness needs the
+            # consumer as well, so the MQTT half reports not connected.
+            ready = await http.get("/ready")
+            assert ready.status_code == 503
+            assert ready.json()["mqtt_connected"] is False
+        order.clear()
+    assert order == ["bridge.stop", "ditto.aclose", "events.close"]
+
+
+async def test_a_cancelled_shutdown_cleans_up_and_still_propagates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """F3b: the shutdown task is cancelled while it awaits a live
+    pipeline; the bridge, Ditto and the event log are still cleaned up,
+    and the cancellation reaches the shutdown's caller instead of being
+    swallowed."""
+    import egw_controller.app as app_module
+    from egw_controller.ditto import DittoClient
+
+    order: list[str] = []
+    hold = asyncio.Event()
+
+    class HoldingService(ControllerService):
+        async def run(self) -> None:
+            # A consumer that does not return on stop(): the shutdown
+            # awaits it until it is cancelled from outside.
+            try:
+                await hold.wait()
+            finally:
+                order.append("pipeline.exit")
+
+    class RecordingEvents(EventLogger):
+        def close(self) -> None:
+            order.append("events.close")
+            super().close()
+
+    class RecordingDitto(DittoClient):
+        async def aclose(self) -> None:
+            order.append("ditto.aclose")
+            await super().aclose()
+
+    monkeypatch.setattr("egw_controller.mqtt.MqttBridge", _RecordingBridge)
+    monkeypatch.setattr(app_module, "ControllerService", HoldingService)
+    monkeypatch.setattr(app_module, "EventLogger", RecordingEvents)
+    monkeypatch.setattr(app_module, "DittoClient", RecordingDitto)
+    monkeypatch.setattr(app_module, "configure_logging", lambda: None)
+    monkeypatch.setenv("EGW_MQTT_TLS", "false")
+    monkeypatch.setenv("EGW_SCHEMA_DIR", str(SCHEMA_DIR))
+    monkeypatch.setenv("EGW_EVENT_LOG_DIR", str(tmp_path))
+    _RecordingBridge.instances.clear()
+    _RecordingBridge.order = order
+
+    app = app_module.create_app_from_env()
+
+    async def run_then_shut_down() -> None:
+        async with app.router.lifespan_context(app):
+            order.append("running")
+
+    shutdown = asyncio.create_task(run_then_shut_down())
+    for _ in range(200):
+        if "running" in order:
+            break
+        await asyncio.sleep(0.01)
+    assert "running" in order
+    await asyncio.sleep(0.05)  # the shutdown is now awaiting the pipeline
+    shutdown.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shutdown
+    assert shutdown.cancelled()
+    assert order[order.index("pipeline.exit") + 1:] == [
+        "bridge.stop",
+        "ditto.aclose",
+        "events.close",
+    ]
+
+
+async def test_create_app_from_env_wires_the_bridge_and_stops_in_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The bridge receives ``submit`` and ``purge``; the service receives
+    the bridge's ``ack`` and ``end_connection``; ``/metrics`` reads the
+    bridge state; and the lifespan stops in the order of the Decision: the
+    consumer first (its PUBACK queued), then the bridge off the loop thread
+    (the DISCONNECT last, the join never blocking the loop), then Ditto and
+    the event log."""
+    import egw_controller.app as app_module
+    from egw_controller.ditto import DittoClient
+
+    order: list[str] = []
+
+    class RecordingService(ControllerService):
+        instances: list["RecordingService"] = []
+
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(**kwargs)
+            self.kwargs = kwargs
+            RecordingService.instances.append(self)
+
+        async def run(self) -> None:
+            await super().run()
+            order.append("pipeline.exit")
+
+        async def stop(self) -> None:
+            order.append("service.stop")
+            await super().stop()
+
+    class RecordingEvents(EventLogger):
+        def close(self) -> None:
+            order.append("events.close")
+            super().close()
+
+    class RecordingDitto(DittoClient):
+        async def aclose(self) -> None:
+            order.append("ditto.aclose")
+            await super().aclose()
+
+    monkeypatch.setattr("egw_controller.mqtt.MqttBridge", _RecordingBridge)
+    monkeypatch.setattr(app_module, "ControllerService", RecordingService)
+    monkeypatch.setattr(app_module, "EventLogger", RecordingEvents)
+    monkeypatch.setattr(app_module, "DittoClient", RecordingDitto)
+    monkeypatch.setattr(app_module, "configure_logging", lambda: None)
+    monkeypatch.setenv("EGW_MQTT_TLS", "false")
+    monkeypatch.setenv("EGW_SCHEMA_DIR", str(SCHEMA_DIR))
+    monkeypatch.setenv("EGW_EVENT_LOG_DIR", str(tmp_path))
+    _RecordingBridge.instances.clear()
+    _RecordingBridge.order = order
+    RecordingService.instances.clear()
+
+    app = app_module.create_app_from_env()
+    (bridge,) = _RecordingBridge.instances
+    (service,) = RecordingService.instances
+    assert service.kwargs["acknowledge"] == bridge.ack
+    assert service.kwargs["end_connection"] == bridge.end_connection
+    loop_thread = threading.get_ident()
+    async with app.router.lifespan_context(app):
+        assert order == ["bridge.start"]
+        # The bridge's submit and purge reach the service.
+        bridge.submit(make_inbound(make_payload("smartwatch", seq=0), connection=1))
+        assert service.queue_depth() == 1
+        bridge.kwargs["purge"](1)
+        assert service.queue_depth() == 0
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as http:
+            body = (await http.get("/metrics")).json()
+        assert (body["mqtt_subscribed"], body["mqtt_connection"], body["unacked"]) == (
+            True,
+            2,
+            5,
+        )
+        assert body["dropped"] == 1  # the purged delivery
+        order.clear()
+    assert order == [
+        "service.stop",
+        "pipeline.exit",
+        "bridge.stop",
+        "ditto.aclose",
+        "events.close",
+    ]
+    assert bridge.stop_thread is not None and bridge.stop_thread != loop_thread

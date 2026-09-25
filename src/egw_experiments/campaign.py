@@ -42,6 +42,16 @@ Behaviour:
   ``--expect-services`` (the services every run's collector output must
   account for, whether a hook fetched it or ``--resources-from`` names it;
   the ``{expect_services}`` placeholder of the hooks);
+- ADR 0011 item 18: the SUT log fetches (``--fetch-broker-log-cmd``,
+  ``--fetch-controller-log-cmd``, ``--fetch-docker-events-cmd``) and
+  ``--config-identity-from`` (which, like ``--resources-from``, may carry a
+  ``{run_id}`` placeholder) are passed through to every run; the
+  restart-evidence steps ``--twin-snapshot-cmd``, ``--drain-cmd`` and
+  ``--post-drain-fetch-cmd``, and the restart evidence taken outside the
+  harness (``--twins-before-from``, ``--twins-after-from``,
+  ``--post-drain-events-from``, ``--drain-transcript-from``, each with a
+  ``{run_id}`` placeholder substituted per run), reach ONLY the
+  ``controller_restart`` runs, as ``--restart-cmd`` does;
 - cooldowns: the plan's ``cooldown_s`` is honored by the run wiring itself
   (``execute_run`` sleeps the remaining cooldown after the confirmation
   window). ``--no-cooldown`` suppresses it and records a protocol
@@ -89,6 +99,14 @@ CAMPAIGN_LOG_FILENAME = "campaign_log.jsonl"
 #: passthrough: firing a mid-run restart on any other condition would
 #: deviate from the frozen protocol.
 RESTART_CONDITION_ID = "controller_restart"
+
+
+def _restart_file(template: str | None, run_id: str, condition: str) -> str | None:
+    """A restart evidence file template with ``{run_id}`` substituted, for a
+    ``controller_restart`` run; None for any other run or template."""
+    if not template or condition != RESTART_CONDITION_ID:
+        return None
+    return format_cmd_template(template, run_id)
 
 
 def _append_log(log_path: Path, record: dict[str, Any]) -> None:
@@ -210,6 +228,17 @@ def run_campaign(
     collector_stop_cmd: str | None = None,
     collector_fetch_cmd: str | None = None,
     expect_services: list[str] | None = None,
+    fetch_broker_log_cmd: str | None = None,
+    fetch_controller_log_cmd: str | None = None,
+    fetch_docker_events_cmd: str | None = None,
+    twin_snapshot_cmd: str | None = None,
+    drain_cmd: str | None = None,
+    post_drain_fetch_cmd: str | None = None,
+    twins_before_from: str | None = None,
+    twins_after_from: str | None = None,
+    post_drain_events_from: str | None = None,
+    drain_transcript_from: str | None = None,
+    config_identity_from: str | None = None,
     allow_missing_sut_env: bool = False,
     allow_missing_resources: bool = False,
     allow_warmup_failure: bool = False,
@@ -462,6 +491,36 @@ def run_campaign(
             ),
             restart_at_s=(
                 restart_at_s if condition == RESTART_CONDITION_ID else None
+            ),
+            # ADR 0011 item 18: the log fetches and the configuration
+            # identity reach every run; the restart evidence steps only the
+            # controller_restart runs, like the restart hook.
+            fetch_broker_log_cmd=fetch_broker_log_cmd,
+            fetch_controller_log_cmd=fetch_controller_log_cmd,
+            fetch_docker_events_cmd=fetch_docker_events_cmd,
+            config_identity_from=(
+                format_cmd_template(config_identity_from, run_id)
+                if config_identity_from
+                else None
+            ),
+            twin_snapshot_cmd=(
+                twin_snapshot_cmd if condition == RESTART_CONDITION_ID else None
+            ),
+            drain_cmd=drain_cmd if condition == RESTART_CONDITION_ID else None,
+            post_drain_fetch_cmd=(
+                post_drain_fetch_cmd
+                if condition == RESTART_CONDITION_ID
+                else None
+            ),
+            # The restart evidence taken outside the harness: addressed per
+            # run like --resources-from, restart runs only like the hooks.
+            twins_before_from=_restart_file(twins_before_from, run_id, condition),
+            twins_after_from=_restart_file(twins_after_from, run_id, condition),
+            post_drain_events_from=_restart_file(
+                post_drain_events_from, run_id, condition
+            ),
+            drain_transcript_from=_restart_file(
+                drain_transcript_from, run_id, condition
             ),
             extra_deviations=pending_deviation,
         )

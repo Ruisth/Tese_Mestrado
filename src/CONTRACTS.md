@@ -1,6 +1,14 @@
-# CONTRACTS.md — EGW internal normative interfaces (v1.1, 2026-08-08)
+# CONTRACTS.md — EGW internal normative interfaces (v1.2, 2026-09-24)
 
-Translated into British English on 2026-08-14 under the language policy; the normative content is unchanged from v1.1 (2026-08-08).
+Translated into British English on 2026-08-14 under the language policy; the normative content was unchanged from v1.1 (2026-08-08) until v1.2.
+
+**v1.2 (2026-09-24, [ADR 0011](../docs/adr/0011-controller-restart-recovery.md)).** A material change to
+delivery semantics, decided by the student on 2026-09-24: the controller's persistent MQTT session and
+acknowledgement point (sections 1 and 5), the broker's window and queue options (section 1), three
+additive session fields in `GET /metrics` and the changed shutdown (section 5), the widened meanings of
+`rejected`, `failed` and `dropped` and the narrowed `processing_errors` (sections 5 and 9), the event
+log's write rule (section 5) and the harness columns (section 5). It applies from the commit that carries
+the implementation; every other value of v1.1 is unchanged.
 
 > Derived from archived plan v1.0 §5; under plan v1.1/v1.2 §1 and the adopted
 > plan v2.0 section 1 this file is
@@ -17,6 +25,8 @@ Translated into British English on 2026-08-14 under the language policy; the nor
 | Authentication | username/password (Mosquitto `password_file`) + TLS server-auth |
 | Telemetry topic | `c2dt/{egw_id}/{device_uuid}/telemetry` |
 | Controller filter | `c2dt/+/+/telemetry` |
+| Controller session (v1.2) | persistent (`clean_session=false`) under the client id `egw-controller-{EGW_ID}`, one controller per `EGW_ID`; manual acknowledgement — the PUBACK of a QoS 1 delivery follows its outcome line (section 5) |
+| Broker window and queue (v1.2) | `max_inflight_messages 4999`, `max_inflight_bytes 0`, `max_queued_messages 1000`, `max_queued_bytes 0`, `persistent_client_expiration 1h` (the expiry of a disconnected session, not a message lifetime), `sys_interval 10`; global in Mosquitto 2.0.22, so they bind every subscriber; their file's hash and values are recorded with every run, with the statement that no reload happened (ADR 0011, C1) |
 | Anonymous access | forbidden |
 | Local dev/tests | `--no-tls` profile permitted only on `localhost` and never in benchmarks |
 
@@ -101,6 +111,30 @@ rate.
   call to Ditto; conversion to merge-patch and `PATCH /api/2/things/{thingId}`
   (`content-type: application/merge-patch+json`); creation of policy+thing on
   the first event from a `device_uuid`.
+- **Acknowledgement point (v1.2, ADR 0011).** The controller subscribes on a persistent session under
+  its client id and acknowledges manually. Every delivery the consumer takes ends in exactly one
+  outcome line — a processing error included — with four exceptions only: the event log cannot be
+  written; the consumer is cancelled; the process dies; an exception is raised after Ditto's 2xx for
+  that delivery. For a QoS 1 delivery the PUBACK is requested exactly once, by the consumer,
+  immediately after that line is written and before the next delivery is taken; never for a QoS 0
+  delivery and never for a delivery without a line. On each connection the PUBACKs form a gap-free
+  prefix of that connection's QoS 1 deliveries in receipt order. The first delivery that cannot be
+  acknowledged — one of the four exceptions, an inbound-queue overflow, or a callback without a running
+  event loop — closes acknowledgement on that connection, and the controller ends the connection in
+  process (it closes and reopens it with a back-off, readiness false meanwhile, the occurrence written to
+  its log with the cause and the identity in progress), so that the broker resends every unacknowledged
+  delivery at the next session resumption. Deliveries of an ended connection are purged from the inbound
+  queue and counted `dropped`; a PUBACK is never sent on a connection other than the one that delivered
+  the message. A cause that repeats the connection end is bounded (ten consecutive ends without an
+  acknowledged delivery in between): the controller then stays disconnected, visibly, with `/ready` at
+  503 and `mqtt_subscribed` false. The bridge is ready only when the SUBACK grants QoS 1, and
+  `/ready` is 200 only while the consumer runs: a cancelled consumer ends the connection and the
+  bridge stays disconnected. The connection a delivery could not be acknowledged on is retired at
+  once: no later delivery of it is processed before the socket closes.
+- **Redelivery (v1.2).** A redelivered copy passes through the unchanged pipeline and obtains its own
+  line: `duplicate` when the first copy reached the twin, `accepted` when it did not (section 4, ADR 0006).
+  The identity in progress at a kill, or at a connection end after its `PATCH`, may have reached the
+  twin without an `accepted` line; such an identity is `lost` under section 9 until a separate decision.
 - **`message_id` verification** (section 2), after schema validation and
   **before** consulting the idempotency cache and before seeding or patching
   any twin: the controller recomputes the UUID v5 of
@@ -124,6 +158,9 @@ rate.
     existing field. `received`, `in_progress` and `processing_errors`
     (integers) are additive (2026-09-18) and change no existing field; they
     are defined in the sub-section on progress counters below.
+    `mqtt_subscribed` (boolean), `mqtt_connection` and `unacked` (integers)
+    are additive (v1.2, ADR 0011) and change no existing field; they are
+    defined in the sub-section on session fields below.
 
 ### Confirmation marker in `GET /metrics` (additive, sprint P5)
 
@@ -198,13 +235,20 @@ as zero.
   counter moved while this message was being processed" is then the same as
   "this message has no outcome". An outcome counted from anywhere else during
   that interval would hide a processing error while the identity below still
-  held; the controller has no such writer.
+  held; the controller has no such writer. Under v1.2 (ADR 0011) the
+  exceptions that escape the pipeline are the four exceptions of the
+  acknowledgement rule only — the event log cannot be written, the consumer
+  is cancelled, the process dies, an exception after the Ditto 2xx; every
+  other failure before the `PATCH` ends in a `rejected` or `failed` line.
 
-Two existing fields are restated because the identity uses them; their
-meaning does not change. `dropped` = messages discarded at the enqueue step
-because the inbound queue was full, never processed. `queue_depth` = the
-number of entries waiting in the inbound queue; it **excludes** the message
-being processed.
+Two existing fields are restated because the identity uses them. `dropped` =
+messages left for redelivery at the next session resumption without being
+processed (v1.2, ADR 0011): discarded at the enqueue step because the inbound
+queue was full, purged from the queue when their connection ended, or taken
+from the queue after their connection had ended; none of them is acknowledged
+(before v1.2, the overflow case only, and the meaning was "discarded").
+`queue_depth` = the number of entries waiting in the inbound queue; it
+**excludes** the message being processed.
 
 **Accounting identity.** Each response is one snapshot, taken in one step of
 the controller's event loop; every term is written on that same loop. For
@@ -272,23 +316,58 @@ definition and the latency definition are unchanged.
 4. For an interval that contains a restart, only reconciliation by identity
    is evidence, and the run is reported as "controller restarted".
 
-**Shutdown.** To stop, the controller places one internal marker in the
-inbound queue; the marker is not a message. During shutdown `queue_depth`
-may therefore include that one marker, and the right-hand side of the
-identity may exceed `received` by exactly one. The meaning of `queue_depth`
-is not changed to hide it. While it is queued the marker occupies one queue
-slot, so a message that arrives then may be counted as `dropped` one slot
-before the configured capacity is reached; this is the existing shutdown
-behaviour, not a change. A message enqueued behind the marker is counted
-in `received` and stays in `queue_depth`. With a sentinel shutdown the
-message in progress finishes normally and the backlog ahead of the marker is
-drained; if the consumer is cancelled instead, a message in progress is
-counted in `processing_errors` and the backlog stays in `queue_depth`. A
-process that is killed runs no code: the restart rules above apply.
+### Session fields in `GET /metrics` (additive, v1.2, ADR 0011)
 
-**Harness.** The harness file `controller_metrics.csv` keeps its six
-counters (`accepted`, `rejected`, `duplicate`, `failed`, `dropped`,
-`queue_depth`); recording the new fields there is a separate change.
+Decision record: [ADR 0011](../docs/adr/0011-controller-restart-recovery.md).
+Three fields are added to the response; every existing field keeps its name,
+type and meaning.
+
+- **`mqtt_subscribed`** (JSON **boolean**): true while the current
+  connection's subscription is granted at QoS 1; false otherwise, and false
+  once the controller has stopped reconnecting.
+- **`mqtt_connection`** (non-negative JSON **integer**, cumulative): the
+  number of successful CONNACKs this process has received; it identifies the
+  current connection and changes on every reconnection.
+- **`unacked`** (non-negative JSON **integer**, gauge): the QoS 1 deliveries
+  handed to the client on the current connection for which no PUBACK has
+  been requested. It is counted by the MQTT bridge at the callback, before the
+  hand-over to the event loop, decremented when the PUBACK is requested, and
+  reset to zero at every connection end, because the earlier connection's
+  deliveries are then the broker's to resend. The bridge keeps it with its own
+  synchronisation; it is **not a term of the accounting identity**.
+
+All three are scoped to one process and are false or zero when it starts;
+their absence is never read as false or zero. A reading is **quiet** only
+when `queue_depth`, `in_progress` and `unacked` are all 0, `mqtt_subscribed`
+is true and the identity holds; across a quiet window `started_at`,
+`mqtt_connection`, `received`, the four outcome counters, `dropped` and
+`processing_errors` are unchanged. What a quiet reading still cannot show: a
+message the broker holds and has not sent to a connected controller with
+nothing in flight (assumed from the documented meaning of the broker's queue,
+not observed); a message still in hand-over; work inside Ditto or MongoDB
+after the 2xx.
+
+**Shutdown (v1.2, ADR 0011).** To stop, the controller stops taking
+deliveries after the one in progress, records that delivery's outcome line,
+requests its PUBACK, and only then disconnects; the rest of the inbound queue
+is left unacknowledged, for redelivery to the next process, and stays in
+`queue_depth` until the process exits. There is no internal marker in the
+queue and no drain after the disconnect, because no PUBACK can be sent once
+disconnected; the identity holds during shutdown without exception. If the
+consumer is cancelled instead, a message in progress is counted in
+`processing_errors`. A process that is killed runs no code: the restart
+rules above apply. The engine's stop allowance is `stop_grace_period` in
+`compose.yaml` (130 s, recorded with every run); it covers the message in
+progress, not the backlog. (Before v1.2 the controller placed one internal
+marker in the queue and drained the backlog ahead of it after the disconnect;
+`queue_depth` could then include that marker.)
+
+**Harness (v1.2).** The harness file `controller_metrics.csv` carries, after
+its six counters (`accepted`, `rejected`, `duplicate`, `failed`, `dropped`,
+`queue_depth`), the columns `received`, `in_progress`, `processing_errors`,
+`unacked`, `mqtt_connection`, `mqtt_subscribed`, `started_at`, `wall_utc`,
+`uptime_s` and `monotonic_ns` as the controller returned them, an absent
+field as an empty cell, never zero. The reader rules above apply per row.
 
 ### Event log (primary latency source — plan §5.8/§7.3)
 
@@ -305,6 +384,14 @@ The controller writes `events.jsonl` (one per `run_id`, in `EGW_EVENT_LOG_DIR`):
 - `ditto_ack_monotonic_ns`: after a 2xx response from Ditto;
 - `latency_ms = (ditto_ack - received)/1e6`, computed in the same process;
 - `rejected`/`duplicate`/`failed` have `ditto_ack_monotonic_ns` and `latency_ms` set to `null`.
+- **Write rule (v1.2, ADR 0011).** A line is one unbuffered append; when the
+  write fails or is short, the controller closes the file, keeps nothing for a
+  later flush, writes no line for that delivery and ends its MQTT connection.
+  A truncated final line may then exist on disk; a reader skips a line that is
+  not JSON. A redelivered copy is a distinct delivery with its own line; its
+  `latency_ms` runs from the arrival of that copy, so the time the broker held
+  it is excluded, and redelivered identities are reported apart from first
+  deliveries where a result depends on it.
 
 ## 6. Environment variables (`EGW_` prefix)
 
@@ -367,8 +454,9 @@ images must be `linux/arm64`, verified and pinned by digest.
 ## 9. Metrics and statistical definitions (plan §7.3)
 
 `sent` = handed to the MQTT publish; `received` = controller callback;
-`duplicate` = `message_id` already processed; `rejected` = validation failure;
-`confirmed` = 2xx from Ditto; `lost` = valid message sent without a unique
+`duplicate` = `message_id` already processed; `rejected` = validation failure,
+an undecodable payload included (v1.2); `failed` = not confirmed by Ditto, a
+processing error before the `PATCH` included (v1.2); `confirmed` = 2xx from Ditto; `lost` = valid message sent without a unique
 confirmation within 60 s after the end of the run. Delivery rate = unique
 confirmations / valid messages sent. Statistical unit = the run, never the
 message. Primary latency = the controller's `latency_ms` (p50/p95/p99).

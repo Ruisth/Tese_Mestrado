@@ -179,12 +179,13 @@ the record with the run evidence.
 Neither script has been executed against a Docker engine yet (written
 2026-09-18).
 
-**Limitation, stated plainly:** the Python dependencies of this image are
-**not locked**. `src/Dockerfile` runs `pip install .` without hashes, so the
-`pip_freeze` lines of the record say what was installed in that one build;
-they do not make it reproducible. This is accepted for the first functional
-demonstration only and is to be resolved before the experimental freeze with
-`scripts/generate-runtime-lock.sh` (see "Runtime Python lock" below).
+**Dependencies (since ADR 0011, 2026-09-24):** `src/Dockerfile` installs the
+hashed runtime lock `src/requirements-runtime.lock` with `--require-hashes`
+and the project without build isolation, so an image built from a given
+commit resolves the same distributions; the `pip_freeze` lines of the record
+still say what one build installed. Images built before that commit had
+**unlocked** Python dependencies (`pip install .`), which the first functional
+demonstration used; see "Runtime Python lock" below.
 
 ### 5. Validate the configuration
 
@@ -308,13 +309,15 @@ and survives both forms; archive it with the run evidence (plan 5.8).
   in `src/Dockerfile`. Never deploy after a failed
   `scripts/resolve-image-lock.sh` run.
 
-### Runtime Python lock — blocking before `exp-v1`
+### Runtime Python lock
 
-The digest-pinned Python base is not sufficient while `src/Dockerfile` still
-runs the broad `pip install .`: transitive dependencies can change without a
-repository change. Therefore a controller image built in the current state is
-acceptable for development only and **must not be used for thesis
-measurements**.
+The digest-pinned Python base is not sufficient on its own: with a broad
+`pip install .` transitive dependencies can change without a repository
+change. Since ADR 0011 (condition C7, 2026-09-24) `src/requirements-runtime.lock`
+is committed and `src/Dockerfile` installs it with `--require-hashes`; the
+procedure below is how that lock was produced and how it is regenerated. An
+image built from a commit before the lock had **unlocked** dependencies and
+**must not be used for thesis measurements**.
 
 The first end-to-end functional demonstration (one device, emulated ARM64
 guest, labelled as emulated functional evidence, not a measurement) uses such
@@ -344,8 +347,11 @@ distribution, installs that lock with
 disabled, and runs `pip check` in the disposable container. It does not
 generate a placeholder on Windows/x86.
 
-Before `exp-v1`, review and commit that real lock, then change the Dockerfile
-to copy it and install in two explicit steps:
+The committed lock was resolved on 2026-09-24 by the script's own steps run
+inside the pinned base image under `linux/arm64` user-mode emulation on the
+workstation (the container reports `aarch64`; the script itself refuses a
+non-aarch64 host, so its `docker run` was issued directly with the same
+arguments). The Dockerfile copies it and installs in two explicit steps:
 
 ```dockerfile
 COPY requirements-runtime.lock ./
@@ -360,9 +366,9 @@ full `pip check`/build log with the run environment. The lock includes the
 `pyproject.toml` build-system requirements; disabling build isolation is
 mandatory so the build cannot download an unsealed `setuptools` or other
 backend dependency. Any change to `pyproject.toml`, the base-image digest or
-target Python version invalidates the lock and requires regeneration. Until
-this checklist is complete, the runtime-lock gate remains explicitly
-**blocked (ARM64 VM absent)**.
+target Python version invalidates the lock and requires regeneration. The
+controller image used for the finite proof and the qualifying battery is
+built from a commit that carries the lock, and its identity record says so.
 
 ## SUT-side evidence collection (experiments harness)
 

@@ -254,6 +254,14 @@ services:
     pull_policy: never
     platform: linux/arm64
     restart: unless-stopped
+    # ADR 0011, condition C6 (decided 2026-09-24): the engine's default 10 s
+    # allowance cut the old process's drain short in controller_restart-r02.
+    # The stop records and acknowledges the message in progress, then
+    # disconnects; the rest of the queue is left to the broker. 130 s covers
+    # the nominal longest time one message can be in progress (122.4 s with
+    # the default retry settings, runbook section 7 (b)), not a backlog. The
+    # value is recorded with every run.
+    stop_grace_period: 130s
     depends_on:
       mosquitto:
         condition: service_healthy

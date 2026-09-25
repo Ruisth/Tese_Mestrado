@@ -336,7 +336,11 @@ def test_every_rec_command_line_of_the_runbook_parses() -> None:
     # anchors: an extraction that no longer finds the lines FAILS, never skips
     assert len(fragments) >= 15
     assert {argv[0] for argv in fragments} == set(rec.COMMANDS)
-    assert any("--also" in argv for argv in fragments)
+    # --events is exercised by test 6's delta line; the runbook's only --also
+    # example (the warm-up variant) was withdrawn on 2026-09-25 and the variant
+    # deferred, so --also is documented by the parser's own tests, not anchored
+    # here (test_runbook_itest_helpers holds test 6's commands to no --also).
+    assert any("--events" in argv for argv in fragments)
     assert any("--like" in argv for argv in fragments)
     parser = rec.build_parser()
     for argv in fragments:
@@ -358,6 +362,10 @@ def test_command_line_defaults_and_destinations() -> None:
     assert parse(["snap", "--prefix", "p", "--label", "x"]).ditto_url == "http://127.0.0.1:8080"
     delta = parse(["delta", "raw/r", "--prefix", "p/r", "--also", "a", "--also", "b"])
     assert (delta.prefix, delta.frm, delta.to, delta.also) == ("p/r", "before", "after", ["a", "b"])
+    assert delta.events is None  # the run directory's events.jsonl
+    assert parse(["delta", "raw/r", "--events", "raw/r/events.post-drain.jsonl"]).events == (
+        "raw/r/events.post-drain.jsonl"
+    )
     same = parse(["same", "--prefix", "p/r", "after", "post-restart"])
     assert (same.label_a, same.label_b) == ("after", "post-restart")
 
@@ -1058,6 +1066,65 @@ def test_delta_prefix_labels_and_also(tmp_path, capsys) -> None:
     assert rec.main(base + ["--also", str(warmup)]) == 0
     # last_seq is judged on the primary run only (warm-up seq 7 is ignored)
     assert "accepted records in events.jsonl 5; last_run_id itest-x last_seq 2: OK" in capsys.readouterr().out
+
+
+def test_delta_reads_the_post_drain_copy_with_events_and_leaves_the_timed_file_alone(
+    tmp_path, capsys
+) -> None:
+    """F6c (test 6 of the runbook): one message accepted inside the timed
+    copy of events.jsonl and a second one accepted only during the drain,
+    so the after twin grew by two. The timed accounting keeps its result
+    (the second message is late for the deadline: lost 1), the timed file
+    is not touched, and the persistence delta compares the after twin with
+    the post-drain copy named by --events, never with the timed file (which
+    would report a false MISMATCH) nor with both (--also would count the
+    shared record twice)."""
+    timed = [event(0, "accepted", T0 - 5, received_ns=T0 - 4 * NS)]
+    run_dir = make_run(
+        tmp_path, events=timed, sent_records=[sent(0), sent(1)],
+        manifest=sim_manifest(totals={"sent": 2, "intended_invalid": 0}),
+    )
+    close_window(run_dir)
+    post_drain = tmp_path / "events.post-drain.jsonl"
+    write_jsonl(post_drain, timed + [event(1, "accepted", DEADLINE + 5 * NS, received_ns=DEADLINE + 4 * NS)])
+    prefix = str(run_dir)
+    write_json(rec.sib(prefix, ".twins.before.json"), twins(500))
+    write_json(rec.sib(prefix, ".twins.after.json"), twins(502, last_run_id=RUN_ID, last_seq=1))
+    before = listing(run_dir)
+
+    # The timed analysis: the deadline result stands, from the timed file.
+    assert rec.main(["check", str(run_dir), "--controller-url", CTRL]) == 0
+    row = json.loads((tmp_path / f"{RUN_ID}.reconcile.json").read_text("utf-8"))
+    assert row["delivered_unique"] == 1 and row["lost"] == 1
+    capsys.readouterr()
+
+    # The timed file against the after twin: a false MISMATCH, by exactly
+    # the record accepted during the drain.
+    assert rec.main(["delta", str(run_dir)]) == 4
+    out = capsys.readouterr().out
+    assert "(delta 2); accepted records in events.jsonl 1;" in out and "MISMATCH" in out
+
+    # The post-drain copy, selected explicitly: the persistence delta closes.
+    assert rec.main(["delta", str(run_dir), "--events", str(post_drain)]) == 0
+    out = capsys.readouterr().out
+    assert "(delta 2); accepted records in events.post-drain.jsonl 2;" in out
+    assert f"last_run_id {RUN_ID} last_seq 1: OK" in out and "MISMATCH" not in out
+    # Appending the post-drain copy through --also would double-count m0.
+    assert rec.main(["delta", str(run_dir), "--also", str(post_drain)]) == 4
+    assert "(delta 2); accepted records in events.jsonl 3;" in capsys.readouterr().out
+    # Nothing in the run directory changed: the timed copy and its
+    # accounting are preserved.
+    assert listing(run_dir) == before
+    assert json.loads((tmp_path / f"{RUN_ID}.reconcile.json").read_text("utf-8")) == row
+
+
+def test_delta_exits_1_on_a_missing_or_truncated_events_file(tmp_path, capsys) -> None:
+    run_dir = make_delta_fixture(tmp_path)
+    assert rec.main(["delta", str(run_dir), "--events", str(tmp_path / "nowhere.jsonl")]) == 1
+    assert "nowhere.jsonl" in capsys.readouterr().err
+    (tmp_path / "cut.jsonl").write_text('{"outcome": "acc', "utf-8")
+    assert rec.main(["delta", str(run_dir), "--events", str(tmp_path / "cut.jsonl")]) == 1
+    assert "cut.jsonl" in capsys.readouterr().err
 
 
 def test_delta_exits_4_when_a_device_is_absent_from_the_to_snapshot(tmp_path, capsys) -> None:

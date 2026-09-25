@@ -23,14 +23,28 @@ processing_errors + in_progress + queue_depth`` while the controller runs.
 They show the internal state of one controller process only and never
 replace reconciliation by identity (CONTRACTS 5; ``metrics.py``).
 
+``GET /metrics`` further carries, additively (ADR 0011, item 14), the three
+BRIDGE FIELDS read from the MQTT bridge in the same synchronous stretch:
+``mqtt_subscribed`` (boolean: the subscription is granted at QoS 1 on the
+current connection), ``mqtt_connection`` (integer: successful CONNACKs of
+this process) and ``unacked`` (integer gauge: QoS 1 deliveries handed to
+the client on the current connection with no PUBACK requested yet).
+``unacked`` is not a term of the accounting identity. Each field is scoped
+to one process and never read as zero when absent.
+
 ``create_app`` takes injected dependencies (used directly by tests);
 ``create_app_from_env`` wires the full service + MQTT bridge from ``EGW_*``
-environment variables inside a lifespan context.
+environment variables inside a lifespan context. The lifespan stops in the
+order of ADR 0011: the consumer first (the delivery in progress recorded
+and its PUBACK queued), then the bridge off the event-loop thread (the
+DISCONNECT queued after that PUBACK; the join of the network thread never
+blocks the loop), then the Ditto client and the event log.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +63,8 @@ from .schema import SchemaRepository
 from .service import ControllerService
 from .topic import UUID4_RE
 
+logger = logging.getLogger("egw_controller.app")
+
 
 class TwinReader(Protocol):
     """What the HTTP layer needs from the Ditto client (injectable in tests)."""
@@ -62,6 +78,11 @@ def _zero_queue_depth() -> int:
     return 0
 
 
+def _no_bridge_state() -> Mapping[str, Any]:
+    """The bridge fields of a process with no bridge (tests): zero values."""
+    return {"mqtt_subscribed": False, "mqtt_connection": 0, "unacked": 0}
+
+
 @dataclass(slots=True)
 class AppDeps:
     """Runtime dependencies of the HTTP endpoints."""
@@ -70,6 +91,7 @@ class AppDeps:
     ditto: TwinReader
     mqtt_connected: Callable[[], bool]
     queue_depth: Callable[[], int] = _zero_queue_depth
+    bridge_state: Callable[[], Mapping[str, Any]] = _no_bridge_state
 
 
 def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
@@ -123,8 +145,12 @@ def create_app(deps: AppDeps, lifespan: Any | None = None) -> FastAPI:
         # One response is one snapshot: every term of the accounting
         # identity is written on this event loop, so this handler must stay
         # a coroutine (a plain function would run in a thread pool) with no
-        # await between snapshot() and queue_depth().
-        return {**deps.metrics.snapshot(), "queue_depth": deps.queue_depth()}
+        # await between snapshot(), bridge_state() and queue_depth().
+        return {
+            **deps.metrics.snapshot(),
+            **deps.bridge_state(),
+            "queue_depth": deps.queue_depth(),
+        }
 
     return app
 
@@ -141,32 +167,74 @@ def create_app_from_env() -> FastAPI:
     metrics = MetricsCounters()
     events = EventLogger(Path(settings.event_log_dir))
     ditto = DittoClient.from_settings(settings)
+    # The bridge and the service refer to each other: the bridge hands
+    # deliveries and purges to the service, the service acknowledges and
+    # ends connections through the bridge. The service's methods are bound
+    # late, once it exists.
+    bridge = MqttBridge(
+        settings,
+        lambda message: service.submit(message),
+        purge=lambda ended_connection: service.purge(ended_connection),
+    )
     service = ControllerService(
         repository=repository,
         dedupe=dedupe,
         ditto=ditto,
         events=events,
         metrics=metrics,
+        acknowledge=bridge.ack,
+        end_connection=bridge.end_connection,
     )
-    bridge = MqttBridge(settings, service.submit)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        loop = asyncio.get_running_loop()
         pipeline_task = asyncio.create_task(service.run())
-        bridge.start(asyncio.get_running_loop())
+        bridge.start(loop)
         try:
             yield
         finally:
-            bridge.stop()
+            # ADR 0011, item 13: the consumer exits after the delivery in
+            # progress (its PUBACK queued), then the bridge disconnects (the
+            # DISCONNECT behind that PUBACK) off the loop, since loop_stop
+            # joins the network thread; the rest of the queue is left to
+            # the broker.
             await service.stop()
-            await pipeline_task
-            await ditto.aclose()
-            events.close()
+            try:
+                await pipeline_task
+            except asyncio.CancelledError:
+                # Awaiting a task that is cancelled raises here, and so
+                # does a cancellation of this shutdown itself — which
+                # cancels the awaited pipeline too, so the pipeline's
+                # state cannot tell the two apart. The shutdown's own
+                # cancellation is pending on the current task and
+                # propagates after the clean-up below; a pipeline
+                # cancelled earlier (A1's second exception; the bridge
+                # is halted) is logged and the shutdown goes on.
+                current = asyncio.current_task()
+                if current is not None and current.cancelling():
+                    raise
+                logger.error(
+                    "the consumer had been cancelled before shutdown; "
+                    "nothing was consumed since"
+                )
+            finally:
+                # Each clean-up runs whatever the previous one raised.
+                try:
+                    await loop.run_in_executor(None, bridge.stop)
+                finally:
+                    try:
+                        await ditto.aclose()
+                    finally:
+                        events.close()
 
     deps = AppDeps(
         metrics=metrics,
         ditto=ditto,
-        mqtt_connected=lambda: bridge.connected,
+        # Ready only with a live consumer: a bridge that is subscribed
+        # while nothing consumes would report readiness falsely.
+        mqtt_connected=lambda: bridge.connected and service.consuming,
         queue_depth=service.queue_depth,
+        bridge_state=bridge.state,
     )
     return create_app(deps, lifespan=lifespan)

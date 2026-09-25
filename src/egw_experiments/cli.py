@@ -7,6 +7,7 @@ Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
     python -m egw_experiments collect --run-id nominal-r01 [...]
     python -m egw_experiments analyze [--base-dir PATH] [--plan PATH]
+    python -m egw_experiments recovery [--base-dir PATH] [--plan PATH]
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan;
@@ -57,6 +58,36 @@ mis-rated or swapped run. A plan path that does not exist (or cannot be
 read) degrades the same way and never fails the analysis. The
 ``EGW_CAMPAIGN_PLAN`` environment variable is the documented fallback used
 when ``--plan`` names nothing readable.
+
+ADR 0011 item 18: ``run`` and ``campaign`` accept the SUT log fetches
+``--fetch-broker-log-cmd`` / ``--fetch-controller-log-cmd`` /
+``--fetch-docker-events-cmd`` (run after the events fetch, into
+``logs/sut/``), the restart-evidence steps ``--twin-snapshot-cmd`` /
+``--drain-cmd`` / ``--post-drain-fetch-cmd`` (applied to ``controller_restart``
+runs only, as ``--restart-cmd`` is) and, with ``collect``,
+``--config-identity-from`` (copied into the run directory as
+``configuration_identity.json`` and embedded in the manifest) and the
+ingestion of the restart evidence taken outside the harness,
+``--twins-before-from`` / ``--twins-after-from`` /
+``--post-drain-events-from`` / ``--drain-transcript-from`` (each file
+verified against the run before it counts, copied write-once and recorded
+with its provenance). A failed fetch or snapshot is a validity reason, like
+a failed collector hook; the drain's outcome is recorded (quiet, gave-up or
+error) and only 'error' is a reason; a ``controller_restart`` run without
+its configuration identity, or without its restart evidence, is invalid —
+no flag excuses the evidence.
+
+Recovery qualification (review finding F2): the analyser never reads
+``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
+after the analysis, which writes ``processed/recovery_qualification.json``
+and ``.csv`` (one record per ``controller_restart`` run of the plan: its
+validity, drain outcome and source, the presence and verification of the
+after snapshot and the post-drain events, and its qualification —
+``recovery_observed``, ``recovery_failed`` or ``not_evidenced`` — plus the
+criterion ``restart_recovery_observed_every_run``) and prints one
+``[recovery]`` summary line; ``recovery`` runs that layer alone. The layer
+changes no count and adds nothing to the acceptance table (ADR 0011 leaves
+``analyze.py`` unchanged).
 """
 
 from __future__ import annotations
@@ -69,6 +100,7 @@ from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
 from .plan_gen import generate_campaign_plan, write_campaign_plan
+from .recovery_qualification import write_recovery_qualification
 from .run import (
     DEFAULT_PLAN_PATH,
     DEFAULT_RESULTS_BASE,
@@ -112,6 +144,28 @@ def _add_collection_arguments(
         "deployment/scripts/capture-sut-environment.sh and fetched here "
         f"(default: env {SUT_ENV_FILE_ENV}). Timed runs without it are "
         "marked validity 'invalid'",
+    )
+    parser.add_argument(
+        "--config-identity-from",
+        default=None,
+        help="path of the configuration identity captured ON the guest for "
+        "this run (a JSON document: the broker configuration's sha256 and "
+        "its window/queue/expiry values, the statement that no reload "
+        "happened, stop_grace_period, the controller image's id and source "
+        "commit, the paho version installed in it, the A3 choice; ADR 0011). "
+        "Copied into the run directory as configuration_identity.json and "
+        "embedded in the manifest under 'configuration_identity'. The "
+        "document must be a JSON object with broker_conf_sha256 (64 hex), "
+        "broker_conf_values (the six C1 options), broker_reloaded (boolean), "
+        "stop_grace_period, controller_image_id (sha256:...), "
+        "controller_source_commit, paho_version and a3_choice ('a' or 'b'); "
+        "anything else is not an identity. A controller_restart run without "
+        "it is marked validity 'invalid'"
+        + (
+            ". May contain a {run_id} placeholder substituted per run"
+            if resources_template
+            else ""
+        ),
     )
     parser.add_argument(
         "--resources-from",
@@ -167,6 +221,61 @@ def _add_collection_arguments(
         action="store_true",
         help="deliberately accept a timed run without SUT resources; the "
         "decision is recorded in the manifest (audit 9.1)",
+    )
+    # Restart evidence taken outside the harness (ADR 0011 item 18): the
+    # runbook's helpers take the snapshots, the drain and the post-drain copy
+    # of the events; each file is verified against the run before it counts.
+    per_run = (
+        ". May contain a {run_id} placeholder substituted per run"
+        if resources_template
+        else ""
+    )
+    parser.add_argument(
+        "--twins-before-from",
+        default=None,
+        metavar="FILE",
+        help="a twin snapshot taken BEFORE the measured run outside the "
+        "harness (itest_reconcile snap --label before), ingested as "
+        "twins.before.json once verified: a JSON object whose label is "
+        "'before', with a devices object, and whose seed (when not null) is "
+        "the plan entry's. controller_restart runs only; mutually exclusive "
+        "with --twin-snapshot-cmd" + per_run,
+    )
+    parser.add_argument(
+        "--twins-after-from",
+        default=None,
+        metavar="FILE",
+        help="the twin snapshot taken AFTER the drain outside the harness "
+        "(label 'after'), ingested as twins.after.json once verified like "
+        "--twins-before-from. Not required when the drain gave up. "
+        "controller_restart runs only; mutually exclusive with "
+        "--twin-snapshot-cmd" + per_run,
+    )
+    parser.add_argument(
+        "--post-drain-events-from",
+        default=None,
+        metavar="FILE",
+        help="the copy of the controller's events.jsonl fetched AFTER the "
+        "drain outside the harness, ingested as events.post-drain.jsonl "
+        "once verified: non-empty JSON Lines whose every record carries "
+        "this run's run_id and an outcome of accepted/rejected/duplicate/"
+        "failed (a file of another run is refused, naming the mismatch). "
+        "Not required when the drain gave up. controller_restart runs only; "
+        "mutually exclusive with --post-drain-fetch-cmd" + per_run,
+    )
+    parser.add_argument(
+        "--drain-transcript-from",
+        default=None,
+        metavar="FILE",
+        help="the transcript of the runbook's 'drained' helper run outside "
+        "the harness (drained 2>&1 | tee FILE), ingested as "
+        "logs/sut/drain.txt and classified as a hook's output would be: its "
+        "quiet line ('drained: queue_depth 0 ...') gives drain.outcome "
+        "'quiet', its give-up line ('STOP: drained: no quiet window ...') "
+        "'gave-up' (a failed recovery, retained as a valid observation), "
+        "anything else is refused as an instrument failure. "
+        "controller_restart runs only; mutually exclusive with --drain-cmd"
+        + per_run,
     )
     parser.add_argument(
         "--allow-missing-controller-marker",
@@ -236,6 +345,40 @@ def _add_collector_hook_arguments(parser: argparse.ArgumentParser) -> None:
         "template is split without a shell). The fetched CSV goes through the "
         "same validated ingest as --resources-from (mutually exclusive with "
         "it); a missing companion invalidates the run",
+    )
+
+
+def _add_sut_log_fetch_arguments(parser: argparse.ArgumentParser) -> None:
+    """SUT log fetches shared by ``run`` and ``campaign`` (ADR 0011 item 18).
+
+    Each template runs through the collector-hook machinery (no shell, the
+    same ``{run_id}``, ``{dest}``, ``{duration_s}`` and ``{expect_services}``
+    placeholders, full output kept as ``logs/sut/hook-<hook>.*.txt``) after
+    the harness events fetch — on ``controller_restart`` after the drain and
+    the post-drain steps, so the logs cover them — and must write its file
+    to ``{dest}`` under ``logs/sut/``. The record goes to the manifest
+    (``sut_log_fetches``); a non-zero exit, or an exit 0 without the file,
+    marks the run validity 'invalid' naming the flag.
+    """
+    parser.add_argument(
+        "--fetch-broker-log-cmd",
+        default=None,
+        help="command template that writes the broker's log for the run to "
+        "{dest} (logs/sut/broker.log), e.g. a helper running 'docker compose "
+        "logs --no-color mosquitto' on the guest and copying its output; "
+        "quote \"{dest}\" (the template is split without a shell)",
+    )
+    parser.add_argument(
+        "--fetch-controller-log-cmd",
+        default=None,
+        help="command template that writes the controller container's log "
+        "for the run to {dest} (logs/sut/controller.log)",
+    )
+    parser.add_argument(
+        "--fetch-docker-events-cmd",
+        default=None,
+        help="command template that writes the container engine's events for "
+        "the controller over the run to {dest} (logs/sut/docker-events.log)",
     )
 
 
@@ -310,6 +453,35 @@ def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
         help="offset in seconds into the measured run at which "
         "--restart-cmd fires (default: half the run duration)",
     )
+    # Restart evidence (ADR 0011 item 18): applied to controller_restart runs
+    # only, as --restart-cmd is; every failure is a validity reason.
+    parser.add_argument(
+        "--twin-snapshot-cmd",
+        default=None,
+        help="command template that writes a snapshot of the run's twins to "
+        "{dest}, executed once BEFORE the measured run (twins.before.json) "
+        "and once AFTER the drain (twins.after.json), e.g. a helper running "
+        "'itest_reconcile snap' against the guest; recorded in the manifest "
+        "(twin_snapshots). controller_restart runs only",
+    )
+    parser.add_argument(
+        "--drain-cmd",
+        default=None,
+        help="BLOCKING command template ({run_id} placeholder) executed after "
+        "the confirmation window and the events fetch, returning once the "
+        "controller has been quiet for the runbook's window (the 'drained' "
+        "helper) or exiting non-zero when it gives up; recorded in the "
+        "manifest (drain). controller_restart runs only",
+    )
+    parser.add_argument(
+        "--post-drain-fetch-cmd",
+        default=None,
+        help="command template ({run_id}, {dest}) that fetches the "
+        "controller's events.jsonl AFTER the drain into {dest} "
+        "(events.post-drain.jsonl, kept apart from the harness copy "
+        "events.jsonl); same retries as --fetch-events-cmd; recorded in the "
+        "manifest (events_post_drain_fetch). controller_restart runs only",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -379,6 +551,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_collection_arguments(p_run)
     _add_collector_hook_arguments(p_run)
+    _add_sut_log_fetch_arguments(p_run)
     p_run.add_argument(
         "--local-resources",
         action="store_true",
@@ -461,6 +634,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_run_level_arguments(p_camp)
     _add_collection_arguments(p_camp, resources_template=True)
     _add_collector_hook_arguments(p_camp)
+    _add_sut_log_fetch_arguments(p_camp)
 
     # collect (recovery, audit 9.3) ------------------------------------------
     p_col = sub.add_parser(
@@ -508,6 +682,29 @@ def build_parser() -> argparse.ArgumentParser:
         "to the count-only check with a loud warning and still succeeds; the "
         f"{CAMPAIGN_PLAN_ENV_VAR} environment variable is the documented "
         "fallback consulted when the default plan is absent",
+    )
+
+    # recovery (review finding F2) -------------------------------------------
+    p_rec = sub.add_parser(
+        "recovery",
+        help="write processed/recovery_qualification.json and .csv from the "
+        "sealed manifests of the plan's controller_restart runs (the drain "
+        "outcome and the after evidence the analyser does not read), without "
+        "regenerating the analyser's outputs; 'analyze' runs this layer itself",
+    )
+    p_rec.add_argument(
+        "--base-dir",
+        type=Path,
+        default=None,
+        help=f"results base directory (default: {DEFAULT_RESULTS_BASE})",
+    )
+    p_rec.add_argument(
+        "--plan",
+        type=Path,
+        default=DEFAULT_PLAN_PATH,
+        help=f"campaign plan path (default: {DEFAULT_PLAN_PATH}): the set of "
+        "controller_restart runs to qualify; without a readable plan the "
+        "planned set is unknown and the criterion is reported false",
     )
 
     # verify-checksums ------------------------------------------------------
@@ -578,6 +775,17 @@ def _cmd_run(args: argparse.Namespace) -> int:
         collector_stop_cmd=args.collector_stop_cmd,
         collector_fetch_cmd=args.collector_fetch_cmd,
         expect_services=args.expect_services,
+        fetch_broker_log_cmd=args.fetch_broker_log_cmd,
+        fetch_controller_log_cmd=args.fetch_controller_log_cmd,
+        fetch_docker_events_cmd=args.fetch_docker_events_cmd,
+        twin_snapshot_cmd=args.twin_snapshot_cmd,
+        drain_cmd=args.drain_cmd,
+        post_drain_fetch_cmd=args.post_drain_fetch_cmd,
+        twins_before_from=args.twins_before_from,
+        twins_after_from=args.twins_after_from,
+        post_drain_events_from=args.post_drain_events_from,
+        drain_transcript_from=args.drain_transcript_from,
+        config_identity_from=args.config_identity_from,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
     )
@@ -623,6 +831,17 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         collector_stop_cmd=args.collector_stop_cmd,
         collector_fetch_cmd=args.collector_fetch_cmd,
         expect_services=args.expect_services,
+        fetch_broker_log_cmd=args.fetch_broker_log_cmd,
+        fetch_controller_log_cmd=args.fetch_controller_log_cmd,
+        fetch_docker_events_cmd=args.fetch_docker_events_cmd,
+        twin_snapshot_cmd=args.twin_snapshot_cmd,
+        drain_cmd=args.drain_cmd,
+        post_drain_fetch_cmd=args.post_drain_fetch_cmd,
+        twins_before_from=args.twins_before_from,
+        twins_after_from=args.twins_after_from,
+        post_drain_events_from=args.post_drain_events_from,
+        drain_transcript_from=args.drain_transcript_from,
+        config_identity_from=args.config_identity_from,
         allow_missing_sut_env=args.allow_missing_sut_env,
         allow_missing_resources=args.allow_missing_resources,
         allow_warmup_failure=args.allow_warmup_failure,
@@ -644,29 +863,70 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         allow_missing_resources=args.allow_missing_resources,
         allow_missing_controller_marker=args.allow_missing_controller_marker,
         expect_services=args.expect_services,
+        config_identity_from=args.config_identity_from,
+        twins_before_from=args.twins_before_from,
+        twins_after_from=args.twins_after_from,
+        post_drain_events_from=args.post_drain_events_from,
+        drain_transcript_from=args.drain_transcript_from,
     )
 
 
-def _cmd_analyze(args: argparse.Namespace) -> int:
-    """Run the analysis with the campaign plan wired in (sprint P5.4).
-
-    ``--plan`` defaults to the frozen plan, so identity-based completeness
-    is the DEFAULT behaviour of the shipped command. An explicitly named
-    plan is forwarded verbatim — if it cannot be read, ``analyze()`` says so
-    loudly and degrades to the count-only check. The DEFAULT path merely
-    being absent (a tree analyzed before the plan is frozen) is not an
-    operator error: the plan is then left unset so ``analyze()`` applies its
-    documented ``EGW_CAMPAIGN_PLAN`` fallback and, failing that, warns that
-    completeness is checked BY COUNT ONLY.
-    """
-    plan_path: Path | None = args.plan
+def _plan_for_analysis(plan_path: Path | None) -> Path | None:
+    """The plan ``analyze`` and ``recovery`` read: an explicitly named plan
+    verbatim; the DEFAULT path merely being absent (a tree analysed before
+    the plan is frozen) is not an operator error, so it is left unset and
+    the documented ``EGW_CAMPAIGN_PLAN`` fallback applies."""
     if (
         plan_path is not None
         and Path(plan_path) == Path(DEFAULT_PLAN_PATH)
         and not Path(plan_path).exists()
     ):
-        plan_path = None
-    return analyze(base_dir=args.base_dir, plan_path=plan_path)
+        return None
+    return plan_path
+
+
+def _cmd_analyze(args: argparse.Namespace) -> int:
+    """Run the analysis with the campaign plan wired in (sprint P5.4), then
+    the recovery qualification layer (review finding F2).
+
+    ``--plan`` defaults to the frozen plan, so identity-based completeness
+    is the DEFAULT behaviour of the shipped command. An explicitly named
+    plan is forwarded verbatim — if it cannot be read, ``analyze()`` says so
+    loudly and degrades to the count-only check. The DEFAULT path merely
+    being absent is left unset so ``analyze()`` applies its documented
+    ``EGW_CAMPAIGN_PLAN`` fallback and, failing that, warns that
+    completeness is checked BY COUNT ONLY.
+
+    After a successful analysis the recovery qualification is written beside
+    the analyser's outputs and its summary line printed. The exit code stays
+    the analyser's: it says whether the processed tree was regenerated, not
+    whether the campaign passed — ``analyze()`` returns 0 with failed rows in
+    its acceptance table as well, and a campaign still in progress would
+    otherwise fail every regeneration. A false criterion is therefore
+    reported in the files and on stdout, never through the exit code; the
+    ``recovery`` subcommand behaves the same.
+    """
+    rc = analyze(base_dir=args.base_dir, plan_path=_plan_for_analysis(args.plan))
+    if rc != 0:
+        return rc
+    _rc, line = write_recovery_qualification(
+        base_dir=args.base_dir, plan_path=_plan_for_analysis(args.plan)
+    )
+    if line:
+        print(line, flush=True)
+    return rc
+
+
+def _cmd_recovery(args: argparse.Namespace) -> int:
+    """The recovery qualification layer alone (finding F2): 0 once the
+    files are written, whatever the criterion says (see ``_cmd_analyze``);
+    2 when there is no ``raw/`` to read."""
+    rc, line = write_recovery_qualification(
+        base_dir=args.base_dir, plan_path=_plan_for_analysis(args.plan)
+    )
+    if line:
+        print(line, flush=True)
+    return rc
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
@@ -718,6 +978,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_collect(args)
     if args.command == "analyze":
         return _cmd_analyze(args)
+    if args.command == "recovery":
+        return _cmd_recovery(args)
     if args.command == "verify-checksums":
         return _cmd_verify(args)
     raise AssertionError(f"unhandled command {args.command!r}")

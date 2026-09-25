@@ -15,9 +15,15 @@ and where named tee and pgrep) that stand first on PATH. No controller, broker, 
 engine, guest or OpenSSH client takes part: nothing here shows that Sections 4-9 of the
 runbook work on the real host or guest. DRAIN_QUIET_S is set to 0 and 'sleep' is
 scaled down for the tests only; the 130 s figure itself is not under test.
+
+The cases named "mline" and "drained" pin the thirteen-field reading and the quiet
+window of ADR 0011 work item 19 against stub /metrics bodies (one body, or a sequence
+of bodies served one per request); the "regen" case pins tools/session/regen_helpers.py
+to the heredoc it regenerates the helper file from.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -46,6 +52,12 @@ REAL_TEE = shutil.which("tee") or "/usr/bin/tee"
 REAL_PGREP = shutil.which("pgrep")
 
 STARTED = "2026-09-18T10:00:00Z"
+
+# The accounting identity of CONTRACTS 5: received == the sum of these eight terms, all from one response.
+IDENTITY_TERMS = ("accepted", "rejected", "duplicate", "failed", "dropped", "processing_errors", "in_progress", "queue_depth")
+# The thirteen fields of one _mline reading, in the fixed order the helper prints them (runbook 6.1).
+MLINE_FIELDS = ("queue_depth", "in_progress", "unacked", "mqtt_subscribed", "started_at", "mqtt_connection", "received",
+                "accepted", "rejected", "duplicate", "failed", "dropped", "processing_errors")
 
 
 # --------------------------------------------------------------------------
@@ -145,7 +157,13 @@ url=
 for a in "$@"; do case $a in http://*|https://*) url=$a;; esac; done
 case $url in
   */ready) printf '%s' "$(cat "$S/ready_code" 2>/dev/null || echo 200)"; exit 0;;
-  */metrics) [ -s "$S/metrics.json" ] || { echo "curl: (7) stub: connection refused" >&2; exit 7; }
+  */metrics) if [ -d "$S/metrics.seq" ]; then
+               # one answer per request, in order; the last one is repeated once they are used up
+               n=$(($(cat "$S/metrics.calls" 2>/dev/null || echo 0) + 1)); echo "$n" > "$S/metrics.calls"
+               f="$S/metrics.seq/$n.json"; [ -e "$f" ] || f="$S/metrics.seq/last.json"
+               cat "$f"; exit 0
+             fi
+             [ -s "$S/metrics.json" ] || { echo "curl: (7) stub: connection refused" >&2; exit 7; }
              cat "$S/metrics.json"; exit 0;;
   */api/2/things/*) [ -s "$S/thing.json" ] || { echo "curl: (22) stub: 404" >&2; exit 22; }
              cat "$S/thing.json"; exit 0;;
@@ -218,6 +236,14 @@ d, n = os.path.split(sys.argv[1]); os.chdir(d); socket.socket(socket.AF_UNIX).bi
 fi
 cmd="${@: -1}"
 case $cmd in
+  *sha256sum*) # the configuration identity capture of config_identity (6.1)
+    if [ -e "$S/identity_exec" ]; then
+      # the remote script run for real under a POSIX shell, with cd sent to the stub deployment directory (the
+      # one substitution: /opt/egw/deployment is the guest's path); docker and sudo are the stubs on PATH
+      exec "${EGW_STUB_GUEST_SH:-sh}" -c "cd() { command cd \"\$EGW_STUB_DEPLOYMENT\"; }; $cmd"
+    fi
+    # otherwise the recorded key=value lines
+    cat "$S/identity_capture" 2>/dev/null; exit "$(cat "$S/ssh_identity_rc" 2>/dev/null || echo 0)";;
   *" ps -aq "*) [ -e "$S/svc_state_unreadable" ] && exit 1; cat "$S/svc_state" 2>/dev/null || echo running; exit 0;;
   *" stop "*)
     rc=$(cat "$S/ssh_stop_rc" 2>/dev/null || echo 0)
@@ -232,6 +258,33 @@ case $cmd in
   *" logs "*) cat "$S/broker_log" 2>/dev/null; exit "$(cat "$S/ssh_logs_rc" 2>/dev/null || echo 0)";;
 esac
 echo "ssh stub: unexpected command: $cmd" >&2; exit 98
+"""
+
+STUB_SUDO = r"""#!/usr/bin/env bash
+# the guest's sudo: runs the command as it is (the bench has no root and needs none)
+echo "sudo $*" >> "$EGW_STUB_STATE/calls.log"
+exec "$@"
+"""
+
+STUB_DOCKER = r"""#!/usr/bin/env bash
+# the guest's docker, for the reads of config_identity's remote script: the broker log (its exit status and text
+# set by the case), the controller image id, the image's source-commit label, the paho-mqtt version
+S=$EGW_STUB_STATE
+echo "docker $*" >> "$S/calls.log"
+case "$*" in
+  "compose "*" logs --no-color mosquitto")
+    rc=$(cat "$S/docker_logs_rc" 2>/dev/null || echo 0)
+    # a failed read may have streamed part of the log first (the daemon lost after N lines): the case decides
+    [ "$rc" = 0 ] || [ -e "$S/docker_logs_partial" ] && cat "$S/guest_broker_log" 2>/dev/null
+    [ "$rc" = 0 ] || { echo "docker stub: compose logs failed (exit $rc)" >&2; exit "$rc"; }
+    exit 0;;
+  "inspect -f {{.Image}} egw-controller-1") echo "sha256:$(cat "$S/guest_image_hex")"; exit 0;;
+  "inspect -f "*"org.opencontainers.image.revision"*)
+    [ "$4" = "sha256:$(cat "$S/guest_image_hex")" ] || { echo "docker stub: inspect of an image that is not the controller's: $4" >&2; exit 95; }
+    cat "$S/guest_commit"; exit 0;;
+  "exec egw-controller-1 python -c "*) cat "$S/guest_paho"; exit 0;;
+esac
+echo "docker stub: unexpected arguments: $*" >&2; exit 96
 """
 
 STUB_SS = r"""#!/usr/bin/env bash
@@ -304,12 +357,40 @@ class Bench:
     def set(self, name: str, value: object = "") -> None:
         (self.state / name).write_text(f"{value}\n", encoding="utf-8")
 
-    def metrics(self, started_at: str = STARTED, queue_depth: int = 0, **counters: int) -> dict:
+    @staticmethod
+    def reading(started_at: str = STARTED, queue_depth: int = 0, **fields: object) -> dict:
+        """One /metrics body as the controller serves it: the four outcome counters and dropped, the progress
+        fields of CONTRACTS 5 (received, in_progress, processing_errors) and the three session fields of
+        ADR 0011 (mqtt_subscribed, mqtt_connection, unacked). Unless the case sets `received` itself, it is
+        recomputed as the sum of the eight terms of the accounting identity, so that a case overriding a
+        counter still serves a reading whose identity holds (and one that sets it breaks the identity on purpose)."""
         m = {"queue_depth": queue_depth, "started_at": started_at, "monotonic_ns": 1,
-             "accepted": 0, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}
-        m.update(counters)
+             "accepted": 0, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0,
+             "in_progress": 0, "processing_errors": 0,
+             "mqtt_subscribed": True, "mqtt_connection": 1, "unacked": 0}
+        m.update(fields)
+        if "received" not in fields:
+            m["received"] = sum(m[k] for k in IDENTITY_TERMS)
+        return m
+
+    def metrics(self, started_at: str = STARTED, queue_depth: int = 0, **fields: object) -> dict:
+        """The body the stub curl serves for every GET /metrics from now on (see `reading`)."""
+        m = self.reading(started_at, queue_depth, **fields)
         (self.state / "metrics.json").write_text(json.dumps(m), encoding="utf-8")
         return m
+
+    def readings(self, *bodies: dict) -> None:
+        """The bodies the stub curl serves for GET /metrics, one per request in this order; the last one is
+        repeated once they are used up. Takes precedence over `metrics` for the rest of the case."""
+        d = self.state / "metrics.seq"
+        d.mkdir()
+        for i, body in enumerate(bodies, 1):
+            (d / f"{i}.json").write_text(json.dumps(body), encoding="utf-8")
+        (d / "last.json").write_text(json.dumps(bodies[-1]), encoding="utf-8")
+
+    def metrics_requests(self) -> int:
+        """How many GET /metrics the stub curl has answered or refused so far."""
+        return sum(1 for ln in self.calls().splitlines() if ln.startswith("curl ") and ln.endswith("/metrics"))
 
     def jsonl(self, name: str, rows: list[dict]) -> None:
         (self.state / name).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
@@ -403,7 +484,272 @@ def test_helper_file_sourced_with_an_empty_password_prints_stop_and_is_not_repor
     assert "helpers loaded, reconcile helper importable" not in r.lines
 
 
-SIX_SERVICES = "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1"
+def heredoc_body(command: str) -> str:
+    """The text between the `cat > ... <<'EOF'` line and the `EOF` line of one runbook heredoc, as the file."""
+    lines = command.split("\n")
+    assert lines[0].startswith("cat > ") and "<<'EOF'" in lines[0] and lines[-1] == "EOF", command[:80]
+    return "\n".join(lines[1:-1]) + "\n"
+
+
+def test_regen_helpers_writes_exactly_the_body_of_the_6_1_heredoc(bench: Bench, tmp_path: Path) -> None:
+    """tools/session/regen_helpers.py regenerates ~/egw-tcg/itest-helpers.sh from the runbook: the file it writes is
+    byte for byte the heredoc body, i.e. the file the operator's own paste of 6.1 writes through bash."""
+    script = ROOT / "tools" / "session" / "regen_helpers.py"
+    target = tmp_path / "regen" / "itest-helpers.sh"
+    target.parent.mkdir()
+    proc = subprocess.run([sys.executable, str(script), str(RUNBOOK), str(target)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stdout.startswith(f"wrote {target}: sha256 "), proc.stdout
+    written = target.read_bytes().decode("utf-8")
+    assert written == heredoc_body(helpers_heredoc())
+    bench.run("\n".join((tunnel_heredoc(), helpers_heredoc())))
+    assert target.read_bytes() == (bench.home / "egw-tcg" / "itest-helpers.sh").read_bytes()
+    assert "_mline()" in written and "drained()" in written and "\r" not in written
+
+
+# --------------------------------------------------------------------------
+# 6.1 - _mline and drained: the thirteen-field reading and the quiet window (ADR 0011, work item 19)
+# --------------------------------------------------------------------------
+CTRL_DEFAULT = "http://127.0.0.1:8000"
+QUIET_LINE = "drained: queue_depth 0 and identical counters on "
+STOP_NO_WINDOW = "STOP: drained: no quiet window of "
+STOP_NO_READING = f"STOP: drained: GET {CTRL_DEFAULT}/metrics failed or was not valid JSON, or a field was missing or of the wrong type"
+
+
+def mline_of(m: dict) -> str:
+    """The one line _mline prints for this body: the thirteen fields in order, mqtt_subscribed as true/false."""
+    return " ".join(str(m[k]).lower() if k == "mqtt_subscribed" else str(m[k]) for k in MLINE_FIELDS)
+
+
+def call_mline(bench: Bench) -> Result:
+    return bench.run(bench.with_helpers('out=$(_mline 2>/dev/null); rc=$?; echo "OUT=$out"; echo "RC=$rc"'))
+
+
+def call_drained(bench: Bench, limit_s: str = "2", **env: str) -> Result:
+    """drained with the case's DRAIN_QUIET_S=0 and DRAIN_STEP_S=0: a quiet reading closes the window on the next
+    equal reading, and a refusal spins until DRAIN_LIMIT_S (whole seconds of bash's SECONDS) has passed."""
+    return bench.run(bench.with_helpers('drained\necho "RC=$?"'), DRAIN_LIMIT_S=limit_s, **env)
+
+
+def quiet_reading_of(r: Result) -> str:
+    """The reading inside the parentheses of the one success line; fails when the line is absent or reworded."""
+    lines = r.starting(QUIET_LINE)
+    assert len(lines) == 1, r.out
+    m = re.match(r"^drained: queue_depth 0 and identical counters on (\d+) consecutive readings over (\d+) s \((.*?)\) - ", lines[0])
+    assert m, lines[0]
+    return m.group(3)
+
+
+def assert_no_quiet_window(r: Result, last: dict) -> str:
+    """drained gave up: the give-up line names the last reading, and neither the success line nor the other stop was printed."""
+    assert r.value("RC") != "0", r.out
+    stops = r.starting(STOP_NO_WINDOW)
+    assert len(stops) == 1, r.out
+    assert f"(last reading: {mline_of(last)}) - do not take snapshots, do not start a run" in stops[0], stops[0]
+    assert not r.starting(QUIET_LINE) and not r.starting(STOP_NO_READING), r.out
+    return stops[0]
+
+
+def test_mline_prints_the_thirteen_fields_in_the_fixed_order_and_exits_0_when_the_identity_holds(bench: Bench) -> None:
+    m = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1)
+    r = call_mline(bench)
+    assert r.value("RC") == "0", r.out
+    assert r.value("OUT") == mline_of(m) == f"0 0 0 true {STARTED} 1 6 3 1 1 0 1 0"
+
+
+def test_mline_exits_3_with_the_line_when_the_accounting_identity_fails(bench: Bench) -> None:
+    m = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1, received=7)     # the eight terms sum to 6
+    r = call_mline(bench)
+    assert r.value("RC") == "3", r.out
+    assert r.value("OUT") == mline_of(m) == f"0 0 0 true {STARTED} 1 7 3 1 1 0 1 0"
+
+
+def seven_field_reading() -> dict:
+    """The response of a controller build before the progress counters and the session fields."""
+    return {"queue_depth": 0, "started_at": STARTED, "monotonic_ns": 1,
+            "accepted": 0, "rejected": 0, "duplicate": 0, "failed": 0, "dropped": 0}
+
+
+def without(m: dict, key: str) -> dict:
+    return {k: v for k, v in m.items() if k != key}
+
+
+NO_READING_BODIES = [
+    ("seven-field response of an earlier controller build", seven_field_reading()),
+    ("unacked missing", without(Bench.reading(), "unacked")),
+    ("mqtt_subscribed missing", without(Bench.reading(), "mqtt_subscribed")),
+    ("received missing", without(Bench.reading(), "received")),
+    ("mqtt_subscribed the string true", Bench.reading(mqtt_subscribed="true")),
+    ("in_progress the JSON true", Bench.reading(in_progress=True)),
+    ("queue_depth null", Bench.reading(queue_depth=None, received=0)),
+    ("received a float", Bench.reading(received=0.0)),
+    ("accepted negative", Bench.reading(accepted=-1)),
+    ("mqtt_connection a string", Bench.reading(mqtt_connection="1")),
+    ("started_at with a space", Bench.reading(started_at="2026-09-18 10:00:00Z")),
+    ("started_at empty", Bench.reading(started_at="")),
+    ("started_at a number", Bench.reading(started_at=1758189600)),
+    ("body not JSON", "not json"),
+]
+
+
+@pytest.mark.parametrize("label, body", NO_READING_BODIES, ids=[label for label, _ in NO_READING_BODIES])
+def test_mline_prints_no_reading_and_exits_neither_0_nor_3_when_a_field_is_missing_or_of_the_wrong_type(bench: Bench, label: str, body: object) -> None:
+    (bench.state / "metrics.json").write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+    r = call_mline(bench)
+    assert r.value("OUT") == "", r.out
+    assert r.value("RC") not in ("0", "3"), r.out
+
+
+def test_drained_closes_a_window_of_quiet_readings_and_keeps_the_start_of_the_success_line(bench: Bench) -> None:
+    m = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1)
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(m)
+    assert len(quiet_reading_of(r).split()) == 13
+    line = r.starting(QUIET_LINE)[0]
+    assert "an observation, not proof that processing has finished" in line, line
+    assert not r.starting("STOP"), r.out
+
+
+def test_drained_refuses_a_quiet_window_with_mqtt_subscribed_false_throughout(bench: Bench) -> None:
+    m = bench.metrics(mqtt_subscribed=False)
+    r = call_drained(bench)
+    assert_no_quiet_window(r, m)
+    assert bench.metrics_requests() >= 3, bench.calls()               # it kept reading until the limit, never a STOP earlier
+    assert " 0 0 0 false " in r.starting(STOP_NO_WINDOW)[0]
+    # the control: the same counters on a subscribed connection are quiet
+    m = bench.metrics(mqtt_subscribed=True)
+    r = call_drained(bench)
+    assert r.value("RC") == "0" and quiet_reading_of(r) == mline_of(m), r.out
+
+
+def test_drained_refuses_a_quiet_window_with_unacked_above_0_and_the_queue_empty(bench: Bench) -> None:
+    m = bench.metrics(unacked=2)
+    r = call_drained(bench)
+    assert_no_quiet_window(r, m)
+    assert bench.metrics_requests() >= 3, bench.calls()
+    assert "(last reading: 0 0 2 true " in r.starting(STOP_NO_WINDOW)[0]
+    m = bench.metrics(unacked=0)
+    r = call_drained(bench)
+    assert r.value("RC") == "0" and quiet_reading_of(r) == mline_of(m), r.out
+
+
+def test_drained_refuses_a_quiet_window_with_a_message_in_progress_and_the_queue_empty(bench: Bench) -> None:
+    m = bench.metrics(in_progress=1)                                   # received follows: the identity holds
+    assert m["received"] == 1
+    r = call_drained(bench)
+    assert_no_quiet_window(r, m)
+    assert "(last reading: 0 1 0 true " in r.starting(STOP_NO_WINDOW)[0]
+
+
+def test_drained_refuses_a_quiet_window_across_a_change_of_mqtt_connection(bench: Bench) -> None:
+    """Every reading arrives on a new connection: each opens a new window, so none closes although every other
+    field is quiet and unchanged."""
+    bodies = [bench.reading(mqtt_connection=i) for i in range(1, 601)]
+    bench.readings(*bodies)
+    r = call_drained(bench)
+    n = int((bench.state / "metrics.calls").read_text(encoding="utf-8"))
+    assert 3 <= n < 600, n                                             # several readings, and the sequence never ran out
+    assert_no_quiet_window(r, bodies[n - 1])
+
+
+def test_drained_change_of_mqtt_connection_opens_a_new_window_that_closes_on_the_new_connection_only(bench: Bench) -> None:
+    old, new = bench.reading(mqtt_connection=1), bench.reading(mqtt_connection=2)
+    bench.readings(old, new)                                           # then `new` for every later request
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(new)
+    # the reading on connection 1 is not part of the window that closed: DRAIN_QUIET_S=0 closes it on the second
+    # equal reading, so the count is 2 and not 3
+    assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}2 consecutive readings"), r.out
+
+
+def test_drained_treats_a_reading_whose_identity_fails_as_not_quiet_and_not_as_a_stop(bench: Bench) -> None:
+    bad = bench.metrics(accepted=3, rejected=1, duplicate=1, dropped=1, received=7)   # the eight terms sum to 6
+    r = call_drained(bench)
+    stop = assert_no_quiet_window(r, bad)                              # the line WAS a reading (status 3 with the line)
+    assert bench.metrics_requests() >= 3, bench.calls()
+    assert f"(last reading: 0 0 0 true {STARTED} 1 7 3 1 1 0 1 0)" in stop, stop
+    # ... and it opens a new window: quiet readings after it close one that began after it
+    good = bench.reading(accepted=3, rejected=1, duplicate=1, dropped=1)
+    bench.readings(bad, good)
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(good) == f"0 0 0 true {STARTED} 1 6 3 1 1 0 1 0"
+    assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}2 consecutive readings"), r.out
+
+
+NO_READING_STOPS = [
+    ("seven-field response of an earlier controller build", seven_field_reading()),
+    ("unacked missing", without(Bench.reading(), "unacked")),
+    ("mqtt_subscribed the string true", Bench.reading(mqtt_subscribed="true")),
+    ("in_progress the JSON true", Bench.reading(in_progress=True)),
+    ("started_at with a space", Bench.reading(started_at="2026-09-18 10:00:00Z")),
+    ("body not JSON", "not json"),
+]
+
+
+@pytest.mark.parametrize("label, body", NO_READING_STOPS, ids=[label for label, _ in NO_READING_STOPS])
+def test_drained_reading_without_the_thirteen_fields_is_the_get_failed_stop_not_a_reading(bench: Bench, label: str, body: object) -> None:
+    (bench.state / "metrics.json").write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+    r = call_drained(bench)
+    assert r.value("RC") != "0", r.out
+    stops = r.starting(STOP_NO_READING)
+    assert len(stops) == 1 and "a controller build without the thirteen fields?" in stops[0], r.out
+    assert not r.starting(STOP_NO_WINDOW) and not r.starting(QUIET_LINE), r.out
+    assert bench.metrics_requests() == 1, bench.calls()               # a STOP, not a reading: no window, no second request
+
+
+def test_drained_metrics_unreachable_is_still_the_get_failed_stop(bench: Bench) -> None:
+    (bench.state / "metrics.json").unlink()
+    r = call_drained(bench)
+    assert r.value("RC") != "0", r.out
+    assert len(r.starting(STOP_NO_READING)) == 1 and not r.starting(STOP_NO_WINDOW), r.out
+
+
+def test_drained_keeps_both_output_prefixes(bench: Bench) -> None:
+    """The success line's start is what the G2 acceptance proposal quotes; the give-up line's start is what
+    tools/session/nominal.sh greps for (`^STOP: drained: no quiet window of [0-9]* s within [0-9]* s`)."""
+    m = bench.metrics()
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert re.match(r"^drained: queue_depth 0 and identical counters on \d+ consecutive readings over \d+ s \(", r.starting(QUIET_LINE)[0])
+    assert quiet_reading_of(r) == mline_of(m)
+    m = bench.metrics(queue_depth=1)                                   # the refusal the first version already made
+    r = call_drained(bench)
+    stop = assert_no_quiet_window(r, m)
+    assert re.match(r"^STOP: drained: no quiet window of [0-9][0-9]* s within [0-9][0-9]* s", stop), stop
+    assert re.match(r"^STOP: drained: no quiet window of 0 s within 2 s \(last reading: 1 0 0 true ", stop), stop
+
+
+STABLE_FIELDS = ("started_at", "mqtt_connection", "accepted", "rejected", "duplicate", "failed", "dropped", "processing_errors")
+
+
+@pytest.mark.parametrize("field", STABLE_FIELDS)
+def test_drained_movement_of_a_stable_field_between_quiet_readings_opens_a_new_window(bench: Bench, field: str) -> None:
+    """Four quiet readings that differ only in one of the nine stable fields (received follows the counters), then
+    the last one repeated: the window that closes began at the last movement, so it counts two readings."""
+    if field == "started_at":
+        bodies = [bench.reading(started_at=f"2026-09-18T10:0{i}:00Z") for i in range(4)]
+    else:
+        bodies = [bench.reading(**{field: i}) for i in range(4)]
+    assert len({mline_of(b) for b in bodies}) == 4
+    bench.readings(*bodies)
+    r = call_drained(bench)
+    assert r.value("RC") == "0", r.out
+    assert quiet_reading_of(r) == mline_of(bodies[-1])
+    assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}2 consecutive readings"), r.out
+    assert int((bench.state / "metrics.calls").read_text(encoding="utf-8")) == 5
+
+
+def test_drained_text_keeps_the_three_defaults_and_the_thirteen_field_order(bench: Bench) -> None:
+    text = heredoc_body(helpers_heredoc())
+    assert "local quiet=${DRAIN_QUIET_S:-130} step=${DRAIN_STEP_S:-5} limit=${DRAIN_LIMIT_S:-900}" in text
+    assert "#   " + " ".join(MLINE_FIELDS) in text                      # the order stated in the comment of _mline
+    assert 'sleep "$step"' in text
+
+
+SIX_SERVICES ="egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1"
 
 
 def harness_argv(bench: Bench) -> list[str]:
@@ -443,6 +789,301 @@ def test_harness_run_exit_non_zero_prints_stop(bench: Bench) -> None:
     r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'), EGW_CLONE=str(ROOT))
     assert r.value("RC") != "0", r.out
     assert r.starting("STOP: harness_run smoke_sequence-r01: egw_experiments run exited non-zero"), r.out
+
+
+# --------------------------------------------------------------------------
+# 6.1 - config_identity: the configuration identity captured on the guest, as the harness validates it (F6b)
+# --------------------------------------------------------------------------
+#: What the remote script of config_identity prints on the guest, one key=value line per field, as a realistic
+#: stack answers it (values of the shape the harness validates; the hashes are placeholders of the right form).
+IDENTITY_CAPTURE = {
+    "sha256": "3f" * 32,
+    "max_inflight_messages": "4999",
+    "max_inflight_bytes": "0",
+    "max_queued_messages": "1000",
+    "max_queued_bytes": "0",
+    "persistent_client_expiration": "1h",
+    "sys_interval": "10",
+    "reloaded": "0",
+    "stop_grace_period": "130s",
+    "image": "sha256:" + "5a" * 32,
+    "commit": "0123abcdef0123abcdef0123abcdef0123abcdef",
+    "paho": "2.1.0",
+}
+
+
+def capture_text(**changes: str | None) -> str:
+    """The capture with ``changes`` applied: a None value drops the line (the guest printed nothing for it)."""
+    values = {**IDENTITY_CAPTURE, **changes}
+    return "".join(f"{k}={v}\n" for k, v in values.items() if v is not None)
+
+
+def call_config_identity(bench: Bench, capture: str | None = None, out: str = "$P/idt.json", **env: str) -> Result:
+    if capture is not None:
+        (bench.state / "identity_capture").write_text(capture, encoding="utf-8")
+    return bench.run(bench.with_helpers(f'config_identity {out}\necho "RC=$?"'), **env)
+
+
+def test_config_identity_writes_the_identity_the_harness_validates(bench: Bench) -> None:
+    r = call_config_identity(bench, capture_text())
+    assert r.value("RC") == "0", r.out
+    assert not r.starting("STOP:"), r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert run_mod.configuration_identity_problems(doc) == []
+    assert doc == {
+        "broker_conf_sha256": "3f" * 32,
+        "broker_conf_values": {"max_inflight_messages": 4999, "max_inflight_bytes": 0, "max_queued_messages": 1000,
+                               "max_queued_bytes": 0, "persistent_client_expiration": "1h", "sys_interval": 10},
+        "broker_reloaded": False,
+        "stop_grace_period": "130s",
+        "controller_image_id": "sha256:" + "5a" * 32,
+        "controller_source_commit": "0123abcdef0123abcdef0123abcdef0123abcdef",
+        "paho_version": "2.1.0",
+        "a3_choice": "a",
+    }
+    # One ssh session reads every value on the guest, from the sources the harness names (the remote script
+    # spans several lines of the stub's log).
+    log = "\n".join(bench.ssh_log())
+    assert log.count("ssh [egw-tcg] [") == 1 and log.count("sha256sum") == 1
+    call = log
+    for source in ("sudo sha256sum", "mosquitto/config/mosquitto.conf", "max_inflight_messages", "max_inflight_bytes",
+                   "max_queued_messages", "max_queued_bytes", "persistent_client_expiration", "sys_interval",
+                   "logs --no-color mosquitto", "Reloading config", "stop_grace_period", "compose.yaml",
+                   "docker inspect -f", "{{.Image}}", "egw-controller-1", "org.opencontainers.image.revision",
+                   "docker exec egw-controller-1 python", "paho-mqtt"):
+        assert source in call, source
+
+
+def test_config_identity_reloaded_is_true_when_the_broker_log_holds_a_reload_line(bench: Bench) -> None:
+    r = call_config_identity(bench, capture_text(reloaded="2"))
+    assert r.value("RC") == "0", r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert doc["broker_reloaded"] is True and run_mod.configuration_identity_problems(doc) == []
+
+
+@pytest.mark.parametrize("key", sorted(IDENTITY_CAPTURE))
+def test_config_identity_with_a_missing_value_stops_and_writes_no_file(bench: Bench, key: str) -> None:
+    """A field the guest did not answer (no line, or an empty value): STOP naming it, nothing written - the
+    harness would refuse the identity, and an invented value would state what the run did not rest on."""
+    for capture in (capture_text(**{key: None}), capture_text(**{key: ""})):
+        r = call_config_identity(bench, capture)
+        assert r.value("RC") != "0", r.out
+        assert r.starting("STOP: config_identity:"), r.out
+        assert any(f"config_identity: {key} " in ln for ln in r.lines), r.out
+        assert not (bench.p / "idt.json").exists()
+
+
+@pytest.mark.parametrize("key, value", [
+    ("sha256", "3f" * 31), ("max_inflight_messages", "many"), ("sys_interval", "-1"), ("reloaded", "yes"),
+    ("image", "5a" * 32), ("commit", "0123ab"), ("commit", "not-a-commit"),
+])
+def test_config_identity_with_a_value_of_the_wrong_form_stops_and_writes_no_file(bench: Bench, key: str, value: str) -> None:
+    r = call_config_identity(bench, capture_text(**{key: value}))
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity:"), r.out
+    assert any(f"config_identity: {key} " in ln and value in ln for ln in r.lines), r.out
+    assert not (bench.p / "idt.json").exists()
+
+
+def test_config_identity_ssh_failure_stops_and_writes_no_file(bench: Bench) -> None:
+    bench.set("ssh_identity_rc", 255)
+    r = call_config_identity(bench, capture_text())
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity: ssh egw-tcg exited 255"), r.out
+    assert not (bench.p / "idt.json").exists()
+
+
+def test_config_identity_is_write_once_and_needs_a_path(bench: Bench) -> None:
+    bench.p.mkdir(parents=True, exist_ok=True)
+    (bench.p / "idt.json").write_text("{}\n", encoding="utf-8")
+    r = call_config_identity(bench, capture_text())
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity:") and "exists" in r.out
+    assert (bench.p / "idt.json").read_text(encoding="utf-8") == "{}\n"
+    assert "sha256sum" not in "\n".join(bench.ssh_log())  # nothing was read
+    r = call_config_identity(bench, capture_text(), out="")
+    assert r.value("RC") != "0" and r.starting("STOP: config_identity: usage"), r.out
+
+
+# 6.1 - config_identity: the remote fragment executed under stubs (review of 2026-09-25, D2): the broker log is
+# read with its exit status, so a failed or empty read never becomes broker_reloaded=false
+# --------------------------------------------------------------------------
+GUEST_CONF = "".join(f"{k} {v}\n" for k, v in (
+    ("listener", "8883 0.0.0.0"), ("allow_anonymous", "false"), ("persistence", "true"),
+    ("max_inflight_messages", "4999"), ("max_inflight_bytes", "0"), ("max_queued_messages", "1000"),
+    ("max_queued_bytes", "0"), ("persistent_client_expiration", "1h"), ("sys_interval", "10"), ("log_dest", "stdout"),
+))
+GUEST_COMPOSE = "services:\n  mosquitto:\n    image: a\n  controller:\n    image: b\n    stop_grace_period: 130s\n  ditto:\n    image: c\n"
+BROKER_LOG_START = ("mosquitto-1  | 1758750000: mosquitto version 2.0.22 starting\n"
+                    "mosquitto-1  | 1758750000: Config loaded from /mosquitto/config/mosquitto.conf.\n"
+                    "mosquitto-1  | 1758750000: Opening ipv4 listen socket on port 8883.\n")
+BROKER_LOG_RELOADED = BROKER_LOG_START + ("mosquitto-1  | 1758750600: Reloading config.\n"
+                                         "mosquitto-1  | 1758750600: Config loaded from /mosquitto/config/mosquitto.conf.\n")
+
+
+def guest_for_identity(bench: Bench, broker_log: str | None, logs_rc: int = 0, partial: bool = False) -> Path:
+    """The stub guest the ssh stub's executing mode runs config_identity's remote script against: the deployment
+    directory with the broker configuration and compose.yaml the script reads, the sudo and docker stubs, and the
+    broker log the stub docker serves (None: the read succeeds with nothing) with the exit status of that read;
+    `partial` serves the log before a non-zero exit (a read that failed after streaming part of the log)."""
+    dep = bench.tmp / "guest-deployment"
+    (dep / "mosquitto" / "config").mkdir(parents=True)
+    (dep / "mosquitto" / "config" / "mosquitto.conf").write_text(GUEST_CONF, encoding="utf-8")
+    (dep / "compose.yaml").write_text(GUEST_COMPOSE, encoding="utf-8")
+    bench.install("sudo", STUB_SUDO)
+    bench.install("docker", STUB_DOCKER)
+    bench.set("identity_exec")
+    bench.set("guest_image_hex", "5a" * 32)
+    bench.set("guest_commit", "0123abcdef0123abcdef0123abcdef0123abcdef")
+    bench.set("guest_paho", "2.1.0")
+    bench.set("docker_logs_rc", logs_rc)
+    if partial:
+        bench.set("docker_logs_partial")
+    if broker_log is not None:
+        (bench.state / "guest_broker_log").write_text(broker_log, encoding="utf-8")
+    return dep
+
+
+def call_config_identity_on_the_guest(bench: Bench, dep: Path, **env: str) -> Result:
+    return bench.run(bench.with_helpers('config_identity $P/idt.json\necho "RC=$?"'), EGW_STUB_DEPLOYMENT=str(dep), **env)
+
+
+def test_config_identity_fragment_reads_the_guest_and_a_log_without_a_reload_line_is_not_reloaded(bench: Bench) -> None:
+    """The remote script itself, run by the ssh stub under sh against the stub guest: every value comes from the files
+    and the docker answers of that guest, and a successful read of a log that holds no reload line is False."""
+    dep = guest_for_identity(bench, BROKER_LOG_START)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") == "0", r.out
+    assert not r.starting("STOP:"), r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert run_mod.configuration_identity_problems(doc) == []
+    assert doc == {
+        "broker_conf_sha256": hashlib.sha256(GUEST_CONF.encode("utf-8")).hexdigest(),
+        "broker_conf_values": {"max_inflight_messages": 4999, "max_inflight_bytes": 0, "max_queued_messages": 1000,
+                               "max_queued_bytes": 0, "persistent_client_expiration": "1h", "sys_interval": 10},
+        "broker_reloaded": False,
+        "stop_grace_period": "130s",
+        "controller_image_id": "sha256:" + "5a" * 32,
+        "controller_source_commit": "0123abcdef0123abcdef0123abcdef0123abcdef",
+        "paho_version": "2.1.0",
+        "a3_choice": "a",
+    }
+    calls = bench.calls()
+    assert "docker compose --env-file .env --env-file images.lock.env logs --no-color mosquitto" in calls
+    assert "sudo sha256sum mosquitto/config/mosquitto.conf" in calls
+
+
+def test_config_identity_fragment_a_log_with_a_reload_line_is_reloaded(bench: Bench) -> None:
+    dep = guest_for_identity(bench, BROKER_LOG_RELOADED)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") == "0", r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert doc["broker_reloaded"] is True and run_mod.configuration_identity_problems(doc) == []
+
+
+@pytest.mark.parametrize("partial", [False, True], ids=["nothing-streamed", "partial-log-streamed"])
+def test_config_identity_fragment_a_log_that_could_not_be_read_stops_and_writes_no_file(bench: Bench, partial: bool) -> None:
+    """docker compose logs fails, with nothing on stdout or after streaming part of the log (a part that even holds
+    a reload line): the guest names the failed read and exits 5, the helper stops with no file, and nothing after
+    the read runs on the guest - "no reload line" is never inferred from a log that was not read to its end. The
+    partial case pins the exit-status arm of the guard on its own: the output is not empty, only the status fails."""
+    dep = guest_for_identity(bench, BROKER_LOG_RELOADED, logs_rc=1, partial=partial)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity: the broker log was NOT read on the guest"), r.out
+    size = len(BROKER_LOG_RELOADED.rstrip("\n")) if partial else 0
+    assert any(f"docker compose logs exit 1, {size} characters" in ln for ln in r.lines), r.out
+    assert not (bench.p / "idt.json").exists()
+    assert "docker inspect" not in bench.calls() and "docker exec" not in bench.calls()
+
+
+def test_config_identity_fragment_an_empty_log_read_stops_and_writes_no_file(bench: Bench) -> None:
+    """docker compose logs exits 0 with nothing: not an observation of the broker either (a running broker logs
+    its start), so the helper stops with no file."""
+    dep = guest_for_identity(bench, None)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity: the broker log was NOT read on the guest"), r.out
+    assert any("docker compose logs exit 0, 0 characters" in ln for ln in r.lines), r.out
+    assert not (bench.p / "idt.json").exists()
+
+
+# --------------------------------------------------------------------------
+# Test 6 - the lines that hand the identity, the bound drain transcript and the post-drain copy to the harness
+# --------------------------------------------------------------------------
+def test_test_6_harness_line_captures_the_identity_and_hands_it_to_the_harness() -> None:
+    line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    capture = "config_identity $P/$RID.config_identity.json"
+    assert capture in line and line.index(capture) < line.index("harness_cmd $RID")
+    assert "--config-identity-from $P/$RID.config_identity.json" in line.split("harness_cmd $RID", 1)[1]
+    # No identity tolerance: only the restart-evidence-step reasons are expected from this harness run.
+    assert "'without its restart evidence step' not in r" in line
+    assert "identity" not in line.split("python3 -c", 1)[1].split("sys.exit", 1)[0]
+
+
+def test_test_6_delta_line_names_the_post_drain_copy() -> None:
+    line = _one(_host_commands("### Test 6"), '[ "$T6" = collected ] && $REC delta')
+    command = line.split("     #", 1)[0]  # the command, without its trailing comment
+    assert "--events $RAW6/events.post-drain.jsonl" in command
+    assert "--also" not in command
+
+
+def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_post_drain_copy() -> None:
+    """Review of 2026-09-25, D3: the example of the warm-up variant named the preceding restart run's post-drain
+    copy through $RAW6; it is withdrawn with a statement of what the variant needs. Test 6's commands hold no
+    --also, and the main delta line is the only command that names --events."""
+    cmds = _host_commands("### Test 6")
+    assert [c for c in cmds if "--also" in c.split("     #", 1)[0]] == []  # the command part, not its comment
+    with_events = [c for c in cmds if "--events" in c.split("     #", 1)[0]]
+    assert with_events == [_one(cmds, '[ "$T6" = collected ] && $REC delta')]
+    text = "\n".join(_section("### Test 6"))
+    assert "No executable procedure for that variant is given here" in text
+    assert "warm-up" in text and "--also" in text  # the option and the reason for it are still explained
+
+
+def test_helper_table_names_config_identity() -> None:
+    text = RUNBOOK.read_text(encoding="utf-8")
+    assert "| `config_identity <out-file>` |" in text
+
+
+def drain_line() -> str:
+    return _one(_host_commands("### Test 6"), 'if [ "$T6" = ok ]; then printf')
+
+
+def call_drain_line(bench: Bench, **env: str) -> Result:
+    return bench.run(bench.with_helpers("\n".join(("RID=controller_restart-r01", "T6=ok", drain_line(),
+                                                   'echo "T6=$T6"'))), **env)
+
+
+def test_test_6_drain_line_writes_the_envelope_then_the_helpers_quiet_line(bench: Bench) -> None:
+    """The transcript the collect line ingests: the envelope written before `drained` runs, then the helper's
+    line through tee -a. The harness binds it to the run by that envelope (run.py, F6a) and classifies it quiet."""
+    r = call_drain_line(bench)
+    assert r.value("T6") == "drained", r.out
+    text = (bench.p / "controller_restart-r01.drained.txt").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert len(lines) == 2, text
+    assert re.fullmatch(r"run_id=controller_restart-r01 captured_utc=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", lines[0])
+    assert lines[1].startswith(QUIET_LINE)
+    problems, captured = run_mod.drain_transcript_envelope_problems(
+        text, run_id="controller_restart-r01", window_end_utc="2026-09-18T10:00:00.000Z")
+    assert problems == [] and captured == lines[0].split("captured_utc=")[1]
+    assert run_mod.classify_drain_output(text, None) == "quiet"
+    assert run_mod.drain_transcript_envelope_problems(text, run_id="controller_restart-r02",
+                                                       window_end_utc="2026-09-18T10:00:00.000Z")[0]
+
+
+def test_test_6_drain_line_that_gives_up_keeps_the_envelope_and_the_stop_line(bench: Bench) -> None:
+    bench.metrics(queue_depth=1)
+    r = call_drain_line(bench, DRAIN_LIMIT_S="0")
+    assert r.value("T6") == "gaveup", r.out
+    assert r.starting("STOP: test 6: 'drained' gave up or failed"), r.out
+    text = (bench.p / "controller_restart-r01.drained.txt").read_text(encoding="utf-8")
+    lines = text.splitlines()
+    assert lines[0].startswith("run_id=controller_restart-r01 captured_utc=") and lines[1].startswith(STOP_NO_WINDOW)
+    assert run_mod.drain_transcript_envelope_problems(
+        text, run_id="controller_restart-r01", window_end_utc="2026-09-18T10:00:00.000Z")[0] == []
+    assert run_mod.classify_drain_output(text, None) == "gave-up"
 
 
 # --------------------------------------------------------------------------
