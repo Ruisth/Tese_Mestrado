@@ -3491,10 +3491,48 @@ is unchanged.
 - **What it does not establish.** Nothing about the controller's recovery,
   timely delivery or the broker's behaviour with this controller: the code
   ran only against fakes. The changed candidate is unmeasured. The controller
-  image for the proof is not built; the guest-side capture of the
-  configuration identity and the log-fetch helpers, the regeneration of the
-  deployed helper file and the proof's evaluator (S1–S6, R1–R4, S4 with the
-  twin's evidence of a named N1 case) are the next work, before the proof.
+  image for the proof is not built; the log-fetch helpers, the regeneration
+  of the deployed helper file and the proof's evaluator (S1–S6, R1–R4, S4
+  with the twin's evidence of a named N1 case) are the next work, before the
+  proof (the capture of the configuration identity is the runbook's
+  `config_identity` helper, corrected on 2026-09-25, below).
+- **Delta of 2026-09-25 (review at `d561978`).** Three corrections, each
+  with a regression. D1: `qualify_recovery` fails its criterion whenever the
+  campaign plan lists no `controller_restart` run, whatever `raw/` holds
+  (an unplanned directory stays listed, marked unplanned, and never stands
+  for a planned run); an unreadable plan is named as such in the detail.
+  D2: the runbook's `config_identity` reads the broker log into a variable
+  with the exit status of `docker compose logs`; a non-zero status or an
+  empty output stops on the guest with the reason and exit 5, the host stops
+  naming it, and no identity is written, so a count of zero reload lines
+  comes only from a log that was read; the regressions execute the remote
+  fragment itself under stubs (the ssh stub's executing mode runs it with
+  `sh -c`, `cd` sent to a stub deployment directory, stub `docker` and
+  `sudo`): a read without a reload line gives false, one with a reload line
+  true, a failed read with nothing streamed or with part of the log streamed
+  stops, an empty read stops. D3: the warm-up variant's example of test 6
+  (which named the preceding restart run's post-drain copy) is withdrawn;
+  the passage states that no executable procedure is given and what the
+  variant needs (its own `before` snapshot, a drain, its own post-drain copy
+  with `--events`, the warm-up log with `--also`, the `after` snapshot after
+  the drain); test 6's main lines are unchanged and a test holds the section
+  to that. The ADR's implementation record now names the capture helper as
+  part of the pull request. Verified: the three modules
+  `test_recovery_qualification.py`, `test_runbook_itest_helpers.py` and
+  `test_experiments_cli.py`, 194 passed, in the WSL venv, recorded in the
+  local package `HIST_2026-09-25-pr46-delta-regressions-attempt02` with the
+  commit (`178775a`), the tree hash, the branch and a clean status captured
+  before the tests ran (attempt01 of the same selection is kept as the
+  record of a failed identity capture, with a note and its first seal kept
+  as `SHA256SUMS.1`); the link checker, the evidence verifier and shellcheck
+  pass; the CI of the final head is the record for the whole suite. A
+  qualification of the full-suite statement above: the association of that
+  run with `95ed23d` is a reconstruction from commit times, because the
+  script's identity capture failed and its empty status lines do not
+  establish a clean tree; the correction note beside that capsule
+  (`HIST_2026-09-24-pr46-full-suite-attempt01_CORRECTION_NOTE_2026-09-25.txt`)
+  states this, the inferred causes of two of the three bench failures and
+  the replaced first seal.
 - **Decisions and next steps.** No decision; nothing accepted. Next: the
   progress return of the 2026-09-27 checkpoint (or the eighth reported
   engineering hour), the proof's session driver, evaluator and identified
