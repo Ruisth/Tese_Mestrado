@@ -3629,10 +3629,12 @@ is unchanged.
   the re-reviews (a P2 on R4 suppressed on read twin evidence); mutation
   checks pinned the rules the reviews named. shellcheck at error severity
   is clean over the driver and its hooks; the Markdown link checker and the
-  evidence verifier pass. The package named in the next entry of this log
-  records the same modules run on the committed tree with the commit, the
-  tree hash and a clean status captured before the run; the CI of the final
-  head is the record for the whole suite.
+  evidence verifier pass. The package
+  `HIST_2026-09-25-finite-proof-tooling-attempt01` under the local
+  `output_test/runs/2026-09-25/` records the same seven modules run on the
+  committed tree `277092b` (tree `9982256`, clean status, captured before
+  the run): 903 passed, sealed; the commit after it changes this entry
+  only. The CI of the final head is the record for the whole suite.
 - **What it does not establish.** Nothing ran on the guest: no recovery was
   observed, the candidate is unmeasured, and the identification rules are
   proposals until confirmed. The identified ARM64 controller image is not
