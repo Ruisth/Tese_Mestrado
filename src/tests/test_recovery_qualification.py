@@ -231,6 +231,23 @@ def test_without_a_plan_the_planned_set_is_unknown(
     assert "no campaign plan" in doc["criterion"]["detail"]
 
 
+def test_an_unreadable_plan_is_named_in_the_detail(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A plan that was supplied but cannot be read is not "no plan supplied": the
+    criterion fails and its detail (the one line the CLI prints) carries the
+    reason recorded in plan_problem."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    plan_path.write_text("{ not json", encoding="utf-8")
+    doc = rq.qualify_recovery(base, plan_path)
+    assert doc["plan"] is None and doc["plan_problem"]
+    assert doc["criterion"]["passed"] is False
+    detail = doc["criterion"]["detail"]
+    assert "could not be read" in detail and doc["plan_problem"] in detail
+    assert "no campaign plan supplied" not in detail
+    assert doc["plan_problem"] in rq.summary_line(doc)
+
+
 def test_an_unplanned_restart_run_in_raw_is_listed_and_counted(
     tmp_path, plan_path, fast_run, monkeypatch
 ) -> None:
@@ -245,6 +262,32 @@ def test_an_unplanned_restart_run_in_raw_is_listed_and_counted(
     assert _row(doc, R01)["planned"] is False
     assert _row(doc, R01)["qualification"] == "recovery_failed"
     assert [n["run_id"] for n in doc["criterion"]["not_qualified"]] == [R02, R03, R01]
+
+
+def test_a_plan_without_restart_runs_does_not_pass_on_an_unplanned_directory(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A readable plan with no controller_restart entry and one old valid,
+    quiet restart directory in raw/: the directory is listed, unplanned and
+    recovery_observed, and the criterion still fails - an unplanned run never
+    stands for a planned one, and with no planned run there is nothing to
+    qualify (review of 2026-09-25, D1)."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["runs"] = [r for r in plan["runs"] if r.get("condition_id") != rq.CONDITION_ID]
+    plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    doc = rq.qualify_recovery(base, plan_path)
+    assert doc["plan_problem"] is None
+    assert [r["run_id"] for r in doc["runs"]] == [R01]
+    assert _row(doc, R01)["planned"] is False
+    assert _row(doc, R01)["qualification"] == "recovery_observed"
+    assert doc["criterion"]["passed"] is False
+    assert doc["criterion"]["not_qualified"] == []
+    detail = doc["criterion"]["detail"]
+    assert "lists no controller_restart run" in detail and "1 unplanned directory" in detail
+    assert "1/1" in detail
+    line = rq.summary_line(doc)
+    assert "FAILED" in line and "PASSED" not in line
 
 
 # ---------------------------------------------------------------------------

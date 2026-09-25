@@ -1942,13 +1942,18 @@ test and none changes a count, a threshold or a stop rule of the proof.
   reads only those; `regen_helpers.py` is unchanged and now pinned by a
   regeneration-equality test.
 
-**Not in the pull request, needed before the proof:** the guest-side
-capture that writes `configuration_identity.json` (the broker configuration's
-hash and C1 values, the statement that no reload happened,
-`stop_grace_period`, the controller image's id and source commit, the paho
-version, the A3 choice) and the three log-fetch helpers, which belong to the
-proof's session driver; the identified controller image built from the
-commit that carries the lock; the regeneration of the deployed helper file
+**In the pull request, by the review corrections:** the guest-side capture
+that writes `configuration_identity.json` is the runbook's `config_identity`
+helper (6.1; test 6 hands its file to the harness): the broker
+configuration's hash and C1 values, whether the broker reloaded since its
+container started, read from a log the guest read to its end with the exit
+status of that read (a failed or empty read stops with no file, so a count
+of zero never stands for a log that was not read; review of 2026-09-25,
+D2), `stop_grace_period`, the controller image's id and source commit, the
+paho version, the A3 choice. **Not in the pull request, needed before the
+proof:** the three log-fetch helpers and the proof's own capture of that
+identity, which belong to the proof's session driver; the identified
+controller image built from the commit that carries the lock; the regeneration of the deployed helper file
 with `regen_helpers.py` (the new `_mline` refuses a controller build without
 the thirteen fields); the proof's evaluator, which applies S1–S6 and R1–R4 —
 S4 with the twin's evidence of a named N1 case — to the post-drain copy and

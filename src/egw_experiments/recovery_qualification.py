@@ -283,12 +283,25 @@ def qualify_recovery(
     if plan is None:
         passed = False
         detail = (
-            "no campaign plan supplied, so the planned set of controller_restart "
-            f"runs is unknown; {counts} among the directories found in raw/"
+            (f"the campaign plan could not be read ({plan_problem})" if plan_problem
+             else "no campaign plan supplied")
+            + ", so the planned set of controller_restart runs is unknown; "
+            + f"{counts} among the directories found in raw/"
         )
-    elif not runs:
+    elif not planned_ids:
+        # An unplanned directory never stands for a planned run: with no
+        # controller_restart run in the plan there is nothing to qualify,
+        # whatever raw/ holds (its directories stay listed above, unplanned).
         passed = False
-        detail = "the campaign plan lists no controller_restart run and raw/ holds none"
+        detail = "the campaign plan lists no controller_restart run"
+        if unplanned_ids:
+            detail += (
+                f"; {counts} among {len(unplanned_ids)} unplanned "
+                + ("directory" if len(unplanned_ids) == 1 else "directories")
+                + " in raw/, which do not stand for a planned run"
+            )
+        else:
+            detail += " and raw/ holds none"
     else:
         passed = not not_qualified
         detail = counts + f" ({len(planned_ids)} planned"

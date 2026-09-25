@@ -23,6 +23,7 @@ to the heredoc it regenerates the helper file from.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -235,7 +236,13 @@ d, n = os.path.split(sys.argv[1]); os.chdir(d); socket.socket(socket.AF_UNIX).bi
 fi
 cmd="${@: -1}"
 case $cmd in
-  *sha256sum*) # the configuration identity capture of config_identity (6.1): the recorded key=value lines
+  *sha256sum*) # the configuration identity capture of config_identity (6.1)
+    if [ -e "$S/identity_exec" ]; then
+      # the remote script run for real under a POSIX shell, with cd sent to the stub deployment directory (the
+      # one substitution: /opt/egw/deployment is the guest's path); docker and sudo are the stubs on PATH
+      exec "${EGW_STUB_GUEST_SH:-sh}" -c "cd() { command cd \"\$EGW_STUB_DEPLOYMENT\"; }; $cmd"
+    fi
+    # otherwise the recorded key=value lines
     cat "$S/identity_capture" 2>/dev/null; exit "$(cat "$S/ssh_identity_rc" 2>/dev/null || echo 0)";;
   *" ps -aq "*) [ -e "$S/svc_state_unreadable" ] && exit 1; cat "$S/svc_state" 2>/dev/null || echo running; exit 0;;
   *" stop "*)
@@ -251,6 +258,33 @@ case $cmd in
   *" logs "*) cat "$S/broker_log" 2>/dev/null; exit "$(cat "$S/ssh_logs_rc" 2>/dev/null || echo 0)";;
 esac
 echo "ssh stub: unexpected command: $cmd" >&2; exit 98
+"""
+
+STUB_SUDO = r"""#!/usr/bin/env bash
+# the guest's sudo: runs the command as it is (the bench has no root and needs none)
+echo "sudo $*" >> "$EGW_STUB_STATE/calls.log"
+exec "$@"
+"""
+
+STUB_DOCKER = r"""#!/usr/bin/env bash
+# the guest's docker, for the reads of config_identity's remote script: the broker log (its exit status and text
+# set by the case), the controller image id, the image's source-commit label, the paho-mqtt version
+S=$EGW_STUB_STATE
+echo "docker $*" >> "$S/calls.log"
+case "$*" in
+  "compose "*" logs --no-color mosquitto")
+    rc=$(cat "$S/docker_logs_rc" 2>/dev/null || echo 0)
+    # a failed read may have streamed part of the log first (the daemon lost after N lines): the case decides
+    [ "$rc" = 0 ] || [ -e "$S/docker_logs_partial" ] && cat "$S/guest_broker_log" 2>/dev/null
+    [ "$rc" = 0 ] || { echo "docker stub: compose logs failed (exit $rc)" >&2; exit "$rc"; }
+    exit 0;;
+  "inspect -f {{.Image}} egw-controller-1") echo "sha256:$(cat "$S/guest_image_hex")"; exit 0;;
+  "inspect -f "*"org.opencontainers.image.revision"*)
+    [ "$4" = "sha256:$(cat "$S/guest_image_hex")" ] || { echo "docker stub: inspect of an image that is not the controller's: $4" >&2; exit 95; }
+    cat "$S/guest_commit"; exit 0;;
+  "exec egw-controller-1 python -c "*) cat "$S/guest_paho"; exit 0;;
+esac
+echo "docker stub: unexpected arguments: $*" >&2; exit 96
 """
 
 STUB_SS = r"""#!/usr/bin/env bash
@@ -871,6 +905,109 @@ def test_config_identity_is_write_once_and_needs_a_path(bench: Bench) -> None:
     assert r.value("RC") != "0" and r.starting("STOP: config_identity: usage"), r.out
 
 
+# 6.1 - config_identity: the remote fragment executed under stubs (review of 2026-09-25, D2): the broker log is
+# read with its exit status, so a failed or empty read never becomes broker_reloaded=false
+# --------------------------------------------------------------------------
+GUEST_CONF = "".join(f"{k} {v}\n" for k, v in (
+    ("listener", "8883 0.0.0.0"), ("allow_anonymous", "false"), ("persistence", "true"),
+    ("max_inflight_messages", "4999"), ("max_inflight_bytes", "0"), ("max_queued_messages", "1000"),
+    ("max_queued_bytes", "0"), ("persistent_client_expiration", "1h"), ("sys_interval", "10"), ("log_dest", "stdout"),
+))
+GUEST_COMPOSE = "services:\n  mosquitto:\n    image: a\n  controller:\n    image: b\n    stop_grace_period: 130s\n  ditto:\n    image: c\n"
+BROKER_LOG_START = ("mosquitto-1  | 1758750000: mosquitto version 2.0.22 starting\n"
+                    "mosquitto-1  | 1758750000: Config loaded from /mosquitto/config/mosquitto.conf.\n"
+                    "mosquitto-1  | 1758750000: Opening ipv4 listen socket on port 8883.\n")
+BROKER_LOG_RELOADED = BROKER_LOG_START + ("mosquitto-1  | 1758750600: Reloading config.\n"
+                                         "mosquitto-1  | 1758750600: Config loaded from /mosquitto/config/mosquitto.conf.\n")
+
+
+def guest_for_identity(bench: Bench, broker_log: str | None, logs_rc: int = 0, partial: bool = False) -> Path:
+    """The stub guest the ssh stub's executing mode runs config_identity's remote script against: the deployment
+    directory with the broker configuration and compose.yaml the script reads, the sudo and docker stubs, and the
+    broker log the stub docker serves (None: the read succeeds with nothing) with the exit status of that read;
+    `partial` serves the log before a non-zero exit (a read that failed after streaming part of the log)."""
+    dep = bench.tmp / "guest-deployment"
+    (dep / "mosquitto" / "config").mkdir(parents=True)
+    (dep / "mosquitto" / "config" / "mosquitto.conf").write_text(GUEST_CONF, encoding="utf-8")
+    (dep / "compose.yaml").write_text(GUEST_COMPOSE, encoding="utf-8")
+    bench.install("sudo", STUB_SUDO)
+    bench.install("docker", STUB_DOCKER)
+    bench.set("identity_exec")
+    bench.set("guest_image_hex", "5a" * 32)
+    bench.set("guest_commit", "0123abcdef0123abcdef0123abcdef0123abcdef")
+    bench.set("guest_paho", "2.1.0")
+    bench.set("docker_logs_rc", logs_rc)
+    if partial:
+        bench.set("docker_logs_partial")
+    if broker_log is not None:
+        (bench.state / "guest_broker_log").write_text(broker_log, encoding="utf-8")
+    return dep
+
+
+def call_config_identity_on_the_guest(bench: Bench, dep: Path, **env: str) -> Result:
+    return bench.run(bench.with_helpers('config_identity $P/idt.json\necho "RC=$?"'), EGW_STUB_DEPLOYMENT=str(dep), **env)
+
+
+def test_config_identity_fragment_reads_the_guest_and_a_log_without_a_reload_line_is_not_reloaded(bench: Bench) -> None:
+    """The remote script itself, run by the ssh stub under sh against the stub guest: every value comes from the files
+    and the docker answers of that guest, and a successful read of a log that holds no reload line is False."""
+    dep = guest_for_identity(bench, BROKER_LOG_START)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") == "0", r.out
+    assert not r.starting("STOP:"), r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert run_mod.configuration_identity_problems(doc) == []
+    assert doc == {
+        "broker_conf_sha256": hashlib.sha256(GUEST_CONF.encode("utf-8")).hexdigest(),
+        "broker_conf_values": {"max_inflight_messages": 4999, "max_inflight_bytes": 0, "max_queued_messages": 1000,
+                               "max_queued_bytes": 0, "persistent_client_expiration": "1h", "sys_interval": 10},
+        "broker_reloaded": False,
+        "stop_grace_period": "130s",
+        "controller_image_id": "sha256:" + "5a" * 32,
+        "controller_source_commit": "0123abcdef0123abcdef0123abcdef0123abcdef",
+        "paho_version": "2.1.0",
+        "a3_choice": "a",
+    }
+    calls = bench.calls()
+    assert "docker compose --env-file .env --env-file images.lock.env logs --no-color mosquitto" in calls
+    assert "sudo sha256sum mosquitto/config/mosquitto.conf" in calls
+
+
+def test_config_identity_fragment_a_log_with_a_reload_line_is_reloaded(bench: Bench) -> None:
+    dep = guest_for_identity(bench, BROKER_LOG_RELOADED)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") == "0", r.out
+    doc = json.loads((bench.p / "idt.json").read_text(encoding="utf-8"))
+    assert doc["broker_reloaded"] is True and run_mod.configuration_identity_problems(doc) == []
+
+
+@pytest.mark.parametrize("partial", [False, True], ids=["nothing-streamed", "partial-log-streamed"])
+def test_config_identity_fragment_a_log_that_could_not_be_read_stops_and_writes_no_file(bench: Bench, partial: bool) -> None:
+    """docker compose logs fails, with nothing on stdout or after streaming part of the log (a part that even holds
+    a reload line): the guest names the failed read and exits 5, the helper stops with no file, and nothing after
+    the read runs on the guest - "no reload line" is never inferred from a log that was not read to its end. The
+    partial case pins the exit-status arm of the guard on its own: the output is not empty, only the status fails."""
+    dep = guest_for_identity(bench, BROKER_LOG_RELOADED, logs_rc=1, partial=partial)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity: the broker log was NOT read on the guest"), r.out
+    size = len(BROKER_LOG_RELOADED.rstrip("\n")) if partial else 0
+    assert any(f"docker compose logs exit 1, {size} characters" in ln for ln in r.lines), r.out
+    assert not (bench.p / "idt.json").exists()
+    assert "docker inspect" not in bench.calls() and "docker exec" not in bench.calls()
+
+
+def test_config_identity_fragment_an_empty_log_read_stops_and_writes_no_file(bench: Bench) -> None:
+    """docker compose logs exits 0 with nothing: not an observation of the broker either (a running broker logs
+    its start), so the helper stops with no file."""
+    dep = guest_for_identity(bench, None)
+    r = call_config_identity_on_the_guest(bench, dep)
+    assert r.value("RC") != "0", r.out
+    assert r.starting("STOP: config_identity: the broker log was NOT read on the guest"), r.out
+    assert any("docker compose logs exit 0, 0 characters" in ln for ln in r.lines), r.out
+    assert not (bench.p / "idt.json").exists()
+
+
 # --------------------------------------------------------------------------
 # Test 6 - the lines that hand the identity, the bound drain transcript and the post-drain copy to the harness
 # --------------------------------------------------------------------------
@@ -889,6 +1026,19 @@ def test_test_6_delta_line_names_the_post_drain_copy() -> None:
     command = line.split("     #", 1)[0]  # the command, without its trailing comment
     assert "--events $RAW6/events.post-drain.jsonl" in command
     assert "--also" not in command
+
+
+def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_post_drain_copy() -> None:
+    """Review of 2026-09-25, D3: the example of the warm-up variant named the preceding restart run's post-drain
+    copy through $RAW6; it is withdrawn with a statement of what the variant needs. Test 6's commands hold no
+    --also, and the main delta line is the only command that names --events."""
+    cmds = _host_commands("### Test 6")
+    assert [c for c in cmds if "--also" in c.split("     #", 1)[0]] == []  # the command part, not its comment
+    with_events = [c for c in cmds if "--events" in c.split("     #", 1)[0]]
+    assert with_events == [_one(cmds, '[ "$T6" = collected ] && $REC delta')]
+    text = "\n".join(_section("### Test 6"))
+    assert "No executable procedure for that variant is given here" in text
+    assert "warm-up" in text and "--also" in text  # the option and the reason for it are still explained
 
 
 def test_helper_table_names_config_identity() -> None:
