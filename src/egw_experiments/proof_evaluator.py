@@ -41,9 +41,14 @@ stated in :data:`IDENTIFICATION_RULES`, labelled with its flag, and carried
 into the verdict beside the criterion it serves. No rule changes a
 criterion, a threshold or a count of the ADR; every one is conservative:
 what cannot be shown is never read as support, and a refutation rests only
-on evidence that was read and verified (E-7): a post-drain copy or a twin
-snapshot that is absent, unverified or unreadable leaves the criteria that
-depend on it null, never observed.
+on evidence that was read and verified (E-7): a post-drain copy, a twin
+snapshot or the controller log that is absent, unverified or unreadable
+leaves the criteria that depend on it null, never observed; a
+duplicate-only identity whose line falls in the sampling band around the
+kill, or whose publication falls inside the restart command's window, can
+be shown neither way (E-8), never refuted on that ground; and the twin's
+figures on such an identity's device refute only when no naming of it
+fits them (E-9).
 
 Exit codes, as ``broker_measure.sh`` reads the broker verdict: 0 supports,
 1 refutes, 3 inconclusive, 2 not evaluated (an input unreadable, a seal
@@ -54,6 +59,7 @@ failure of the evaluator itself - never exit 1, which is a result).
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import json
 import math
@@ -266,10 +272,13 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "received_monotonic_ns. S2's second clause and the failed-only "
         "reading run over the restart class and the ambiguous identities "
         "together, so an ambiguous identity is never read as support. "
-        "\"Published before the kill\" and \"published while the controller "
-        "was away\" are report figures on the host clocks, with a stated band; "
-        "they never decide a restart class, and only P-4 reads \"published "
-        "before the kill\" to attribute the kill as an N1 case's source."
+        "\"Published before the kill\", \"published inside the restart "
+        "command's window\" and \"published while the controller was away\" "
+        "are report figures on the host clocks, with a stated band; they never "
+        "decide a restart class, and only P-4 reads them to attribute the kill "
+        "as an N1 case's source. An ambiguous identity with only `duplicate` "
+        "lines is not rejected as R3 on the ground of its class: it can be "
+        "shown neither way (E-8)."
     ),
     "P-4": (
         "An N1 case's source is established by inference, since the "
@@ -279,11 +288,16 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "message names the candidate's device in its topic and its "
         "in-progress delivery's received_monotonic_ns precedes the "
         "candidate's redelivered duplicate line; 'kill' when the candidate is "
-        "restart-class, was published before the kill on the host clock and "
-        "the manifest's restart executed with exit 0. A candidate is named "
-        "only with the twin's evidence: the device's surplus equals the "
-        "number of cases named on it and the after snapshot's last_seq is not "
-        "below the candidate's seq."
+        "restart-class, was published before the restart command's start on "
+        "the host clock (the manifest's started_monotonic_ns, before which "
+        "the kill cannot have landed) and the manifest's restart executed "
+        "with exit 0. A candidate that is ambiguous under P-3, or published "
+        "inside the restart command's window, is not thereby refused the "
+        "kill as its source: with the other conditions met it can be shown "
+        "neither way (E-8). A candidate is named only with the twin's "
+        "evidence: the device's surplus equals the number of cases named on "
+        "it and the after snapshot's last_seq is not below the candidate's "
+        "seq."
     ),
     "P-5": (
         "R4's \"last_seq regressed\": the after snapshot's last_run_id is this "
@@ -328,7 +342,13 @@ IDENTIFICATION_RULES: dict[str, str] = {
     "E-4": (
         "At most one N1 case per death has the kill as its source (N1: one "
         "consumer); when more than one candidate claims it, none is named and "
-        "each is R3."
+        "each is R3. When one candidate claims it beside another "
+        "duplicate-only identity that may have been in progress at the kill "
+        "(not lined before it, not published after the restart command's "
+        "end) and can be shown neither way (E-7, E-8), the case may be the "
+        "other's: the claimant is neither named nor R3, and its device is "
+        "undecided (E-9). A candidate the twin shows unapplied is R3 whatever "
+        "was in progress at the kill and claims no case."
     ),
     "E-5": (
         "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
@@ -346,9 +366,53 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "the post-drain copy is absent, not verified by the harness as this "
         "run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way "
         "and are null; when a twin snapshot is so, or names no twin for the "
-        "device, S4, S5, R3 and R4 are null for what depends on it. The "
-        "absence is named as a failed fetch and the run is inconclusive unless "
-        "a refutation was observed on evidence that was read."
+        "device, S4, S5, R3 and R4 are null for what depends on it; when the "
+        "controller log (item 6) was not fetched, was recorded fetched but is "
+        "absent, or is unreadable, an A3 connection end can be shown neither "
+        "way, so a duplicate-only candidate that is not named with the kill "
+        "as its source is neither named nor R3, S4 and R3 are null for it and "
+        "S5 and R4 for its device unless the twin's figures refute under "
+        "every naming of it (E-9), while a candidate the twin shows unapplied "
+        "(no surplus, or more candidates than the surplus) stays R3 on the "
+        "twin's evidence, which was read. The absence is named as a failed "
+        "fetch and the run is inconclusive unless a refutation was observed "
+        "on evidence that was read."
+    ),
+    "E-8": (
+        "A duplicate-only candidate that is ambiguous under P-3 (a `duplicate` "
+        "line received at or inside the controller-clock band between the "
+        "last pre-kill reading and the first post-kill one, a line without "
+        "received_monotonic_ns, or no band at all), or one published on the "
+        "host clock inside the restart command's window (from the command's "
+        "start, the manifest's started_monotonic_ns, to its end, finished_utc "
+        "after started_utc plus the host band, the kill landing somewhere in "
+        "it) or whose publication cannot be placed against that start, is "
+        "neither named nor R3 on that ground: whether it was in progress at "
+        "the kill cannot be shown from a reading inside the sampling band or "
+        "a publication inside the command's window, since no criterion of "
+        "the ADR involves timing and a poll or hook instant decides nothing "
+        "of it. S4 and R3 are null for the candidate, and S5 and R4 for its "
+        "device unless the twin's figures refute under every naming of it "
+        "(E-9); the run is inconclusive on that ground, never refuted. A "
+        "candidate lined before the kill on the controller clock, published "
+        "after the command's end, or one the twin shows unapplied, is R3 as "
+        "before."
+    ),
+    "E-9": (
+        "S5 and R4 on a device with a duplicate-only candidate that can be "
+        "shown neither way (E-7 over the controller log, E-8, or E-4 beside "
+        "such a candidate): the twin's figures are shown as read and nothing "
+        "is decided on them while some naming of the device's undecided "
+        "candidates that the count allows (delta equal to the accepted lines "
+        "plus the cases named, one per candidate named) leaves `delta` right, "
+        "this run's last_run_id with the highest applied seq as last_seq, and "
+        "no last_seq regression; each naming tried is listed. When no naming "
+        "fits the count (a surplus beyond the undecided candidates), or every "
+        "one that fits leaves a mismatch or a regression, or the last_seq "
+        "regressed against the before snapshot or below the seqs the run is "
+        "shown to have applied (P-5), the twin refutes on evidence that was "
+        "read: R4 is observed and S5 does not hold, with S4 and R3 still null "
+        "for the candidate."
     ),
 }
 
@@ -944,6 +1008,7 @@ class Classification:
     restart_class: list[str]
     ambiguous: list[str]
     published_before_kill: list[str]
+    published_during_restart: list[str]
     published_while_away: list[str]
     published_after_resubscription: list[str]
     publication_unplaced: list[str]
@@ -961,6 +1026,7 @@ class Classification:
             "restart_class": len(self.restart_class),
             "ambiguous": len(self.ambiguous),
             "published_before_kill": len(self.published_before_kill),
+            "published_during_restart": len(self.published_during_restart),
             "published_while_away": len(self.published_while_away),
             "published_after_resubscription": len(self.published_after_resubscription),
             "publication_unplaced": len(self.publication_unplaced),
@@ -1028,7 +1094,20 @@ def classify_identities(
     resubscribed = next((r for r in post_kill if r.mqtt_subscribed is True), None)
     resub_host_ns = _host_monotonic_of(manifest, resubscribed.ts_utc if resubscribed else None)
     band_ns = int(HOST_CLOCK_STEP_BAND_S * 1_000_000_000)
+    # The restart command's window on the host clock: started_monotonic_ns
+    # is the instant the harness spawned the command and the kill lands
+    # somewhere before it returned (finished_utc, 20-23 s later in r01/r02);
+    # the two wall-clock stamps give its length, with the band for a step
+    # between them.
+    restart_end_host_ns = None
+    if kill_host_ns is not None and isinstance(restart, dict):
+        started = _parse_ts(str(restart.get("started_utc") or ""))
+        finished = _parse_ts(str(restart.get("finished_utc") or ""))
+        if started is not None and finished is not None:
+            length_ns = max(0, int((finished - started).total_seconds() * 1_000_000_000))
+            restart_end_host_ns = kill_host_ns + length_ns + band_ns
     before: list[str] = []
+    during: list[str] = []
     away: list[str] = []
     after: list[str] = []
     unplaced: list[str] = []
@@ -1038,6 +1117,8 @@ def classify_identities(
             unplaced.append(message_id)
         elif publish < kill_host_ns:
             before.append(message_id)
+        elif restart_end_host_ns is None or publish < restart_end_host_ns:
+            during.append(message_id)
         elif resub_host_ns is None:
             away.append(message_id)
         elif publish < resub_host_ns + band_ns:
@@ -1046,7 +1127,13 @@ def classify_identities(
             after.append(message_id)
     if kill_host_ns is None:
         notes.append("the manifest's restart record carries no started_monotonic_ns: publication is unplaced")
-    elif resub_host_ns is None:
+    elif restart_end_host_ns is None:
+        notes.append(
+            "the restart record's started_utc or finished_utc cannot be read: the restart "
+            "command's end is unplaced on the host clock, so every identity published after "
+            "its start is counted as published inside its window"
+        )
+    if kill_host_ns is not None and resub_host_ns is None:
         notes.append(
             "no post-kill reading shows mqtt_subscribed true (or the manifest's host "
             "anchor is absent): every identity published after the kill is counted "
@@ -1056,16 +1143,19 @@ def classify_identities(
         "kill_host_monotonic_ns": kill_host_ns,
         "restart_started_utc": restart.get("started_utc") if isinstance(restart, dict) else None,
         "restart_finished_utc": restart.get("finished_utc") if isinstance(restart, dict) else None,
+        "restart_command_end_host_monotonic_ns": restart_end_host_ns,
         "resubscribed_row": resubscribed.place() if resubscribed else None,
         "resubscribed_host_monotonic_ns": resub_host_ns,
         "band_s": HOST_CLOCK_STEP_BAND_S,
         "subscription_granted_ts_in_controller_log": subscription_granted_ts,
         "note": (
             "host wall clock and host monotonic through the manifest's anchor, with "
-            f"a {HOST_CLOCK_STEP_BAND_S:g} s band for the host clock steps; the "
-            "controller log's subscription line is on the guest clock and is "
-            "reported beside it, never used to decide; none of these figures "
-            "decides a criterion"
+            f"a {HOST_CLOCK_STEP_BAND_S:g} s band for the host clock steps; the restart "
+            "command's window runs from its start (kill_host_monotonic_ns, the spawn) to "
+            "its end (finished_utc after started_utc, plus the band) and the kill lands "
+            "inside it; the controller log's subscription line is on the guest clock "
+            "and is reported beside it, never used to decide; none of these figures "
+            "decides a criterion, and only P-4 reads them for an N1 case's source"
         ),
     }
     return Classification(
@@ -1073,6 +1163,7 @@ def classify_identities(
         restart_class=_sorted_ids(restart_class, valid),
         ambiguous=_sorted_ids(ambiguous, valid),
         published_before_kill=_sorted_ids(before, valid),
+        published_during_restart=_sorted_ids(during, valid),
         published_while_away=_sorted_ids(away, valid),
         published_after_resubscription=_sorted_ids(after, valid),
         publication_unplaced=_sorted_ids(unplaced, valid),
@@ -1463,8 +1554,13 @@ class N1Naming:
     """The duplicate-only candidates sorted three ways: ``named`` (an N1
     case with its source and the twin's evidence), ``r3`` (the twin shows
     the identity was not applied, or no source can be established) and
-    ``cannot_show`` (no twin evidence exists for the device, E-7: neither
-    named nor R3)."""
+    ``cannot_show`` (neither named nor R3: no twin evidence exists for the
+    device or the controller log cannot serve the criteria, E-7; the
+    candidate is ambiguous on the controller clock or its publication falls
+    inside the restart command's window, E-8; or it claims the kill beside
+    such a candidate, E-4). ``undecided_devices`` maps each device whose
+    S5/R4 tolerance depends on such a candidate to the rule, the reason and
+    the candidates (E-9 decides what the twin still shows on it)."""
 
     named: list[dict[str, Any]]
     r3: list[dict[str, Any]]
@@ -1472,6 +1568,7 @@ class N1Naming:
     candidates: list[dict[str, Any]]
     notes: list[str]
     cannot_show: list[dict[str, Any]] = field(default_factory=list)
+    undecided_devices: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def named_ids(self) -> list[str]:
@@ -1489,6 +1586,7 @@ def name_n1_cases(
     classification: Classification,
     restart: dict[str, Any],
     twins_problem: str | None = None,
+    log_problem: str | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -1496,11 +1594,20 @@ def name_n1_cases(
     device without twin evidence (``surplus`` None because a snapshot is
     absent, not verified or unreadable - ``twins_problem`` says which - or
     a device neither snapshot names) is neither named nor R3: nothing shows
-    whether it was applied (E-7)."""
+    whether it was applied (E-7). Nor is a candidate whose source cannot be
+    established because the controller log cannot serve the criteria
+    (``log_problem`` says why, E-7), because it is ambiguous on the
+    controller clock or was published inside the restart command's window
+    (E-8), or because it claims the kill beside such a candidate that may
+    have been in progress at it (E-4): its device is then undecided for
+    S5/R4 (E-9)."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
     restart_class = set(classification.restart_class)
+    ambiguous = set(classification.ambiguous)
     before_kill = set(classification.published_before_kill)
+    during_restart = set(classification.published_during_restart)
+    unplaced = set(classification.publication_unplaced)
     candidates: list[dict[str, Any]] = []
     for message_id in _sorted_ids(valid, valid):
         identity_lines = lines.get(message_id, [])
@@ -1515,7 +1622,14 @@ def name_n1_cases(
                 "outcomes": _outcomes_of(identity_lines),
                 "first_duplicate_received_monotonic_ns": min(known) if known else None,
                 "in_restart_class": message_id in restart_class,
+                "class": (
+                    "restart_class" if message_id in restart_class
+                    else "ambiguous" if message_id in ambiguous
+                    else "pre_kill_lined"
+                ),
                 "published_before_kill": message_id in before_kill,
+                "published_during_restart": message_id in during_restart,
+                "publication_unplaced": message_id in unplaced,
             }
         )
     by_device: dict[str, list[dict[str, Any]]] = {}
@@ -1526,12 +1640,79 @@ def name_n1_cases(
     r3: list[dict[str, Any]] = []
     r4: list[dict[str, Any]] = []
     cannot: list[dict[str, Any]] = []
+    undecided: dict[str, dict[str, Any]] = {}
     notes: list[str] = []
     kill_claimants: list[tuple[dict[str, Any], Surplus]] = []
+    #: Unshown candidates that may have been in progress at the kill (E-4):
+    #: (message_id, the rule that leaves them unshown).
+    possible_claimants: list[tuple[str, str]] = []
     used_occurrences: set[int] = set()
 
     def _reject(candidate: dict[str, Any], why: str) -> None:
         r3.append({**candidate, "why_not_named": why})
+
+    def _cannot_show(candidate: dict[str, Any], rule_id: str, why: str) -> None:
+        """Neither named nor R3 (E-7 over the log, E-8, E-4): the candidate's
+        device is then undecided for S5/R4, whose tolerance depends on the
+        case (E-9)."""
+        cannot.append({**candidate, "why_not_shown": why})
+        entry = undecided.setdefault(
+            candidate["device_uuid"] or "", {"rule": rule_id, "why": why, "message_ids": []}
+        )
+        entry["message_ids"].append(candidate["message_id"])
+
+    def _may_have_been_at_the_kill(candidate: dict[str, Any]) -> bool:
+        """Nothing read excludes the candidate from the kill: its line was
+        not written by the pre-kill process, it was not published after the
+        restart command's end, and the record shows the kill."""
+        return (
+            candidate["class"] != "pre_kill_lined"
+            and restart_ok
+            and (
+                candidate["published_before_kill"]
+                or candidate["published_during_restart"]
+                or candidate["publication_unplaced"]
+            )
+        )
+
+    def _band_place(candidate: dict[str, Any]) -> str:
+        received = candidate["first_duplicate_received_monotonic_ns"]
+        band = classification.band
+        lower, upper = band.get("k_lower_monotonic_ns"), band.get("k_upper_monotonic_ns")
+        if lower is None or upper is None:
+            return (
+                "the kill could not be placed on the controller clock (no readable "
+                "monotonic_ns on both sides of the restart)"
+            )
+        if received is None:
+            return "its duplicate line carries no received_monotonic_ns"
+        return (
+            f"its duplicate line was received at {received} on the controller clock, "
+            f"at or inside the sampling band between the last pre-kill reading ({lower}, "
+            f"row {(band.get('lower_row') or {}).get('row')}) and the first post-kill "
+            f"reading ({upper}, row {(band.get('upper_row') or {}).get('row')})"
+        )
+
+    def _window_place(candidate: dict[str, Any]) -> str:
+        window = classification.away_window
+        start, end = window.get("kill_host_monotonic_ns"), window.get("restart_command_end_host_monotonic_ns")
+        if candidate["publication_unplaced"]:
+            return (
+                "its publication cannot be placed against the restart command's start on "
+                "the host clock (no publish_monotonic_ns on its sent line, or no "
+                "started_monotonic_ns in the manifest's restart record)"
+            )
+        publish = valid[candidate["message_id"]].publish_monotonic_ns
+        return (
+            f"it was published at {publish} on the host clock inside the restart command's "
+            f"window, from the command's start at {start} to its end at "
+            + (
+                f"{end} (finished_utc after started_utc, plus the {HOST_CLOCK_STEP_BAND_S:g} s host band)"
+                if end is not None
+                else "an instant that cannot be read (no readable started_utc/finished_utc)"
+            )
+            + ", where the kill lands"
+        )
 
     for device in sorted(by_device):
         device_candidates = by_device[device]
@@ -1545,6 +1726,8 @@ def name_n1_cases(
                 why = "no twin evidence for the device: " + "; ".join(facts.problems)
             for candidate in device_candidates:
                 cannot.append({**candidate, "why_not_shown": why})
+                if _may_have_been_at_the_kill(candidate):
+                    possible_claimants.append((candidate["message_id"], "E-7"))
             continue
         if facts.surplus <= 0:
             for candidate in device_candidates:
@@ -1602,14 +1785,47 @@ def name_n1_cases(
                 )
             elif candidate["in_restart_class"] and candidate["published_before_kill"] and restart_ok:
                 kill_claimants.append((candidate, facts))
+            elif log_problem is not None:
+                _cannot_show(
+                    candidate, "E-7",
+                    "no A5 occurrence can be read: the controller log cannot serve the criteria "
+                    f"({log_problem}), so an A3 connection end can be shown neither way, and the "
+                    "kill is not established as its source (E-7)",
+                )
+                if _may_have_been_at_the_kill(candidate):
+                    possible_claimants.append((candidate["message_id"], "E-7"))
             else:
+                # The grounds that reject the kill as its source (R3), apart
+                # from those that only leave it unshown (E-8): a band on the
+                # controller clock, or the restart command's window on the
+                # host clock, decides nothing.
                 why = []
-                if not candidate["in_restart_class"]:
-                    why.append("not in the restart class on the controller clock")
-                if not candidate["published_before_kill"]:
-                    why.append("not published before the kill on the host clock")
+                unshown = []
+                if candidate["class"] == "pre_kill_lined":
+                    why.append("lined before the kill on the controller clock, not of the restart classes")
                 if not restart_ok:
                     why.append("the manifest's restart did not execute with exit 0")
+                if not candidate["published_before_kill"]:
+                    if candidate["published_during_restart"] or candidate["publication_unplaced"]:
+                        unshown.append(_window_place(candidate))
+                    else:
+                        why.append("published after the restart command's end on the host clock, not before the kill")
+                if candidate["class"] == "ambiguous":
+                    unshown.append(_band_place(candidate))
+                if not why:
+                    # Restart-class, published before the command's start and
+                    # the restart shown is a kill claimant above, so a ground
+                    # that only leaves it unshown remains here.
+                    _cannot_show(
+                        candidate, "E-8",
+                        "whether it was in progress at the kill cannot be shown: "
+                        + "; ".join(unshown)
+                        + "; a poll or hook instant decides nothing of the criterion (E-8)",
+                    )
+                    possible_claimants.append((candidate["message_id"], "E-8"))
+                    continue
+                if unshown:
+                    why.append("(" + "; ".join(unshown) + ": which alone would not reject it, E-8)")
                 _reject(
                     candidate,
                     "no A5 occurrence names its device before its redelivery and the kill cannot "
@@ -1621,6 +1837,24 @@ def name_n1_cases(
             _reject(
                 candidate,
                 f"the after snapshot's last_seq {facts.after_last_seq} is below the identity's seq {candidate['seq']}",
+            )
+        elif possible_claimants:
+            # E-4: one consumer dies once. If an unshown identity was in
+            # progress at the kill this one was not, and nothing read tells
+            # them apart.
+            others = ", ".join(f"{message_id} ({rule})" for message_id, rule in sorted(possible_claimants))
+            notes.append(
+                f"one identity claims the kill as its source beside {len(possible_claimants)} "
+                "duplicate-only identity(ies) that may have been in progress at the kill and "
+                "can be shown neither way: none is named (E-4)"
+            )
+            _cannot_show(
+                candidate, "E-4",
+                "it claims the kill as its source (restart-class, published before the restart "
+                f"command's start, the restart executed with exit 0), but {len(possible_claimants)} "
+                "other duplicate-only identity(ies) may have been in progress at the kill and can "
+                f"be shown neither way: {others}; at most one N1 case per death (E-4), so it is "
+                "neither named nor R3",
             )
         else:
             named.append(
@@ -1643,9 +1877,22 @@ def name_n1_cases(
             "most one N1 case per death (N1), so none is named"
         )
         for candidate, _facts in kill_claimants:
-            _reject(candidate, "more than one identity claims the one death: at most one N1 case per death")
+            if log_problem is not None:
+                _cannot_show(
+                    candidate, "E-7",
+                    "more than one identity claims the one death (at most one N1 case per "
+                    "death, E-4) and no A5 occurrence can be read that would name another "
+                    f"source: the controller log cannot serve the criteria ({log_problem}) (E-7)",
+                )
+            else:
+                _reject(
+                    candidate,
+                    "more than one identity claims the one death: at most one N1 case per death (E-4)",
+                )
     for device in sorted(surplus or {}):
         facts = surplus[device]
+        if device in undecided:
+            continue  # the surplus may be the unshown case's evidence: undecided, not unexplained
         if facts.surplus is not None and facts.surplus > 0:
             named_here = len(named_on(named, device))
             if facts.surplus > named_here:
@@ -1660,7 +1907,9 @@ def name_n1_cases(
     named.sort(key=_candidate_order)
     r3.sort(key=_candidate_order)
     cannot.sort(key=_candidate_order)
-    return N1Naming(named, r3, r4, candidates, notes, cannot)
+    for entry in undecided.values():
+        entry["message_ids"].sort()
+    return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())))
 
 
 def _candidate_order(candidate: dict[str, Any]) -> tuple[str, int, str]:
@@ -1687,7 +1936,7 @@ def _twin_evidence(facts: Surplus) -> dict[str, Any]:
 def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
     """S4 holds when every duplicate-lined identity has an accepted line or
     is a named N1 case; R3 is observed for every one that is neither. A
-    candidate without twin evidence (E-7) can be shown neither way: with no
+    candidate that can be shown neither way (E-7, E-8) is neither: with no
     R3 observed elsewhere, S4 and R3 are then null."""
     evidence = {
         "duplicate_only_identities": len(naming.candidates),
@@ -1698,7 +1947,7 @@ def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
         "cannot_show_identities": naming.cannot_show,
         "notes": naming.notes,
     }
-    rules = ("P-4", "E-4", "E-7")
+    rules = ("P-4", "E-4", "E-7", "E-8")
     if naming.r3:
         reason = f"{len(naming.r3)} identity(ies) with only duplicate lines and no named N1 case"
         return (
@@ -1707,8 +1956,8 @@ def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
         )
     if naming.cannot_show:
         reason = (
-            f"{len(naming.cannot_show)} identity(ies) with only duplicate lines on a device "
-            "without twin evidence: " + "; ".join(sorted({c["why_not_shown"] for c in naming.cannot_show}))
+            f"{len(naming.cannot_show)} identity(ies) with only duplicate lines that can be "
+            "shown neither named nor R3: " + "; ".join(sorted({c["why_not_shown"] for c in naming.cannot_show}))
         )
         return (
             Criterion("S4", None, dict(evidence), rules, reason),
@@ -1718,6 +1967,92 @@ def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
         Criterion("S4", True, dict(evidence), rules),
         Criterion("R3", False, dict(evidence), rules),
     )
+
+
+def _twin_figures(
+    facts: Surplus, run_id: str, named_cases: int, applied_seqs: list[int]
+) -> tuple[list[str], str | None, int | None]:
+    """One device's S5 problems and P-5 regression under a given naming:
+    ``named_cases`` N1 cases named on it and ``applied_seqs`` the seqs the
+    run applied there (its accepted lines' and the named cases'). The
+    runbook's `delta` rule with E-2's tolerance: the count, this run's
+    last_run_id with the highest applied seq as last_seq when the run
+    applied on the device, the device's own problems of absence."""
+    expected = max(applied_seqs) if applied_seqs else None
+    problems = list(facts.problems)
+    if facts.delta is not None:
+        if facts.delta != facts.accepted_lines + named_cases:
+            problems.append(
+                f"accepted_count advanced by {facts.delta} against {facts.accepted_lines} "
+                f"accepted line(s) and {named_cases} named N1 case(s)"
+            )
+        if expected is not None and (facts.after_last_run_id != run_id or facts.after_last_seq != expected):
+            problems.append(
+                f"last_run_id {facts.after_last_run_id!r} last_seq {facts.after_last_seq} "
+                f"against this run's highest applied seq {expected}"
+            )
+    regressed = None
+    if facts.after_last_seq is not None:
+        if facts.after_last_run_id == run_id and expected is not None and facts.after_last_seq < expected:
+            regressed = f"last_seq {facts.after_last_seq} is below the run's highest applied seq {expected}"
+        elif (
+            facts.after_last_run_id is not None
+            and facts.after_last_run_id == facts.before_last_run_id
+            and facts.before_last_seq is not None
+            and facts.after_last_seq < facts.before_last_seq
+        ):
+            regressed = (
+                f"last_seq {facts.after_last_seq} is below the before snapshot's "
+                f"{facts.before_last_seq} under the same run_id {facts.after_last_run_id!r}"
+            )
+    return problems, regressed, expected
+
+
+def _namings_of_undecided(
+    facts: Surplus,
+    run_id: str,
+    named_cases: int,
+    applied_seqs: list[int],
+    undecided_seqs: list[int | None],
+) -> list[dict[str, Any]]:
+    """E-9: every naming of a device's undecided candidates that the
+    twin's count allows, each with the figures it would leave. The count
+    fixes how many would be named (delta equals the accepted lines plus
+    the cases named); the highest seq among them is what the twin's
+    last_seq must then show, so one naming per possible highest seq is
+    tried (a candidate without a seq adds none). Empty when no naming fits
+    the count."""
+    if facts.delta is None:
+        return []
+    count = facts.delta - facts.accepted_lines - named_cases
+    if count < 0 or count > len(undecided_seqs):
+        return []
+    known = sorted(s for s in undecided_seqs if s is not None)
+    without_seq = len(undecided_seqs) - len(known)
+    tops: list[int | None] = []
+    if count == 0 or without_seq >= count:
+        tops.append(None)
+    if count > 0:
+        for seq in known:
+            # `seq` is the highest of a naming of `count` candidates when
+            # at least count - 1 others carry a seq not above it, or none.
+            if seq not in tops and bisect.bisect_right(known, seq) + without_seq >= count:
+                tops.append(seq)
+    namings: list[dict[str, Any]] = []
+    for top in tops:
+        seqs = applied_seqs + ([top] if top is not None else [])
+        problems, regressed, expected = _twin_figures(facts, run_id, named_cases + count, seqs)
+        namings.append(
+            {
+                "named_cases": count,
+                "highest_named_seq": top,
+                "expected_last_seq": expected,
+                "problems": problems,
+                "regressed": regressed,
+                "delta_ok": not problems and regressed is None,
+            }
+        )
+    return namings
 
 
 def s5_r4_delta(
@@ -1733,7 +2068,12 @@ def s5_r4_delta(
     a mismatch), tolerating exactly one per named N1 case on the device
     (E-2), plus the last_seq regression rule (P-5). Without a surplus
     (``cannot`` says why: a snapshot or the post-drain copy absent, not
-    verified or unreadable) both are null (E-7)."""
+    verified or unreadable) both are null (E-7). A device that is undecided
+    (its tolerance depends on a duplicate-only case that can be shown
+    neither way: E-7 over the controller log, E-8, E-4) is read under E-9:
+    null while some naming of its undecided candidates that the count
+    allows leaves the figures right, a mismatch or regression that stands
+    under every one otherwise, on the twin's evidence, which was read."""
     if surplus is None:
         why = cannot or "a twin snapshot is missing"
         evidence = {"devices": [], "note": f"no delta can be computed: {why}"}
@@ -1741,49 +2081,18 @@ def s5_r4_delta(
             Criterion("S5", None, dict(evidence), ("E-2", "E-7"), why),
             Criterion("R4", None, dict(evidence), ("P-5", "E-2", "E-7"), why),
         )
+    seq_of = {candidate["message_id"]: candidate["seq"] for candidate in naming.cannot_show}
     devices: list[dict[str, Any]] = []
     mismatches: list[dict[str, Any]] = []
     regressions: list[dict[str, Any]] = []
+    undecided: list[dict[str, Any]] = []
+    stands: list[str] = []
+    undecided_rules: set[str] = set()
     for device in sorted(surplus):
         facts = surplus[device]
         cases = named_on(naming.named, device)
-        named_seqs = [case["seq"] for case in cases if case["seq"] is not None]
-        expected_last_seq = None
-        seqs = [s for s in (facts.max_seq_accepted, *named_seqs) if s is not None]
-        if seqs:
-            expected_last_seq = max(seqs)
-        problems = list(facts.problems)
-        if facts.delta is not None:
-            if facts.delta != facts.accepted_lines + len(cases):
-                problems.append(
-                    f"accepted_count advanced by {facts.delta} against {facts.accepted_lines} "
-                    f"accepted line(s) and {len(cases)} named N1 case(s)"
-                )
-            if expected_last_seq is not None and (
-                facts.after_last_run_id != run_id or facts.after_last_seq != expected_last_seq
-            ):
-                problems.append(
-                    f"last_run_id {facts.after_last_run_id!r} last_seq {facts.after_last_seq} "
-                    f"against this run's highest applied seq {expected_last_seq}"
-                )
-        regressed = None
-        if facts.after_last_seq is not None:
-            if (
-                facts.after_last_run_id == run_id
-                and expected_last_seq is not None
-                and facts.after_last_seq < expected_last_seq
-            ):
-                regressed = f"last_seq {facts.after_last_seq} is below the run's highest applied seq {expected_last_seq}"
-            elif (
-                facts.after_last_run_id is not None
-                and facts.after_last_run_id == facts.before_last_run_id
-                and facts.before_last_seq is not None
-                and facts.after_last_seq < facts.before_last_seq
-            ):
-                regressed = (
-                    f"last_seq {facts.after_last_seq} is below the before snapshot's "
-                    f"{facts.before_last_seq} under the same run_id {facts.after_last_run_id!r}"
-                )
+        applied = [s for s in (facts.max_seq_accepted, *(case["seq"] for case in cases)) if s is not None]
+        problems, regressed, expected_last_seq = _twin_figures(facts, run_id, len(cases), applied)
         row = {
             **facts.as_dict(),
             "named_n1_cases": len(cases),
@@ -1798,6 +2107,48 @@ def s5_r4_delta(
                 "not compared: named by the after snapshot only and without an "
                 "accepted line, which the runbook's `delta` does not compare"
             )
+        undecided_here = naming.undecided_devices.get(device)
+        if undecided_here is not None:
+            # E-9: the figures are shown as read, with the case unnamed.
+            # Nothing is decided on them while some naming of the unshown
+            # candidates that the count allows would leave them right; a
+            # mismatch or regression that no naming removes was read from
+            # the twin whatever the candidates were.
+            ids = list(undecided_here["message_ids"])
+            namings = _namings_of_undecided(facts, run_id, len(cases), applied, [seq_of.get(m) for m in ids])
+            explained = any(n["delta_ok"] for n in namings)
+            undecided_rules.add(undecided_here["rule"])
+            row["undecided"] = {**undecided_here, "namings_tried": namings, "explained": explained}
+            if explained:
+                row["ok"] = None
+                devices.append(row)
+                undecided.append({"device_uuid": device, **undecided_here})
+                continue
+            note = (
+                f"no naming of the device's {len(ids)} undecided candidate(s) ({', '.join(ids)}) "
+                "leaves `delta` right: "
+                + ("the count fits none" if not namings else "each naming tried leaves a problem or a regression")
+                + "; the problems are stated with the candidate(s) unnamed, and each naming tried "
+                "is listed with what it would leave (E-9)"
+            )
+            row["undecided"]["note"] = note
+            stands.append(device)
+            devices.append(row)
+            if problems:
+                mismatches.append(
+                    {
+                        "device_uuid": device,
+                        "problems": problems,
+                        "undecided_candidates": ids,
+                        "namings_tried": namings,
+                        "note": note,
+                    }
+                )
+            if regressed is not None:
+                regressions.append(
+                    {"device_uuid": device, "regressed": regressed, "undecided_candidates": ids, "note": note}
+                )
+            continue
         devices.append(row)
         if problems:
             mismatches.append({"device_uuid": device, "problems": problems})
@@ -1807,6 +2158,7 @@ def s5_r4_delta(
         "devices": devices,
         "mismatches": mismatches,
         "last_seq_regressions": regressions,
+        "undecided": undecided,
         "surplus_unexplained": naming.r4_unexplained,
         "note": (
             "the /metrics counters of `delta` are not compared: they restart from zero "
@@ -1820,11 +2172,27 @@ def s5_r4_delta(
             parts.append(f"{len(mismatches)} device(s) with a delta mismatch beyond the named cases")
         if regressions:
             parts.append(f"{len(regressions)} device(s) whose last_seq regressed")
+        if stands:
+            parts.append(
+                f"{len(stands)} of them under every naming of its unshown duplicate-only "
+                "candidate(s) (E-9)"
+            )
         reason = "; ".join(parts)
     observed = bool(mismatches or regressions)
+    extra = ("E-9", *sorted(undecided_rules)) if undecided_rules else ()
+    if not observed and undecided:
+        reason = (
+            f"{len(undecided)} device(s) whose delta tolerance depends on a duplicate-only "
+            "identity that can be shown neither named nor R3: "
+            + "; ".join(f"{u['device_uuid']}: {u['why']}" for u in undecided)
+        )
+        return (
+            Criterion("S5", None, dict(evidence), ("E-2", *extra), reason),
+            Criterion("R4", None, dict(evidence), ("P-5", "E-2", *extra), reason),
+        )
     return (
-        Criterion("S5", not observed, dict(evidence), ("E-2",), reason),
-        Criterion("R4", observed, dict(evidence), ("P-5", "E-2"), reason),
+        Criterion("S5", not observed, dict(evidence), ("E-2", *extra), reason),
+        Criterion("R4", observed, dict(evidence), ("P-5", "E-2", *extra), reason),
     )
 
 
@@ -1876,7 +2244,7 @@ def failed_only_restart_class(
 class EvidenceStatus:
     """Whether the proof's evidence is complete, every absence named;
     ``unusable`` maps each file that cannot serve the criteria (the
-    post-drain copy, the twin snapshots) to why (E-7)."""
+    post-drain copy, the twin snapshots, the controller log) to why (E-7)."""
 
     complete: bool
     present: dict[str, bool]
@@ -2015,17 +2383,27 @@ def evidence_status(
     for hook, name in SUT_LOG_FILES.items():
         rel = f"{logs}/{name}"
         record = by_hook.get(hook)
+        problem = None
         if record is None:
             missing.append(f"{rel}: no fetch record ({SUT_LOG_FETCH_FLAGS[hook]})")
+            problem = missing[-1]
         elif record.get("returncode") != 0 or not record.get("dest_exists"):
             failures.append(
                 f"{rel}: the fetch {SUT_LOG_FETCH_FLAGS[hook]} {_record_outcome(record)} and "
                 + ("wrote its file" if record.get("dest_exists") else "wrote no file")
             )
+            problem = failures[-1]
         elif not present[rel]:
             missing.append(f"{rel}: recorded as fetched but absent from the run directory")
+            problem = missing[-1]
         elif _read_problem(rel) is not None:
             failures.append(_read_problem(rel))
+            problem = failures[-1]
+        if problem is not None and hook == "controller_log":
+            # Only the controller log serves a criterion (the A5 occurrences
+            # of S4/R3, E-7); the broker log and docker events are fetched
+            # evidence the proof reports and never reads for a criterion.
+            _cannot_serve(rel, problem)
 
     identity = manifest.get("configuration_identity")
     if not isinstance(identity, dict):
@@ -2090,9 +2468,10 @@ def inconclusive_reasons(
     r_any: bool,
 ) -> list[str]:
     """The ADR's five conditions, in its order, plus the evaluator's own
-    (P-2, P-6, E-3, E-7), each stated with what was read. A criterion of
-    S2 to S5 that is null is always named here (E-7), so a run that is
-    inconclusive for that cause never goes without a stated reason."""
+    (P-2, P-6, E-3, E-7, E-8), each stated with what was read. A criterion
+    of S2 to S5 that is null is always named here (E-7, or E-8 when the
+    band is the ground), so a run that is inconclusive for that cause never
+    goes without a stated reason."""
     s1, s2, s6 = criteria["S1"], criteria["S2"], criteria["S6"]
     reasons: list[str] = []
     if s1.holds is False:
@@ -2152,7 +2531,8 @@ def inconclusive_reasons(
         if criterion.holds is None:
             unshown.setdefault(criterion.reason or "no reason recorded", []).append(rule_id)
     for why, rule_ids in unshown.items():
-        reasons.append(f"{', '.join(rule_ids)} cannot be shown (E-7): {why}")
+        label = "E-8" if "(E-8)" in why else "E-7"
+        reasons.append(f"{', '.join(rule_ids)} cannot be shown ({label}): {why}")
     return reasons
 
 
@@ -2223,7 +2603,9 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     )
     # E-7: the post-drain copy serves the criteria only when it was fetched,
     # verified as this run's and read; the twins only when both snapshots
-    # were. Otherwise what depends on them is null, never a refutation.
+    # were; the controller log's A5 occurrences only when its fetch was
+    # recorded ok and the file was read. Otherwise what depends on them is
+    # null, never a refutation.
     post_problem = evidence.unusable.get(POST_DRAIN_EVENTS_FILENAME)
     if post_problem is None and artefacts.events_post_drain is None:
         post_problem = f"{POST_DRAIN_EVENTS_FILENAME}: not read"
@@ -2233,6 +2615,10 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     if twins_problem is None and (artefacts.twins_before is None or artefacts.twins_after is None):
         twins_problem = "a twin snapshot was not read"
     post_copy_usable = post_problem is None
+    log_rel = f"logs/{SUT_LOG_SUBDIR}/{SUT_LOG_FILES['controller_log']}"
+    log_problem = evidence.unusable.get(log_rel)
+    if log_problem is None and artefacts.controller_log is None:
+        log_problem = f"{log_rel}: not read"
 
     sent = valid_identities(artefacts.sent_events, run_id)
     post = lines_by_identity(artefacts.events_post_drain or [], run_id)
@@ -2259,7 +2645,14 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     else:
         cannot = None
     naming = name_n1_cases(
-        sent.valid, post.by_id, surplus, occurrences, classification, restart, twins_problem
+        sent.valid,
+        post.by_id,
+        surplus,
+        occurrences if log_problem is None else [],
+        classification,
+        restart,
+        twins_problem,
+        log_problem,
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))
@@ -2373,6 +2766,8 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
                     "criteria_copy_usable": post_copy_usable,
                     "criteria_copy_problem": post_problem,
                     "twin_evidence_problem": twins_problem,
+                    "controller_log_usable": log_problem is None,
+                    "controller_log_problem": log_problem,
                     "note": (
                         "the timed copy (events.jsonl) is reported beside the post-drain copy and "
                         "never enters a criterion"
