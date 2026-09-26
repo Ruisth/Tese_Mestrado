@@ -1901,20 +1901,26 @@ def test_late_polling_cannot_reset_the_candidate_health_allowance(pbench):
     # within that remainder and the rule is reached - a success first
     # observed past the allowance is never accepted. The rule reached ends
     # the attempt inconclusive (exit 3), never not-run (this half expected
-    # not-run, exit 2: it encoded that wrong rule and is corrected).
+    # not-run, exit 2: it encoded that wrong rule and is corrected). The
+    # wait ends at that remainder either by its own limit (exit 1, NOT
+    # HEALTHY) or, since the acquisition is bounded on the host by the same
+    # remainder from the containers record (F2b), by that bound (124): the
+    # two reach the same rule, and which comes first is a race of a second.
     pbench.boot_stack(4)
     result = pbench.run(EGW_STUB_HEALTHY_AFTER_S="30")
     assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
     assert (f"stop rule reached: the stack with the candidate was not running and healthy within {HEALTH_LIMIT_S} s of its start "
-            "(services-healthy exit 1 under the") in verdicts["reason"]
+            "(services-healthy ") in verdicts["reason"]
     assert "s left of that allowance" in verdicts["reason"]
     facts = pbench.session_facts()
     rule = facts["healthy_rule"]
     assert rule["spent_before_wait_s"] >= 4 and 0 < rule["poll_bound_s"] <= HEALTH_LIMIT_S - 4
+    assert 0 < rule["acquisition_bound_s"] <= rule["poll_bound_s"]
     assert next(r for r in facts["stop_rules"] if r["id"] == "healthy")["reached"] is True
-    assert "NOT HEALTHY after" in pbench.console("services-healthy")
+    assert "egw-controller-1=running/starting" in pbench.console("services-healthy")
+    assert "ALL HEALTHY" not in pbench.console("services-healthy")
     assert "healthy-rule-check" not in pbench.commands() and "pre" not in pbench.commands()
     # The same stack, polled soon after its boot, is healthy in time: the
     # allowance runs from the start, not from the poll.
@@ -1981,11 +1987,14 @@ def test_a_first_healthy_observation_past_the_deadline_is_the_rule_reached_and_t
 
 def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline(tmp_path):
     # The check after the wait, on its own records: a first ALL HEALTHY
-    # sample past start + limit is the rule reached (1), one within it is
-    # met (0), a record without a readable transition cannot establish it
-    # (2), and a transition established by an earlier record is not judged
-    # against the deadline (the idle time of a healthy guest is not boot
-    # delay).
+    # observation completed past start + limit is the rule reached (1), one
+    # completed within it is met (0), a record without a readable transition
+    # cannot establish it (2), and a transition established by an earlier
+    # record is not judged against the deadline (the idle time of a healthy
+    # guest is not boot delay). The records carry the line the shared wait
+    # prints after the last inspection of its healthy sample (F2b; the case
+    # of the observation that began before the deadline and completed after
+    # it, and of a record without that line, is the one below).
     code = _driver_variable("HEALTHY_RULE_PY")
     clock = int(datetime(2026, 9, 25, 10, 1, 40, tzinfo=timezone.utc).timestamp())
     containers = tmp_path / "containers.before.txt"
@@ -1994,9 +2003,10 @@ def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline
         encoding="utf-8")
     late = tmp_path / "late.txt"
     late.write_text("2026-09-25T10:20:01Z sample 1: x=running/starting\n2026-09-25T10:20:16Z sample 2: x=running/healthy\n"
+                    "2026-09-25T10:20:17Z completed (sample 2)\n"
                     "ALL HEALTHY: the 6 expected services are running and healthy (sample 2)\n", encoding="utf-8")
     early = tmp_path / "early.txt"
-    early.write_text("2026-09-25T10:05:00Z sample 1: x=running/healthy\n"
+    early.write_text("2026-09-25T10:05:00Z sample 1: x=running/healthy\n2026-09-25T10:05:02Z completed (sample 1)\n"
                      "ALL HEALTHY: the 6 expected services are running and healthy (sample 1)\n", encoding="utf-8")
     unreadable = tmp_path / "none.txt"
     unreadable.write_text("2026-09-25T10:05:00Z sample 1: x=running/starting\nNOT HEALTHY after 1200 s and 80 sample(s): x\n",
@@ -2008,16 +2018,20 @@ def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline
 
     past = check(late)
     assert past.returncode == 1, report(past)
-    assert "HEALTHY RULE REACHED: the stack was first observed healthy 1216 s after the candidate start" in past.stdout
+    assert ("HEALTHY RULE REACHED: the stack was first observed healthy by sample 2, which began 1216 s after the candidate "
+            "start") in past.stdout
+    assert "completed by 2026-09-25T10:20:17Z (1218 s after it), beyond the 1200 s allowance" in past.stdout
     assert "elapsed_s=1216" in past.stdout and "first_healthy_utc=2026-09-25T10:20:16Z" in past.stdout
+    assert "first_healthy_completed_utc=2026-09-25T10:20:17Z" in past.stdout and "completed_upper_elapsed_s=1218" in past.stdout
     # The instant of the sample is its start: the span from the previous
-    # sample's instant (its duration plus the step) is recorded beside it
-    # with the note, and nothing is refused on it.
+    # sample's instant (its duration plus the step) is still recorded, with
+    # the note, as information.
     assert "previous_sample_utc=2026-09-25T10:20:01Z" in past.stdout and "previous_sample_span_s=15.0" in past.stdout
     assert "first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start" in past.stdout
     met = check(early)
     assert met.returncode == 0, report(met)
-    assert "HEALTHY RULE MET: first observed healthy 300 s after the candidate start 2026-09-25T10:00:00.000000000Z" in met.stdout
+    assert ("HEALTHY RULE MET: first observed healthy by sample 1, which began 300 s after the candidate start "
+            "2026-09-25T10:00:00.000000000Z") in met.stdout
     assert "previous_sample_utc=null" in met.stdout and "previous_sample_span_s=null" in met.stdout
     none = check(unreadable)
     assert none.returncode == 2, report(none)
@@ -2029,7 +2043,7 @@ def test_the_healthy_rule_check_rejects_a_first_healthy_sample_past_the_deadline
     # sample that reads within that band before the start is simultaneous
     # (elapsed 0, noted), one beyond it is a clock that is not consistent.
     stepped = tmp_path / "stepped.txt"
-    stepped.write_text("2026-09-25T09:59:58Z sample 1: x=running/healthy\n"
+    stepped.write_text("2026-09-25T09:59:58Z sample 1: x=running/healthy\n2026-09-25T09:59:59Z completed (sample 1)\n"
                        "ALL HEALTHY: the 6 expected services are running and healthy (sample 1)\n", encoding="utf-8")
     within = check(stepped)
     assert within.returncode == 0, report(within)
@@ -2925,10 +2939,11 @@ tunnel_down() { echo "stub: tunnel down"; }
 
 
 def test_a_tunnel_that_wedges_before_the_harness_is_ended_by_the_bound_in_tunnel_ready(pbench):
-    # The harness step loads the 6.1 preamble before its bound (hx), so a
-    # 'tunnel_up' that never completes there would hold the driver past the
-    # expiry. 'tunnel-ready', a live step just before it, loads the same
-    # preamble INSIDE the bound: here the tunnel drops once 'pre' has ended
+    # 'tunnel-ready', a live step just before the harness step, loads the
+    # 6.1 preamble INSIDE the bound (as the harness step now loads its own:
+    # the case of a tunnel that falls between the two is
+    # test_the_actual_harness_preamble_is_ended_by_the_attempts_bound_and_
+    # starts_no_harness): here the tunnel drops once 'pre' has ended
     # and reopening it blocks for 20 s across an allowance of 10 s. The
     # bound ends 'tunnel-ready' (124, or 137 after the grace), the rule is
     # recorded once as reached during it, and neither the harness nor its
@@ -2994,7 +3009,7 @@ def test_a_preamble_that_cannot_be_loaded_just_before_the_harness_starts_no_harn
     assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
     reason = verdicts["reason"]
     assert ("the host preamble of runbook 6.1 could not be loaded just before the harness (tunnel-ready exit 97), so the "
-            "harness step, whose own preamble would run unbounded, was NOT dispatched: the harness was NOT started") in reason
+            "harness step was NOT dispatched: the harness was NOT started") in reason
     assert "stop rule reached" not in reason
     steps = pbench.commands()
     assert "tunnel-ready" in steps and "harness-run" not in steps and pbench.harness() is None
@@ -3010,21 +3025,21 @@ def test_a_preamble_that_cannot_be_loaded_just_before_the_harness_starts_no_harn
 def test_the_harness_steps_bound_is_computed_after_its_preamble_and_a_spent_allowance_starts_no_harness(pbench):
     # 'pre' ends well inside a 10 s allowance, 'tunnel-ready' finds the
     # tunnel up, and the harness step is dispatched with most of the
-    # allowance left; the tunnel then drops again, so the step's own 6.1
-    # preamble (loaded before its bound, as hx loads it) takes 20 s
-    # reopening it. The step was handed the absolute deadline (T0 + the
-    # allowance on /proc/uptime) and computes its bound AFTER the preamble:
-    # nothing is left, so the harness - and its fault hook - is NOT started
-    # (the step answers 98) and the rule is recorded once as reached before
-    # 'harness-run'. (The joint check's probe showed the harness starting
-    # 34 s into a 20 s allowance under a bound computed before the preamble,
-    # with the dispatch instant recorded as the harness's start.) With
-    # 'tunnel-ready' in place the tunnel of this case drops at the second
-    # preamble after 'pre' (EGW_STUB_TUNNEL_DROP_AT=2), the harness step's
-    # own: at the first, 'tunnel-ready' would take the wait under its bound
-    # (the case above), and this path would no longer be reached.
-    _write(pbench.bench.home / "egw-tcg" / "tunnel.sh", PREAMBLE_TUNNEL)
-    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="10", EGW_STUB_TUNNEL_UP_HANG_S="20", EGW_STUB_TUNNEL_DROP_AT="2")
+    # allowance left - but its shell starts only 15 s later (the bench's
+    # PY_SLOW_STEP holds the step's local_export exec), past the deadline,
+    # and its preamble then loads at once. The step was handed the absolute
+    # deadline (T0 + the allowance on /proc/uptime) and computes the
+    # harness's bound AFTER the preamble: nothing is left, so the harness -
+    # and its fault hook - is NOT started (the step answers 98) and the rule
+    # is recorded once as reached before 'harness-run'. (The joint check's
+    # probe showed the harness starting 34 s into a 20 s allowance under a
+    # bound computed before the preamble, with the dispatch instant recorded
+    # as the harness's start.) A preamble that BLOCKS across the deadline is
+    # ended by the step's own bound, which holds the preamble too (F2a: the
+    # case after this one); this case used to reach the check after a
+    # preamble that took 20 s, which the bound now ends first.
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="10",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="harness-run", EGW_SLOW_STEP_S="15"))
     assert result.returncode == 3, report(result)
     steps = pbench.commands()
     assert steps.index("tunnel-ready") < steps.index("harness-run")
@@ -3040,9 +3055,8 @@ def test_the_harness_steps_bound_is_computed_after_its_preamble_and_a_spent_allo
     stderr = pbench.console("harness-run", "stderr")
     assert ("STOP: the attempt's allowance of 10 s from its first 'drained' was spent when the host preamble of this "
             "step had loaded") in stderr and "the harness was NOT started" in stderr
-    assert "stub: tunnel up" in pbench.console("harness-run") and "harness_started_utc=" not in pbench.console("harness-run")
-    record = [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()
-              if json.loads(line)["name"] == "harness-run"][-1]
+    assert "harness_started_utc=" not in pbench.console("harness-run")
+    record = _step_record(pbench, "harness-run")
     assert record["exit_code"] == 98
     facts = pbench.session_facts()
     instants = facts["instants"]
@@ -3057,19 +3071,25 @@ def test_the_harness_steps_bound_is_computed_after_its_preamble_and_a_spent_allo
     assert instants["harness_allowance_s"] == 0 and instants["harness_step_dispatched_utc"]
     assert "harness_exit=not-started" in result.stdout
     assert verdicts["restoration"].startswith("stack=healthy")
-    # A preamble that takes its time but leaves some of the allowance: the
-    # harness starts under what is left AFTER the preamble, and the start
-    # recorded is the harness's own, taken inside the step immediately before
-    # it, not the instant the step was dispatched.
+    # A preamble that takes its time but completes within the allowance
+    # (the tunnel drops before the harness step's own preamble and takes
+    # 6 s to reopen): the harness starts under what is left AFTER the
+    # preamble - never a fresh budget: less than the step's own bound by at
+    # least the preamble's time - and the start recorded is the harness's
+    # own, taken inside the step immediately before it, not the instant the
+    # step was dispatched.
     pbench.reset()
-    (pbench.bench.home / "egw-tcg" / "tunnel-reopened").unlink()
-    (pbench.bench.home / "egw-tcg" / "tunnel-checks").unlink()
-    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="60", EGW_STUB_TUNNEL_UP_HANG_S="6", EGW_STUB_TUNNEL_DROP_AT="2")
+    _write(pbench.bench.home / "egw-tcg" / "tunnel.sh", PREAMBLE_TUNNEL)
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="60", EGW_STUB_TUNNEL_UP_HANG_S="6", EGW_STUB_TUNNEL_DROP_AT="2",
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="none", EGW_SLOW_STEP_S="0"))
     assert result.returncode == 0, report(result)
     instants = pbench.session_facts()["instants"]
+    assert "stub: tunnel up" in pbench.console("harness-run")
     started_after = instants["harness_started_host_uptime_s"] - instants["first_drained_started_host_uptime_s"]
     assert started_after >= 6
     assert instants["harness_allowance_s"] == 60 - started_after
+    assert 0 < instants["harness_step_allowance_s"] <= 60 and instants["harness_step_exit"] == 0
+    assert instants["harness_allowance_s"] <= instants["harness_step_allowance_s"] - 6
     assert instants["harness_started_utc"] and instants["harness_step_dispatched_utc"]
     assert "harness_started_utc=" + instants["harness_started_utc"] in pbench.console("harness-run")
 

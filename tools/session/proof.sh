@@ -67,20 +67,26 @@
 # EGW_HEALTH_LIMIT_S (1200 s, the 20-minute rule) OF ITS START - the
 # candidate's start is the earliest StartedAt of the six expected services,
 # read from the containers before the wait; the wait (the shared
-# healthy_wait, on the same records as the broker measurement) is bounded
-# by what is left of that allowance from that start, so time already spent
-# counts and a late poll never resets it, and a first healthy observation
-# past start + EGW_HEALTH_LIMIT_S is not accepted; a healthy transition of
-# this same start demonstrated earlier in the session may be named
-# (EGW_PROOF_HEALTHY_RECORD, P-15) and is reused only when its instant lies
-# between the latest start of the six and start + EGW_HEALTH_LIMIT_S; an
+# healthy_wait_script, on the same records as the broker measurement) is
+# bounded by what is left of that allowance from that start, on the guest
+# and, for its acquisition as a whole, on the host ('bounded': an
+# inspection that blocks is ended there), so time already spent counts and
+# a late poll never resets it; the first healthy observation is judged by
+# when it COMPLETED - the instant the wait reads after the healthy sample's
+# last inspection, never the sample's start - and one completed past start
+# + EGW_HEALTH_LIMIT_S is not accepted; a healthy transition of this same
+# start demonstrated earlier in the session may be named
+# (EGW_PROOF_HEALTHY_RECORD, P-15) and is reused only when it began after
+# the latest start of the six and completed by start + EGW_HEALTH_LIMIT_S
+# (a record that does not say when it completed proves nothing); an
 # unknown start - docker's zero StartedAt of a container created but never
 # started among them - cannot establish the rule (not-run, stated). The
 # rule REACHED - the allowance from that start spent before the wait, the
-# stack not healthy within its remainder, a first healthy observation past
-# start + EGW_HEALTH_LIMIT_S, or a named earlier transition past it - ends
-# the attempt inconclusive (exit 3), never not-run, and the harness is not
-# started. The attempt stopped EGW_PROOF_ATTEMPT_LIMIT_S (3000 s, the
+# stack not healthy within its remainder (or the acquisition ended by it),
+# a first healthy observation completed past start + EGW_HEALTH_LIMIT_S,
+# or a named earlier transition completed past it - ends the attempt
+# inconclusive (exit 3), never not-run, and the harness is not started.
+# The attempt stopped EGW_PROOF_ATTEMPT_LIMIT_S (3000 s, the
 # 50-minute rule) after its first 'drained' starts, measured on
 # /proc/uptime (the host's wall clock is stepped backwards on this host)
 # from the instant taken immediately before 'pre', and enforced as ONE
@@ -91,13 +97,14 @@
 # dispatched, each runs under 'timeout' of the positive remainder (a spent
 # allowance means the step is not started, never 'timeout 0'; the live
 # host steps load the 6.1 preamble inside that bound; 'tunnel-ready', just
-# before the harness, is such a step with a trivial body, so a tunnel that
-# wedges is ended by the allowance there and the harness step's own
-# preamble - which it loads before its bound, as hx does, its text being
-# pinned to the runbook's harness_cmd - then finds the tunnel up; the
-# harness step is handed the absolute deadline, so its bound is computed
-# AFTER that preamble and the harness is not started when nothing is left
-# then), and the expiry is recorded once - in the driver's own shell, never
+# before the harness, is such a step with a trivial body; the harness step
+# loads its own preamble - the one that actually precedes the harness -
+# inside the same bound too, so a tunnel that drops after 'tunnel-ready'
+# and whose reopening blocks is ended by the allowance and the harness is
+# never started; the harness step is also handed the absolute deadline, so
+# the harness's own bound is computed AFTER that preamble and the harness is
+# not started when nothing is left then), and the expiry is recorded once -
+# in the driver's own shell, never
 # in a subshell - with its instant and the step, whether it fell before,
 # during or after a step. After it no further proof or fault step starts
 # (the optional extension included); the partial records and the stop
@@ -171,8 +178,10 @@
 #   EGW_PROOF_HEALTHY_RECORD (no default: the path of a console record of
 #   the shared healthy wait made earlier in this session - gate_health.sh's
 #   'services-healthy' - whose ALL HEALTHY transition is reused for the
-#   20-minute rule when it is of this same start, P-15; unreadable, or not
-#   of this start, it is refused: nothing is guessed)
+#   20-minute rule when it is of this same start and completed within the
+#   allowance, P-15; unreadable, not of this start, or a record that does
+#   not say when its healthy sample completed (one made before the wait
+#   recorded that), it is refused: nothing is guessed)
 #   EGW_PROOF_EXTENSION (no; 'yes' runs the optional extension)
 #   EGW_PROOF_EXTENSION_LIMIT_S (1790: the 130 s stop_grace_period recorded
 #   under C6 plus 1,660 s, ADR 0011; inside it the extension's restart
@@ -500,7 +509,15 @@ attempt_reached() {
         before:harness-run)
             text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before the harness could start (the harness was NOT started; the run directory was never created)" ;;
         during:harness-run)
-            text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step was ended by 'timeout', exit $rc); the run directory, sealed or not, is preserved as incomplete" ;;
+            # Ended before the step printed the harness's start (its 6.1
+            # preamble, loaded under the same bound, had not finished): the
+            # harness, and with it the fault, was never started.
+            if [ -z "${HARNESS_STARTED_UTC:-}" ]; then
+                text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step, the host preamble of runbook 6.1 it loads under the same bound included, was ended by 'timeout', exit $rc, before the harness started): the harness was NOT started; the run directory was never created"
+            else
+                text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step was ended by 'timeout', exit $rc); the run directory, sealed or not, is preserved as incomplete"
+            fi
+            ;;
         during:tunnel-ready)
             text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('tunnel-ready', the host preamble of runbook 6.1 loaded under the bound just before the harness, was ended by 'timeout', exit $rc; a tunnel that did not open in time): the harness was NOT started; the run directory was never created" ;;
         before:*)
@@ -637,17 +654,26 @@ json_scalar() {
 # resets it), or the rule is reached before the wait can start (1); a
 # healthy transition demonstrated earlier in the session and named by the
 # student (a console record of the shared wait) establishes the rule
-# instead when its instant lies between the latest start of the six and
-# start + limit - it is then of this same start - and is refused otherwise
-# (a healthy guest's later idle time is never charged as boot delay, and a
-# transition of another start never counts); the wait then runs under the
-# full limit as the precondition of a healthy stack before the run, which
-# is no longer the rule's remainder. In mode 'check' the wait's first ALL
-# HEALTHY sample is judged against start + limit unless the rule was
-# established by the earlier record; the instant of that sample is read at
-# its start, before its inspections, and the span from the sample before it
-# is recorded beside it as the one bound of that bias the record gives
-# (the check refuses nothing on it). Anything that cannot be read is 2:
+# instead when its healthy sample began after the latest start of the six -
+# it is then of this same start - and COMPLETED by start + limit, and is
+# refused otherwise (a healthy guest's later idle time is never charged as
+# boot delay, and a transition of another start never counts); the wait
+# then runs under the full limit as the precondition of a healthy stack
+# before the run, which is no longer the rule's remainder. In mode 'check'
+# the wait's first ALL HEALTHY observation is judged against start + limit
+# unless the rule was established by the earlier record. The instant of a
+# sample is read at its START, before its inspections of the six services,
+# so it does not show when the observation was made: the shared wait
+# follows the healthy sample with '<instant> completed (sample N)', read
+# after its last inspection, and the observation had completed by then -
+# in whole seconds, so before that instant + COMPLETION_RESOLUTION_S. That
+# upper bound, never the sample's start, is what is compared with start +
+# limit: a sample that began before the deadline and completed after it
+# has not shown the stack healthy in time (the rule reached, 1), and a
+# record without the completion line (a record of the wait made before it
+# recorded it) cannot place the observation at all (2). The span from the
+# sample before it is still recorded, as information. Anything that cannot
+# be read is 2:
 # an unknown start or transition cannot establish the rule - docker's zero
 # StartedAt (0001-01-01T00:00:00Z, which it reports for a container created
 # but never started) included, which is no start at all and never read as
@@ -662,7 +688,7 @@ json_scalar() {
 # judged on the instant as read. The text holds no single quote: it is
 # handed to the interpreter as one argument.
 HEALTHY_RULE_PY='
-import json, re, sys
+import json, math, re, sys
 from datetime import datetime, timezone
 
 INSTANT = re.compile(r"(\d{4}-\d\d-\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d{1,9}))?Z$")
@@ -670,6 +696,9 @@ INSTANT = re.compile(r"(\d{4}-\d\d-\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d{1,9}))?Z$"
 # its zero time, which is no start (an unknown start, never year 1).
 DOCKER_ZERO_START = re.compile(r"0001-01-01T00:00:00(?:\.0{1,9})?Z$")
 CLOCK_STEP_BAND_S = 3.0
+# The completion instant is read in whole seconds (the guest date has no
+# finer field): the inspections had completed before it + this.
+COMPLETION_RESOLUTION_S = 1.0
 
 
 def epoch(text):
@@ -707,21 +736,37 @@ def containers(path):
 
 def transition(path):
     """The first ALL HEALTHY line of a record of the shared wait, with the
-    instant of the sample that saw it and the instant of the sample before
-    it: (epoch or None, text, sample, previous text or None), or None when
-    the record holds no such line."""
-    samples = {}
+    instant of the sample that saw it (its start), the instant of the sample
+    before it and the instant read after the last inspection of that sample:
+    (epoch or None, text, sample, previous text or None, completed text or
+    None), or None when the record holds no such line. A record of the wait
+    made before it recorded the completion has none (None)."""
+    samples, completed = {}, {}
     for line in open(path, encoding="utf-8"):
         line = line.rstrip("\n")
         m = re.match(r"(\S+) sample (\d+):", line)
         if m:
             samples[int(m.group(2))] = m.group(1)
             continue
+        m = re.match(r"(\S+) completed \(sample (\d+)\)$", line)
+        if m:
+            completed[int(m.group(2))] = m.group(1)
+            continue
         m = re.match(r"ALL HEALTHY: .*\(sample (\d+)\)$", line)
         if m:
             n = int(m.group(1))
-            return epoch(samples.get(n)), samples.get(n), n, samples.get(n - 1)
+            return epoch(samples.get(n)), samples.get(n), n, samples.get(n - 1), completed.get(n)
     return None
+
+
+def completed_by(at, completed):
+    """The upper bound of the healthy observation: the completion instant
+    read after its last inspection, plus its resolution (never earlier than
+    the sample start as read), or None when the record does not say."""
+    done = epoch(completed)
+    if done is None:
+        return None
+    return max(at, done) + COMPLETION_RESOLUTION_S
 
 
 def stop(code, text, facts):
@@ -760,17 +805,21 @@ if mode == "bound":
             stop(2, "the named earlier record could not be read: %s" % exc, facts)
         if seen is None or seen[0] is None:
             stop(2, "the named earlier record %s holds no ALL HEALTHY transition with a readable instant" % earlier, facts)
-        at, text, n, _ = seen
+        at, text, n, _, completed = seen
         facts.update({"earlier_record": earlier, "earlier_transition_utc": text, "earlier_transition_sample": n,
-                      "earlier_elapsed_s": max(0, int(at - earliest[0]))})
+                      "earlier_elapsed_s": max(0, int(at - earliest[0])), "earlier_transition_completed_utc": completed})
         if at < latest[0] - CLOCK_STEP_BAND_S:
             stop(2, "the named earlier record transition (%s, sample %d) precedes the latest start of the six services (%s) by more than the clock step band of %g s: it is not a healthy transition of this same start" % (text, n, latest[1], CLOCK_STEP_BAND_S), facts)
-        if at > deadline:
+        upper = completed_by(at, completed)
+        if upper is None:
+            stop(2, "the named earlier record %s says when its first healthy sample (sample %d) began (%s) but not when its inspections completed (a record of the shared wait made before it recorded that instant): a sample start alone does not show that the observation was made within the allowance, so it cannot establish the rule; nothing is guessed" % (earlier, n, text), facts)
+        facts["earlier_completed_upper_elapsed_s"] = int(math.ceil(upper - earliest[0]))
+        if upper > deadline:
             facts["established_by"] = None
-            stop(1, "the named earlier record transition (%s) lies %d s after the candidate start %s, beyond the %d s allowance: the stack with the candidate was not healthy within it" % (text, at - earliest[0], earliest[1], limit), facts)
+            stop(1, "the named earlier record transition (%s) lies %d s after the candidate start %s and its inspections completed by %s (%d s after it), beyond the %d s allowance: the stack with the candidate was not shown healthy within it" % (text, at - earliest[0], earliest[1], completed, math.ceil(upper - earliest[0]), limit), facts)
         facts["established_by"] = "earlier-record"
         bound = limit
-        print("HEALTHY RULE: established by the earlier record %s (transition %s, %d s after the candidate start %s, within %d s); the wait runs under %d s" % (earlier, text, at - earliest[0], earliest[1], limit, bound))
+        print("HEALTHY RULE: established by the earlier record %s (transition %s, %d s after the candidate start %s, completed by %s, within %d s); the wait runs under %d s" % (earlier, text, at - earliest[0], earliest[1], completed, limit, bound))
     else:
         rest = int(deadline - guest_epoch)
         facts["established_by"] = "own-observation"
@@ -792,20 +841,21 @@ if mode == "check":
         stop(2, "the record of the wait could not be read: %s" % exc, facts)
     if seen is None or seen[0] is None:
         stop(2, "the record of the wait holds no ALL HEALTHY transition with a readable instant: the first healthy observation is unknown", facts)
-    at, text, n, previous = seen
+    at, text, n, previous, completed = seen
     elapsed = at - earliest[0]
     # The instant of the sample is read at its START, before its inspections
-    # of the six services (the shared wait, untouched here): the observation
-    # itself followed it within the duration of the sample, which the wait
-    # does not record. The span from the instant of the sample before it is
-    # the one bound the record gives (the duration of that sample plus the
-    # step); the deadline is judged on the instant as read, and both are
-    # recorded so that the bias is on the record.
+    # of the six services: it does not show when the observation was made.
+    # The shared wait reads one more instant after the last inspection of
+    # its healthy sample (the completion line), and the observation had
+    # completed by then; that upper bound is judged against the deadline.
+    # The span from the instant of the sample before it is kept as
+    # information.
     previous_at = epoch(previous)
     span = None if previous_at is None else round(at - previous_at, 3)
     print("first_healthy_utc=%s" % text)
     print("first_healthy_sample=%d" % n)
-    print("first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services: the observation followed it within the duration of the sample, which the shared wait does not record")
+    print("first_healthy_completed_utc=%s" % (completed if epoch(completed) is not None else "null"))
+    print("first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services; the observation had completed by the instant the wait read after its last inspection (first_healthy_completed_utc, whole seconds: before that instant + %g s), and that upper bound is what the deadline is judged on" % COMPLETION_RESOLUTION_S)
     print("previous_sample_utc=%s" % (previous if previous_at is not None else "null"))
     print("previous_sample_span_s=%s" % ("null" if span is None else json.dumps(span)))
     if elapsed < -CLOCK_STEP_BAND_S:
@@ -815,10 +865,19 @@ if mode == "check":
         print("clock_step_note=the first healthy sample (%s) reads %.3f s before the candidate start (%s), within the clock step band of %g s: read as simultaneous" % (text, -elapsed, earliest[1], CLOCK_STEP_BAND_S))
         elapsed = 0.0
     print("elapsed_s=%d" % int(elapsed))
-    if established != "earlier-record" and at > deadline:
-        stop(1, "the stack was first observed healthy %d s after the candidate start %s, beyond the %d s allowance (a late poll never resets it)" % (elapsed, earliest[1], limit), facts)
-    print("HEALTHY RULE MET: first observed healthy %d s after the candidate start %s (sample %d at %s; allowance %d s%s)"
-          % (elapsed, earliest[1], n, text, limit, ", established by the earlier record" if established == "earlier-record" else ""))
+    if established == "earlier-record":
+        print("HEALTHY RULE MET: first observed healthy %d s after the candidate start %s (sample %d at %s; allowance %d s, established by the earlier record)"
+              % (elapsed, earliest[1], n, text, limit))
+        sys.exit(0)
+    upper = completed_by(at, completed)
+    if upper is None:
+        stop(2, "the record of the wait does not say when the inspections of its first healthy sample (sample %d, begun %s) completed: a sample start alone does not show that the observation was made within the allowance, so the first healthy observation cannot be placed" % (n, text), facts)
+    upper_elapsed = int(math.ceil(upper - earliest[0]))
+    print("completed_upper_elapsed_s=%d" % upper_elapsed)
+    if upper > deadline:
+        stop(1, "the stack was first observed healthy by sample %d, which began %d s after the candidate start %s (%s) and whose inspections completed by %s (%d s after it), beyond the %d s allowance: timely health cannot be established (a late poll never resets it)" % (n, elapsed, earliest[1], text, completed, upper_elapsed, limit), facts)
+    print("HEALTHY RULE MET: first observed healthy by sample %d, which began %d s after the candidate start %s (%s) and whose inspections completed by %s (%d s after it), within the %d s allowance"
+          % (n, elapsed, earliest[1], text, completed, upper_elapsed, limit))
     sys.exit(0)
 print("CANNOT BE ESTABLISHED: unknown mode %r" % mode)
 sys.exit(2)
@@ -1105,6 +1164,16 @@ stopped_before_harness() {
         --next-action "$next")
     driver_exit "$A"
 }
+# rule_capture_stop NAME: capture_stop for a step after the attempt's clock
+# started ('pre', the identity check). Once the 50-minute rule has been
+# reached (the latch, ATTEMPT_REACHED) the final reason names it beside the
+# capture that was lost, as not_run names it beside a prerequisite: the rule
+# is in the session facts already, and the reason does not omit it.
+rule_capture_stop() {
+    local note="the harness was NOT started"
+    [ "${ATTEMPT_REACHED:-0}" -eq 0 ] || note="$note; ${ATTEMPT_TEXT}; the proof is recorded inconclusive by that rule"
+    capture_stop "$A" "$1" "$note"
+}
 # The rule the 20-minute stop rule is, for the next action.
 HEALTHY_WHERE="the 20-minute rule (the stack with the candidate healthy within ${LIMIT} s of its start) was reached before the harness"
 [ -z "${PREREQ:-}" ] || not_run "$PREREQ"
@@ -1295,7 +1364,11 @@ exit $rc
 GUEST_CONTAINERS
 }
 # The containers BEFORE the wait: the candidate's start is read from them
-# (P-15), and they are the 'before' side of the restart shown.
+# (P-15), and they are the 'before' side of the restart shown. The host's
+# monotonic instant just before them is the anchor from which the host
+# bounds the acquisition of the healthy observation below: the guest clock
+# the remainder is computed from is read after it.
+HEALTHY_ANCHOR_UP=$(uptime_s)
 gx "$A" containers-before "$(containers_script)"
 rc=$?
 [ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" containers-before "the harness was NOT started"
@@ -1335,17 +1408,47 @@ esac
 if [ -n "$HEALTHY_RECORD" ]; then
     cp "$HEALTHY_RECORD" "$ENVD/healthy-record.txt" || not_run "the earlier healthy record named could not be kept in environment/healthy-record.txt"
 fi
-healthy_wait "$A" services-healthy "$HEALTHY_BOUND" "$STEP"
-rc=$?
+# The acquisition of the healthy observation is bounded as a whole (F2b):
+# the shared wait checks its limit only between samples, so an inspection
+# that blocks would hold it - and the driver - past the allowance. When the
+# driver's own observation is to establish the rule, the wait runs as one
+# guest command under 'bounded' of what is left of the allowance on the
+# host's monotonic clock from the anchor (HEALTHY_BOUND, the remainder at
+# the containers record, less the time since): ended by it (124, 137), no
+# sample completed healthy within the allowance, which is the rule reached.
+# With the rule established by an earlier record the poll is the
+# precondition of a healthy stack under the full limit and runs as before.
+HEALTHY_REST=""
+if [ "$HEALTHY_ESTABLISHED" = earlier-record ]; then
+    healthy_wait "$A" services-healthy "$HEALTHY_BOUND" "$STEP"
+    rc=$?
+else
+    HEALTHY_REST=$((HEALTHY_BOUND - ($(uptime_s) - HEALTHY_ANCHOR_UP)))
+    if [ "$HEALTHY_REST" -le 0 ]; then
+        STACK_STATE=unknown
+        stoprule healthy "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start: the ${HEALTHY_BOUND} s left of the allowance at the containers record were spent before the wait could start"
+        stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start (what was left of the allowance from the candidate's start was spent before the wait could start; the wait was NOT started); the proof is recorded inconclusive by that rule"
+    fi
+    session_update "healthy_rule.acquisition_bound_s=$HEALTHY_REST"
+    ex "$A" services-healthy bash -c "$(declare -f bounded)
+bounded $HEALTHY_REST env E=\"\$2\" bash -c '. \"\$E/scripts/session_common.sh\" || { echo \"STOP: the session ssh helpers (\$E/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest\" >&2; exit 97; }
+gssh \"\$1\"' _ \"\$1\"" _ "$(healthy_wait_script "$HEALTHY_BOUND" "$STEP")" "$SESSION"
+    rc=$?
+    [ "$rc" -ne 255 ] || rc=$EXIT_NOT_REACHED
+fi
 if [ "$rc" -eq 0 ]; then
-    # The first healthy sample is judged against start + limit (a late poll
-    # never resets the allowance) unless the earlier record established it.
+    # The first healthy observation - when it COMPLETED, never the sample's
+    # start - is judged against start + limit (a late poll never resets the
+    # allowance) unless the earlier record established it.
     ex "$A" healthy-rule-check "$PY" -c "$HEALTHY_RULE_PY" check "$EXPECT_SERVICES" "$ENVD/containers.before.txt" "$LIMIT" \
         "$(record_file services-healthy || true)" "$HEALTHY_ESTABLISHED"
     rc=$?
     [ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" healthy-rule-check "the harness was NOT started"
+    completed_upper=$(said healthy-rule-check 'completed_upper_elapsed_s=' | tr -d ' ')
     session_update "healthy_rule.first_healthy_utc=$(said healthy-rule-check 'first_healthy_utc=' | tr -d ' ')" \
         "healthy_rule.first_healthy_sample=$(said healthy-rule-check 'first_healthy_sample=' | tr -d ' ')" \
+        "healthy_rule.first_healthy_completed_utc=$(said healthy-rule-check 'first_healthy_completed_utc=' | tr -d ' ')" \
+        "healthy_rule.completed_upper_elapsed_s=${completed_upper:-null}" \
         "healthy_rule.elapsed_s=$(said healthy-rule-check 'elapsed_s=' | tr -d ' ')" \
         "healthy_rule.previous_sample_utc=$(said healthy-rule-check 'previous_sample_utc=' | tr -d ' ')" \
         "healthy_rule.previous_sample_span_s=$(said healthy-rule-check 'previous_sample_span_s=' | tr -d ' ')"
@@ -1382,6 +1485,18 @@ elif [ "$rc" -eq 1 ] || [ "$rc" -eq 4 ]; then
     # proof is recorded inconclusive, never not-run.
     stoprule healthy "stop rule reached: the stack was not running and healthy within the ${HEALTHY_BOUND} s left of ${LIMIT} s from the candidate's start:$(said services-healthy 'NOT HEALTHY[^:]*:')"
     stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy exit $rc under the ${HEALTHY_BOUND} s left of that allowance); the proof is recorded inconclusive by that rule"
+elif [ -n "$HEALTHY_REST" ] && { [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; }; then
+    # The acquisition was ended by what was left of the allowance (F2b): no
+    # sample had completed healthy within it - one still inspecting then,
+    # an inspection that blocks included, observed nothing in time. The
+    # 20-minute rule reached: inconclusive, never a pass, never not-run.
+    STACK_STATE=unknown
+    last_sample=""
+    if wait_record=$(record_file services-healthy); then
+        last_sample=$(grep ' sample [0-9][0-9]*:' "$wait_record" | tail -n 1)
+    fi
+    stoprule healthy "stop rule reached: the stack was not observed running and healthy within the ${HEALTHY_REST} s left of ${LIMIT} s from the candidate's start: the acquisition was ended by that remaining allowance (services-healthy exit $rc)${last_sample:+; the last sample completed: $last_sample}"
+    stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy was ended by the ${HEALTHY_REST} s left of that allowance, exit $rc: an inspection that had not answered by then observed nothing in time); the proof is recorded inconclusive by that rule"
 elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
     capture_stop "$A" services-healthy "the harness was NOT started"
 else
@@ -1518,7 +1633,7 @@ elif [ "$pre_rc" -eq 124 ] || [ "$pre_rc" -eq 137 ]; then
     stopped_before_harness "the 50-minute rule was reached after the first 'drained' started and before the harness" \
         "stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('pre' was ended by 'timeout', exit $pre_rc); the proof is recorded inconclusive by that rule"
 elif [ "$pre_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
-    capture_stop "$A" pre "the harness was NOT started"
+    rule_capture_stop pre
 elif [ "$pre_rc" -ne 0 ]; then
     not_run "precondition failed (drained/metrics/identity: pre exit $pre_rc)"
 fi
@@ -1559,7 +1674,7 @@ for p in problems:
 sys.exit(1 if problems else 0)
 ' "$P/$RID.config_identity.json" "$EXPECTED_COMMIT"
 rc=$?
-[ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" identity-check "the harness was NOT started"
+[ "$rc" -ne "$EXIT_CAPTURE_LOST" ] || rule_capture_stop identity-check
 [ "$rc" -eq 0 ] || not_run "the candidate on the guest is not the identified image (identity-check exit $rc: expected source commit $EXPECTED_COMMIT and broker_reloaded false)"
 identity_value() { said identity-check '' | tr ' ' '\n' | sed -n "s/^$1=//p" | head -n 1; }
 W=$(identity_value W)
@@ -1617,30 +1732,39 @@ proof_harness_args() {
 
 # --- 10. the harness run, under the attempt's allowance ---------------------------
 # The remainder is checked before the step is dispatched, as for every live
-# step. The harness step loads the 6.1 preamble before and outside any
-# bound (hx: the step's text is pinned to the runbook's harness_cmd), so it
-# is preceded by 'tunnel-ready' (10a below), a live step that loads the same
-# preamble INSIDE the bound with a trivial body: a tunnel that wedges - a
-# 'tunnel_up' whose ssh never completes its banner - is ended there by the
-# allowance, and the harness step's own preamble then finds the tunnel up.
-# The harness step is dispatched only when 'tunnel-ready' ended 0 and
-# something of the allowance is still left; and only AFTER its own
-# preamble it computes its bound from the absolute deadline handed to it
-# (T0 + EGW_PROOF_ATTEMPT_LIMIT_S on /proc/uptime), so that a preamble
-# that still took its time - a tunnel that dropped again between the two
-# steps - is charged to the allowance and never followed by a harness under
-# a stale remainder: with nothing left the harness (and its fault hook) is
-# NOT started, the step answers STEP_NOT_STARTED and the rule is recorded as
-# reached before 'harness-run'. The step prints the harness's own start instant, taken on
+# step, and it is preceded by 'tunnel-ready' (10a below), a live step that
+# loads the 6.1 preamble under the bound with a trivial body. The harness
+# step itself - its OWN 6.1 preamble, the one that actually precedes the
+# harness, and its body together - runs under 'bounded' of the positive
+# remainder checked just before it is dispatched (F2a): the preamble is
+# handed to the bounded shell as the value of EGW_HOST_PRE and loaded there
+# with 'eval', as hx_bounded loads it, and the body - its text pinned to the
+# runbook's harness_cmd, with single quotes that hx_bounded's text cannot
+# hold - as the shell's first argument, run with 'eval' after it. A tunnel
+# that drops after 'tunnel-ready' and whose reopening blocks is therefore
+# ended by the allowance (124, or 137 after the grace) before the harness
+# starts: the rule is recorded as reached during 'harness-run', and neither
+# the harness nor its fault is started. The harness step is dispatched
+# only when 'tunnel-ready' ended 0 and something of the allowance is still
+# left; and only AFTER its own preamble it computes the harness's own bound
+# from the absolute deadline handed to it (T0 + EGW_PROOF_ATTEMPT_LIMIT_S
+# on /proc/uptime), so that a preamble that took its time is charged to the
+# allowance and never followed by a harness under a stale remainder: with
+# nothing left then the harness (and its fault hook) is NOT started, the
+# step answers STEP_NOT_STARTED and the rule is recorded as reached before
+# 'harness-run'. The step prints the harness's own start instant, taken on
 # both clocks immediately before it starts, and the bound it runs under,
-# which are what the session facts record (not the dispatch instant).
+# which are what the session facts record (not the dispatch instant); a
+# step ended before it printed that start never started the harness.
 # 'timeout' bounds the harness by that remainder (a spent allowance is never
 # 'timeout 0', which would disable the bound); 124 (or 137, when the kill
 # after the grace was needed) is the stop rule reached. The harness's
 # exit 1 is read from the manifest afterwards, where the eligibility step
-# admits it only as E-12 states. The step runs
-# the harness through 'bounded', so that the driver's interrupt reaches it
-# (the harness has no handler of its own: the interrupt ends it where it is,
+# admits it only as E-12 states. The step runs the harness through
+# 'bounded', inside the step's own 'bounded', so that the driver's
+# interrupt reaches it (each 'bounded' forwards INT and TERM to its
+# 'timeout', which passes them on to its command and that command's group;
+# the harness has no handler of its own: the interrupt ends it where it is,
 # its restart timer - a daemon thread - with it; a hook already running in a
 # session of its own, run.py execute_collector_hook, ends on its own). The
 # hook templates are split by the harness without a shell (shlex.split), so
@@ -1661,12 +1785,11 @@ STACK_STATE=unknown
 # offline work still run; inconclusive). Ended 0, the remainder is checked
 # again before the harness step is dispatched. Any other ending - the
 # preamble could not be loaded (97), or the step's console capture was lost
-# (74) - leaves the tunnel not known to be up, so the harness step, whose
-# own preamble would then run unbounded again, is NOT dispatched either:
-# an evidence requirement not met (the harness not started), never not-run
-# once the harness block is entered, as a harness step whose own preamble
-# failed never was. The step is not an observation of the system, so it is
-# not listed with the observations not made.
+# (74) - leaves the tunnel not known to be up, so the harness step is NOT
+# dispatched either: an evidence requirement not met (the harness not
+# started), never not-run once the harness block is entered, as a harness
+# step whose own preamble failed never was. The step is not an observation
+# of the system, so it is not listed with the observations not made.
 HARNESS_GO=0
 TUNNEL_READY_RC=not-started
 TUNNEL_READY_BOUND=null
@@ -1687,14 +1810,18 @@ if live_start harness-run; then
             mandatory+=("$(capture_note tunnel-ready); whether the tunnels answered just before the harness is not known, so the harness was NOT started")
             ;;
         *)
-            missed "$(step_note tunnel-ready "$TUNNEL_READY_RC" "the host preamble of runbook 6.1 could not be loaded just before the harness (tunnel-ready exit $TUNNEL_READY_RC), so the harness step, whose own preamble would run unbounded, was NOT dispatched: the harness was NOT started")"
+            missed "$(step_note tunnel-ready "$TUNNEL_READY_RC" "the host preamble of runbook 6.1 could not be loaded just before the harness (tunnel-ready exit $TUNNEL_READY_RC), so the harness step was NOT dispatched: the harness was NOT started")"
             ;;
     esac
 fi
 session_update "instants.tunnel_ready_exit=$(json_scalar "$TUNNEL_READY_RC")" "instants.tunnel_ready_allowance_s=$TUNNEL_READY_BOUND"
 if [ "$HARNESS_GO" -eq 1 ]; then
     HARNESS_DISPATCHED_UTC=$(now_utc)
-    hx "$A" harness-run "$(declare -f proof_harness_args)
+    HARNESS_STEP_BOUND=$LIVE_REST
+    HARNESS_STARTED_UTC=""
+    ex "$A" harness-run env EGW_HOST_PRE="$HOST_PRE" bash -c "$(declare -f bounded)
+bounded $HARNESS_STEP_BOUND bash -c '{ eval \"\$EGW_HOST_PRE\" ; } || { echo \"STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran\" >&2; exit 97; }
+eval \"\$1\"' _ \"\$1\"" _ "$(declare -f proof_harness_args)
 $(declare -f bounded)
 proof_harness_args '$RID' '$PLAN' '$BASE' '$ENVD/sut_environment.json'
 read -r HARNESS_UP _ < /proc/uptime
@@ -1711,23 +1838,32 @@ bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\"
     h_rc=$?
     HARNESS_ENDED_UTC=$(now_utc)
     # What the step itself printed immediately before the harness started:
-    # nothing when it did not start (the preamble failed, or the allowance
-    # was spent after it).
+    # nothing when it did not start (the preamble failed, it was ended by
+    # the bound, or the allowance was spent after it).
     HARNESS_STARTED_UTC=$(said harness-run 'harness_started_utc=' | tr -d ' ')
     HARNESS_STARTED_UP=$(said harness-run 'harness_started_host_uptime_s=' | tr -d ' ')
     HARNESS_LEFT=$(said harness-run 'harness_allowance_s=' | tr -d ' ')
     case "$HARNESS_STARTED_UP$HARNESS_LEFT" in '' | *[!0-9]*) HARNESS_STARTED_UP="" HARNESS_LEFT="" ;; esac
-    if [ "$h_rc" -eq "$STEP_NOT_STARTED" ] && [ -z "$HARNESS_STARTED_UTC" ]; then
-        # The allowance was spent when the step's preamble had loaded: the
-        # harness, and with it the fault, was NOT started; the rule was
-        # reached before 'harness-run' (recorded once).
-        attempt_reached before harness-run
-        h_rc=not-started
-        echo "STOP: no time left in the attempt's allowance after the harness step's preamble: the harness was NOT started" >&2
-        session_update "instants.harness_step_dispatched_utc=$HARNESS_DISPATCHED_UTC" "instants.harness_started_utc=null" \
+    if [ -z "$HARNESS_STARTED_UTC" ] && { [ "$h_rc" -eq "$STEP_NOT_STARTED" ] || [ "$h_rc" -eq 124 ] || [ "$h_rc" -eq 137 ]; }; then
+        # The harness, and with it the fault, was NOT started: the allowance
+        # was spent when the step's preamble had loaded (98: the rule
+        # reached before 'harness-run'), or the step's bound ended it before
+        # the harness started - its preamble included (124, 137: the rule
+        # reached during 'harness-run'). Recorded once, either way.
+        if [ "$h_rc" -eq "$STEP_NOT_STARTED" ]; then
+            attempt_reached before harness-run
+            echo "STOP: no time left in the attempt's allowance after the harness step's preamble: the harness was NOT started" >&2
+        else
+            attempt_reached during harness-run "$h_rc"
+            echo "STOP: the harness step, its host preamble of runbook 6.1 included, was ended by the attempt's allowance (exit $h_rc) before the harness started: the harness was NOT started" >&2
+        fi
+        session_update "instants.harness_step_dispatched_utc=$HARNESS_DISPATCHED_UTC" "instants.harness_step_allowance_s=$HARNESS_STEP_BOUND" \
+            "instants.harness_step_exit=$h_rc" "instants.harness_started_utc=null" \
             "instants.harness_ended_utc=null" "instants.harness_exit=null" "instants.harness_allowance_s=0"
+        h_rc=not-started
     else
-        session_update "instants.harness_step_dispatched_utc=$HARNESS_DISPATCHED_UTC" \
+        session_update "instants.harness_step_dispatched_utc=$HARNESS_DISPATCHED_UTC" "instants.harness_step_allowance_s=$HARNESS_STEP_BOUND" \
+            "instants.harness_step_exit=$h_rc" \
             "instants.harness_started_utc=${HARNESS_STARTED_UTC:-null}" "instants.harness_started_host_uptime_s=${HARNESS_STARTED_UP:-null}" \
             "instants.harness_ended_utc=$HARNESS_ENDED_UTC" "instants.harness_exit=$h_rc" "instants.harness_allowance_s=${HARNESS_LEFT:-null}"
         # 124 or 137 is the rule reached during the harness step; an
