@@ -31,8 +31,11 @@ drain verified before R1; and, in the section after test 27k, round 4:
 a naming stands only as every legitimate assignment of the sources reads
 it and an aggregate R3 names no culprit (E-13, checked against an
 enumeration of every matching), a death beside a controller process
-whose readings carry no monotonic_ns is not placed (E-4), and the
-harness's exit in the session facts agrees with the admission (E-11).
+whose readings carry no monotonic_ns is not placed (E-4), the harness's
+exit in the session facts agrees with the admission (E-11), and a
+further death serves a candidate the kill cannot explain whose
+redelivery it may have preceded, while no death serves a candidate
+lined before the kill (E-13, E-10, E-4; the read-only check of round 4).
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -1610,7 +1613,7 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3_a
         "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
         "kill_available": 1, "a5_possible_by_device": {D1: [], D3: []}, "needed_by_device": {D1: 1, D3: 1},
         "needed": 2, "beyond_a5_by_device": {D1: 1, D3: 1}, "kill_needed": 2, "consistent": False,
-        "matched": 1, "deaths_preceding_none": [],
+        "matched": 1, "deaths_preceding_none": [], "deaths_serving_none": [],
     }
     mismatches = r4["evidence"]["mismatches"]
     assert len(mismatches) == 1 and mismatches[0]["device_uuid"] is None and mismatches[0]["devices"] == [D1, D3]
@@ -1730,7 +1733,7 @@ def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> N
         "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
         "kill_available": 1, "a5_possible_by_device": {D1: []}, "needed_by_device": {D1: 1}, "needed": 1,
         "beyond_a5_by_device": {D1: 1}, "kill_needed": 1, "consistent": True, "matched": 1,
-        "deaths_preceding_none": [],
+        "deaths_preceding_none": [], "deaths_serving_none": [],
     }
     # Two candidates on one device, surplus 2, the log unusable: E-7 leaves
     # both unshown and the capacity unknown; the count alone is read.
@@ -2139,8 +2142,10 @@ def test_a_case_named_with_an_occurrence_may_leave_it_to_an_undecided_candidate_
     death, Y <- the occurrence and G <- the kill is source-consistent. B
     now keeps a source in the matching and the run is inconclusive. A B
     that the kill cannot explain (published after the restart command's
-    end) has no death as its source, as it would have none unnamed, and
-    R4 stands on the aggregate.
+    end) may still have been in progress at the further death, which
+    serves it: the same assignment holds and nothing is refuted. Only
+    redelivered before the further death (1,240 s) is the occurrence its
+    one source, and R4 then stands on the aggregate.
 
     Corrected in round 4 (E-13): this case also expected B NAMED with the
     occurrence, the naming the candidates' order gave it. The only
@@ -2148,9 +2153,20 @@ def test_a_case_named_with_an_occurrence_may_leave_it_to_an_undecided_candidate_
     further death, all three served) gives the occurrence to Y, so no
     legitimate assignment bears that naming out: B is unshown, its source
     a further death P-4 never names. That expectation encoded the wrong
-    rule. In the second half B, whom the kill cannot explain, is named in
-    some legitimate assignments and has no source in others (Y <- the
-    occurrence, G <- the kill): unshown too, never named."""
+    rule.
+
+    Corrected after the read-only check of round 4 (E-13, E-10): the
+    second half expected B, published after the restart command's end and
+    redelivered at 1,300 s, to have no death as its source, although the
+    further death may have preceded that redelivery, and the run to refute
+    (R4 against deaths said to precede none of the redeliveries). E-13
+    lists a further death among the sources of a candidate whose
+    redelivery it may have preceded, whether or not the kill can explain
+    it: that expectation encoded the wrong rule. B is now unshown with the
+    further death as its source and the run inconclusive; the refutation
+    is kept for B redelivered at 1,240 s, before the further death, where
+    the occurrence is its one source (named in some legitimate assignments
+    and without a source in others)."""
     rows = _rows_with_a_further_death()
     in_band = (K_LOWER + K_UPPER) // 2
     Y = ("y-mid", D1, 2, 510 * NS)
@@ -2185,11 +2201,33 @@ def test_a_case_named_with_an_occurrence_may_leave_it_to_an_undecided_candidate_
     rows_by_device = {row["device_uuid"]: row for row in r4["evidence"]["devices"]}
     assert rows_by_device[D1]["undecided"]["source_consistent"] is True and rows_by_device[D3]["undecided"]["source_consistent"] is True
     assert "keeping one" in pe.IDENTIFICATION_RULES["E-10"] and "beside the cases named with an occurrence" in pe.IDENTIFICATION_RULES["E-10"]
-    # B published after the restart command's end: the occurrence is its
-    # only source, and Y and G still need the one death that may precede
-    # them (the further death follows both redeliveries).
+    # B published after the restart command's end, so the kill cannot
+    # explain it, and redelivered at 1,300 s, after the further death, at
+    # which it may have been in progress: the further death serves it, and
+    # the one legitimate assignment is the one above (E-13, E-10).
     late_b = [sent if sent[0] != "b-mid" else ("b-mid", D1, 1, 530 * NS) for sent in SENT]
     doc = _evaluate(sent=late_b + [Y, G], lines=lines, extra_after=twins, controller_log=log, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
+    assert sorted(shown) == ["b-mid", "g-mid", "y-mid"]
+    assert "every legitimate assignment" in shown["b-mid"] and "(E-13)" in shown["b-mid"]
+    assert "in progress at a further death (death 1), which P-4 never names as a source" in shown["b-mid"]
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["may_be"]["b-mid"] == ["further-death"]
+    assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "R3")["evidence"]["r3_groups"] == []
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    assert r4["evidence"]["source_capacity"]["possible_sources"]["b-mid"] == {"a5_lines": [1], "deaths": [1]}
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 3, True)
+    deaths = r4["evidence"]["source_capacity"]["deaths"]
+    assert [(d["death"], d["may_serve"]) for d in deaths] == [(0, ["g-mid", "y-mid"]), (1, ["b-mid"])]
+    # The same B redelivered at 1,240 s, before the further death: the
+    # occurrence is its only source, and Y and G still need the one death
+    # that may precede them (the further death follows all three
+    # redeliveries).
+    early_b = [line if line[0] != "b-mid" else ("b-mid", D1, 1, "duplicate", 1_240 * NS, None) for line in lines]
+    doc = _evaluate(sent=late_b + [Y, G], lines=early_b, extra_after=twins, controller_log=log, rows=rows)
     outcome = _outcome(doc)
     assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
     shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
@@ -2201,7 +2239,7 @@ def test_a_case_named_with_an_occurrence_may_leave_it_to_an_undecided_candidate_
     assert r4["evidence"]["source_capacity"]["possible_sources"]["b-mid"]["deaths"] == []
     capacity = _capacity(doc)
     assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 2, False)
-    assert capacity["deaths_preceding_none"] == [1]
+    assert (capacity["deaths_preceding_none"], capacity["deaths_serving_none"]) == ([1], [1])
     mismatch = r4["evidence"]["mismatches"][0]
     assert mismatch["device_uuid"] is None and mismatch["stands_on"] == []
     assert mismatch["undecided_candidates"] == ["b-mid", "g-mid", "y-mid"]
@@ -3067,10 +3105,11 @@ def test_r1_needs_the_drain_record_verified_not_merely_the_quiet_string() -> Non
 
 
 # ---------------------------------------------------------------------------
-# 27l-27p. round 4 of the review of PR #47 (2026-09-25): ambiguous contention
+# 27l-27r. round 4 of the review of PR #47 (2026-09-25): ambiguous contention
 # never supports and an aggregate R3 names no culprit (E-13), a death beside
-# a process whose readings carry no monotonic_ns is not placed (E-4), and the
-# harness's exit in the session facts agrees with the admission (E-11)
+# a process whose readings carry no monotonic_ns is not placed (E-4), the
+# harness's exit in the session facts agrees with the admission (E-11), and
+# a further death serves a candidate the kill cannot explain (E-13, E-10)
 # ---------------------------------------------------------------------------
 
 
@@ -3390,6 +3429,186 @@ def test_the_legitimate_assignments_are_those_an_enumeration_of_every_matching_f
             least = min(sum(1 for c in group["message_ids"] if m[c] is None) for m in every)
             assert group["without_source_at_least"] == least >= 1, (options, group)
             assert group["sources"] == sorted({s for c in group["message_ids"] for s in options[c]})
+
+
+def test_a_candidate_the_kill_cannot_explain_may_have_been_in_progress_at_a_further_death() -> None:
+    """The read-only check of round 4 (P2 at name_n1_cases): a candidate
+    the kill cannot explain was offered no death at all, not even a
+    further death its own record said may have preceded its redelivery,
+    and the run refuted. E-13 lists a further death (never named, P-4)
+    among the sources an assignment may give a candidate whose redelivered
+    duplicate line it may have preceded, E-10 gives a recorded death to
+    such a candidate whichever device's, and E-4 cannot tell an identity
+    in progress at that further death from one that was not. The readings
+    record a further death between P1's last reading (1,245 s) and P2's
+    first (1,265 s); every candidate is published after the restart
+    command's end (host 540-542 s), so the kill cannot explain it.
+
+    (a) N alone, redelivered at 1,270 s, the twin +1 on D1, no A5 line:
+    the further death is its source in every legitimate assignment, which
+    P-4 never names, so N is neither named nor R3 and nothing is refuted.
+    It refuted (R3 'the kill cannot be its source', R4 beside it).
+    (b) N and N2 (1,272 s), one A5 occurrence at 1,190 s, the twin +2: the
+    occurrence and the further death serve both, in either order, so
+    neither is named and neither R3 nor R4 stands. It refuted with an R3
+    group contending for the occurrence alone and an R4 against deaths
+    said to precede none of the redeliveries that their records listed.
+    (c) N, N2 and N3 (1,274 s), the twin +3: two sources for three, so
+    at least one has none: R3 stands on the group, the further death among
+    its sources, and R4 on D1, the kill serving none of them since none
+    may have been in progress at it, never read as a death that preceded
+    none of their redeliveries.
+    (d) N named with the occurrence in every legitimate assignment (X, on
+    D3, published after the command's end and redelivered at 1,272 s, has
+    only the further death; U, on D1 in the kill band, only the kill):
+    X is unshown, not R3 with R4 on D3 as it read, and N keeps the further
+    death among the sources it may hold in E-10's matching."""
+    rows = _rows_with_a_further_death()
+    log = [_a5_line(D1, 1_190 * NS)]
+    N = ("n-mid", D1, 2, 540 * NS)
+    N2 = ("n2-mid", D1, 3, 541 * NS)
+    N3 = ("n3-mid", D1, 4, 542 * NS)
+    items = [("n-mid", 2, 540, 1_270), ("n2-mid", 3, 541, 1_272), ("n3-mid", 4, 542, 1_274)]
+
+    # (a) N alone.
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(*items[:1]), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == [] and r3["evidence"]["r3_groups"] == []
+    (shown,) = r3["evidence"]["cannot_show_identities"]
+    assert shown["message_id"] == "n-mid" and "(E-13)" in shown["why_not_shown"]
+    assert "in progress at a further death (death 1), which P-4 never names as a source" in shown["why_not_shown"]
+    assert r3["evidence"]["assignments"]["may_be"]["n-mid"] == ["further-death"]
+    assert r3["evidence"]["assignments"]["sources_may_hold"]["n-mid"] == ["death 1"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == [] and _criterion(doc, "S5")["holds"] is None
+    evidence = r4["evidence"]["source_capacity"]
+    assert evidence["possible_sources"] == {"n-mid": {"a5_lines": [], "deaths": [1]}}
+    assert [(d["death"], d["kind"], d["may_precede"], d["may_serve"]) for d in evidence["deaths"]] == [
+        (0, "kill", ["n-mid"], []), (1, "further", ["n-mid"], ["n-mid"]),
+    ]
+    assert (_capacity(doc)["matched"], _capacity(doc)["consistent"]) == (1, True)
+
+    # (b) N and N2 beside one occurrence.
+    doc = _evaluate(sent=SENT + [N, N2], lines=_duplicates(*items[:2]), extra_after={D1: 2, "seqs": [(D1, 3)]}, rows=rows, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["r3_groups"] == [] and r3["evidence"]["not_named_identities"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"]}
+    assert sorted(shown) == ["n-mid", "n2-mid"]
+    assert all("more than one legitimate assignment" in why and "(E-13)" in why for why in shown.values())
+    assert r3["evidence"]["assignments"]["may_be"] == {
+        "n-mid": ["a3-connection-end", "further-death"], "n2-mid": ["a3-connection-end", "further-death"],
+    }
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    assert r4["evidence"]["source_capacity"]["possible_sources"] == {
+        "n-mid": {"a5_lines": [1], "deaths": [1]}, "n2-mid": {"a5_lines": [1], "deaths": [1]},
+    }
+    capacity = _capacity(doc)
+    assert (capacity["needed_by_device"], capacity["beyond_a5_by_device"]) == ({D1: 2}, {D1: 1})
+    assert (capacity["matched"], capacity["consistent"]) == (2, True)
+
+    # (c) three of them: at least one has no source.
+    doc = _evaluate(sent=SENT + [N, N2, N3], lines=_duplicates(*items), extra_after={D1: 3, "seqs": [(D1, 4)]}, rows=rows, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and r3["evidence"]["not_named_identities"] == []
+    (group,) = r3["evidence"]["r3_groups"]
+    assert (group["message_ids"], group["sources"], group["without_source_at_least"]) == (
+        ["n-mid", "n2-mid", "n3-mid"], ["A5 line 1", "death 1"], 1,
+    )
+    assert "the A3 connection end of controller log line 1, death 1 (a further death)" in group["why"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 2, False)
+    assert (capacity["deaths_preceding_none"], capacity["deaths_serving_none"]) == ([], [0])
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert mismatch["stands_on"] == [D1] and mismatch["undecided_candidates"] == ["n-mid", "n2-mid", "n3-mid"]
+    assert "may have preceded none" not in mismatch["problems"][0]
+    assert "the kill serving none of them" in mismatch["problems"][0]
+    (refutation,) = [r for r in outcome["refutations"] if r.startswith("R4")]
+    assert "may have preceded none" not in refutation and "the kill serving none of them" in refutation
+
+    # (d) N named with the occurrence beside X, which only the further death
+    # may serve, and U in the kill band.
+    U = ("u-mid", D1, 3, 401 * NS)
+    X = ("x-mid", D3, 1, 541 * NS)
+    lines = list(LINES) + [
+        ("n-mid", D1, 2, "duplicate", 1_270 * NS, None),
+        ("u-mid", D1, 3, "duplicate", (K_LOWER + K_UPPER) // 2, None),
+        ("x-mid", D3, 1, "duplicate", 1_272 * NS, None),
+    ]
+    doc = _evaluate(sent=SENT + [N, U, X], lines=lines, extra_after={D1: 2, D3: 1, "seqs": [(D1, 3), (D3, 1)]}, rows=rows, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert [(c["message_id"], c["source"]) for c in outcome["n1_cases"]] == [("n-mid", "a3-connection-end")]
+    r3 = _criterion(doc, "R3")
+    assert r3["evidence"]["assignments"]["may_be"] == {
+        "n-mid": ["a3-connection-end"], "u-mid": ["kill-unshown"], "x-mid": ["further-death"],
+    }
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == []
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    assert r4["evidence"]["source_capacity"]["possible_sources"] == {
+        "u-mid": {"a5_lines": [], "deaths": [0]},
+        "x-mid": {"a5_lines": [], "deaths": [1]},
+        "n-mid": {"a5_lines": [1], "deaths": [1], "named": {"source": "a3-connection-end", "controller_log_line": 1}},
+    }
+    assert (_capacity(doc)["matched"], _capacity(doc)["consistent"]) == (2, True)
+    assert "offered its device's occurrences and no death" not in pe.IDENTIFICATION_RULES["E-10"]
+    assert "whether or not the kill can explain it" in pe.IDENTIFICATION_RULES["E-13"]
+
+
+def test_no_death_serves_a_candidate_lined_before_the_kill_nor_one_redelivered_before_it() -> None:
+    """The counterpart of the check above: a further death serves a
+    candidate only when it may have preceded its redelivered duplicate
+    line. P, lined before the kill (its duplicate line received at
+    1,100 s, before the pre-kill process's last reading at 1,150 s), keeps
+    its R3 even beside a death the readings cannot place (a process PX
+    whose readings carry no monotonic_ns): every recorded death is the
+    pre-kill process's or a later one's, after that reading, so none may
+    have preceded P's line (E-4). N, published after the restart
+    command's end and redelivered at 1,230 s, before P1's last reading
+    (1,245 s), keeps its R3 beside the further death placed after it; the
+    R3 says so in both cases."""
+    PX = "2026-09-25T10:04:10Z"
+    P = ("p-mid", D1, 2, 360 * NS)
+    rows = _rows() + [
+        _row(_ts(250), PX, 0, 0, monotonic_ns=None, unacked=0),
+        _row(_ts(265), P2, 0, 0, monotonic_ns=1_265 * NS, unacked=0),
+        _row(_ts(285), P2, 0, 0, monotonic_ns=1_285 * NS, unacked=0),
+    ]
+    doc = _evaluate(sent=SENT + [P], lines=_duplicates(("p-mid", 2, 360, 1_100)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes"
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and r3["evidence"]["cannot_show_identities"] == []
+    (rejected,) = r3["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "p-mid" and "lined before the kill" in rejected["why_not_named"]
+    assert "nor can a further death: its duplicate line was received before the pre-kill process's last reading" in rejected["why_not_named"]
+    assert r3["evidence"]["assignments"]["may_be"]["p-mid"] == ["none"]
+    deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+    assert [(d["death"], d["placed"]) for d in deaths] == [(0, True), (1, True), (2, False)]
+    assert all(d["may_precede"] == [] and d["may_serve"] == [] for d in deaths), deaths
+    notes = r3["evidence"]["notes"]
+    assert any(n.startswith("further death(s) 1, 2 may have preceded no duplicate-only candidate's") for n in notes), notes
+    assert "none may have preceded a duplicate line received before that reading" in pe.IDENTIFICATION_RULES["E-4"]
+
+    N = ("n-mid", D1, 2, 540 * NS)
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_230)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=_rows_with_a_further_death())
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes"
+    r3 = _criterion(doc, "R3")
+    (rejected,) = r3["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "n-mid" and "published after the restart command's end" in rejected["why_not_named"]
+    assert "nor can a further death, each one recorded following its redelivered duplicate line" in rejected["why_not_named"]
+    deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+    assert [(d["death"], d["may_precede"], d["may_serve"]) for d in deaths] == [(0, ["n-mid"], []), (1, [], [])]
 
 
 # ---------------------------------------------------------------------------

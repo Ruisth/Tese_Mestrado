@@ -465,7 +465,11 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "inclusively as the band of P-3 and E-8 is), or when either cannot be "
         "read or the readings contradict the interval (the dying process read "
         "at or after the next one's first reading); a death wholly after the "
-        "redelivery cannot be its source. A controller process whose readings "
+        "redelivery cannot be its source. Whatever its placement, every "
+        "recorded death is the pre-kill process's or a later one's, after the "
+        "pre-kill process's last reading, so none may have preceded a "
+        "duplicate line received before that reading (a candidate lined "
+        "before the kill, P-3). A controller process whose readings "
         "carry no monotonic_ns cannot be placed among the others and is never "
         "read as the last of them: every death that may be its own (after the "
         "kill, the death of the process ordered before it, which may be the "
@@ -480,7 +484,10 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "rule as under one death, and a further death that may have preceded "
         "no duplicate-only candidate's redelivery explains nothing and is "
         "reported. Each recorded death counts one to the capacity, for the "
-        "candidates whose redelivery it may have preceded (E-10)."
+        "candidates whose redelivery it may have preceded: the kill for those "
+        "nothing read excludes from it, a further death whether or not the "
+        "kill can explain them, since they may have been in progress at that "
+        "death (E-10, E-13)."
     ),
     "E-5": (
         "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
@@ -555,7 +562,9 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "per connection ended under A3 after a PATCH, since there is one "
         "consumer): a recorded death gives at most one N1 case in the run, "
         "whichever device's, and only to a candidate whose redelivery it may "
-        "have preceded on the controller clock (placed as E-4 states) - the "
+        "have preceded on the controller clock (placed as E-4 states), the "
+        "kill only to one that nothing read excludes from it and a further "
+        "death to one the kill cannot explain as well - the "
         "deaths are every controller process start the readings record "
         "after the pre-kill one, or the manifest's kill (P-4's conditions on "
         "its restart record) when they record none, less the kill case "
@@ -571,21 +580,27 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "requires, beside the cases named with an occurrence on those "
         "devices, to these sources, each source used once and each such "
         "named case keeping one - any occurrence of its device that may have "
-        "preceded its redelivery or, when nothing read excludes it from the "
-        "kill (not lined before it, not published after the restart "
-        "command's end, the restart executed with exit 0), any death that "
-        "may have - so a named case may leave its occurrence to an undecided "
-        "candidate, and the occurrence P-4 recorded against a case never "
-        "decides the capacity; an undecided candidate the kill cannot explain "
-        "(left undecided by E-13) is offered its device's occurrences and no "
-        "death; the counts are small. When no such matching "
+        "preceded its redelivery, or any death that may have and may serve "
+        "it: the kill when nothing read excludes the case from it (not lined "
+        "before it, not published after the restart command's end, the "
+        "restart executed with exit 0), a further death whether or not the "
+        "kill can explain it - so a named case may leave its occurrence to an "
+        "undecided candidate, and the occurrence P-4 recorded against a case "
+        "never decides the capacity; an undecided candidate is offered the "
+        "same, one the kill cannot explain (left undecided by E-13) included: "
+        "its device's occurrences and every further death that may have "
+        "preceded its redelivery, at which it may have been in progress "
+        "(E-4, E-13); the counts are small. When no such matching "
         "exists (a surplus of two on one device, or of one on each of two, with one "
         "death and no occurrence that may precede them; or a further death "
         "wholly after the redeliveries it would have to explain), no "
         "source-consistent naming explains the twins: R4 is observed and S5 "
         "does not hold, on the twin's evidence and the record, which were "
         "read, with every undecided device's figures, the deaths as placed "
-        "and the sources each candidate may have had shown; a device that no "
+        "and the sources each candidate may have had shown (a death that may "
+        "have preceded none of their redeliveries, and the kill when it may "
+        "have preceded them but none of them may have been in progress at "
+        "it, reported apart); a device that no "
         "matching of its own candidates to the sources serves, even with "
         "every recorded death available to it, is the mismatch by itself, "
         "whatever the deaths served elsewhere, and otherwise only the "
@@ -690,7 +705,9 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "restart-class candidate published before the restart command's "
         "start with the restart executed with exit 0, P-4; unshown for one "
         "that nothing read excludes from it, E-8), or a further death (never "
-        "named, P-4) - each source serving one candidate at most (N1); a "
+        "named, P-4; held by a candidate whether or not the kill can explain "
+        "it, since it may have been in progress at that death, E-4) - each "
+        "source serving one candidate at most (N1); a "
         "candidate the twin shows unapplied claims none (E-4), and an unshown "
         "candidate without twin evidence that may have been in progress at "
         "the kill may hold it (E-4). An assignment is legitimate when it "
@@ -2777,6 +2794,38 @@ def name_n1_cases(
             + ", where the kill lands"
         )
 
+    def _death_may_precede(death: Death, candidate: dict[str, Any]) -> bool:
+        """Whether the death may have preceded the candidate's redelivered
+        duplicate line on the controller clock, placed as E-4 states. A
+        candidate lined before the kill (P-3) has a duplicate line received
+        before the pre-kill process's last reading, and every recorded
+        death, placed or not, is that process's or a later one's, after
+        that reading: none may have preceded it."""
+        return candidate["class"] != "pre_kill_lined" and death.may_precede(
+            redelivery_of.get(candidate["message_id"])
+        )
+
+    def _death_may_serve(death: Death, candidate: dict[str, Any]) -> bool:
+        """Whether the death may have been the candidate's source (E-4,
+        E-10, E-13): it may have preceded the candidate's redelivered
+        duplicate line; the kill serves only a candidate nothing read
+        excludes from it, and a further death any candidate it may have
+        preceded, whether or not the kill can explain it (never named,
+        P-4)."""
+        if not _death_may_precede(death, candidate):
+            return False
+        return death.index > 0 or _may_have_been_at_the_kill(candidate)
+
+    def _deaths_text(found: list[Death]) -> str:
+        return "; ".join(f"death {death.index} {death.placement()}" for death in found)
+
+    def _redelivery_text(candidate: dict[str, Any]) -> str:
+        redelivered = redelivery_of.get(candidate["message_id"])
+        return (
+            f"received at {redelivered}" if redelivered is not None
+            else "a duplicate line without received_monotonic_ns"
+        )
+
     for device in sorted(by_device):
         device_candidates = by_device[device]
         facts = surplus.get(device) if surplus is not None else None
@@ -2911,6 +2960,41 @@ def name_n1_cases(
                     and redelivered is not None
                     and occ["identity"]["received_monotonic_ns"] < redelivered
                 )
+                # A further death serves any candidate it may have preceded,
+                # whether or not the kill can explain it (E-13, E-10): one
+                # that may is read by E-13 below, which leaves it unshown
+                # or R3 only with a group, unless the twin shows it
+                # unapplied (E-4).
+                serving = [death for death in further_deaths if _death_may_serve(death, candidate)]
+                further = ""
+                if further_deaths and candidate["class"] == "pre_kill_lined":
+                    further = (
+                        "; nor can a further death: its duplicate line was received before the pre-kill "
+                        "process's last reading, which every recorded death follows (E-4)"
+                    )
+                elif further_deaths and not serving:
+                    further = (
+                        "; nor can a further death, each one recorded following its redelivered duplicate "
+                        f"line ({_redelivery_text(candidate)}) on the controller clock (E-4): "
+                        + _deaths_text(further_deaths)
+                    )
+                elif serving:
+                    unapplied = (
+                        facts.after_last_seq is None
+                        or candidate["seq"] is None
+                        or facts.after_last_seq < candidate["seq"]
+                    )
+                    further = (
+                        "; a further death may have preceded its redelivered duplicate line ("
+                        + _deaths_text(serving)
+                        + (
+                            f"), but the twin does not show it applied (the after snapshot's last_seq "
+                            f"{facts.after_last_seq}, the identity's seq {candidate['seq']}), so it claims "
+                            "no case (E-4)"
+                            if unapplied
+                            else "), which the legitimate assignments read (E-13)"
+                        )
+                    )
                 _reject(
                     candidate,
                     (
@@ -2920,24 +3004,13 @@ def name_n1_cases(
                         if taken
                         else "no A5 occurrence names its device before its redelivery"
                     )
-                    + " and the kill cannot be its source: " + "; ".join(why),
+                    + " and the kill cannot be its source: " + "; ".join(why) + further,
                 )
 
     def _further_before(candidate: dict[str, Any]) -> list[Death]:
         """The further deaths that may have preceded the candidate's
         redelivered duplicate line on the controller clock (E-4)."""
-        redelivered = redelivery_of.get(candidate["message_id"])
-        return [death for death in further_deaths if death.may_precede(redelivered)]
-
-    def _redelivery_text(candidate: dict[str, Any]) -> str:
-        redelivered = redelivery_of.get(candidate["message_id"])
-        return (
-            f"received at {redelivered}" if redelivered is not None
-            else "a duplicate line without received_monotonic_ns"
-        )
-
-    def _deaths_text(found: list[Death]) -> str:
-        return "; ".join(f"death {death.index} {death.placement()}" for death in found)
+        return [death for death in further_deaths if _death_may_precede(death, candidate)]
 
     if further_deaths:
         notes.append(
@@ -3089,9 +3162,12 @@ def name_n1_cases(
         kind_of[(message_id, source)] = kind
 
     def _offer_deaths(message_id: str, claim: str) -> None:
-        redelivered = redelivery_of.get(message_id)
+        # The kill only to a candidate nothing read excludes from it; a
+        # further death to any candidate whose redelivery it may have
+        # preceded, the kill explaining it or not (E-13: "or a further
+        # death (never named, P-4)").
         for death in deaths:
-            if claim != "none" and death.may_precede(redelivered):
+            if _death_may_serve(death, by_id[message_id]):
                 if death.index == 0:
                     _offer(message_id, "death 0", KIND_KILL if claim == "kill" else KIND_KILL_UNSHOWN)
                 else:
@@ -3358,15 +3434,16 @@ def name_n1_cases(
     # E-10: the sources the run evidences, for the namings E-9 tries on the
     # undecided devices, each with P-4's order rule, an occurrence serving
     # its own device alone and a death a candidate of any device whose
-    # redelivery it may have preceded (E-4), the kill no longer once its
-    # case is named. With the log read, an occurrence that precedes an
-    # undecided candidate names a case above: which of a device's
-    # occurrences served which of its cases is inference, so the cases
-    # named with an occurrence take part in the matching too, each with
-    # every occurrence of its device that may have preceded its redelivery
-    # and, when nothing read excludes it from the kill, every death that
-    # may have; an undecided candidate is offered every occurrence of its
-    # device that may have preceded it, one such a case holds included.
+    # redelivery it may have preceded (E-4), the kill only one nothing read
+    # excludes from it and no longer once its case is named, a further
+    # death one the kill cannot explain too. With the log read, an
+    # occurrence that precedes an undecided candidate names a case above:
+    # which of a device's occurrences served which of its cases is
+    # inference, so the cases named with an occurrence take part in the
+    # matching too, each with every occurrence of its device and every
+    # death that may have preceded its redelivery and may serve it; an
+    # undecided candidate is offered every occurrence of its device that
+    # may have preceded it, one such a case holds included.
     # With the log unusable, the number of A3 connection ends, and so the
     # capacity, is unknown.
     kill_named = [case["message_id"] for case in named if case["source"] == "kill"]
@@ -3389,16 +3466,13 @@ def name_n1_cases(
             redelivered = redelivery_of.get(message_id)
             a5 = _a5_lines(device, redelivered)
             lines_here.update(a5)
-            # A death serves only a candidate nothing read excludes from the
-            # kill, as for a case named with an occurrence below (E-13
-            # leaves one the kill cannot explain undecided too).
+            # The kill serves only a candidate nothing read excludes from
+            # it; a further death any candidate whose redelivery it may
+            # have preceded, one E-13 leaves undecided that the kill cannot
+            # explain included (E-10, E-13).
             possible[message_id] = {
                 "a5_lines": a5,
-                "deaths": (
-                    [death.index for death in available if death.may_precede(redelivered)]
-                    if _may_have_been_at_the_kill(by_id[message_id])
-                    else []
-                ),
+                "deaths": [death.index for death in available if _death_may_serve(death, by_id[message_id])],
             }
         a5_possible[device] = sorted(lines_here)
     #: The cases named with an A5 occurrence, each with the sources that may
@@ -3412,18 +3486,14 @@ def name_n1_cases(
             "device_uuid": case["device_uuid"] or "",
             "named_with_line": case["source_evidence"]["controller_log_line"],
             "a5_lines": _a5_lines(case["device_uuid"] or "", redelivered),
-            "deaths": (
-                [death.index for death in available if death.may_precede(redelivered)]
-                if _may_have_been_at_the_kill(case)
-                else []
-            ),
+            "deaths": [death.index for death in available if _death_may_serve(death, case)],
         }
     # A further death that may have preceded no duplicate-only candidate's
     # redelivery explains nothing (E-4): reported, never a source.
     explains_nothing = [
         death.index
         for death in further_deaths
-        if not any(death.may_precede(redelivery_of.get(c["message_id"])) for c in candidates)
+        if not any(_death_may_precede(death, c) for c in candidates)
     ]
     if explains_nothing:
         notes.append(
@@ -3434,9 +3504,10 @@ def name_n1_cases(
     death_records = [
         {
             **death.as_dict(),
-            "may_precede": sorted(
-                c["message_id"] for c in candidates if death.may_precede(redelivery_of.get(c["message_id"]))
-            ),
+            "may_precede": sorted(c["message_id"] for c in candidates if _death_may_precede(death, c)),
+            # The candidates it may have been the source of: the kill only
+            # those nothing read excludes from it (E-10, E-13).
+            "may_serve": sorted(c["message_id"] for c in candidates if _death_may_serve(death, c)),
             "spent_on_named_kill_case": kill_named[0] if death.index == 0 and kill_named else None,
         }
         for death in deaths
@@ -3858,17 +3929,20 @@ def s5_r4_delta(
             },
         },
         "deaths_preceding_none": [],
+        "deaths_serving_none": [],
         "rule": (
             "an A5 occurrence serves a candidate of its own device alone; a recorded death "
             "serves at most one candidate of the whole run; each serves only a candidate whose "
             "redelivered duplicate line it may have preceded on the controller clock, a death "
-            "placed as E-4 states; a case named with an occurrence on an undecided device keeps "
-            "one source in the matching, any occurrence of its device or, when nothing read "
-            "excludes it from the kill, any death that may have preceded its redelivery (E-10)"
+            "placed as E-4 states, the kill only one that nothing read excludes from it and a "
+            "further death one the kill cannot explain as well; a case named with an occurrence "
+            "on an undecided device keeps one source in the matching, any occurrence of its "
+            "device or any death that may so serve it (E-10)"
         ),
     }
     on_sources: dict[str, Any] | None = None
-    late: list[int] = []
+    late_order: list[int] = []
+    kill_serving_none: list[int] = []
     if capacity_evidence["applied"]:
         kill_needed = int(capacity_evidence["kill_needed"])
         kill_available = int(sources.get("kill_available") or 0)
@@ -3892,21 +3966,41 @@ def s5_r4_delta(
                 if _served([device], needed_by_device, all_options) < needed_by_device[device]
             ]
             ids = sorted(m for device in competing for m in members[device])
-            # The available deaths that may have preceded none of these
-            # candidates' redeliveries, nor those of the cases named with an
-            # occurrence beside them, explain none of them (E-4).
+            involved = ids + [n for device in competing for n in named_here[device]]
+            # The available deaths that may serve none of these candidates,
+            # nor the cases named with an occurrence beside them, explain
+            # none of them: a death that may have preceded none of their
+            # redeliveries (E-4), or the kill, which may have preceded them
+            # while none of them may have been in progress at it (a further
+            # death serves every candidate it may have preceded, so only
+            # the kill is left out on that ground).
             late = [
                 index for index in sources.get("deaths_available") or []
-                if not any(
-                    index in (sources_of[m].get("deaths") or [])
-                    for m in ids + [n for device in competing for n in named_here[device]]
-                )
+                if not any(index in (sources_of[m].get("deaths") or []) for m in involved)
             ]
-            capacity_evidence["deaths_preceding_none"] = late
+            precede_of = {
+                record.get("death"): set(record.get("may_precede") or [])
+                for record in sources.get("deaths") or []
+                if isinstance(record, dict)
+            }
+            late_order = [index for index in late if not precede_of.get(index, set()) & set(involved)]
+            kill_serving_none = [index for index in late if index not in late_order]
+            capacity_evidence["deaths_preceding_none"] = late_order
+            capacity_evidence["deaths_serving_none"] = late
+            clauses = []
+            if late_order:
+                clauses.append(
+                    f"{len(late_order)} of which may have preceded none of their redelivered duplicate "
+                    "lines on the controller clock"
+                )
+            if kill_serving_none:
+                clauses.append(
+                    "the kill serving none of them, which it may have preceded while none of them may "
+                    "have been in progress at it (P-4)"
+                )
             order = (
-                f", {len(late)} of which may have preceded none of their redelivered duplicate lines "
-                "on the controller clock"
-                if late
+                ", " + ", ".join(clauses)
+                if clauses
                 else ", which their order against the redeliveries cannot assign to them"
                 if kill_needed <= kill_available
                 else ""
@@ -3971,10 +4065,11 @@ def s5_r4_delta(
                 "(no A5 occurrence on their own device can), against "
                 f"{capacity_evidence['kill_available']} recorded death(s)"
                 + (
-                    f", {len(late)} of which may have preceded none of their redeliveries"
-                    if late
+                    f", {len(late_order)} of which may have preceded none of their redeliveries"
+                    if late_order
                     else ""
                 )
+                + (", the kill serving none of them (P-4)" if kill_serving_none else "")
                 + ": a delta mismatch beyond the named cases stands on "
                 + (
                     f"{', '.join(on_sources['stands_on'])} whatever the death(s) served"

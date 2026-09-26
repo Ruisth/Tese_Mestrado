@@ -563,7 +563,11 @@ the process that died and the first reading of the next (`monotonic_ns`),
 and may have preceded a candidate's redelivery only when that interval's
 lower bound is at or below the `received_monotonic_ns` of the candidate's
 first duplicate line (a tie is read inclusively, as the band of `E-8` is),
-or when either cannot be read or the readings contradict the interval; a
+or when either cannot be read or the readings contradict the interval;
+whatever its placement, every recorded death is the pre-kill process's or
+a later one's, after the pre-kill process's last reading, so none may have
+preceded a duplicate line received before that reading (a candidate lined
+before the kill); a
 controller process whose readings carry no `monotonic_ns` cannot be placed
 among the others and is never read as the last of them (the check of round
 3 found it sorted to the end of the chain and the death before it read as
@@ -590,7 +594,10 @@ capacity across the whole run and P-4's order rule, each source serving
 what it can — a recorded death (every controller process start the readings
 record after the pre-kill one, or the manifest's kill when they record none)
 gives at most one N1 case in the run, whichever device's, and only to a
-candidate whose redelivery it may have preceded (`E-4`), and each A5
+candidate whose redelivery it may have preceded (`E-4`), the kill only to
+one that nothing read excludes from it and a further death to one the kill
+cannot explain as well, since it may have been in progress at that death,
+and each A5
 occurrence read from the controller log at most one, of its own device
 alone, and only to a candidate whose redelivery its in-progress delivery may
 have preceded — and the check is a small matching of the candidates each
@@ -599,11 +606,21 @@ unshown identity's device is explained only while such a matching exists;
 since which of a device's occurrences served which of its cases is
 inference, the cases named with an occurrence on those devices take part in
 the matching and each keeps one source there, any occurrence of its device
-or, when nothing read excludes it from the kill, any death that may have
-preceded its redelivery, so a named case may leave its occurrence to an
-unshown candidate and the occurrence recorded against it never decides the
-capacity, and an undecided candidate the kill cannot explain (one `E-13`
-leaves undecided) is offered its device's occurrences and no death (`P-4`:
+or any death that may have preceded its redelivery and may serve it (the
+kill when nothing read excludes the case from it, a further death whether
+or not the kill can explain it), so a named case may leave its occurrence
+to an unshown candidate and the occurrence recorded against it never
+decides the capacity, and an undecided candidate the kill cannot explain
+(one `E-13` leaves undecided) is offered its device's occurrences and every
+further death that may have preceded its redelivery (the read-only check
+of round 4 found such a candidate offered no death at all, not even a
+further death its own record said may have preceded its redelivery: a
+false R3, a false R3 group and a false R4, where `E-13` lists a further
+death among an assignment's sources; R4's evidence now lists apart the
+deaths that may have preceded none of the candidates' redeliveries,
+`deaths_preceding_none`, and every death that may serve none of them,
+`deaths_serving_none`, which adds the kill when none of them may have been
+in progress at it) (`P-4`:
 each occurrence names one case at most, and a device's
 occurrences are offered first to the candidates the kill cannot explain, so
 an occurrence two candidates contend for goes to the one no other source
@@ -698,7 +715,8 @@ candidate on a device with the twin's surplus at most one source that may
 have preceded its redelivery (an A5 occurrence of its device, named
 `a3-connection-end` when both stamps are read and in order; the kill, named
 `kill` for a claimant `P-4` names and unshown for one that nothing read
-excludes from it; a further death, never named), each source serving one
+excludes from it; a further death, never named, which a candidate may
+hold whether or not the kill can explain it), each source serving one
 candidate at most, a candidate the twin shows unapplied holding none and an
 unshown one without twin evidence that may have been in progress at the
 kill possibly holding it; it is legitimate when it serves as many
