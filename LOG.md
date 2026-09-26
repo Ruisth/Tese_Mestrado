@@ -3544,3 +3544,203 @@ is unchanged.
   progress return of the 2026-09-27 checkpoint (or the eighth reported
   engineering hour), the proof's session driver, evaluator and identified
   image, then the finite proof under the student's authorisation.
+
+## Entry #C043 — The finite proof's tooling (ADR 0011): the evaluator, the session driver and its hooks, the diagnostic plan, the session facts and the guest-state extension; no session run
+
+- **Date:** 2026-09-25. **Scope:** the preparation the Project Manager's
+  final advice on PR #46 lists (section 5, items 2 and 4): the finite-proof
+  evaluator and the session driver, as code and unit tests only. No guest
+  session, no image build, no C3 repeat, no change to any criterion,
+  threshold, count, stop rule or validator. Branch
+  `feat/adr-0011-finite-proof` on `dev` at `60ebd8c` (the merge of PR #46).
+- **What.** `src/egw_experiments/proof_evaluator.py`: S1–S6, R1–R4 and the
+  inconclusive rule applied by identity to the post-drain copy of the
+  events, the twin snapshots, `controller_metrics.csv` (file order; an empty
+  cell is absent, never zero; `started_at` splits the processes; the kill
+  placed on the controller clock between the last pre-kill and the first
+  post-kill reading) and the controller log's A5 occurrences; the ADR's rule
+  texts verbatim as constants and pinned to the ADR by a test; the verdict
+  document `proof_verdict.json` with three sections never merged
+  (instrumentation, system outcome, restoration), every identification rule
+  labelled (P-1 to P-7 of the design, E-1 to E-9 of the implementation and
+  its reviews), the named N1 cases with source and twin surplus, the
+  harness's validity quoted and never decisive, no timestamp, exit codes
+  0 supports / 1 refutes / 3 inconclusive / 2 not evaluated. A refutation
+  rests only on evidence that was read and verified (E-7): an absent,
+  unverified or unreadable post-drain copy or twin snapshot makes the
+  affected criteria null and the run inconclusive, never a refutation.
+  `tools/session/proof.sh`: the session driver in the pattern of
+  `nominal.sh` and `broker_measure.sh` — prerequisites and every value
+  recorded before the first `drained` (on the attempt and in
+  `analysis/proof_session.json`), the deployed helper file byte-equal to the
+  runbook's 6.1 heredoc, the stack healthy as stop rule 1, the SUT
+  environment, guest state, containers and controller process before, the
+  one-entry diagnostic plan (`proof_plan.py`: a `controller_restart` entry
+  of 300 s at 11.2 msg/s, seed derived, refusing any campaign or pilot id),
+  the `/ready` wait as a step of its own before the attempt's clock, `pre` (starting with `drained`) with the configuration identity checked against the expected source
+  commit and `broker_reloaded` false, the harness run of the runbook's
+  `harness_cmd` arguments with the proof's hooks appended under `timeout`
+  on `/proc/uptime` as stop rule 2 (measured from the instant before the first `drained`), the restart shown from the driver's own
+  records, `metrics after`, the runbook's `delta` on the post-drain copy,
+  the prefix snapshots into the package, the session facts, the evaluator,
+  `guest_state_delta.py --expect-restarted egw-controller-1`, the healthy
+  wait as the restoration before the evaluator runs, the optional extension only with
+  `EGW_PROOF_EXTENSION=yes`, bounded by the ADR's two per-step stop rules and recorded apart, the three verdicts never
+  merged, the interrupt forwarded to the harness, every exit through
+  `driver_status.py`. The hooks: `proof_hook_twins.sh` (the `before` and
+  `after` snapshots through `$REC snap`, write-once), `proof_hook_drained.sh`
+  (the runbook's `drained`, refusing `DRAIN_QUIET_S` below 130),
+  `proof_fetch_sut_log.sh` (the broker, controller and docker-events logs
+  under the D2 rule: a non-zero status or an empty output is "not read",
+  no file), `proof_restart_controller.sh` (the fault: SIGKILL of the
+  controller's container followed by a start, the guest instants and the
+  container's id and start instant recorded before and after, write-once).
+  `proof_session.py` (the session facts, write-once then updated through
+  rename) and `proof_helpers_check.py` (the deployed helper file against the
+  heredoc, the extraction pinned to `regen_helpers.py`).
+  `guest_state_delta.py --expect-restarted <name>`: one in-place restart of
+  that container (same id, later start, restart count unchanged, no OOM) is
+  reported as expected, never a fault; anything else stays a fault, and an
+  expectation the pair does not show is a problem (exit 2). `tools/session/README.md`
+  and `experiments/README.md` describe the driver, its values and the layer.
+- **Why.** ADR 0011's implementation record reserved these for the proof's
+  session driver and evaluator; the Project Manager's advice of 2026-09-25
+  asks for them to be completed and unit-checked, reusing the configuration
+  identity's capture, before one short execution request is presented for
+  the student's authorisation. The identification rules that turn the
+  criteria into code are stated and labelled rather than decided silently:
+  they need the Project Manager's confirmation, listed in the pull request.
+- **How it was verified.** Unit tests only, under stubs, in the WSL venv
+  (Python 3.12): on the merged branch at `1cfd626` the seven modules the
+  branch adds or that read its files ran together, 903 passed
+  (`test_proof_evaluator.py` 54, `test_proof_driver.py` 62,
+  `test_proof_hooks.py` 24, `test_proof_plan.py` 25,
+  `test_session_drivers.py`, `test_runbook_itest_helpers.py`,
+  `test_experiments_run.py`); after the four editorial corrections of the
+  driver that followed its re-review, the driver module ran again (one case
+  adjusted to the refusal of a results base with a double quote, the rest
+  unchanged). Every part was reviewed by an independent reader and every
+  confirmed finding corrected with a regression: the phase-1 reviews (a P1
+  on the evaluator's refutations over evidence it did not read, a P2 on the
+  restart hook's stderr budget), the driver's review (a P1 on the interrupt
+  not reaching the harness under `timeout`, two P2s on the extension), the
+  branch review (a P1 on a duplicate-only identity inside the sampling band
+  read as R3, three P2s on the evaluator's evidence rules and tests) and
+  the re-reviews (a P2 on R4 suppressed on read twin evidence); mutation
+  checks pinned the rules the reviews named. shellcheck at error severity
+  is clean over the driver and its hooks; the Markdown link checker and the
+  evidence verifier pass. The package
+  `HIST_2026-09-25-finite-proof-tooling-attempt01` under the local
+  `output_test/runs/2026-09-25/` records the same seven modules run on the
+  committed tree `277092b` (tree `9982256`, clean status, captured before
+  the run): 903 passed, sealed; the commit after it changes this entry
+  only. The CI of the final head is the record for the whole suite.
+- **Delta of 2026-09-25/26 (the Project Manager's review of the pull
+  request at `3bf2fd5`).** Four findings corrected, each with regressions,
+  then checked by an independent joint review that ran the proof's cases
+  through the harness's own functions, which found two further defects the
+  per-part reviews had missed; both corrected. F1, eligibility: the proof
+  is evaluated only on the prescribed execution and its records (E-11,
+  P-16): the plan's load and the fault requested at t+150 s, simulator
+  exit 0, a completed publication against a whole population record, the
+  fault executed and shown, both event copies, the collector file. The
+  harness's validity is admitted by one function both parts call (E-12,
+  `harness_admission`): a valid run, or the exact form the harness writes
+  when the ADR's `MAX_SAMPLE_GAP_S` exception applies — the collector
+  file rejected for sampling gaps alone and kept under `logs/collector/`,
+  two reasons derived from it, the seal withheld for it — which the first
+  correction had made unreachable because it looked for a reason the
+  harness never writes; the archived r02 run is recognised as that form.
+  F2, the stop rules: one deadline from the first `drained` over every
+  live observation, the harness's runbook preamble included; the
+  candidate's health measured from the stack's start; any rule reached
+  records the proof inconclusive; the restoration never cut. F3, N1
+  sources: each recorded death, and each A5 occurrence of the device's
+  own, serves at most one case and only a candidate whose redelivery it
+  may have preceded, across the whole run (E-10); a case is named only as
+  every legitimate assignment names it, and contending candidates are R3
+  as a group with no member singled out (E-13); an unreadable reading
+  never makes a death vanish. R1: the next action follows the attempt's
+  final verdicts (P-17). Tests that encoded a wrong rule were corrected
+  and say so. Verified: the eight modules `test_proof_evaluator.py`,
+  `test_proof_driver.py`, `test_proof_hooks.py`, `test_proof_plan.py`,
+  `test_session_drivers.py`, `test_runbook_itest_helpers.py`,
+  `test_experiments_run.py` and `test_experiments_itest_reconcile.py`
+  together, 1,080 passed, recorded in the local package `HIST_2026-09-26-pr47-review-corrections-attempt01` with the commit
+  (`8eb6f99`), the tree (`38a7376`) and a clean status captured before
+  the run; mutation checks and a fuzz against a brute-force enumeration of
+  the source assignments pinned the naming rules. The package is at the
+  local `output_test/runs/2026-09-26/`; the commit after it changes this
+  entry only. Known and stated: a
+  candidate every legitimate assignment names can, in one reading order,
+  be left unshown in a run that is already inconclusive or refuted on
+  other grounds — the result is the same in every order (fuzzed). (The
+  first version of this paragraph also left the harness step's own
+  preamble outside the 50-minute bound; that is superseded by the closure
+  batch of 2026-09-26 below.)
+- **Closure batch of 2026-09-26 (the Project Manager's delta review of
+  `f8465b4` and the closure work order).** Three corrections, each
+  reproduced first on `f8465b4` (the failing output kept in the local
+  package `HIST_2026-09-26-pr47-closure-red-and-iterations`). F1b: a lost,
+  malformed or torn sent record of an N1 identity no longer produces an
+  R4 — when the population is not whole, a duplicate-only identity the
+  post-drain copy shows without a readable record is an undecided
+  candidate of its device (E-7, E-9), while a double acceptance, a
+  `last_seq` regression and a surplus beyond what the unread identities
+  could explain still refute. F2a: the harness step's own runbook preamble
+  and its body run together under the attempt's remaining bound, so a
+  tunnel that drops after `tunnel-ready` is ended by the 50-minute rule
+  before any harness or fault starts, the restoration still attempted.
+  F2b: the shared healthy wait prints when the healthy sample completed
+  (one additive line; its other consumers parse as before) and the
+  20-minute rule judges that completion, not the sample's start; the
+  acquisition runs under the remaining allowance, so a blocked inspection
+  ends in the rule reached; an earlier health record is reused only when it
+  carries a completion within the allowance. A console capture lost after
+  the 50-minute rule names the rule in the final reason. Verified on the
+  integrated tree: `test_proof_evaluator.py`, `test_proof_driver.py`,
+  `test_session_drivers.py`, `test_proof_hooks.py`,
+  `test_broker_measure_driver.py` and `test_qemu_process_guard.py`
+  together, 557 passed, in the local package `HIST_2026-09-26-pr47-closure-integrated-attempt01` with the
+  commit (`79cc809`), the tree (`5323608`) and a clean status captured
+  before the run; the commit after it changes this entry only. The
+  closure review of `5a7b967` found one interaction left: a device holding
+  an unread identity was taken out of E-10's capacity check, so a lost
+  record hid an aggregate R4 that the complete source records establish
+  (one death, no A5 occurrence, two increments); the unread identity now
+  stays in the check, offered every source that may have preceded its
+  redelivery, the attribution uncertain but not the sources. The
+  regression failed first on `5a7b967` (local package
+  `HIST_2026-09-26-pr47-capacity-fix-red`); `test_proof_evaluator.py` and
+  `test_proof_driver.py` together, 203 passed, in
+  `HIST_2026-09-26-pr47-capacity-fix-attempt01` with the commit
+  (`55c3986`), the tree (`be8c075`) and a clean status captured before the
+  run.
+- **What it does not establish.** Nothing ran on the guest: no recovery was
+  observed, the candidate is unmeasured, and the identification rules are
+  proposals until confirmed. The identified ARM64 controller image is not
+  built and not loaded (the student's build authorisation is to be
+  confirmed); the deployed helper file was regenerated on the WSL host from
+  `60ebd8c` on 2026-09-25 (sha256 `e76f036e…`, the previous kept beside it),
+  not on the guest; it is regenerated again from the merged source before
+  any session. The first version of this entry left the post-window
+  observations outside the 50-minute rule as a scope question; that is
+  superseded: after the Project Manager's review of 2026-09-25 one
+  deadline bounds every live observation after the first `drained` (P-10).
+  Open before the session: whether `restart: unless-stopped` restarts the
+  container by itself before the explicit start (V-1), the restart-shown
+  step observing the effect either way, and that the hooks' ssh alias and
+  the driver's pinned host key reach the same guest (V-2).
+- **Decisions and next steps.** No decision; nothing accepted. For the
+  Project Manager: the identification rules as they now stand (P-1 to
+  P-17, E-1 to E-13), the driver's additions (`EGW_PROOF_MASTER_SEED`
+  required, `EGW_PROOF_RUNBOOK`, `EGW_PROOF_EXTENSION_LIMIT_S` 1790, the
+  extension's "not-refuted" label) and the plan helper's guards. For the
+  student: the build and archive authorisation, separate from the load,
+  deployment and session authorisation; the run id and master seed;
+  `DRAIN_QUIET_S`; the optional extension; the image kept after the proof;
+  a verified offline copy of the current data disk before the next boot,
+  or an explicit waiver of it; and the session authorisation itself. Then the image
+  from a clean checkout, the execution request with the identities filled
+  in, and the session under separate authorisation. G3 stays paused; C3 is
+  not repeated.

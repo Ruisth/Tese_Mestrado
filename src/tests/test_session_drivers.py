@@ -2145,6 +2145,192 @@ def test_guest_state_delta_fails_closed_on_a_missing_record(tmp_path):
 
 
 # --------------------------------------------------------------------------
+# guest_state_delta.py --expect-restarted: the one restart the caller applied
+# --------------------------------------------------------------------------
+
+RESTARTED = ("--expect-restarted", "egw-controller-1")
+UNMET = ("PROBLEM: the caller expected egw-controller-1 to be restarted in place during the "
+         "run and the pair does not show it: ")
+EXPECTED_LINE = ("EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as "
+                 f"expected: it started again at {LATER_START} (it had been running since "
+                 f"{BOOT_START}), the same container object ({FIRST_ID[:12]}) with its restart "
+                 "count unchanged (0) and not OOM-killed")
+
+
+def _without(record: str, name: str) -> str:
+    """The record with the container line of `name` left out."""
+    return "".join(line for line in record.splitlines(keepends=True)
+                   if not line.startswith(f"container {name} "))
+
+
+def test_guest_state_delta_output_is_unchanged_without_the_option(tmp_path):
+    # Every line a driver reads today stays byte for byte what it was: the
+    # third group exists only when the caller made a statement for it to
+    # answer, and an in-place restart nobody announced is the fault it always was.
+    result = _delta(tmp_path, _guest_state(), _guest_state())
+    assert result.returncode == 0, report(result)
+    assert result.stdout == ("## faults: what the system did during the measured run\nnone\n"
+                             "## problems: what the two records do not let anyone say\nnone\n"
+                             "guest state before/after: 0 fault(s), 0 problem(s)\n"
+                             "guest-state-delta: faults=0 problems=0\n")
+    restarted = _delta(tmp_path, _guest_state(), _guest_state(started=LATER_START))
+    assert restarted.returncode == 1, report(restarted)
+    assert f"FAULT: egw-controller-1 was restarted during the run: it started again at {LATER_START}" \
+        in restarted.stdout
+    assert "expected restart" not in restarted.stdout
+
+
+def test_guest_state_delta_accepts_the_one_restart_the_caller_expected(tmp_path):
+    # The proof session kills the controller's container and starts it again:
+    # the same object, a later start instant, the restart count and the OOM
+    # state untouched. Named with --expect-restarted, that is the third group
+    # and not a fault, the pair ends 0, and the summary line the drivers parse
+    # keeps its format and stays the last line.
+    result = _delta(tmp_path, _guest_state(), _guest_state(started=LATER_START), *RESTARTED)
+    assert result.returncode == 0, report(result)
+    assert result.stdout == (
+        "## faults: what the system did during the measured run\nnone\n"
+        "## problems: what the two records do not let anyone say\nnone\n"
+        "## expected restarts: what the caller said the run would do, and the pair shows\n"
+        f"{EXPECTED_LINE}\n"
+        "guest state before/after: 0 fault(s), 0 problem(s), 1 expected restart(s)\n"
+        "guest-state-delta: faults=0 problems=0\n")
+    # The containers the caller expects the records to hold are checked as before.
+    listed = _delta(tmp_path, _guest_state(), _guest_state(started=LATER_START),
+                    "--expect", "egw-controller-1,egw-mongodb-1", *RESTARTED)
+    assert listed.returncode == 0, report(listed)
+    assert EXPECTED_LINE in listed.stdout
+
+
+def test_guest_state_delta_another_containers_restart_stays_a_fault(tmp_path):
+    # Only the container the caller named is read that way: the other one
+    # started again as well, and that is what it always was.
+    both = _guest_state(started=LATER_START).replace(f"started={BOOT_START}",
+                                                     f"started={LATER_START}")
+    result = _delta(tmp_path, _guest_state(), both, *RESTARTED)
+    assert result.returncode == 1, report(result)
+    assert EXPECTED_LINE in result.stdout
+    assert (f"FAULT: egw-mongodb-1 was restarted during the run: it started again at "
+            f"{LATER_START}") in _group(result.stdout, "faults")
+    assert "guest-state-delta: faults=1 problems=0" in result.stdout
+    # The option is given once per container: named as well, the second
+    # restart is the second line of the group.
+    named = _delta(tmp_path, _guest_state(), both, *RESTARTED, "--expect-restarted", "egw-mongodb-1")
+    assert named.returncode == 0, report(named)
+    assert named.stdout.count("EXPECTED-RESTART: ") == 2
+    assert "EXPECTED-RESTART: egw-mongodb-1 was restarted in place during the run" in named.stdout
+    assert "0 fault(s), 0 problem(s), 2 expected restart(s)" in named.stdout
+
+
+@pytest.mark.parametrize("after, faults", [
+    # The same name on a new container object is a replacement, not the
+    # restart in place the caller applied: what the pair shows is the fault.
+    (_guest_state(ident="c" * 64, started=LATER_START),
+     [f"was replaced during the run: the container id changed ({FIRST_ID[:12]} -> "
+      f"{'c' * 12})",
+      f"was restarted during the run: it started again at {LATER_START}"]),
+    # OOM-killed, and started again in place: the kill is what the pair shows,
+    # and the restart beside it is not the one the caller announced.
+    (_guest_state(oomkilled="true", started=LATER_START),
+     ["was OOM-killed (OOMKilled=true)",
+      f"was restarted during the run: it started again at {LATER_START}"]),
+    # A restart count that moved is a restart the POLICY made, which is not
+    # the kill and start the caller applied.
+    (_guest_state(restarts="1", started=LATER_START),
+     [f"was restarted during the run: it started again at {LATER_START}",
+      "restarted during the run (0 -> 1)"]),
+])
+def test_guest_state_delta_expected_container_changed_otherwise_stays_a_fault(tmp_path, after,
+                                                                               faults):
+    result = _delta(tmp_path, _guest_state(), after, *RESTARTED)
+    assert result.returncode == 1, report(result)
+    for fault in faults:
+        assert f"FAULT: egw-controller-1 {fault}" in _group(result.stdout, "faults"), result.stdout
+    assert "EXPECTED-RESTART" not in result.stdout
+    assert "PROBLEM:" not in result.stdout, "the pair shows what happened: nothing is undecided"
+    assert f"guest-state-delta: faults={len(faults)} problems=0" in result.stdout
+    # Every fault sentence is the one the pair gives without the option.
+    plain = _delta(tmp_path, _guest_state(), after)
+    assert _group(plain.stdout, "faults") == _group(result.stdout, "faults")
+
+
+@pytest.mark.parametrize("before, after, says", [
+    (_guest_state(), _guest_state(), f"it has been running since {BOOT_START} in both records"),
+    (_guest_state(), _guest_state(started="later"),
+     f"its start instant changed ({BOOT_START} -> later) but the two could not be read as "
+     "instants, so which is later could not be decided"),
+    (_guest_state(started=LATER_START), _guest_state(started=BOOT_START),
+     f"its start instant went backwards ({LATER_START} -> {BOOT_START}), which is not a restart"),
+    (_without(_guest_state(), "egw-controller-1"), _guest_state(),
+     "it is not named in the guest state before the run, so there is no start instant to "
+     "compare with"),
+    (_guest_state(), _without(_guest_state(), "egw-controller-1"),
+     "it is not listed in the guest state after the run"),
+    (_without(_guest_state(), "egw-controller-1"), _without(_guest_state(), "egw-controller-1"),
+     "neither record names it"),
+    (_guest_state(), "nothing was recorded\n", "no container of the pair could be compared"),
+])
+def test_guest_state_delta_reports_an_expected_restart_the_pair_does_not_show(tmp_path, before,
+                                                                               after, says):
+    # The caller said the run would restart the container and the pair shows
+    # no restart of it: an expectation the pair does not confirm is a problem,
+    # never an option quietly satisfied. A start instant that moved but cannot
+    # be ordered as a later one is still the fault it always was, beside it.
+    result = _delta(tmp_path, before, after, *RESTARTED)
+    assert result.returncode == 2, report(result)
+    assert UNMET + says in _group(result.stdout, "problems"), result.stdout
+    assert "EXPECTED-RESTART" not in result.stdout
+    assert "0 expected restart(s)" in result.stdout
+    if "its start instant" in says:
+        assert "FAULT: egw-controller-1 was restarted during the run" in result.stdout
+
+
+def test_guest_state_delta_expected_restart_of_a_missing_baseline_is_one_more_problem(tmp_path):
+    # The BEFORE record does not name the container the caller expects both
+    # to be held and to have been restarted: the gap in the baseline is
+    # reported as before, and the restart it cannot show is reported too.
+    result = _delta(tmp_path, _without(_guest_state(), "egw-controller-1"), _guest_state(),
+                    "--expect", "egw-controller-1,egw-mongodb-1", *RESTARTED)
+    assert result.returncode == 2, report(result)
+    problems = _group(result.stdout, "problems")
+    assert "egw-controller-1 is not named in the guest state before the run" in problems
+    assert UNMET + "it is not named in the guest state before the run" in problems
+    assert "FAULT:" not in result.stdout, result.stdout
+    assert "guest-state-delta: faults=0 problems=3" in result.stdout
+
+
+@pytest.mark.parametrize("before_started, after_started", [
+    # Docker trims the trailing zeros of the fraction: padded, not read as text
+    # (as text, ".1Z" sorts after ".10000001Z").
+    ("2026-09-19T19:58:00.1Z", "2026-09-19T19:58:00.10000001Z"),
+    ("2026-09-19T19:58:00.999999999Z", "2026-09-19T19:58:01Z"),
+    ("2026-09-19T23:59:59.9Z", "2026-09-20T00:00:00.1Z"),
+])
+def test_guest_state_delta_orders_the_instants_as_docker_prints_them(tmp_path, before_started,
+                                                                      after_started):
+    result = _delta(tmp_path, _guest_state(started=before_started),
+                    _guest_state(started=after_started), *RESTARTED)
+    assert result.returncode == 0, report(result)
+    assert (f"it started again at {after_started} (it had been running since "
+            f"{before_started})") in result.stdout
+    backwards = _delta(tmp_path, _guest_state(started=after_started),
+                       _guest_state(started=before_started), *RESTARTED)
+    assert backwards.returncode == 2, report(backwards)
+    assert UNMET + f"its start instant went backwards ({after_started} -> {before_started})" \
+        in backwards.stdout
+
+
+def test_guest_state_delta_refuses_an_expected_restart_that_names_no_container(tmp_path):
+    # A statement about the run that names no container is not an empty
+    # statement: the arguments could not be read, and no pair was compared.
+    result = _delta(tmp_path, _guest_state(), _guest_state(), "--expect-restarted", "")
+    assert result.returncode == 2, report(result)
+    assert "EMPTY OPTION --expect-restarted" in result.stderr
+    assert "FAULT:" not in result.stdout
+    assert result.stdout.rstrip().endswith("guest-state-delta: faults=0 problems=1")
+
+
+# --------------------------------------------------------------------------
 # driver_status.py --stop: the final line of a driver with no attempt
 # --------------------------------------------------------------------------
 

@@ -119,9 +119,16 @@ guest_literal() {
 # expanded twice, and no quoting of the driver's own text can reach it.
 #
 # Every sample is printed with its instant, so the transition is visible in the
-# console record. The answer is one of four, and the two that are not a pass
-# are never mixed, because observing the system fail is a result while failing
-# to observe is not:
+# console record. That instant is read when the sample STARTS, before its
+# inspections of the six services; the sample that finds them all healthy is
+# therefore followed by one more line, '<instant> completed (sample N)', whose
+# instant is read after its last inspection: the healthy observation had
+# completed by then (whole seconds: before that instant + 1 s), which the
+# sample's own instant does not show (proof.sh judges the 20-minute rule on
+# it). The line holds no ' sample ' and no 'NOT ', so what the drivers read
+# from the record is unchanged. The answer is one of four, and the two that
+# are not a pass are never mixed, because observing the system fail is a
+# result while failing to observe is not:
 #   0  every expected service is running and healthy
 #   1  the limit passed and at least one of them was not: the system's state
 #   2  the state of at least one of them could NOT be determined at all
@@ -178,6 +185,8 @@ while :; do
     done
     echo "$now sample $n:$line"
     if [ -z "$notready" ] && [ -z "$undetermined" ]; then
+        ended=$(date -u +%Y-%m-%dT%H:%M:%SZ) || ended=unreadable-instant
+        echo "$ended completed (sample $n)"
         echo "ALL HEALTHY: the $# expected services are running and healthy (sample $n)"
         exit 0
     fi

@@ -1950,15 +1950,43 @@ container started, read from a log the guest read to its end with the exit
 status of that read (a failed or empty read stops with no file, so a count
 of zero never stands for a log that was not read; review of 2026-09-25,
 D2), `stop_grace_period`, the controller image's id and source commit, the
-paho version, the A3 choice. **Not in the pull request, needed before the
-proof:** the three log-fetch helpers and the proof's own capture of that
-identity, which belong to the proof's session driver; the identified
-controller image built from the commit that carries the lock; the regeneration of the deployed helper file
-with `regen_helpers.py` (the new `_mline` refuses a controller build without
-the thirteen fields); the proof's evaluator, which applies S1–S6 and R1–R4 —
-S4 with the twin's evidence of a named N1 case — to the post-drain copy and
-the snapshots. None of this runs on the guest without the student's separate
-authorisation.
+paho version, the A3 choice. **In the repository since the pull request of
+2026-09-25 (`feat/adr-0011-finite-proof`, LOG #C043):** the proof's
+evaluator (`egw_experiments.proof_evaluator`: S1–S6, R1–R4 and the
+inconclusive rule by identity, the rule texts verbatim, every
+identification rule labelled and awaiting the Project Manager's
+confirmation); the proof's session driver (`tools/session/proof.sh`, with
+its hooks `proof_hook_twins.sh`, `proof_hook_drained.sh`,
+`proof_fetch_sut_log.sh` — the three log-fetch helpers — and
+`proof_restart_controller.sh`, the diagnostic plan `proof_plan.py`, the
+session facts `proof_session.py` and the helper-file check
+`proof_helpers_check.py`), which reuses `config_identity` as the proof's
+capture of that identity; and `guest_state_delta.py --expect-restarted`.
+The deployed helper file was regenerated on the WSL host from `60ebd8c` on
+2026-09-25 with `regen_helpers.py`. After the Project Manager's review of
+the pull request (2026-09-25), the proof is evaluated only on the execution
+this record prescribes and the records it lists, checked apart from the
+harness's validity (E-11 in the evaluator, P-16 in the driver: the plan's
+load and the fault at t+150 s, a completed publication with a whole
+population record, the fault executed and shown, both event copies, the
+collector file); the harness's own verdict is admitted only as E-12 reads
+it, in one function both parts call — a valid run, or the form the harness
+writes when this record's `MAX_SAMPLE_GAP_S` exception applies (the
+collector file rejected for sampling gaps alone and kept under
+`logs/collector/`, the seal withheld for it); both stop rules are applied
+from their anchors and any rule reached records the proof inconclusive
+(P-10: one deadline from the first `drained` over every live observation,
+the restoration never cut; P-15: the candidate's health measured from the
+stack's start); N1 namings respect the sources the run evidences — one per
+recorded death that may have preceded the redelivery, one per A5 occurrence
+of the device's own — across the whole run, and a case is named only as
+every legitimate assignment names it (E-10, E-13). No criterion,
+threshold, count or stop rule of this record changed.
+**Not in the repository, needed before the proof:** the identified
+controller image built from the commit that carries the lock, and its
+load into the guest; the build and the guest session are separate acts,
+each under the student's own authorisation. None of this runs on the guest
+without the student's separate authorisation.
 
 ## Consequences
 
