@@ -3703,7 +3703,19 @@ is unchanged.
   `test_broker_measure_driver.py` and `test_qemu_process_guard.py`
   together, 557 passed, in the local package `HIST_2026-09-26-pr47-closure-integrated-attempt01` with the
   commit (`79cc809`), the tree (`5323608`) and a clean status captured
-  before the run; the commit after it changes this entry only.
+  before the run; the commit after it changes this entry only. The
+  closure review of `5a7b967` found one interaction left: a device holding
+  an unread identity was taken out of E-10's capacity check, so a lost
+  record hid an aggregate R4 that the complete source records establish
+  (one death, no A5 occurrence, two increments); the unread identity now
+  stays in the check, offered every source that may have preceded its
+  redelivery, the attribution uncertain but not the sources. The
+  regression failed first on `5a7b967` (local package
+  `HIST_2026-09-26-pr47-capacity-fix-red`); `test_proof_evaluator.py` and
+  `test_proof_driver.py` together, 203 passed, in
+  `HIST_2026-09-26-pr47-capacity-fix-attempt01` with the commit
+  (`55c3986`), the tree (`be8c075`) and a clean status captured before the
+  run.
 - **What it does not establish.** Nothing ran on the guest: no recovery was
   observed, the candidate is unmeasured, and the identification rules are
   proposals until confirmed. The identified ARM64 controller image is not
