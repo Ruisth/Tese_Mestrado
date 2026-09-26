@@ -113,8 +113,11 @@
 # recorded inconclusive (ADR 0011: "If a stop rule is reached, the session
 # stops and the proof is recorded inconclusive"), the 20-minute rule and the
 # 50-minute rule alike; only a prerequisite that is not a stop rule leaves
-# the attempt not-run. The restoration is never cut short to keep a total
-# duration. The values used are recorded before anything starts - on the
+# the attempt not-run, and only before the 50-minute rule is reached: one
+# that fails after it (say 'pre' ended at the deadline, then the identity
+# check failed) is recorded inconclusive with the rule named beside it.
+# The restoration is never cut short to keep a total duration. The values
+# used are recorded before anything starts - on the
 # attempt (workload.values) and in analysis/proof_session.json - and the
 # student may set other values before the session.
 #
@@ -484,6 +487,7 @@ left() {
 # (cut_by_rule), and is then listed with the observations not made.
 STEP_NOT_STARTED=98
 ATTEMPT_REACHED=0        # the 50-minute rule recorded (once)
+ATTEMPT_TEXT=""          # ... and the reason text it was recorded with
 not_started=()           # live steps not dispatched after the rule was reached
 # attempt_reached WHEN NAME [RC]: the 50-minute rule reached before, during
 # or after NAME, recorded once in the session facts (the rule, the instant,
@@ -506,6 +510,7 @@ attempt_reached() {
         *)
             text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s from its first 'drained' was spent when '$name' ended; no further proof step was started" ;;
     esac
+    ATTEMPT_TEXT=$text
     stoprule attempt "$text"
     session_update "instants.attempt_limit_reached_step=$name" "instants.attempt_limit_reached_when=$when" \
         "instants.attempt_limit_reached_host_uptime_s=$(uptime_s)"
@@ -1057,7 +1062,18 @@ EXPECTED_ARTEFACTS='["raw/*/manifest.json", "raw/*/sent_events.jsonl", "raw/*/ev
 
 # not_run REASON: a prerequisite failed, so the harness was never started. A
 # stop rule reached is never a prerequisite failed (stopped_before_harness).
+# Once the 50-minute rule has been reached (the latch, ATTEMPT_REACHED: say
+# 'pre' ended at the deadline, whatever its exit), a prerequisite that
+# fails afterwards - 'pre' itself, the identity check, a mandatory record -
+# does not make the attempt not-run: the rule was reached, so the proof is
+# recorded inconclusive with the rule named beside the prerequisite that
+# failed (the outcome is inconclusive whenever the rule is reached). Before
+# the latch nothing changes.
 not_run() {
+    if [ "${ATTEMPT_REACHED:-0}" -eq 1 ]; then
+        stopped_before_harness "the 50-minute rule was reached before the harness, and a prerequisite then failed ($1)" \
+            "${ATTEMPT_TEXT}; after it a prerequisite failed as well: $1; the proof is recorded inconclusive by that rule, never not-run"
+    fi
     headline "$A" "$1: the harness was NOT started" || true
     set_field "restoration=$(guest_state_text)"
     session_update "restoration=$(guest_state_text)" "instants.ended_utc=$(now_utc)"

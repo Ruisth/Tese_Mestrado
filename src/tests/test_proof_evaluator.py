@@ -3324,6 +3324,122 @@ def test_a_death_beside_a_process_whose_readings_carry_no_monotonic_ns_is_not_pl
     assert "never read as the last of them" in pe.IDENTIFICATION_RULES["E-4"]
 
 
+def test_a_reading_whose_started_at_cannot_be_read_leaves_the_number_of_deaths_unknown_never_zero() -> None:
+    """The read-only re-check of round 4 (P3 at split_by_process), on the
+    shape of the case above: three claimants of the kill on D1 redelivered
+    at 1,270 s, and between P1 (last read 1,245 s) and P2 (first read
+    1,265 s) a process PX whose readings carry a readable monotonic_ns but
+    an empty started_at cell. split_by_process kept those readings apart
+    and recorded_deaths counted no process for them: two deaths against
+    three claimants, and E-10 refuted on capacity (a false R4). An unread
+    started_at is never read as no process (E-4, E-10): the number of
+    deaths is unknown, so E-10's capacity is unknown and named, nothing is
+    refuted on it, and no claimant is named or R3; the run is inconclusive,
+    as with PX readable, which is unchanged."""
+    PX = "2026-09-25T10:04:10Z"
+    R = 1_270
+    F = ("f-mid", D1, 2, 401 * NS)
+    F2 = ("f2-mid", D1, 3, 402 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", R * NS, None), ("f-mid", D1, 2, "duplicate", R * NS, None),
+        ("f2-mid", D1, 3, "duplicate", R * NS, None),
+    ]
+
+    def _px_rows(started_at: str | None) -> list[dict[str, str]]:
+        return _rows() + [
+            _row(_ts(250), started_at, 0, 0, monotonic_ns=1_250 * NS, unacked=0),
+            _row(_ts(255), started_at, 0, 0, monotonic_ns=1_255 * NS, unacked=0),
+            _row(_ts(265), P2, 0, 0, monotonic_ns=1_265 * NS, unacked=0),
+            _row(_ts(285), P2, 0, 0, monotonic_ns=1_285 * NS, unacked=0),
+        ]
+
+    documents = {}
+    for label, started_at in (("readable", PX), ("no-started_at", None)):
+        doc = _evaluate(sent=SENT + [F, F2], lines=lines, extra_after={D1: 3, "seqs": [(D1, 3)]}, rows=_px_rows(started_at))
+        assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == [], label
+        assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "R3")["observed"] is None, label
+        r3 = _criterion(doc, "R3")["evidence"]
+        assert r3["not_named_identities"] == [] and r3["r3_groups"] == [] and _outcome(doc)["n1_cases"] == [], label
+        assert [c["message_id"] for c in r3["cannot_show_identities"]] == ["b-mid", "f-mid", "f2-mid"], label
+        documents[label] = doc
+    # PX readable: three deaths, the capacity known and consistent, as before.
+    readable = _capacity(documents["readable"])
+    assert (readable["applied"], readable["known"], readable["why_unknown"]) == (True, True, None)
+    assert (readable["deaths_recorded"], readable["matched"], readable["consistent"]) == (3, 3, True)
+    # PX's started_at unread: two deaths recorded, the number of deaths
+    # unknown, and with it the capacity, which is named and decides nothing.
+    unread = _capacity(documents["no-started_at"])
+    assert (unread["applied"], unread["known"], unread["consistent"], unread["matched"]) == (False, False, None, None)
+    assert unread["deaths_recorded"] == 2
+    assert unread["why_unknown"] == (
+        "the number of recorded controller deaths is unknown: 2 controller reading(s) (row(s) 9, 10) carry no "
+        "readable started_at and are not shown to be the pre-kill process's (a monotonic_ns unread or above that "
+        "process's last reading), so the process each belongs to cannot be read (E-4)"
+    )
+    r3 = _criterion(documents["no-started_at"], "R3")["evidence"]
+    for claimant in r3["cannot_show_identities"]:
+        assert "3 identities claim the kill as their source and the readings record 2 controller process starts" in claimant["why_not_shown"]
+        assert "the number of controller deaths is unknown (2 controller reading(s) (row(s) 9, 10)" in claimant["why_not_shown"]
+        assert "none is named and none is R3" in claimant["why_not_shown"]
+    assert any(n.startswith("the number of controller deaths is unknown") and "nothing is refuted on capacity grounds" in n for n in r3["notes"])
+    undecided = _criterion(documents["no-started_at"], "R4")["evidence"]["undecided"]
+    assert [(u["device_uuid"], u["rule"]) for u in undecided] == [(D1, "E-4")]
+    # A reading with an empty started_at at or below the pre-kill process's
+    # last reading is of that process's time: it names no further process.
+    rows, _notes = pe.read_metrics_rows([_row(_ts(0), None, 3, 1, monotonic_ns=K_LOWER)] + _rows())
+    assert pe.unread_process_readings(pe.split_by_process(rows)) == [] and pe.deaths_unknown_of(pe.split_by_process(rows)) is None
+    rows, _notes = pe.read_metrics_rows(_px_rows(None) + [_row(_ts(300), None, 0, 0, monotonic_ns=None)])
+    assert [r.index for r in pe.unread_process_readings(pe.split_by_process(rows))] == [9, 10, 13]
+    assert "the number of deaths is unknown" in pe.IDENTIFICATION_RULES["E-4"]
+    assert "an unread cell is never read as no process" in pe.IDENTIFICATION_RULES["E-4"]
+    assert "So it is when the number of deaths is unknown" in pe.IDENTIFICATION_RULES["E-10"]
+
+
+def test_a_candidate_a_death_the_readings_do_not_record_may_have_preceded_is_neither_named_nor_r3() -> None:
+    """E-4 with the number of deaths unknown, beyond the claimants: N,
+    published after the restart command's end and redelivered at 1,270 s,
+    with no A5 occurrence, beside the scenario's two processes and one
+    reading at 1,250 s whose started_at cannot be read. On the deaths
+    recorded alone the kill cannot explain N and no further death is
+    recorded, so N was R3 and the run refuted; but that reading may be of a
+    process after P1, whose death may have preceded N's redelivery. N is
+    now neither named nor R3 and the run inconclusive. Unchanged: N stays
+    R3 when the twin shows it unapplied, and P, lined before the kill, keeps
+    its R3, since every death follows the pre-kill process's last reading."""
+    N = ("n-mid", D1, 2, 540 * NS)
+    P = ("p-mid", D1, 2, 360 * NS)
+    rows = _rows() + [_row(_ts(250), None, 0, 0, monotonic_ns=1_250 * NS, unacked=0)]
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_270)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == []
+    (unshown,) = r3["evidence"]["cannot_show_identities"]
+    assert unshown["message_id"] == "n-mid"
+    assert unshown["why_not_shown"].startswith(
+        f"a further death may have preceded its redelivered duplicate line (received at {1_270 * NS}), and it may "
+        "have been in progress at that death, which P-4 never names as a source: the number of controller deaths "
+        "is unknown (1 controller reading(s) (row(s) 9)")
+    assert unshown["why_not_shown"].endswith("so it is neither named nor R3 (E-4, E-10)")
+    assert _capacity(doc)["known"] is False and _criterion(doc, "R4")["observed"] is None
+    # Every reading names its process: N is R3 and the run refutes, as before.
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_270)), extra_after={D1: 1, "seqs": [(D1, 2)]})
+    assert _outcome(doc)["result"] == "refutes"
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["not_named_identities"]] == ["n-mid"]
+    # The twin shows N unapplied (last_seq 1 below its seq 2): R3 on the
+    # twin's evidence, whatever death may have preceded it.
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_270)), extra_after={D1: 1}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    (rejected,) = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "n-mid" and "and the twin does not show it applied" in rejected["why_not_named"]
+    assert "but the number of controller deaths is unknown" in rejected["why_not_named"]
+    # P, lined before the kill, keeps its R3 beside the unknown deaths.
+    doc = _evaluate(sent=SENT + [P], lines=_duplicates(("p-mid", 2, 360, 1_100)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    (rejected,) = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "p-mid" and "lined before the kill" in rejected["why_not_named"]
+    assert _criterion(doc, "R3")["evidence"]["cannot_show_identities"] == []
+
+
 def _session_with_exit(tmp_path: Path, harness_exit: Any) -> Path:
     path = tmp_path / "proof_session.json"
     path.write_text(json.dumps({**_session(), "harness_exit": harness_exit}, indent=2) + "\n", "utf-8")

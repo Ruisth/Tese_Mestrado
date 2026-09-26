@@ -583,6 +583,19 @@ claimant named, several R3), and a further death that may have preceded no
 candidate's redelivery explains nothing and is reported; the criteria a
 claimant leaves unshown beside a further death carry `E-4` as their label in
 the inconclusive reasons, never `E-7`, which says evidence was not read;
+a reading of `controller_metrics.csv` whose `started_at` cell cannot be
+read names no process (the read-only re-check of round 4 found such
+readings left out of the count of processes, a recorded death lost and a
+false R4 on capacity): unless its `monotonic_ns` is read at or below the
+pre-kill process's last reading, it may be of a process the readings do
+not otherwise record, so the number of deaths is unknown and an unread
+cell is never read as no process — a further death the readings do not
+record may then have preceded any redelivery after that reading, so no
+claimant of the kill is named and none is R3 on the reading of one death,
+and a candidate such a death may have preceded is neither named nor R3 on
+the deaths recorded alone, nor counted in an R3 group, its device
+undecided, while a candidate lined before the kill keeps its reading,
+since every death follows the pre-kill process's last reading;
 `E-9`: the
 device of an unshown identity is undecided for S5/R4 only while some naming
 of it that the twin's count allows leaves `delta` right — a surplus beyond
@@ -640,7 +653,11 @@ every recorded death, never an identity, and without assuming an A3 event
 the log does not record; the deaths as placed and each candidate's possible
 sources are shown in R4's evidence; with the controller log unusable the
 capacity is unknown, so E-9's count alone applies and the run stays
-inconclusive, never refuted on capacity grounds;
+inconclusive, never refuted on capacity grounds, and so it is when the
+number of deaths is unknown (a reading after the pre-kill process's last
+one whose `started_at` cannot be read, `E-4`: R4's evidence names it,
+`source_capacity.why_unknown`), since an unread `started_at` is not proof
+of no further process;
 `E-11`, from the same review: the run must be the execution the ADR
 prescribes with the records it lists, with the harness's `validity` quoted
 and admitted only as `E-12` states (any other harness invalidity makes the

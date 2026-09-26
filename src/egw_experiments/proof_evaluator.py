@@ -487,7 +487,19 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "candidates whose redelivery it may have preceded: the kill for those "
         "nothing read excludes from it, a further death whether or not the "
         "kill can explain them, since they may have been in progress at that "
-        "death (E-10, E-13)."
+        "death (E-10, E-13). A controller reading whose started_at cannot be "
+        "read names no process: unless its monotonic_ns is read at or below "
+        "the pre-kill process's last reading, it may be of a process the "
+        "readings do not otherwise record, so the number of deaths is "
+        "unknown, and an unread cell is never read as no process. A further "
+        "death the readings do not record may then have preceded any "
+        "redelivery after the pre-kill process's last reading: no claimant of "
+        "the kill is named, none is R3 on the reading of one death, and a "
+        "candidate such a death may have preceded is neither named nor R3 on "
+        "the deaths recorded alone, nor counted in an R3 group (E-13), its "
+        "device undecided (E-9); a candidate lined before the kill keeps its "
+        "reading, since every death follows the pre-kill process's last "
+        "reading."
     ),
     "E-5": (
         "A JSONL line that is not a JSON object, or not valid UTF-8 (a "
@@ -611,7 +623,11 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "connection ends is unknown, so the capacity is unknown: E-9's count "
         "alone applies and the run stays inconclusive, never refuted on "
         "capacity grounds, since an unread log is not proof of zero A3 "
-        "events."
+        "events. So it is when the number of deaths is unknown (a reading "
+        "after the pre-kill process's last one whose started_at cannot be "
+        "read, E-4): the capacity is unknown, E-9's count alone applies and "
+        "the run is never refuted on capacity grounds, since an unread "
+        "started_at is not proof of no further process."
     ),
     "E-11": (
         "The proof is evaluated only on the execution the ADR prescribes and "
@@ -1671,6 +1687,37 @@ def recorded_deaths(split: ProcessSplit, restart_ok: bool) -> list[Death]:
     return deaths
 
 
+def unread_process_readings(split: ProcessSplit) -> list[MetricsRow]:
+    """The readings whose started_at cannot be read that may be of a
+    controller process after the pre-kill one (E-4, E-10): every one not
+    shown to be of the pre-kill process's time, that is whose monotonic_ns
+    is unread or above that process's last reading (or that reading is
+    unread). The process each belongs to cannot be read, so the number of
+    deaths the readings record is unknown: an unread cell is never read as
+    no process (split_by_process keeps such a reading apart, and
+    recorded_deaths counts no process for it)."""
+    last_pre = max((r.monotonic_ns for r in split.pre_kill if r.monotonic_ns is not None), default=None)
+    return [
+        row for row in split.unreadable
+        if row.monotonic_ns is None or last_pre is None or row.monotonic_ns > last_pre
+    ]
+
+
+def deaths_unknown_of(split: ProcessSplit) -> str | None:
+    """Why the number of recorded deaths is unknown (E-4, E-10), or None
+    when every reading after the pre-kill process's last one names its
+    process."""
+    rows = unread_process_readings(split)
+    if not rows:
+        return None
+    shown = ", ".join(str(row.index) for row in rows[:5]) + (f" and {len(rows) - 5} more" if len(rows) > 5 else "")
+    return (
+        f"{len(rows)} controller reading(s) (row(s) {shown}) carry no readable started_at and are "
+        "not shown to be the pre-kill process's (a monotonic_ns unread or above that process's "
+        "last reading), so the process each belongs to cannot be read"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Identities: the simulator's sent lines and the controller's outcome lines
 # ---------------------------------------------------------------------------
@@ -2378,7 +2425,8 @@ class N1Naming:
     undecided_devices: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: The sources the run evidences and their capacity for the namings
     #: E-9 tries on the undecided devices (E-10): whether they are known
-    #: (the controller log read), the kill's availability, the A5
+    #: (the controller log read and the number of deaths known, E-4), the
+    #: kill's availability, the A5
     #: occurrences read and used, per undecided device the occurrences
     #: that may have preceded one of its candidates, and the sources that
     #: may have been those of each case named with an occurrence.
@@ -2632,6 +2680,7 @@ def name_n1_cases(
     log_problem: str | None = None,
     post_kill_started_at: list[str] | None = None,
     deaths: list[Death] | None = None,
+    deaths_unknown: str | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -2653,6 +2702,12 @@ def name_n1_cases(
     is never named as a source (P-4), and no claimant of the kill is named
     beside one that may have preceded its redelivery (E-4). Without
     ``deaths`` every death recorded may have preceded every redelivery.
+    ``deaths_unknown`` says why the number of deaths cannot be read (a
+    reading after the pre-kill process's last one without a readable
+    started_at, :func:`deaths_unknown_of`): a further death the readings do
+    not record may then have preceded any redelivery after that reading, so
+    no candidate it may have preceded is named or R3 on what the recorded
+    deaths alone give, and E-10's capacity is unknown (E-4, E-10).
 
     What the candidates read in order give stands only as every legitimate
     assignment of the sources reads it (E-13): a naming, or an R3 for want
@@ -2672,6 +2727,18 @@ def name_n1_cases(
         ]
     death_count = len(deaths)
     further_deaths = deaths[1:]
+    #: E-4 with the number of deaths unknown: a further death the readings
+    #: do not record, placed nowhere, is still after the pre-kill process's
+    #: last reading, so it may have preceded any redelivery but a line
+    #: received before that reading; an unread started_at is never read as
+    #: no process.
+    unrecorded_text = (
+        f"the number of controller deaths is unknown ({deaths_unknown}), so a further death the "
+        "readings do not record may have preceded any redelivered duplicate line received after "
+        "the pre-kill process's last reading (an unread started_at is never read as no process, E-4)"
+        if deaths_unknown is not None
+        else ""
+    )
     #: Each candidate's redelivery on the controller clock for the order
     #: rule of E-4 and E-10: its first duplicate line's received stamp, or
     #: None when a duplicate line carries none (any source may precede it).
@@ -2815,6 +2882,14 @@ def name_n1_cases(
         if not _death_may_precede(death, candidate):
             return False
         return death.index > 0 or _may_have_been_at_the_kill(candidate)
+
+    def _unrecorded_may_precede(candidate: dict[str, Any]) -> bool:
+        """Whether a further death the readings do not record may have
+        preceded the candidate's redelivered duplicate line: the number of
+        deaths is unknown, and such a death, placed nowhere, follows the
+        pre-kill process's last reading like every death (E-4), so it may
+        have preceded any line but one received before that reading."""
+        return deaths_unknown is not None and candidate["class"] != "pre_kill_lined"
 
     def _deaths_text(found: list[Death]) -> str:
         return "; ".join(f"death {death.index} {death.placement()}" for death in found)
@@ -2966,6 +3041,11 @@ def name_n1_cases(
                 # or R3 only with a group, unless the twin shows it
                 # unapplied (E-4).
                 serving = [death for death in further_deaths if _death_may_serve(death, candidate)]
+                unapplied = (
+                    facts.after_last_seq is None
+                    or candidate["seq"] is None
+                    or facts.after_last_seq < candidate["seq"]
+                )
                 further = ""
                 if further_deaths and candidate["class"] == "pre_kill_lined":
                     further = (
@@ -2979,11 +3059,6 @@ def name_n1_cases(
                         + _deaths_text(further_deaths)
                     )
                 elif serving:
-                    unapplied = (
-                        facts.after_last_seq is None
-                        or candidate["seq"] is None
-                        or facts.after_last_seq < candidate["seq"]
-                    )
                     further = (
                         "; a further death may have preceded its redelivered duplicate line ("
                         + _deaths_text(serving)
@@ -2994,6 +3069,17 @@ def name_n1_cases(
                             if unapplied
                             else "), which the legitimate assignments read (E-13)"
                         )
+                    )
+                if not serving and _unrecorded_may_precede(candidate):
+                    # E-4 with the number of deaths unknown: a death the
+                    # readings do not record may have preceded it; one the
+                    # twin shows applied is read below (neither named nor R3).
+                    further += "; but " + unrecorded_text + (
+                        f", and the twin does not show it applied (the after snapshot's last_seq "
+                        f"{facts.after_last_seq}, the identity's seq {candidate['seq']}), so it claims no "
+                        "case (E-4)"
+                        if unapplied
+                        else ", which E-4 reads with the legitimate assignments"
                     )
                 _reject(
                     candidate,
@@ -3021,10 +3107,34 @@ def name_n1_cases(
             "no claimant of the kill is named beside a further death that may have preceded its "
             "redelivery (E-4): " + _deaths_text(deaths)
         )
+    if deaths_unknown is not None:
+        notes.append(
+            f"{unrecorded_text}: no claimant of the kill is named or R3 on the reading of one "
+            "death, no candidate such a death may have preceded is named or R3 on the deaths "
+            "recorded alone, and E-10's capacity is unknown, so nothing is refuted on capacity "
+            "grounds (E-4, E-10)"
+        )
     claimant_further = {candidate["message_id"]: _further_before(candidate) for candidate, _facts in kill_claimants}
-    if len(kill_claimants) == 1 and claimant_further[kill_claimants[0][0]["message_id"]]:
+    #: A claimant a further death the readings do not record may have
+    #: preceded (E-4 with the number of deaths unknown).
+    claimant_unrecorded = {
+        candidate["message_id"]: _unrecorded_may_precede(candidate) for candidate, _facts in kill_claimants
+    }
+
+    def _claimant_further_text(message_id: str) -> str:
+        """What may have been a claimant's further death: the recorded ones
+        that may have preceded its redelivery, and one the readings do not
+        record when the number of deaths is unknown (E-4)."""
+        found = claimant_further[message_id]
+        return "; ".join(
+            ([_deaths_text(found)] if found else []) + ([unrecorded_text] if claimant_unrecorded[message_id] else [])
+        )
+
+    lone = kill_claimants[0][0]["message_id"] if len(kill_claimants) == 1 else None
+    if lone is not None and (claimant_further[lone] or claimant_unrecorded[lone]):
         # E-4 with a further death that may have preceded the claimant's
-        # redelivery: it may have been in progress at the command's kill or
+        # redelivery (recorded, or not recorded when the number of deaths
+        # is unknown): it may have been in progress at the command's kill or
         # at that death, which P-4 cannot name; the twin shows it applied,
         # so it is not R3 either.
         candidate, facts = kill_claimants[0]
@@ -3034,13 +3144,18 @@ def name_n1_cases(
                 f"the after snapshot's last_seq {facts.after_last_seq} is below the identity's seq {candidate['seq']}",
             )
         else:
+            recorded = (
+                f"the readings record {death_count} controller process starts after the pre-kill one "
+                f"({', '.join(starts)}), and "
+                if claimant_further[lone]
+                else ""
+            )
             _cannot_show(
                 candidate, "E-4",
                 "it claims the kill as its source (restart-class, published before the restart "
-                f"command's start, the restart executed with exit 0), but the readings record "
-                f"{death_count} controller process starts after the pre-kill one ({', '.join(starts)}), "
-                "and a further death may have preceded its redelivered duplicate line "
-                f"({_redelivery_text(candidate)}): {_deaths_text(claimant_further[candidate['message_id']])}; "
+                f"command's start, the restart executed with exit 0), but {recorded}"
+                "a further death may have preceded its redelivered duplicate line "
+                f"({_redelivery_text(candidate)}): {_claimant_further_text(lone)}; "
                 "at most one N1 case per death (E-4), and whether it was in progress at the "
                 "command's kill or at the further death, which is never named as a source "
                 "(P-4), cannot be told, so it is neither named nor R3",
@@ -3099,9 +3214,25 @@ def name_n1_cases(
             "most one N1 case per death (N1), so none is named"
         )
         # E-4: the further-death reading applies only when a further death
-        # may have preceded some claimant's redelivery; deaths wholly after
-        # every claimant's redelivery leave them claiming the one kill.
-        preceded = sorted(message_id for message_id, found in claimant_further.items() if found)
+        # may have preceded some claimant's redelivery (one the readings do
+        # not record included, when the number of deaths is unknown); deaths
+        # wholly after every claimant's redelivery leave them claiming the
+        # one kill.
+        preceded = sorted(
+            message_id for message_id, found in claimant_further.items()
+            if found or claimant_unrecorded[message_id]
+        )
+        grounds = "; ".join(
+            part
+            for part in (
+                f"the readings record {death_count} controller process starts after the pre-kill one "
+                f"({', '.join(starts)})"
+                if any(claimant_further.values())
+                else "",
+                unrecorded_text if any(claimant_unrecorded.values()) else "",
+            )
+            if part
+        )
         after_all = (
             "; the further death(s) recorded follow every claimant's redelivered duplicate line "
             "on the controller clock, so none of them can be a claimant's source (E-4)"
@@ -3111,9 +3242,8 @@ def name_n1_cases(
             if preceded:
                 _cannot_show(
                     candidate, "E-4",
-                    f"{len(kill_claimants)} identities claim the kill as their source and the "
-                    f"readings record {death_count} controller process starts after the pre-kill one "
-                    f"({', '.join(starts)}), a further death having possibly preceded the redelivery "
+                    f"{len(kill_claimants)} identities claim the kill as their source and {grounds}, "
+                    f"a further death having possibly preceded the redelivery "
                     f"of {', '.join(preceded)}: at most one N1 case per death (E-4), and which of "
                     "them, if any, was in progress at the command's kill rather than at the "
                     "further death, which is never named as a source (P-4), cannot be told, so "
@@ -3273,14 +3403,25 @@ def name_n1_cases(
             "legitimate assignment bears out, so it is neither named nor R3 (E-13)"
         )
 
+    def _unrecorded_why(candidate: dict[str, Any]) -> str:
+        return (
+            f"a further death may have preceded its redelivered duplicate line ({_redelivery_text(candidate)}), "
+            f"and it may have been in progress at that death, which P-4 never names as a source: "
+            f"{unrecorded_text}; how many deaths there were, and so which source it had or whether it "
+            "had none, cannot be read, so it is neither named nor R3 (E-4, E-10)"
+        )
+
     # The candidates whose lack of a source is R3 on read evidence (not
     # ones nothing read excludes from the kill, which E-8 leaves unshown,
-    # and only with the controller log read, E-7) that contend for fewer
-    # sources than they number: at least so many of them have no source.
+    # only with the controller log read, E-7, and not ones a death the
+    # readings do not record may have preceded when the number of deaths
+    # is unknown, E-4) that contend for fewer sources than they number: at
+    # least so many of them have no source.
     without_twin = {candidate["message_id"] for candidate in unshown_claimants}
     r3_eligible = [
         message_id for message_id in model_ids
         if log_problem is None and message_id not in without_twin and _claim(by_id[message_id]) != "unshown"
+        and not _unrecorded_may_precede(by_id[message_id])
     ]
     groups = deficient_groups(r3_eligible, {m: options[m] for m in r3_eligible})
     greedy_named = {case["message_id"]: case for case in named}
@@ -3303,6 +3444,11 @@ def name_n1_cases(
             continue
         grouped.append(group)
     in_groups = {m for group in grouped for m in group["message_ids"]}
+    #: E-4 with the number of deaths unknown: the candidates a death the
+    #: readings do not record may have preceded, named or R3 above on the
+    #: deaths recorded alone (the twin showing them applied): how many
+    #: sources they had cannot be read, so neither stands.
+    unrecorded: dict[str, str] = {}
     for message_id in model_ids:
         if message_id in in_groups or message_id in kill_claimants_alone or message_id in retract:
             continue
@@ -3313,6 +3459,9 @@ def name_n1_cases(
             if len(may_be[message_id]) > 1 and KIND_A3 in may_be[message_id]:
                 retract[message_id] = _retract_why(message_id)
             continue
+        if _unrecorded_may_precede(by_id[message_id]):
+            unrecorded[message_id] = _unrecorded_why(by_id[message_id])
+            continue
         if message_id in greedy_named:
             if may_be[message_id] == [greedy_named[message_id]["source"]]:
                 continue
@@ -3322,7 +3471,7 @@ def name_n1_cases(
         else:
             continue
         retract[message_id] = _retract_why(message_id)
-    removed = set(retract) | in_groups
+    removed = set(retract) | set(unrecorded) | in_groups
     named[:] = [case for case in named if case["message_id"] not in removed]
     r3[:] = [item for item in r3 if item["message_id"] not in removed]
     # An unshown candidate E-13 speaks for leaves its earlier entry, so what
@@ -3334,6 +3483,8 @@ def name_n1_cases(
             del undecided[device]
     for message_id in sorted(retract):
         _cannot_show(by_id[message_id], "E-13", retract[message_id])
+    for message_id in sorted(unrecorded):
+        _cannot_show(by_id[message_id], "E-4", unrecorded[message_id])
     r3_groups: list[dict[str, Any]] = []
     for group in grouped:
         ids = group["message_ids"]
@@ -3361,7 +3512,7 @@ def name_n1_cases(
                 by_id[message_id]["device_uuid"] or "", {"rule": "E-13", "why": why, "message_ids": []}
             )
             entry["message_ids"].append(message_id)
-    overturned = sorted(m for m in removed if m not in greedy_unshown)
+    overturned = sorted(m for m in removed if m not in greedy_unshown and m not in unrecorded)
     if overturned:
         notes.append(
             f"{len(overturned)} naming(s) or R3 reading(s) of the candidates in order are not borne out "
@@ -3445,7 +3596,8 @@ def name_n1_cases(
     # undecided candidate is offered every occurrence of its device that
     # may have preceded it, one such a case holds included.
     # With the log unusable, the number of A3 connection ends, and so the
-    # capacity, is unknown.
+    # capacity, is unknown; so it is when the number of deaths is (E-4:
+    # a reading after the pre-kill process's last one names no process).
     kill_named = [case["message_id"] for case in named if case["source"] == "kill"]
     available = [death for death in deaths if not (death.index == 0 and kill_named)]
 
@@ -3513,8 +3665,18 @@ def name_n1_cases(
         for death in deaths
     ]
     sources = {
-        "known": log_problem is None,
-        "why_unknown": log_problem,
+        "known": log_problem is None and deaths_unknown is None,
+        "why_unknown": "; ".join(
+            why
+            for why in (
+                log_problem,
+                f"the number of recorded controller deaths is unknown: {deaths_unknown} (E-4)"
+                if deaths_unknown is not None
+                else None,
+            )
+            if why
+        )
+        or None,
         "deaths_recorded": death_count,
         "post_kill_started_at": starts,
         "kill_available": max(0, death_count - len(kill_named)),
@@ -3854,8 +4016,9 @@ def s5_r4_delta(
     # cases named with an occurrence on those devices, each of which keeps
     # a source there: which occurrence served which case is inference, so
     # a named case may leave its occurrence to an undecided candidate and
-    # take another source that may have preceded it. With the log unusable
-    # the capacity is unknown and nothing is decided on it.
+    # take another source that may have preceded it. With the log unusable,
+    # or the number of deaths unknown (E-4), the capacity is unknown and
+    # nothing is decided on it.
     sources = naming.sources
     possible = sources.get("possible_sources") or {}
     named_sources = sources.get("named_sources") or {}
@@ -4976,6 +5139,10 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         cannot = f"the twin evidence cannot serve the criteria: {twins_problem}"
     else:
         cannot = None
+    # E-4, E-10: a reading after the pre-kill process's last one whose
+    # started_at cannot be read names no process, so the number of deaths
+    # is unknown; it is never read as no process.
+    deaths_unknown = deaths_unknown_of(split)
     naming = name_n1_cases(
         sent.valid,
         post.by_id,
@@ -4987,6 +5154,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         log_problem,
         split.post_started_ats,
         recorded_deaths(split, restart.get("executed") is True and restart.get("returncode") == 0),
+        deaths_unknown,
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))

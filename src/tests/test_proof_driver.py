@@ -2512,6 +2512,52 @@ def test_an_allowance_spent_between_pre_and_the_harness_starts_no_harness_and_is
     assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
 
 
+@pytest.mark.parametrize("fail, prerequisite, step", [
+    ("other-commit", "the candidate on the guest is not the identified image (identity-check exit 1: expected "
+                     "source commit", "identity-check"),
+    ("drained", "precondition failed (drained/metrics/identity: pre exit 1)", "pre"),
+])
+def test_a_prerequisite_failing_after_the_rule_was_reached_is_inconclusive_with_the_rule_named(pbench, fail, prerequisite, step):
+    # The read-only re-check of round 4 (P3 at not_run): 'pre' ends on its
+    # own at the deadline - the bench's PY_SLOW_STEP holds its local_export
+    # exec 15 s across an allowance of 10 s - so the rule is recorded as
+    # reached when 'pre' ended; then a prerequisite fails: the identity
+    # check (the guest names another source commit), or 'pre' itself (its
+    # 'drained' failed). The attempt ended not-run (exit 2) and the reason
+    # did not name the rule, against the header and the README row
+    # EGW_PROOF_ATTEMPT_LIMIT_S ("inconclusive with the rule named, whenever
+    # the rule is reached"). Once the rule is latched the ending is
+    # inconclusive (exit 3, status failed, instrumentation invalid) with the
+    # rule named beside the prerequisite that failed; the harness is not
+    # started. Before the latch nothing changes: the same failures under the
+    # bench's allowance are not-run (the cases of the identity check and of
+    # the values recorded before the first 'drained' above).
+    result = pbench.run(EGW_PROOF_ATTEMPT_LIMIT_S="10", EGW_STUB_FAIL=fail,
+                        **pbench.bench.python_stub(PY_SLOW_STEP, EGW_SLOW_STEP="pre", EGW_SLOW_STEP_S="15"))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["status"], verdicts["instrumentation_validity"], verdicts["system_outcome"]) == (
+        "failed", "invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert reason.count("stop rule reached") == 1
+    assert ("stop rule reached: the attempt's allowance of 10 s from its first 'drained' was spent when 'pre' "
+            "ended; no further proof step was started; after it a prerequisite failed as well: " + prerequisite) in reason
+    assert "the proof is recorded inconclusive by that rule, never not-run" in reason
+    assert "the harness was NOT started" in reason and "not-run" not in verdicts["headline"]
+    assert verdicts["next_action"].startswith(
+        "the attempt is inconclusive, not passing: the 50-minute rule was reached before the harness, and a "
+        "prerequisite then failed (" + prerequisite)
+    steps = pbench.commands()
+    assert "pre" in steps and "harness-run" not in steps and pbench.harness() is None
+    assert ("identity-check" in steps) is (step == "identity-check")
+    facts = pbench.session_facts()
+    assert next(r for r in facts["stop_rules"] if r["id"] == "attempt")["reached"] is True
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == (
+        "pre", "after")
+    assert "kill" not in pbench.docker_log() and not (pbench.base / "raw" / RID).exists()
+    assert verdicts["restoration"].startswith("stack=healthy")
+
+
 # The tunnel answers until 'pre' has written the configuration identity, then
 # drops once, at the EGW_STUB_TUNNEL_DROP_AT-th host preamble after it (1 by
 # default: the preamble of 'tunnel-ready', the first host step after 'pre';
