@@ -18,11 +18,24 @@ the section after test 22, the branch review's findings, each with the
 mutation it must catch; and, in the section after test 27, the Project
 Manager's review of PR #47 (2026-09-25): the proof's eligibility (E-11: the
 prescribed load, the publication completed, the population record whole,
-the fault demonstrated, the harness copy and the collector file in the
-inventory), the N1 sources' capacity across the run (E-10: an A5 occurrence
-serving its own device alone, a recorded death at most one candidate of the
-whole run, a further controller process start a recorded death that names
-no kill case) and the drain verified before R1.
+the fault demonstrated at its instant, the harness copy and the collector
+file in the inventory), the harness's validity admitted only as E-12 states
+(the sampling-gap form built with run.py's and resources.py's own
+functions, never a reason string written here), the N1 sources' capacity
+across the run (E-10: an A5 occurrence serving its own device alone, a
+recorded death at most one candidate of the whole run, each source only a
+candidate whose redelivery it may have preceded on the controller clock,
+a further controller process start a recorded death that names no kill
+case only when it may have preceded a claimant's redelivery) and the
+drain verified before R1; and, in the section after test 27k, round 4:
+a naming stands only as every legitimate assignment of the sources reads
+it and an aggregate R3 names no culprit (E-13, checked against an
+enumeration of every matching), a death beside a controller process
+whose readings carry no monotonic_ns is not placed (E-4), the harness's
+exit in the session facts agrees with the admission (E-11), and a
+further death serves a candidate the kill cannot explain whose
+redelivery it may have preceded, while no death serves a candidate
+lined before the kill (E-13, E-10, E-4; the read-only check of round 4).
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -38,7 +51,9 @@ import csv
 import itertools
 import json
 import textwrap
+import threading
 import time
+import types
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +61,7 @@ import pytest
 
 from egw_experiments import controller_metrics as metrics_mod
 from egw_experiments import proof_evaluator as pe
+from egw_experiments import resources as resources_mod
 from egw_experiments import run as run_mod
 from egw_experiments.checksums import write_sha256sums
 from egw_experiments.controller_metrics import CSV_HEADER
@@ -74,6 +90,8 @@ D4 = "44444444-4444-4444-8444-444444444444"
 #: The two controller processes, as /metrics names them (started_at).
 P0 = "2026-09-25T10:00:00Z"
 P1 = "2026-09-25T10:02:35Z"
+#: A third process, after a further death the plan did not prescribe.
+P2 = "2026-09-25T10:04:50Z"
 #: The kill on the controller clock: after the last pre-kill reading and
 #: before the first post-kill one (monotonic_ns as the controller reports).
 K_LOWER = 1_150 * NS
@@ -435,9 +453,13 @@ def _criterion(doc: dict, rule_id: str) -> dict:
 
 
 def _capacity(doc: dict) -> dict:
-    """The E-10 figures of R4's evidence, without the rule text they carry."""
+    """The E-10 figures of R4's evidence, without the rule text they carry
+    and without the deaths as placed and each candidate's possible sources,
+    which the cases on the order rule assert apart."""
     figures = dict(_criterion(doc, "R4")["evidence"]["source_capacity"])
     assert "own device alone" in figures.pop("rule") and "(E-10)" in _criterion(doc, "R4")["evidence"]["source_capacity"]["rule"]
+    figures.pop("deaths")
+    figures.pop("possible_sources")
     return figures
 
 
@@ -1591,6 +1613,7 @@ def test_one_kill_claimant_beside_an_unshown_candidate_is_neither_named_nor_r3_a
         "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
         "kill_available": 1, "a5_possible_by_device": {D1: [], D3: []}, "needed_by_device": {D1: 1, D3: 1},
         "needed": 2, "beyond_a5_by_device": {D1: 1, D3: 1}, "kill_needed": 2, "consistent": False,
+        "matched": 1, "deaths_preceding_none": [], "deaths_serving_none": [],
     }
     mismatches = r4["evidence"]["mismatches"]
     assert len(mismatches) == 1 and mismatches[0]["device_uuid"] is None and mismatches[0]["devices"] == [D1, D3]
@@ -1709,7 +1732,8 @@ def test_the_namings_respect_the_sources_the_run_evidences_across_the_run() -> N
     assert _capacity(doc) == {
         "applied": True, "known": True, "why_unknown": None, "deaths_recorded": 1, "post_kill_started_at": [P1],
         "kill_available": 1, "a5_possible_by_device": {D1: []}, "needed_by_device": {D1: 1}, "needed": 1,
-        "beyond_a5_by_device": {D1: 1}, "kill_needed": 1, "consistent": True,
+        "beyond_a5_by_device": {D1: 1}, "kill_needed": 1, "consistent": True, "matched": 1,
+        "deaths_preceding_none": [], "deaths_serving_none": [],
     }
     # Two candidates on one device, surplus 2, the log unusable: E-7 leaves
     # both unshown and the capacity unknown; the count alone is read.
@@ -1799,23 +1823,28 @@ def test_an_a5_occurrence_serves_its_own_device_alone_and_a_death_at_most_one_ca
 
 
 def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_the_capacity_and_names_no_kill_case() -> None:
-    """E-10 and E-4, the independent review of 2026-09-25 (P2): the
-    readings record a third started_at after the restart's process, a
-    second death the plan did not prescribe. B, its only duplicate line
-    received after that start, claims the kill beside F in the band, and
-    D1 needs two cases: the record evidences two deaths, so a
+    """E-10 and E-4, the independent review of 2026-09-25 (P2), read with
+    the order rule of the joint check (F3): the readings record a third
+    started_at after the restart's process, a second death the plan did
+    not prescribe, placed on the controller clock between P1's last
+    reading (K_UPPER + 65 s) and P2's first (K_UPPER + 85 s). B, its only
+    duplicate line received after that death (K_UPPER + 90 s), claims the
+    kill beside F in the band, and D1 needs two cases: the kill may have
+    preceded both redeliveries and the further death B's, so a
     source-consistent naming exists (one per death) and the run is
     inconclusive with the starts named, never R4 against a capacity of
     one that the run's own readings contradict. Needing three refutes
-    still. A lone claimant beside the further death is neither named nor
-    R3 (which death it was in progress at cannot be told, and P-4 names
-    the command's kill alone); two claimants, R3 under one death (test
-    22e), are unshown under two, which cover both."""
-    P2 = "2026-09-25T10:04:50Z"
-    rows = _rows() + [
-        _row(_ts(290), P2, 0, 0, monotonic_ns=K_UPPER + 85 * NS, unacked=0),
-        _row(_ts(295), P2, 0, 0, monotonic_ns=K_UPPER + 95 * NS, unacked=0),
-    ]
+    still. A lone claimant redelivered after the further death is neither
+    named nor R3 (which death it was in progress at cannot be told, and
+    P-4 names the command's kill alone), with E-4 as the label of what
+    leaves it unshown, never E-7; two claimants redelivered after it are
+    unshown under two deaths, which cover both. This case's earlier
+    expectations used a lone claimant, and two claimants, redelivered
+    BEFORE the further death (at 1,200 s and 1,210 s) and expected
+    'inconclusive' and 'unshown under two': they encoded the wrong rule,
+    since a death wholly after a redelivery cannot be its source (the
+    joint check's 7c and 7d; the next test pins those cases)."""
+    rows = _rows_with_a_further_death()
     in_band = (K_LOWER + K_UPPER) // 2
     F = ("f-mid", D1, 2, 401 * NS)
     late_b = ("b-mid", D1, 1, "duplicate", K_UPPER + 90 * NS, None)
@@ -1832,7 +1861,15 @@ def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_t
     assert list(shown) == ["b-mid", "f-mid"]
     assert f"2 controller process starts after the pre-kill one ({P1}, {P2})" in shown["b-mid"] and "(E-4)" in shown["b-mid"]
     assert "never named as a source (P-4)" in shown["b-mid"]
+    assert f"a further death may have preceded its redelivered duplicate line (received at {K_UPPER + 90 * NS})" in shown["b-mid"]
+    assert f"death 1 between the last reading of process {P1} (monotonic_ns {K_UPPER + 65 * NS}) and the first reading of process {P2} ({K_UPPER + 85 * NS})" in shown["b-mid"]
     assert any("a further death is recorded that P-4 never names" in n and "(E-10)" in n for n in r3["evidence"]["notes"])
+    evidence = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert evidence["possible_sources"] == {"b-mid": {"a5_lines": [], "deaths": [0, 1]}, "f-mid": {"a5_lines": [], "deaths": [0]}}
+    assert [(d["death"], d["kind"], d["placed"], d["may_precede"]) for d in evidence["deaths"]] == [
+        (0, "kill", True, ["b-mid", "f-mid"]), (1, "further", True, ["b-mid"]),
+    ]
+    assert _capacity(doc)["matched"] == 2 and _capacity(doc)["deaths_preceding_none"] == []
     assert r3["observed"] is None and _criterion(doc, "S4")["holds"] is None
     assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "S5")["holds"] is None
     row = next(row for row in _criterion(doc, "R4")["evidence"]["devices"] if row["device_uuid"] == D1)
@@ -1845,27 +1882,429 @@ def test_a_further_controller_process_start_is_a_recorded_death_that_counts_to_t
     assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (3, 2, False)
     assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
     assert "against 2 recorded death(s)" in _criterion(doc, "R4")["reason"]
-    # A lone claimant beside the further death: unshown, not the kill's
-    # named case (which it is under one death, test 16).
-    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
+    # A lone claimant redelivered after the further death: unshown, not the
+    # kill's named case (which it is under one death, test 16). What leaves
+    # it unshown was read, so the label is E-4, never E-7.
+    late_alone = [line for line in LINES if line[0] != "b-mid"] + [late_b]
+    doc = _evaluate(lines=late_alone, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
     assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == [] and _outcome(doc)["refutations"] == []
     shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
     assert list(shown) == ["b-mid"] and "further death, which is never named as a source (P-4)" in shown["b-mid"]
     assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None
     assert _capacity(doc)["kill_available"] == 2 and _criterion(doc, "R4")["observed"] is None
     assert [u["rule"] for u in _criterion(doc, "R4")["evidence"]["undecided"]] == ["E-4"]
-    # Two claimants (test 22e's, each R3 under one death): unshown under two.
+    unshown = [r for r in _outcome(doc)["inconclusive_reasons"] if " cannot be shown (" in r]
+    assert unshown and all(r.startswith(("S4 cannot be shown (E-4)", "S5 cannot be shown (E-4)", "S4, S5 cannot be shown (E-4)")) for r in unshown), unshown
+    assert not any("(E-7)" in r.split(":")[0] for r in _outcome(doc)["inconclusive_reasons"])
+    # Two claimants redelivered after the further death (test 22e's, each
+    # R3 under one death): unshown under two, which cover both.
     G = ("g-mid", D3, 1, 380 * NS)
-    doc = _evaluate(sent=SENT + [G], lines=B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)], extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    late_g = ("g-mid", D3, 1, "duplicate", K_UPPER + 92 * NS, None)
+    doc = _evaluate(sent=SENT + [G], lines=late_alone + [late_g], extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
     assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
     r3 = _criterion(doc, "R3")
     assert r3["evidence"]["not_named_identities"] == []
     assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["b-mid", "g-mid"]
     assert all("2 identities claim the kill" in c["why_not_shown"] and "(E-4)" in c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"])
+    assert all("a further death having possibly preceded the redelivery of b-mid, g-mid" in c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"])
     assert any("2 duplicate-only identities claim the kill" in n for n in r3["evidence"]["notes"])
     capacity = _capacity(doc)
     assert (capacity["kill_needed"], capacity["kill_available"], capacity["consistent"]) == (2, 2, True)
     assert "recorded death" in pe.IDENTIFICATION_RULES["E-10"] and "further death" in pe.IDENTIFICATION_RULES["E-4"]
+
+
+def _rows_with_a_further_death() -> list[dict[str, str]]:
+    """The scenario's readings and a third process, P2, first read at
+    K_UPPER + 85 s: a further death placed between P1's last reading
+    (K_UPPER + 65 s) and P2's first."""
+    return _rows() + [
+        _row(_ts(290), P2, 0, 0, monotonic_ns=K_UPPER + 85 * NS, unacked=0),
+        _row(_ts(295), P2, 0, 0, monotonic_ns=K_UPPER + 95 * NS, unacked=0),
+    ]
+
+
+def test_a_further_death_wholly_after_every_redelivery_explains_nothing_and_turns_no_result() -> None:
+    """The joint check of 2026-09-25 (F3, P1), cases 7a-7d: a death can be
+    the source of a candidate only if it may have preceded that
+    candidate's redelivered duplicate line on the controller clock. A
+    crash of the new process late in the publication, after every
+    redelivery (P2 first read at K_UPPER + 85 s, P1 last read at K_UPPER +
+    65 s), explains nothing: case (1)'s R4 (surplus 2 on D1, one death that
+    may precede) stands on D1 by itself, case (2)'s R4 (one on each of D1
+    and D3) on the aggregate, two claimants of the kill stay R3 with R4
+    beside them, and a lone claimant redelivered before the late death is
+    named with the kill as its source and supports. Before this rule each
+    of them read 'inconclusive'."""
+    rows = _rows_with_a_further_death()
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    # 7a: case (1), B and F in the band on D1, surplus 2, no A5.
+    lines_bf = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None), ("f-mid", D1, 2, "duplicate", in_band, None),
+    ]
+    for label, readings in (("one death", None), ("a late further death", rows)):
+        doc = _evaluate(sent=SENT + [F], lines=lines_bf, extra_after={D1: 2, "seqs": [(D1, 2)]}, rows=readings)
+        assert _outcome(doc)["result"] == "refutes", label
+        mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+        assert mismatch["stands_on"] == [D1] and mismatch["device_uuid"] == D1, label
+        assert _criterion(doc, "S4")["holds"] is None and _criterion(doc, "R3")["observed"] is None, label
+    capacity = _capacity(doc)
+    assert (capacity["deaths_recorded"], capacity["kill_available"], capacity["kill_needed"]) == (2, 2, 2)
+    assert (capacity["matched"], capacity["consistent"], capacity["deaths_preceding_none"]) == (1, False, [1])
+    evidence = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert evidence["possible_sources"] == {"b-mid": {"a5_lines": [], "deaths": [0]}, "f-mid": {"a5_lines": [], "deaths": [0]}}
+    assert evidence["deaths"][1]["may_precede"] == [] and evidence["deaths"][1]["after_monotonic_ns"] == K_UPPER + 65 * NS
+    assert _outcome(doc)["refutations"] == [
+        "R4: 1 undecided device(s) whose twins need 2 N1 case(s) that only a death could serve (no A5 occurrence "
+        "on their own device can), against 2 recorded death(s), 1 of which may have preceded none of their "
+        f"redeliveries: a delta mismatch beyond the named cases stands on {D1} whatever the death(s) served (E-10)"
+    ]
+    assert "1 of which may have preceded none of their redelivered duplicate lines" in mismatch["problems"][0]
+    notes = _criterion(doc, "R3")["evidence"]["notes"]
+    assert any(n.startswith("further death(s) 1 may have preceded no duplicate-only candidate's") and "explain nothing" in n for n in notes)
+    # 7b: case (2), B on D1 and G on D3 in the band: R4 on the aggregate.
+    lines_bg = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None), ("g-mid", D3, 1, "duplicate", in_band, None),
+    ]
+    doc = _evaluate(sent=SENT + [G], lines=lines_bg, extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] is None and mismatch["devices"] == [D1, D3] and mismatch["stands_on"] == []
+    assert (_capacity(doc)["matched"], _capacity(doc)["deaths_preceding_none"]) == (1, [1])
+    # 7c: two claimants of the kill, redelivered at 1,200 s and 1,210 s,
+    # both before the late death: R3 on each and R4 beside, as under one.
+    lines_2cl = B_DUPLICATE + [("g-mid", D3, 1, "duplicate", 1_210 * NS, None)]
+    doc = _evaluate(sent=SENT + [G], lines=lines_2cl, extra_after={D1: 1, D3: 1, "seqs": [(D1, 1), (D3, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and _criterion(doc, "R4")["observed"] is True
+    assert [c["message_id"] for c in r3["evidence"]["not_named_identities"]] == ["b-mid", "g-mid"]
+    assert all("follow every claimant's redelivered duplicate line" in c["why_not_named"] for c in r3["evidence"]["not_named_identities"])
+    assert r3["evidence"]["cannot_show_identities"] == []
+    assert [u["device_uuid"] for u in _criterion(doc, "R4")["evidence"]["surplus_unexplained"]] == [D1, D3]
+    # 7d: a lone claimant redelivered before the late death: named, supports.
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
+    assert _outcome(doc)["result"] == "supports" and _outcome(doc)["inconclusive_reasons"] == []
+    case = _outcome(doc)["n1_cases"][0]
+    assert (case["message_id"], case["source"]) == ("b-mid", "kill")
+    assert f"its redelivered duplicate line (received at {1_200 * NS}) precedes every further death recorded" in case["source_evidence"]["further_deaths_after_its_redelivery"]
+    assert _criterion(doc, "R4")["evidence"]["source_capacity"]["kill_available"] == 1
+    sources = _criterion(doc, "R4")["evidence"]["source_capacity"]
+    assert sources["deaths_recorded"] == 2
+    assert "wholly after" in pe.IDENTIFICATION_RULES["E-4"] and "explains nothing" in pe.IDENTIFICATION_RULES["E-4"]
+    assert "matching" in pe.IDENTIFICATION_RULES["E-10"] and "may have preceded" in pe.IDENTIFICATION_RULES["E-10"]
+
+
+def test_a_death_the_readings_cannot_place_may_precede_any_redelivery() -> None:
+    """E-4's placement fails closed: a further death whose readings
+    contradict its interval (the dying process read again after the next
+    process's first reading) or without a readable lower bound may have
+    preceded any redelivery, so it is never read as wholly after one and
+    no refutation rests on it; case (1) is then inconclusive. With no
+    post-kill process recorded, the manifest's kill is the one death,
+    placed after the last pre-kill reading; a tie with that reading is
+    read inclusively, as the band of E-8 is."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    lines_bf = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None), ("f-mid", D1, 2, "duplicate", in_band, None),
+    ]
+    blip = _rows()
+    blip.insert(8, _row(_ts(200), "2026-09-25T10:03:20Z", 0, 0, monotonic_ns=K_UPPER + 20 * NS, unacked=0))
+    doc = _evaluate(sent=SENT + [F], lines=lines_bf, extra_after={D1: 2, "seqs": [(D1, 2)]}, rows=blip)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+    assert deaths[1]["placed"] is False and "which the readings contradict" in deaths[1]["placement"]
+    assert deaths[1]["may_precede"] == ["b-mid", "f-mid"] and _capacity(doc)["consistent"] is True
+    # The readings as a Death sees them.
+    rows, _notes = pe.read_metrics_rows(_rows())
+    split = pe.split_by_process(rows)
+    (kill,) = pe.recorded_deaths(split, restart_ok=True)
+    assert (kill.index, kill.dying_started_at, kill.next_started_at, kill.after, kill.before) == (0, P0, P1, K_LOWER, K_UPPER)
+    assert kill.may_precede(K_LOWER) and kill.may_precede(K_LOWER + 1) and not kill.may_precede(K_LOWER - 1)
+    assert kill.may_precede(None)
+    pre_only = pe.split_by_process([r for r in rows if r.started_at == P0])
+    (alone,) = pe.recorded_deaths(pre_only, restart_ok=True)
+    assert (alone.after, alone.before, alone.next_started_at, alone.placed) == (K_LOWER, None, None, True)
+    assert pe.recorded_deaths(pre_only, restart_ok=False) == []
+    unplaced = pe.Death(1, P1, P2, None, K_UPPER)
+    assert not unplaced.placed and unplaced.may_precede(0) and "not placed on the controller clock" in unplaced.placement()
+
+
+def test_an_a5_occurrence_serves_only_a_candidate_whose_redelivery_it_may_precede() -> None:
+    """E-10's matching applies P-4's order rule to an A5 occurrence as to a
+    death (the joint check's note on over-counting within one device): D1
+    needs three cases - B and F redelivered in the band, X without a
+    received stamp - with one death and two occurrences on D1 whose
+    in-progress deliveries were received after B's and F's redeliveries.
+    The occurrences may serve X alone, and at most one of them does, so
+    B and F need the one death: R4 stands on D1. Before, the device-wide
+    count read the two occurrences against the three cases and found the
+    twins consistent. With X's line stamped after both occurrences the
+    later one names X (P-4: the unused occurrence received last before
+    its redelivery; this docstring said the first, the rule before the
+    check of 2026-09-25 on E-10) and the run refutes all the same: X
+    keeps a source in the matching, and neither occurrence may precede
+    B's or F's redelivery."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    X = ("x-mid", D1, 3, 402 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", in_band, None),
+        ("f-mid", D1, 2, "duplicate", in_band, None),
+        ("x-mid", D1, 3, "duplicate", None, None),
+    ]
+    log = [_a5_line(D1, K_UPPER + 30 * NS), _a5_line(D1, K_UPPER + 40 * NS)]
+    doc = _evaluate(sent=SENT + [F, X], lines=lines, extra_after={D1: 3, "seqs": [(D1, 3)]}, controller_log=log)
+    assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
+    capacity = _capacity(doc)
+    assert capacity["a5_possible_by_device"] == {D1: [1, 2]} and capacity["needed_by_device"] == {D1: 3}
+    assert (capacity["beyond_a5_by_device"], capacity["kill_needed"], capacity["kill_available"]) == ({D1: 2}, 2, 1)
+    assert (capacity["matched"], capacity["consistent"]) == (2, False)
+    possible = _criterion(doc, "R4")["evidence"]["source_capacity"]["possible_sources"]
+    assert possible == {
+        "b-mid": {"a5_lines": [], "deaths": [0]},
+        "f-mid": {"a5_lines": [], "deaths": [0]},
+        "x-mid": {"a5_lines": [1, 2], "deaths": [0]},
+    }
+    assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
+    # X stamped after both occurrences: the later one names it (P-4), and
+    # B and F, redelivered before both, still need the one death.
+    stamped = lines[:-1] + [("x-mid", D1, 3, "duplicate", K_UPPER + 50 * NS, None)]
+    doc = _evaluate(sent=SENT + [F, X], lines=stamped, extra_after={D1: 3, "seqs": [(D1, 3)]}, controller_log=log)
+    assert _outcome(doc)["result"] == "refutes"
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("x-mid", "a3-connection-end")]
+    assert (_capacity(doc)["needed_by_device"], _capacity(doc)["matched"]) == ({D1: 2}, 1)
+    assert _outcome(doc)["n1_cases"][0]["source_evidence"]["controller_log_line"] == 2
+    assert _criterion(doc, "R4")["evidence"]["source_capacity"]["possible_sources"]["x-mid"] == {
+        "a5_lines": [1, 2], "deaths": [0], "named": {"source": "a3-connection-end", "controller_log_line": 2},
+    }
+
+
+def test_the_occurrences_name_as_many_candidates_as_their_order_allows_whatever_the_order_of_the_log_lines() -> None:
+    """The check of 2026-09-25 on E-10 (P2): P-4 gave each candidate the
+    EARLIEST unused A5 occurrence before its redelivery, and E-10's
+    matching left the named cases out. D1: B (seq 1) redelivered at
+    1,300 s and Y (seq 2, published at 510 s inside the restart command's
+    window, E-8) at 1,250 s; two occurrences on D1 received at 1,190 s and
+    1,290 s; D3: G in the kill band. Twins: D1 surplus 2, D3 surplus 1.
+    With the log in its chronological order B took the 1,190 s occurrence,
+    Y found none before it and needed the one death beside G: R4 against
+    one death, although B <- 1,290 s, Y <- 1,190 s and G <- the kill is
+    source-consistent; with the two lines swapped the same facts read
+    inconclusive. Each candidate now takes the unused occurrence received
+    last before its redelivery: B and Y are named in either order, with
+    the same occurrences, and G alone needs the death."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    Y = ("y-mid", D1, 2, 510 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", 1_300 * NS, None),
+        ("y-mid", D1, 2, "duplicate", 1_250 * NS, None),
+        ("g-mid", D3, 1, "duplicate", in_band, None),
+    ]
+    twins = {D1: 2, D3: 1, "seqs": [(D1, 2), (D3, 1)]}
+    chronological = [_a5_line(D1, 1_190 * NS), _a5_line(D1, 1_290 * NS)]
+    results = []
+    for log in (chronological, list(reversed(chronological))):
+        doc = _evaluate(sent=SENT + [Y, G], lines=lines, extra_after=twins, controller_log=log)
+        outcome = _outcome(doc)
+        assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+        cases = {c["message_id"]: c for c in outcome["n1_cases"]}
+        assert sorted(cases) == ["b-mid", "y-mid"] and {c["source"] for c in cases.values()} == {"a3-connection-end"}
+        received = {m: c["source_evidence"]["identity"]["received_monotonic_ns"] for m, c in cases.items()}
+        assert received == {"b-mid": 1_290 * NS, "y-mid": 1_190 * NS}
+        r4 = _criterion(doc, "R4")
+        assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+        assert [(u["device_uuid"], u["rule"], u["message_ids"]) for u in r4["evidence"]["undecided"]] == [(D3, "E-8", ["g-mid"])]
+        capacity = _capacity(doc)
+        assert (capacity["needed_by_device"], capacity["kill_needed"], capacity["kill_available"]) == ({D3: 1}, 1, 1)
+        assert (capacity["matched"], capacity["consistent"]) == (1, True)
+        assert _criterion(doc, "R3")["evidence"]["not_named_identities"] == []
+        assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "S4")["holds"] is None
+        results.append((outcome["result"], sorted(received.items()), capacity))
+    assert results[0] == results[1]
+    assert "received last before its redelivered duplicate line" in pe.IDENTIFICATION_RULES["P-4"]
+    assert "whatever the order of the log lines" in pe.IDENTIFICATION_RULES["P-4"]
+
+
+def test_a_case_named_with_an_occurrence_may_leave_it_to_an_undecided_candidate_and_take_a_death() -> None:
+    """The same check (E-10): which of a device's occurrences served which
+    of its cases is inference, so a case named with an occurrence takes
+    part in the matching. D1: B (restart-class, published before the kill)
+    redelivered at 1,300 s and Y (published inside the restart command's
+    window, E-8) at 1,230 s; one occurrence on D1 received at 1,190 s,
+    which precedes both and names B (P-4); a further death placed between
+    1,245 s and 1,265 s may precede B's redelivery but not Y's; D3: G in
+    the kill band. With B left out of the matching, Y and G each needed
+    the kill and R4 was observed against it, although B <- the further
+    death, Y <- the occurrence and G <- the kill is source-consistent. B
+    now keeps a source in the matching and the run is inconclusive. A B
+    that the kill cannot explain (published after the restart command's
+    end) may still have been in progress at the further death, which
+    serves it: the same assignment holds and nothing is refuted. Only
+    redelivered before the further death (1,240 s) is the occurrence its
+    one source, and R4 then stands on the aggregate.
+
+    Corrected in round 4 (E-13): this case also expected B NAMED with the
+    occurrence, the naming the candidates' order gave it. The only
+    legitimate assignment (G <- the kill, Y <- the occurrence, B <- the
+    further death, all three served) gives the occurrence to Y, so no
+    legitimate assignment bears that naming out: B is unshown, its source
+    a further death P-4 never names. That expectation encoded the wrong
+    rule.
+
+    Corrected after the read-only check of round 4 (E-13, E-10): the
+    second half expected B, published after the restart command's end and
+    redelivered at 1,300 s, to have no death as its source, although the
+    further death may have preceded that redelivery, and the run to refute
+    (R4 against deaths said to precede none of the redeliveries). E-13
+    lists a further death among the sources of a candidate whose
+    redelivery it may have preceded, whether or not the kill can explain
+    it: that expectation encoded the wrong rule. B is now unshown with the
+    further death as its source and the run inconclusive; the refutation
+    is kept for B redelivered at 1,240 s, before the further death, where
+    the occurrence is its one source (named in some legitimate assignments
+    and without a source in others)."""
+    rows = _rows_with_a_further_death()
+    in_band = (K_LOWER + K_UPPER) // 2
+    Y = ("y-mid", D1, 2, 510 * NS)
+    G = ("g-mid", D3, 1, 380 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", 1_300 * NS, None),
+        ("y-mid", D1, 2, "duplicate", 1_230 * NS, None),
+        ("g-mid", D3, 1, "duplicate", in_band, None),
+    ]
+    twins = {D1: 2, D3: 1, "seqs": [(D1, 2), (D3, 1)]}
+    log = [_a5_line(D1, 1_190 * NS)]
+    doc = _evaluate(sent=SENT + [Y, G], lines=lines, extra_after=twins, controller_log=log, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert outcome["n1_cases"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
+    assert sorted(shown) == ["b-mid", "g-mid", "y-mid"]
+    assert "every legitimate assignment" in shown["b-mid"] and "(E-13)" in shown["b-mid"]
+    assert "in progress at a further death (death 1), which P-4 never names as a source" in shown["b-mid"]
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["may_be"]["b-mid"] == ["further-death"]
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["not_borne_out"] == ["b-mid"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    capacity = _capacity(doc)
+    assert (capacity["needed_by_device"], capacity["beyond_a5_by_device"]) == ({D1: 2, D3: 1}, {D1: 1, D3: 1})
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 3, True)
+    assert r4["evidence"]["source_capacity"]["possible_sources"] == {
+        "b-mid": {"a5_lines": [1], "deaths": [0, 1]},
+        "y-mid": {"a5_lines": [1], "deaths": [0]},
+        "g-mid": {"a5_lines": [], "deaths": [0]},
+    }
+    rows_by_device = {row["device_uuid"]: row for row in r4["evidence"]["devices"]}
+    assert rows_by_device[D1]["undecided"]["source_consistent"] is True and rows_by_device[D3]["undecided"]["source_consistent"] is True
+    assert "keeping one" in pe.IDENTIFICATION_RULES["E-10"] and "beside the cases named with an occurrence" in pe.IDENTIFICATION_RULES["E-10"]
+    # B published after the restart command's end, so the kill cannot
+    # explain it, and redelivered at 1,300 s, after the further death, at
+    # which it may have been in progress: the further death serves it, and
+    # the one legitimate assignment is the one above (E-13, E-10).
+    late_b = [sent if sent[0] != "b-mid" else ("b-mid", D1, 1, 530 * NS) for sent in SENT]
+    doc = _evaluate(sent=late_b + [Y, G], lines=lines, extra_after=twins, controller_log=log, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
+    assert sorted(shown) == ["b-mid", "g-mid", "y-mid"]
+    assert "every legitimate assignment" in shown["b-mid"] and "(E-13)" in shown["b-mid"]
+    assert "in progress at a further death (death 1), which P-4 never names as a source" in shown["b-mid"]
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["may_be"]["b-mid"] == ["further-death"]
+    assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "R3")["evidence"]["r3_groups"] == []
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    assert r4["evidence"]["source_capacity"]["possible_sources"]["b-mid"] == {"a5_lines": [1], "deaths": [1]}
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 3, True)
+    deaths = r4["evidence"]["source_capacity"]["deaths"]
+    assert [(d["death"], d["may_serve"]) for d in deaths] == [(0, ["g-mid", "y-mid"]), (1, ["b-mid"])]
+    # The same B redelivered at 1,240 s, before the further death: the
+    # occurrence is its only source, and Y and G still need the one death
+    # that may precede them (the further death follows all three
+    # redeliveries).
+    early_b = [line if line[0] != "b-mid" else ("b-mid", D1, 1, "duplicate", 1_240 * NS, None) for line in lines]
+    doc = _evaluate(sent=late_b + [Y, G], lines=early_b, extra_after=twins, controller_log=log, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in _criterion(doc, "R3")["evidence"]["cannot_show_identities"]}
+    assert "more than one legitimate assignment" in shown["b-mid"] and "(E-13)" in shown["b-mid"]
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["may_be"]["b-mid"] == ["a3-connection-end", "none"]
+    assert _criterion(doc, "R3")["observed"] is None and _criterion(doc, "R3")["evidence"]["r3_groups"] == []
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    assert r4["evidence"]["source_capacity"]["possible_sources"]["b-mid"]["deaths"] == []
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 2, False)
+    assert (capacity["deaths_preceding_none"], capacity["deaths_serving_none"]) == ([1], [1])
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert mismatch["device_uuid"] is None and mismatch["stands_on"] == []
+    assert mismatch["undecided_candidates"] == ["b-mid", "g-mid", "y-mid"]
+
+
+def test_an_occurrence_two_candidates_contend_for_goes_to_the_one_the_kill_cannot_explain() -> None:
+    """The same check (P-4): the candidate order decided which of two
+    candidates an occurrence named. D1: E (seq 2, published inside the
+    restart command's window, E-8) redelivered at 1,250 s and N (seq 3)
+    lined before the kill at 1,100 s; one occurrence on D1 received at
+    1,050 s, which precedes both. E came first and took it, and N was R3
+    ('no A5 occurrence names its device before its redelivery', which was
+    false) with R4 beside it, although N <- the occurrence and E <- the
+    kill is source-consistent. The occurrences are now offered first to
+    the candidates the kill cannot explain: N is named, E is unshown
+    (E-8) and the run is inconclusive. Two candidates lined before the
+    kill against the one occurrence still refute: one of them has no
+    source.
+
+    Corrected in round 4 (E-13, the Project Manager's F3: 'Do not
+    arbitrarily name one particular identity as the culprit when only the
+    aggregate inconsistency is established'): the second half expected one
+    of M and N named and the other R3, the seq order choosing which, with
+    a text saying the occurrence named the other. That encoded the wrong
+    rule. R3 is now observed on the group, 'at least 1 of these have no
+    source', in either seq order, neither named nor singled out, and R4
+    stands on D1, whose surplus of two one occurrence cannot serve."""
+    E = ("e-mid", D1, 2, 510 * NS)
+    N = ("n-mid", D1, 3, 380 * NS)
+    lines = list(LINES) + [("e-mid", D1, 2, "duplicate", 1_250 * NS, None), ("n-mid", D1, 3, "duplicate", 1_100 * NS, None)]
+    log = [_a5_line(D1, 1_050 * NS)]
+    doc = _evaluate(sent=SENT + [E, N], lines=lines, extra_after={D1: 2, "seqs": [(D1, 3)]}, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert [(c["message_id"], c["source"]) for c in outcome["n1_cases"]] == [("n-mid", "a3-connection-end")]
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == []
+    assert [c["message_id"] for c in r3["evidence"]["cannot_show_identities"]] == ["e-mid"]
+    assert _criterion(doc, "R4")["observed"] is None
+    assert (_capacity(doc)["needed_by_device"], _capacity(doc)["consistent"]) == ({D1: 1}, True)
+    assert "the kill cannot explain" in pe.IDENTIFICATION_RULES["P-4"]
+    # Two candidates lined before the kill, one occurrence: at least one of
+    # them has no source, R3 on the group whatever their seq order, and
+    # neither is named or singled out.
+    groups = []
+    for m_seq, n_seq in ((2, 3), (3, 2)):
+        M = ("m-mid", D1, m_seq, 385 * NS)
+        N_ = ("n-mid", D1, n_seq, 380 * NS)
+        lines = list(LINES) + [("m-mid", D1, m_seq, "duplicate", 1_120 * NS, None), ("n-mid", D1, n_seq, "duplicate", 1_100 * NS, None)]
+        doc = _evaluate(sent=SENT + [M, N_], lines=lines, extra_after={D1: 2, "seqs": [(D1, 3)]}, controller_log=log)
+        outcome = _outcome(doc)
+        assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
+        r3 = _criterion(doc, "R3")
+        assert r3["observed"] is True and _criterion(doc, "S4")["holds"] is False
+        assert r3["evidence"]["not_named_identities"] == [] and r3["evidence"]["cannot_show_identities"] == []
+        (group,) = r3["evidence"]["r3_groups"]
+        assert (group["message_ids"], group["without_source_at_least"], group["sources"]) == (["m-mid", "n-mid"], 1, ["A5 line 1"])
+        assert "at least 1 of them have no source" in group["why"] and "none is singled out as R3" in group["why"]
+        assert "only the aggregate is established (E-13)" in group["why"]
+        assert r3["reason"].startswith("at least 1 of the 2 duplicate-only identities m-mid, n-mid have no source")
+        assert _criterion(doc, "R4")["observed"] is True
+        assert _criterion(doc, "R4")["evidence"]["mismatches"][0]["stands_on"] == [D1]
+        # What the group states, the identities' own seqs aside.
+        groups.append(({k: v for k, v in group.items() if k != "identities"}, outcome["refutations"]))
+    assert groups[0] == groups[1]
 
 
 def test_a_publication_inside_the_restart_commands_window_cannot_be_shown_and_never_refutes() -> None:
@@ -1988,58 +2427,131 @@ def test_missing_session_facts_leave_the_stop_rules_unknown_and_the_proof_inconc
     assert any("no readable stop_rules (P-6)" in r for r in _outcome(doc)["inconclusive_reasons"])
 
 
-def test_harness_validity_is_recorded_verbatim_and_does_not_decide_the_proof() -> None:
-    """A complete diagnostic with only the campaign's sampling-gap deviation
-    still supports: the harness's validity is quoted, and the proof's own
-    eligibility (E-11) is checked apart and met."""
-    reasons = ["controller_metrics.csv: sample gap 12.0 s exceeds MAX_SAMPLE_GAP_S (5.0 s) after the restart"]
-    doc = _evaluate(manifest=_manifest(validity="invalid", validity_reasons=reasons))
-    assert doc["instrumentation"]["harness_validity"] == "invalid"
-    assert doc["instrumentation"]["harness_validity_reasons"] == reasons
+def test_harness_validity_is_quoted_verbatim_and_admitted_only_as_e12_states(tmp_path) -> None:
+    """The harness's validity is quoted as recorded and admitted for the
+    proof only as E-12 states; 'valid' (with no reason) is admitted and the
+    proof's own eligibility (E-11) is checked apart and met. This case
+    earlier fed a validity reason naming MAX_SAMPLE_GAP_S ('controller_
+    metrics.csv: sample gap ... exceeds MAX_SAMPLE_GAP_S') beside a sealed
+    resources.csv and expected 'supports': run.py never writes that form
+    (the joint check of 2026-09-25, F1), so the case is replaced by the
+    real form, built with run.py's and resources.py's own functions (test
+    27h below); a manifest field that decides the admission and cannot be
+    read leaves it unknown (P-6), never admitted."""
+    doc = _evaluate()
+    assert doc["instrumentation"]["harness_validity"] == "valid"
+    assert doc["instrumentation"]["harness_validity_reasons"] == []
     assert _outcome(doc)["result"] == "supports"
-    assert doc["instrumentation"]["proof_evidence"]["complete"] is True
-    assert "kept as recorded" in doc["instrumentation"]["note"]
+    assert doc["instrumentation"]["harness_admission"] == {
+        "admitted": True, "form": "valid", "reasons": [], "collector_file": None, "seal_withheld_for": None,
+        "rule": pe.IDENTIFICATION_RULES["E-12"],
+    }
+    assert "kept as recorded" in doc["instrumentation"]["note"] and "E-12" in doc["instrumentation"]["note"]
     assert "MAX_SAMPLE_GAP_S" in doc["cannot_show"]
     eligibility = doc["instrumentation"]["proof_eligibility"]
     assert eligibility["eligible"] is True and eligibility["reasons"] == [] and eligibility["unknown"] == []
-    assert eligibility["rule"] == pe.IDENTIFICATION_RULES["E-11"] and "MAX_SAMPLE_GAP_S" in eligibility["rule"]
+    assert eligibility["rule"] == pe.IDENTIFICATION_RULES["E-11"] and "E-12" in eligibility["rule"]
+    assert "MAX_SAMPLE_GAP_S" in eligibility["rule"]
     assert eligibility["checks"]["load"]["ok"] is True and eligibility["checks"]["publication"]["ok"] is True
     assert eligibility["checks"]["publication"]["source"] == "the simulator's own manifest"
+    assert eligibility["checks"]["harness_admission"] == doc["instrumentation"]["harness_admission"]
     assert eligibility["checks"]["fault"] == {
-        "restart_executed": True, "restart_returncode": 0, "restart_ok": True, "restart_shown": True, "session_facts_present": True,
+        "restart_executed": True, "restart_returncode": 0, "restart_ok": True, "restart_requested_at_s": 150.0,
+        "prescribed_at_s": 150, "at_the_prescribed_instant": True, "restart_shown": True, "session_facts_present": True,
     }
-
-
-def test_the_harness_validity_never_decides_the_proof_by_itself_whatever_its_reason() -> None:
-    """E-11's text says what the code does (the independent review of
-    2026-09-25, P3): the harness's validity is quoted and never decisive
-    by itself, whatever its reason - not for the campaign's sampling-gap
-    rule alone, which the ADR names as the one not touching the proof. A
-    harness reason outside the proof's requirements (no controller
-    confirmation marker, sut_environment.json missing) leaves the run
-    eligible and supporting when every requirement of E-11 is met; a
-    requirement the harness's reasons overlap (the simulator's exit) is
-    checked on the record itself, never read from the validity."""
-    for reason in (
-        "no controller confirmation marker: the run end was not stamped in the controller's clock "
-        "domain (GET /metrics 'monotonic_ns' via --controller-url)",
-        "sut_environment.json missing: timed runs require the SUT environment captured ON the VM",
-    ):
-        doc = _evaluate(manifest=_manifest(validity="invalid", validity_reasons=[reason]))
-        assert doc["instrumentation"]["harness_validity"] == "invalid"
-        assert doc["instrumentation"]["harness_validity_reasons"] == [reason]
-        assert _eligibility(doc)["eligible"] is True and _outcome(doc)["result"] == "supports", reason
+    # A requirement the harness's reasons overlap is checked on the record
+    # itself, never read from the validity: 'valid' beside a simulator that
+    # exited 1 is admitted and still not eligible.
     doc = _evaluate(manifest=_manifest(validity="valid", validity_reasons=[], simulator_returncode=1))
     _assert_not_eligible(doc, "the simulator did not exit 0")
+    assert doc["instrumentation"]["harness_admission"]["form"] == "valid"
+    # A field that decides the admission and cannot be read: unknown, the
+    # eligibility unknown with it (P-6) unless a requirement also fails
+    # (the last case's resources.csv is not the SUT collector's), the run
+    # inconclusive either way.
+    for changes, says, only_unknown in (
+        ({"validity": None}, "validity None cannot be read", True),
+        ({"validity_reasons": "none"}, "validity_reasons 'none' cannot be read", True),
+        ({"validity_reasons": [3]}, "validity_reasons [3] cannot be read", True),
+        ({"validity": "valid", "validity_reasons": pe.sampling_gap_validity_reasons()}, "validity 'valid' beside validity reason(s)", True),
+        (
+            # The sampling-gap form's two reasons, as run.py writes them,
+            # with the warnings that decide the form absent.
+            {"validity": "invalid", "validity_reasons": pe.sampling_gap_validity_reasons(), "resource_source": "none",
+             "missing_mandatory_artifacts": ["resources.csv"]},
+            "warnings None cannot be read",
+            False,
+        ),
+    ):
+        doc = _evaluate(manifest=_manifest(**changes))
+        admission = doc["instrumentation"]["harness_admission"]
+        assert (admission["admitted"], admission["form"]) == (None, "unknown"), changes
+        assert any(says in reason for reason in admission["reasons"]), (says, admission["reasons"])
+        eligibility = _eligibility(doc)
+        assert eligibility["eligible"] is not True, changes
+        if only_unknown:
+            assert eligibility["eligible"] is None and eligibility["reasons"] == [], changes
+        assert any(u.startswith("harness validity: whether it is admitted for the proof is unknown (E-12, P-6)") for u in eligibility["unknown"])
+        assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    assert "never admitted" in pe.IDENTIFICATION_RULES["E-12"] and "(P-6)" in pe.IDENTIFICATION_RULES["E-12"]
+    # The function the driver calls: a run directory that cannot be read,
+    # or a manifest that is not a JSON object, is unknown, never admitted.
+    missing = pe.harness_admission(_manifest(), tmp_path / "absent" / RID)
+    assert (missing["admitted"], missing["form"]) == (None, "unknown")
+    assert missing["reasons"][0].startswith("the run directory cannot be read: ")
+    not_an_object = pe.harness_admission(["not", "an", "object"], tmp_path)
+    assert (not_an_object["admitted"], not_an_object["form"]) == (None, "unknown")
+    assert pe.harness_admission(_manifest(), tmp_path)["form"] == "valid"
+
+
+def test_a_harness_invalidity_outside_the_sampling_gap_form_is_not_admitted() -> None:
+    """The three harness reasons the joint check of 2026-09-25 named (P2:
+    the evaluator supported beside the driver's NOT ELIGIBLE), each exactly
+    as run.compute_validity writes it for a run whose only failure it is:
+    not admitted (E-12), every reason quoted, and the run not eligible
+    although every criterion holds. This replaces the case that expected
+    'supports' for 'no controller confirmation marker' and a missing
+    sut_environment.json ('the harness validity never decides the proof by
+    itself, whatever its reason'): it encoded the blanket exclusion of the
+    harness's invalidity that the Project Manager did not confirm (review
+    of PR #47, section 6, P-8)."""
+    base = _manifest()
+    for changes, begins in (
+        ({"confirmation_marker_ok": False}, "no controller confirmation marker: "),
+        ({"collector_problems": ["the collector did not stop cleanly"]}, "collector output not accounted for: "),
+        ({"sut_env_missing_fields": ["os_release"]}, "sut_environment.json unusable, missing required field(s): os_release"),
+    ):
+        arguments: dict[str, Any] = dict(
+            timed=True, sut_env_present=True, allow_missing_sut_env=False, resource_source="sut-collector",
+            allow_missing_resources=False, restart_required=True, restart_ok=True, simulator_returncode=0,
+            skip_warmup=True, condition_id="controller_restart", allow_protocol_deviation=True,
+            confirmation_marker_ok=True, collector_hooks=[], missing_artifacts=[], collector_problems=[],
+            sut_log_fetches=base["sut_log_fetches"], twin_snapshots=base["twin_snapshots"], drain=base["drain"],
+            events_post_drain_fetch=base["events_post_drain_fetch"], config_identity_ok=True,
+        )
+        arguments.update(changes)
+        validity, reasons = run_mod.compute_validity(**arguments)
+        assert validity == "invalid" and len(reasons) == 1 and reasons[0].startswith(begins), reasons
+        doc = _evaluate(manifest=_manifest(validity=validity, validity_reasons=reasons))
+        assert doc["instrumentation"]["harness_validity_reasons"] == reasons
+        admission = doc["instrumentation"]["harness_admission"]
+        assert (admission["admitted"], admission["form"], admission["collector_file"]) == (False, "not-admitted", None)
+        assert f"harness validity reason (quoted): {reasons[0]}" in admission["reasons"]
+        _assert_not_eligible(doc, "harness validity: not admitted for the proof (E-12, form 'not-admitted')", reasons[0])
+        assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS), begins
+        assert any(r.startswith("not eligible (E-11): harness validity: not admitted") for r in _outcome(doc)["inconclusive_reasons"])
     for text in (pe.IDENTIFICATION_RULES["E-11"], _eligibility(doc)["note"], pe.__doc__):
-        assert "never decides the proof by itself" in text or "never decisive by itself" in text, text[:80]
-        assert "rule alone" not in text, text[:80]
-    assert "MAX_SAMPLE_GAP_S" in pe.IDENTIFICATION_RULES["E-11"] and "reported, not decisive" in pe.IDENTIFICATION_RULES["E-11"]
+        assert "never decides the proof by itself" not in text and "never decisive by itself" not in text, text[:80]
+        assert "E-12" in text, text[:80]
+    assert "reported, not decisive" not in pe.IDENTIFICATION_RULES["E-11"]
+    assert "any other harness invalidity makes the run not eligible" in pe.IDENTIFICATION_RULES["E-11"]
 
 
 # ---------------------------------------------------------------------------
-# 27a-27g. the Project Manager's review of PR #47 (2026-09-25): F1, the proof's
-# eligibility (E-11), and the drain verified before R1
+# 27a-27k. the Project Manager's review of PR #47 (2026-09-25) and the joint
+# check of the same day: F1, the proof's eligibility (E-11), the harness's
+# validity admitted only as E-12 states (27h-27j), the fault's instant, and
+# the drain verified before R1
 # ---------------------------------------------------------------------------
 
 
@@ -2268,6 +2780,302 @@ def test_the_collector_file_is_required_in_the_inventory() -> None:
     assert set(present) == FULL_FILES - {"manifest.json"} and all(present.values())
 
 
+#: The measured window the collector file of the sampling-gap form covers.
+GAP_WINDOW = ("2026-09-25T10:00:00Z", "2026-09-25T10:01:05Z")
+
+
+def _gap_collector_csv(path: Path, *, other_problem: bool = False) -> None:
+    """The collector file as the SUT collector writes it (resources.py's
+    CSV_HEADER): one container sampled every second over GAP_WINDOW but for
+    one 6 s gap (10:00:19 to 10:00:25), and, with ``other_problem``, one
+    row whose cpu_pct is not a finite number."""
+    rows = [",".join(resources_mod.CSV_HEADER)]
+    for n, second in enumerate([*range(0, 20), *range(25, 66)]):
+        cpu = "nan" if other_problem and n == 3 else "1.0"
+        rows.append(f"2026-09-25T10:{second // 60:02d}:{second % 60:02d}Z,egw-controller-1,{cpu},1048576,0.1,egw")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(rows) + "\n", "utf-8")
+
+
+def _sampling_gap_run(
+    tmp_path: Path,
+    *,
+    other_problem: bool = False,
+    validity_changes: dict[str, Any] | None = None,
+    seal: bool = False,
+    collector: str = "kept",
+) -> tuple[Path, dict]:
+    """The campaign's sampling-gap deviation exactly as the harness records
+    it, built with run.py's and resources.py's own functions and no reason
+    string written here: the builder's complete run directory without
+    resources.csv; the collector file the harness's own fetch writes
+    (logs/collector/resources-<run_id>.csv) with a 6 s gap, handed to
+    run.ingest_resources with the fetch's source label and the measured
+    window, which rejects it and records the warning; the mandatory
+    artefacts missing as run.missing_mandatory_artifacts finds them; and the
+    validity run.compute_validity gives with resource_source 'none' and the
+    records of a complete item-18 run. SHA256SUMS is withheld, as run.py
+    withholds it while a mandatory artefact is missing, unless ``seal``;
+    ``collector`` 'removed' or 'emptied' takes the collector file away
+    after the harness's run."""
+    run_dir = _write_run_dir(tmp_path, seal=False)
+    (run_dir / "resources.csv").unlink()
+    fetched = run_dir / pe.fetch_collector_rel(RID)
+    _gap_collector_csv(fetched, other_problem=other_problem)
+    warnings: list[str] = []
+    ingested = run_mod.ingest_resources(
+        run_dir,
+        fetched,
+        warnings,
+        expected_window_start_utc=GAP_WINDOW[0],
+        expected_window_end_utc=GAP_WINDOW[1],
+        source_label=pe.INGEST_SOURCE_FETCH,
+    )
+    assert ingested is False and not (run_dir / "resources.csv").exists()
+    missing = run_mod.missing_mandatory_artifacts(run_dir, "controller_restart")
+    base = _manifest()
+    arguments: dict[str, Any] = dict(
+        timed=True, sut_env_present=True, allow_missing_sut_env=False, resource_source="none",
+        allow_missing_resources=False, restart_required=True, restart_ok=True, simulator_returncode=0,
+        skip_warmup=True, condition_id="controller_restart", allow_protocol_deviation=True,
+        confirmation_marker_ok=True, collector_hooks=[], missing_artifacts=missing, collector_problems=[],
+        sut_log_fetches=base["sut_log_fetches"], twin_snapshots=base["twin_snapshots"], drain=base["drain"],
+        events_post_drain_fetch=base["events_post_drain_fetch"], config_identity_ok=True,
+    )
+    arguments.update(validity_changes or {})
+    validity, reasons = run_mod.compute_validity(**arguments)
+    manifest = _manifest(
+        validity=validity, validity_reasons=reasons, resource_source="none", warnings=warnings,
+        missing_mandatory_artifacts=missing,
+    )
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", "utf-8")
+    if collector == "removed":
+        fetched.unlink()
+    elif collector == "emptied":
+        fetched.write_text("", "utf-8")
+    if seal:
+        write_sha256sums(run_dir)
+    return run_dir, manifest
+
+
+def test_the_campaign_sampling_gap_deviation_as_the_harness_records_it_is_admitted_and_supports(tmp_path, capsys) -> None:
+    """The ADR anticipates the harness marking the proof's run invalid under
+    MAX_SAMPLE_GAP_S ('What it cannot show'), as it marked r01 and r02. The
+    harness records that deviation in one form only: its ingest rejects the
+    collector file, so resources.csv is never written, resource_source is
+    'none', the validity reasons are 'no SUT resources' and 'mandatory
+    artefact(s) missing ... resources.csv', MAX_SAMPLE_GAP_S appears only
+    in the rejection's warning, the rejected file stays at
+    logs/collector/resources-<run_id>.csv and SHA256SUMS is withheld (the
+    archived r02 manifest has exactly this shape). Built here with the
+    harness's own functions and with every other check holding, it is
+    admitted (E-12) by the function the driver calls as well, the evidence
+    inventory takes the rejected collector file and the withheld seal with
+    the reasons stated, and the proof supports. Sealed afterwards and
+    verifying, the same form is admitted with nothing withheld."""
+    run_dir, manifest = _sampling_gap_run(tmp_path)
+    # What the harness wrote, from its own functions.
+    assert manifest["validity"] == "invalid" and manifest["validity_reasons"] == pe.sampling_gap_validity_reasons()
+    assert manifest["validity_reasons"][0].startswith("no SUT resources: ")
+    assert manifest["validity_reasons"][1].startswith("mandatory artefact(s) missing from the run directory: resources.csv ")
+    assert not any("MAX_SAMPLE_GAP_S" in reason for reason in manifest["validity_reasons"])
+    (rejection,) = [w for w in manifest["warnings"] if pe.INGEST_REJECTED_MARK in w]
+    assert rejection.startswith(pe.INGEST_SOURCE_FETCH + " ") and "sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S)" in rejection
+    problems = resources_mod.validate_resources_csv(
+        run_dir / pe.fetch_collector_rel(RID), expected_window_start_utc=GAP_WINDOW[0], expected_window_end_utc=GAP_WINDOW[1]
+    )
+    assert len(problems) == 1 and rejection.endswith(problems[0])
+    assert manifest["missing_mandatory_artifacts"] == ["resources.csv"] and manifest["resource_source"] == "none"
+    assert not (run_dir / "SHA256SUMS").exists() and not (run_dir / "resources.csv").exists()
+    # The shared admission, as the driver calls it.
+    admission = pe.harness_admission(manifest, run_dir)
+    assert set(admission) == {"admitted", "form", "reasons", "collector_file", "seal_withheld_for", "rule"}
+    assert (admission["admitted"], admission["form"]) == (True, "sampling-gap-only")
+    assert admission["collector_file"] == f"logs/collector/resources-{RID}.csv"
+    assert admission["seal_withheld_for"] == (
+        "the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)"
+    )
+    assert admission["rule"] == pe.IDENTIFICATION_RULES["E-12"]
+    assert f"ingest rejection (quoted): {rejection}" in admission["reasons"]
+    assert all(f"harness validity reason (quoted): {r}" in admission["reasons"] for r in manifest["validity_reasons"])
+    # The evaluator over the same directory: every other check holds.
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["system_outcome"]["result"] == "supports" and doc["system_outcome"]["inconclusive_reasons"] == []
+    assert doc["instrumentation"]["harness_admission"] == admission
+    assert doc["instrumentation"]["harness_validity"] == "invalid"
+    assert doc["instrumentation"]["harness_validity_reasons"] == manifest["validity_reasons"]
+    eligibility = doc["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is True and eligibility["reasons"] == [] and eligibility["unknown"] == []
+    assert eligibility["checks"]["harness_admission"] == admission
+    evidence = doc["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is True and evidence["missing"] == [] and evidence["fetch_failures"] == []
+    assert evidence["present"]["resources.csv"] is False and evidence["present"][admission["collector_file"]] is True
+    accepted = evidence["accepted_in_the_sampling_gap_form"]
+    assert len(accepted) == 2
+    assert accepted[0].startswith("resources.csv: absent from the top of the run directory") and admission["collector_file"] in accepted[0]
+    assert accepted[1].startswith("SHA256SUMS: absent, withheld by the harness for the missing mandatory artefact resources.csv alone")
+    assert "sha256 of every file it read" in accepted[1]
+    assert doc["instrumentation"]["seal"] == "unsealed"
+    assert len(doc["sources"][admission["collector_file"]]) == 64
+    assert "(admission 'sampling-gap-only', E-12)" in capsys.readouterr().err
+    # Sealed afterwards and verifying: admitted, nothing withheld.
+    sealed_dir, sealed = _sampling_gap_run(tmp_path / "sealed", seal=True)
+    admission = pe.harness_admission(sealed, sealed_dir)
+    assert (admission["form"], admission["seal_withheld_for"]) == ("sampling-gap-only", None)
+    assert _main(sealed_dir, tmp_path / "sealed.json", _session_file(tmp_path / "sealed")) == 0
+    evidence = json.loads((tmp_path / "sealed.json").read_text(encoding="utf-8"))["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is True and len(evidence["accepted_in_the_sampling_gap_form"]) == 1
+
+
+@pytest.mark.parametrize(
+    "variant, fragment",
+    [
+        ("another-problem", "the ingest rejection lists a problem other than a MAX_SAMPLE_GAP_S sampling gap"),
+        ("third-reason", "validity 'invalid' for reason(s) other than exactly the two run.compute_validity writes"),
+        ("collector-removed", f"the rejected collector file logs/collector/resources-{RID}.csv is absent from the run directory"),
+        ("collector-emptied", f"the rejected collector file logs/collector/resources-{RID}.csv is empty"),
+    ],
+    ids=["another-problem", "third-reason", "collector-removed", "collector-emptied"],
+)
+def test_the_sampling_gap_form_is_admitted_only_whole(tmp_path, variant: str, fragment: str) -> None:
+    """E-12 admits the sampling-gap form only whole: the same run with the
+    rejection also listing a problem that is not a sampling gap (a row
+    whose cpu_pct is not a finite number), with a third validity reason
+    (no controller confirmation marker), or with the rejected collector
+    file missing from logs/collector or empty, is not admitted, every
+    harness reason quoted, and the run is not eligible."""
+    kwargs: dict[str, Any] = {
+        "another-problem": {"other_problem": True},
+        "third-reason": {"validity_changes": {"confirmation_marker_ok": False}},
+        "collector-removed": {"collector": "removed"},
+        "collector-emptied": {"collector": "emptied"},
+    }[variant]
+    run_dir, manifest = _sampling_gap_run(tmp_path, **kwargs)
+    if variant == "another-problem":
+        problems = resources_mod.validate_resources_csv(
+            run_dir / pe.fetch_collector_rel(RID), expected_window_start_utc=GAP_WINDOW[0], expected_window_end_utc=GAP_WINDOW[1]
+        )
+        assert len(problems) == 2 and "MAX_SAMPLE_GAP_S" in problems[-1] and "MAX_SAMPLE_GAP_S" not in problems[0]
+        assert manifest["validity_reasons"] == pe.sampling_gap_validity_reasons()
+    if variant == "third-reason":
+        assert len(manifest["validity_reasons"]) == 3
+        assert any(r.startswith("no controller confirmation marker: ") for r in manifest["validity_reasons"])
+    admission = pe.harness_admission(manifest, run_dir)
+    assert (admission["admitted"], admission["form"], admission["collector_file"]) == (False, "not-admitted", None)
+    assert any(fragment in reason for reason in admission["reasons"]), admission["reasons"]
+    for reason in manifest["validity_reasons"]:
+        assert f"harness validity reason (quoted): {reason}" in admission["reasons"]
+    doc = pe.evaluate(pe.load_run_dir(run_dir), _session())
+    assert doc["instrumentation"]["harness_admission"] == admission
+    _assert_not_eligible(doc, "harness validity: not admitted for the proof (E-12, form 'not-admitted')", fragment)
+    assert doc["instrumentation"]["proof_evidence"]["accepted_in_the_sampling_gap_form"] == []
+    assert _outcome(doc)["refutations"] == []
+
+
+def test_the_sampling_gap_form_is_recognised_from_the_records_run_py_writes_alone(tmp_path) -> None:
+    """E-12 reads each record of the form, each derived from run.py's code
+    path, and admits nothing short of all of them: resource_source 'none',
+    missing_mandatory_artifacts ['resources.csv'] alone, exactly one
+    rejection warning, no resources.csv at the top of the run directory, the
+    harness's own fetch rejected where run.py writes it, a source label
+    run.py passes, a file inside the run directory and a sampling-gap
+    problem in the form validate_resources_csv writes. A rejection through
+    '--resources-from' naming a file inside the run directory (as r02
+    recorded it) is the same form."""
+    run_dir, manifest = _sampling_gap_run(tmp_path)
+    artefacts = pe.load_run_dir(run_dir)
+    (rejection,) = [w for w in manifest["warnings"] if pe.INGEST_REJECTED_MARK in w]
+    fetched = pe.fetch_collector_rel(RID)
+
+    def _admit(changes: dict[str, Any] | None = None, add: tuple[str, ...] = ()) -> dict:
+        return pe.admission_of({**manifest, **(changes or {})}, artefacts.files_present | set(add), artefacts.empty_files, artefacts.integrity)
+
+    assert _admit()["form"] == "sampling-gap-only" and _admit()["collector_file"] == fetched
+    moved = rejection.replace(f"/{fetched}", f"/logs/collector/resources-from/resources-{RID}.csv")
+    for changes, add, fragment in (
+        ({"resource_source": "sut-collector"}, (), "resource_source 'sut-collector', not 'none'"),
+        ({"missing_mandatory_artifacts": ["resources.csv", "events.jsonl"]}, (), "missing_mandatory_artifacts ['resources.csv', 'events.jsonl'], not ['resources.csv'] alone"),
+        ({"warnings": [rejection, rejection]}, (), "2 warning(s) of the ingest rejection"),
+        ({"warnings": []}, (), "0 warning(s) of the ingest rejection"),
+        ({}, ("resources.csv",), "resources.csv is present at the top of the run directory"),
+        (
+            {"warnings": [moved]}, (f"logs/collector/resources-from/resources-{RID}.csv",),
+            f"the rejected file of the harness's own fetch is at logs/collector/resources-from/resources-{RID}.csv, not at {fetched}",
+        ),
+        ({"warnings": [rejection.replace(pe.INGEST_SOURCE_FETCH, "--another-source", 1)]}, (), "names a source that run.py does not pass"),
+        (
+            {"warnings": [pe.INGEST_SOURCE_RESOURCES_FROM + " /elsewhere/resources.csv" + rejection[rejection.index(pe.INGEST_REJECTED_MARK):]]}, (),
+            "the rejected file '/elsewhere/resources.csv' is not in the run directory",
+        ),
+        (
+            {"warnings": [rejection.replace("1 sampling gap(s)", "2 sampling gap(s)", 1)]}, (),
+            "sampling-gap problem is not in the form resources.validate_resources_csv writes",
+        ),
+    ):
+        admission = _admit(changes, add)
+        assert (admission["admitted"], admission["form"], admission["collector_file"]) == (False, "not-admitted", None), changes
+        assert any(fragment in reason for reason in admission["reasons"]), (fragment, admission["reasons"])
+    manual = rejection.replace(pe.INGEST_SOURCE_FETCH, pe.INGEST_SOURCE_RESOURCES_FROM, 1)
+    admission = _admit({"warnings": [manual]})
+    assert (admission["form"], admission["collector_file"]) == ("sampling-gap-only", fetched)
+    # On disk, the same through the function the driver calls.
+    (run_dir / "resources.csv").write_text(RESOURCES_CSV, "utf-8")
+    assert pe.harness_admission(manifest, run_dir)["form"] == "not-admitted"
+
+
+def test_a_seal_that_fails_beside_the_sampling_gap_form_is_never_accepted(tmp_path, capsys) -> None:
+    """A SHA256SUMS present that does not verify is never accepted: the
+    evaluator does not evaluate the directory (exit 2, as today), the
+    shared admission refuses the form, and in memory the failed seal is a
+    failed record that leaves the run not eligible."""
+    run_dir, manifest = _sampling_gap_run(tmp_path, seal=True)
+    (run_dir / "sent_events.jsonl").write_text("{}\n", "utf-8")  # bytes changed after the seal
+    admission = pe.harness_admission(manifest, run_dir)
+    assert (admission["admitted"], admission["form"]) == (False, "not-admitted")
+    assert "SHA256SUMS is present and does not verify (seal 'false')" in admission["reasons"]
+    out = tmp_path / "verdict.json"
+    assert _main(run_dir, out, _session_file(tmp_path)) == 2
+    assert json.loads(out.read_text(encoding="utf-8"))["system_outcome"]["result"] == "not-evaluated"
+    capsys.readouterr()
+    artefacts = pe.load_run_dir(run_dir)
+    assert artefacts.integrity == "false"
+    doc = pe.evaluate(artefacts, _session())
+    _assert_not_eligible(doc, "SHA256SUMS: the seal does not verify", "harness validity: not admitted")
+    assert doc["instrumentation"]["proof_evidence"]["accepted_in_the_sampling_gap_form"] == []
+
+
+def test_the_fault_is_required_at_the_plans_instant() -> None:
+    """E-11 checks the prescribed fault instant (ADR 0011's table: 'fault |
+    at t+150 s', issued through --restart-at-s so that the instant is in
+    the manifest): run.py records the instant it scheduled as the restart
+    record's requested_at_s. Another instant, an absent one or one that is
+    not a number is not eligible; 150 s, as an integer or a float, is."""
+    for value in (120.0, 150.5, "150", None, "absent"):
+        restart = {**_manifest()["restart"], "requested_at_s": value}
+        if value == "absent":
+            restart.pop("requested_at_s")
+            value = None
+        doc = _evaluate(manifest=_manifest(restart=restart))
+        _assert_not_eligible(
+            doc,
+            f"fault: the manifest's restart was requested at {value!r} s (restart.requested_at_s), not at the "
+            "plan's t+150 s (ADR 0011: 'fault | at t+150 s'): the prescribed fault instant is not shown",
+        )
+        fault = _eligibility(doc)["checks"]["fault"]
+        assert fault["at_the_prescribed_instant"] is False and fault["prescribed_at_s"] == 150
+        assert _outcome(doc)["refutations"] == []
+        assert all(_criterion(doc, rule)["holds"] is True for rule in pe.SUPPORT_RULE_IDS)
+    doc = _evaluate(manifest=_manifest(restart={**_manifest()["restart"], "requested_at_s": 150}))
+    assert _eligibility(doc)["eligible"] is True and _outcome(doc)["result"] == "supports"
+    adr = " ".join(pe.ADR_PATH.read_text(encoding="utf-8").split())
+    assert f"| fault | at t+{pe.PROOF_RESTART_AT_S} s, SIGKILL of the controller's container" in adr
+    driver = (Path(__file__).resolve().parents[2] / "tools" / "session" / "proof.sh").read_text(encoding="utf-8")
+    assert f"healthy_seconds EGW_PROOF_RESTART_AT_S {pe.PROOF_RESTART_AT_S})" in driver
+    assert "requested_at_s" in pe.IDENTIFICATION_RULES["E-11"] and "t+150 s" in pe.IDENTIFICATION_RULES["E-11"]
+
+
 def test_r1_needs_the_drain_record_verified_not_merely_the_quiet_string() -> None:
     """R1 asserts missing identities after a completed drain: the drain
     record must be verified by the harness with outcome 'quiet', never the
@@ -2294,6 +3102,629 @@ def test_r1_needs_the_drain_record_verified_not_merely_the_quiet_string() -> Non
     # Verified and quiet: observed, as test 15 states.
     doc = _evaluate(lines=missing)
     assert _criterion(doc, "R1")["observed"] is True and _criterion(doc, "R1")["evidence"]["drain_completed"] is True
+
+
+# ---------------------------------------------------------------------------
+# 27l-27r. round 4 of the review of PR #47 (2026-09-25): ambiguous contention
+# never supports and an aggregate R3 names no culprit (E-13), a death beside
+# a process whose readings carry no monotonic_ns is not placed (E-4), the
+# harness's exit in the session facts agrees with the admission (E-11), and
+# a further death serves a candidate the kill cannot explain (E-13, E-10)
+# ---------------------------------------------------------------------------
+
+
+def _duplicates(*items: tuple[str, int, int, int]) -> list[tuple]:
+    """The scenario's lines (B accepted) and, per item (message_id, seq,
+    publication in s, redelivery in s), one duplicate-only line on D1
+    received at that instant on the controller clock."""
+    return list(LINES) + [(m, D1, seq, "duplicate", received * NS, None) for m, seq, _publish, received in items]
+
+
+def test_candidates_that_may_both_have_been_at_the_kill_contending_for_one_occurrence_are_named_in_no_order() -> None:
+    """E-13, the probe of round 3 (jv/g_same_tier_probe.py): on D1, K
+    (restart-class, published before the kill, redelivered at 1,300 s) and
+    E (published inside the restart command's window, E-8, redelivered at
+    1,250 s) with a surplus of two, and one A5 occurrence on D1 at 1,190 s
+    that precedes both. Two legitimate assignments remain (K <- the
+    occurrence and E <- the kill, or E <- the occurrence and K <- the
+    kill), and they do not name K or E alike. The candidates' seq order
+    used to choose: K first read 'inconclusive', E first 'supports' with K
+    named for the kill. Now neither is named in either order, both are
+    unshown with the same E-13 text, S4, R3, S5 and R4 are null and the
+    run is inconclusive, never 'supports' and never refuted. A lone
+    claimant with an occurrence before its redelivery is named alike by no
+    two assignments either. A genuinely unique assignment still names and
+    supports: E published after the restart command's end (the kill
+    cannot explain it) takes the occurrence and K the kill."""
+    documents = []
+    for k_seq, e_seq in ((2, 3), (3, 2)):
+        K = ("k-mid", D1, k_seq, 400 * NS)
+        E = ("e-mid", D1, e_seq, 510 * NS)
+        doc = _evaluate(
+            sent=SENT + [K, E],
+            lines=_duplicates(("k-mid", k_seq, 400, 1_300), ("e-mid", e_seq, 510, 1_250)),
+            extra_after={D1: 2, "seqs": [(D1, 3)]},
+            controller_log=[_a5_line(D1, 1_190 * NS)],
+        )
+        outcome = _outcome(doc)
+        assert outcome["result"] == "inconclusive" and outcome["refutations"] == [], (k_seq, e_seq)
+        assert outcome["n1_cases"] == []
+        for rule_id in ("S4", "S5"):
+            assert _criterion(doc, rule_id)["holds"] is None, (rule_id, k_seq)
+        for rule_id in ("R3", "R4"):
+            assert _criterion(doc, rule_id)["observed"] is None, (rule_id, k_seq)
+        r3 = _criterion(doc, "R3")
+        assert r3["evidence"]["not_named_identities"] == [] and r3["evidence"]["r3_groups"] == []
+        shown = {c["message_id"]: c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"]}
+        assert sorted(shown) == ["e-mid", "k-mid"]
+        assert all("more than one legitimate assignment" in why and why.endswith("(E-13)") for why in shown.values())
+        assert "named with an A3 connection end of its device (controller log line(s) 1); or named with the kill" in shown["k-mid"]
+        assert "no assignment is chosen by sequence or log order" in shown["e-mid"]
+        assert r3["evidence"]["assignments"]["may_be"] == {
+            "e-mid": ["a3-connection-end", "kill-unshown"], "k-mid": ["a3-connection-end", "kill"],
+        }
+        assert [(u["device_uuid"], u["rule"], u["message_ids"]) for u in _criterion(doc, "R4")["evidence"]["undecided"]] == [
+            (D1, "E-13", ["e-mid", "k-mid"]),
+        ]
+        assert any(r.startswith("S4 cannot be shown (E-13)") for r in outcome["inconclusive_reasons"])
+        assert "E-13" in r3["identification_rules"] and "E-13" in _criterion(doc, "R4")["identification_rules"]
+        documents.append((shown, _capacity(doc)))
+    assert documents[0] == documents[1]
+    # A lone claimant of the kill with an occurrence before its redelivery:
+    # the kill or the connection end, which cannot be told.
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, controller_log=[_a5_line(D1, 1_190 * NS)])
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["n1_cases"] == []
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["may_be"]["b-mid"] == ["a3-connection-end", "kill"]
+    # The occurrence after its redelivery: the kill alone, named (test 16).
+    doc = _evaluate(lines=B_DUPLICATE, extra_after={D1: 1, "seqs": [(D1, 1)]}, controller_log=[_a5_line(D1, 1_205 * NS)])
+    assert _outcome(doc)["result"] == "supports"
+    assert [(c["message_id"], c["source"]) for c in _outcome(doc)["n1_cases"]] == [("b-mid", "kill")]
+    # E published after the restart command's end: one legitimate
+    # assignment, E <- the occurrence and K <- the kill; named, supports.
+    K = ("k-mid", D1, 2, 400 * NS)
+    E = ("e-mid", D1, 3, 530 * NS)
+    doc = _evaluate(
+        sent=SENT + [K, E],
+        lines=_duplicates(("k-mid", 2, 400, 1_300), ("e-mid", 3, 530, 1_250)),
+        extra_after={D1: 2, "seqs": [(D1, 3)]},
+        controller_log=[_a5_line(D1, 1_190 * NS)],
+    )
+    assert _outcome(doc)["result"] == "supports" and _outcome(doc)["inconclusive_reasons"] == []
+    cases = {c["message_id"]: c for c in _outcome(doc)["n1_cases"]}
+    assert {m: c["source"] for m, c in cases.items()} == {"e-mid": "a3-connection-end", "k-mid": "kill"}
+    assert cases["e-mid"]["source_evidence"]["controller_log_lines_possible"] == [1]
+    assert _criterion(doc, "R3")["evidence"]["assignments"]["may_be"] == {"e-mid": ["a3-connection-end"], "k-mid": ["kill"]}
+    # Two candidates lined before the kill and two occurrences before both:
+    # both named alike in every assignment, each shown with the occurrence
+    # an assignment read from the stamps gives it (the later redelivery the
+    # later occurrence) and both lines listed, whatever the seqs or the
+    # order of the log lines.
+    two = [_a5_line(D1, 1_050 * NS), _a5_line(D1, 1_060 * NS)]
+    shown_lines = []
+    for m_seq, n_seq in ((2, 3), (3, 2)):
+        for log in (two, list(reversed(two))):
+            sent = [("m-mid", D1, m_seq, 385 * NS), ("n-mid", D1, n_seq, 380 * NS)]
+            doc = _evaluate(
+                sent=SENT + sent,
+                lines=_duplicates(("m-mid", m_seq, 385, 1_120), ("n-mid", n_seq, 380, 1_100)),
+                extra_after={D1: 2, "seqs": [(D1, 3)]},
+                controller_log=log,
+            )
+            assert _outcome(doc)["result"] == "supports"
+            cases = {c["message_id"]: c["source_evidence"] for c in _outcome(doc)["n1_cases"]}
+            assert all(evidence["controller_log_lines_possible"] == [1, 2] for evidence in cases.values())
+            shown_lines.append({m: evidence["identity"]["received_monotonic_ns"] for m, evidence in cases.items()})
+    assert shown_lines == [{"m-mid": 1_060 * NS, "n-mid": 1_050 * NS}] * 4
+    assert "E-13" in pe.IDENTIFICATION_RULES["P-4"] and "no order decides" in pe.IDENTIFICATION_RULES["E-13"]
+
+
+def test_an_aggregate_r3_names_no_culprit_in_any_order() -> None:
+    """E-13, the aggregate the Project Manager's F3 asks for ('Do not
+    arbitrarily name one particular identity as the culprit when only the
+    aggregate inconsistency is established'): three candidates lined
+    before the kill on D1 (surplus three) and two A5 occurrences that
+    precede all three. At least one of them has no source: R3 is observed
+    on the group, listed with the two occurrences and 'at least 1', none
+    of the three named or singled out, in each of the six seq orders and
+    with the log lines in either order; R4 stands on D1 by itself. Two
+    claimants of the kill and one candidate lined before it, against one
+    occurrence that precedes all three and the kill, form one group too
+    (either claimant may hold the occurrence, which leaves the lined one
+    without a source), where E-4 alone would read each claimant R3 and name
+    the lined one; the claimants of the kill with no other source keep
+    E-4's reading (test 22e)."""
+    log = [_a5_line(D1, 1_050 * NS), _a5_line(D1, 1_060 * NS)]
+    seen = []
+    for seqs in itertools.permutations((2, 3, 4)):
+        for order in (log, list(reversed(log))):
+            ids = ("x-mid", "y-mid", "z-mid")
+            sent = [(m, D1, seq, (381 + n) * NS) for n, (m, seq) in enumerate(zip(ids, seqs))]
+            lines = _duplicates(*((m, seq, 381 + n, 1_100 + 10 * n) for n, (m, seq) in enumerate(zip(ids, seqs))))
+            doc = _evaluate(sent=SENT + sent, lines=lines, extra_after={D1: 3, "seqs": [(D1, 4)]}, controller_log=order)
+            outcome = _outcome(doc)
+            assert outcome["result"] == "refutes" and outcome["n1_cases"] == [], seqs
+            r3 = _criterion(doc, "R3")
+            assert r3["observed"] is True and r3["evidence"]["not_named_identities"] == []
+            assert r3["evidence"]["cannot_show_identities"] == []
+            (group,) = r3["evidence"]["r3_groups"]
+            assert group["message_ids"] == ["x-mid", "y-mid", "z-mid"] and group["without_source_at_least"] == 1
+            assert group["sources"] == ["A5 line 1", "A5 line 2"]
+            mismatch = _criterion(doc, "R4")["evidence"]["mismatches"][0]
+            assert _criterion(doc, "R4")["observed"] is True and mismatch["stands_on"] == [D1]
+            seen.append((group["why"], r3["reason"], outcome["refutations"][0]))
+    assert len(set(seen)) == 1
+    assert "none is named as a case and none is singled out as R3" in seen[0][0]
+    # Two claimants of the kill and a candidate lined before it, one
+    # occurrence preceding all three: one group of three, at least one
+    # without a source.
+    K1 = ("k1-mid", D1, 2, 400 * NS)
+    K2 = ("k2-mid", D1, 3, 390 * NS)
+    N = ("n-mid", D1, 4, 380 * NS)
+    lines = _duplicates(("k1-mid", 2, 400, 1_300), ("k2-mid", 3, 390, 1_290), ("n-mid", 4, 380, 1_100))
+    doc = _evaluate(sent=SENT + [K1, K2, N], lines=lines, extra_after={D1: 3, "seqs": [(D1, 4)]}, controller_log=[_a5_line(D1, 1_050 * NS)])
+    assert _outcome(doc)["result"] == "refutes" and _outcome(doc)["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and r3["evidence"]["not_named_identities"] == []
+    (group,) = r3["evidence"]["r3_groups"]
+    assert (group["message_ids"], group["sources"], group["without_source_at_least"]) == (
+        ["k1-mid", "k2-mid", "n-mid"], ["A5 line 1", "death 0"], 1,
+    )
+    assert "the A3 connection end of controller log line 1, the kill" in group["why"]
+    assert "E-13" in r3["identification_rules"] and "only the aggregate is established" in pe.IDENTIFICATION_RULES["E-13"]
+
+
+def test_a_death_beside_a_process_whose_readings_carry_no_monotonic_ns_is_not_placed() -> None:
+    """E-4's 'or when either cannot be read', re-check 0 of round 3 (P3 at
+    recorded_deaths): three claimants of the kill on D1 redelivered at
+    1,270 s, received by the last process P2 (first read 1,265 s, last
+    1,285 s); between P1 (last read 1,245 s) and P2 a process PX ran and
+    died, its readings without monotonic_ns. Three deaths may have preceded
+    the redeliveries, as with PX readable. PX was sorted to the end of the
+    chain and P2's death read as placed after 1,285 s, wholly after every
+    redelivery: a false R4 against two deaths. The deaths PX's place
+    decides are now not placed and may have preceded any redelivery, so
+    the run is inconclusive, as with PX readable; the kill keeps its lower
+    bound whatever process came next."""
+    PX = "2026-09-25T10:04:10Z"
+    R = 1_270
+    F = ("f-mid", D1, 2, 401 * NS)
+    F2 = ("f2-mid", D1, 3, 402 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", R * NS, None), ("f-mid", D1, 2, "duplicate", R * NS, None),
+        ("f2-mid", D1, 3, "duplicate", R * NS, None),
+    ]
+
+    def _px_rows(readable: bool) -> list[dict[str, str]]:
+        return _rows() + [
+            _row(_ts(250), PX, 0, 0, monotonic_ns=1_250 * NS if readable else None, unacked=0),
+            _row(_ts(255), PX, 0, 0, monotonic_ns=1_255 * NS if readable else None, unacked=0),
+            _row(_ts(265), P2, 0, 0, monotonic_ns=1_265 * NS, unacked=0),
+            _row(_ts(285), P2, 0, 0, monotonic_ns=1_285 * NS, unacked=0),
+        ]
+
+    for readable in (True, False):
+        doc = _evaluate(sent=SENT + [F, F2], lines=lines, extra_after={D1: 3, "seqs": [(D1, 3)]}, rows=_px_rows(readable))
+        assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == [], readable
+        assert _criterion(doc, "R4")["observed"] is None and _capacity(doc)["consistent"] is True, readable
+        deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+        assert all(d["may_precede"] == ["b-mid", "f-mid", "f2-mid"] for d in deaths), readable
+    last = deaths[2]
+    assert (last["dying_started_at"], last["next_started_at"], last["placed"], last["unordered_started_at"]) == (P2, PX, False, PX)
+    assert f"process {PX} has no readable monotonic_ns" in last["placement"]
+    assert deaths[1]["placed"] is True and deaths[1]["after_monotonic_ns"] == K_UPPER + 65 * NS
+    # The deaths as recorded_deaths reads them: the one after P2 is the one
+    # PX's place decides; the kill keeps its bound beside an unreadable next.
+    rows, _notes = pe.read_metrics_rows(_px_rows(False))
+    kill, p1_death, unordered = pe.recorded_deaths(pe.split_by_process(rows), restart_ok=True)
+    assert kill.placed and p1_death.placed and not unordered.placed
+    assert unordered.may_precede(0) and unordered.unordered_started_at == PX
+    rows, _notes = pe.read_metrics_rows(_rows()[:6] + _px_rows(False)[-4:-2])
+    (alone,) = pe.recorded_deaths(pe.split_by_process(rows), restart_ok=True)
+    assert (alone.dying_started_at, alone.next_started_at, alone.after, alone.placed) == (P0, PX, K_LOWER, True)
+    assert "never read as the last of them" in pe.IDENTIFICATION_RULES["E-4"]
+
+
+def test_a_reading_whose_started_at_cannot_be_read_leaves_the_number_of_deaths_unknown_never_zero() -> None:
+    """The read-only re-check of round 4 (P3 at split_by_process), on the
+    shape of the case above: three claimants of the kill on D1 redelivered
+    at 1,270 s, and between P1 (last read 1,245 s) and P2 (first read
+    1,265 s) a process PX whose readings carry a readable monotonic_ns but
+    an empty started_at cell. split_by_process kept those readings apart
+    and recorded_deaths counted no process for them: two deaths against
+    three claimants, and E-10 refuted on capacity (a false R4). An unread
+    started_at is never read as no process (E-4, E-10): the number of
+    deaths is unknown, so E-10's capacity is unknown and named, nothing is
+    refuted on it, and no claimant is named or R3; the run is inconclusive,
+    as with PX readable, which is unchanged."""
+    PX = "2026-09-25T10:04:10Z"
+    R = 1_270
+    F = ("f-mid", D1, 2, 401 * NS)
+    F2 = ("f2-mid", D1, 3, 402 * NS)
+    lines = [line for line in LINES if line[0] != "b-mid"] + [
+        ("b-mid", D1, 1, "duplicate", R * NS, None), ("f-mid", D1, 2, "duplicate", R * NS, None),
+        ("f2-mid", D1, 3, "duplicate", R * NS, None),
+    ]
+
+    def _px_rows(started_at: str | None) -> list[dict[str, str]]:
+        return _rows() + [
+            _row(_ts(250), started_at, 0, 0, monotonic_ns=1_250 * NS, unacked=0),
+            _row(_ts(255), started_at, 0, 0, monotonic_ns=1_255 * NS, unacked=0),
+            _row(_ts(265), P2, 0, 0, monotonic_ns=1_265 * NS, unacked=0),
+            _row(_ts(285), P2, 0, 0, monotonic_ns=1_285 * NS, unacked=0),
+        ]
+
+    documents = {}
+    for label, started_at in (("readable", PX), ("no-started_at", None)):
+        doc = _evaluate(sent=SENT + [F, F2], lines=lines, extra_after={D1: 3, "seqs": [(D1, 3)]}, rows=_px_rows(started_at))
+        assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == [], label
+        assert _criterion(doc, "R4")["observed"] is None and _criterion(doc, "R3")["observed"] is None, label
+        r3 = _criterion(doc, "R3")["evidence"]
+        assert r3["not_named_identities"] == [] and r3["r3_groups"] == [] and _outcome(doc)["n1_cases"] == [], label
+        assert [c["message_id"] for c in r3["cannot_show_identities"]] == ["b-mid", "f-mid", "f2-mid"], label
+        documents[label] = doc
+    # PX readable: three deaths, the capacity known and consistent, as before.
+    readable = _capacity(documents["readable"])
+    assert (readable["applied"], readable["known"], readable["why_unknown"]) == (True, True, None)
+    assert (readable["deaths_recorded"], readable["matched"], readable["consistent"]) == (3, 3, True)
+    # PX's started_at unread: two deaths recorded, the number of deaths
+    # unknown, and with it the capacity, which is named and decides nothing.
+    unread = _capacity(documents["no-started_at"])
+    assert (unread["applied"], unread["known"], unread["consistent"], unread["matched"]) == (False, False, None, None)
+    assert unread["deaths_recorded"] == 2
+    assert unread["why_unknown"] == (
+        "the number of recorded controller deaths is unknown: 2 controller reading(s) (row(s) 9, 10) carry no "
+        "readable started_at and are not shown to be the pre-kill process's (a monotonic_ns unread or above that "
+        "process's last reading), so the process each belongs to cannot be read (E-4)"
+    )
+    r3 = _criterion(documents["no-started_at"], "R3")["evidence"]
+    for claimant in r3["cannot_show_identities"]:
+        assert "3 identities claim the kill as their source and the readings record 2 controller process starts" in claimant["why_not_shown"]
+        assert "the number of controller deaths is unknown (2 controller reading(s) (row(s) 9, 10)" in claimant["why_not_shown"]
+        assert "none is named and none is R3" in claimant["why_not_shown"]
+    assert any(n.startswith("the number of controller deaths is unknown") and "nothing is refuted on capacity grounds" in n for n in r3["notes"])
+    undecided = _criterion(documents["no-started_at"], "R4")["evidence"]["undecided"]
+    assert [(u["device_uuid"], u["rule"]) for u in undecided] == [(D1, "E-4")]
+    # A reading with an empty started_at at or below the pre-kill process's
+    # last reading is of that process's time: it names no further process.
+    rows, _notes = pe.read_metrics_rows([_row(_ts(0), None, 3, 1, monotonic_ns=K_LOWER)] + _rows())
+    assert pe.unread_process_readings(pe.split_by_process(rows)) == [] and pe.deaths_unknown_of(pe.split_by_process(rows)) is None
+    rows, _notes = pe.read_metrics_rows(_px_rows(None) + [_row(_ts(300), None, 0, 0, monotonic_ns=None)])
+    assert [r.index for r in pe.unread_process_readings(pe.split_by_process(rows))] == [9, 10, 13]
+    assert "the number of deaths is unknown" in pe.IDENTIFICATION_RULES["E-4"]
+    assert "an unread cell is never read as no process" in pe.IDENTIFICATION_RULES["E-4"]
+    assert "So it is when the number of deaths is unknown" in pe.IDENTIFICATION_RULES["E-10"]
+
+
+def test_a_candidate_a_death_the_readings_do_not_record_may_have_preceded_is_neither_named_nor_r3() -> None:
+    """E-4 with the number of deaths unknown, beyond the claimants: N,
+    published after the restart command's end and redelivered at 1,270 s,
+    with no A5 occurrence, beside the scenario's two processes and one
+    reading at 1,250 s whose started_at cannot be read. On the deaths
+    recorded alone the kill cannot explain N and no further death is
+    recorded, so N was R3 and the run refuted; but that reading may be of a
+    process after P1, whose death may have preceded N's redelivery. N is
+    now neither named nor R3 and the run inconclusive. Unchanged: N stays
+    R3 when the twin shows it unapplied, and P, lined before the kill, keeps
+    its R3, since every death follows the pre-kill process's last reading."""
+    N = ("n-mid", D1, 2, 540 * NS)
+    P = ("p-mid", D1, 2, 360 * NS)
+    rows = _rows() + [_row(_ts(250), None, 0, 0, monotonic_ns=1_250 * NS, unacked=0)]
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_270)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    assert _outcome(doc)["result"] == "inconclusive" and _outcome(doc)["refutations"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == []
+    (unshown,) = r3["evidence"]["cannot_show_identities"]
+    assert unshown["message_id"] == "n-mid"
+    assert unshown["why_not_shown"].startswith(
+        f"a further death may have preceded its redelivered duplicate line (received at {1_270 * NS}), and it may "
+        "have been in progress at that death, which P-4 never names as a source: the number of controller deaths "
+        "is unknown (1 controller reading(s) (row(s) 9)")
+    assert unshown["why_not_shown"].endswith("so it is neither named nor R3 (E-4, E-10)")
+    assert _capacity(doc)["known"] is False and _criterion(doc, "R4")["observed"] is None
+    # Every reading names its process: N is R3 and the run refutes, as before.
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_270)), extra_after={D1: 1, "seqs": [(D1, 2)]})
+    assert _outcome(doc)["result"] == "refutes"
+    assert [c["message_id"] for c in _criterion(doc, "R3")["evidence"]["not_named_identities"]] == ["n-mid"]
+    # The twin shows N unapplied (last_seq 1 below its seq 2): R3 on the
+    # twin's evidence, whatever death may have preceded it.
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_270)), extra_after={D1: 1}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    (rejected,) = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "n-mid" and "and the twin does not show it applied" in rejected["why_not_named"]
+    assert "but the number of controller deaths is unknown" in rejected["why_not_named"]
+    # P, lined before the kill, keeps its R3 beside the unknown deaths.
+    doc = _evaluate(sent=SENT + [P], lines=_duplicates(("p-mid", 2, 360, 1_100)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    assert _outcome(doc)["result"] == "refutes"
+    (rejected,) = _criterion(doc, "R3")["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "p-mid" and "lined before the kill" in rejected["why_not_named"]
+    assert _criterion(doc, "R3")["evidence"]["cannot_show_identities"] == []
+
+
+def _session_with_exit(tmp_path: Path, harness_exit: Any) -> Path:
+    path = tmp_path / "proof_session.json"
+    path.write_text(json.dumps({**_session(), "harness_exit": harness_exit}, indent=2) + "\n", "utf-8")
+    return path
+
+
+def test_the_harness_exit_the_session_facts_carry_agrees_with_the_admission(tmp_path) -> None:
+    """E-11, re-check 0 of round 3 (P3 at proof.sh:917): the driver refuses
+    a 'valid' manifest beside a harness exit other than 0 ('a failure the
+    manifest does not record') while the evaluator decided on the
+    admission alone and wrote 'supports' beside it. With the session
+    facts' harness_exit the two now agree: 0 for the 'valid' form; 0 or 1
+    for the sampling-gap form, in which the harness exits 1; anything else
+    not eligible. Without harness_exit the manifest's own validity stands
+    and the absence is reported, deciding nothing; a refutation observed
+    on read evidence stands beside a disagreeing exit (P-7)."""
+
+    def _facts(harness_exit: Any) -> dict:
+        facts = _session()
+        if harness_exit is not None:
+            facts["harness_exit"] = harness_exit
+        return facts
+
+    for harness_exit, eligible in ((None, True), (0, True), (1, False), (124, False), ("not-started", False), (True, False)):
+        doc = _evaluate(session=_facts(harness_exit))
+        eligibility = _eligibility(doc)
+        assert eligibility["eligible"] is eligible, harness_exit
+        assert _outcome(doc)["result"] == ("supports" if eligible else "inconclusive"), harness_exit
+        check = eligibility["checks"]["harness_exit"]
+        assert (check["read"], check["carried"], check["admission_form"], check["allowed"]) == (
+            harness_exit, harness_exit is not None, "valid", [0],
+        )
+        if harness_exit is None:
+            assert check["agrees"] is None and "carry no harness_exit" in check["note"] and "decides nothing" in check["note"]
+        else:
+            assert check["agrees"] is eligible
+        if not eligible:
+            (reason,) = eligibility["reasons"]
+            assert reason.startswith(f"harness exit: the session facts record the harness's exit {harness_exit!r}")
+            assert "a failure the manifest does not record" in reason
+            assert any(r.startswith("not eligible (E-11): harness exit:") for r in _outcome(doc)["inconclusive_reasons"])
+    # A refutation observed on read evidence stands beside it.
+    doc = _evaluate(lines=B_DUPLICATE, session=_facts(1))
+    assert _outcome(doc)["result"] == "refutes" and _eligibility(doc)["eligible"] is False
+    # The sampling-gap form, as the harness records it: exit 1 (or 0) is
+    # the form's own, any other exit is not.
+    run_dir, _manifest_gap = _sampling_gap_run(tmp_path / "gap")
+    for harness_exit, code in ((1, 0), (0, 0), (2, 3), (124, 3), (True, 3)):
+        out = tmp_path / f"gap-{harness_exit}.json"
+        session_dir = tmp_path / f"session-{harness_exit}"
+        session_dir.mkdir()
+        assert _main(run_dir, out, _session_with_exit(session_dir, harness_exit)) == code, harness_exit
+        doc = json.loads(out.read_text(encoding="utf-8"))
+        check = _eligibility(doc)["checks"]["harness_exit"]
+        assert (check["admission_form"], check["allowed"], check["agrees"]) == ("sampling-gap-only", [0, 1], code == 0)
+    assert "harness_exit" in pe.IDENTIFICATION_RULES["E-11"] and "0 or 1 in the sampling-gap form" in pe.IDENTIFICATION_RULES["E-11"]
+
+
+def _every_matching(candidates: list[str], options: dict[str, list[str]]):
+    """Every matching of the candidates to their options, each source used
+    once, as candidate -> source (None: no source): brute force."""
+    for choice in itertools.product(*[[None, *options.get(c, [])] for c in candidates]):
+        taken = [s for s in choice if s is not None]
+        if len(taken) == len(set(taken)):
+            yield dict(zip(candidates, choice))
+
+
+def test_the_legitimate_assignments_are_those_an_enumeration_of_every_matching_finds() -> None:
+    """E-13 reads the legitimate assignments from one maximum matching and
+    its alternating paths. On 300 small random graphs (up to five
+    candidates and four sources) the sources each candidate may hold in
+    some maximum matching, and whether it may hold none, equal what an
+    enumeration of every matching finds, whatever maximum matching the
+    reading starts from; and each deficient group's least number without a
+    source is the least over every matching at all, its members exactly
+    the candidates with options that some maximum matching leaves without
+    one."""
+    import random
+
+    rng = random.Random(20260925)
+    for _ in range(300):
+        candidates = [f"c{n}" for n in range(rng.randint(1, 5))]
+        sources = [f"s{n}" for n in range(rng.randint(1, 4))]
+        options = {c: sorted(s for s in sources if rng.random() < 0.45) for c in candidates}
+        every = list(_every_matching(candidates, options))
+        size = max(sum(1 for s in m.values() if s is not None) for m in every)
+        maximum = [m for m in every if sum(1 for s in m.values() if s is not None) == size]
+        order = list(candidates)
+        rng.shuffle(order)
+        start = rng.choice(maximum)
+        partial = {c: s for c, s in start.items() if s is not None and rng.random() < 0.5}
+        match = pe._maximum_matching(order, options, partial)
+        assert len(match) == size, (options, match)
+        may_go_free, possible = pe.matching_alternatives(candidates, options, match)
+        assert may_go_free == {c for c in candidates if any(m[c] is None for m in maximum)}, options
+        for c in candidates:
+            assert possible[c] == {m[c] for m in maximum if m[c] is not None}, (options, c)
+        groups = pe.deficient_groups(candidates, options)
+        members = [c for group in groups for c in group["message_ids"]]
+        assert len(members) == len(set(members))
+        assert set(members) == {c for c in candidates if options[c] and any(m[c] is None for m in maximum)}, options
+        for group in groups:
+            least = min(sum(1 for c in group["message_ids"] if m[c] is None) for m in every)
+            assert group["without_source_at_least"] == least >= 1, (options, group)
+            assert group["sources"] == sorted({s for c in group["message_ids"] for s in options[c]})
+
+
+def test_a_candidate_the_kill_cannot_explain_may_have_been_in_progress_at_a_further_death() -> None:
+    """The read-only check of round 4 (P2 at name_n1_cases): a candidate
+    the kill cannot explain was offered no death at all, not even a
+    further death its own record said may have preceded its redelivery,
+    and the run refuted. E-13 lists a further death (never named, P-4)
+    among the sources an assignment may give a candidate whose redelivered
+    duplicate line it may have preceded, E-10 gives a recorded death to
+    such a candidate whichever device's, and E-4 cannot tell an identity
+    in progress at that further death from one that was not. The readings
+    record a further death between P1's last reading (1,245 s) and P2's
+    first (1,265 s); every candidate is published after the restart
+    command's end (host 540-542 s), so the kill cannot explain it.
+
+    (a) N alone, redelivered at 1,270 s, the twin +1 on D1, no A5 line:
+    the further death is its source in every legitimate assignment, which
+    P-4 never names, so N is neither named nor R3 and nothing is refuted.
+    It refuted (R3 'the kill cannot be its source', R4 beside it).
+    (b) N and N2 (1,272 s), one A5 occurrence at 1,190 s, the twin +2: the
+    occurrence and the further death serve both, in either order, so
+    neither is named and neither R3 nor R4 stands. It refuted with an R3
+    group contending for the occurrence alone and an R4 against deaths
+    said to precede none of the redeliveries that their records listed.
+    (c) N, N2 and N3 (1,274 s), the twin +3: two sources for three, so
+    at least one has none: R3 stands on the group, the further death among
+    its sources, and R4 on D1, the kill serving none of them since none
+    may have been in progress at it, never read as a death that preceded
+    none of their redeliveries.
+    (d) N named with the occurrence in every legitimate assignment (X, on
+    D3, published after the command's end and redelivered at 1,272 s, has
+    only the further death; U, on D1 in the kill band, only the kill):
+    X is unshown, not R3 with R4 on D3 as it read, and N keeps the further
+    death among the sources it may hold in E-10's matching."""
+    rows = _rows_with_a_further_death()
+    log = [_a5_line(D1, 1_190 * NS)]
+    N = ("n-mid", D1, 2, 540 * NS)
+    N2 = ("n2-mid", D1, 3, 541 * NS)
+    N3 = ("n3-mid", D1, 4, 542 * NS)
+    items = [("n-mid", 2, 540, 1_270), ("n2-mid", 3, 541, 1_272), ("n3-mid", 4, 542, 1_274)]
+
+    # (a) N alone.
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(*items[:1]), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == [] and r3["evidence"]["r3_groups"] == []
+    (shown,) = r3["evidence"]["cannot_show_identities"]
+    assert shown["message_id"] == "n-mid" and "(E-13)" in shown["why_not_shown"]
+    assert "in progress at a further death (death 1), which P-4 never names as a source" in shown["why_not_shown"]
+    assert r3["evidence"]["assignments"]["may_be"]["n-mid"] == ["further-death"]
+    assert r3["evidence"]["assignments"]["sources_may_hold"]["n-mid"] == ["death 1"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == [] and _criterion(doc, "S5")["holds"] is None
+    evidence = r4["evidence"]["source_capacity"]
+    assert evidence["possible_sources"] == {"n-mid": {"a5_lines": [], "deaths": [1]}}
+    assert [(d["death"], d["kind"], d["may_precede"], d["may_serve"]) for d in evidence["deaths"]] == [
+        (0, "kill", ["n-mid"], []), (1, "further", ["n-mid"], ["n-mid"]),
+    ]
+    assert (_capacity(doc)["matched"], _capacity(doc)["consistent"]) == (1, True)
+
+    # (b) N and N2 beside one occurrence.
+    doc = _evaluate(sent=SENT + [N, N2], lines=_duplicates(*items[:2]), extra_after={D1: 2, "seqs": [(D1, 3)]}, rows=rows, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == [] and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is None and r3["evidence"]["r3_groups"] == [] and r3["evidence"]["not_named_identities"] == []
+    shown = {c["message_id"]: c["why_not_shown"] for c in r3["evidence"]["cannot_show_identities"]}
+    assert sorted(shown) == ["n-mid", "n2-mid"]
+    assert all("more than one legitimate assignment" in why and "(E-13)" in why for why in shown.values())
+    assert r3["evidence"]["assignments"]["may_be"] == {
+        "n-mid": ["a3-connection-end", "further-death"], "n2-mid": ["a3-connection-end", "further-death"],
+    }
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    assert r4["evidence"]["source_capacity"]["possible_sources"] == {
+        "n-mid": {"a5_lines": [1], "deaths": [1]}, "n2-mid": {"a5_lines": [1], "deaths": [1]},
+    }
+    capacity = _capacity(doc)
+    assert (capacity["needed_by_device"], capacity["beyond_a5_by_device"]) == ({D1: 2}, {D1: 1})
+    assert (capacity["matched"], capacity["consistent"]) == (2, True)
+
+    # (c) three of them: at least one has no source.
+    doc = _evaluate(sent=SENT + [N, N2, N3], lines=_duplicates(*items), extra_after={D1: 3, "seqs": [(D1, 4)]}, rows=rows, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and outcome["n1_cases"] == []
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and r3["evidence"]["not_named_identities"] == []
+    (group,) = r3["evidence"]["r3_groups"]
+    assert (group["message_ids"], group["sources"], group["without_source_at_least"]) == (
+        ["n-mid", "n2-mid", "n3-mid"], ["A5 line 1", "death 1"], 1,
+    )
+    assert "the A3 connection end of controller log line 1, death 1 (a further death)" in group["why"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    capacity = _capacity(doc)
+    assert (capacity["kill_needed"], capacity["kill_available"], capacity["matched"], capacity["consistent"]) == (2, 2, 2, False)
+    assert (capacity["deaths_preceding_none"], capacity["deaths_serving_none"]) == ([], [0])
+    mismatch = r4["evidence"]["mismatches"][0]
+    assert mismatch["stands_on"] == [D1] and mismatch["undecided_candidates"] == ["n-mid", "n2-mid", "n3-mid"]
+    assert "may have preceded none" not in mismatch["problems"][0]
+    assert "the kill serving none of them" in mismatch["problems"][0]
+    (refutation,) = [r for r in outcome["refutations"] if r.startswith("R4")]
+    assert "may have preceded none" not in refutation and "the kill serving none of them" in refutation
+
+    # (d) N named with the occurrence beside X, which only the further death
+    # may serve, and U in the kill band.
+    U = ("u-mid", D1, 3, 401 * NS)
+    X = ("x-mid", D3, 1, 541 * NS)
+    lines = list(LINES) + [
+        ("n-mid", D1, 2, "duplicate", 1_270 * NS, None),
+        ("u-mid", D1, 3, "duplicate", (K_LOWER + K_UPPER) // 2, None),
+        ("x-mid", D3, 1, "duplicate", 1_272 * NS, None),
+    ]
+    doc = _evaluate(sent=SENT + [N, U, X], lines=lines, extra_after={D1: 2, D3: 1, "seqs": [(D1, 3), (D3, 1)]}, rows=rows, controller_log=log)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "inconclusive" and outcome["refutations"] == []
+    assert [(c["message_id"], c["source"]) for c in outcome["n1_cases"]] == [("n-mid", "a3-connection-end")]
+    r3 = _criterion(doc, "R3")
+    assert r3["evidence"]["assignments"]["may_be"] == {
+        "n-mid": ["a3-connection-end"], "u-mid": ["kill-unshown"], "x-mid": ["further-death"],
+    }
+    assert r3["observed"] is None and r3["evidence"]["not_named_identities"] == []
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is None and r4["evidence"]["mismatches"] == []
+    assert r4["evidence"]["source_capacity"]["possible_sources"] == {
+        "u-mid": {"a5_lines": [], "deaths": [0]},
+        "x-mid": {"a5_lines": [], "deaths": [1]},
+        "n-mid": {"a5_lines": [1], "deaths": [1], "named": {"source": "a3-connection-end", "controller_log_line": 1}},
+    }
+    assert (_capacity(doc)["matched"], _capacity(doc)["consistent"]) == (2, True)
+    assert "offered its device's occurrences and no death" not in pe.IDENTIFICATION_RULES["E-10"]
+    assert "whether or not the kill can explain it" in pe.IDENTIFICATION_RULES["E-13"]
+
+
+def test_no_death_serves_a_candidate_lined_before_the_kill_nor_one_redelivered_before_it() -> None:
+    """The counterpart of the check above: a further death serves a
+    candidate only when it may have preceded its redelivered duplicate
+    line. P, lined before the kill (its duplicate line received at
+    1,100 s, before the pre-kill process's last reading at 1,150 s), keeps
+    its R3 even beside a death the readings cannot place (a process PX
+    whose readings carry no monotonic_ns): every recorded death is the
+    pre-kill process's or a later one's, after that reading, so none may
+    have preceded P's line (E-4). N, published after the restart
+    command's end and redelivered at 1,230 s, before P1's last reading
+    (1,245 s), keeps its R3 beside the further death placed after it; the
+    R3 says so in both cases."""
+    PX = "2026-09-25T10:04:10Z"
+    P = ("p-mid", D1, 2, 360 * NS)
+    rows = _rows() + [
+        _row(_ts(250), PX, 0, 0, monotonic_ns=None, unacked=0),
+        _row(_ts(265), P2, 0, 0, monotonic_ns=1_265 * NS, unacked=0),
+        _row(_ts(285), P2, 0, 0, monotonic_ns=1_285 * NS, unacked=0),
+    ]
+    doc = _evaluate(sent=SENT + [P], lines=_duplicates(("p-mid", 2, 360, 1_100)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes"
+    r3 = _criterion(doc, "R3")
+    assert r3["observed"] is True and r3["evidence"]["cannot_show_identities"] == []
+    (rejected,) = r3["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "p-mid" and "lined before the kill" in rejected["why_not_named"]
+    assert "nor can a further death: its duplicate line was received before the pre-kill process's last reading" in rejected["why_not_named"]
+    assert r3["evidence"]["assignments"]["may_be"]["p-mid"] == ["none"]
+    deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+    assert [(d["death"], d["placed"]) for d in deaths] == [(0, True), (1, True), (2, False)]
+    assert all(d["may_precede"] == [] and d["may_serve"] == [] for d in deaths), deaths
+    notes = r3["evidence"]["notes"]
+    assert any(n.startswith("further death(s) 1, 2 may have preceded no duplicate-only candidate's") for n in notes), notes
+    assert "none may have preceded a duplicate line received before that reading" in pe.IDENTIFICATION_RULES["E-4"]
+
+    N = ("n-mid", D1, 2, 540 * NS)
+    doc = _evaluate(sent=SENT + [N], lines=_duplicates(("n-mid", 2, 540, 1_230)), extra_after={D1: 1, "seqs": [(D1, 2)]}, rows=_rows_with_a_further_death())
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes"
+    r3 = _criterion(doc, "R3")
+    (rejected,) = r3["evidence"]["not_named_identities"]
+    assert rejected["message_id"] == "n-mid" and "published after the restart command's end" in rejected["why_not_named"]
+    assert "nor can a further death, each one recorded following its redelivered duplicate line" in rejected["why_not_named"]
+    deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
+    assert [(d["death"], d["may_precede"], d["may_serve"]) for d in deaths] == [(0, ["n-mid"], []), (1, [], [])]
 
 
 # ---------------------------------------------------------------------------
@@ -2390,7 +3821,7 @@ def test_the_verdict_document_has_three_separate_sections_and_every_rule_text() 
     assert doc["cannot_show"] == pe.RULES["cannot_show"]
     assert doc["instrumentation"]["proof_eligibility"]["rule"] == pe.IDENTIFICATION_RULES["E-11"]
     assert doc["instrumentation"]["proof_eligibility"]["eligible"] is True
-    assert set(pe.IDENTIFICATION_RULES) == {f"P-{n}" for n in range(1, 8)} | {f"E-{n}" for n in range(1, 12)}
+    assert set(pe.IDENTIFICATION_RULES) == {f"P-{n}" for n in range(1, 8)} | {f"E-{n}" for n in range(1, 14)}
     assert doc["system_outcome"]["report"]["method"]["criteria_copy"] == POST_DRAIN_EVENTS_FILENAME
     assert doc["system_outcome"]["report"]["copies"]["events.jsonl"]["lines"] == 2
     assert doc["system_outcome"]["report"]["copies"][POST_DRAIN_EVENTS_FILENAME]["lines"] == 4
@@ -2659,12 +4090,24 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, fast_run, monkeypatch
         return rc
 
     sim.sleep_s = 0.0
+    # The fault at the plan's instant (E-11): the harness schedules the
+    # restart at t+150 s and records that instant; the fake run lasts about
+    # a second, so the timer the harness starts fires at once instead. Only
+    # run.py's view of the threading module is stubbed.
+    class _PromptTimer(threading.Timer):
+        def __init__(self, interval, function, args=None, kwargs=None):
+            super().__init__(0.05, function, args=args, kwargs=kwargs)
+
+    threading_view = types.SimpleNamespace(**{name: getattr(threading, name) for name in dir(threading) if not name.startswith("__")})
+    threading_view.Timer = _PromptTimer
+    monkeypatch.setattr(run_mod, "threading", threading_view)
     rc, run_dir, _record = _item18_run(
         tmp_path,
         plan_path,
         sim,
         monkeypatch,
         run_id=run_id,
+        restart_at_s=float(pe.PROOF_RESTART_AT_S),
         controller_url="http://127.0.0.1:8000",
         twin_snapshot_cmd=(
             f'"{PY}" "{snapshot_script.as_posix()}" {{run_id}} "{{dest}}" '
@@ -2692,6 +4135,8 @@ def test_end_to_end_over_a_harness_built_run_dir(tmp_path, fast_run, monkeypatch
     assert pe.simulator_manifest_rel(run_id) in artefacts.files_present and "resources.csv" in artefacts.files_present
     assert (manifest["scenario"], manifest["duration_s"], manifest["rate_msg_s"], manifest["warmup_s"]) == ("nominal", 300, 11.2, 0)
     assert manifest["events_fetch"]["ok"] is True and manifest["resource_source"] == "sut-collector"
+    assert manifest["restart"]["requested_at_s"] == 150.0 and manifest["restart"]["executed"] is True
+    assert pe.harness_admission(manifest, run_dir)["form"] == "valid"
 
     out = tmp_path / "proof_verdict.json"
     session = _session_file(tmp_path)
