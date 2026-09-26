@@ -148,20 +148,27 @@ def test_a_blocked_request_is_never_overlapped_and_is_followed_after_50_ms(tmp_p
     assert all(r["next_wait_s"] == "0.050" for r in _attempts(log))
 
 
-def test_the_stop_event_cancels_a_fast_retry_at_once(tmp_path: Path, monkeypatch) -> None:
-    fetch = _Fetch(failures=0, fail_always=True)
+@pytest.mark.parametrize("fail_always", [True, False], ids=["retry-wait", "first-wait"])
+def test_the_stop_event_cancels_every_wait_at_once(tmp_path: Path, monkeypatch, fail_always: bool) -> None:
+    """Long waits, so that only the stop event can end them within a second:
+    a retry wait of 5 s after failed polls, and the 10 s the thread keeps
+    after a successful entry poll."""
+    fetch = _Fetch(failures=0, fail_always=fail_always)
     monkeypatch.setattr(cm, "fetch_metrics", fetch)
-    s = cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=1.0, fast_retry_s=0.05,
+    s = cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=10.0, fast_retry_s=5.0,
                                     attempts_path=tmp_path / "a.csv")
     s.__enter__()
     time.sleep(0.3)
+    calls = len(fetch.calls)
     started = time.monotonic()
     s.__exit__(None, None, None)
-    assert time.monotonic() - started < 0.5
-    calls = len(fetch.calls)
+    assert time.monotonic() - started < 1.0
     time.sleep(0.2)
     assert len(fetch.calls) == calls                        # nothing polls after the stop
-    assert s.fast_retries >= 3
+    if fail_always:
+        assert s.fast_retries >= 1 and calls == 1           # the entry poll, then a 5 s retry wait
+    else:
+        assert s._first_wait > 9.0 and calls == 1           # the entry poll, then the kept first wait
 
 
 def test_the_cap_holds_in_the_running_thread(tmp_path: Path, monkeypatch) -> None:
@@ -184,9 +191,16 @@ def test_the_default_sampler_writes_no_attempts_log_and_never_retries_fast(tmp_p
     monkeypatch.setattr(cm, "fetch_metrics", fetch)
     with cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=0.3) as s:
         time.sleep(0.5)
-    assert s.fast_retry_s is None and s.attempts_path is None
+    assert s.fast_retry_s is None and s.attempts_path is None and s._first_wait == 0.0
     assert (s.fast_retries, s.failure_episodes) == (0, 0)
     assert not list(tmp_path.glob("*attempts*"))
     calls = sorted(fetch.calls)
-    # the entry poll and the thread's first poll back to back, then one every 0.3 s
+    # as before this mode existed: the entry poll and the thread's first poll
+    # back to back, then one every 0.3 s
+    assert calls[1][0] - calls[0][1] < 0.1
     assert len(calls) <= 4
+
+
+def test_an_attempts_log_without_the_retry_mode_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        _sampler(tmp_path, attempts_path=tmp_path / "a.csv")

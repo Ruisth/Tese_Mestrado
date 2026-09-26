@@ -3838,7 +3838,8 @@ is unchanged.
   pace for at most `fast_retry_cap_s` (60 s) from its first failed request.
   Requests stay serial with the same five-second timeout, the stop event
   cancels every wait, and in this mode the thread keeps the wait left by the
-  entry poll. Every attempt is written to `controller_metrics.attempts.csv`
+  entry poll (the default thread still polls at once after it); an attempts
+  log without the mode is refused. Every attempt is written to `controller_metrics.attempts.csv`
   (host instants, outcome, wait); no reading is changed, interpolated or
   replaced by a host instant. The `run` subcommand's `--metrics-fast-retry`
   (refused without `--controller-url`) enables it and the manifest's
@@ -3846,13 +3847,15 @@ is unchanged.
   campaign has no such option and every other run builds the sampler as
   before. `tools/session/proof.sh` passes it and records it in the attempt's
   workload.
-- **Tests.** `src/tests/test_metrics_fast_retry.py` (13): the scheduling
+- **Tests.** `src/tests/test_metrics_fast_retry.py`: the scheduling
   rule with explicit instants (default unchanged; 50 ms after a completed
   failure; the rest of the second after a success; a failure that took the
   whole timeout still waits 50 ms; the 60 s cap, counted once per episode,
   and a new episode after a success; settings out of range refused) and the
   running thread with a stub fetch (serial requests, never two in flight,
-  the attempts log, the cap, the stop event, the default writes no log);
+  the attempts log, the cap, the stop event ending a 5 s retry wait and a
+  10 s first wait within a second, the default's immediate first thread
+  poll and no log); 15 cases;
   `test_experiments_run.py`: the manifest record and the attempts log only
   when asked, the option on `run` only, the usage error without a URL;
   `test_proof_driver.py`: the proof driver passes it and the runbook's
@@ -3864,6 +3867,11 @@ is unchanged.
   request's own latency adds to the 50 ms, the first answered reading may
   still come after a redelivery, and a missed observation stays
   inconclusive. Neither run shows that this setting would have caught an
-  early enough reading.
+  early enough reading. The review found one older defect, left unchanged
+  here because fixing it changes the default sampler: an
+  `http.client.HTTPException` that is not an `OSError` (for example
+  `IncompleteRead`, a kill between the headers and the body) is not caught
+  by `_sample_once` and ends the sampler thread; the fix (adding it to the
+  caught exceptions) is a separate decision.
 - **Decisions and next steps.** None accepted here. A further finite-proof
   attempt needs the student's separate decision.

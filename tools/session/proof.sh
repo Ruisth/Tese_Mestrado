@@ -1745,9 +1745,9 @@ proof_harness_args() {
 # The harness is given --metrics-fast-retry, which no other driver passes: a
 # failed /metrics poll is retried after 50 ms (at most 60 s per failure
 # episode), so that the first reading of the process after the fault is
-# taken as soon as it answers and the kill's band on the controller clock
-# (E-8) is as narrow as the controller allows. It narrows the band; it does
-# not guarantee that a redelivered identity lands after it.
+# taken within about 50 ms of its first answer, plus the request's own
+# duration. That can narrow the kill's band on the controller clock (E-8);
+# it does not guarantee that a redelivered identity lands after it.
 # The remainder is checked before the step is dispatched, as for every live
 # step, and it is preceded by 'tunnel-ready' (10a below), a live step that
 # loads the 6.1 preamble under the bound with a trivial body. The harness

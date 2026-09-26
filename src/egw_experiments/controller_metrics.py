@@ -254,6 +254,10 @@ class ControllerMetricsSampler:
             )
         if not fast_retry_cap_s > 0:
             raise ValueError(f"fast_retry_cap_s={fast_retry_cap_s!r} must be above 0")
+        if attempts_path is not None and fast_retry_s is None:
+            # The default thread polls at once after the entry poll, so the
+            # log would state a wait that never happens.
+            raise ValueError("attempts_path is the log of the failed-poll retry mode: it needs fast_retry_s")
         self.csv_path = Path(csv_path)
         self.url = url
         self.interval_s = interval_s
