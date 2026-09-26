@@ -537,8 +537,13 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "unread record cannot "
         "show that no N1 case explains the twin: S5 and R4 are null for its "
         "device, its seq read from its lines, unless the twin's figures "
-        "refute under every naming of it (E-9), and the capacity (E-10) is "
-        "not checked on that device; a refutation that does not rest on it "
+        "refute under every naming of it (E-9); its publication cannot be "
+        "read, so it is offered every source that may have preceded its "
+        "redelivered duplicate line, the kill included unless its line was "
+        "written before the pre-kill process's last reading, and the capacity "
+        "(E-10) is checked across the run: a lost record makes the "
+        "attribution uncertain, never the sources the run records; a "
+        "refutation that does not rest on it "
         "(a double acceptance, a last_seq regression, a surplus beyond what "
         "the unread identities could explain) stands."
     ),
@@ -2718,6 +2723,7 @@ def name_n1_cases(
     post_kill_started_at: list[str] | None = None,
     deaths: list[Death] | None = None,
     deaths_unknown: str | None = None,
+    unread: dict[str, list[dict[str, Any]]] | None = None,
 ) -> N1Naming:
     """The N1 cases of S4, named only with a source and the twin's evidence
     (P-4, E-4); the duplicate-only identities that are not named are R3,
@@ -2745,6 +2751,11 @@ def name_n1_cases(
     not record may then have preceded any redelivery after that reading, so
     no candidate it may have preceded is named or R3 on what the recorded
     deaths alone give, and E-10's capacity is unknown (E-4, E-10).
+    ``unread`` (:func:`unread_duplicate_only`, given when the population
+    is not whole) lists per device the duplicate-only identities no
+    readable record carries: none is named or R3 here, but each is given
+    the sources that may have been its own, so that E-10's capacity is
+    checked on its device (E-7, the closure review of 5a7b967).
 
     What the candidates read in order give stands only as every legitimate
     assignment of the sources reads it (E-13): a naming, or an R3 for want
@@ -3647,7 +3658,7 @@ def name_n1_cases(
             occ["line"] for occ in occurrences if occ["device_uuid"] == device and _a5_may_serve(occ, redelivered)
         )
 
-    possible: dict[str, dict[str, list[int]]] = {}
+    possible: dict[str, dict[str, Any]] = {}
     a5_possible: dict[str, list[int]] = {}
     for device, entry in undecided.items():
         lines_here: set[int] = set()
@@ -3662,6 +3673,42 @@ def name_n1_cases(
             possible[message_id] = {
                 "a5_lines": a5,
                 "deaths": [death.index for death in available if _death_may_serve(death, by_id[message_id])],
+            }
+        a5_possible[device] = sorted(lines_here)
+    # E-7 over the population (E-11): an identity whose sent record was not
+    # read may be an N1 case of its device. Its publication cannot be read,
+    # so nothing read excludes it from the kill unless one of its lines was
+    # written before the pre-kill process's last reading (P-3); it is given
+    # every source that may have preceded its redelivered duplicate line,
+    # its device's occurrences and the available deaths, so that E-10's
+    # capacity is checked on its device: losing its record makes its
+    # attribution uncertain, never the sources the run records.
+    k_lower = classification.band.get("k_lower_monotonic_ns")
+    for device, items in sorted((unread or {}).items()):
+        lines_here = set(a5_possible.get(device, []))
+        for item in items:
+            message_id = item["message_id"]
+            identity_lines = lines.get(message_id, [])
+            received = [_received(line) for line in identity_lines if line.get("outcome") == "duplicate"]
+            read = [r for r in received if r is not None]
+            redelivered = min(read) if read and len(read) == len(received) else None
+            lined_before = _is_int(k_lower) and any(
+                r is not None and r < k_lower for r in (_received(line) for line in identity_lines)
+            )
+            unread_candidate = {
+                "message_id": message_id,
+                "class": "pre_kill_lined" if lined_before else "unread",
+                "published_before_kill": False,
+                "published_during_restart": False,
+                "publication_unplaced": True,
+            }
+            redelivery_of[message_id] = redelivered
+            a5 = _a5_lines(device, redelivered)
+            lines_here.update(a5)
+            possible[message_id] = {
+                "a5_lines": a5,
+                "deaths": [death.index for death in available if _death_may_serve(death, unread_candidate)],
+                "unread": True,
             }
         a5_possible[device] = sorted(lines_here)
     #: The cases named with an A5 occurrence, each with the sources that may
@@ -3962,8 +4009,9 @@ def s5_r4_delta(
     ``unread`` (:func:`unread_duplicate_only`, given when the population is
     not whole) names per device the duplicate-only identities no readable
     record carries: each is an undecided candidate of its device under E-9,
-    whose sources cannot be read, so the device takes no part in the
-    capacity check (E-7, E-11)."""
+    offered by the naming every source that may have preceded its
+    redelivery, and the device takes part in the capacity check like any
+    undecided device (E-7, E-10, E-11)."""
     if surplus is None:
         why = cannot or "a twin snapshot is missing"
         evidence = {"devices": [], "note": f"no delta can be computed: {why}"}
@@ -4012,8 +4060,10 @@ def s5_r4_delta(
                 f"device ({', '.join(unread_ids)}) that no readable record of this run in "
                 "sent_events.jsonl carries, and the population record is not whole (E-11): an "
                 "unread record cannot show that no N1 case explains the twin, so each can be shown "
-                "neither named nor R3, and its sources cannot be read, so the capacity is not "
-                "checked on the device (E-7)"
+                "neither named nor R3; its publication cannot be read, so it is offered every "
+                "source that may have preceded its redelivered duplicate line, the kill included, "
+                "and the capacity is checked across the run: a lost record makes the attribution "
+                "uncertain, never the sources the run records (E-7, E-10)"
             )
             base = undecided_here or {"rule": "E-7", "why": None, "message_ids": []}
             undecided_here = {
@@ -4038,8 +4088,7 @@ def s5_r4_delta(
                 row["ok"] = None
                 devices.append(row)
                 undecided.append({"device_uuid": device, **undecided_here})
-                if not unread_here:
-                    pending.append((device, facts.delta - facts.accepted_lines - len(cases), row))
+                pending.append((device, facts.delta - facts.accepted_lines - len(cases), row))
                 continue
             note = (
                 f"no naming of the device's {len(ids)} undecided candidate(s) ({', '.join(ids)}) "
@@ -4088,7 +4137,10 @@ def s5_r4_delta(
     sources = naming.sources
     possible = sources.get("possible_sources") or {}
     named_sources = sources.get("named_sources") or {}
-    members = {device: list(row["undecided"]["message_ids"]) for device, _count, row in pending}
+    members = {
+        device: list(row["undecided"]["message_ids"]) + list(row["undecided"].get("unread_identities") or [])
+        for device, _count, row in pending
+    }
     named_here = {
         device: sorted(m for m, entry in named_sources.items() if entry.get("device_uuid") == device)
         for device in members
@@ -5221,6 +5273,14 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
     # started_at cannot be read names no process, so the number of deaths
     # is unknown; it is never read as no process.
     deaths_unknown = deaths_unknown_of(split)
+    # E-7 over the population (E-11): with it not whole, a duplicate-only
+    # identity of the copy that no readable record carries may be an N1
+    # case the naming could not read.
+    population_unread = (
+        unread_duplicate_only(post.by_id, sent)
+        if post_copy_usable and not eligibility.checks["population"]["whole"]
+        else {}
+    )
     naming = name_n1_cases(
         sent.valid,
         post.by_id,
@@ -5233,6 +5293,7 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         split.post_started_ats,
         recorded_deaths(split, restart.get("executed") is True and restart.get("returncode") == 0),
         deaths_unknown,
+        population_unread,
     )
 
     s1 = s1_kill_found_work(split.pre_kill, restart, manifest.get("controller_marker"))
@@ -5251,14 +5312,6 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         s4 = Criterion("S4", None, dict(unread), ("P-4", "E-4", "E-7"), why)
         r3 = Criterion("R3", None, dict(unread), ("P-4", "E-4", "E-7"), why)
         r1 = Criterion("R1", None, {**unread, "drain_outcome": drain_outcome}, ("P-7", "E-7"), why)
-    # E-7 over the population (E-11): with it not whole, a duplicate-only
-    # identity of the copy that no readable record carries may be an N1
-    # case the naming could not read.
-    population_unread = (
-        unread_duplicate_only(post.by_id, sent)
-        if post_copy_usable and not eligibility.checks["population"]["whole"]
-        else {}
-    )
     s5, r4 = s5_r4_delta(surplus, run_id, naming, cannot, population_unread)
     criteria = {"S1": s1, "S2": s2, "S3": s3, "S4": s4, "S5": s5, "S6": s6}
     refutations = {"R1": r1, "R2": r2, "R3": r3, "R4": r4}

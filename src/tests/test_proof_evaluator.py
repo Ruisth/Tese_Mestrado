@@ -3855,6 +3855,60 @@ def test_the_population_defect_keeps_a_refutation_that_does_not_rest_on_the_unre
     assert "advanced by 3 against 1 accepted line(s) and 0 named N1 case(s)" in r4["evidence"]["mismatches"][0]["problems"][0]
 
 
+def _lose_sent_record(artefacts: pe.RunArtefacts, message_id: str, form: str) -> pe.RunArtefacts:
+    """One identity's sent record lost as the loader hands it on (without a
+    message_id, or gone), the simulator's total and everything else kept."""
+    index = next(i for i, record in enumerate(artefacts.sent_events) if record.get("message_id") == message_id)
+    if form == "malformed":
+        artefacts.sent_events[index] = {"run_id": RID}
+    else:
+        del artefacts.sent_events[index]
+    return artefacts
+
+
+@pytest.mark.parametrize("form", ["missing", "malformed"])
+def test_an_unread_identity_does_not_hide_an_aggregate_r4_the_sources_establish(form: str) -> None:
+    """The closure review of 5a7b967: B and F duplicate-only on D1, the twin
+    two beyond its one accepted line, one recorded death and no A5
+    occurrence (the fixture of the E-4-beside case above). With every record
+    read the one death cannot explain two increments and R4 stands. Losing
+    only F's sent record makes F's attribution uncertain, not the sources:
+    the complete controller log and readings still record one death and no
+    A5 occurrence, at most one exceptional increment, which the kill case
+    already holds. The aggregate R4 stands on the read evidence; the
+    population defect stays visible; no identity is named as the culprit."""
+    in_band = (K_LOWER + K_UPPER) // 2
+    F = ("f-mid", D1, 2, 401 * NS)
+    lines = B_DUPLICATE + [("f-mid", D1, 2, "duplicate", in_band, None)]
+    twins = {D1: 2, "seqs": [(D1, 2)]}
+    whole = pe.evaluate(_artefacts(sent=SENT + [F], lines=lines, extra_after=twins), _session())
+    assert _outcome(whole)["result"] == "refutes" and _criterion(whole, "R4")["observed"] is True
+    doc = pe.evaluate(_lose_sent_record(_artefacts(sent=SENT + [F], lines=lines, extra_after=twins), "f-mid", form), _session())
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes", outcome
+    assert [r.split(":")[0] for r in outcome["refutations"]] == ["R4"]
+    r4 = _criterion(doc, "R4")
+    assert r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+    capacity = _capacity(doc)
+    assert capacity["applied"] is True and capacity["known"] is True and capacity["consistent"] is False
+    assert capacity["deaths_recorded"] == 1 and capacity["kill_available"] == 0
+    # No identity is the mismatch or an R3 of its own: F's attribution stays
+    # uncertain, and the mismatch is the device's figures.
+    assert _criterion(doc, "R3")["observed"] is not True
+    assert "no identity is named as the case and none as the mismatch" in r4["evidence"]["mismatches"][-1]["note"]
+    # The population defect stays visible beside the refutation.
+    assert _eligibility(doc)["eligible"] is False
+    assert any(item.get("unread_identities") == ["f-mid"] for item in r4["evidence"]["undecided"]) or any(
+        (row.get("undecided") or {}).get("unread_identities") == ["f-mid"] for row in r4["evidence"]["devices"]
+    )
+    # Unknown sources remain inconclusive: with the controller log unread the
+    # same lost record refutes nothing on capacity grounds.
+    unread_log = _lose_sent_record(_artefacts(sent=SENT + [F], lines=lines, extra_after=twins), "f-mid", form)
+    unread_log.controller_log = None
+    doc = pe.evaluate(unread_log, _session())
+    assert _outcome(doc)["result"] == "inconclusive" and _criterion(doc, "R4")["observed"] is None
+
+
 # ---------------------------------------------------------------------------
 # 28-32. the document and the CLI
 # ---------------------------------------------------------------------------
