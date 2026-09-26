@@ -546,7 +546,16 @@ stated in the document, labelled with its flag (`P-1` to `P-7`, `E-1` to
 and a refutation rests only on evidence that was read and verified (`E-7`: a
 post-drain copy, a twin snapshot or the controller log that is absent,
 unverified or unreadable leaves the criteria that depend on it null and the
-run inconclusive; `E-8`: a duplicate-only identity that cannot be placed
+run inconclusive, and, with the population record not whole (`E-11`,
+`proof_eligibility.checks.population.whole`), a duplicate-only identity of
+the post-drain copy that no readable record of this run carries may be an
+N1 case the naming cannot read, so `S5` and `R4` are null on its device
+unless the twin's figures refute under every naming of it (`E-9`), with no
+capacity checked there (`E-10`) — the delta review of 2026-09-26 (F1b)
+found the lost sent record of the one N1 identity turning the supporting
+fixture's surplus into a false R4 — while a double acceptance, a
+`last_seq` regression or a surplus beyond the unread identities stands;
+`E-8`: a duplicate-only identity that cannot be placed
 against the kill — its line received at or inside the controller-clock band
 between the last pre-kill and the first post-kill reading, or without a
 `received_monotonic_ns`, or with no band at all because the kill could not
