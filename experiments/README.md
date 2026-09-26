@@ -542,7 +542,7 @@ rests on; the named N1 cases with their source and the twin's surplus; the
 report by class of identity) and `restoration` (echoed from the driver's
 session facts). Where a criterion needs a rule to become code, the rule is
 stated in the document, labelled with its flag (`P-1` to `P-7`, `E-1` to
-`E-12`), and is conservative: what cannot be shown is never read as support,
+`E-13`), and is conservative: what cannot be shown is never read as support,
 and a refutation rests only on evidence that was read and verified (`E-7`: a
 post-drain copy, a twin snapshot or the controller log that is absent,
 unverified or unreadable leaves the criteria that depend on it null and the
@@ -563,7 +563,15 @@ the process that died and the first reading of the next (`monotonic_ns`),
 and may have preceded a candidate's redelivery only when that interval's
 lower bound is at or below the `received_monotonic_ns` of the candidate's
 first duplicate line (a tie is read inclusively, as the band of `E-8` is),
-or when either cannot be read or the readings contradict the interval;
+or when either cannot be read or the readings contradict the interval; a
+controller process whose readings carry no `monotonic_ns` cannot be placed
+among the others and is never read as the last of them (the check of round
+3 found it sorted to the end of the chain and the death before it read as
+placed, a false R4): every death that may be its own — after the kill, the
+death of the process ordered before it, which may be the last and never
+have died, and its own — is not placed and may have preceded any
+redelivery, while the kill keeps the pre-kill process's last reading as its
+lower bound, which holds whatever process came next;
 beside a further death that may have preceded a claimant's redelivery no
 claimant of the kill is named and each is unshown, a further death wholly
 after every claimant's redelivery leaves the one-death reading (a lone
@@ -594,7 +602,9 @@ the matching and each keeps one source there, any occurrence of its device
 or, when nothing read excludes it from the kill, any death that may have
 preceded its redelivery, so a named case may leave its occurrence to an
 unshown candidate and the occurrence recorded against it never decides the
-capacity (`P-4`: each occurrence names one case at most, and a device's
+capacity, and an undecided candidate the kill cannot explain (one `E-13`
+leaves undecided) is offered its device's occurrences and no death (`P-4`:
+each occurrence names one case at most, and a device's
 occurrences are offered first to the candidates the kill cannot explain, so
 an occurrence two candidates contend for goes to the one no other source
 could explain, each candidate taking the unused occurrence received last
@@ -602,7 +612,8 @@ before its redelivery, so the occurrences name as many candidates as their
 order allows whatever the order of the log lines;
 the read-only check of 2026-09-25 on `E-10` found a false R4 when the
 earliest occurrence was taken, and a false R3 when the candidate order gave
-the contended occurrence away); a
+the contended occurrence away; what this reading names stands only as
+`E-13` states); a
 surplus of two on one device, or of one on each of two devices, with one
 death that may precede them and no such occurrence, or a further death
 wholly after the redeliveries it would have to explain (the joint check of
@@ -629,7 +640,16 @@ the plan's instant and demonstrated (the manifest's restart record
 requested at t+150 s — its `requested_at_s`, the instant `--restart-at-s`
 scheduled, the ADR's "fault | at t+150 s" — executed with exit 0, and the
 session facts' `restart_shown` true; absent or null, `restart_shown` is
-unknown under `P-6`, never read as shown); and the harness copy
+unknown under `P-6`, never read as shown); the harness's exit, when the
+session facts carry it (`harness_exit`, which the driver records before the
+evaluator runs), agreeing with the admission as the driver's own
+eligibility reads it — 0 beside a `valid` manifest, 0 or 1 in the
+sampling-gap form, in which the harness exits 1 — any other exit being a
+failure the manifest does not record, so the run is not eligible and no
+`supports` stands beside a driver that refuses the run (re-check 0 of round
+3), while without it (a standalone evaluation has only the manifest) the
+manifest's own validity stands and the absence is reported in
+`proof_eligibility.checks.harness_exit`, deciding nothing; and the harness copy
 `events.jsonl` with its `events_fetch` recorded ok and the collector file
 `resources.csv` from the SUT collector in the evidence inventory (in
 `E-12`'s sampling-gap form, the rejected collector file where the rejection
@@ -666,7 +686,49 @@ sha256 of every file it read, in the document's `sources`, carries the
 integrity of what it used, and a `SHA256SUMS` present that does not verify
 is never accepted. `harness_admission(manifest, run_dir)` returns
 `{admitted, form, reasons, collector_file, seal_withheld_for, rule}` and is
-the one function the evaluator and the driver both apply; and R1 (missing
+the one function the evaluator and the driver both apply; `E-13`, from round
+3 of the review (the probe `g_same_tier_probe.py`, and the Project Manager's
+F3: "keep cases ambiguous when more than one legitimate assignment remains"
+and "do not arbitrarily name one particular identity as the culprit when
+only the aggregate inconsistency is established"): a duplicate-only
+candidate is named, or R3 for want of a source, only as every legitimate
+assignment of the sources the run evidences reads it, never as the order in
+which the candidates or the log lines are read — an assignment gives each
+candidate on a device with the twin's surplus at most one source that may
+have preceded its redelivery (an A5 occurrence of its device, named
+`a3-connection-end` when both stamps are read and in order; the kill, named
+`kill` for a claimant `P-4` names and unshown for one that nothing read
+excludes from it; a further death, never named), each source serving one
+candidate at most, a candidate the twin shows unapplied holding none and an
+unshown one without twin evidence that may have been in progress at the
+kill possibly holding it; it is legitimate when it serves as many
+candidates as the sources can serve, since the twin's surplus counts each
+of them applied; a case is named with the kind of its source (which of the
+device's occurrences it was is inference: the line shown is the one a
+legitimate assignment read from the stamps alone gives it — the latest
+redelivery first, the latest occurrence first, never the seqs or the order
+of the log lines — with every line it may have been listed in
+`controller_log_lines_possible`); a candidate that some legitimate
+assignments name and others do not, or name with the kill and with an
+occurrence, or whose reading in order none bears out, is neither named nor
+R3 — S4 and R3 null for it, its device undecided for S5 and R4, the run
+inconclusive on that ground, never `supports` and never refuted (two
+candidates that may both have been at the kill contending for one
+occurrence, which the seq order used to decide between `inconclusive` and
+`supports`; or a lone claimant of the kill with an occurrence before its
+redelivery); candidates whose lack of a source is R3 on what was read (the
+kill cannot explain them, or they claim it as `P-4` names it, with the
+controller log read) that contend for fewer sources than they number leave
+at least so many of them without one in any assignment, so R3 is observed
+on the group (`r3_groups`: the members, the sources they contend for and
+that least number), none of it named as a case or singled out as R3 and
+its device undecided for S5 and R4, while several claimants of the kill
+with no other source keep `E-4`'s reading (none named, each R3), and a
+group one of whose members is unshown on another ground refutes nothing;
+the legitimate assignments are read from one maximum matching and the
+alternating paths from it (`matching_alternatives`, `deficient_groups`),
+never from an order, and a regression checks them against an enumeration
+of every matching on random small cases; and R1 (missing
 after a completed drain) needs the manifest's drain record verified with
 outcome `quiet`, never the string alone).
 No timestamp enters the document, so repeated runs are byte-identical; the

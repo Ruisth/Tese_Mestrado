@@ -57,10 +57,14 @@ be shown neither way (E-8), never refuted on that ground; the twin's
 figures on such an identity's device refute only when no naming of it
 fits them (E-9), the namings respecting the sources the run evidences,
 their capacity across the whole run and their order against each
-candidate's redelivery on the controller clock (E-10); and a run that is
-not the prescribed execution with its records, or whose harness validity
-is not admitted, is not eligible: inconclusive, never support (E-11,
-E-12).
+candidate's redelivery on the controller clock (E-10); a candidate is
+named only as every legitimate assignment of those sources names it,
+never as the order it was read in, and candidates that contend for fewer
+sources than they number are R3 as a group, none singled out (E-13); and
+a run that is not the prescribed execution with its records, whose
+harness validity is not admitted, or whose harness exit the session
+facts record against that admission, is not eligible: inconclusive,
+never support (E-11, E-12).
 
 Exit codes, as ``broker_measure.sh`` reads the broker verdict: 0 supports,
 1 refutes, 3 inconclusive, 2 not evaluated (an input unreadable, a seal
@@ -177,6 +181,16 @@ ADMISSION_VALID = "valid"
 ADMISSION_SAMPLING_GAP_ONLY = "sampling-gap-only"
 ADMISSION_NOT_ADMITTED = "not-admitted"
 ADMISSION_UNKNOWN = "unknown"
+#: The harness exits that agree with each admitted form (E-11), as the
+#: driver's eligibility (proof.sh, P-16) reads the exit: run.py exits 0
+#: only when the simulator exited 0, the events were fetched and the
+#: validity is 'valid', and 1 otherwise, so a 'valid' manifest beside any
+#: other exit is a failure the manifest does not record, and the
+#: sampling-gap form exits 1 (0 accepted there, as the driver accepts it).
+HARNESS_EXITS_ADMITTED: dict[str, list[int]] = {
+    ADMISSION_VALID: [0],
+    ADMISSION_SAMPLING_GAP_ONLY: [0, 1],
+}
 #: run.ingest_resources' rejection warning, word for word: f"{source_label}
 #: {src} REJECTED (SUT resources treated as missing): " followed by
 #: resources.validate_resources_csv's problems joined by "; ". The two
@@ -382,7 +396,10 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "occurrence received last before its redelivered duplicate line "
         "(the earlier log line on a tie), so the occurrences name as many "
         "candidates as their order allows, whatever the order of the log "
-        "lines."
+        "lines. What this reading names stands only as E-13 states: a "
+        "naming that some legitimate assignment of the sources reads "
+        "otherwise is left unshown, and candidates that contend for fewer "
+        "sources than they number are R3 as a group, none of them named."
     ),
     "P-5": (
         "R4's \"last_seq regressed\": the after snapshot's last_run_id is this "
@@ -448,7 +465,14 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "inclusively as the band of P-3 and E-8 is), or when either cannot be "
         "read or the readings contradict the interval (the dying process read "
         "at or after the next one's first reading); a death wholly after the "
-        "redelivery cannot be its source. Beside a further death that may have preceded a claimant's "
+        "redelivery cannot be its source. A controller process whose readings "
+        "carry no monotonic_ns cannot be placed among the others and is never "
+        "read as the last of them: every death that may be its own (after the "
+        "kill, the death of the process ordered before it, which may be the "
+        "last process and never have died, and its own) is not placed and may "
+        "have preceded any redelivery, while the kill keeps the pre-kill "
+        "process's last reading as its lower bound, which holds whatever "
+        "process came next. Beside a further death that may have preceded a claimant's "
         "redelivery, a claimant of the kill cannot be told from an identity "
         "in progress at that further death, so no kill case is named and "
         "every claimant is neither named nor R3, its device undecided (E-9); "
@@ -552,7 +576,9 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "command's end, the restart executed with exit 0), any death that "
         "may have - so a named case may leave its occurrence to an undecided "
         "candidate, and the occurrence P-4 recorded against a case never "
-        "decides the capacity; the counts are small. When no such matching "
+        "decides the capacity; an undecided candidate the kill cannot explain "
+        "(left undecided by E-13) is offered its device's occurrences and no "
+        "death; the counts are small. When no such matching "
         "exists (a surplus of two on one device, or of one on each of two, with one "
         "death and no occurrence that may precede them; or a further death "
         "wholly after the redeliveries it would have to explain), no "
@@ -597,6 +623,15 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "(the manifest's restart record requested at t+150 s, its "
         "requested_at_s, executed with exit 0, and the session facts' "
         "restart_shown true; absent or null, restart_shown is unknown, P-6); "
+        "the harness's exit, when the session facts carry it (harness_exit, "
+        "which the driver records before the evaluator runs), agreeing with "
+        "the admission as the driver reads it: 0 beside a 'valid' manifest, 0 "
+        "or 1 in the sampling-gap form, in which the harness exits 1; any "
+        "other exit is a failure the manifest does not record and the run is "
+        "not eligible, so no 'supports' stands beside a driver that refuses "
+        "the run; without it (a standalone evaluation has only the manifest) "
+        "the manifest's own validity stands and the absence is reported, "
+        "deciding nothing; "
         "and every record of 'What it records' present with its fetch "
         "recorded successful: the harness copy events.jsonl with events_fetch "
         "ok (a readable file beside a failed or unrecorded fetch is not the "
@@ -642,6 +677,52 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "sources, carries the integrity of what it used; a SHA256SUMS present "
         "that does not verify is never accepted. The driver applies the same "
         "function (harness_admission), so the two parts cannot disagree."
+    ),
+    "E-13": (
+        "A duplicate-only candidate is named, or R3 for want of a source, only "
+        "as every legitimate assignment of the sources the run evidences reads "
+        "it, never as the order in which the candidates or the log lines are "
+        "read. An assignment gives each candidate on a device with the twin's "
+        "surplus at most one source that may have preceded its redelivered "
+        "duplicate line (E-4, E-10) - an A5 occurrence of its device (named "
+        "'a3-connection-end' when both stamps are read and in order, unshown "
+        "when either cannot be read), the kill (named 'kill' for a "
+        "restart-class candidate published before the restart command's "
+        "start with the restart executed with exit 0, P-4; unshown for one "
+        "that nothing read excludes from it, E-8), or a further death (never "
+        "named, P-4) - each source serving one candidate at most (N1); a "
+        "candidate the twin shows unapplied claims none (E-4), and an unshown "
+        "candidate without twin evidence that may have been in progress at "
+        "the kill may hold it (E-4). An assignment is legitimate when it "
+        "serves as many candidates as the sources can serve, since the twin's "
+        "surplus counts each of them applied. A case is named with the kind "
+        "of its source, the kill or an A3 connection end of its device; which "
+        "of the device's occurrences it was is inference (E-10), so the line "
+        "shown is the one a legitimate assignment read from the evidence alone "
+        "gives it (the candidates from the latest redelivery down, the "
+        "occurrences from the latest received, never the seqs or the order of "
+        "the log lines), with every line it may have been listed. A candidate "
+        "that some legitimate assignments "
+        "name and others do not, or name with the kill and with an "
+        "occurrence, or whose reading in order no legitimate assignment bears "
+        "out, is neither named nor R3: S4 and R3 are null for it and its "
+        "device is undecided for S5 and R4 (E-9, E-10), so the run is "
+        "inconclusive on that ground, never 'supports' and never refuted. "
+        "Candidates whose lack of a source is R3 on what was read (the kill "
+        "cannot explain them, or they claim it as P-4 names it, and the "
+        "controller log was read) that contend for fewer sources than they "
+        "number leave at least so many of them without one in any assignment: "
+        "R3 is observed on the group, listed with the sources it contends for "
+        "and that least number, and no identity of it is named as a case or "
+        "singled out as R3, since only the aggregate is established; its "
+        "device is undecided for S5 and R4 (E-9, E-10). Several claimants of "
+        "the kill with no other source keep E-4's reading (none named, each "
+        "R3). When a member of such a group is left unshown on another "
+        "ground, nothing is refuted on the group and none of it is named. The "
+        "legitimate assignments are read from one maximum matching and the "
+        "alternating paths from it, which give every source a candidate may "
+        "hold in some legitimate assignment and whether it may hold none, so "
+        "no order decides and nothing is enumerated by permutation."
     ),
 }
 
@@ -1459,12 +1540,22 @@ class Death:
     next_started_at: str | None
     after: int | None
     before: int | None
+    #: A controller process whose readings carry no monotonic_ns and whose
+    #: place among the processes therefore cannot be read, when this death
+    #: may be its own (E-4): the death is then not placed, whatever bound
+    #: the chain of readable processes gives it.
+    unordered_started_at: str | None = None
 
     @property
     def placed(self) -> bool:
-        """Its lower bound is read and the readings do not contradict it
-        (the dying process read at or after the next one's first reading)."""
-        return self.after is not None and (self.before is None or self.after < self.before)
+        """Its lower bound is read, the readings do not contradict it (the
+        dying process read at or after the next one's first reading), and
+        it cannot be the death of a process whose place cannot be read."""
+        return (
+            self.unordered_started_at is None
+            and self.after is not None
+            and (self.before is None or self.after < self.before)
+        )
 
     def may_precede(self, redelivered: int | None) -> bool:
         """Whether the death may have preceded a redelivered duplicate line
@@ -1477,6 +1568,12 @@ class Death:
         return self.after <= redelivered
 
     def placement(self) -> str:
+        if self.unordered_started_at is not None:
+            return (
+                f"not placed on the controller clock: process {self.unordered_started_at} has no "
+                "readable monotonic_ns, so its place among the controller processes cannot be read "
+                "and this death may be its own, at any instant; it may have preceded any redelivery"
+            )
         if self.after is None:
             return (
                 f"not placed on the controller clock (no readable monotonic_ns of process "
@@ -1503,6 +1600,7 @@ class Death:
             "after_monotonic_ns": self.after,
             "before_monotonic_ns": self.before,
             "placed": self.placed,
+            "unordered_started_at": self.unordered_started_at,
             "placement": self.placement(),
         }
 
@@ -1513,7 +1611,15 @@ def recorded_deaths(split: ProcessSplit, restart_ok: bool) -> list[Death]:
     their first reading on the controller clock (then by started_at), each
     death placed between the last reading of the process that died and the
     first reading of the next; or, when they record none, the manifest's
-    kill if it executed with exit 0, placed after the last pre-kill reading."""
+    kill if it executed with exit 0, placed after the last pre-kill reading.
+
+    A post-kill process whose readings carry no monotonic_ns cannot be
+    placed among the others, so it is never read as the last of them: the
+    deaths its place decides - the death of the process before it in the
+    chain (which may be the last process and never have died) and its own -
+    are not placed and may have preceded any redelivery (E-4: "or when
+    either cannot be read"). The kill keeps its lower bound, the pre-kill
+    process's last reading, which holds whatever process came next."""
     rows_of: dict[str | None, list[MetricsRow]] = {split.pre_started_at: list(split.pre_kill)}
     for row in split.post_kill:
         rows_of.setdefault(row.started_at, []).append(row)
@@ -1529,10 +1635,20 @@ def recorded_deaths(split: ProcessSplit, restart_ok: bool) -> list[Death]:
         key=lambda s: (_first(s) is None, _first(s) or 0, s),
     )
     chain = [split.pre_started_at, *order]
-    deaths = [
-        Death(index, chain[index], chain[index + 1], _last(chain[index]), _first(chain[index + 1]))
-        for index in range(len(order))
-    ]
+    deaths = []
+    for index in range(len(order)):
+        dying, following = chain[index], chain[index + 1]
+        # A death beside a process without a readable monotonic_ns may be
+        # that process's own, wherever it ran: not placed (the kill aside,
+        # which is the pre-kill process's death after its last reading).
+        unordered = (
+            next((started_at for started_at in (dying, following) if _first(started_at) is None), None)
+            if index > 0
+            else None
+        )
+        deaths.append(
+            Death(index, dying, following, _last(dying), _first(following), unordered_started_at=unordered)
+        )
     if not deaths and restart_ok:
         deaths.append(Death(0, split.pre_started_at, None, _last(split.pre_started_at), None))
     return deaths
@@ -2250,6 +2366,13 @@ class N1Naming:
     #: that may have preceded one of its candidates, and the sources that
     #: may have been those of each case named with an occurrence.
     sources: dict[str, Any] = field(default_factory=dict)
+    #: E-13: the groups of candidates on which R3 is observed as an
+    #: aggregate (at least so many of them have no source), none of their
+    #: identities named as a case or singled out as R3.
+    r3_groups: list[dict[str, Any]] = field(default_factory=list)
+    #: E-13: the legitimate assignments of the sources, as read - what each
+    #: candidate they cover may be given, and which namings they left.
+    assignments: dict[str, Any] = field(default_factory=dict)
 
     @property
     def named_ids(self) -> list[str]:
@@ -2257,6 +2380,228 @@ class N1Naming:
 
     def named_on(self, device: str) -> list[dict[str, Any]]:
         return [case for case in self.named if case["device_uuid"] == device]
+
+
+# ---------------------------------------------------------------------------
+# E-13: the legitimate assignments of the sources to the candidates
+# ---------------------------------------------------------------------------
+#
+# An assignment gives each candidate at most one source that may have
+# preceded its redelivery, each source serving one candidate at most (N1);
+# it is legitimate when it serves as many candidates as the sources can
+# serve (a maximum matching). Which candidate may be given which source in
+# SOME legitimate assignment, and which may go without one, follows from
+# one maximum matching M and the alternating paths from it (an edge lies in
+# some maximum matching iff it is in M, on an even alternating path from a
+# vertex M leaves free, or on an alternating cycle), so no order of the
+# candidates or of the log lines decides anything and nothing is
+# enumerated by permutation.
+
+#: What a source makes of the candidate it serves (E-13): the two kinds a
+#: case is named with (S4), and the ones that leave it unshown.
+KIND_A3 = "a3-connection-end"
+KIND_KILL = "kill"
+KIND_KILL_UNSHOWN = "kill-unshown"
+KIND_FURTHER = "further-death"
+KIND_A5_UNORDERED = "a5-order-unread"
+KIND_NONE = "none"
+
+
+def _maximum_matching(
+    order: list[str], options: dict[str, list[str]], initial: dict[str, str] | None = None
+) -> dict[str, str]:
+    """A maximum matching of candidates to sources, each source serving one
+    candidate: ``initial`` (kept where it is a matching of the options) is
+    extended by an augmenting path from each candidate left free, in
+    ``order`` (Kuhn); returns candidate -> source."""
+    match: dict[str, str] = {}
+    held: dict[str, str] = {}
+    for candidate, source in (initial or {}).items():
+        if source in options.get(candidate, []) and source not in held and candidate not in match:
+            match[candidate] = source
+            held[source] = candidate
+    for start in order:
+        if start in match or not options.get(start):
+            continue
+        reached_from: dict[str, str] = {}
+        queue = [start]
+        head = 0
+        free_source = None
+        while head < len(queue) and free_source is None:
+            candidate = queue[head]
+            head += 1
+            for source in options.get(candidate, []):
+                if source in reached_from:
+                    continue
+                reached_from[source] = candidate
+                if source not in held:
+                    free_source = source
+                    break
+                queue.append(held[source])
+        source = free_source
+        while source is not None:
+            candidate = reached_from[source]
+            previous = match.get(candidate)
+            match[candidate] = source
+            held[source] = candidate
+            source = previous
+    return match
+
+
+def _strong_components(nodes: list[Any], successors: dict[Any, list[Any]]) -> dict[Any, int]:
+    """The strongly connected components of a directed graph (Kosaraju,
+    iterative): node -> component number."""
+    finished: list[Any] = []
+    seen: set[Any] = set()
+    for root in nodes:
+        if root in seen:
+            continue
+        seen.add(root)
+        stack = [(root, iter(successors.get(root, [])))]
+        while stack:
+            node, pending = stack[-1]
+            following = next((n for n in pending if n not in seen), None)
+            if following is None:
+                stack.pop()
+                finished.append(node)
+            else:
+                seen.add(following)
+                stack.append((following, iter(successors.get(following, []))))
+    predecessors: dict[Any, list[Any]] = {}
+    for node, targets in successors.items():
+        for target in targets:
+            predecessors.setdefault(target, []).append(node)
+    component: dict[Any, int] = {}
+    label = 0
+    for root in reversed(finished):
+        if root in component:
+            continue
+        component[root] = label
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            for previous in predecessors.get(node, []):
+                if previous not in component:
+                    component[previous] = label
+                    stack.append(previous)
+        label += 1
+    return component
+
+
+def matching_alternatives(
+    candidates: list[str], options: dict[str, list[str]], match: dict[str, str]
+) -> tuple[set[str], dict[str, set[str]]]:
+    """Over every maximum matching of ``candidates`` to their ``options``
+    (``match`` is one): the candidates some maximum matching leaves without
+    a source, and per candidate the sources some maximum matching gives it.
+    The alternating graph D runs candidate -> source along an option M does
+    not use and source -> candidate along one it does; a candidate may go
+    free when D reaches it from a free candidate, and an option not in M
+    lies in some maximum matching when its candidate is so reached, its
+    source reaches a free source, or both lie on one cycle of D."""
+    held = {source: candidate for candidate, source in match.items()}
+    users: dict[str, list[str]] = {}
+    for candidate in candidates:
+        for source in options.get(candidate, []):
+            users.setdefault(source, []).append(candidate)
+    # Candidates an even alternating path from a free candidate reaches.
+    may_go_free = {c for c in candidates if c not in match}
+    stack = list(may_go_free)
+    visited: set[str] = set()
+    while stack:
+        candidate = stack.pop()
+        for source in options.get(candidate, []):
+            if match.get(candidate) == source or source in visited:
+                continue
+            visited.add(source)
+            other = held.get(source)
+            if other is not None and other not in may_go_free:
+                may_go_free.add(other)
+                stack.append(other)
+    # Sources from which an alternating path reaches a free source.
+    reaches_free = {source for source in users if source not in held}
+    stack = list(reaches_free)
+    while stack:
+        source = stack.pop()
+        for candidate in users.get(source, []):
+            if match.get(candidate) == source:
+                continue
+            previous = match.get(candidate)
+            if previous is not None and previous not in reaches_free:
+                reaches_free.add(previous)
+                stack.append(previous)
+    # Alternating cycles.
+    nodes: list[tuple[str, str]] = [("c", c) for c in candidates] + [("s", s) for s in sorted(users)]
+    successors: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    for candidate in candidates:
+        for source in options.get(candidate, []):
+            if match.get(candidate) == source:
+                successors.setdefault(("s", source), []).append(("c", candidate))
+            else:
+                successors.setdefault(("c", candidate), []).append(("s", source))
+    component = _strong_components(nodes, successors)
+    possible = {
+        candidate: {
+            source
+            for source in options.get(candidate, [])
+            if match.get(candidate) == source
+            or candidate in may_go_free
+            or source in reaches_free
+            or component[("c", candidate)] == component[("s", source)]
+        }
+        for candidate in candidates
+    }
+    return may_go_free, possible
+
+
+def deficient_groups(candidates: list[str], options: dict[str, list[str]]) -> list[dict[str, Any]]:
+    """The groups of ``candidates`` (each with at least one option) that
+    contend for fewer sources than they number: from one maximum matching,
+    the candidates an alternating path reaches from a free one and the
+    sources they may have had, split into connected parts. Every source of
+    a part serves one of its candidates in the matching, so any assignment
+    at all leaves at least as many of the part without a source as the
+    matching does (Hall's deficiency of the part); each part is returned
+    with its members, its sources and that least number."""
+    with_options = [c for c in candidates if options.get(c)]
+    match = _maximum_matching(with_options, options)
+    held = {source: candidate for candidate, source in match.items()}
+    free = [c for c in with_options if c not in match]
+    if not free:
+        return []
+    members = set(free)
+    stack = list(free)
+    while stack:
+        candidate = stack.pop()
+        for source in options[candidate]:
+            other = held.get(source)
+            if other is not None and other not in members:
+                members.add(other)
+                stack.append(other)
+    parent: dict[tuple[str, str], tuple[str, str]] = {}
+
+    def _root(node: tuple[str, str]) -> tuple[str, str]:
+        while parent.setdefault(node, node) != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    for candidate in members:
+        for source in options[candidate]:
+            parent[_root(("c", candidate))] = _root(("s", source))
+    parts: dict[tuple[str, str], list[str]] = {}
+    for candidate in members:
+        parts.setdefault(_root(("c", candidate)), []).append(candidate)
+    groups = []
+    for part in parts.values():
+        groups.append(
+            {
+                "message_ids": sorted(part),
+                "sources": sorted({source for c in part for source in options[c]}),
+                "without_source_at_least": sum(1 for c in part if c not in match),
+            }
+        )
+    return sorted(groups, key=lambda group: group["message_ids"])
 
 
 def name_n1_cases(
@@ -2290,7 +2635,14 @@ def name_n1_cases(
     have preceded (E-10); a further death, which the plan did not prescribe,
     is never named as a source (P-4), and no claimant of the kill is named
     beside one that may have preceded its redelivery (E-4). Without
-    ``deaths`` every death recorded may have preceded every redelivery."""
+    ``deaths`` every death recorded may have preceded every redelivery.
+
+    What the candidates read in order give stands only as every legitimate
+    assignment of the sources reads it (E-13): a naming, or an R3 for want
+    of a source, that some legitimate assignment reads otherwise is left
+    unshown, and candidates whose lack of a source is R3 on what was read
+    and that contend for fewer sources than they number are R3 as a group
+    (``r3_groups``), none of them named or singled out."""
     restart = restart if isinstance(restart, dict) else {}
     restart_ok = restart.get("executed") is True and restart.get("returncode") == 0
     #: The deaths the run records: every process start the readings show
@@ -2352,6 +2704,12 @@ def name_n1_cases(
     #: (message_id, the rule that leaves them unshown).
     possible_claimants: list[tuple[str, str]] = []
     used_occurrences: set[int] = set()
+    #: E-13: the candidates on devices with the twin's surplus (each with
+    #: its device's figures), whose sources the legitimate assignments give
+    #: out, and the unshown ones without twin evidence that may have been in
+    #: progress at the kill (E-4), which may hold it in an assignment.
+    pool: list[tuple[dict[str, Any], Surplus]] = []
+    unshown_claimants: list[dict[str, Any]] = []
 
     def _reject(candidate: dict[str, Any], why: str) -> None:
         r3.append({**candidate, "why_not_named": why})
@@ -2433,6 +2791,7 @@ def name_n1_cases(
                 cannot.append({**candidate, "why_not_shown": why})
                 if _may_have_been_at_the_kill(candidate):
                     possible_claimants.append((candidate["message_id"], "E-7"))
+                    unshown_claimants.append(candidate)
             continue
         if facts.surplus <= 0:
             for candidate in device_candidates:
@@ -2450,6 +2809,7 @@ def name_n1_cases(
                     f"surplus of {facts.surplus}: they cannot be told apart, so none is named",
                 )
             continue
+        pool.extend((candidate, facts) for candidate in device_candidates)
         # P-4 with N1's capacity, each occurrence naming one case at most:
         # the candidates the kill cannot explain are offered the device's
         # occurrences first (an occurrence two candidates contend for goes
@@ -2700,6 +3060,281 @@ def name_n1_cases(
                     "more than one identity claims the one death: at most one N1 case per death (E-4)"
                     + after_all,
                 )
+
+    # E-13: the namings read above in the candidates' order stand only as
+    # every legitimate assignment of the sources reads them. An assignment
+    # gives each candidate on a device with the twin's surplus (and each
+    # unshown one without twin evidence that may have been in progress at
+    # the kill, E-4) at most one source that may have preceded its
+    # redelivery, each source serving one candidate (N1); the legitimate
+    # ones serve as many candidates as the sources can. A candidate the
+    # twin shows unapplied (its after snapshot's last_seq below its seq)
+    # claims no case (E-4) and holds none.
+    by_id = {candidate["message_id"]: candidate for candidate in candidates}
+
+    def _claim(candidate: dict[str, Any]) -> str:
+        """'kill' for a claimant of the kill P-4 can name, 'unshown' for one
+        nothing read excludes from it (E-8), 'none' for one it cannot
+        explain."""
+        if candidate["in_restart_class"] and candidate["published_before_kill"] and restart_ok:
+            return "kill"
+        return "unshown" if _may_have_been_at_the_kill(candidate) else "none"
+
+    options: dict[str, list[str]] = {}
+    kind_of: dict[tuple[str, str], str] = {}
+    a5_by_source = {f"A5 line {occ['line']}": occ for occ in occurrences}
+
+    def _offer(message_id: str, source: str, kind: str) -> None:
+        options[message_id].append(source)
+        kind_of[(message_id, source)] = kind
+
+    def _offer_deaths(message_id: str, claim: str) -> None:
+        redelivered = redelivery_of.get(message_id)
+        for death in deaths:
+            if claim != "none" and death.may_precede(redelivered):
+                if death.index == 0:
+                    _offer(message_id, "death 0", KIND_KILL if claim == "kill" else KIND_KILL_UNSHOWN)
+                else:
+                    _offer(message_id, f"death {death.index}", KIND_FURTHER)
+
+    model_ids: list[str] = []
+    for candidate, facts in pool:
+        message_id = candidate["message_id"]
+        if facts.after_last_seq is None or candidate["seq"] is None or facts.after_last_seq < candidate["seq"]:
+            continue
+        model_ids.append(message_id)
+        options[message_id] = []
+        redelivered = redelivery_of.get(message_id)
+        for occ in occurrences:
+            if occ["device_uuid"] != (candidate["device_uuid"] or ""):
+                continue
+            stamp = occ["identity"].get("received_monotonic_ns")
+            if _is_int(stamp) and redelivered is not None:
+                if stamp < redelivered:
+                    _offer(message_id, f"A5 line {occ['line']}", KIND_A3)
+            else:
+                _offer(message_id, f"A5 line {occ['line']}", KIND_A5_UNORDERED)
+        _offer_deaths(message_id, _claim(candidate))
+    for candidate in unshown_claimants:
+        model_ids.append(candidate["message_id"])
+        options[candidate["message_id"]] = []
+        _offer_deaths(candidate["message_id"], "unshown")
+    # One legitimate assignment, read from the evidence alone (never the
+    # seqs, never the order of the log lines): the candidates from the
+    # latest redelivery down, each offered its occurrences from the latest
+    # received, then the deaths. It gives the line a named case shows.
+    def _option_order(source: str) -> tuple[int, int, int, int]:
+        occ = a5_by_source.get(source)
+        if occ is None:
+            return (1, 0, 0, int(source.split()[-1]))
+        stamp = occ["identity"].get("received_monotonic_ns")
+        return (0, 0, -stamp, occ["line"]) if _is_int(stamp) else (0, 1, 0, occ["line"])
+
+    for message_id in model_ids:
+        options[message_id].sort(key=_option_order)
+    model_ids.sort(key=lambda message_id: _candidate_order(by_id[message_id]))
+    chosen = _maximum_matching(
+        sorted(
+            model_ids,
+            key=lambda m: (redelivery_of.get(m) is None, -(redelivery_of.get(m) or 0), m),
+        ),
+        options,
+    )
+    may_go_free, may_hold = matching_alternatives(model_ids, options, chosen)
+    may_be = {
+        message_id: sorted(
+            {kind_of[(message_id, source)] for source in may_hold[message_id]}
+            | ({KIND_NONE} if message_id in may_go_free else set())
+        )
+        for message_id in model_ids
+    }
+
+    def _source_text(source: str) -> str:
+        if source.startswith("A5 line "):
+            return f"the A3 connection end of controller log line {source[len('A5 line '):]}"
+        return "the kill" if source == "death 0" else f"{source} (a further death)"
+
+    def _may_be_text(message_id: str, kind: str) -> str:
+        held = sorted(
+            (s for s in may_hold[message_id] if kind_of[(message_id, s)] == kind),
+            key=lambda s: (s.split()[0], int(s.split()[-1])),
+        )
+        lines = ", ".join(s.split()[-1] for s in held)
+        if kind == KIND_A3:
+            return f"named with an A3 connection end of its device (controller log line(s) {lines})"
+        if kind == KIND_KILL:
+            return "named with the kill"
+        if kind == KIND_KILL_UNSHOWN:
+            return (
+                "in progress at the kill, which it cannot be shown to have been (a line in the "
+                "sampling band, or a publication inside the restart command's window or unplaced, "
+                "as E-8 reads them), so not named"
+            )
+        if kind == KIND_FURTHER:
+            return f"in progress at a further death ({', '.join(held)}), which P-4 never names as a source"
+        if kind == KIND_A5_UNORDERED:
+            return (
+                f"in progress at an A3 connection end (controller log line(s) {lines}) whose order "
+                "against its redelivered duplicate line cannot be read, so not named"
+            )
+        return "without a source, each one that may have preceded its redelivery serving another candidate"
+
+    def _retract_why(message_id: str) -> str:
+        told = "; or ".join(_may_be_text(message_id, kind) for kind in may_be[message_id])
+        assignment = (
+            "each source serving one case at most (N1), as many candidates served as the sources "
+            "can serve, each only by a source that may have preceded its redelivered duplicate line"
+        )
+        if len(may_be[message_id]) > 1:
+            return (
+                f"more than one legitimate assignment of the sources the run evidences remains ({assignment}), "
+                f"and they do not name it alike: {told}; no assignment is chosen by sequence or log "
+                "order, so it is neither named nor R3 (E-13)"
+            )
+        return (
+            f"every legitimate assignment of the sources the run evidences ({assignment}) reads it "
+            f"alike: {told}; the reading of the candidates in order gave it another reading, which no "
+            "legitimate assignment bears out, so it is neither named nor R3 (E-13)"
+        )
+
+    # The candidates whose lack of a source is R3 on read evidence (not
+    # ones nothing read excludes from the kill, which E-8 leaves unshown,
+    # and only with the controller log read, E-7) that contend for fewer
+    # sources than they number: at least so many of them have no source.
+    without_twin = {candidate["message_id"] for candidate in unshown_claimants}
+    r3_eligible = [
+        message_id for message_id in model_ids
+        if log_problem is None and message_id not in without_twin and _claim(by_id[message_id]) != "unshown"
+    ]
+    groups = deficient_groups(r3_eligible, {m: options[m] for m in r3_eligible})
+    greedy_named = {case["message_id"]: case for case in named}
+    greedy_r3 = {item["message_id"] for item in r3}
+    greedy_unshown = {item["message_id"] for item in cannot}
+    retract: dict[str, str] = {}
+    grouped: list[dict[str, Any]] = []
+    kill_claimants_alone: set[str] = set()
+    for group in groups:
+        ids = group["message_ids"]
+        if group["sources"] == ["death 0"] and all(_claim(by_id[m]) == "kill" for m in ids):
+            # E-4's own case: several claimants of the one kill, none named
+            # and each R3, as read above.
+            kill_claimants_alone.update(ids)
+            continue
+        if any(m in greedy_unshown for m in ids):
+            # What leaves one of them unshown was read above; nothing is
+            # refuted on the group then, and none of it is named.
+            retract.update({m: _retract_why(m) for m in ids if m not in greedy_unshown})
+            continue
+        grouped.append(group)
+    in_groups = {m for group in grouped for m in group["message_ids"]}
+    for message_id in model_ids:
+        if message_id in in_groups or message_id in kill_claimants_alone or message_id in retract:
+            continue
+        if message_id in greedy_unshown:
+            # Unshown above, and it stays so; when the assignments may also
+            # give it an occurrence, E-13 says why in every order the
+            # candidates are read (E-4 and E-8 speak of the deaths alone).
+            if len(may_be[message_id]) > 1 and KIND_A3 in may_be[message_id]:
+                retract[message_id] = _retract_why(message_id)
+            continue
+        if message_id in greedy_named:
+            if may_be[message_id] == [greedy_named[message_id]["source"]]:
+                continue
+        elif message_id in greedy_r3:
+            if may_be[message_id] == [KIND_NONE]:
+                continue
+        else:
+            continue
+        retract[message_id] = _retract_why(message_id)
+    removed = set(retract) | in_groups
+    named[:] = [case for case in named if case["message_id"] not in removed]
+    r3[:] = [item for item in r3 if item["message_id"] not in removed]
+    # An unshown candidate E-13 speaks for leaves its earlier entry, so what
+    # the document says of it does not depend on the order it was read in.
+    cannot[:] = [item for item in cannot if item["message_id"] not in removed]
+    for device in list(undecided):
+        undecided[device]["message_ids"] = [m for m in undecided[device]["message_ids"] if m not in removed]
+        if not undecided[device]["message_ids"]:
+            del undecided[device]
+    for message_id in sorted(retract):
+        _cannot_show(by_id[message_id], "E-13", retract[message_id])
+    r3_groups: list[dict[str, Any]] = []
+    for group in grouped:
+        ids = group["message_ids"]
+        least = group["without_source_at_least"]
+        why = (
+            f"the {len(ids)} duplicate-only identities {', '.join(ids)} may have had only the "
+            f"source(s) {', '.join(_source_text(s) for s in group['sources'])}, each one that may have "
+            "preceded some of their redelivered duplicate lines, and each source serves one case at "
+            f"most (N1): at least {least} of them have no source, so R3 is observed on the group; "
+            "which of them were applied and which have none cannot be told, so none is named as a "
+            "case and none is singled out as R3 - only the aggregate is established (E-13)"
+        )
+        r3_groups.append(
+            {
+                "message_ids": ids,
+                "devices": sorted({by_id[m]["device_uuid"] or "" for m in ids}),
+                "sources": group["sources"],
+                "without_source_at_least": least,
+                "identities": [by_id[m] for m in ids],
+                "why": why,
+            }
+        )
+        for message_id in ids:
+            entry = undecided.setdefault(
+                by_id[message_id]["device_uuid"] or "", {"rule": "E-13", "why": why, "message_ids": []}
+            )
+            entry["message_ids"].append(message_id)
+    overturned = sorted(m for m in removed if m not in greedy_unshown)
+    if overturned:
+        notes.append(
+            f"{len(overturned)} naming(s) or R3 reading(s) of the candidates in order are not borne out "
+            "by every legitimate assignment of the sources the run evidences (E-13): "
+            + ", ".join(overturned)
+        )
+    # The line a case named with an occurrence shows is the one a legitimate
+    # assignment gives it; every line it may have been is listed beside it.
+    for case in named:
+        source = chosen.get(case["message_id"])
+        if case["source"] != KIND_A3 or source not in a5_by_source:
+            continue
+        occurrence = a5_by_source[source]
+        case["source_evidence"].update(
+            {
+                "controller_log_line": occurrence["line"],
+                "ts": occurrence["ts"],
+                "cause": occurrence["cause"],
+                "connection": occurrence["connection"],
+                "occurrence": occurrence["occurrence"],
+                "identity": occurrence["identity"],
+                "controller_log_lines_possible": sorted(
+                    a5_by_source[s]["line"]
+                    for s in may_hold[case["message_id"]]
+                    if kind_of[(case["message_id"], s)] == KIND_A3
+                ),
+            }
+        )
+    used_occurrences = {
+        case["source_evidence"]["controller_log_line"] for case in named if case["source"] == KIND_A3
+    }
+    assignments = {
+        "rule": "E-13",
+        "covered": len(model_ids),
+        "served_by_a_legitimate_assignment": len(chosen),
+        "may_be": {message_id: may_be[message_id] for message_id in sorted(model_ids)},
+        "sources_may_hold": {
+            message_id: sorted(may_hold[message_id]) for message_id in sorted(model_ids)
+        },
+        "not_borne_out": overturned,
+        "r3_groups": [group["message_ids"] for group in r3_groups],
+        "note": (
+            "the kinds each candidate takes under the legitimate assignments (a3-connection-end or "
+            "kill: named; kill-unshown, further-death, a5-order-unread: a source that cannot be "
+            "named; none: no source); a candidate is named only when it is named alike under every "
+            "one of them (E-13)"
+        ),
+    }
+
     for device in sorted(surplus or {}):
         facts = surplus[device]
         if device in undecided:
@@ -2754,9 +3389,16 @@ def name_n1_cases(
             redelivered = redelivery_of.get(message_id)
             a5 = _a5_lines(device, redelivered)
             lines_here.update(a5)
+            # A death serves only a candidate nothing read excludes from the
+            # kill, as for a case named with an occurrence below (E-13
+            # leaves one the kill cannot explain undecided too).
             possible[message_id] = {
                 "a5_lines": a5,
-                "deaths": [death.index for death in available if death.may_precede(redelivered)],
+                "deaths": (
+                    [death.index for death in available if death.may_precede(redelivered)]
+                    if _may_have_been_at_the_kill(by_id[message_id])
+                    else []
+                ),
             }
         a5_possible[device] = sorted(lines_here)
     #: The cases named with an A5 occurrence, each with the sources that may
@@ -2815,7 +3457,9 @@ def name_n1_cases(
         "possible_sources": dict(sorted(possible.items())),
         "named_sources": dict(sorted(named_sources.items())),
     }
-    return N1Naming(named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())), sources)
+    return N1Naming(
+        named, r3, r4, candidates, notes, cannot, dict(sorted(undecided.items())), sources, r3_groups, assignments
+    )
 
 
 def _candidate_order(candidate: dict[str, Any]) -> tuple[str, int, str]:
@@ -2841,21 +3485,35 @@ def _twin_evidence(facts: Surplus) -> dict[str, Any]:
 
 def s4_r3_duplicates(naming: N1Naming) -> tuple[Criterion, Criterion]:
     """S4 holds when every duplicate-lined identity has an accepted line or
-    is a named N1 case; R3 is observed for every one that is neither. A
-    candidate that can be shown neither way (E-7, E-8) is neither: with no
-    R3 observed elsewhere, S4 and R3 are then null."""
+    is a named N1 case; R3 is observed for every one that is neither, and on
+    every group of candidates that contend for fewer sources than they
+    number (E-13: at least so many of them have no source, none singled
+    out). A candidate that can be shown neither way (E-7, E-8, E-13) is
+    neither: with no R3 observed elsewhere, S4 and R3 are then null."""
     evidence = {
         "duplicate_only_identities": len(naming.candidates),
         "named_n1_cases": len(naming.named),
         "not_named": len(naming.r3),
         "not_named_identities": naming.r3,
+        "r3_groups": naming.r3_groups,
         "cannot_show": len(naming.cannot_show),
         "cannot_show_identities": naming.cannot_show,
         "notes": naming.notes,
+        "assignments": naming.assignments,
     }
-    rules = ("P-4", "E-4", "E-7", "E-8")
-    if naming.r3:
-        reason = f"{len(naming.r3)} identity(ies) with only duplicate lines and no named N1 case"
+    rules = ("P-4", "E-4", "E-7", "E-8", "E-13")
+    if naming.r3 or naming.r3_groups:
+        parts = []
+        if naming.r3:
+            parts.append(f"{len(naming.r3)} identity(ies) with only duplicate lines and no named N1 case")
+        for group in naming.r3_groups:
+            parts.append(
+                f"at least {group['without_source_at_least']} of the {len(group['message_ids'])} "
+                f"duplicate-only identities {', '.join(group['message_ids'])} have no source that may "
+                "have preceded their redeliveries: only the aggregate is established, none of them "
+                "named or singled out (E-13)"
+            )
+        reason = "; ".join(parts)
         return (
             Criterion("S4", False, dict(evidence), rules, reason),
             Criterion("R3", True, dict(evidence), rules, reason),
@@ -3037,7 +3695,7 @@ def s5_r4_delta(
             Criterion("S5", None, dict(evidence), ("E-2", "E-7"), why),
             Criterion("R4", None, dict(evidence), ("P-5", "E-2", "E-7"), why),
         )
-    seq_of = {candidate["message_id"]: candidate["seq"] for candidate in naming.cannot_show}
+    seq_of = {candidate["message_id"]: candidate["seq"] for candidate in naming.candidates}
     devices: list[dict[str, Any]] = []
     mismatches: list[dict[str, Any]] = []
     regressions: list[dict[str, Any]] = []
@@ -3114,6 +3772,8 @@ def s5_r4_delta(
             mismatches.append({"device_uuid": device, "problems": problems})
         if regressed is not None:
             regressions.append({"device_uuid": device, "regressed": regressed})
+    if undecided_rules and (naming.r3_groups or naming.assignments.get("not_borne_out")):
+        undecided_rules.add("E-13")
     # E-10: the namings that explain each undecided device's count must,
     # together, fit the sources the run evidences, each source serving what
     # it can and only a candidate whose redelivery it may have preceded: an
@@ -3754,9 +4414,12 @@ def proof_eligibility(
     publication completed and the population whole, on the simulator's own
     manifest (or, without it, the file's count against the plan's, with no
     tolerance); the fault at the plan's instant and demonstrated (the
-    restart record and the session facts' restart_shown); and the evidence
-    complete. Every failed requirement is named; an absent required fact
-    is unknown, never read as satisfied."""
+    restart record and the session facts' restart_shown); the harness exit
+    the session facts carry agreeing with the admission (0 for 'valid', 0
+    or 1 for the sampling-gap form; without it the manifest stands and the
+    absence is reported); and the evidence complete. Every failed
+    requirement is named; an absent required fact is unknown, never read
+    as satisfied."""
     reasons: list[str] = []
     unknown: list[str] = []
     checks: dict[str, Any] = {}
@@ -3944,6 +4607,45 @@ def proof_eligibility(
             )
         )
 
+    # The harness's exit, when the session facts carry it (the driver
+    # records it before the evaluator runs): it must agree with the
+    # admission, as the driver's own eligibility reads it - 0 beside a
+    # 'valid' manifest, 0 or 1 in the sampling-gap form (the harness exits 1
+    # there). A standalone evaluation has only the manifest: without the
+    # exit the manifest's own validity stands, and the absence is reported.
+    carried = isinstance(session, dict) and session.get("harness_exit") is not None
+    harness_exit = session.get("harness_exit") if carried else None
+    form = admission.get("form") if isinstance(admission, dict) else None
+    allowed = HARNESS_EXITS_ADMITTED.get(form) if admitted is True else None
+    exit_check: dict[str, Any] = {
+        "read": harness_exit,
+        "carried": carried,
+        "admission_form": form,
+        "allowed": allowed,
+        "agrees": None,
+    }
+    if not carried:
+        exit_check["note"] = (
+            "the session facts carry no harness_exit, so the manifest's own validity stands "
+            "(a standalone evaluation has only the manifest); the absence is reported and "
+            "decides nothing (E-11)"
+        )
+    elif allowed is not None:
+        exit_check["agrees"] = _is_int(harness_exit) and harness_exit in allowed
+        if not exit_check["agrees"]:
+            reasons.append(
+                f"harness exit: the session facts record the harness's exit {harness_exit!r}, "
+                f"which the admission (form {form!r}) does not allow (exit "
+                + " or ".join(str(code) for code in allowed)
+                + "): a failure the manifest does not record, as the driver's eligibility reads it"
+            )
+    else:
+        exit_check["note"] = (
+            "the admission is not 'valid' or the sampling-gap form, so the exit is reported "
+            "beside it and the admission decides (E-12)"
+        )
+    checks["harness_exit"] = exit_check
+
     # The records of 'What it records', as the evidence inventory names them.
     checks["evidence_complete"] = evidence.complete
     if not evidence.complete:
@@ -3965,10 +4667,11 @@ def inconclusive_reasons(
     eligibility: Eligibility | None = None,
 ) -> list[str]:
     """The ADR's five conditions, in its order, plus the evaluator's own
-    (P-2, P-6, E-3, E-7, E-8, E-11, E-12), each stated with what was read. A
-    criterion of S2 to S5 that is null is always named here (E-7, E-8 when
-    the band or the command's window is the ground, E-4 when a claimant
-    stands beside a further death on evidence that was read), so a run that is inconclusive for that
+    (P-2, P-6, E-3, E-7, E-8, E-11, E-12, E-13), each stated with what was
+    read. A criterion of S2 to S5 that is null is always named here (E-7,
+    E-8 when the band or the command's window is the ground, E-4 when a
+    claimant stands beside a further death on evidence that was read, E-13
+    when more than one legitimate assignment of the sources remains), so a run that is inconclusive for that
     cause never goes without a stated reason; a run that is not eligible
     is named with every failed requirement (the evidence ones under "any
     fetch listed above fails")."""
@@ -4040,8 +4743,10 @@ def inconclusive_reasons(
         # placement), E-7 (evidence not read, and the default when the reason
         # names no rule: a copy, snapshot or log that cannot serve), or E-4
         # (a claimant beside a further death or an unshown candidate, on
-        # evidence that was read) - never E-7 for what was read.
-        label = next((rule for rule in ("E-8", "E-7", "E-4") if f"({rule})" in why), "E-7")
+        # evidence that was read), or E-13 (more than one legitimate
+        # assignment of the sources, read in full) - never E-7 for what was
+        # read.
+        label = next((rule for rule in ("E-8", "E-7", "E-4", "E-13") if f"({rule})" in why), "E-7")
         reasons.append(f"{', '.join(rule_ids)} cannot be shown ({label}): {why}")
     return reasons
 
