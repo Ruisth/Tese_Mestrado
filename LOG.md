@@ -3662,10 +3662,11 @@ is unchanged.
   as a group with no member singled out (E-13); an unreadable reading
   never makes a death vanish. R1: the next action follows the attempt's
   final verdicts (P-17). Tests that encoded a wrong rule were corrected
-  and say so. Verified: the four modules
-  `test_proof_driver.py`, `test_proof_evaluator.py`,
-  `test_session_drivers.py` and `test_proof_hooks.py` together, 1,080
-  passed, recorded in the local package `HIST_2026-09-26-pr47-review-corrections-attempt01` with the commit
+  and say so. Verified: the eight modules `test_proof_evaluator.py`,
+  `test_proof_driver.py`, `test_proof_hooks.py`, `test_proof_plan.py`,
+  `test_session_drivers.py`, `test_runbook_itest_helpers.py`,
+  `test_experiments_run.py` and `test_experiments_itest_reconcile.py`
+  together, 1,080 passed, recorded in the local package `HIST_2026-09-26-pr47-review-corrections-attempt01` with the commit
   (`8eb6f99`), the tree (`38a7376`) and a clean status captured before
   the run; mutation checks and a fuzz against a brute-force enumeration of
   the source assignments pinned the naming rules. The package is at the
@@ -3673,31 +3674,61 @@ is unchanged.
   entry only. Known and stated: a
   candidate every legitimate assignment names can, in one reading order,
   be left unshown in a run that is already inconclusive or refuted on
-  other grounds — the result is the same in every order (fuzzed); a tunnel
-  that drops again between `tunnel-ready` and the harness step is reopened
-  by that step's own preamble, the time charged to the allowance
-  afterwards.
+  other grounds — the result is the same in every order (fuzzed). (The
+  first version of this paragraph also left the harness step's own
+  preamble outside the 50-minute bound; that is superseded by the closure
+  batch of 2026-09-26 below.)
+- **Closure batch of 2026-09-26 (the Project Manager's delta review of
+  `f8465b4` and the closure work order).** Three corrections, each
+  reproduced first on `f8465b4` (the failing output kept in the local
+  package `HIST_2026-09-26-pr47-closure-red-and-iterations`). F1b: a lost,
+  malformed or torn sent record of an N1 identity no longer produces an
+  R4 — when the population is not whole, a duplicate-only identity the
+  post-drain copy shows without a readable record is an undecided
+  candidate of its device (E-7, E-9), while a double acceptance, a
+  `last_seq` regression and a surplus beyond what the unread identities
+  could explain still refute. F2a: the harness step's own runbook preamble
+  and its body run together under the attempt's remaining bound, so a
+  tunnel that drops after `tunnel-ready` is ended by the 50-minute rule
+  before any harness or fault starts, the restoration still attempted.
+  F2b: the shared healthy wait prints when the healthy sample completed
+  (one additive line; its other consumers parse as before) and the
+  20-minute rule judges that completion, not the sample's start; the
+  acquisition runs under the remaining allowance, so a blocked inspection
+  ends in the rule reached; an earlier health record is reused only when it
+  carries a completion within the allowance. A console capture lost after
+  the 50-minute rule names the rule in the final reason. Verified on the
+  integrated tree: `test_proof_evaluator.py`, `test_proof_driver.py`,
+  `test_session_drivers.py`, `test_proof_hooks.py`,
+  `test_broker_measure_driver.py` and `test_qemu_process_guard.py`
+  together, 557 passed, in the local package `HIST_2026-09-26-pr47-closure-integrated-attempt01` with the
+  commit (`79cc809`), the tree (`5323608`) and a clean status captured
+  before the run; the commit after it changes this entry only.
 - **What it does not establish.** Nothing ran on the guest: no recovery was
   observed, the candidate is unmeasured, and the identification rules are
   proposals until confirmed. The identified ARM64 controller image is not
   built and not loaded (the student's build authorisation is to be
   confirmed); the deployed helper file was regenerated on the WSL host from
   `60ebd8c` on 2026-09-25 (sha256 `e76f036e…`, the previous kept beside it),
-  not on the guest. Two points remain the reviewers' open flags: the
-  post-window observations of the driver (after a harness that returned
-  inside the allowance) are not bound by the 50-minute rule, because the
-  design binds the harness step only — a scope question for the Project
-  Manager, not changed here; and whether `restart: unless-stopped` restarts
-  the container by itself before the explicit start (V-1) is decided before
-  the session, the restart-shown step observing the effect either way.
+  not on the guest; it is regenerated again from the merged source before
+  any session. The first version of this entry left the post-window
+  observations outside the 50-minute rule as a scope question; that is
+  superseded: after the Project Manager's review of 2026-09-25 one
+  deadline bounds every live observation after the first `drained` (P-10).
+  Open before the session: whether `restart: unless-stopped` restarts the
+  container by itself before the explicit start (V-1), the restart-shown
+  step observing the effect either way, and that the hooks' ssh alias and
+  the driver's pinned host key reach the same guest (V-2).
 - **Decisions and next steps.** No decision; nothing accepted. For the
-  Project Manager: the identification rules P-1 to P-14 and E-1 to E-9, the
-  driver's additions (`EGW_PROOF_MASTER_SEED` required, `EGW_PROOF_RUNBOOK`,
-  `EGW_PROOF_EXTENSION_LIMIT_S` 1790, the extension's "not-refuted" label),
-  the post-window scope, and the plan helper's guards. For the student: the
-  build and load authorisation, the run id and master seed, `DRAIN_QUIET_S`
-  130 or 490, the optional extension, whether the previous image is restored
-  after the proof, and the session authorisation itself. Then the image
+  Project Manager: the identification rules as they now stand (P-1 to
+  P-17, E-1 to E-13), the driver's additions (`EGW_PROOF_MASTER_SEED`
+  required, `EGW_PROOF_RUNBOOK`, `EGW_PROOF_EXTENSION_LIMIT_S` 1790, the
+  extension's "not-refuted" label) and the plan helper's guards. For the
+  student: the build and archive authorisation, separate from the load,
+  deployment and session authorisation; the run id and master seed;
+  `DRAIN_QUIET_S`; the optional extension; the image kept after the proof;
+  a verified offline copy of the current data disk before the next boot,
+  or an explicit waiver of it; and the session authorisation itself. Then the image
   from a clean checkout, the execution request with the identities filled
   in, and the session under separate authorisation. G3 stays paused; C3 is
   not repeated.
