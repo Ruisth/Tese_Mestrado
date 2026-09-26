@@ -753,8 +753,8 @@ def test_drained_text_keeps_the_three_defaults_and_the_thirteen_field_order(benc
 # 6.1 - drained: the quiet window and the limit are timed on /proc/uptime (quiet-timer repair after finite proof r01)
 # --------------------------------------------------------------------------
 # _upcs, redefined AFTER the helpers are sourced: each call prints the next value of state/uptime.seq (centiseconds;
-# the last value repeats; the word "fail" makes the call fail), so a case sets the monotonic clock of every reading.
-# drained calls it once before the first reading and once after every reading.
+# the last value repeats; the word "fail" makes the call fail), so a case sets the monotonic clock itself. drained
+# reads it once before the first reading, then once before and once after every reading.
 CLOCK_STUB = r"""_upcs() {
   local n v
   n=$(cat "$EGW_STUB_STATE/uptime.n" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$EGW_STUB_STATE/uptime.n"
@@ -769,6 +769,15 @@ CLOCK_STUB = r"""_upcs() {
 WALL_STEPS = {"no step": "", "forward 1000 s": "sleep() { SECONDS=$((SECONDS + 1000)); }\n",
               "backward 1000 s": "sleep() { SECONDS=$((SECONDS - 1000)); }\n"}
 CLOCK_STOP = "STOP: drained: the monotonic clock (/proc/uptime) "
+TIMER = "basis /proc/uptime (CLOCK_BOOTTIME, monotonic)"
+
+
+def clock(t0: int, readings: list[object]) -> list[object]:
+    """The clock sequence: t0, then (before, after) for every reading; a reading given as one value is instantaneous."""
+    seq: list[object] = [t0]
+    for r in readings:
+        seq.extend(r if isinstance(r, tuple) else (r, r))
+    return seq
 
 
 def call_drained_clock(bench: Bench, uptime_cs: list[object], quiet_s: str = "490", limit_s: str = "900",
@@ -791,31 +800,43 @@ def success_elapsed(r: Result) -> tuple[int, str]:
 @pytest.mark.parametrize("step", list(WALL_STEPS), ids=list(WALL_STEPS))
 def test_drained_quiet_window_closes_at_490_s_of_proc_uptime_and_not_at_489_99_whatever_the_wall_clock_does(bench: Bench, step: str) -> None:
     m = bench.metrics()
-    # t0, then one value per reading: the window opens on the first reading (1000.00 s), 489.99 s is not enough,
-    # 490.00 s closes it
-    r = call_drained_clock(bench, [100000, 100000, 110000, 120000, 130000, 140000, 148999, 149000], prefix=WALL_STEPS[step])
+    # the window opens on the first reading (1000.00 s); 489.99 s is not enough, 490.00 s closes it
+    r = call_drained_clock(bench, clock(100000, [100000, 110000, 120000, 130000, 140000, 148999, 149000]),
+                           prefix=WALL_STEPS[step])
     assert r.value("RC") == "0", r.out
     assert quiet_reading_of(r) == mline_of(m)
     elapsed, tail = success_elapsed(r)
     assert elapsed == 490, r.out
     assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}7 consecutive readings"), r.out
-    assert tail.startswith("basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 1000.00 s, end 1490.00 s, "
-                           "elapsed 490.00 s (required 490 s); wall clock UTC "), tail
+    assert tail.startswith(f"{TIMER}, window start 1000.00 s, end 1490.00 s, elapsed 490.00 s (required 490 s; start "
+                           "after the reading that opened the window, end before the reading that closed it); wall clock UTC "), tail
     assert tail.endswith(", recorded only"), tail
     assert bench.metrics_requests() == 7, bench.calls()               # not closed on the 6th reading (489.99 s)
+
+
+def test_drained_window_is_timed_up_to_the_start_of_the_closing_reading_not_to_its_return(bench: Bench) -> None:
+    """A slow last reading: it starts at 489.99 s and returns at 500.00 s. Timed on its return the window would close
+    on it; timed on its start it does not, and the next reading (500.00 s) closes it."""
+    bench.metrics()
+    r = call_drained_clock(bench, clock(0, [0, 20000, 40000, (48999, 50000), 50000]))
+    assert r.value("RC") == "0", r.out
+    elapsed, tail = success_elapsed(r)
+    assert elapsed == 500, r.out
+    assert tail.startswith(f"{TIMER}, window start 0.00 s, end 500.00 s, elapsed 500.00 s (required 490 s"), tail
+    assert bench.metrics_requests() == 5, bench.calls()
 
 
 @pytest.mark.parametrize("step", list(WALL_STEPS), ids=list(WALL_STEPS))
 def test_drained_limit_is_900_s_of_proc_uptime_whatever_the_wall_clock_does(bench: Bench, step: str) -> None:
     bodies = [bench.reading(accepted=i) for i in range(12)]           # every reading moves a counter: never quiet
     bench.readings(*bodies)
-    r = call_drained_clock(bench, [0] + [i * 10000 for i in range(12)], prefix=WALL_STEPS[step])
+    r = call_drained_clock(bench, clock(0, [i * 10000 for i in range(12)]), prefix=WALL_STEPS[step])
     assert r.value("RC") != "0", r.out
     assert bench.metrics_requests() == 10, bench.calls()               # given up on the reading at 900.00 s, no sooner
     stop = assert_no_quiet_window(r, bodies[9])
     assert stop.startswith("STOP: drained: no quiet window of 490 s within 900 s (last reading: "), stop
-    assert stop.endswith("; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), drain start 0.00 s, "
-                         "end 900.00 s, elapsed 900.00 s (limit 900 s), the last window opened at 900.00 s"), stop
+    assert stop.endswith(f"; quiet timer: {TIMER}, drain start 0.00 s, end 900.00 s, elapsed 900.00 s (limit 900 s), "
+                         "the last window opened at 900.00 s"), stop
 
 
 def test_drained_activity_restarts_the_window_on_proc_uptime(bench: Bench) -> None:
@@ -823,12 +844,11 @@ def test_drained_activity_restarts_the_window_on_proc_uptime(bench: Bench) -> No
     bench.readings(quiet, quiet, busy, quiet)                         # then `quiet` for every later request
     # one reading every 100 s: the window of the first two readings is broken by the busy one at 200 s; the next
     # quiet reading (300 s) opens a new window, which closes at 800 s (500 s >= 490 s), within the 900 s limit
-    r = call_drained_clock(bench, [0] + [i * 10000 for i in range(12)])
+    r = call_drained_clock(bench, clock(0, [i * 10000 for i in range(12)]))
     assert r.value("RC") == "0", r.out
     elapsed, tail = success_elapsed(r)
     assert elapsed == 500, r.out
-    assert tail.startswith("basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 300.00 s, end 800.00 s, "
-                           "elapsed 500.00 s (required 490 s)"), tail
+    assert tail.startswith(f"{TIMER}, window start 300.00 s, end 800.00 s, elapsed 500.00 s (required 490 s"), tail
     assert r.starting(QUIET_LINE)[0].startswith(f"{QUIET_LINE}6 consecutive readings"), r.out
     assert bench.metrics_requests() == 9, bench.calls()
 
@@ -836,25 +856,39 @@ def test_drained_activity_restarts_the_window_on_proc_uptime(bench: Bench) -> No
 def test_drained_490_s_since_the_window_opened_do_not_pass_when_the_reading_that_reaches_them_is_not_quiet(bench: Bench) -> None:
     quiet, busy = bench.reading(), bench.reading(in_progress=1)
     bench.readings(*([quiet] * 5 + [busy] * 20))                      # quiet from 0 s to 400 s, then busy for good
-    r = call_drained_clock(bench, [0] + [i * 10000 for i in range(25)])
+    r = call_drained_clock(bench, clock(0, [i * 10000 for i in range(25)]))
     assert r.value("RC") != "0", r.out
     assert_no_quiet_window(r, busy)
 
 
-@pytest.mark.parametrize("label, uptime, text", [
-    ("unreadable before the first reading", ["fail"], "could not be read - no quiet window can be timed"),
-    ("unreadable after a reading", [0, 0, 10000, "fail"], "could not be read after a reading"),
-    ("going back", [0, 0, 20000, 19999], "went back from 200.00 s to 199.99 s"),
+@pytest.mark.parametrize("label, uptime, text, requests", [
+    ("unreadable before the first reading", ["fail"], "could not be read - no quiet window can be timed", 0),
+    ("unreadable before a reading", [0, "fail"], "could not be read before a reading", 0),
+    ("unreadable after a reading", [0, 0, "fail"], "could not be read after a reading", 1),
+    ("going back between readings", [0, 0, 20000, 19999], "went back from 200.00 s to 199.99 s", 1),
+    ("going back during a reading", [0, 20000, 19999], "went back from 200.00 s to 199.99 s", 1),
 ])
-def test_drained_an_unusable_monotonic_clock_is_never_a_quiet_window(bench: Bench, label: str, uptime: list[object], text: str) -> None:
+def test_drained_an_unusable_monotonic_clock_is_never_a_quiet_window(bench: Bench, label: str, uptime: list[object],
+                                                                     text: str, requests: int) -> None:
     bench.metrics()
-    r = call_drained_clock(bench, uptime)                            # 490 s: no window can close before the clock fails
+    r = call_drained_clock(bench, uptime)
     assert r.value("RC") != "0", r.out
     stops = r.starting(CLOCK_STOP)
     assert len(stops) == 1 and text in stops[0], r.out
     assert not r.starting(QUIET_LINE) and not r.starting(STOP_NO_WINDOW), r.out
-    if label == "unreadable before the first reading":
-        assert bench.metrics_requests() == 0, bench.calls()
+    assert bench.metrics_requests() == requests, bench.calls()
+
+
+@pytest.mark.parametrize("quiet, limit", [("0130", "900"), ("abc", "900"), ("490", "0900"), ("490", "-1")])
+def test_drained_refuses_a_window_or_limit_that_is_not_a_whole_number_of_seconds(bench: Bench, quiet: str, limit: str) -> None:
+    """A leading zero would be read as octal (0130 is 88 s) and a word as a variable name (0 s): refused, nothing timed."""
+    bench.metrics()
+    r = call_drained_clock(bench, clock(0, [0, 100000]), quiet_s=quiet, limit_s=limit)
+    assert r.value("RC") != "0", r.out
+    stops = r.starting("STOP: drained: DRAIN_QUIET_S=")
+    assert len(stops) == 1 and "must both be whole numbers of seconds" in stops[0], r.out
+    assert not r.starting(QUIET_LINE) and not r.starting(STOP_NO_WINDOW), r.out
+    assert bench.metrics_requests() == 0, bench.calls()
 
 
 def test_drained_reads_proc_uptime_in_centiseconds_and_never_backwards(bench: Bench) -> None:
@@ -870,11 +904,12 @@ def test_drained_text_times_the_window_and_the_limit_on_proc_uptime_only(bench: 
     text = heredoc_body(helpers_heredoc())
     body = text[text.index("drained() {"):text.index("\n}\n", text.index("drained() {"))]
     assert "read -r up rest 2> /dev/null < /proc/uptime" in text
-    assert "[ $((now - since)) -ge $((quiet * 100)) ]" in body
+    assert "[ $((pre - since)) -ge $((quiet * 100)) ]" in body
     assert "[ $((now - t0)) -ge $((limit * 100)) ]" in body
-    # SECONDS appears only in what is recorded beside the window, never in a decision
-    decisions = [ln for ln in body.splitlines() if "SECONDS" in ln and "sec0=" not in ln and "bash SECONDS elapsed" not in ln]
-    assert decisions == [], decisions
+    # SECONDS appears only in what is recorded beside the window (sec0 and the elapsed it gives), never in a decision
+    rest = body.replace("sec0=$SECONDS", "").replace("bash SECONDS elapsed $((SECONDS - sec0))", "")
+    assert "SECONDS" not in rest, [ln for ln in rest.splitlines() if "SECONDS" in ln]
+
 
 SIX_SERVICES ="egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1"
 

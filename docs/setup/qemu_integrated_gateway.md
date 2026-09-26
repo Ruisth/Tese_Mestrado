@@ -669,12 +669,15 @@ sys.exit(0 if m["received"] == sum(m[k] for k in ("accepted", "rejected", "dupli
 # retry settings); that figure is NOT a bound (Section 7 (b)): the per-phase sum is 40 s per attempt, 482.4 s for a
 # first-contact message - export DRAIN_QUIET_S=490 to cover it. Never lower it. What a run's messages ended in is
 # settled per identity by 'accounted' (below) and by '$REC check'.
-# The window and DRAIN_LIMIT_S are timed on /proc/uptime (_upcs), never on the wall clock: this WSL2 host steps its wall
-# clock in both directions, and a window timed on it (Bash SECONDS, as until 2026-09-26) can be shorter than it reports
-# (finite proof r01: 484 s of /proc/uptime against 500 s of wall clock). The end of the success line and of the
-# give-up line records the basis and the window's (or the drain's) start, end and elapsed on it; the wall clock and
-# SECONDS are recorded beside them and decide nothing. A clock that cannot be read or goes back ends 'drained'
-# non-zero with neither of the two lines: an untimed window is never quiet.
+# The window and DRAIN_LIMIT_S are timed on /proc/uptime (_upcs), never on the wall clock, which this WSL2 host steps;
+# until 2026-09-26 they were timed on Bash SECONDS, and in finite proof r01 /proc/uptime advanced 484 s over an interval
+# in which the wall clock advanced 500 s (cause not established). The clock is read before and after every reading:
+# the window opens at the clock read after the reading that opens it and closes on the clock read BEFORE the reading
+# that reaches DRAIN_QUIET_S, so the elapsed figure is a lower bound on the time between the two /metrics snapshots.
+# The success line ends with the basis and the window's start, end and elapsed on it, and records the wall clock and
+# SECONDS beside them (they decide nothing); the give-up line ends with the drain's start, end and elapsed. A clock
+# that cannot be read or goes back, and a DRAIN_QUIET_S or DRAIN_LIMIT_S that is not a whole number of seconds, end
+# 'drained' non-zero with neither of the two lines: an untimed window is never quiet.
 _upcs() {
   local up rest
   read -r up rest 2> /dev/null < /proc/uptime || return 1
@@ -684,11 +687,14 @@ _upcs() {
 _cs2s() { printf '%d.%02d' $(($1 / 100)) $(($1 % 100)); }
 drained() {
   local quiet=${DRAIN_QUIET_S:-130} step=${DRAIN_STEP_S:-5} limit=${DRAIN_LIMIT_S:-900}
-  local t0 now last since wall0 sec0 ref= cur rc n=0 q qd ip un sub rest
-  local basis='basis /proc/uptime (CLOCK_BOOTTIME, monotonic)'
+  local t0 pre now last since wall0 sec0 ref= cur rc n=0 q qd ip un sub rest
+  local basis='basis /proc/uptime (CLOCK_BOOTTIME, monotonic)' whole='^(0|[1-9][0-9]{0,8})$'
+  [[ $quiet =~ $whole && $limit =~ $whole ]] || { stop "drained: DRAIN_QUIET_S='$quiet' and DRAIN_LIMIT_S='$limit' must both be whole numbers of seconds without a leading zero - nothing was timed"; return 1; }
   t0=$(_upcs) || { stop "drained: the monotonic clock (/proc/uptime) could not be read - no quiet window can be timed, so none is reported"; return 1; }
   last=$t0; since=$t0; wall0=$(date -u +%Y-%m-%dT%H:%M:%SZ); sec0=$SECONDS
   while :; do
+    pre=$(_upcs) || { stop "drained: the monotonic clock (/proc/uptime) could not be read before a reading - the window cannot be timed, so no quiet window is reported"; return 1; }
+    [ "$pre" -ge "$last" ] || { stop "drained: the monotonic clock (/proc/uptime) went back from $(_cs2s "$last") s to $(_cs2s "$pre") s - the window cannot be timed, so no quiet window is reported"; return 1; }
     cur=$(_mline); rc=$?
     case $rc in
       0) read -r qd ip un sub rest <<< "$cur"; q=0
@@ -697,14 +703,14 @@ drained() {
       *) stop "drained: GET $CTRL/metrics failed or was not valid JSON, or a field was missing or of the wrong type (tunnel of 5.7 down? controller stopped? a controller build without the thirteen fields?)"; return 1;;
     esac
     now=$(_upcs) || { stop "drained: the monotonic clock (/proc/uptime) could not be read after a reading - the window cannot be timed, so no quiet window is reported"; return 1; }
-    [ "$now" -ge "$last" ] || { stop "drained: the monotonic clock (/proc/uptime) went back from $(_cs2s "$last") s to $(_cs2s "$now") s - the window cannot be timed, so no quiet window is reported"; return 1; }
+    [ "$now" -ge "$pre" ] || { stop "drained: the monotonic clock (/proc/uptime) went back from $(_cs2s "$pre") s to $(_cs2s "$now") s - the window cannot be timed, so no quiet window is reported"; return 1; }
     last=$now
     if [ "$q" != 1 ] || [ "$cur" != "$ref" ]; then
       ref=$cur; since=$now; n=1; wall0=$(date -u +%Y-%m-%dT%H:%M:%SZ); sec0=$SECONDS
     else
       n=$((n + 1))
-      if [ $((now - since)) -ge $((quiet * 100)) ]; then
-        echo "drained: queue_depth 0 and identical counters on $n consecutive readings over $(((now - since) / 100)) s ($cur) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: $basis, window start $(_cs2s "$since") s, end $(_cs2s "$now") s, elapsed $(_cs2s $((now - since))) s (required $quiet s); wall clock UTC $wall0 -> $(date -u +%Y-%m-%dT%H:%M:%SZ) and bash SECONDS elapsed $((SECONDS - sec0)) s, recorded only"
+      if [ $((pre - since)) -ge $((quiet * 100)) ]; then
+        echo "drained: queue_depth 0 and identical counters on $n consecutive readings over $(((pre - since) / 100)) s ($cur) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: $basis, window start $(_cs2s "$since") s, end $(_cs2s "$pre") s, elapsed $(_cs2s $((pre - since))) s (required $quiet s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC $wall0 -> $(date -u +%Y-%m-%dT%H:%M:%SZ) and bash SECONDS elapsed $((SECONDS - sec0)) s, recorded only"
         return 0
       fi
     fi
@@ -1008,7 +1014,7 @@ How the helpers enforce the order (what each one refuses to do):
 | Helper | Does | Stops (prints `STOP:`, returns non-zero) when |
 |---|---|---|
 | `wait_ready [s]` | polls `GET /ready` until 200 | no 200 within the limit (default 60 s) |
-| `drained` | waits until every `/metrics` reading of one unbroken quiet window showed `queue_depth`, `in_progress` and `unacked` 0, `mqtt_subscribed` true and the accounting identity of CONTRACTS §5 holding in that same response, with `started_at`, `mqtt_connection`, `received` and the six counters (`accepted`, `rejected`, `duplicate`, `failed`, `dropped`, `processing_errors`) unchanged: a **temporary precaution, not proof that processing has finished** (Section 7, "The 130 s quiet window"). A reading that is not quiet, or whose identity fails, opens a new window and is not a stop | `/metrics` unreachable or not JSON, or a field missing or of the wrong type (a controller build without the thirteen fields `_mline` reads); no quiet window of `DRAIN_QUIET_S` (130 s) within `DRAIN_LIMIT_S` (900 s) |
+| `drained` | waits until every `/metrics` reading of one unbroken quiet window showed `queue_depth`, `in_progress` and `unacked` 0, `mqtt_subscribed` true and the accounting identity of CONTRACTS §5 holding in that same response, with `started_at`, `mqtt_connection`, `received` and the six counters (`accepted`, `rejected`, `duplicate`, `failed`, `dropped`, `processing_errors`) unchanged: a **temporary precaution, not proof that processing has finished** (Section 7, "The 130 s quiet window"). A reading that is not quiet, or whose identity fails, opens a new window and is not a stop | `/metrics` unreachable or not JSON, or a field missing or of the wrong type (a controller build without the thirteen fields `_mline` reads); no quiet window of `DRAIN_QUIET_S` (130 s) within `DRAIN_LIMIT_S` (900 s), both timed on `/proc/uptime`; the monotonic clock unreadable or going back, or either value not a whole number of seconds (never a quiet window) |
 | `metrics`, `twin`, `fetch` | one file each; `metrics` and `twin` write to `.tmp` and rename, so a failed request leaves no file | HTTP error, connection error, invalid JSON, `scp` failure (the first version used `curl -s` without `-f` and ignored all of these); `metrics` also when `<run-id>.metrics.<label>.json` **exists** — it is write-once like the twin snapshots (the second version truncated it with `>` before the write-once `snap` refused, destroying the earlier run's reading) |
 | `keep <src> <dst>` | write-once copy | source missing or empty; destination exists |
 | `snap_pair <run-id> <label> [snap args]` | `metrics <label>` then `$REC snap --label <label>`: both or neither | either fails; if only the twin snapshot fails, the `/metrics` reading just taken is renamed `...unpaired-<time>` (kept, never deleted) |
