@@ -360,6 +360,13 @@ refused before anything starts — P-14),
 never repeats C3, never runs a second attempt by itself (a repeat is the
 student's decision), never lowers `DRAIN_QUIET_S` below 130 s and never runs
 the optional extension unless the student sets `EGW_PROOF_EXTENSION=yes`.
+It is the only driver that gives the harness `--metrics-fast-retry`: a failed
+`/metrics` poll is retried after 50 ms (at most 60 s per failure episode,
+every attempt in `controller_metrics.attempts.csv`), so the first reading of
+the process after the fault is taken as soon as it answers and the kill's
+band on the controller clock (E-8) is as narrow as the controller allows. It
+narrows the band; it does not guarantee that a redelivered identity lands
+after it (LOG `#C045`).
 
 **Three verdicts, never merged.** The attempt's **instrumentation validity**
 is `valid` only when every mandatory record was made *and* the proof's

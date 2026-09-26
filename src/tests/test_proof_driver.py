@@ -1323,6 +1323,9 @@ def test_the_harness_is_given_the_proof_plan_base_hooks_identity_and_restart_at_
     # a shell.
     assert _argv_value(argv, "--restart-cmd") == f'bash "{drivers}/proof_restart_controller.sh" {{run_id}}'
     assert _argv_value(argv, "--restart-at-s") == "150"
+    # The finite proof's failed-poll retry: this driver passes it, and it is
+    # none of the runbook's fixed arguments (no other run gets it).
+    assert argv.count("--metrics-fast-retry") == 1
     assert _argv_value(argv, "--config-identity-from") == str(pbench.prefix / f"{RID}.config_identity.json")
     assert _argv_value(argv, "--twin-snapshot-cmd") == f'bash "{drivers}/proof_hook_twins.sh" {{run_id}} "{{dest}}" {seed}'
     assert _argv_value(argv, "--drain-cmd") == f'bash "{drivers}/proof_hook_drained.sh" {{run_id}}'
@@ -1332,6 +1335,7 @@ def test_the_harness_is_given_the_proof_plan_base_hooks_identity_and_restart_at_
         assert _argv_value(argv, flag) == f'bash "{drivers}/proof_fetch_sut_log.sh" {kind} "{{dest}}" {guest_epoch}'
     runbook_argv = _harness_argv_of(runbook_function("harness_cmd"), f"harness_cmd {RID}", pbench.bench.home)
     assert _argv_value(runbook_argv, "--fetch-events-cmd").endswith('"{dest}"')
+    assert "--metrics-fast-retry" not in runbook_argv
     assert str(guest_epoch).isdigit()
     # The runbook's fixed arguments, expanded in the host step (the secret
     # from the exported .env, the alias, the clone's fetch script).
