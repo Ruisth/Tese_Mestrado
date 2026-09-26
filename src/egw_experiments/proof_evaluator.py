@@ -50,7 +50,9 @@ criterion, a threshold or a count of the ADR; every one is conservative:
 what cannot be shown is never read as support, and a refutation rests only
 on evidence that was read and verified (E-7): a post-drain copy, a twin
 snapshot or the controller log that is absent, unverified or unreadable
-leaves the criteria that depend on it null, never observed; a
+leaves the criteria that depend on it null, never observed, and so does
+a sent record the population cannot read for the R4 that would rest on
+it (E-7, E-11); a
 duplicate-only identity whose line falls in the sampling band around the
 kill, or whose publication falls inside the restart command's window, can
 be shown neither way (E-8), never refuted on that ground; the twin's
@@ -527,7 +529,18 @@ IDENTIFICATION_RULES: dict[str, str] = {
         "(no surplus, or more candidates than the surplus) stays R3 on the "
         "twin's evidence, which was read. The absence is named as a failed "
         "fetch and the run is inconclusive unless a refutation was observed "
-        "on evidence that was read."
+        "on evidence that was read. When the population record is not whole "
+        "(E-11), a duplicate-only identity of the post-drain copy that no "
+        "readable record of this run carries (its sent record skipped, "
+        "without a message_id, of another run, repeating another's message_id "
+        "or missing) may be an N1 case the naming cannot read, since an "
+        "unread record cannot "
+        "show that no N1 case explains the twin: S5 and R4 are null for its "
+        "device, its seq read from its lines, unless the twin's figures "
+        "refute under every naming of it (E-9), and the capacity (E-10) is "
+        "not checked on that device; a refutation that does not rest on it "
+        "(a double acceptance, a last_seq regression, a surplus beyond what "
+        "the unread identities could explain) stands."
     ),
     "E-8": (
         "A duplicate-only candidate that is ambiguous under P-3 (a `duplicate` "
@@ -551,8 +564,9 @@ IDENTIFICATION_RULES: dict[str, str] = {
     ),
     "E-9": (
         "S5 and R4 on a device with a duplicate-only candidate that can be "
-        "shown neither way (E-7 over the controller log, E-8, or E-4 beside "
-        "such a candidate): the twin's figures are shown as read and nothing "
+        "shown neither way (E-7 over the controller log or over a record the "
+        "population cannot read, E-8, or E-4 beside such a candidate): the "
+        "twin's figures are shown as read and nothing "
         "is decided on them while some naming of the device's undecided "
         "candidates that the count allows (delta equal to the accepted lines "
         "plus the cases named, one per candidate named) leaves `delta` right, "
@@ -1808,6 +1822,29 @@ def lines_by_identity(events: list[dict[str, Any]], run_id: str) -> LinesIndex:
             continue
         by_id.setdefault(message_id, []).append(line)
     return LinesIndex(by_id, other, unattributed, len(events))
+
+
+def unread_duplicate_only(
+    lines: dict[str, list[dict[str, Any]]], sent: SentIndex
+) -> dict[str, list[dict[str, Any]]]:
+    """E-7 over a population that is not whole (E-11): per device, the
+    duplicate-only identities of the post-drain copy that no readable
+    record of this run carries, each with the seq its duplicate lines
+    carry (None when they carry none or disagree). Each may be an N1 case
+    the naming could not read, since its sent record was not read."""
+    known = set(sent.valid) | set(sent.intended_invalid)
+    unread: dict[str, list[dict[str, Any]]] = {}
+    for message_id in sorted(lines):
+        identity_lines = lines[message_id]
+        if message_id in known or not _has(identity_lines, "duplicate") or _has(identity_lines, "accepted"):
+            continue
+        duplicates = [line for line in identity_lines if line.get("outcome") == "duplicate"]
+        seqs = [line.get("seq") for line in duplicates]
+        seq = seqs[0] if _is_int(seqs[0]) and all(s == seqs[0] for s in seqs) else None
+        devices = {line.get("device_uuid") for line in duplicates if isinstance(line.get("device_uuid"), str)}
+        for device in sorted(devices):
+            unread.setdefault(device, []).append({"message_id": message_id, "seq": seq})
+    return unread
 
 
 def _outcomes_of(lines: list[dict[str, Any]]) -> list[str]:
@@ -3904,6 +3941,7 @@ def s5_r4_delta(
     run_id: str,
     naming: N1Naming,
     cannot: str | None = None,
+    unread: dict[str, list[dict[str, Any]]] | None = None,
 ) -> tuple[Criterion, Criterion]:
     """S5 with its tolerance and R4: itest_reconcile's per-device rule
     (delta equals the device's accepted lines; last_run_id is this run's
@@ -3920,7 +3958,12 @@ def s5_r4_delta(
     under every one otherwise, on the twin's evidence, which was read; and
     the namings of every undecided device together must fit the sources
     the run evidences (E-10): when they cannot, R4 is observed on the
-    aggregate, no one device or identity named as the mismatch."""
+    aggregate, no one device or identity named as the mismatch.
+    ``unread`` (:func:`unread_duplicate_only`, given when the population is
+    not whole) names per device the duplicate-only identities no readable
+    record carries: each is an undecided candidate of its device under E-9,
+    whose sources cannot be read, so the device takes no part in the
+    capacity check (E-7, E-11)."""
     if surplus is None:
         why = cannot or "a twin snapshot is missing"
         evidence = {"devices": [], "note": f"no delta can be computed: {why}"}
@@ -3958,14 +4001,36 @@ def s5_r4_delta(
                 "accepted line, which the runbook's `delta` does not compare"
             )
         undecided_here = naming.undecided_devices.get(device)
+        unread_here = (unread or {}).get(device) or []
+        if unread_here:
+            # E-7 over the population (E-11): an identity whose sent record
+            # was not read may be an N1 case of the device, so it is one of
+            # its undecided candidates, with the seq its lines carry.
+            unread_ids = [item["message_id"] for item in unread_here]
+            unread_why = (
+                f"the post-drain copy holds {len(unread_ids)} duplicate-only identity(ies) on the "
+                f"device ({', '.join(unread_ids)}) that no readable record of this run in "
+                "sent_events.jsonl carries, and the population record is not whole (E-11): an "
+                "unread record cannot show that no N1 case explains the twin, so each can be shown "
+                "neither named nor R3, and its sources cannot be read, so the capacity is not "
+                "checked on the device (E-7)"
+            )
+            base = undecided_here or {"rule": "E-7", "why": None, "message_ids": []}
+            undecided_here = {
+                **base,
+                "why": "; ".join(why for why in (base["why"], unread_why) if why),
+                "unread_identities": unread_ids,
+            }
+            undecided_rules.update({"E-7", "E-11"})
         if undecided_here is not None:
             # E-9: the figures are shown as read, with the case unnamed.
             # Nothing is decided on them while some naming of the unshown
             # candidates that the count allows would leave them right; a
             # mismatch or regression that no naming removes was read from
             # the twin whatever the candidates were.
-            ids = list(undecided_here["message_ids"])
-            namings = _namings_of_undecided(facts, run_id, len(cases), applied, [seq_of.get(m) for m in ids])
+            ids = list(undecided_here["message_ids"]) + [item["message_id"] for item in unread_here]
+            seqs = [seq_of.get(m) for m in undecided_here["message_ids"]] + [item["seq"] for item in unread_here]
+            namings = _namings_of_undecided(facts, run_id, len(cases), applied, seqs)
             explained = any(n["delta_ok"] for n in namings)
             undecided_rules.add(undecided_here["rule"])
             row["undecided"] = {**undecided_here, "namings_tried": namings, "explained": explained}
@@ -3973,7 +4038,8 @@ def s5_r4_delta(
                 row["ok"] = None
                 devices.append(row)
                 undecided.append({"device_uuid": device, **undecided_here})
-                pending.append((device, facts.delta - facts.accepted_lines - len(cases), row))
+                if not unread_here:
+                    pending.append((device, facts.delta - facts.accepted_lines - len(cases), row))
                 continue
             note = (
                 f"no naming of the device's {len(ids)} undecided candidate(s) ({', '.join(ids)}) "
@@ -4201,7 +4267,11 @@ def s5_r4_delta(
         "mismatches": mismatches,
         "last_seq_regressions": regressions,
         "undecided": undecided,
-        "surplus_unexplained": naming.r4_unexplained,
+        # A device with an unread candidate is undecided, as name_n1_cases
+        # leaves its own undecided devices out: not unexplained (E-7).
+        "surplus_unexplained": [
+            item for item in naming.r4_unexplained if not (unread or {}).get(item["device_uuid"])
+        ],
         "source_capacity": capacity_evidence,
         "note": (
             "the /metrics counters of `delta` are not compared: they restart from zero "
@@ -4798,6 +4868,14 @@ def proof_eligibility(
                 + f", so the only count is sent_events.jsonl's: {this_run} record(s) of this run "
                 f"against the plan's {PROOF_EXPECTED_MESSAGES} (300 s x 11.2 msg/s), with no tolerance"
             )
+    # The population whole: every record read and this run's count what
+    # was published, so no identity of the copy can lack its record (E-7
+    # reads an N1 case on one that does).
+    if sim is not None:
+        counted = sim.get("run_id") == run_id and _is_int(declared) and declared == this_run
+    else:
+        counted = this_run == PROOF_EXPECTED_MESSAGES
+    checks["population"]["whole"] = not unreliable and counted
 
     # The fault demonstrated: the manifest's record and the driver's facts.
     restart = manifest.get("restart") if isinstance(manifest.get("restart"), dict) else {}
@@ -5173,7 +5251,15 @@ def evaluate(artefacts: RunArtefacts, session: dict[str, Any] | None) -> dict[st
         s4 = Criterion("S4", None, dict(unread), ("P-4", "E-4", "E-7"), why)
         r3 = Criterion("R3", None, dict(unread), ("P-4", "E-4", "E-7"), why)
         r1 = Criterion("R1", None, {**unread, "drain_outcome": drain_outcome}, ("P-7", "E-7"), why)
-    s5, r4 = s5_r4_delta(surplus, run_id, naming, cannot)
+    # E-7 over the population (E-11): with it not whole, a duplicate-only
+    # identity of the copy that no readable record carries may be an N1
+    # case the naming could not read.
+    population_unread = (
+        unread_duplicate_only(post.by_id, sent)
+        if post_copy_usable and not eligibility.checks["population"]["whole"]
+        else {}
+    )
+    s5, r4 = s5_r4_delta(surplus, run_id, naming, cannot, population_unread)
     criteria = {"S1": s1, "S2": s2, "S3": s3, "S4": s4, "S5": s5, "S6": s6}
     refutations = {"R1": r1, "R2": r2, "R3": r3, "R4": r4}
     failed_only = failed_only_restart_class(sent.valid, post.by_id, classification) if post_copy_usable else []

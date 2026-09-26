@@ -35,7 +35,11 @@ whose readings carry no monotonic_ns is not placed (E-4), the harness's
 exit in the session facts agrees with the admission (E-11), and a
 further death serves a candidate the kill cannot explain whose
 redelivery it may have preceded, while no death serves a candidate
-lined before the kill (E-13, E-10, E-4; the read-only check of round 4).
+lined before the kill (E-13, E-10, E-4; the read-only check of round 4);
+and, in the section after test 27r, the delta review of 2026-09-26 (F1b):
+a population record that is not whole leaves unshown the R4 that would
+rest on a duplicate-only identity no readable record carries, while a
+double acceptance or a last_seq regression stands (E-7, E-11).
 
 Test 33 replaces two of the fixture's hooks with scripts of its own: the
 fixture's `write` mode carries neither identities in the post-drain copy
@@ -3725,6 +3729,130 @@ def test_no_death_serves_a_candidate_lined_before_the_kill_nor_one_redelivered_b
     assert "nor can a further death, each one recorded following its redelivered duplicate line" in rejected["why_not_named"]
     deaths = _criterion(doc, "R4")["evidence"]["source_capacity"]["deaths"]
     assert [(d["death"], d["may_precede"], d["may_serve"]) for d in deaths] == [(0, ["n-mid"], []), (1, [], [])]
+
+
+# ---------------------------------------------------------------------------
+# 27s-27t. the Project Manager's delta review of PR #47 (2026-09-26), F1b: a
+# population record that is not whole cannot show that no N1 case explains
+# a surplus, so the R4 that would rest on it is not observed, while a
+# refutation that does not rest on the unread record stands
+# ---------------------------------------------------------------------------
+
+#: Test 16's supporting N1 fixture: B redelivered after the kill as a
+#: duplicate only and named with the kill, D1's accepted_count 5 -> 7
+#: against one accepted line, last_seq 1 under this run.
+N1_AFTER = {D1: 1, "seqs": [(D1, 1)]}
+
+#: B's own sent line on disk, damaged in the forms that reach the
+#: population's reading apart: a JSON object without a message_id, the line
+#: gone, a line torn inside its JSON, and a line that is not UTF-8 (E-5).
+B_SENT_DAMAGE = {
+    "malformed": lambda raw: json.dumps({"run_id": RID}).encode() + b"\n",
+    "missing": lambda raw: b"",
+    "torn-json": lambda raw: raw[: len(raw) // 2] + b"\n",
+    "torn-utf8": lambda raw: raw.replace(b'"b-mid"', b'"b-mid\xff"'),
+}
+B_SENT_REASON = {
+    "malformed": "1 record(s) of this run without a message_id",
+    "missing": "totals.sent 4 against 3 record(s) of this run in sent_events.jsonl: the copy is not whole",
+    "torn-json": "1 line(s) skipped (not a JSON object or not UTF-8, E-5)",
+    "torn-utf8": "1 line(s) skipped (not a JSON object or not UTF-8, E-5)",
+}
+
+
+def _damage_b_mid(artefacts: pe.RunArtefacts, form: str) -> pe.RunArtefacts:
+    """B's own sent record damaged as the loader hands it on: without a
+    message_id, gone, or skipped as a torn line (E-5); the post-drain lines,
+    the twins and the simulator's total left as they were."""
+    index = next(i for i, record in enumerate(artefacts.sent_events) if record.get("message_id") == "b-mid")
+    if form == "malformed":
+        artefacts.sent_events[index] = {"run_id": RID}
+    else:
+        del artefacts.sent_events[index]
+        if form == "torn":
+            artefacts.skipped_lines = {"sent_events.jsonl": 1}
+    return artefacts
+
+
+@pytest.mark.parametrize("form", sorted(B_SENT_DAMAGE))
+def test_a_damaged_sent_record_of_the_n1_identity_leaves_r4_unshown_never_refuted(tmp_path, capsys, form: str) -> None:
+    """F1b: from the supporting N1 fixture, only B's sent record is lost;
+    its duplicate line, the twins and the simulator's total of 4 stay. The
+    population check already refuses support, but the naming reads only the
+    readable records, so B vanished as a candidate and D1's surplus of one
+    read as a mismatch: a refutation from lost evidence alone. An unread
+    record cannot show that no N1 case explains the surplus: the run is
+    not eligible and inconclusive, R4 and S5 null, D1's figures shown as
+    read with B beside them, and the population defect named."""
+    session = _session_file(tmp_path)
+    whole = _write_run_dir(tmp_path / "whole", lines=B_DUPLICATE, extra_after=N1_AFTER)
+    assert _main(whole, tmp_path / "whole.json", session) == 0
+    run_dir = _write_run_dir(tmp_path / "damaged", seal=False, lines=B_DUPLICATE, extra_after=N1_AFTER)
+    path = run_dir / "sent_events.jsonl"
+    raws = path.read_bytes().splitlines(keepends=True)
+    index = next(i for i, raw in enumerate(raws) if json.loads(raw)["message_id"] == "b-mid")
+    raws[index] = B_SENT_DAMAGE[form](raws[index])
+    path.write_bytes(b"".join(raws))
+    write_sha256sums(run_dir)
+    out = tmp_path / "damaged.json"
+    code = _main(run_dir, out, session)
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    outcome = doc["system_outcome"]
+    assert (code, outcome["result"], outcome["refutations"]) == (3, "inconclusive", [])
+    criteria = outcome["criteria"]
+    assert criteria["R4"]["observed"] is None and criteria["S5"]["holds"] is None
+    eligibility = doc["instrumentation"]["proof_eligibility"]
+    assert eligibility["eligible"] is False and eligibility["checks"]["population"]["whole"] is False
+    assert any(B_SENT_REASON[form] in reason for reason in eligibility["reasons"]), eligibility["reasons"]
+    assert any(r.startswith("not eligible (E-11)") for r in outcome["inconclusive_reasons"])
+    # The twin's figures as read, the unread identity beside them, and every
+    # naming the count allows tried: nothing is decided on them.
+    r4 = criteria["R4"]
+    row = next(row for row in r4["evidence"]["devices"] if row["device_uuid"] == D1)
+    assert (row["accepted_count_before"], row["accepted_count_after"], row["accepted_lines"], row["surplus"]) == (5, 7, 1, 1)
+    assert row["last_seq_after"] == 1 and row["named_n1_cases"] == 0 and row["ok"] is None
+    assert row["undecided"]["unread_identities"] == ["b-mid"] and row["undecided"]["explained"] is True
+    assert row["undecided"]["namings_tried"] == [
+        {"named_cases": 1, "highest_named_seq": 1, "expected_last_seq": 1, "problems": [], "regressed": None, "delta_ok": True}
+    ]
+    assert r4["evidence"]["mismatches"] == [] and r4["evidence"]["last_seq_regressions"] == []
+    assert r4["evidence"]["surplus_unexplained"] == []
+    assert {"E-7", "E-9", "E-11"} <= set(r4["identification_rules"])
+    assert any(r.startswith("S5 cannot be shown (E-7)") and "b-mid" in r for r in outcome["inconclusive_reasons"])
+    assert "no readable record" in pe.IDENTIFICATION_RULES["E-7"] and "(E-11)" in pe.IDENTIFICATION_RULES["E-7"]
+    assert "Traceback" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("form", ["malformed", "missing", "torn"])
+def test_the_population_defect_keeps_a_refutation_that_does_not_rest_on_the_unread_record(form: str) -> None:
+    """F1b's controls, no blanket rule: with B's sent record lost as above,
+    a double acceptance of another identity (R2), a last_seq regressed on
+    B's own device against the before snapshot under its run_id (P-5, which
+    no naming of B touches) and a surplus beyond what the one unread
+    identity could explain were read whatever B's record said: each stands.
+    Only the R4 the lost record alone would give is left unshown."""
+    twice = B_DUPLICATE + [("c-mid", D2, 0, "accepted", 9_999 * NS, None)]
+    doc = pe.evaluate(_damage_b_mid(_artefacts(lines=twice, extra_after=N1_AFTER), form), _session())
+    outcome = _outcome(doc)
+    assert outcome["result"] == "refutes" and _criterion(doc, "R2")["observed"] is True
+    assert _eligibility(doc)["eligible"] is False
+    assert [r.split(":")[0] for r in outcome["refutations"]] == ["R2"]
+    assert _criterion(doc, "R4")["observed"] is None
+    # The regression control: refuted with B's record read or lost.
+    after = _after_from(BEFORE, B_DUPLICATE, N1_AFTER)
+    after[D1] = (after[D1][0], "earlier", 3)
+    regressed = "last_seq 3 is below the before snapshot's 9 under the same run_id 'earlier'"
+    for artefacts in (_artefacts(lines=B_DUPLICATE, after=after), _damage_b_mid(_artefacts(lines=B_DUPLICATE, after=after), form)):
+        doc = pe.evaluate(artefacts, _session())
+        r4 = _criterion(doc, "R4")
+        assert _outcome(doc)["result"] == "refutes" and r4["observed"] is True and _criterion(doc, "S5")["holds"] is False
+        assert [(r["device_uuid"], r["regressed"]) for r in r4["evidence"]["last_seq_regressions"]] == [(D1, regressed)]
+    # A surplus of two against the one unread identity: no naming fits.
+    doc = pe.evaluate(_damage_b_mid(_artefacts(lines=B_DUPLICATE, extra_after={D1: 2, "seqs": [(D1, 1)]}), form), _session())
+    r4 = _criterion(doc, "R4")
+    assert _outcome(doc)["result"] == "refutes" and r4["observed"] is True
+    assert r4["evidence"]["mismatches"][0]["device_uuid"] == D1
+    assert "advanced by 3 against 1 accepted line(s) and 0 named N1 case(s)" in r4["evidence"]["mismatches"][0]["problems"][0]
 
 
 # ---------------------------------------------------------------------------
