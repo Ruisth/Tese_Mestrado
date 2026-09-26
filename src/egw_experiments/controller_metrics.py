@@ -53,11 +53,31 @@ would be worse.
 Standard library only (``urllib.request``); timestamps are the harness
 host's wall clock (same NTP-sync assumption as the measured window: good
 enough for 1 Hz windowing, never used for latency).
+
+Failed-poll retry (the finite proof only, off by default). With
+``fast_retry_s`` set, a poll that FAILED - including a typed
+``http.client.HTTPException`` such as ``IncompleteRead``, which the default
+sampler does not catch - is followed, once it has completed,
+by the next poll after ``fast_retry_s`` instead of the rest of the
+interval; a successful poll returns to the normal cadence. Requests stay
+serial (one thread, the same five-second request timeout), the stop event
+cancels any wait, and fast retry ends for an uninterrupted failure episode
+once ``fast_retry_cap_s`` have elapsed since its first failed request (the
+normal cadence then resumes until a success ends the episode). Its purpose
+is to observe the first post-restart reading as early as the controller
+answers it, so that the kill's band on the controller clock is as narrow as
+the controller allows (ADR 0011, the finite proof, E-8); it changes no
+reading, adds no interpolated row and never replaces a controller-clock
+value by a host instant. Every attempt is written to an attempts log with
+its host instants and outcome when ``attempts_path`` is given. The finite
+proof's harness command enables it (``--metrics-fast-retry``); every other
+run keeps the 1 Hz sampler unchanged.
 """
 
 from __future__ import annotations
 
 import csv
+import http.client
 import json
 import math
 import sys
@@ -70,6 +90,25 @@ from pathlib import Path
 from typing import Any
 
 from .protocol import RESOURCE_SAMPLE_INTERVAL_S
+
+#: The finite proof's failed-poll retry (PM decision of 2026-09-26, review
+#: of r02): the wait after a completed failed poll, and how long one
+#: uninterrupted failure episode may be retried at that pace. Instrumentation
+#: settings, not acceptance criteria; off unless a caller enables them.
+FAST_RETRY_S = 0.05
+FAST_RETRY_CAP_S = 60.0
+
+#: The attempts log of the failed-poll retry mode: one row per poll, with
+#: the HOST's instants (never the controller clock) and the wait chosen.
+ATTEMPTS_HEADER = (
+    "attempt",
+    "started_utc",
+    "started_monotonic_s",
+    "finished_monotonic_s",
+    "outcome",
+    "error",
+    "next_wait_s",
+)
 
 #: Counter fields copied from the /metrics JSON snapshot under the count
 #: rule (:func:`counter_value`), in column order: the six historical ones,
@@ -207,10 +246,40 @@ class ControllerMetricsSampler:
         csv_path: str | Path,
         url: str,
         interval_s: float = RESOURCE_SAMPLE_INTERVAL_S,
+        *,
+        fast_retry_s: float | None = None,
+        fast_retry_cap_s: float = FAST_RETRY_CAP_S,
+        attempts_path: str | Path | None = None,
     ) -> None:
+        if fast_retry_s is not None and not 0 < fast_retry_s < interval_s:
+            raise ValueError(
+                f"fast_retry_s={fast_retry_s!r} must be above 0 and below the interval ({interval_s} s)"
+            )
+        if not fast_retry_cap_s > 0:
+            raise ValueError(f"fast_retry_cap_s={fast_retry_cap_s!r} must be above 0")
+        if attempts_path is not None and fast_retry_s is None:
+            # The default thread polls at once after the entry poll, so the
+            # log would state a wait that never happens.
+            raise ValueError("attempts_path is the log of the failed-poll retry mode: it needs fast_retry_s")
         self.csv_path = Path(csv_path)
         self.url = url
         self.interval_s = interval_s
+        self.fast_retry_s = fast_retry_s
+        self.fast_retry_cap_s = fast_retry_cap_s
+        self.attempts_path = None if attempts_path is None else Path(attempts_path)
+        # Failed-poll retry figures (all 0 when the mode is off).
+        self.fast_retries = 0  # waits of fast_retry_s taken
+        self.failure_episodes = 0  # uninterrupted runs of failed polls
+        self.cap_reached = 0  # episodes in which the cap ended fast retry
+        self._episode_start: float | None = None
+        self._episode_capped = False
+        self._attempts = 0
+        self._attempts_fh = None
+        self._attempts_writer = None
+        # The wait after the entry poll (__enter__): the thread keeps it in the
+        # failed-poll retry mode only; otherwise it polls at once, as it always
+        # has, so the default sampler's timing is unchanged.
+        self._first_wait = 0.0
         self.samples_written = 0
         self.poll_errors = 0
         self.last_error: str | None = None
@@ -238,13 +307,27 @@ class ControllerMetricsSampler:
                 flush=True,
             )
 
-    def _sample_once(self) -> None:
+    def _sample_once(self) -> str | None:
+        """One poll: writes the row of a successful one. Returns None on
+        success, else the error of the failed poll (also counted)."""
         try:
             snapshot = fetch_metrics(self.url)
         except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError) as exc:
             self.poll_errors += 1
             self.last_error = str(exc)
-            return
+            return self.last_error
+        except http.client.HTTPException as exc:
+            # A typed HTTP failure that is not an OSError - e.g. IncompleteRead,
+            # a controller killed between a response's headers and its body.
+            # In the failed-poll retry mode it is a failed poll like any other
+            # (counted, logged, retried after fast_retry_s; no row is written).
+            # The default sampler keeps propagating it, as it always has: that
+            # older behaviour is a separate decision (LOG #C045).
+            if self.fast_retry_s is None:
+                raise
+            self.poll_errors += 1
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            return self.last_error
         row: list[Any] = [_utc_now_iso()]
         for field in METRIC_FIELDS:
             raw = snapshot.get(field)
@@ -273,13 +356,61 @@ class ControllerMetricsSampler:
             self._writer.writerow(row)
             self.samples_written += 1
             self._fh.flush()
+        return None
+
+    def _next_wait(self, ok: bool, started: float, finished: float) -> float:
+        """The wait before the next poll, from this poll's outcome and its
+        host-monotonic start and end: the rest of the interval, or - in the
+        failed-poll retry mode, after a failed poll, while the episode is
+        within its cap - ``fast_retry_s``. A success ends the episode."""
+        normal = max(0.0, self.interval_s - (finished - started))
+        if ok:
+            self._episode_start = None
+            self._episode_capped = False
+            return normal
+        if self.fast_retry_s is None:
+            return normal
+        if self._episode_start is None:
+            self._episode_start = started
+            self._episode_capped = False
+            self.failure_episodes += 1
+        if finished - self._episode_start >= self.fast_retry_cap_s:
+            if not self._episode_capped:
+                self._episode_capped = True
+                self.cap_reached += 1
+            return normal
+        self.fast_retries += 1
+        return self.fast_retry_s
+
+    def _poll(self) -> float:
+        """One poll and the wait it leaves; the attempts log records both."""
+        started_utc = _utc_now_iso()
+        started = time.monotonic()
+        error = self._sample_once()
+        finished = time.monotonic()
+        wait = self._next_wait(error is None, started, finished)
+        if self._attempts_writer is not None:
+            self._attempts += 1
+            with self._lock:
+                self._attempts_writer.writerow(
+                    [
+                        self._attempts,
+                        started_utc,
+                        f"{started:.6f}",
+                        f"{finished:.6f}",
+                        "ok" if error is None else "error",
+                        "" if error is None else " ".join(error.split())[:200],
+                        f"{wait:.3f}",
+                    ]
+                )
+                self._attempts_fh.flush()
+        return wait
 
     def _loop(self) -> None:
+        if self._first_wait:
+            self._stop.wait(self._first_wait)
         while not self._stop.is_set():
-            started = time.monotonic()
-            self._sample_once()
-            elapsed = time.monotonic() - started
-            self._stop.wait(max(0.0, self.interval_s - elapsed))
+            self._stop.wait(self._poll())
 
     # -- context manager ---------------------------------------------------
 
@@ -289,7 +420,14 @@ class ControllerMetricsSampler:
         self._writer = csv.writer(self._fh)
         self._writer.writerow(CSV_HEADER)
         self._fh.flush()
-        self._sample_once()
+        if self.attempts_path is not None:
+            self.attempts_path.parent.mkdir(parents=True, exist_ok=True)
+            self._attempts_fh = open(self.attempts_path, "w", encoding="utf-8", newline="")
+            self._attempts_writer = csv.writer(self._attempts_fh)
+            self._attempts_writer.writerow(ATTEMPTS_HEADER)
+            self._attempts_fh.flush()
+        first_wait = self._poll()
+        self._first_wait = first_wait if self.fast_retry_s is not None else 0.0
         self._thread = threading.Thread(
             target=self._loop, name="controller-metrics-sampler", daemon=True
         )
@@ -303,4 +441,8 @@ class ControllerMetricsSampler:
         if self._fh is not None:
             self._fh.close()
             self._fh = None
+        if self._attempts_fh is not None:
+            self._attempts_fh.close()
+            self._attempts_fh = None
+            self._attempts_writer = None
         return None

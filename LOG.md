@@ -3814,3 +3814,70 @@ is unchanged.
   attempt, authorised by the student on 2026-09-26 after this correction is
   verified, runs the tools at this branch's commit against the controller
   image built from `489bc9e`.
+
+## Entry #C045 — The finite proof's failed-poll retry of the controller /metrics sampler (review of r02)
+
+- **Date:** 2026-09-26. **Scope:** the Project Manager's brief on PR #48 and
+  r02 (`ChatGPT/PR48_AND_FINITE_PROOF_R02_REVIEW_2026-09-26.md`, section 3),
+  authorised by the student the same day: offline implementation and tests
+  only. The controller, the broker, the image, the evaluator, every
+  criterion and every campaign, pilot and nominal run are unchanged; no
+  guest session. Branch `feat/proof-metrics-fast-retry` on `dev` at
+  `2f5b531` (the merge of PR #48).
+- **Why.** In r01 and r02 one identity's only line was a `duplicate`
+  received inside the band between the last pre-kill and the first answered
+  post-kill `/metrics` reading (E-8), about 0.74 s and 0.56 s before that
+  reading; the 1 Hz sampler had polled the absent controller and then waited
+  the rest of the second. In r01 Uvicorn's startup log precedes "MQTT
+  connected" by about 0.22 s, but no answered `/metrics` request is recorded
+  in that interval (the first logged 200 is at 18:14:40.382, guest clock).
+- **What.** `egw_experiments.controller_metrics`: with `fast_retry_s` set, a
+  poll that failed is followed, once it completed, by the next one after
+  that wait (50 ms) instead of the rest of the second; a success returns to
+  the normal cadence; an uninterrupted failure episode is retried at that
+  pace for at most `fast_retry_cap_s` (60 s) from its first failed request.
+  Requests stay serial with the same five-second timeout, the stop event
+  cancels every wait, and in this mode the thread keeps the wait left by the
+  entry poll (the default thread still polls at once after it); an attempts
+  log without the mode is refused. Every attempt is written to `controller_metrics.attempts.csv`
+  (host instants, outcome, wait); no reading is changed, interpolated or
+  replaced by a host instant. The `run` subcommand's `--metrics-fast-retry`
+  (refused without `--controller-url`) enables it and the manifest's
+  `controller_metrics.fast_retry` records the settings and figures; the
+  campaign has no such option and every other run builds the sampler as
+  before. `tools/session/proof.sh` passes it and records it in the attempt's
+  workload.
+- **Tests.** `src/tests/test_metrics_fast_retry.py`: the scheduling
+  rule with explicit instants (default unchanged; 50 ms after a completed
+  failure; the rest of the second after a success; a failure that took the
+  whole timeout still waits 50 ms; the 60 s cap, counted once per episode,
+  and a new episode after a success; settings out of range refused) and the
+  running thread with a stub fetch (serial requests, never two in flight,
+  the attempts log, the cap, the stop event ending a 5 s retry wait and a
+  10 s first wait within a second, the default's immediate first thread
+  poll and no log); 15 cases;
+  `test_experiments_run.py`: the manifest record and the attempts log only
+  when asked, the option on `run` only, the usage error without a URL;
+  `test_proof_driver.py`: the proof driver passes it and the runbook's
+  harness command does not; `test_proof_evaluator.py`: with the unchanged
+  evaluator, a post-kill reading taken before the redelivered duplicate
+  (early) names the N1 case and the run supports, one taken after it (late)
+  leaves the identity in the band, inconclusive and never refuted.
+- **Limits.** A retry can only observe what the controller answers: the
+  request's own latency adds to the 50 ms, the first answered reading may
+  still come after a redelivery, and a missed observation stays
+  inconclusive. Neither run shows that this setting would have caught an
+  early enough reading. The review found one older defect: an
+  `http.client.HTTPException` that is not an `OSError` (for example
+  `IncompleteRead`, a kill between the headers and the body) is not caught
+  by `_sample_once` and ends the sampler thread (or, on the entry poll,
+  raises in the caller). The Project Manager's closing order for this pull
+  request (`ChatGPT/PR49_BOUNDED_REVIEW_2026-09-27.md`) closes it in the
+  retry mode only: there it is a failed poll, counted, logged and retried
+  after 50 ms, with no metrics row; tests cover it on the entry poll and in
+  the running thread, each followed by a genuine reading. The default
+  sampler keeps propagating it; repairing that is a separate decision, to
+  be revisited before the default sampler is relied on for qualifying
+  failure tests.
+- **Decisions and next steps.** None accepted here. A further finite-proof
+  attempt needs the student's separate decision.

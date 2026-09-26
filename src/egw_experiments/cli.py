@@ -573,6 +573,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional directory of operator logs copied into the external "
         "run's logs/ directory",
     )
+    p_run.add_argument(
+        "--metrics-fast-retry",
+        action="store_true",
+        help="the finite proof only (ADR 0011): after a failed "
+        "--controller-url poll, poll again after 50 ms instead of the rest "
+        "of the second, for at most 60 s per failure episode; every attempt "
+        "is logged in controller_metrics.attempts.csv. Requires "
+        "--controller-url; the campaign never uses it",
+    )
 
     # campaign (batch runner, work order P1 item 12) --------------------------
     p_camp = sub.add_parser(
@@ -743,6 +752,9 @@ def _cmd_plan(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    if args.metrics_fast_retry and not args.controller_url:
+        print("error: --metrics-fast-retry needs --controller-url (there is no poll to retry)", file=sys.stderr)
+        return 2
     return execute_run(
         args.plan,
         args.run_id,
@@ -788,6 +800,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         config_identity_from=args.config_identity_from,
         external_timings=args.external_timings,
         external_logs=args.external_logs,
+        metrics_fast_retry=args.metrics_fast_retry,
     )
 
 

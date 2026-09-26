@@ -1112,7 +1112,7 @@ VALUES=$(printf '{"DRAIN_QUIET_S": %s, "DRAIN_STEP_S": %s, "DRAIN_LIMIT_S": %s, 
 # (amend_expected_artefacts below), never silently.
 EXPECTED_ARTEFACTS='["raw/*/manifest.json", "raw/*/sent_events.jsonl", "raw/*/events.jsonl", "raw/*/events.post-drain.jsonl", "raw/*/twins.before.json", "raw/*/twins.after.json", "raw/*/configuration_identity.json", "raw/*/controller_metrics.csv", "raw/*/resources.csv", "raw/*/logs/sut/broker.log", "raw/*/logs/sut/controller.log", "raw/*/logs/sut/docker-events.log", "raw/*/SHA256SUMS", "analysis/proof_session.json", "analysis/proof_verdict.json", "analysis/snapshots/*.config_identity.json", "analysis/snapshots/*.metrics.before.json", "analysis/snapshots/*.metrics.after.json", "analysis/snapshots/*.twins.before.json", "analysis/snapshots/*.twins.after.json", "analysis/snapshots/*.restart.txt", "environment/proof_plan.json", "environment/sut_environment.json", "environment/clocks.txt", "environment/containers.before.txt", "environment/containers.after.txt", "environment/helpers-check.txt"]'
 (cd "$REPO/src" && $LE set --attempt "$A" "pid=$$" "identities=$IDENTITIES" \
-    "workload={\"session\": $(json_text "$(basename "$SESSION")"), \"proof\": \"the finite proof (ADR 0011)\", \"engineering_diagnostic_not_a_g3_run\": true, \"harness_run_id\": \"$RID\", \"condition\": \"controller_restart\", \"scenario\": \"nominal\", \"warmup_s\": 0, \"duration_s\": $DURATION, \"rate_msg_s\": $RATE, \"restart_at_s\": $RESTART_AT, \"fault\": \"SIGKILL of the controller's container followed by a start (proof_restart_controller.sh)\", \"devices\": \"smartwatch, smart ring, smart clothing (nominal mix)\", \"values\": $VALUES}" \
+    "workload={\"session\": $(json_text "$(basename "$SESSION")"), \"proof\": \"the finite proof (ADR 0011)\", \"engineering_diagnostic_not_a_g3_run\": true, \"harness_run_id\": \"$RID\", \"condition\": \"controller_restart\", \"scenario\": \"nominal\", \"warmup_s\": 0, \"duration_s\": $DURATION, \"rate_msg_s\": $RATE, \"restart_at_s\": $RESTART_AT, \"metrics_fast_retry\": \"a failed /metrics poll is retried after 50 ms, at most 60 s per failure episode (controller_metrics.attempts.csv)\", \"fault\": \"SIGKILL of the controller's container followed by a start (proof_restart_controller.sh)\", \"devices\": \"smartwatch, smart ring, smart clothing (nominal mix)\", \"values\": $VALUES}" \
     "proof_verdict=not-computed" "restoration=not-started" "restart_shown=unknown" "extension=$EXTENSION_RESULT" \
     "expected_artefacts=$EXPECTED_ARTEFACTS") \
     || PREREQ="the attempt fields could not be recorded"
@@ -1742,6 +1742,12 @@ proof_harness_args() {
 }
 
 # --- 10. the harness run, under the attempt's allowance ---------------------------
+# The harness is given --metrics-fast-retry, which no other driver passes: a
+# failed /metrics poll is retried after 50 ms (at most 60 s per failure
+# episode), so that the first reading of the process after the fault is
+# taken within about 50 ms of its first answer, plus the request's own
+# duration. That can narrow the kill's band on the controller clock (E-8);
+# it does not guarantee that a redelivered identity lands after it.
 # The remainder is checked before the step is dispatched, as for every live
 # step, and it is preceded by 'tunnel-ready' (10a below), a live step that
 # loads the 6.1 preamble under the bound with a trivial body. The harness
@@ -1845,7 +1851,7 @@ fi
 echo \"harness_started_utc=\$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
 echo \"harness_started_host_uptime_s=\$HARNESS_UP\"
 echo \"harness_allowance_s=\$HARNESS_LEFT\"
-bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cmd 'bash \"$DRIVERS/proof_restart_controller.sh\" {run_id}' --restart-at-s $RESTART_AT --config-identity-from '$P/$RID.config_identity.json' --twin-snapshot-cmd 'bash \"$DRIVERS/proof_hook_twins.sh\" {run_id} \"{dest}\" $SEED' --drain-cmd 'bash \"$DRIVERS/proof_hook_drained.sh\" {run_id}' --post-drain-fetch-cmd 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"' --fetch-broker-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" broker \"{dest}\" $GUEST_EPOCH' --fetch-controller-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" controller \"{dest}\" $GUEST_EPOCH' --fetch-docker-events-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" docker-events \"{dest}\" $GUEST_EPOCH'"
+bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cmd 'bash \"$DRIVERS/proof_restart_controller.sh\" {run_id}' --restart-at-s $RESTART_AT --metrics-fast-retry --config-identity-from '$P/$RID.config_identity.json' --twin-snapshot-cmd 'bash \"$DRIVERS/proof_hook_twins.sh\" {run_id} \"{dest}\" $SEED' --drain-cmd 'bash \"$DRIVERS/proof_hook_drained.sh\" {run_id}' --post-drain-fetch-cmd 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"' --fetch-broker-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" broker \"{dest}\" $GUEST_EPOCH' --fetch-controller-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" controller \"{dest}\" $GUEST_EPOCH' --fetch-docker-events-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" docker-events \"{dest}\" $GUEST_EPOCH'"
     h_rc=$?
     HARNESS_ENDED_UTC=$(now_utc)
     # What the step itself printed immediately before the harness started:

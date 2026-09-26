@@ -6707,3 +6707,67 @@ def test_collect_drops_the_retired_flag_and_deviation_from_an_older_manifest(
     assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
     assert manifest["drain"]["outcome"] == "quiet" and manifest["drain"]["source"] == "hook"
     assert manifest["validity"] == "valid"
+
+
+# ---------------------------------------------------------------------------
+# The finite proof's failed-poll retry (PM brief of 2026-09-26, PR #48 and
+# r02, section 3): only the 'run' subcommand's --metrics-fast-retry enables it
+# ---------------------------------------------------------------------------
+
+
+def _always_refused(url, *args, **kwargs):
+    raise OSError("connection refused")
+
+
+@pytest.mark.parametrize("enabled", [False, True], ids=["default", "fast-retry"])
+def test_metrics_fast_retry_reaches_the_sampler_and_the_manifest_only_when_asked(
+    tmp_path, plan_path, fast_run, monkeypatch, enabled: bool
+) -> None:
+    _fake_controller_marker(monkeypatch)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _always_refused)
+    base = tmp_path / "results"
+    run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        controller_url="http://127.0.0.1:8000",
+        metrics_fast_retry=enabled,
+    )
+    record = _manifest(base, "smoke_sequence-r01")["controller_metrics"]
+    attempts = base / "raw" / "smoke_sequence-r01" / "controller_metrics.attempts.csv"
+    assert record["poll_errors"] >= 1
+    if not enabled:
+        assert "fast_retry" not in record and not attempts.exists()
+        return
+    fast = record["fast_retry"]
+    assert (fast["enabled"], fast["retry_s"], fast["cap_s"]) == (True, 0.05, 60.0)
+    assert fast["attempts_log"] == "controller_metrics.attempts.csv"
+    assert fast["failure_episodes"] == 1 and fast["fast_retries"] >= 1 and fast["cap_reached"] == 0
+    lines = attempts.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == ",".join(metrics_mod.ATTEMPTS_HEADER)
+    assert len(lines) - 1 == record["poll_errors"]           # one row per attempt, every one refused here
+
+
+def test_metrics_fast_retry_is_an_option_of_the_run_subcommand_only() -> None:
+    from egw_experiments import cli as cli_mod
+
+    parser = cli_mod.build_parser()
+    base = ["run", "--plan", "plan.json", "--run-id", "r"]
+    assert parser.parse_args(base).metrics_fast_retry is False
+    assert parser.parse_args(base + ["--metrics-fast-retry"]).metrics_fast_retry is True
+    subparsers = next(a for a in parser._actions if a.__class__.__name__ == "_SubParsersAction")
+    assert "--metrics-fast-retry" not in subparsers.choices["campaign"]._option_string_actions
+
+
+def test_metrics_fast_retry_without_a_controller_url_is_a_usage_error(plan_path, capsys) -> None:
+    from egw_experiments import cli as cli_mod
+
+    rc = cli_mod.main(["run", "--plan", str(plan_path), "--run-id", "smoke_sequence-r01", "--metrics-fast-retry"])
+    assert rc == 2
+    assert "--metrics-fast-retry needs --controller-url" in capsys.readouterr().err

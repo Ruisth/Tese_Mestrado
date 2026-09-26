@@ -1167,6 +1167,34 @@ def test_a_duplicate_only_line_in_the_sampling_band_cannot_be_shown_and_never_re
     assert "lined before the kill on the controller clock" in not_named[0]["why_not_named"]
 
 
+@pytest.mark.parametrize("capture_s, result", [(1_165, "supports"), (1_175, "inconclusive")], ids=["early", "late"])
+def test_an_earlier_post_restart_reading_can_place_a_redelivered_duplicate_after_the_band(capture_s: int, result: str) -> None:
+    """The finite proof's failed-poll retry (controller_metrics,
+    --metrics-fast-retry) can add a reading of the post-kill process before
+    its first redelivery. Test 22a's duplicate-only identity, received at
+    1 170 s inside the band: a reading at 1 165 s (early) narrows the band
+    below it, so the same, unchanged evaluator names the case (restart
+    class, surplus 1, last_seq 1); a reading at 1 175 s (late) leaves it in
+    the band: inconclusive, never refuted."""
+    received = 1_170 * NS
+    assert K_LOWER < received < K_UPPER
+    lines = [line for line in LINES if line[0] != "b-mid"] + [("b-mid", D1, 1, "duplicate", received, None)]
+    rows = _rows()
+    first_post = next(i for i, row in enumerate(rows) if row["started_at"] == P1)
+    rows.insert(first_post, _row(_ts(172), P1, 0, 0, monotonic_ns=capture_s * NS, unacked=0, subscribed="false"))
+    doc = _evaluate(lines=lines, extra_after={D1: 1, "seqs": [(D1, 1)]}, rows=rows)
+    outcome = _outcome(doc)
+    assert outcome["refutations"] == []
+    assert outcome["result"] == result
+    if result == "supports":
+        assert [case["message_id"] for case in outcome["n1_cases"]] == ["b-mid"]
+        assert _criterion(doc, "S2")["holds"] is True and _criterion(doc, "S4")["holds"] is True
+    else:
+        assert outcome["n1_cases"] == []
+        shown = _criterion(doc, "R3")["evidence"]["cannot_show_identities"]
+        assert [case["message_id"] for case in shown] == ["b-mid"]
+        assert str(capture_s * NS) in shown[0]["why_not_shown"]
+
 def test_a_controller_log_that_cannot_serve_the_criteria_leaves_an_a3_source_unshown_never_r3() -> None:
     """E-7 over the controller log (the ADR's item 6, fetched 'so that an
     N1 case caused by an A3 connection end is named and not read as R3'):

@@ -36,7 +36,11 @@ Evidence collection topology (audit 9.1-9.3):
 - The controller's ``GET /metrics`` (CONTRACTS v1.1: includes ``dropped``
   and ``queue_depth``) is sampled at 1 Hz into ``controller_metrics.csv``
   when ``--controller-url`` is given (port 8000 is loopback-only on the
-  VM; use an SSH tunnel, see the deployment README).
+  VM; use an SSH tunnel, see the deployment README). The finite proof's
+  harness command adds ``--metrics-fast-retry``: a failed poll is then
+  followed by the next one after 50 ms, within a 60 s cap per failure
+  episode, with every attempt in ``controller_metrics.attempts.csv``
+  (egw_experiments.controller_metrics); no other run uses it.
 
 Validity (audit: warning-only is NOT acceptable; hardened by work order
 P1): timed runs (every simulator-driven condition) REQUIRE
@@ -283,7 +287,7 @@ from .checksums import (
     verify_sha256sums,
     write_sha256sums,
 )
-from .controller_metrics import ControllerMetricsSampler
+from .controller_metrics import FAST_RETRY_CAP_S, FAST_RETRY_S, ControllerMetricsSampler
 from .environment import (
     LOADGEN_ENVIRONMENT_FILENAME,
     SUT_ENVIRONMENT_FILENAME,
@@ -4182,6 +4186,7 @@ def execute_run(
     external_timings: str | Path | None = None,
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
+    metrics_fast_retry: bool = False,
 ) -> int:
     """Execute one planned run end-to-end. Returns a process exit code.
 
@@ -4466,8 +4471,20 @@ def execute_run(
     local_sampler = (
         ResourceSampler(run_dir / "resources.csv") if local_resources else None
     )
+    # The finite proof's failed-poll retry: the sampler gets its settings
+    # only when the run asks for them, so every other run builds it exactly
+    # as before (egw_experiments.controller_metrics).
+    fast_retry = (
+        {
+            "fast_retry_s": FAST_RETRY_S,
+            "fast_retry_cap_s": FAST_RETRY_CAP_S,
+            "attempts_path": run_dir / "controller_metrics.attempts.csv",
+        }
+        if metrics_fast_retry
+        else {}
+    )
     metrics_sampler = (
-        ControllerMetricsSampler(run_dir / "controller_metrics.csv", controller_url)
+        ControllerMetricsSampler(run_dir / "controller_metrics.csv", controller_url, **fast_retry)
         if controller_url
         else None
     )
@@ -5226,6 +5243,23 @@ def execute_run(
                 # are not non-negative integers are written as empty cells.
                 "invalid_values": metrics_sampler.invalid_values,
                 "last_invalid_value": metrics_sampler.last_invalid,
+                # The finite proof's failed-poll retry, recorded only when
+                # the run enabled it (settings, not acceptance criteria).
+                **(
+                    {
+                        "fast_retry": {
+                            "enabled": True,
+                            "retry_s": metrics_sampler.fast_retry_s,
+                            "cap_s": metrics_sampler.fast_retry_cap_s,
+                            "fast_retries": metrics_sampler.fast_retries,
+                            "failure_episodes": metrics_sampler.failure_episodes,
+                            "cap_reached": metrics_sampler.cap_reached,
+                            "attempts_log": "controller_metrics.attempts.csv",
+                        }
+                    }
+                    if metrics_fast_retry
+                    else {}
+                ),
             }
             if metrics_sampler is not None
             else None
