@@ -78,9 +78,10 @@ drain that does not complete is `incomplete`, never `mandatory`, and is
 no quiet window of … s within … s` its console record carries. That step
 reaches the controller through the tunnel, so its status alone observes nothing
 about the queue — a tunnel that dropped, a refused connection, a guest that is
-not answering, and the helper's other stop (a `/metrics` that is unreachable or
+not answering, and the helper's other stops (a `/metrics` that is unreachable or
 not JSON, or a response missing one of the thirteen fields `drained` reads or
-carrying one of the wrong type) leave the tail simply unobserved. Either way the
+carrying one of the wrong type; a monotonic clock that cannot be read or goes
+back) leave the tail simply unobserved. Either way the
 measured verdict stands and nothing claims eventual delivery or a complete tail.
 `drained` (runbook 6.1, under ADR 0011) reads `queue_depth`, `in_progress`,
 `unacked`, `mqtt_subscribed`, `started_at`, `mqtt_connection`, `received`, the
@@ -90,8 +91,9 @@ response; a reading is quiet only when `queue_depth`, `in_progress` and
 `src/CONTRACTS.md` section 5 holds in that same response, and its window closes
 only when `started_at`, `mqtt_connection`, `received` and the six counters
 stayed unchanged through it. A reading that is not quiet, or whose identity
-fails, opens a new window and is not a stop; the window, the thresholds and
-both prefixes are unchanged.
+fails, opens a new window and is not a stop; the window's length, the
+thresholds and both prefixes are unchanged, and since 2026-09-26 the window and
+the limit are timed on `/proc/uptime`, never on the wall clock (LOG `#C044`).
 
 Two rules hold the three groups apart. **A clean pass needs complete
 evidence**: while anything is `incomplete` the outcome cannot be `pass`, so it
