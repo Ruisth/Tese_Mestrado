@@ -3867,11 +3867,17 @@ is unchanged.
   request's own latency adds to the 50 ms, the first answered reading may
   still come after a redelivery, and a missed observation stays
   inconclusive. Neither run shows that this setting would have caught an
-  early enough reading. The review found one older defect, left unchanged
-  here because fixing it changes the default sampler: an
+  early enough reading. The review found one older defect: an
   `http.client.HTTPException` that is not an `OSError` (for example
   `IncompleteRead`, a kill between the headers and the body) is not caught
-  by `_sample_once` and ends the sampler thread; the fix (adding it to the
-  caught exceptions) is a separate decision.
+  by `_sample_once` and ends the sampler thread (or, on the entry poll,
+  raises in the caller). The Project Manager's closing order for this pull
+  request (`ChatGPT/PR49_BOUNDED_REVIEW_2026-09-27.md`) closes it in the
+  retry mode only: there it is a failed poll, counted, logged and retried
+  after 50 ms, with no metrics row; tests cover it on the entry poll and in
+  the running thread, each followed by a genuine reading. The default
+  sampler keeps propagating it; repairing that is a separate decision, to
+  be revisited before the default sampler is relied on for qualifying
+  failure tests.
 - **Decisions and next steps.** None accepted here. A further finite-proof
   attempt needs the student's separate decision.

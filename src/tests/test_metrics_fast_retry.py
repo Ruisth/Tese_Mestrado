@@ -8,6 +8,7 @@ the stop event, and the unchanged default.
 from __future__ import annotations
 
 import csv
+import http.client
 import threading
 import time
 import urllib.error
@@ -204,3 +205,80 @@ def test_the_default_sampler_writes_no_attempts_log_and_never_retries_fast(tmp_p
 def test_an_attempts_log_without_the_retry_mode_is_refused(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         _sampler(tmp_path, attempts_path=tmp_path / "a.csv")
+
+
+# --- a typed HTTP failure (IncompleteRead) in the acquisition path ------------------
+
+
+class _Sequence:
+    """A stub GET /metrics answering from a script: an exception instance is
+    raised, anything else answers the snapshot; the last item repeats."""
+
+    def __init__(self, *script: object) -> None:
+        self.script, self.calls = list(script), 0
+
+    def __call__(self, url: str, timeout_s: float = 5.0) -> dict:
+        item = self.script[min(self.calls, len(self.script) - 1)]
+        self.calls += 1
+        if isinstance(item, BaseException):
+            raise item
+        return dict(SNAPSHOT)
+
+
+def _csv_rows(path: Path) -> list[list[str]]:
+    with open(path, encoding="utf-8", newline="") as fh:
+        return list(csv.reader(fh))[1:]
+
+
+def test_an_incomplete_body_on_the_entry_poll_is_a_failed_poll_retried_after_50_ms(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(cm, "fetch_metrics", _Sequence(http.client.IncompleteRead(b"{\"acc", 40), "ok"))
+    log = tmp_path / "a.csv"
+    with cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=0.5, fast_retry_s=0.05, attempts_path=log) as s:
+        time.sleep(0.3)
+    rows = _attempts(log)
+    assert rows[0]["outcome"] == "error" and rows[0]["error"].startswith("IncompleteRead: ")
+    assert rows[0]["next_wait_s"] == "0.050" and rows[1]["outcome"] == "ok"
+    assert s.poll_errors == 1 and s.last_error.startswith("IncompleteRead")
+    # no row for the failed poll: every metrics row is a genuine reading
+    assert len(_csv_rows(tmp_path / "m.csv")) == s.samples_written == sum(r["outcome"] == "ok" for r in rows)
+
+
+def test_an_incomplete_body_in_the_running_thread_is_retried_and_the_sampler_recovers(tmp_path: Path, monkeypatch) -> None:
+    fetch = _Sequence("ok", http.client.IncompleteRead(b"", 10), "ok")
+    monkeypatch.setattr(cm, "fetch_metrics", fetch)
+    log = tmp_path / "a.csv"
+    with cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=0.2, fast_retry_s=0.05, attempts_path=log) as s:
+        time.sleep(0.7)
+        alive = s._thread.is_alive()
+    assert alive                                            # the thread survived the typed failure
+    rows = _attempts(log)
+    assert [r["outcome"] for r in rows[:3]] == ["ok", "error", "ok"]
+    assert rows[1]["error"].startswith("IncompleteRead: ") and rows[1]["next_wait_s"] == "0.050"
+    assert s.poll_errors == 1 and (s.fast_retries, s.failure_episodes) == (1, 1)
+    assert len(rows) >= 4                                   # it kept polling after the recovery
+    assert len(_csv_rows(tmp_path / "m.csv")) == s.samples_written == len(rows) - 1
+
+
+@pytest.mark.parametrize("exc", [http.client.IncompleteRead(b"", 5), http.client.BadStatusLine("")],
+                         ids=["IncompleteRead", "BadStatusLine"])
+def test_the_default_sampler_still_propagates_a_typed_http_failure(tmp_path: Path, monkeypatch, exc: Exception) -> None:
+    """The older default behaviour is kept (a separate decision): the entry poll
+    raises, and so does a poll of the thread."""
+    monkeypatch.setattr(cm, "fetch_metrics", _Sequence(exc))
+    s = _sampler(tmp_path)
+    with pytest.raises(type(exc)):
+        s.__enter__()
+    s.__exit__(None, None, None)
+    assert s.poll_errors == 0 and s._thread is None
+    with pytest.raises(type(exc)):
+        _sampler(tmp_path)._sample_once()
+
+
+@pytest.mark.parametrize("exc", [http.client.IncompleteRead(b"", 5), http.client.BadStatusLine("")],
+                         ids=["IncompleteRead", "BadStatusLine"])
+def test_the_retry_mode_counts_a_typed_http_failure_without_a_metrics_row(tmp_path: Path, monkeypatch, exc: Exception) -> None:
+    monkeypatch.setattr(cm, "fetch_metrics", _Sequence(exc))
+    s = _sampler(tmp_path, fast_retry_s=cm.FAST_RETRY_S)
+    error = s._sample_once()
+    assert error is not None and error.startswith(type(exc).__name__)
+    assert (s.poll_errors, s.samples_written) == (1, 0)

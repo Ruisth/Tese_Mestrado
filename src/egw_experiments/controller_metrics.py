@@ -55,7 +55,9 @@ host's wall clock (same NTP-sync assumption as the measured window: good
 enough for 1 Hz windowing, never used for latency).
 
 Failed-poll retry (the finite proof only, off by default). With
-``fast_retry_s`` set, a poll that FAILED is followed, once it has completed,
+``fast_retry_s`` set, a poll that FAILED - including a typed
+``http.client.HTTPException`` such as ``IncompleteRead``, which the default
+sampler does not catch - is followed, once it has completed,
 by the next poll after ``fast_retry_s`` instead of the rest of the
 interval; a successful poll returns to the normal cadence. Requests stay
 serial (one thread, the same five-second request timeout), the stop event
@@ -75,6 +77,7 @@ run keeps the 1 Hz sampler unchanged.
 from __future__ import annotations
 
 import csv
+import http.client
 import json
 import math
 import sys
@@ -312,6 +315,18 @@ class ControllerMetricsSampler:
         except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError) as exc:
             self.poll_errors += 1
             self.last_error = str(exc)
+            return self.last_error
+        except http.client.HTTPException as exc:
+            # A typed HTTP failure that is not an OSError - e.g. IncompleteRead,
+            # a controller killed between a response's headers and its body.
+            # In the failed-poll retry mode it is a failed poll like any other
+            # (counted, logged, retried after fast_retry_s; no row is written).
+            # The default sampler keeps propagating it, as it always has: that
+            # older behaviour is a separate decision (LOG #C045).
+            if self.fast_retry_s is None:
+                raise
+            self.poll_errors += 1
+            self.last_error = f"{type(exc).__name__}: {exc}"
             return self.last_error
         row: list[Any] = [_utc_now_iso()]
         for field in METRIC_FIELDS:
