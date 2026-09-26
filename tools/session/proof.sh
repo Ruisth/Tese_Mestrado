@@ -76,33 +76,44 @@
 # between the latest start of the six and start + EGW_HEALTH_LIMIT_S; an
 # unknown start - docker's zero StartedAt of a container created but never
 # started among them - cannot establish the rule (not-run, stated). The
-# attempt stopped EGW_PROOF_ATTEMPT_LIMIT_S (3000 s, the 50-minute rule)
-# after its first 'drained' starts, measured on /proc/uptime (the host's
-# wall clock is stepped backwards on this host) from the instant taken
-# immediately before 'pre', and enforced as ONE monotonic deadline on 'pre'
-# itself and on every live proof observation after it (harness-run, the
-# controller process and the containers after, metrics-after, delta, the
-# guest state after): the remainder is checked before each is dispatched,
-# each runs under 'timeout' of the positive remainder (a spent allowance
-# means the step is not started, never 'timeout 0'; the live host steps
-# load the 6.1 preamble inside that bound; the harness step loads it
-# before its bound, as hx does, and is handed the absolute deadline, so
-# its bound is computed AFTER the preamble and the harness is not started
-# when nothing is left then), and the expiry is recorded once - in the
-# driver's own shell, never in a subshell - with its instant and the step,
-# whether it fell before, during or after a step. After it no further
-# proof or fault step starts (the optional extension included); the
-# partial records and the stop reason are kept; the restoration and the
-# shutdown still run and are never force-killed; the two comparisons of
-# records already taken (restart-shown, the guest-state delta) still run
-# when their input records were taken whole, and are not run when the rule
-# kept an input from being taken; the packaging, the hashing and the
-# evaluation may finish afterwards but acquire no new live observation and
-# never hide that the rule was reached (the outcome is inconclusive with
-# the rule named, from 'pre' on; only an allowance spent before 'pre' was
-# dispatched, when no 'drained' started, leaves the attempt not-run). If a
-# stop rule is reached the session stops and the proof is recorded
-# inconclusive; the restoration is never cut short to keep a total
+# rule REACHED - the allowance from that start spent before the wait, the
+# stack not healthy within its remainder, a first healthy observation past
+# start + EGW_HEALTH_LIMIT_S, or a named earlier transition past it - ends
+# the attempt inconclusive (exit 3), never not-run, and the harness is not
+# started. The attempt stopped EGW_PROOF_ATTEMPT_LIMIT_S (3000 s, the
+# 50-minute rule) after its first 'drained' starts, measured on
+# /proc/uptime (the host's wall clock is stepped backwards on this host)
+# from the instant taken immediately before 'pre', and enforced as ONE
+# monotonic deadline on 'pre'
+# itself and on every live proof step after it (tunnel-ready, harness-run,
+# the controller process and the containers after, metrics-after, delta,
+# the guest state after): the remainder is checked before each is
+# dispatched, each runs under 'timeout' of the positive remainder (a spent
+# allowance means the step is not started, never 'timeout 0'; the live
+# host steps load the 6.1 preamble inside that bound; 'tunnel-ready', just
+# before the harness, is such a step with a trivial body, so a tunnel that
+# wedges is ended by the allowance there and the harness step's own
+# preamble - which it loads before its bound, as hx does, its text being
+# pinned to the runbook's harness_cmd - then finds the tunnel up; the
+# harness step is handed the absolute deadline, so its bound is computed
+# AFTER that preamble and the harness is not started when nothing is left
+# then), and the expiry is recorded once - in the driver's own shell, never
+# in a subshell - with its instant and the step, whether it fell before,
+# during or after a step. After it no further proof or fault step starts
+# (the optional extension included); the partial records and the stop
+# reason are kept; the restoration and the shutdown still run and are never
+# force-killed; the two comparisons of records already taken
+# (restart-shown, the guest-state delta) still run when their input records
+# were taken whole, and are not run when the rule kept an input from being
+# taken; the packaging, the hashing and the evaluation may finish
+# afterwards but acquire no new live observation and never hide that the
+# rule was reached (the outcome is inconclusive with the rule named,
+# whenever it is reached: before 'pre' is dispatched, during it or after
+# it). If a stop rule is reached the session stops and the proof is
+# recorded inconclusive (ADR 0011: "If a stop rule is reached, the session
+# stops and the proof is recorded inconclusive"), the 20-minute rule and the
+# 50-minute rule alike; only a prerequisite that is not a stop rule leaves
+# the attempt not-run. The restoration is never cut short to keep a total
 # duration. The values used are recorded before anything starts - on the
 # attempt (workload.values) and in analysis/proof_session.json - and the
 # student may set other values before the session.
@@ -146,11 +157,13 @@
 #   EGW_HEALTH_LIMIT_S (1200) EGW_HEALTH_STEP_S (15) EGW_READY_LIMIT_S (300:
 #   the driver's own choice; the ADR gives no /ready figure and the runbook's
 #   wait_ready defaults to 60 s) EGW_PROOF_ATTEMPT_LIMIT_S (3000)
-#   EGW_PROOF_RESTART_AT_S (150; strictly between 0 and the duration, or the
-#   fault would never fire: the harness cancels its restart timer when the
-#   measured run ends) EGW_PROOF_DURATION_S (300) EGW_PROOF_RATE (11.2) - the
-#   load is fixed by proof_plan.py; a different value stops the driver, it
-#   never changes it
+#   EGW_PROOF_RESTART_AT_S (150, the ADR's 't+150 s', which the evaluator
+#   requires of the run (E-11): any other value stops the driver before
+#   anything starts, as a load that differs from the plan does; it must
+#   also lie strictly between 0 and the duration, or the fault would never
+#   fire: the harness cancels its restart timer when the measured run ends)
+#   EGW_PROOF_DURATION_S (300) EGW_PROOF_RATE (11.2) - the load is fixed by
+#   proof_plan.py; a different value stops the driver, it never changes it
 #   EGW_PROOF_MASTER_SEED (no default: the student's decision)
 #   EGW_PROOF_HEALTHY_RECORD (no default: the path of a console record of
 #   the shared healthy wait made earlier in this session - gate_health.sh's
@@ -228,6 +241,15 @@ done
 # run, so it is refused here, before anything starts.
 [ "$RESTART_AT" -gt 0 ] && [ "$RESTART_AT" -lt "$DURATION" ] \
     || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_RESTART_AT_S=$RESTART_AT is not strictly between 0 and EGW_PROOF_DURATION_S=$DURATION (the harness cancels its restart timer when the measured run ends, so the fault would never fire); nothing was started"
+# The fault instant is the ADR's ("fault | at t+150 s"), and the evaluator
+# requires it of the run it reads (E-11: the manifest's restart.requested_at_s
+# must be egw_experiments.proof_evaluator.PROOF_RESTART_AT_S, 150; a test pins
+# the two equal): a run with the fault at any other instant can never support
+# the proof, so a session is never started for one. The driver changes no
+# fault instant, as it changes no load (P-13).
+PROOF_RESTART_AT_S=150
+[ "$RESTART_AT" -eq "$PROOF_RESTART_AT_S" ] \
+    || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_RESTART_AT_S=$RESTART_AT is not the ADR's fault instant of $PROOF_RESTART_AT_S s ('fault | at t+$PROOF_RESTART_AT_S s'), which the evaluator requires of the run (E-11: restart.requested_at_s must be $PROOF_RESTART_AT_S), so the run could never support the proof; the driver changes no fault instant; nothing was started"
 RATE=${EGW_PROOF_RATE:-11.2}
 [[ $RATE =~ ^(0|[1-9][0-9]*)(\.[0-9]+)?$ ]] \
     || driver_stop "$EXIT_PREREQUISITE" "EGW_PROOF_RATE='$RATE' is not a number; nothing was started"
@@ -331,7 +353,7 @@ mkdir -p "$ENVD" "$ANALYSIS" || driver_stop "$EXIT_PREREQUISITE" "$ENVD could no
 STACK_STATE=untouched    # untouched | healthy | not-healthy | unknown
 RESTART_SHOWN=unknown    # unknown | yes | no
 STARTED_AFTER=""         # the controller's started_at read after the run: the extension's baseline
-HARNESS_STARTED=0        # once the harness step was dispatched the outcome is never 'not-run'
+HARNESS_STARTED=0        # once the harness block is entered (tunnel-ready, then the harness step) the outcome is never 'not-run'
 RESTORED=0               # the restoration wait was run
 RESTORE_NOTE=""          # what the restoration found when the stack did not come back
 EXT_RESTORE=0            # the restoration being waited for is the extension's own (recorded apart)
@@ -442,9 +464,10 @@ left() {
 }
 
 # --- the attempt's allowance as ONE monotonic deadline (F2, P-10) --------------
-# Every live proof observation after the first 'drained' - 'pre' itself, the
-# harness run, the controller process and the containers after, the
-# /metrics reading after, the delta, the guest state after - is dispatched
+# Every live proof step after the first 'drained' - 'pre' itself, the 6.1
+# preamble loaded just before the harness (tunnel-ready), the harness run,
+# the controller process and the containers after, the /metrics reading
+# after, the delta, the guest state after - is dispatched
 # only while something of the allowance is left, runs under 'timeout' of
 # the positive remainder (a spent allowance means the step is not started:
 # never 'timeout 0', which would disable the bound), and the expiry is
@@ -474,6 +497,8 @@ attempt_reached() {
             text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before the harness could start (the harness was NOT started; the run directory was never created)" ;;
         during:harness-run)
             text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started (the harness step was ended by 'timeout', exit $rc); the run directory, sealed or not, is preserved as incomplete" ;;
+        during:tunnel-ready)
+            text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('tunnel-ready', the host preamble of runbook 6.1 loaded under the bound just before the harness, was ended by 'timeout', exit $rc; a tunnel that did not open in time): the harness was NOT started; the run directory was never created" ;;
         before:*)
             text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s from its first 'drained' was spent before '$name' could start ('$name' was NOT started); no further proof step was started" ;;
         during:*)
@@ -518,28 +543,42 @@ live_end() {
     fi
     return "$rc"
 }
-# live_hx NAME SCRIPT [ARG...]: a host step of runbook 6.1 under the bound,
-# the 6.1 preamble included. hx loads the preamble before and outside the
-# bound, so a preamble that blocks (a 'tunnel_up' whose ssh never completes
-# its banner) would run on across the expiry; here the whole step runs
-# inside 'bounded': the preamble is handed to the bounded shell as the value
-# of EGW_HOST_PRE, never as code text, and loaded there with 'eval', and a
-# preamble that fails is 97 as hx answers it (the step never ran). The
-# helpers thus run in a shell of their own, which 'timeout' can end; SCRIPT
-# reads its ARGs as $1, $2... and holds no single quote; each ARG is written
-# single-quoted (checked to be the literal it is).
-live_hx() {
-    local name=$1 script=$2 rest args="" arg
-    shift 2
+# hx_bounded NAME REST SCRIPT [ARG...]: a host step of runbook 6.1 under
+# 'bounded REST', the 6.1 preamble included. hx loads the preamble before
+# and outside any bound, so a preamble that blocks (a 'tunnel_up' whose ssh
+# never completes its banner) would run on across the expiry; here the
+# whole step runs inside 'bounded': the preamble is handed to the bounded
+# shell as the value of EGW_HOST_PRE, never as code text, and loaded there
+# with 'eval', and a preamble that fails is 97 as hx answers it (the step
+# never ran). The helpers thus run in a shell of their own, which 'timeout'
+# can end; SCRIPT reads its ARGs as $1, $2... and holds no single quote;
+# each ARG is written single-quoted (checked to be the literal it is). REST
+# is the remainder live_start left in LIVE_REST: this function reads nothing
+# of the allowance itself (live_hx, and the tunnel-ready step, which shares
+# the check made before the harness is dispatched, call it).
+hx_bounded() {
+    local name=$1 rest=$2 script=$3 args="" arg
+    shift 3
     for arg in "$@"; do
         guest_literal "$arg" || { missed "'$arg' cannot be written into the step '$name' as the literal it is"; return 1; }
         args="$args '$arg'"
     done
-    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
-    rest=$LIVE_REST
     ex "$A" "$name" env EGW_HOST_PRE="$HOST_PRE" bash -c "$(declare -f bounded)
 bounded $rest bash -c '{ eval \"\$EGW_HOST_PRE\" ; } || { echo \"STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran\" >&2; exit 97; }
 $script' _$args"
+}
+# live_hx NAME SCRIPT [ARG...]: hx_bounded under the attempt's allowance:
+# NAME is dispatched only while something of it is left (live_start), under
+# that remainder, and the rule reached during or after it is recorded
+# (live_end).
+live_hx() {
+    local name=$1 script=$2 arg
+    shift 2
+    for arg in "$@"; do
+        guest_literal "$arg" || { missed "'$arg' cannot be written into the step '$name' as the literal it is"; return 1; }
+    done
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    hx_bounded "$name" "$LIVE_REST" "$script" "$@"
     live_end "$name" $?
 }
 # live_gx NAME GUEST-COMMAND: one guest command over ssh under the bound: the
@@ -1016,7 +1055,8 @@ EXPECTED_ARTEFACTS='["raw/*/manifest.json", "raw/*/sent_events.jsonl", "raw/*/ev
 [ "${IDENTITY_FAILED:-0}" -eq 0 ] \
     || PREREQ=${PREREQ:-"the identity of the clean clone could not be read (see identities.identity_error)"}
 
-# not_run REASON: a prerequisite failed, so the harness was never started.
+# not_run REASON: a prerequisite failed, so the harness was never started. A
+# stop rule reached is never a prerequisite failed (stopped_before_harness).
 not_run() {
     headline "$A" "$1: the harness was NOT started" || true
     set_field "restoration=$(guest_state_text)"
@@ -1026,22 +1066,31 @@ not_run() {
         --next-action "read console/; the harness was NOT started and nothing was published under $RID")
     driver_exit "$A"
 }
-# stopped_before_harness REASON: the 50-minute rule reached once 'pre' was
-# dispatched - the attempt's clock runs from T0, recorded as the instant
-# its first 'drained' starts, and 'pre' ran under it - and before the
-# harness: "If a stop rule is reached, the session stops and the proof is
-# recorded inconclusive" (ADR 0011, the finite proof's ceiling), never
-# not-run. The harness was not started and the stack was not touched by the
-# proof; the instrumentation is invalid (no run, no evidence).
+# stopped_before_harness WHERE REASON: a stop rule reached before the
+# harness - the 20-minute rule (the stack with the candidate not healthy
+# within EGW_HEALTH_LIMIT_S of its start), or the 50-minute rule once the
+# attempt's clock runs (from T0, recorded as the instant its first 'drained'
+# starts: before 'pre' could be dispatched, during it, or before the
+# harness could start): "If a stop rule is reached, the session stops and
+# the proof is recorded inconclusive" (ADR 0011, the finite proof's
+# ceiling), never not-run, which is a prerequisite failed. WHERE says which
+# rule was reached and when, for the next action; the rule itself is
+# recorded (stoprule, attempt_reached) before this is called. The harness
+# was not started and the stack was not touched by the proof; the
+# instrumentation is invalid (no run, no evidence), exit 3.
 stopped_before_harness() {
-    headline "$A" "$1: the harness was NOT started" || true
+    local next="the attempt is inconclusive, not passing: $1 (read console/); the student decides whether to repeat it with the same design (recorded as a repeat, this run kept) or to re-decide the option"
+    [ "$STACK_STATE" != not-healthy ] || next="$next; the stack was left not-healthy: resolve it before any other guest session"
+    headline "$A" "$2: the harness was NOT started" || true
     set_field "restoration=$(guest_state_text)"
     session_update "restoration=$(guest_state_text)" "instants.ended_utc=$(now_utc)"
     (cd "$REPO/src" && $LE finish --attempt "$A" --status failed --validity invalid --outcome inconclusive \
-        --reason "$1; the harness was NOT started and nothing was published under $RID; the guest was left with $(guest_state_text)" \
-        --next-action "the attempt is inconclusive, not passing: the 50-minute rule was reached after the first 'drained' started and before the harness (read console/); the student decides whether to repeat it with the same design (recorded as a repeat, this run kept) or to re-decide the option")
+        --reason "$2; the harness was NOT started and nothing was published under $RID; the guest was left with $(guest_state_text)" \
+        --next-action "$next")
     driver_exit "$A"
 }
+# The rule the 20-minute stop rule is, for the next action.
+HEALTHY_WHERE="the 20-minute rule (the stack with the candidate healthy within ${LIMIT} s of its start) was reached before the harness"
 [ -z "${PREREQ:-}" ] || not_run "$PREREQ"
 (cd "$REPO/src" && $LE add-source --attempt "$A" --kind raw --path "$RAWD" \
     --role "harness raw run directory of the finite proof (sealed by the harness if complete)") \
@@ -1248,9 +1297,13 @@ HEALTHY_FACTS=$(said healthy-rule 'healthy_rule=')
 case "$rc" in
     0) ;;
     1)
+        # The 20-minute rule reached: a stop rule, so the proof is recorded
+        # inconclusive (exit 3), never not-run (the allowance from the
+        # candidate's start spent before the wait, or the named earlier
+        # transition of this start beyond it).
         STACK_STATE=unknown
         stoprule healthy "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start:$(said healthy-rule 'HEALTHY RULE REACHED: ')"
-        not_run "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start (healthy-rule exit 1: the allowance from the candidate's start, the earliest StartedAt of the six services, was spent before the wait could start; the wait was NOT started); the proof is recorded inconclusive by that rule"
+        stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start (healthy-rule exit 1: the allowance from the candidate's start, the earliest StartedAt of the six services, was spent before the wait could start, or the earlier transition named lies beyond it; the wait was NOT started); the proof is recorded inconclusive by that rule"
         ;;
     *)
         not_run "the first stop rule cannot be established (healthy-rule exit $rc):$(said healthy-rule 'CANNOT BE ESTABLISHED: ')"
@@ -1287,9 +1340,11 @@ if [ "$rc" -eq 0 ]; then
     case "$rc" in
         0) STACK_STATE=healthy ;;
         1)
+            # The 20-minute rule reached (a first healthy observation past
+            # start + limit): a stop rule, so inconclusive, never not-run.
             STACK_STATE=healthy
             stoprule healthy "stop rule reached: the stack with the candidate was not healthy within ${LIMIT} s of its start:$(said healthy-rule-check 'HEALTHY RULE REACHED: ')"
-            not_run "stop rule reached: the stack with the candidate was first observed healthy beyond ${LIMIT} s of its start (healthy-rule-check exit 1); the proof is recorded inconclusive by that rule"
+            stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was first observed healthy beyond ${LIMIT} s of its start (healthy-rule-check exit 1); the proof is recorded inconclusive by that rule"
             ;;
         *)
             STACK_STATE=healthy
@@ -1306,8 +1361,11 @@ elif [ "$rc" -eq 1 ] || [ "$rc" -eq 4 ]; then
         # recorded reached by a poll that did not measure it (P-15).
         not_run "precondition failed: the stack with the candidate was not running and healthy when polled before the run (services-healthy exit $rc under the full ${LIMIT} s); the 20-minute rule was established by the earlier record named and this poll does not reach it, but the proof cannot start on a stack that is not healthy:$(said services-healthy 'NOT HEALTHY[^:]*:')"
     fi
+    # The 20-minute rule reached (the stack not healthy within what was left
+    # of the allowance from the candidate's start): a stop rule, so the
+    # proof is recorded inconclusive, never not-run.
     stoprule healthy "stop rule reached: the stack was not running and healthy within the ${HEALTHY_BOUND} s left of ${LIMIT} s from the candidate's start:$(said services-healthy 'NOT HEALTHY[^:]*:')"
-    not_run "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy exit $rc under the ${HEALTHY_BOUND} s left of that allowance); the proof is recorded inconclusive by that rule"
+    stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy exit $rc under the ${HEALTHY_BOUND} s left of that allowance); the proof is recorded inconclusive by that rule"
 elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
     capture_stop "$A" services-healthy "the harness was NOT started"
 else
@@ -1418,15 +1476,16 @@ fi
 # T0 is taken immediately before the step whose first command is 'drained',
 # and recorded as the instant the allowance runs from before that step runs.
 # 'pre' itself runs under that allowance (live_hx: the whole of it, from
-# T0): a spent allowance leaves it unstarted - no 'drained' started, so the
-# attempt never began and it is not-run - and a 'pre' ended by 'timeout'
-# is the rule reached during it, after the first 'drained' started (as the
-# driver records it: whether 'drained' itself had begun inside the step is
-# not what its status says), so the proof is recorded inconclusive, as the
-# ADR's stop-rule text says. Either way the harness is NOT started and the
-# rule is recorded once, with the step. (Until this correction the rule
-# reached during 'pre' ended the attempt not-run, which contradicts that
-# text.)
+# T0): a spent allowance leaves it unstarted, and a 'pre' ended by
+# 'timeout' is the rule reached during it (as the driver records it:
+# whether 'drained' itself had begun inside the step is not what its status
+# says). Either way a stop rule was reached, so the proof is recorded
+# inconclusive, as the ADR's stop-rule text says ("If a stop rule is
+# reached, the session stops and the proof is recorded inconclusive"); the
+# harness is NOT started and the rule is recorded once, with the step.
+# (Until these corrections the rule reached during 'pre', and then the rule
+# reached before 'pre' could be dispatched, ended the attempt not-run,
+# which contradicts that text: not-run is a prerequisite failed.)
 T0=$(uptime_s)
 T0_UTC=$(now_utc)
 # The absolute deadline of the allowance on /proc/uptime, handed to the
@@ -1437,9 +1496,11 @@ session_update "instants.first_drained_started_utc=$T0_UTC" "instants.first_drai
 live_hx pre 'drained && metrics "$1" before && config_identity "$P/$1.config_identity.json"' "$RID"
 pre_rc=$?
 if [ "$pre_rc" -eq "$STEP_NOT_STARTED" ]; then
-    not_run "stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before 'pre' could start ('pre' was NOT started, so no 'drained' ran and the attempt never began: not-run)"
+    stopped_before_harness "the 50-minute rule was reached before 'pre' could be dispatched" \
+        "stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s was spent before 'pre' could start ('pre' was NOT started, so no 'drained' ran); the proof is recorded inconclusive by that rule"
 elif [ "$pre_rc" -eq 124 ] || [ "$pre_rc" -eq 137 ]; then
-    stopped_before_harness "stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('pre' was ended by 'timeout', exit $pre_rc); the proof is recorded inconclusive by that rule"
+    stopped_before_harness "the 50-minute rule was reached after the first 'drained' started and before the harness" \
+        "stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('pre' was ended by 'timeout', exit $pre_rc); the proof is recorded inconclusive by that rule"
 elif [ "$pre_rc" -eq "$EXIT_CAPTURE_LOST" ]; then
     capture_stop "$A" pre "the harness was NOT started"
 elif [ "$pre_rc" -ne 0 ]; then
@@ -1540,15 +1601,21 @@ proof_harness_args() {
 
 # --- 10. the harness run, under the attempt's allowance ---------------------------
 # The remainder is checked before the step is dispatched, as for every live
-# step. The step then loads the 6.1 preamble (hx: before and outside any
-# bound, the step's text being pinned to the runbook's harness_cmd), and
-# only AFTER it computes its own bound from the absolute deadline handed to
-# it (T0 + EGW_PROOF_ATTEMPT_LIMIT_S on /proc/uptime), so that a preamble
-# that took its time - a tunnel reopened slowly - is charged to the
-# allowance and never followed by a harness under a stale remainder: with
-# nothing left the harness (and its fault hook) is NOT started, the step
-# answers STEP_NOT_STARTED and the rule is recorded as reached before
-# 'harness-run'. The step prints the harness's own start instant, taken on
+# step. The harness step loads the 6.1 preamble before and outside any
+# bound (hx: the step's text is pinned to the runbook's harness_cmd), so it
+# is preceded by 'tunnel-ready' (10a below), a live step that loads the same
+# preamble INSIDE the bound with a trivial body: a tunnel that wedges - a
+# 'tunnel_up' whose ssh never completes its banner - is ended there by the
+# allowance, and the harness step's own preamble then finds the tunnel up.
+# The harness step is dispatched only when 'tunnel-ready' ended 0 and
+# something of the allowance is still left; and only AFTER its own
+# preamble it computes its bound from the absolute deadline handed to it
+# (T0 + EGW_PROOF_ATTEMPT_LIMIT_S on /proc/uptime), so that a preamble
+# that still took its time - a tunnel that dropped again between the two
+# steps - is charged to the allowance and never followed by a harness under
+# a stale remainder: with nothing left the harness (and its fault hook) is
+# NOT started, the step answers STEP_NOT_STARTED and the rule is recorded as
+# reached before 'harness-run'. The step prints the harness's own start instant, taken on
 # both clocks immediately before it starts, and the bound it runs under,
 # which are what the session facts record (not the dispatch instant).
 # 'timeout' bounds the harness by that remainder (a spent allowance is never
@@ -1569,7 +1636,47 @@ HARNESS_STARTED=1
 # The fault mutates the stack from here on: its state is unknown until the
 # restoration reads it back.
 STACK_STATE=unknown
+# --- 10a. tunnel-ready: the 6.1 preamble under the bound, just before the harness ---
+# It shares the check made before the harness is dispatched (one remainder,
+# LIVE_REST) and runs under it through hx_bounded, as the live host steps
+# do. Ended by 'timeout' (124, 137), the rule is reached during it: the
+# harness is not dispatched, and the attempt goes on as for an allowance
+# spent before the harness (no harness, no fault; the restoration and the
+# offline work still run; inconclusive). Ended 0, the remainder is checked
+# again before the harness step is dispatched. Any other ending - the
+# preamble could not be loaded (97), or the step's console capture was lost
+# (74) - leaves the tunnel not known to be up, so the harness step, whose
+# own preamble would then run unbounded again, is NOT dispatched either:
+# an evidence requirement not met (the harness not started), never not-run
+# once the harness block is entered, as a harness step whose own preamble
+# failed never was. The step is not an observation of the system, so it is
+# not listed with the observations not made.
+HARNESS_GO=0
+TUNNEL_READY_RC=not-started
+TUNNEL_READY_BOUND=null
 if live_start harness-run; then
+    TUNNEL_READY_BOUND=$LIVE_REST
+    hx_bounded tunnel-ready "$LIVE_REST" 'echo "tunnel-ready: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) is loaded within the allowance"'
+    TUNNEL_READY_RC=$?
+    case "$TUNNEL_READY_RC" in
+        0)
+            # Checked again: the preamble took its share of the allowance.
+            live_start harness-run && HARNESS_GO=1
+            ;;
+        124 | 137)
+            attempt_reached during tunnel-ready "$TUNNEL_READY_RC"
+            echo "STOP: the host preamble of runbook 6.1 did not load within the attempt's allowance (tunnel-ready exit $TUNNEL_READY_RC): the harness was NOT started" >&2
+            ;;
+        "$EXIT_CAPTURE_LOST")
+            mandatory+=("$(capture_note tunnel-ready); whether the tunnels answered just before the harness is not known, so the harness was NOT started")
+            ;;
+        *)
+            missed "$(step_note tunnel-ready "$TUNNEL_READY_RC" "the host preamble of runbook 6.1 could not be loaded just before the harness (tunnel-ready exit $TUNNEL_READY_RC), so the harness step, whose own preamble would run unbounded, was NOT dispatched: the harness was NOT started")"
+            ;;
+    esac
+fi
+session_update "instants.tunnel_ready_exit=$(json_scalar "$TUNNEL_READY_RC")" "instants.tunnel_ready_allowance_s=$TUNNEL_READY_BOUND"
+if [ "$HARNESS_GO" -eq 1 ]; then
     HARNESS_DISPATCHED_UTC=$(now_utc)
     hx "$A" harness-run "$(declare -f proof_harness_args)
 $(declare -f bounded)
@@ -1614,11 +1721,18 @@ bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\"
         live_end harness-run "$h_rc" || true
     fi
 else
-    # The one stop rule reached (recorded by live_start); no harness step
-    # ran, so no step is recorded.
+    # No harness step ran, so no step is recorded: the one stop rule
+    # reached (recorded by live_start, or during 'tunnel-ready'), or the
+    # preamble not loaded just before it (recorded above).
     h_rc=not-started
-    echo "STOP: no time left in the attempt's allowance: the harness was NOT started" >&2
-    session_update "instants.harness_started_utc=null" "instants.harness_ended_utc=null" "instants.harness_exit=null" "instants.harness_allowance_s=0"
+    harness_allowance=null
+    if [ "$ATTEMPT_REACHED" -eq 1 ]; then
+        harness_allowance=0
+        echo "STOP: no time left in the attempt's allowance: the harness was NOT started" >&2
+    else
+        echo "STOP: the host preamble of runbook 6.1 was not known to be loaded just before the harness (tunnel-ready exit $TUNNEL_READY_RC): the harness was NOT started" >&2
+    fi
+    session_update "instants.harness_started_utc=null" "instants.harness_ended_utc=null" "instants.harness_exit=null" "instants.harness_allowance_s=$harness_allowance"
 fi
 case "$h_rc" in
     0 | 1 | not-started | 124 | 137) ;;
