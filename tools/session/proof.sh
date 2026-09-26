@@ -1490,11 +1490,22 @@ elif [ -n "$HEALTHY_REST" ] && { [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; }; then
     # sample had completed healthy within it - one still inspecting then,
     # an inspection that blocks included, observed nothing in time. The
     # 20-minute rule reached: inconclusive, never a pass, never not-run.
+    # The state the guest was left in is what the last completed sample saw:
+    # a service it positively saw not healthy (as the wait's own exit 1 or 4
+    # reads it) leaves the stack not-healthy; no completed sample, or only
+    # states that could not be read, leave it unknown.
     STACK_STATE=unknown
     last_sample=""
     if wait_record=$(record_file services-healthy); then
         last_sample=$(grep ' sample [0-9][0-9]*:' "$wait_record" | tail -n 1)
     fi
+    for observed_state in ${last_sample#*:}; do
+        case "$observed_state" in
+            *=running/starting | *=running/unhealthy | *=running/none | *=absent/*) STACK_STATE=not-healthy ;;
+            *=running/* | *=indeterminate/*) ;;
+            *=*) STACK_STATE=not-healthy ;;
+        esac
+    done
     stoprule healthy "stop rule reached: the stack was not observed running and healthy within the ${HEALTHY_REST} s left of ${LIMIT} s from the candidate's start: the acquisition was ended by that remaining allowance (services-healthy exit $rc)${last_sample:+; the last sample completed: $last_sample}"
     stopped_before_harness "$HEALTHY_WHERE" "stop rule reached: the stack with the candidate was not running and healthy within ${LIMIT} s of its start (services-healthy was ended by the ${HEALTHY_REST} s left of that allowance, exit $rc: an inspection that had not answered by then observed nothing in time); the proof is recorded inconclusive by that rule"
 elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then

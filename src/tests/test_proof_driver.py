@@ -2354,6 +2354,8 @@ def test_a_health_inspection_that_blocks_is_ended_by_the_remaining_allowance_nev
             "its start (services-healthy was ended by the") in reason
     assert "s left of that allowance" in reason and "the proof is recorded inconclusive by that rule" in reason
     assert "the harness was NOT started" in reason
+    # No sample completed, so nothing was observed of the stack's state.
+    assert "the guest was left with stack=unknown" in reason
     record = _step_record(pbench, "services-healthy")
     assert record["exit_code"] in (124, 137)
     assert record["duration_s"] < HEALTH_LIMIT_S + TERMINATION_GRACE_S + 15
@@ -3726,17 +3728,22 @@ def test_the_readme_names_the_driver_its_values_and_the_three_verdicts():
     assert "every live proof observation" in readme and "candidate's start" in readme
     assert "MAX_SAMPLE_GAP_S" in readme and "never the evaluator's raw result" in readme
     # P-10 as it now reads: the harness step's bound after its preamble, the
-    # preamble loaded under the bound just before it ('tunnel-ready'), the
-    # offline comparisons after an expiry, the extension blocked by it, and
-    # the rule recorded inconclusive whenever it is reached; P-15: docker's
-    # zero StartedAt is an unknown start, and the 20-minute rule reached is
-    # inconclusive too; P-13: the fault instant is the evaluator's 150 s.
-    # (This asserted "from `pre` on", the reading that left an allowance
-    # spent before 'pre' not-run: it encoded that wrong rule and is
-    # corrected.)
+    # preamble loaded under the bound just before it ('tunnel-ready') and
+    # the harness step's own preamble under the same bound (F2a: this
+    # asserted "finds the tunnel up", the residual that left that preamble
+    # outside the bound), the offline comparisons after an expiry, the
+    # extension blocked by it, and the rule recorded inconclusive whenever
+    # it is reached; P-15: docker's zero StartedAt is an unknown start, the
+    # healthy observation judged by its completion (F2b), and the 20-minute
+    # rule reached is inconclusive too; P-13: the fault instant is the
+    # evaluator's 150 s. (This asserted "from `pre` on", the reading that
+    # left an allowance spent before 'pre' not-run: it encoded that wrong
+    # rule and is corrected.)
     assert "after its preamble" in readme and "offline comparisons" in readme
     assert "the attempt's allowance spent before it could start" in readme
-    assert "`tunnel-ready`" in readme and "finds the tunnel up" in readme
+    assert "`tunnel-ready`" in readme and "finds the tunnel up" not in readme
+    assert "runs **its own** 6.1 preamble and its body together" in readme
+    assert "`completed (sample N)`" in readme and "first healthy observation is judged by when it **completed**" in readme
     assert "from `pre` on" not in readme and "whenever the rule is reached" in readme
     assert "`not-run` is a prerequisite failed, never a stop rule reached" in readme
     assert "The rule **reached**" in readme and "`0001-01-01T00:00:00Z`" in readme
