@@ -3635,6 +3635,48 @@ is unchanged.
   committed tree `277092b` (tree `9982256`, clean status, captured before
   the run): 903 passed, sealed; the commit after it changes this entry
   only. The CI of the final head is the record for the whole suite.
+- **Delta of 2026-09-25/26 (the Project Manager's review of the pull
+  request at `3bf2fd5`).** Four findings corrected, each with regressions,
+  then checked by an independent joint review that ran the proof's cases
+  through the harness's own functions, which found two further defects the
+  per-part reviews had missed; both corrected. F1, eligibility: the proof
+  is evaluated only on the prescribed execution and its records (E-11,
+  P-16): the plan's load and the fault requested at t+150 s, simulator
+  exit 0, a completed publication against a whole population record, the
+  fault executed and shown, both event copies, the collector file. The
+  harness's validity is admitted by one function both parts call (E-12,
+  `harness_admission`): a valid run, or the exact form the harness writes
+  when the ADR's `MAX_SAMPLE_GAP_S` exception applies — the collector
+  file rejected for sampling gaps alone and kept under `logs/collector/`,
+  two reasons derived from it, the seal withheld for it — which the first
+  correction had made unreachable because it looked for a reason the
+  harness never writes; the archived r02 run is recognised as that form.
+  F2, the stop rules: one deadline from the first `drained` over every
+  live observation, the harness's runbook preamble included; the
+  candidate's health measured from the stack's start; any rule reached
+  records the proof inconclusive; the restoration never cut. F3, N1
+  sources: each recorded death, and each A5 occurrence of the device's
+  own, serves at most one case and only a candidate whose redelivery it
+  may have preceded, across the whole run (E-10); a case is named only as
+  every legitimate assignment names it, and contending candidates are R3
+  as a group with no member singled out (E-13); an unreadable reading
+  never makes a death vanish. R1: the next action follows the attempt's
+  final verdicts (P-17). Tests that encoded a wrong rule were corrected
+  and say so. Verified: the four modules
+  `test_proof_driver.py`, `test_proof_evaluator.py`,
+  `test_session_drivers.py` and `test_proof_hooks.py` together, 1,080
+  passed, recorded in the local package `HIST_2026-09-26-pr47-review-corrections-attempt01` with the commit
+  (`8eb6f99`), the tree (`38a7376`) and a clean status captured before
+  the run; mutation checks and a fuzz against a brute-force enumeration of
+  the source assignments pinned the naming rules. The package is at the
+  local `output_test/runs/2026-09-26/`; the commit after it changes this
+  entry only. Known and stated: a
+  candidate every legitimate assignment names can, in one reading order,
+  be left unshown in a run that is already inconclusive or refuted on
+  other grounds — the result is the same in every order (fuzzed); a tunnel
+  that drops again between `tunnel-ready` and the harness step is reopened
+  by that step's own preamble, the time charged to the allowance
+  afterwards.
 - **What it does not establish.** Nothing ran on the guest: no recovery was
   observed, the candidate is unmeasured, and the identification rules are
   proposals until confirmed. The identified ARM64 controller image is not
