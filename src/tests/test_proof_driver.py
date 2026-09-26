@@ -64,7 +64,8 @@ if sys.platform == "win32":
 if shutil.which("bash") is None or shutil.which("timeout") is None:
     pytest.skip("bash and timeout are needed", allow_module_level=True)
 
-from test_session_drivers import EXPECT_SERVICES, ITEST_HELPERS, TUNNEL_SH, Bench, _write, report  # noqa: E402
+from test_session_drivers import (  # noqa: E402
+    EXPECT_SERVICES, ITEST_HELPERS, PY_CAPTURE_FAIL, TUNNEL_SH, Bench, _write, report)
 from test_proof_hooks import runbook_function  # noqa: E402
 from test_proof_evaluator import STOP_RULE_ATTEMPT, STOP_RULE_HEALTHY  # noqa: E402
 from test_experiments_run import CONFIG_IDENTITY  # noqa: E402
@@ -394,10 +395,14 @@ the kill and the compose start the restart hook issues, and the readings the
 guest-state and container records take. Steered through EGW_STUB_FAIL:
 'service-oomkilled' (mongodb OOM-killed after the run), 'other-restarted'
 (the ditto gateway started again after the run), 'healthy-again-fails' (the
-controller unhealthy after the fault), 'kill-fails' (the fault refused)."""
+controller unhealthy after the fault), 'kill-fails' (the fault refused); and
+through EGW_STUB_HEALTH_INSPECT_S, the seconds the controller's health
+inspection takes to answer (the last inspection of every sample of the
+shared wait: one that answers late, or one that blocks)."""
 import json
 import os
 import sys
+import time
 
 SERVICES = ("egw-mosquitto-1", "egw-mongodb-1", "egw-ditto-policies-1",
             "egw-ditto-things-1", "egw-ditto-gateway-1", "egw-controller-1")
@@ -518,6 +523,8 @@ if cmd == "inspect":
         print(f"Error: No such object: {name}", file=sys.stderr)
         sys.exit(1)
     if "{{if .State.Health}}" in template:
+        if os.environ.get("EGW_STUB_HEALTH_INSPECT_S") and name == SERVICES[5]:
+            time.sleep(float(os.environ["EGW_STUB_HEALTH_INSPECT_S"]))
         print(health(name))
     elif ".State.Health" in template:
         print(health(name))
@@ -726,17 +733,23 @@ class ProofBench:
         Path(str(self.bench.log) + ".proof-docker.json").write_text(json.dumps(state), encoding="utf-8")
         return boot
 
-    def healthy_record(self, transition_at: datetime, name: str = "earlier-services-healthy.txt") -> Path:
+    def healthy_record(self, transition_at: datetime, name: str = "earlier-services-healthy.txt",
+                       completed_at: datetime | None = None, legacy: bool = False) -> Path:
         """A console record of the shared healthy wait, as gate_health.sh's
-        'services-healthy' leaves it, whose ALL HEALTHY transition was seen
-        at TRANSITION_AT (guest clock, whole seconds)."""
+        'services-healthy' leaves it, whose ALL HEALTHY sample began at
+        TRANSITION_AT and whose inspections had completed by COMPLETED_AT
+        (a second later by default; guest clock, whole seconds). LEGACY is a
+        record of the wait before it recorded that completion: the sample's
+        start instant alone."""
         seen = transition_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         earlier = (transition_at - timedelta(seconds=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        completed = (completed_at or transition_at + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         services = " ".join(f"{s}=running/healthy" for s in EXPECT_SERVICES)
         starting = " ".join(f"{s}=running/starting" for s in EXPECT_SERVICES)
         return _write(self.bench.tmp / name,
                       f"{earlier} sample 1: {starting}\n{seen} sample 2: {services}\n"
-                      "ALL HEALTHY: the 6 expected services are running and healthy (sample 2)\n")
+                      + ("" if legacy else f"{completed} completed (sample 2)\n")
+                      + "ALL HEALTHY: the 6 expected services are running and healthy (sample 2)\n")
 
     def reset(self) -> None:
         """Between two runs of the driver in one case: the attempt, the run
@@ -805,6 +818,45 @@ def pbench(tmp_path: Path) -> ProofBench:
 def _argv_value(argv: list[str], flag: str) -> str:
     assert flag in argv, f"{flag} is not in the harness argv: {argv}"
     return argv[argv.index(flag) + 1]
+
+
+# A step the driver's bound must end is made to block for an hour ("until
+# terminated"); the case watches the driver with a generous watchdog instead
+# of waiting for the block to end on its own, so that a driver that is not
+# ended by its bound fails the case, by name, long before the hour.
+BLOCKS_S = "3600"
+WATCHDOG_S = 240
+# The termination grace of 'bounded' ('timeout -k 30'): a bounded step that
+# ignores the SIGTERM of its limit is killed that many seconds later. A step
+# ended by its bound lasts at most its bound plus this grace (plus the
+# bench's own overhead, which the cases allow for generously).
+TERMINATION_GRACE_S = 30
+
+
+def _run_watched(pbench: ProofBench, blocked: str, **overrides) -> tuple[int, str, str]:
+    """The driver under the watchdog: its exit code, stdout and stderr. A
+    driver that has not ended WATCHDOG_S seconds after it started is killed
+    with its whole process group and the case fails: BLOCKED (the step made
+    to block) was not ended by its bound."""
+    proc = pbench.start(**overrides)
+    try:
+        out, err = pbench.finish(proc, timeout=WATCHDOG_S)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        proc.wait()
+        pytest.fail(f"the driver had not ended {WATCHDOG_S} s after it started: {blocked} was not ended by its bound "
+                    "(the case would otherwise wait for the block to end on its own)")
+    return proc.returncode, out, err
+
+
+def _step_record(pbench: ProofBench, step: str) -> dict:
+    """The last commands.jsonl record of STEP."""
+    return [json.loads(line) for line in (pbench.attempt() / "commands.jsonl").read_text(encoding="utf-8").splitlines()
+            if json.loads(line)["name"] == step][-1]
+
+
+def test_the_termination_grace_the_cases_allow_for_is_the_drivers():
+    assert f"timeout -k {TERMINATION_GRACE_S} " in _driver_function("bounded")
 
 
 # --------------------------------------------------------------------------
@@ -2113,6 +2165,242 @@ def test_an_earlier_healthy_transition_of_this_same_start_is_reused_and_one_of_a
     assert "is not a readable file" in result.stdout and pbench.attempts() == []
 
 
+# --------------------------------------------------------------------------
+# proof.sh: the healthy observation must have COMPLETED within the allowance
+# (F2b, Project Manager's delta review of f8465b4, section 4)
+# --------------------------------------------------------------------------
+
+
+def test_the_healthy_rule_judges_the_completed_observation_never_the_sample_start(tmp_path):
+    # The shared wait stamps each sample at its START, before its six
+    # inspections, and answers ALL HEALTHY when they are all healthy. A
+    # sample that starts at +1,199 s of a 1,200 s allowance and whose last
+    # inspection first answers healthy at +1,205 s has not shown the stack
+    # healthy within the allowance: the check must not accept it on the
+    # sample's start instant (it did, 1,199 against 1,200). The wait now
+    # records when the inspections of its healthy sample had completed, and
+    # the check judges that completion (read in whole seconds, so before
+    # that instant + 1 s) against start + limit: past it, the rule is
+    # reached (1). A record without that instant (a record of the wait made
+    # before it recorded it) cannot place its observation (2), and an
+    # earlier record named for the rule (EGW_PROOF_HEALTHY_RECORD) is judged
+    # the same way: completed within the allowance it is reused; completed
+    # beyond it the rule is reached; a legacy record with only the sample's
+    # start does not prove a borderline observation.
+    code = _driver_variable("HEALTHY_RULE_PY")
+    clock = int(datetime(2026, 9, 25, 10, 1, 40, tzinfo=timezone.utc).timestamp())
+    containers = tmp_path / "containers.before.txt"
+    containers.write_text(f"clock epoch={clock} utc=2026-09-25T10:01:40Z\n" + "".join(
+        f"container {s} id={'ab' * 32} started=2026-09-25T10:00:0{i}.000000000Z\n" for i, s in enumerate(EXPECT_SERVICES)),
+        encoding="utf-8")
+    healthy = " ".join(f"{s}=running/healthy" for s in EXPECT_SERVICES)
+
+    def record(name: str, began: str, completed: str | None = None) -> Path:
+        lines = [f"2026-09-25T{began} sample 1: {healthy}"]
+        if completed is not None:
+            lines.append(f"2026-09-25T{completed} completed (sample 1)")
+        lines.append("ALL HEALTHY: the 6 expected services are running and healthy (sample 1)")
+        path = tmp_path / name
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
+
+    def check(path: Path) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, "-c", code, "check", ",".join(EXPECT_SERVICES), str(containers), "1200",
+                               str(path), "own-observation"], capture_output=True, text=True)
+
+    def bound(earlier: Path) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, "-c", code, "bound", ",".join(EXPECT_SERVICES), str(containers), "1200",
+                               str(earlier)], capture_output=True, text=True)
+
+    # The candidate started at 10:00:00: the deadline is 10:20:00.
+    straddling = record("straddling.txt", "10:19:59Z", "10:20:05Z")
+    late = check(straddling)
+    assert late.returncode == 1, report(late)
+    assert "HEALTHY RULE REACHED: the stack was first observed healthy by sample 1" in late.stdout
+    assert "first_healthy_utc=2026-09-25T10:19:59Z" in late.stdout
+    assert "first_healthy_completed_utc=2026-09-25T10:20:05Z" in late.stdout
+    assert "timely health cannot be established" in late.stdout
+    # Completed safely within the allowance: met, with the completion on the
+    # record. Completed in the last second before the deadline: the
+    # completion read at 10:19:59 lies before 10:20:00, so it is met too.
+    for began, completed in (("10:05:00Z", "10:05:04Z"), ("10:19:58Z", "10:19:59Z")):
+        met = check(record("safe.txt", began, completed))
+        assert met.returncode == 0, report(met)
+        assert "HEALTHY RULE MET: first observed healthy by sample 1" in met.stdout
+        assert f"first_healthy_completed_utc=2026-09-25T{completed}" in met.stdout
+    # Completed at the deadline's own second: not shown to be before it.
+    edge = check(record("edge.txt", "10:19:58Z", "10:20:00Z"))
+    assert edge.returncode == 1, report(edge)
+    # A legacy record of the wait: the sample's start alone places nothing.
+    legacy = record("legacy.txt", "10:19:59Z")
+    unplaced = check(legacy)
+    assert unplaced.returncode == 2, report(unplaced)
+    assert "CANNOT BE ESTABLISHED: the record of the wait does not say when the inspections of its first healthy sample" \
+        in unplaced.stdout
+    # The earlier record named for the rule, judged the same way.
+    reused = bound(record("earlier-safe.txt", "10:05:00Z", "10:05:04Z"))
+    assert reused.returncode == 0, report(reused)
+    assert "established=earlier-record" in reused.stdout
+    assert '"earlier_transition_completed_utc": "2026-09-25T10:05:04Z"' in reused.stdout
+    beyond = bound(straddling)
+    assert beyond.returncode == 1, report(beyond)
+    assert "lies 1199 s after the candidate start" in beyond.stdout and "completed by 2026-09-25T10:20:05Z" in beyond.stdout
+    not_proven = bound(legacy)
+    assert not_proven.returncode == 2, report(not_proven)
+    assert "but not when its inspections completed" in not_proven.stdout
+    assert "HEALTHY RULE:" not in not_proven.stdout and "established=earlier-record" not in not_proven.stdout
+
+
+# The healthy-rule check judged against an allowance that ends ONE second
+# after the start of the first healthy sample of the wait (the candidate's
+# start plus the whole seconds to that sample's start, plus one): the bench's
+# analogue of a sample that starts at +1,199 s of a 1,200 s allowance. With the
+# controller's health inspection (the last of every sample) answering 4 s
+# late, that sample's observation completes about 4 s after the deadline -
+# the analogue of +1,205 s. Every other call is this interpreter, unchanged.
+PY_DEADLINE_INSIDE_THE_HEALTHY_SAMPLE = r'''#!/usr/bin/env python3
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+
+def epoch(text):
+    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?Z$", text.strip())
+    base = datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+    return base + (int(m.group(2).ljust(9, "0")) / 1e9 if m.group(2) else 0.0)
+
+
+args = sys.argv[1:]
+if args[:1] == ["-c"] and args[2:3] == ["check"]:
+    starts = [epoch(m.group(1)) for m in (re.match(r"container \S+ id=\S+ started=(\S+)$", line.strip())
+                                          for line in open(args[4], encoding="utf-8")) if m]
+    samples, began = {}, None
+    for line in open(args[6], encoding="utf-8"):
+        m = re.match(r"(\S+) sample (\d+):", line)
+        if m:
+            samples[int(m.group(2))] = m.group(1)
+            continue
+        m = re.match(r"ALL HEALTHY: .*\(sample (\d+)\)$", line.strip())
+        if m:
+            began = samples[int(m.group(1))]
+            break
+    args[5] = str(int(epoch(began) - min(starts)) + 1)
+    with open(os.environ["EGW_STUB_LOG"] + ".check-limit", "w", encoding="utf-8") as fh:
+        fh.write(args[5])
+sys.exit(subprocess.run([os.environ["EGW_REAL_PYTHON"]] + args).returncode)
+'''
+
+
+def test_a_healthy_sample_that_began_before_the_deadline_and_completed_after_it_starts_no_harness(pbench):
+    # The bench's analogue of the +1,199 s / +1,205 s counterexample: the
+    # deadline the check judges by falls one second into the first healthy
+    # sample, whose last inspection (the controller's health) answers 4 s
+    # late. The sample BEGAN before the deadline, but the stack was not
+    # observed healthy until after it: timely health cannot be established,
+    # the 20-minute rule is reached and the proof is recorded inconclusive
+    # (exit 3); no 'pre', no harness, no fault. (At f8465b4 the check judged
+    # the sample's start instant, accepted it, and the harness ran.)
+    result = pbench.run(EGW_HEALTH_LIMIT_S="40", EGW_STUB_HEALTH_INSPECT_S="4",
+                        **pbench.bench.python_stub(PY_DEADLINE_INSIDE_THE_HEALTHY_SAMPLE))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert "(healthy-rule-check exit 1); the proof is recorded inconclusive by that rule" in verdicts["reason"]
+    steps = pbench.commands()
+    assert steps.index("services-healthy") < steps.index("healthy-rule-check")
+    assert "pre" not in steps and "harness-run" not in steps and pbench.harness() is None
+    assert "kill" not in pbench.docker_log()
+    check = pbench.console("healthy-rule-check")
+    assert "HEALTHY RULE REACHED: the stack was first observed healthy by sample" in check
+    assert "timely health cannot be established" in check
+    rule = pbench.session_facts()["healthy_rule"]
+    assert rule["first_healthy_completed_utc"] > rule["first_healthy_utc"]
+    assert next(r for r in pbench.session_facts()["stop_rules"] if r["id"] == "healthy")["reached"] is True
+
+
+def test_a_health_inspection_that_blocks_is_ended_by_the_remaining_allowance_never_a_pass(pbench):
+    # The controller's health inspection blocks ("until terminated"): the
+    # acquisition of the healthy observation must be ended by what is left
+    # of the allowance from the candidate's start, and that ending is an
+    # explicit stop record - the 20-minute rule reached, the proof recorded
+    # inconclusive (exit 3) - never a pass, and no harness. (At f8465b4 the
+    # wait was bounded only by its own limit check, which a blocked
+    # inspection never reaches: the driver hung.)
+    code, out, err = _run_watched(pbench, "the shared healthy wait (a docker inspect that never answers)",
+                                  EGW_STUB_HEALTH_INSPECT_S=BLOCKS_S)
+    assert code == 3, f"exit={code}\n{out}\n{err}"
+    verdicts = pbench.verdicts()
+    assert (verdicts["status"], verdicts["instrumentation_validity"], verdicts["system_outcome"]) == (
+        "failed", "invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert reason.count("stop rule reached") == 1
+    assert (f"stop rule reached: the stack with the candidate was not running and healthy within {HEALTH_LIMIT_S} s of "
+            "its start (services-healthy was ended by the") in reason
+    assert "s left of that allowance" in reason and "the proof is recorded inconclusive by that rule" in reason
+    assert "the harness was NOT started" in reason
+    record = _step_record(pbench, "services-healthy")
+    assert record["exit_code"] in (124, 137)
+    assert record["duration_s"] < HEALTH_LIMIT_S + TERMINATION_GRACE_S + 15
+    steps = pbench.commands()
+    assert "healthy-rule-check" not in steps and "pre" not in steps and pbench.harness() is None
+    facts = pbench.session_facts()
+    assert next(r for r in facts["stop_rules"] if r["id"] == "healthy")["reached"] is True
+    assert 0 < facts["healthy_rule"]["poll_bound_s"] <= HEALTH_LIMIT_S
+    assert "ALL HEALTHY" not in pbench.console("services-healthy")
+
+
+def test_a_healthy_sample_completed_safely_within_the_allowance_qualifies(pbench):
+    # The control: the stack is healthy at once and its first healthy sample
+    # completes well inside the allowance: the rule is met on the completed
+    # observation, which is on the record, and the proof runs and passes.
+    result = pbench.run()
+    assert result.returncode == 0, report(result)
+    assert pbench.verdicts()["system_outcome"] == "pass"
+    rule = pbench.session_facts()["healthy_rule"]
+    assert rule["established_by"] == "own-observation"
+    assert rule["first_healthy_completed_utc"] >= rule["first_healthy_utc"]
+    assert 0 <= rule["completed_upper_elapsed_s"] <= HEALTH_LIMIT_S
+    assert "HEALTHY RULE MET: first observed healthy by sample" in pbench.console("healthy-rule-check")
+
+
+def test_an_earlier_healthy_record_proves_only_an_observation_completed_within_the_allowance(pbench):
+    # EGW_PROOF_HEALTHY_RECORD (P-15): an earlier observation of this same
+    # start is reused only when it COMPLETED within the allowance. A record
+    # whose healthy sample began 11 s after the candidate's start (of a 12 s
+    # allowance) and completed 6 s later has not shown the stack healthy in
+    # time: the rule is reached, inconclusive (exit 3), no harness. A legacy
+    # record - the sample's start alone, 11 s after the candidate's start -
+    # does not prove that borderline observation: the rule cannot be
+    # established from it (not-run, exit 2), no harness. (At f8465b4 both
+    # were reused on the sample's start instant and the proof passed.) A
+    # record completed well within the allowance is reused (the case of the
+    # earlier transition above).
+    boot = pbench.boot_stack(3600)
+    straddling = pbench.healthy_record(boot + timedelta(seconds=11), "straddling.txt",
+                                       completed_at=boot + timedelta(seconds=17))
+    result = pbench.run(EGW_PROOF_HEALTHY_RECORD=str(straddling))
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert "healthy-rule exit 1" in verdicts["reason"]
+    assert "services-healthy" not in pbench.commands() and pbench.harness() is None
+    assert "lies 11 s after the candidate start" in pbench.console("healthy-rule")
+    pbench.reset()
+    boot = pbench.boot_stack(3600)
+    legacy = pbench.healthy_record(boot + timedelta(seconds=11), "legacy.txt", legacy=True)
+    result = pbench.run(EGW_PROOF_HEALTHY_RECORD=str(legacy))
+    assert result.returncode == 2, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["system_outcome"] == "not-run"
+    assert "the first stop rule cannot be established (healthy-rule exit 2):" in verdicts["reason"]
+    assert "but not when its inspections completed" in verdicts["reason"]
+    assert "services-healthy" not in pbench.commands() and pbench.harness() is None
+    # The record itself is left as it was (records are never rewritten).
+    assert "completed (sample" not in legacy.read_text(encoding="utf-8")
+
+
 def _driver_variable(name: str) -> str:
     """The text of one single-quoted top-level variable of proof.sh (the
     interpreter text handed to $PY -c), from `NAME='` to the closing quote."""
@@ -2558,6 +2846,53 @@ def test_a_prerequisite_failing_after_the_rule_was_reached_is_inconclusive_with_
     assert verdicts["restoration"].startswith("stack=healthy")
 
 
+# A $PY that holds the local_export exec of EGW_SLOW_STEP for EGW_SLOW_STEP_S
+# seconds, as PY_SLOW_STEP does, and then runs the bench's PY_CAPTURE_FAIL
+# (at EGW_CAPTURE_FAIL_PY), which makes the console capture of
+# EGW_FAIL_CAPTURE_OF fail; every other call is this interpreter, unchanged.
+PY_SLOW_STEP_THEN_CAPTURE_LOST = '''#!/usr/bin/env python3
+import os
+import sys
+import time
+
+args = sys.argv[1:]
+if "--name" in args and args[args.index("--name") + 1] == os.environ["EGW_SLOW_STEP"]:
+    time.sleep(float(os.environ["EGW_SLOW_STEP_S"]))
+real = os.environ["EGW_REAL_PYTHON"]
+os.execv(real, [real, os.environ["EGW_CAPTURE_FAIL_PY"]] + args)
+'''
+
+
+@pytest.mark.parametrize("step", ["pre", "identity-check"])
+def test_a_console_capture_lost_after_the_rule_was_reached_ends_with_the_rule_named(pbench, step):
+    # The final-reason alignment (Project Manager's delta review of f8465b4,
+    # section 5): 'pre' ends on its own at the deadline (held 15 s across an
+    # allowance of 10 s), so the 50-minute rule is recorded as reached when
+    # 'pre' ended; then the console capture of 'pre' itself, or of the
+    # identity check after it, is lost. The attempt already ended invalid and
+    # inconclusive with no harness, and the rule was in the session facts,
+    # but the final reason named only the lost capture. It must name the
+    # rule as well.
+    capture_fail = _write(pbench.bench.tmp / "capture_fail.py", PY_CAPTURE_FAIL)
+    result = pbench.run(**pbench.bench.python_stub(
+        PY_SLOW_STEP_THEN_CAPTURE_LOST, EGW_SLOW_STEP="pre", EGW_SLOW_STEP_S="15",
+        EGW_FAIL_CAPTURE_OF=step, EGW_CAPTURE_FAIL_PY=str(capture_fail)), EGW_PROOF_ATTEMPT_LIMIT_S="10")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["status"], verdicts["instrumentation_validity"], verdicts["system_outcome"]) == (
+        "failed", "invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert f"the console capture of '{step}' failed" in reason
+    assert ("stop rule reached: the attempt's allowance of 10 s from its first 'drained' was spent when 'pre' "
+            "ended; no further proof step was started") in reason
+    assert reason.count("stop rule reached") == 1
+    facts = pbench.session_facts()
+    assert next(r for r in facts["stop_rules"] if r["id"] == "attempt")["reached"] is True
+    assert (facts["instants"]["attempt_limit_reached_step"], facts["instants"]["attempt_limit_reached_when"]) == (
+        "pre", "after")
+    assert "harness-run" not in pbench.commands() and pbench.harness() is None
+
+
 # The tunnel answers until 'pre' has written the configuration identity, then
 # drops once, at the EGW_STUB_TUNNEL_DROP_AT-th host preamble after it (1 by
 # default: the preamble of 'tunnel-ready', the first host step after 'pre';
@@ -2737,6 +3072,54 @@ def test_the_harness_steps_bound_is_computed_after_its_preamble_and_a_spent_allo
     assert instants["harness_allowance_s"] == 60 - started_after
     assert instants["harness_started_utc"] and instants["harness_step_dispatched_utc"]
     assert "harness_started_utc=" + instants["harness_started_utc"] in pbench.console("harness-run")
+
+
+def test_the_actual_harness_preamble_is_ended_by_the_attempts_bound_and_starts_no_harness(pbench):
+    # F2a (Project Manager's delta review of f8465b4, section 3): 'tunnel-ready'
+    # succeeds; the tunnel then falls before the SECOND preamble - the
+    # harness step's own, the one that actually precedes the harness - and
+    # reopening it blocks until it is terminated. The one monotonic deadline
+    # from the first 'drained' must bound that preamble and the harness body
+    # together: the bound ends the step (the documented grace included), the
+    # expiry is recorded once, neither the harness nor its fault starts, and
+    # the restoration is still attempted. (At f8465b4 the harness step loaded
+    # its preamble before and outside any bound, so the driver waited for the
+    # reopening and only charged the time afterwards: the watchdog, not the
+    # bound, would end it here.)
+    _write(pbench.bench.home / "egw-tcg" / "tunnel.sh", PREAMBLE_TUNNEL)
+    code, out, err = _run_watched(pbench, "the harness step's host preamble (a tunnel_up that never returns)",
+                                  EGW_PROOF_ATTEMPT_LIMIT_S="10", EGW_STUB_TUNNEL_UP_HANG_S=BLOCKS_S,
+                                  EGW_STUB_TUNNEL_DROP_AT="2")
+    assert code == 3, f"exit={code}\n{out}\n{err}"
+    steps = pbench.commands()
+    assert steps.index("tunnel-ready") < steps.index("harness-run")
+    facts = pbench.session_facts()
+    instants = facts["instants"]
+    assert instants["tunnel_ready_exit"] == 0
+    # The step was ended by the bound, inside the allowance plus the grace.
+    record = _step_record(pbench, "harness-run")
+    assert record["exit_code"] in (124, 137)
+    assert record["duration_s"] < 10 + TERMINATION_GRACE_S + 15
+    assert "stub: tunnel up" not in pbench.console("harness-run")
+    assert "harness_started_utc=" not in pbench.console("harness-run")
+    # Recorded once, as reached during the harness step, before the harness
+    # started; nothing of the harness or its fault ran.
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    reason = verdicts["reason"]
+    assert reason.count("stop rule reached") == 1
+    assert "the harness was NOT started" in reason and "(harness exit not-started;" in reason
+    assert (instants["attempt_limit_reached_step"], instants["attempt_limit_reached_when"]) == ("harness-run", "during")
+    assert next(r for r in facts["stop_rules"] if r["id"] == "attempt")["reached"] is True
+    assert instants["harness_step_exit"] in (124, 137) and 0 < instants["harness_step_allowance_s"] <= 10
+    assert instants["harness_started_utc"] is None and instants["harness_exit"] is None
+    assert instants["harness_allowance_s"] == 0
+    assert pbench.harness() is None and not (pbench.base / "raw" / RID).exists()
+    assert "kill" not in pbench.docker_log() and pbench.docker_state()["controller"]["starts"] == 0
+    assert "harness_exit=not-started" in out
+    # The restoration is attempted after the expiry, outside the bound.
+    assert "services-healthy-after" in steps and steps.index("harness-run") < steps.index("services-healthy-after")
+    assert verdicts["restoration"].startswith("stack=healthy")
 
 
 def test_an_allowance_spent_during_the_restoration_blocks_the_extension_and_leaves_the_proof_as_it_was(pbench):
