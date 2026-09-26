@@ -3744,3 +3744,56 @@ is unchanged.
   from a clean checkout, the execution request with the identities filled
   in, and the session under separate authorisation. G3 stays paused; C3 is
   not repeated.
+
+## Entry #C044 — The quiet timer of `drained` on `/proc/uptime` (review of finite proof r01)
+
+- **Date:** 2026-09-26. **Scope:** the Project Manager's bounded work order
+  after the result of `proof-adr0011-r01`
+  (`ChatGPT/FINITE_PROOF_R01_RESULT_REVIEW_2026-09-26.md`, section 3): the
+  quiet timer only. No criterion, threshold, count, stop rule or validator
+  changed; the 490 s window (as exported for the proof), the 900 s limit
+  and the reset on activity are unchanged. Branch
+  `fix/quiet-window-monotonic` on `dev` at `489bc9e`.
+- **Defect.** `drained` (runbook 6.1) timed its window and its limit on
+  Bash `SECONDS`, that is on the WSL2 host's wall clock. In r01 the host's
+  `/proc/uptime` advanced 484 s from the first `drained` to the harness
+  start while its wall clock advanced 500 s
+  (`analysis/proof_session.json`), so the 490 s window is not demonstrated
+  on the drivers' monotonic basis. The cause is not established: a
+  10-minute host-only trace (idle, then every CPU busy) kept `SECONDS`,
+  `/proc/uptime`, `CLOCK_MONOTONIC`, `CLOCK_BOOTTIME` and the WSL wall clock
+  within 0.4 s of the Windows clock; in r01 the host's wall clock agreed with
+  the NTP-synchronised guest clock within 2 s at the proof's start and at the
+  fault, which is consistent with `/proc/uptime` lagging and does not
+  establish it.
+- **Correction.** Runbook 6.1: `_upcs` reads `/proc/uptime` in
+  centiseconds; `drained` times the window and `DRAIN_LIMIT_S` on it; a
+  clock that cannot be read, or that goes back, ends `drained` non-zero with
+  neither the success line nor the give-up line (an untimed window is never
+  quiet). Both lines keep their prefixes and whole seconds and end with the
+  quiet timer's basis and the window's (or the drain's) start, end and
+  elapsed on it; the wall clock and `SECONDS` are recorded beside them and
+  decide nothing. The deployed helper file must be regenerated from this
+  runbook (`regen_helpers.py`): `proof.sh`'s helpers check refuses the old
+  one. The three runbook sentences and the `tools/session/README.md` row that
+  said the window is unchanged now name the clock.
+- **Tests.** `src/tests/test_runbook_itest_helpers.py`, 13 new cases: the
+  window closes at 490.00 s of `/proc/uptime` and not at 489.99 s, with no
+  wall-clock step, a forward step and a backward step of 1000 s between
+  readings; the limit ends the drain at 900.00 s of `/proc/uptime` under the
+  same three; activity restarts the window; 490 s since the window opened
+  do not pass when the reading that reaches them is not quiet; an
+  unreadable clock (before the first reading, after a reading) and a clock
+  that goes back are never a quiet window; `_upcs` reads the real
+  `/proc/uptime`; no decision in `drained` uses `SECONDS`. On the `489bc9e`
+  helper the forward-step and text cases fail (the window closes after two
+  readings, the limit after two); on the corrected helper the module passes
+  (154 cases).
+- **Not changed.** `wait_ready` (its 300 s readiness allowance stays on
+  `SECONDS`), the evaluator, the harness, the controller, the controller
+  image. The one ambiguous identity of r01 is a separate question (the
+  execution hand-off records a proposal only).
+- **Decisions and next steps.** None accepted here. The second finite-proof
+  attempt, authorised by the student on 2026-09-26 after this correction is
+  verified, runs the tools at this branch's commit against the controller
+  image built from `489bc9e`.

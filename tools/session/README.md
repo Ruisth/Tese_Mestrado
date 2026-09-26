@@ -90,8 +90,9 @@ response; a reading is quiet only when `queue_depth`, `in_progress` and
 `src/CONTRACTS.md` section 5 holds in that same response, and its window closes
 only when `started_at`, `mqtt_connection`, `received` and the six counters
 stayed unchanged through it. A reading that is not quiet, or whose identity
-fails, opens a new window and is not a stop; the window, the thresholds and
-both prefixes are unchanged.
+fails, opens a new window and is not a stop; the window's length, the
+thresholds and both prefixes are unchanged, and since 2026-09-26 the window and
+the limit are timed on `/proc/uptime`, never on the wall clock (LOG `#C044`).
 
 Two rules hold the three groups apart. **A clean pass needs complete
 evidence**: while anything is `incomplete` the outcome cannot be `pass`, so it
