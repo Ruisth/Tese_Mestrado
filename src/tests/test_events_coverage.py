@@ -278,8 +278,10 @@ def test_the_closing_marker_holds_r5_whatever_its_stamp_and_no_later_stamp_is_ne
 
 
 def test_a_closing_marker_whose_exec_failed_is_broken(tmp_path):
-    # A failed exec caused nothing after the request, whatever the capture
-    # holds (here: the marker's events too, which do not count).
+    # A failed exec is not a delivered marker, whatever the capture holds
+    # (here: the marker's events too, which do not count; the reason says
+    # how many were captured rather than that nothing was caused - the
+    # daemon may log the exec before the runtime fails to start it).
     for n, events in enumerate((events_of_a_run(marker=False), events_of_a_run())):
         rc, out = check(capture(tmp_path / str(n), events,
                                 stop_txt=STOP.replace("closing_marker_exec_rc=0", "closing_marker_exec_rc=1")),
@@ -287,6 +289,9 @@ def test_a_closing_marker_whose_exec_failed_is_broken(tmp_path):
         assert rc == 1, out
         _only_broken(out, "R5")
         assert out["rule_R5"][0].startswith(f"broken: the closing marker's exec in {MARKER_C} exited 1"), out["rule_R5"]
+        assert "an exec that failed is not a delivered marker" in out["rule_R5"][0], out["rule_R5"]
+        assert ("(0 carrying its nonce)" in out["rule_R5"][0]) == (n == 0), out["rule_R5"]
+        assert "nothing was caused" not in out["rule_R5"][0]
         assert out["closing_marker_exec_rc"] == ["1"]
 
 

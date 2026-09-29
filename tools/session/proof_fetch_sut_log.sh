@@ -89,13 +89,30 @@
 # THE EVENTS WERE CAPTURED THROUGHOUT, OR THEY WERE NOT. On the guest the
 # hook asks for the stop of the recorder unit, recording the guest epoch of
 # that request (the window's end), the unit's state before it, the guest's
-# boot_id and the docker daemon's MainPID and start stamp; it waits (up to 45
-# one-second steps) for an event stamped after the second of the request -
-# the closing witness, which shows the subscription live to the window's
-# end; then 'sudo systemctl stop' and the unit's state after it. It then
-# copies the recorder's four files (events.jsonl, lifecycle.txt,
-# start-facts.txt, cli.stderr) one by one and hands them, with the stop
-# record, to events_coverage.py (rules R1-R7). DEST (JSON lines, as the CLI
+# boot_id and the docker daemon's MainPID and start stamp. Then, only while
+# the unit is active, it causes the closing marker: it reads a fresh nonce
+# (/proc/sys/kernel/random/uuid), records it and the container before
+# anything else, issues a no-op 'docker exec egw-mosquitto-1 sh -c
+# ": egw-events-close NONCE"' in the broker's container, which the proof
+# never faults (a controller not running at the fetch is an outcome the run
+# records, never a reason the capture is not shown complete), records its
+# exit status, and waits (up to 45 one-second steps) for a captured line
+# that carries the nonce. The exec itself is bounded to 45 one-second steps
+# (the image's BusyBox has no timeout applet): one still running then is
+# killed and recorded as 'timeout', so a daemon that never answers it
+# cannot keep the stop and the records from following. The daemon records
+# that exec as events of the container whose Action carries the nonce, and
+# they can exist only after the request was recorded: captured, they show
+# the subscription delivering an event caused after the window's end. An
+# event already stored is never taken for that, whatever its stamp: the
+# guest's wall clock steps back, so an event stored BEFORE the request can
+# be stamped after it (review of PR #50, F1). Then 'sudo systemctl stop' -
+# whether the marker arrived, never arrived, or its exec failed or was
+# killed - and the unit's state after it. It then copies the recorder's
+# four files (events.jsonl, lifecycle.txt, start-facts.txt, cli.stderr) one
+# by one and hands them, with the stop record, to events_coverage.py (rules
+# R1-R7), which judges the marker from the capture and the stop record,
+# never from the guest's claim (closing_marker_seen). DEST (JSON lines, as the CLI
 # wrote them) is written only when the checker says 'complete', and the
 # stop, every transfer and the checker all ended 0. Anything else - a
 # coverage 'incomplete' or 'unknown', a stop or a transfer that failed - is
@@ -177,11 +194,18 @@ if [ "$KIND" = docker-events ]; then
     UNIT=egw-events-$RID
     WORK=$(mktemp -d "${TMPDIR:-/tmp}/proof_fetch_events.XXXXXX") || hook_stop 1 "no temporary directory on the host: nothing was read"
     trap 'rm -rf "$WORK"' EXIT
+    # The container of the closing marker: the broker's, which the proof
+    # never faults (its healthcheck already runs '/bin/sh -c' execs there).
+    # Not the controller's: the fault kills it, and a controller not running
+    # at the fetch (a failed recovery, which the run records as such) would
+    # refuse the exec and so turn that outcome into a capture not shown
+    # complete, a failure of the instrument.
+    MARKER_C=egw-mosquitto-1
     # The stop, on the guest (BusyBox ash): the parameters as plain
     # assignments before a QUOTED here-document, so nothing inside is
     # expanded twice. Its stdout is the stop record; its stderr reaches this
     # hook's stderr, and so the capsule.
-    STOP_SCRIPT="$(printf "D='%s'\nUNIT='%s'\nWITNESS_S=45\n" "$D" "$UNIT")
+    STOP_SCRIPT="$(printf "D='%s'\nUNIT='%s'\nMARKER_C='%s'\nMARKER_EXEC_S=45\nWITNESS_S=45\n" "$D" "$UNIT" "$MARKER_C")
 $(cat << 'GUEST_STOP'
 [ -d "$D" ] || { echo "STOP: $D is not on the guest: no events recorder was started for this run id" >&2; exit 3; }
 t1=$(date +%s) || { echo "STOP: the guest clock could not be read: the recorder was NOT stopped" >&2; exit 3; }
@@ -192,21 +216,55 @@ echo "boot_id=$(cat /proc/sys/kernel/random/boot_id 2> /dev/null)"
 systemctl show docker -p MainPID -p ExecMainStartTimestampMonotonic 2> /dev/null
 rc=0
 if [ "$state" = active ]; then
-    # The closing witness: an event stamped after the second of the request
-    # (nanoseconds compared by stripping nine digits, never by arithmetic).
-    witness=no
-    n=0
-    while [ "$n" -lt "$WITNESS_S" ]; do
-        t=$(tail -n 20 "$D/events.jsonl" 2> /dev/null | sed -n 's/.*"timeNano":\([0-9][0-9]*\).*/\1/p' | tail -n 1)
-        t=${t%?????????}
-        if [ -n "$t" ] && [ "$t" -gt "$t1" ]; then
-            witness=yes
-            break
+    # The closing marker: an event this stop CAUSES after it recorded the
+    # request - a no-op exec in MARKER_C, named by a fresh nonce - and never
+    # an event already stored, whatever its stamp (the guest clock steps
+    # back). The nonce and the container are recorded before the exec is
+    # issued; the wait is for a captured line that carries the nonce.
+    nonce=$(cat /proc/sys/kernel/random/uuid 2> /dev/null)
+    case "$nonce" in
+        '' | *[!0-9a-f-]*) nonce= ;;
+    esac
+    [ "${#nonce}" -eq 36 ] || nonce=
+    if [ -z "$nonce" ]; then
+        echo "closing_marker=none"
+        echo "the guest gave no well-formed nonce (/proc/sys/kernel/random/uuid): no closing marker was issued" >&2
+    else
+        echo "closing_marker=$nonce"
+        echo "closing_marker_container=$MARKER_C"
+        # The exec is bounded (MARKER_EXEC_S one-second steps; the BusyBox
+        # of the image has no timeout applet): a daemon that never answers
+        # it must not keep the stop, and so the records, from happening. An
+        # exec still running then is killed and recorded as timeout.
+        docker exec "$MARKER_C" sh -c ": egw-events-close $nonce" > /dev/null &
+        xp=$!
+        n=0
+        while kill -0 "$xp" 2> /dev/null && [ "$n" -lt "$MARKER_EXEC_S" ]; do
+            n=$((n + 1))
+            sleep 1
+        done
+        if kill -0 "$xp" 2> /dev/null; then
+            kill -9 "$xp" 2> /dev/null
+            mrc=timeout
+            echo "the exec of the closing marker in $MARKER_C did not end within $MARKER_EXEC_S s: it was killed" >&2
+        else
+            mrc=0
+            wait "$xp" || mrc=$?
         fi
-        n=$((n + 1))
-        sleep 1
-    done
-    echo "closing_witness_seen=$witness"
+        echo "closing_marker_exec_rc=$mrc"
+        # A failed or killed exec caused nothing to wait for.
+        seen=no
+        n=0
+        while [ "$mrc" = 0 ] && [ "$n" -lt "$WITNESS_S" ]; do
+            if grep -F -q -- "$nonce" "$D/events.jsonl" 2> /dev/null; then
+                seen=yes
+                break
+            fi
+            n=$((n + 1))
+            sleep 1
+        done
+        echo "closing_marker_seen=$seen"
+    fi
     sudo systemctl stop "$UNIT" || { echo "STOP: 'systemctl stop $UNIT' failed" >&2; rc=1; }
 fi
 after=$(systemctl is-active "$UNIT" 2> /dev/null)
