@@ -4018,3 +4018,92 @@ is unchanged.
   reconnection duplicates, the candidate lock and the student's authorisation
   of the battery (readiness map, "Decisions to
   surface").
+
+## Entry #C047 — G3 instrumentation: acquisition defects repaired, run-scoped capture wired into the runbook, pending decisions set out
+
+- **Date:** 2026-09-29. **Scope:** the Project Manager's work order of
+  2026-09-29 (`ChatGPT/WORK_ORDER_G3_INSTRUMENTATION_READINESS_2026-09-29.md`),
+  issued at the student's request for the next orders: offline only, three
+  parts (A, B, C), one pull request. No guest session, build, load, fault,
+  criterion, threshold, load or scope change; the controller, the broker, the
+  image (`489bc9e`), the proof evaluator and `analyze.py`'s rules are
+  unchanged. Branch `feat/g3-instrumentation-readiness` on `dev` at `4e3c18f`
+  (the merge of PR #50).
+- **Why.** Two acquisition defects were deferred by #C046 until before any
+  qualifying G3 run using `--controller-url`, and the run-scoped capture of
+  PR #50 existed only in the finite proof's driver: the runbook's own G3
+  procedures still read whole-history logs and captured no Docker events.
+- **What.**
+  - *A1, the marker poll.* `run.poll_controller_marker` also catches a typed
+    `http.client.HTTPException` (`IncompleteRead`, `BadStatusLine`) as a failed
+    acquisition named in the record: no marker, `monotonic_ns` or deadline.
+    `execute_run` keeps its manifest and applies its existing rules for a
+    marker that is not ok; the reconcile helper's `mark` fails with the reason,
+    and its `wait` keeps polling at its cadence until a real reading or its
+    give-up. One request, the timeouts and cancellation are unchanged; no 50 ms
+    retry; programming errors propagate.
+  - *A2, the sampler's writes.* A write, flush, open or close failure of the
+    metrics CSV or the attempts log (`OSError`, or a `ValueError` such as an
+    unencodable value or a closed file) is recorded as `write_error` and stops
+    sampling; the files are closed with their partial bytes; `execute_run`
+    makes the run invalid with a named reason, a warning and the manifest
+    fields `controller_metrics.write_error`/`write_errors`, and `collect`
+    cannot make it valid again. It is never a poll error, a retry or a row.
+    HTTP failures of a running system stay poll errors. A manifest that cannot
+    be written is said so on the console, with the non-zero exit it had.
+    Every run using `--controller-url` is affected: a failed write of the
+    metrics evidence now invalidates it.
+  - *B, the wiring.* The recorder's start and cleanup guest scripts move from
+    `proof.sh` to `tools/session/events_capture.sh`, which `proof.sh` sources
+    (its capture unchanged) and which runs them over ssh for the runbook.
+    Runbook 6.1 gains `guest_epoch`, `sut_log`, `events_start`, `events_stop`
+    and `events_cleanup`. `harness_cmd` (T1, T6) starts the recorder before the
+    workload, passes the harness the three run-bounded fetches, and stops the
+    unit and keeps its partial capture on every ending, interruptions
+    included; T6 expects `die`, `start` of the controller (a graceful restart,
+    not the proof's SIGKILL), T1 nothing. T3, T5 and T9(b)/(c) read their
+    acceptance evidence from logs bounded to their own run (T9's bound taken
+    3 s back for the guest clock's steps); a failed or empty read is a STOP.
+    T7 records each fault's events and judges `die`, `stop`, `start` on the
+    container it stops (`proof_fetch_sut_log.sh docker-events` takes an
+    optional CONTAINER). T8, the ACL probe, credentials, counts and timing are
+    untouched.
+  - *C, decisions.*
+    `docs/governance/proposals/2026-09-29-g3-pending-decisions.md` sets out,
+    for Rui's decision and adopting nothing, the proved-down interval at a
+    restart and the short-run sample count, N1 reporting, the timed families
+    (T3 open, T6's C12 conflict), and T4's replay versus redelivery
+    duplicates, with a draft candidate manifest. A compatibility-session
+    request is kept locally (`output_test/decisions/`); it authorises nothing.
+    The readiness map and PROGRESS record the changed facts only.
+- **Tests.** Regressions first, red on the unchanged code
+  (`output_test/runs/2026-09-29/HIST_2026-09-29-g3-instrumentation-red`):
+  - `test_experiments_run.py`, `test_experiments_itest_reconcile.py`: typed
+    failures in the harness's marker and in `mark`/`wait` (a failure then a
+    real marker, exhaustion, cancellation, no fabricated marker or deadline,
+    programming errors propagating); write and flush failures of both
+    streams, in the thread and on the entry poll, an unencodable value and a
+    closed file (the owner observes it, the run is invalid, nothing invented,
+    cleanup ran), and an unreachable controller still valid.
+  - `test_runbook_capture_wiring.py` (new), `test_runbook_itest_helpers.py`,
+    `test_proof_hooks.py`, `test_proof_driver.py`,
+    `test_proof_events_recorder.py`: the runbook's own `harness_cmd` and the
+    T3, T5, T7 and T9(b)/(c) lines executed under stubs - stale-log
+    exclusion, a recorder that does not start, a missing closing marker,
+    interruptions during and after the start, and each dependency's events
+    on its own container; the proof's capture unchanged.
+- **Review.** Each part was checked by an adversarial verifier before
+  integration; their findings (an unencodable write, an interruption during
+  the recorder's start, the order of the cleanup's refusals, T9's bound, and
+  factual errors in the decision page) were corrected with regressions where
+  they were behaviour.
+- **Limits.** Everything in B is exercised with stubs only: what Docker 25.0.9
+  and Compose 2.26.0 do with these commands on the guest, the event sets of
+  T6's restart and T7's stops, and an interactive Ctrl-C are unverified. An
+  incomplete T7 capture does not change T7's verdict, and the runbook's T6
+  drain lies outside the captured window: both are decisions (the page), not
+  wired. `nominal.sh` now inherits the fetch-failure validity rule through
+  `harness_run`. T8 is not wired.
+- **Decisions and next steps.** None made here. Rui's decisions on the page's
+  four items, the candidate lock, and the compatibility session's
+  authorisation come before any qualifying run; G3 stays paused.

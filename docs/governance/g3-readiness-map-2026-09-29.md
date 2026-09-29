@@ -31,15 +31,15 @@ rules it cannot give a valid pass without a separate decision.
 
 | Family | Status | Current evidence (context only) | Remaining action or blocker | Evidence expected |
 |---|---|---|---|---|
-| **T1** repeated smoke, harness artefacts | Pending | 2026-09-18 ad-hoc runs on the old candidate; harness runs `smoke_sequence-r01/-r02` invalid; `nominal-r01` (2026-09-19) instrumentation valid, delivery failed its deadline | Wire the run-scoped log and event capture into the runbook's `harness_cmd`, which today passes no `--fetch-*-log-cmd`; the short-run rule for resource instants is still unadopted | Three `TEST STATUS` records with `check`/`delta`; one sealed harness run directory |
+| **T1** repeated smoke, harness artefacts | Pending | 2026-09-18 ad-hoc runs on the old candidate; harness runs `smoke_sequence-r01/-r02` invalid; `nominal-r01` (2026-09-19) instrumentation valid, delivery failed its deadline | Capture wired on 2026-09-29 (LOG #C047): the runbook's `harness_cmd` starts the events recorder before the workload and passes the three run-bounded fetches (runbook 6.1 `events_start`, `harness_cmd`); guest-unverified. The short-run rule for resource instants is still unadopted (decision page, 1b) | Three `TEST STATUS` records with `check`/`delta`; one sealed harness run directory |
 | **T2** three wearables | Ready | 672 of 672 in time, the last acknowledgement 3.1 s before the deadline | Run on the frozen candidate; the small margin is a risk, not a blocker | `reconcile.json` with `lost=0`, `late=0`; every `delta` `OK`; twin readback |
-| **T3** invalid payloads | Pending (minor) | 67 rejected, none accepted, no valid message rejected; 132 of 1,277 valid messages late | The rejections must be read from a run-scoped controller log; `docker compose logs` returns the container's whole history. T3's Expected list has no deadline item: whether T3 is a timed family under throughput choice T1 is an open question (decision 3 below) | `check` fields; run-scoped controller-log excerpt |
+| **T3** invalid payloads | Pending (minor) | 67 rejected, none accepted, no valid message rejected; 132 of 1,277 valid messages late | The rejections are now read from the controller log bounded to T3's own run (runbook test 3, `sut_log controller`; a failed read is a STOP); guest-unverified. T3's Expected list has no deadline item: whether T3 is a timed family under throughput choice T1 is an open question (decision 3 below) | `check` fields; run-scoped controller-log excerpt |
 | **T4** duplicates **and sequence reset** | Pending | 672 duplicates, none accepted twice. **`itest-dup-02` (sequence reset) has never run** | Run both parts. Under option 5 a reconnection adds duplicates, which can break "duplicate = replayed count"; whether such duplicates fail T4 is an open question (decision 5 below) | dup-01: replay copies, twins `same`; **dup-02**: `reconcile` with `lost=0`, every `delta` `OK` |
-| **T5** dropout and reconnection | Pending, high risk of failure | **Failed**: 326 of 2,016 late | Run it and record the result; option 5 does not change timing, and under throughput choice T1 (ADR 0011, decision B) a family that misses its deadline is recorded as failed. The broker grep reads the whole log: bound it | stderr totals, run-scoped broker excerpt, `lost`/`late`, `delta` |
-| **T6** controller restart | **Blocked** | `controller_restart-r01/-r02` invalid; the finite proof r03 supported recovery for that run only, with its harness run invalid and a twin `delta` `MISMATCH` | Four blockers, below: the restart resource gap, N1 under the ordinary rules, zero-lost at 11.2 msg/s never shown, and log/event capture not wired into the runbook harness. The normal-sampler defect is repaired in this block | A sealed **valid** run directory; C12 columns of `per_run.csv`; every `delta` `OK`; restart record; run-scoped logs and events |
-| **T7** MongoDB **and Ditto** fault | Pending | MongoDB half only (old candidate): 62 failed, 1,012 of 3,298 late. **`itest-ditto-fault-01` has never run** | Run both halves. The MongoDB result is not reusable: contract v1.2 changed the meaning of `failed`. Watch `ditto-things` at its 768 MiB limit. The Docker stop/start events of each fault come from the recorder | `fault.txt`, `ready.txt`, outcome counts, `delta`, stop/start events |
+| **T5** dropout and reconnection | Pending, high risk of failure | **Failed**: 326 of 2,016 late | Run it and record the result; option 5 does not change timing, and under throughput choice T1 (ADR 0011, decision B) a family that misses its deadline is recorded as failed. The broker excerpt now comes from the broker log bounded to T5's own run (runbook test 5, `sut_log broker`); guest-unverified | stderr totals, run-scoped broker excerpt, `lost`/`late`, `delta` |
+| **T6** controller restart | **Blocked** | `controller_restart-r01/-r02` invalid; the finite proof r03 supported recovery for that run only, with its harness run invalid and a twin `delta` `MISMATCH` | Three blockers, below: the restart resource gap, N1 under the ordinary rules, and zero-lost at 11.2 msg/s never shown. The log and event capture is wired into its harness command (expected `die`, `start` of the controller, not the proof's SIGKILL), guest-unverified; the runbook's own drain after the harness lies outside the captured window (decision page). The normal-sampler, marker-poll and write-failure defects are repaired (LOG #C046, #C047) | A sealed **valid** run directory; C12 columns of `per_run.csv`; every `delta` `OK`; restart record; run-scoped logs and events |
+| **T7** MongoDB **and Ditto** fault | Pending | MongoDB half only (old candidate): 62 failed, 1,012 of 3,298 late. **`itest-ditto-fault-01` has never run** | Run both halves. The MongoDB result is not reusable: contract v1.2 changed the meaning of `failed`. Watch `ditto-things` at its 768 MiB limit. Each fault's Docker events are recorded and judged on the container it stops (`die`, `stop`, `start` of `egw-mongodb-1`, then `egw-ditto-things-1`; runbook test 7, `events_start`/`events_stop`), guest-unverified; an incomplete capture is a STOP but does not change T7's verdict (decision page) | `fault.txt`, `ready.txt`, outcome counts, `delta`, stop/start events |
 | **T8** guest reboot | Pending | Shown on the old candidate: 336 events, 0 lost, 0 late | Not yet assessed: a reboot while the broker holds the controller's persistent session (60 s autosave; ADR 0011 open item). Bound the `ditto-things` power-off incident | Boot IDs, container state, previous-boot journal (OOM check), twins `same`, post-reboot smoke with `lost=0`, `late=0` |
-| **T9** TLS and authorisation | Pending (log scoping) | Tested checks passed on the old candidate, anonymous refusal included; negative cases remain G3 work | Run again: the broker configuration changed (C1), the ACL did not (C2 declined). T9(b) and (c) take their evidence from the broker's log (`docker compose logs --tail 20 mosquitto`), which is not scoped to the run: a run-scoped broker log copy is a prerequisite, as for T3, T5 and T7 | `verdict.txt` = `PASS` (an inconclusive result is never a pass), subscriber outputs, run-scoped broker excerpt for (b) and (c), `/metrics` unchanged |
+| **T9** TLS and authorisation | Pending (guest check of the capture) | Tested checks passed on the old candidate, anonymous refusal included; negative cases remain G3 work | Run again: the broker configuration changed (C1), the ACL did not (C2 declined). T9(b) and (c) now take their evidence from the broker log bounded to each sub-check (runbook test 9, `sut_log broker`, the bound taken 3 s back for the guest clock's steps), no longer `--tail 20`; guest-unverified | `verdict.txt` = `PASS` (an inconclusive result is never a pass), subscriber outputs, run-scoped broker excerpt for (b) and (c), `/metrics` unchanged |
 
 ## The issues the work order names
 
@@ -50,12 +50,11 @@ the entry poll; for T6 a dead sampler would have removed the post-restart rows
 and C12 would have failed on instrumentation. This block repairs it (LOG
 #C046): the failure is a counted failed poll in every mode. r03 did not exercise
 the defect (its failures were `RemoteDisconnected` and connection resets, which
-are `OSError`s). **Deferred, with a trigger:** `poll_controller_marker` in
-`run.py` still catches only `OSError` and `ValueError`, so a typed failure
-there would leave the run without a manifest — to be repaired **before any
-qualifying G3 run that uses `--controller-url`**. An I/O error writing a CSV
-row still ends the sampler's thread silently; that is a design decision for the
-same trigger.
+are `OSError`s). The two items deferred then are repaired on 2026-09-29 (LOG
+#C047): a typed failure of `poll_controller_marker` is a named failed
+acquisition (no marker, no deadline), and a write failure of either sampler
+stream makes the run invalid with a named reason instead of ending the thread
+silently.
 
 **2. The resource gap at a restart.** `MAX_SAMPLE_GAP_S` = 5 s applies to every
 container series; an excess gap rejects `resources.csv` and the harness marks
@@ -99,9 +98,11 @@ Expected list names no deadline, is one of them is decision 3 below.
 to the run and its Docker events did not cover the kill. This block, in the
 proof driver (`tools/session/proof.sh`), bounds both log copies by the run's
 guest-clock boundaries and adds a continuous event recorder whose coverage is
-judged, tested with stubs only; its first use on a guest is still to come, and
-the runbook's harness command and the families that read logs (T1, T3, T5, T6,
-T7 and T9(b)/(c)) are not yet wired to it.
+judged, tested with stubs only. On 2026-09-29 (LOG #C047) the same scripts
+were wired into the runbook: `harness_cmd` for T1 and T6, the bounded logs of
+T3, T5 and T9(b)/(c), and each T7 fault's events on its own container. Every
+path is exercised with stubs only; its first use on a guest is still to come
+(a compatibility session is requested, not authorised). T8 is not wired.
 
 **6. Other G3 conditions.** The candidate lock record is pending. The contracts
 are at v1.2 while the backlog's cut rule still names v1.1: a freeze record is
@@ -111,6 +112,10 @@ blind spot is not assessed. The broker window and queue (W, Q) against the
 families' backlogs is open. There is no versioned battery driver.
 
 ## Decisions to surface (none made here)
+
+The four methodology decisions are set out, with exact proposed wording and a
+recommendation each, in the
+[pending-decisions page](proposals/2026-09-29-g3-pending-decisions.md).
 
 1. Adopt or decline the lifecycle-aware restart rule, prospectively. Until then
    T6 stays invalid.
