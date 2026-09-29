@@ -511,7 +511,10 @@ exit 1
 SSH_STUB = '''#!/usr/bin/env python3
 """Stub ssh: runs the guest command on this machine, under sh, with the
 guest's absolute paths rewritten onto the fake guest root and the guest's own
-tools substituted at the call."""
+tools substituted at the call. The proof's events capture directory is
+rewritten only where a guest script assigns it (D='/tmp/egw-events-...'), so
+that the recorder's own text, which names that directory in its comments and
+is written to the guest through a here-document, reaches it byte for byte."""
 import os
 import subprocess
 import sys
@@ -554,6 +557,7 @@ for old, new in SUBSTITUTIONS:
     command = command.replace(old, new)
 for path in PATHS:
     command = command.replace(path, root + path)
+command = command.replace("D='/tmp/egw-events-", "D='" + root + "/tmp/egw-events-")
 env = dict(os.environ)
 env["PATH"] = os.environ["EGW_STUB_GUEST_BIN"] + os.pathsep + env["PATH"]
 sys.exit(subprocess.run(["sh", "-c", command], env=env).returncode)
@@ -646,13 +650,87 @@ echo "NTPSynchronized=yes"
 exit 0
 """
 
-SYSTEMCTL_STUB = """#!/bin/sh
-case "${1:-}" in
-    is-system-running) echo running; exit 0 ;;
-    is-active) echo inactive; exit 3 ;;
-esac
-exit 0
-"""
+SYSTEMCTL_STUB = '''#!/usr/bin/env python3
+"""Stub systemctl of the guest. Every unit is inactive, except the proof's
+Docker events recorder units (egw-events-*), which the systemd-run stub
+really runs in the background as a process group of their own: 'is-active'
+answers from that process, and 'stop' ends the whole group with SIGTERM, as
+systemd ends a unit's control group, and waits for it (SIGKILL after 20 s,
+as systemd does after TimeoutStopSec). 'show docker' answers the daemon's
+MainPID and start stamp from LOG.docker-daemon.json (a restarted daemon is
+that file changed). Steered through EGW_STUB_FAIL: 'events-stop-fails' (the
+stop is refused and the unit keeps running)."""
+import json
+import os
+import signal
+import sys
+import time
+
+LOG = os.environ.get("EGW_STUB_LOG", "")
+failures = "," + os.environ.get("EGW_STUB_FAIL", "") + ","
+quiet = any(a in ("-q", "--quiet") for a in sys.argv[1:])
+args = [a for a in sys.argv[1:] if a not in ("-q", "--quiet")]
+cmd = args[0] if args else ""
+
+
+def unit_pid(unit):
+    """The pid of the unit's main process while it runs (a zombie is not
+    running), or None."""
+    if not unit.startswith("egw-events-"):
+        return None
+    try:
+        with open(f"{LOG}.unit-{unit}.pid", encoding="utf-8") as fh:
+            pid = int(fh.read().strip())
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+            state = fh.read().rsplit(")", 1)[1].split()[0]
+    except (OSError, ValueError, IndexError):
+        return None
+    return None if state in ("Z", "X") else pid
+
+
+if cmd == "is-system-running":
+    print("running")
+    sys.exit(0)
+if cmd == "is-active":
+    running = unit_pid(args[-1]) is not None
+    if not quiet:
+        print("active" if running else "inactive")
+    sys.exit(0 if running else 3)
+if cmd == "stop":
+    unit = args[-1]
+    pid = unit_pid(unit)
+    if pid is not None:
+        if ",events-stop-fails," in failures:
+            print(f"Failed to stop {unit}.service: stub refusal", file=sys.stderr)
+            sys.exit(1)
+        with open(f"{LOG}.unit-{unit}.stops", "a", encoding="utf-8") as fh:
+            fh.write("stop\\n")
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 20
+        while unit_pid(unit) is not None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        if unit_pid(unit) is not None:
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    sys.exit(0)
+if cmd == "show":
+    try:
+        with open(LOG + ".docker-daemon.json", encoding="utf-8") as fh:
+            daemon = json.load(fh)
+    except (OSError, ValueError):
+        daemon = {"MainPID": "321", "ExecMainStartTimestampMonotonic": "4200000"}
+    asked = [args[i + 1] for i, a in enumerate(args[:-1]) if a == "-p"]
+    for key in ("MainPID", "ExecMainStartTimestampMonotonic"):
+        if key in asked:
+            print(f"{key}={daemon[key]}")
+    sys.exit(0)
+sys.exit(0)
+'''
 
 JOURNALCTL_STUB = """#!/bin/sh
 echo "stub journal: collector unit started"
@@ -953,11 +1031,35 @@ sys.exit(0)
 '''
 
 SYSTEMD_RUN_STUB = '''#!/usr/bin/env python3
-"""Stub systemd-run: runs the collector for one bounded window."""
+"""Stub systemd-run: runs the collector for one bounded window; the proof's
+Docker events recorder units (egw-events-*) are really run, in the
+background, as a process group of their own whose pid the systemctl stub
+reads (LOG.unit-UNIT.pid), their output kept apart (LOG.unit-UNIT.log), never
+on the caller's pipes. Steered through EGW_STUB_FAIL: 'collector-live' and
+'events-unit-fails' (the unit could not be started)."""
 import os
+import subprocess
 import sys
 
-if f",{os.environ.get('EGW_STUB_FAIL', '')}," .find(",collector-live,") >= 0:
+failures = f",{os.environ.get('EGW_STUB_FAIL', '')},"
+args = sys.argv[1:]
+unit = args[args.index("--unit") + 1] if "--unit" in args else ""
+if unit.startswith("egw-events-"):
+    if ",events-unit-fails," in failures:
+        print(f"Failed to start transient service unit: Unit {unit}.service already exists.", file=sys.stderr)
+        sys.exit(1)
+    index = 0
+    while index < len(args) and args[index].startswith("-"):
+        index += 2 if args[index] in ("--unit", "-p", "--property") else 1
+    log = os.environ["EGW_STUB_LOG"] + f".unit-{unit}"
+    with open(log + ".log", "a", encoding="utf-8") as out:
+        proc = subprocess.Popen(args[index:], stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+                                start_new_session=True)
+    with open(log + ".pid", "w", encoding="utf-8") as fh:
+        fh.write(str(proc.pid))
+    print(f"Running as unit: {unit}.service", file=sys.stderr)
+    sys.exit(0)
+if failures.find(",collector-live,") >= 0:
     print("stub: the collector unit could not be started", file=sys.stderr)
     sys.exit(1)
 csv = next((a for a in sys.argv[1:] if a.endswith(".csv")), None)
