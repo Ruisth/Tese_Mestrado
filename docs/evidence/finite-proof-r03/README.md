@@ -39,7 +39,9 @@ local, under `output_test/`.
 One guest session, 20:54:12 to 21:28:19 UTC on 2026-09-28, and one attempt,
 `proof-adr0011-r03`; nothing was repeated. The seven directories are
 byte-for-byte copies of the local packages under `output_test/runs/2026-09-28/`,
-which stay the originals; each keeps its export name and its own seal.
+which stay the originals; each keeps its export name and its own seal. The
+developer's hand-off of the attempt, verified against these packages, is kept
+locally beside them as `output_test/decisions/2026-09-28_finite-proof-r03-handoff.md` (outside this repository).
 
 | Package | What it holds | `SHA256SUMS` of the package |
 |---|---|---|
@@ -104,10 +106,11 @@ restoration check; clean close.
    admitting it. The host-preparation summary says the executed tooling differs
    from `489bc9e` "in `cli.py`, `controller_metrics.py`, `run.py` and
    `proof.sh` only"; the runbook's section 6.1 helper also differs, and the
-   remaining differences are the LOG, tests and the session README
-   (`src/deployment` is identical). The packages sit under `2026-09-28`, not the
-   `2026-09-27` the authorisation anticipated, because the drivers file them by
-   the UTC date of their run IDs.
+   remaining differences are the LOG, tests, the session README and the
+   runbook's prose in sections 7 and 9 (`src/deployment` is identical). The
+   packages sit under `2026-09-28`, not the `2026-09-27` the authorisation
+   anticipated: the drivers file their five packages by the UTC date of their
+   run IDs, and the two `HIST_` packages were placed beside them by hand.
 7. **Paths that are not in this repository.** Some records name files under the
    operator's home directory or the project manager's local notes; they are
    text, not links, and are not needed to verify anything here.

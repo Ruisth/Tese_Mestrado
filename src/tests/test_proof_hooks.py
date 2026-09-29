@@ -284,7 +284,10 @@ on disk, the broker and controller logs, the events, the kill and the
 compose start. The two logs are the stored multi-session logs a case writes
 (LOG.broker-log, LOG.controller-log; a default of the run otherwise), read
 as docker reads them: '--since' and '--until' in whole seconds of the stamp
-of each line. What the tests steer through EGW_STUB_FAIL: a log read that
+of each line, with the daemon's own rule since Docker 23: '--since' is
+applied only until the first line at or after it, every later line passes
+(the guest clock steps back), and the read ends at the first line past
+'--until'. What the tests steer through EGW_STUB_FAIL: a log read that
 fails or that answers nothing, a daemon that ignores the bounds
 ('logs-ignore-since'), a line without a stamp in the answer
 ('log-unstamped'), a kill or a start that is refused, a start without
@@ -341,7 +344,9 @@ def stored_log(kind, default):
 
 def bounded(lines):
     """The lines within --since/--until, by the second of each line's stamp
-    (after the compose prefix and an ESC[2K), as the daemon bounds them."""
+    (after the compose prefix and an ESC[2K), as the daemon bounds them:
+    '--since' only until the first line at or after it (moby's log
+    forwarder), the read ended at the first line past '--until'."""
     since = args[args.index("--since") + 1] if "--since" in args else None
     until = args[args.index("--until") + 1] if "--until" in args else None
     if fails("logs-ignore-since"):
@@ -354,8 +359,9 @@ def bounded(lines):
             at = datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
             if since is not None and at < int(since):
                 continue
+            since = None
             if until is not None and at > int(until):
-                continue
+                break
         out.append(line)
     if fails("log-unstamped") and "--since" in args:
         out.insert(len(out) // 2, "a line of the log without a stamp" if not out or "mosquitto" not in out[0]
@@ -375,9 +381,15 @@ state = load()
 log(("compose " if compose else "") + " ".join(args))
 cmd = args[0] if args else ""
 
+if cmd == "logs" and fails("witness-fails") and "--until" in args and "--since" not in args:
+    # The exclusion witness's read (only '--until RUN_T0'), refused.
+    print("Error response from daemon: stub witness read refused", file=sys.stderr)
+    sys.exit(1)
 if compose and cmd == "logs":
     # The broker's log, as 'docker compose logs --no-color --timestamps
     # mosquitto' prints it: one connection line per second.
+    if fails("compose-warns"):
+        print("WARN stub compose warning: a line compose wrote to stderr", file=sys.stderr)
     if fails("broker-log-fails"):
         print("no such service: mosquitto", file=sys.stderr)
         sys.exit(1)
@@ -974,6 +986,64 @@ def test_a_line_without_a_stamp_is_a_read_not_bounded_to_the_run(hooks, kind):
     assert "of which 0 lie outside" in result.stderr and "and 1 carry no timestamp (first: line " in result.stderr
     assert "was NOT read as bounded to the run" in result.stderr.splitlines()[-1]
     assert not dest.exists()
+
+
+def _stepped_back_logs(hooks: Hooks, behind: int) -> dict:
+    """A log whose guest clock stepped back across RUN_T0 AFTER the first line
+    of the run: the daemon's since check ended at that line, so the stepped
+    line is answered (r03's controller log: 21:11:03.66 then 21:11:02.69)."""
+    now = hooks.now()
+    run_t0 = now - 60
+    old = now - 3 * 86400
+    stamp = lambda epoch: _utc(epoch, ".250000000")  # noqa: E731
+    msg = lambda epoch, text: f"{stamp(epoch)} " + json.dumps(  # noqa: E731
+        {"ts": _utc(epoch), "level": "INFO", "logger": "egw_controller.mqtt", "message": text})
+    old_lines = [msg(old, "an earlier session")]
+    run_lines = [msg(run_t0, "MQTT connected"), msg(run_t0 - behind, "stepped back"), msg(run_t0 + 5, "later")]
+    Path(str(hooks.bench.log) + ".controller-log").write_text("\n".join(old_lines + run_lines) + "\n", "utf-8")
+    return {"run_t0": run_t0, "old": old_lines, "run": run_lines}
+
+
+def test_a_line_stepped_back_across_run_t0_after_the_first_is_the_runs_and_counted_apart(hooks):
+    # Review of 2026-09-29: the daemon passes every line after the first one
+    # at or after '--since', and the guest clock steps back by up to 3 s.
+    logs = _stepped_back_logs(hooks, behind=2)
+    result, dest = _fetch(hooks, "controller", str(logs["run_t0"]))
+    assert result.returncode == 0, report(result)
+    assert dest.read_text(encoding="utf-8").splitlines() == logs["run"]
+    assert "outside=0 unstamped=0 stepped_back_before_since=1" in result.stdout
+    assert "an earlier session" not in dest.read_text(encoding="utf-8")
+
+
+def test_a_line_older_than_the_clock_step_band_still_fails_the_read(hooks):
+    logs = _stepped_back_logs(hooks, behind=10)
+    result, dest = _fetch(hooks, "controller", str(logs["run_t0"]))
+    assert result.returncode == 1, report(result)
+    assert "of which 1 lie outside" in result.stderr and not dest.exists()
+
+
+@pytest.mark.parametrize("kind", ["controller", "broker"])
+def test_a_witness_read_that_failed_is_reported_unknown_not_counted(hooks, kind):
+    # Review of 2026-09-29: the witness's own exit status is read, and the
+    # count and hash of an error message are never reported as what the
+    # bound left out.
+    logs = _multi_session_logs(hooks)
+    result, dest = _fetch(hooks, kind, str(logs["run_t0"]), EGW_STUB_FAIL="witness-fails")
+    assert result.returncode == 0, report(result)
+    assert "excluded_before_since_lines=unknown excluded_sha256=unknown " in result.stdout
+    assert result.stdout.split("bounds ", 1)[1].split("
+", 1)[0].endswith(" excluded_read_rc=1,1")
+    assert dest.read_text(encoding="utf-8").splitlines() == logs[kind][1]
+
+
+def test_the_brokers_witness_leaves_compose_stderr_apart_as_the_read_does(hooks):
+    logs = _multi_session_logs(hooks)
+    old, _ = logs["broker"]
+    result, _ = _fetch(hooks, "broker", str(logs["run_t0"]), EGW_STUB_FAIL="compose-warns")
+    assert result.returncode == 0, report(result)
+    excluded = hashlib.sha256("".join(line + "\n" for line in old).encode("utf-8")).hexdigest()
+    assert f"excluded_before_since_lines={len(old)} excluded_sha256={excluded} " in result.stdout
+    assert "WARN stub compose warning" in result.stderr
 
 
 def test_fetch_refuses_arguments_it_cannot_use_before_the_guest_is_reached(hooks):

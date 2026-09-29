@@ -263,6 +263,8 @@ def test_the_guest_commands_parse_under_the_guests_shell(tmp_path, name):
     result = subprocess.run([*_shell(), "-n", str(path)], capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
     # No bashism the image's ash lacks, in the commands or in the recorder.
+    # 'head -c' and 'tail -c': the image's BusyBox 1.36.1 has neither option
+    # (review of 2026-09-29), and 'sh -n' cannot check an applet's options.
     for construct in ("[[", "<<<", "$'", "PIPESTATUS", "pipefail", "EPOCHREALTIME", "%N", "local ", "head -1",
-                      "trap '' SIG", "SIGTERM"):
+                      "head -c", "tail -c", "trap '' SIG", "SIGTERM"):
         assert construct not in script, (name, construct)

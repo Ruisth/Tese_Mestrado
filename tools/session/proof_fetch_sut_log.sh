@@ -67,10 +67,22 @@
 # UTC stamp whose second lies in [RUN_T0, UNTIL]: '--since' alone is no
 # evidence of the bound (r03's events read had one), so a read that answered
 # a line outside the window, or a line without a stamp, is a read NOT bounded
-# to the run, and fails as a failed read does (DEST absent, exit 1). The
-# offending line is named by its number and stamp only, never excerpted: its
-# content is what the bound keeps out of the capsule. The bounds, the first
-# and last stamps and the witness are printed on stdout. Converting RUN_T0 and
+# to the run, and fails as a failed read does (DEST absent, exit 1). One
+# exception follows the daemon's own rule: since Docker 23 the log reader
+# applies '--since' only until the first line at or after it and then passes
+# every later line ("message timestamps might not be monotonic"), and the
+# guest's wall clock steps back by 1-3 s about every 30 s (r03's controller
+# log shows 14 such steps in seven minutes). A line stamped before RUN_T0 by
+# no more than CLOCK_STEP_BAND_S (3 s, the band events_coverage.py and
+# proof.sh use for the same clock) and AFTER a line inside the window is
+# this run's, stepped back: it is kept and counted apart
+# (stepped_back_before_since=N), never read as a line of an earlier session.
+# A line before RUN_T0 that comes first, or older than the band, still
+# fails the read. The offending line is named by its number and stamp only,
+# never excerpted: its content is what the bound keeps out of the capsule. The bounds, the first
+# and last stamps and the witness are printed on stdout (a witness whose
+# own read did not end 0 is printed 'unknown', never the count of an error
+# message). Converting RUN_T0 and
 # UNTIL to UTC text on the host is arithmetic on the guest's numbers, never a
 # reading of the host clock.
 #
@@ -270,15 +282,28 @@ case "$KIND" in
         MERGE=' 2>&1' ;;
 esac
 # UNTIL, the guest's own clock now, and the exclusion witness: what the bound
-# leaves out, counted and hashed on the guest, nothing transferred.
+# leaves out, counted and hashed on the guest, nothing transferred. The
+# witness reads the same stream as the main read ($MERGE: the controller's
+# two streams merged on the guest, the broker's compose stderr left apart),
+# and each of its two reads writes its own exit status to a small file on
+# the guest (no pipefail is relied on): a witness that did not end 0 is
+# reported 'unknown', never the count and hash of an error message.
 BOUNDS=$(ssh egw-tcg "u=\$(date +%s) || exit 3
 echo \"until_guest_epoch=\$u\"
-echo \"excluded_before_since_lines=\$($READ --until $SINCE $TARGET 2>&1 | wc -l)\"
-echo \"excluded_sha256=\$($READ --until $SINCE $TARGET 2>&1 | sha256sum | cut -d' ' -f1)\"")
+w=/tmp/egw-excluded-witness.\$\$
+echo \"excluded_before_since_lines=\$({ $READ --until $SINCE $TARGET$MERGE; echo \$? > \$w.1; } | wc -l)\"
+echo \"excluded_sha256=\$({ $READ --until $SINCE $TARGET$MERGE; echo \$? > \$w.2; } | sha256sum | cut -d' ' -f1)\"
+echo \"excluded_read_rc=\$(cat \$w.1 2> /dev/null || echo unread),\$(cat \$w.2 2> /dev/null || echo unread)\"
+rm -f \$w.1 \$w.2")
 bounds_rc=$?
 UNTIL=$(printf '%s\n' "$BOUNDS" | sed -n 's/^until_guest_epoch=//p' | head -n 1)
 EXCLUDED_LINES=$(printf '%s\n' "$BOUNDS" | sed -n 's/^excluded_before_since_lines=//p' | head -n 1 | tr -d ' ')
 EXCLUDED_SHA=$(printf '%s\n' "$BOUNDS" | sed -n 's/^excluded_sha256=//p' | head -n 1)
+EXCLUDED_RC=$(printf '%s\n' "$BOUNDS" | sed -n 's/^excluded_read_rc=//p' | head -n 1 | tr -d ' ')
+if [ "$EXCLUDED_RC" != "0,0" ]; then
+    EXCLUDED_LINES=unknown
+    EXCLUDED_SHA=unknown
+fi
 case "$UNTIL" in
     '' | *[!0-9]*) hook_stop 1 "the $KIND log was NOT read on the guest (the guest clock that bounds the read was not read: ssh egw-tcg exit $bounds_rc): what it would show is neither observed nor excluded - $DEST was NOT written" ;;
 esac
@@ -310,7 +335,9 @@ if [ "$rc" -ne 0 ] || [ "$bytes" = unreadable ] || [ "$bytes" -eq 0 ]; then
 fi
 # Every line within [RUN_T0, UNTIL], by the second of its stamp (RFC 3339
 # UTC compares as text).
-CHECK=$(awk -v since="${SINCE_ISO%Z}" -v until="${UNTIL_ISO%Z}" -v kind="$KIND" -v esc="$(printf '\033')" '
+CLOCK_STEP_BAND_S=3
+BAND_ISO=$(iso "$((SINCE - CLOCK_STEP_BAND_S))")
+CHECK=$(awk -v since="${SINCE_ISO%Z}" -v band="${BAND_ISO%Z}" -v until="${UNTIL_ISO%Z}" -v kind="$KIND" -v esc="$(printf '\033')" '
 {
     line = $0
     if (substr(line, 1, 4) == esc "[2K") line = substr(line, 5)
@@ -322,6 +349,14 @@ CHECK=$(awk -v since="${SINCE_ISO%Z}" -v until="${UNTIL_ISO%Z}" -v kind="$KIND" 
     }
     stamp = substr(line, 1, index(line, " ") - 1)
     second = substr(line, 1, 19)
+    # Before RUN_T0 but after a line inside the window, within the clock
+    # step band: the daemon passes it (its since check ends at the first
+    # line at or after since), and it is a line of this run stepped back.
+    if (second < since && first != "" && second >= band) {
+        stepped++
+        last = stamp
+        next
+    }
     if (second < since || second > until) {
         outside++
         if (!fo) { fo = NR; fos = stamp }
@@ -331,15 +366,15 @@ CHECK=$(awk -v since="${SINCE_ISO%Z}" -v until="${UNTIL_ISO%Z}" -v kind="$KIND" 
     last = stamp
 }
 END {
-    printf "lines=%d outside=%d unstamped=%d first=%s last=%s first_outside_line=%s first_outside_stamp=%s first_unstamped_line=%s\n",
-        NR, outside + 0, unstamped + 0, (first == "" ? "null" : first), (last == "" ? "null" : last),
+    printf "lines=%d outside=%d unstamped=%d stepped=%d first=%s last=%s first_outside_line=%s first_outside_stamp=%s first_unstamped_line=%s\n",
+        NR, outside + 0, unstamped + 0, stepped + 0, (first == "" ? "null" : first), (last == "" ? "null" : last),
         (fo ? fo : "null"), (fos == "" ? "null" : fos), (fu ? fu : "null")
 }' "$TMP")
 check_rc=$?
 field() { printf '%s\n' "$CHECK" | tr ' ' '\n' | sed -n "s/^$1=//p" | head -n 1; }
 OUTSIDE=$(field outside)
 UNSTAMPED=$(field unstamped)
-BOUNDS_LINE="since_guest_epoch=$SINCE ($SINCE_ISO) until_guest_epoch=$UNTIL ($UNTIL_ISO) first=$(field first) last=$(field last) excluded_before_since_lines=${EXCLUDED_LINES:-unknown} excluded_sha256=${EXCLUDED_SHA:-unknown} outside=${OUTSIDE:-unknown} unstamped=${UNSTAMPED:-unknown}"
+BOUNDS_LINE="since_guest_epoch=$SINCE ($SINCE_ISO) until_guest_epoch=$UNTIL ($UNTIL_ISO) first=$(field first) last=$(field last) excluded_before_since_lines=${EXCLUDED_LINES:-unknown} excluded_sha256=${EXCLUDED_SHA:-unknown} outside=${OUTSIDE:-unknown} unstamped=${UNSTAMPED:-unknown} stepped_back_before_since=$(field stepped) excluded_read_rc=${EXCLUDED_RC:-unread}"
 if [ "$check_rc" -ne 0 ] || [ "$OUTSIDE" != 0 ] || [ "$UNSTAMPED" != 0 ]; then
     echo "proof_fetch_sut_log: the $KIND read answered $(field lines) line(s) ($bytes bytes), of which ${OUTSIDE:-an unknown number} lie outside [$SINCE_ISO, $UNTIL_ISO] (first: line $(field first_outside_line), stamp $(field first_outside_stamp)) and ${UNSTAMPED:-an unknown number} carry no timestamp (first: line $(field first_unstamped_line)); the lines themselves are not excerpted" >&2
     rm -f "$TMP"

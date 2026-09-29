@@ -145,11 +145,14 @@ def _only_broken(out: dict[str, list[str]], rule: str) -> None:
      "the guest boot or the docker daemon changed during the capture (MainPID 0 at the start: no daemon"),
     ("R3", {"lifecycle_txt": LIFECYCLE.replace(f"cli-exit epoch={T1 + 3} rc=143 stop_requested=yes",
                                                f"cli-exit epoch={T0 + 900} rc=0 stop_requested=no")},
-     f"the events CLI ended by itself (epoch {T0 + 900}, exit 0) before any stop was requested"),
+     f"the events CLI ended by itself (epoch {T0 + 900}, exit 0), without a stop passed to it"),
     ("R3", {"stop_txt": STOP.replace("unit_state_before_stop=active", "unit_state_before_stop=failed")},
      "the recorder unit was 'failed', not active, when the stop was requested"),
     ("R3", {"lifecycle_txt": "".join(line + "\n" for line in LIFECYCLE.splitlines() if not line.startswith("cli-exit"))},
-     "the recorder wrote 0 end(s) of its CLI, not one"),
+     "the recorder wrote 0 end(s) of its CLI, not one (none: its end by the stop is not recorded)"),
+    ("R3", {"lifecycle_txt": LIFECYCLE + f"cli-exit epoch={T1 + 4} rc=143 stop_requested=yes
+"},
+     "the recorder wrote 2 end(s) of its CLI, not one"),
     ("R3", {"lifecycle_txt": LIFECYCLE.replace(f"cli-exit epoch={T1 + 3}", f"cli-exit epoch={T1 - 9}")},
      f"the CLI's end ({T1 - 9}) precedes the stop request ({T1}) by more than the guest clock's step band of 3 s"),
     ("R4", {"cli_stderr": "WARNING: the events stream skipped a message\n"},
@@ -164,6 +167,19 @@ def test_one_thing_broken_is_the_rule_it_belongs_to_and_never_complete(tmp_path,
     assert rc == 1, out
     _only_broken(out, rule)
     assert out[f"rule_{rule}"][0].startswith("broken: " + says), out[f"rule_{rule}"]
+
+
+def test_the_provenance_line_claims_no_continuity_the_rules_do_not_show(tmp_path):
+    # Review of 2026-09-29: the record of an incomplete capture must not say
+    # it was followed continuously; the method is stated, the outcome is the
+    # verdict's.
+    broken = LIFECYCLE.replace(f"cli-exit epoch={T1 + 3} rc=143 stop_requested=yes",
+                               f"cli-exit epoch={T0 + 900} rc=0 stop_requested=no")
+    rc, out = check(capture(tmp_path, lifecycle_txt=broken), *EXPECTED)
+    assert rc == 1 and out["coverage"] == ["incomplete"]
+    assert "continuously" not in out["provenance"][0]
+    assert "whether it was followed throughout is the verdict and the rules below" in out["provenance"][0]
+    assert out["rule_R3"][0].startswith("broken: ")
 
 
 def test_the_kill_must_be_the_faults_sigkill_and_every_fault_event_within_the_window(tmp_path):

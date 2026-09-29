@@ -33,8 +33,8 @@ without a separate decision.
 |---|---|---|---|---|
 | **T1** repeated smoke, harness artefacts | Pending | 2026-09-18 ad-hoc runs on the old candidate; harness runs `smoke_sequence-r01/-r02` invalid; `nominal-r01` (2026-09-19) instrumentation valid, delivery failed its deadline | Wire the run-scoped log and event capture into the runbook's `harness_cmd`, which today passes no `--fetch-*-log-cmd`; the short-run rule for resource instants is still unadopted | Three `TEST STATUS` records with `check`/`delta`; one sealed harness run directory |
 | **T2** three wearables | Ready | 672 of 672 in time, the last acknowledgement 3.1 s before the deadline | Run on the frozen candidate; the small margin is a risk, not a blocker | `reconcile.json` with `lost=0`, `late=0`; every `delta` `OK`; twin readback |
-| **T3** invalid payloads | Pending (minor) | 67 rejected, none accepted, no valid message rejected; 132 of 1,277 valid messages late | The rejections must be read from a run-scoped controller log; `docker compose logs` returns the container's whole history. Whether "late" counts against T3 is not in its Expected list: record it as a sizing finding | `check` fields; run-scoped controller-log excerpt |
-| **T4** duplicates **and sequence reset** | Pending | 672 duplicates, none accepted twice. **`itest-dup-02` (sequence reset) has never run** | Run both parts. Under option 5 a reconnection adds duplicates, which can break "duplicate = replayed count": report it as measured | dup-01: replay copies, twins `same`; **dup-02**: `reconcile` with `lost=0`, every `delta` `OK` |
+| **T3** invalid payloads | Pending (minor) | 67 rejected, none accepted, no valid message rejected; 132 of 1,277 valid messages late | The rejections must be read from a run-scoped controller log; `docker compose logs` returns the container's whole history. T3's Expected list has no deadline item: whether T3 is a timed family under throughput choice T1 is an open question (decision 3 below) | `check` fields; run-scoped controller-log excerpt |
+| **T4** duplicates **and sequence reset** | Pending | 672 duplicates, none accepted twice. **`itest-dup-02` (sequence reset) has never run** | Run both parts. Under option 5 a reconnection adds duplicates, which can break "duplicate = replayed count"; whether such duplicates fail T4 is an open question (decision 5 below) | dup-01: replay copies, twins `same`; **dup-02**: `reconcile` with `lost=0`, every `delta` `OK` |
 | **T5** dropout and reconnection | Pending, high risk of failure | **Failed**: 326 of 2,016 late | Run it and record the result; option 5 does not change timing, and under throughput choice T1 (ADR 0011, decision B) a family that misses its deadline is recorded as failed. The broker grep reads the whole log: bound it | stderr totals, run-scoped broker excerpt, `lost`/`late`, `delta` |
 | **T6** controller restart | **Blocked** | `controller_restart-r01/-r02` invalid; the finite proof r03 supported recovery for that run only, with its harness run invalid and a twin `delta` `MISMATCH` | Four blockers, below: the restart resource gap, N1 under the ordinary rules, zero-lost at 11.2 msg/s never shown, and log/event capture not wired into the runbook harness. The normal-sampler defect is repaired in this block | A sealed **valid** run directory; C12 columns of `per_run.csv`; every `delta` `OK`; restart record; run-scoped logs and events |
 | **T7** MongoDB **and Ditto** fault | Pending | MongoDB half only (old candidate): 62 failed, 1,012 of 3,298 late. **`itest-ditto-fault-01` has never run** | Run both halves. The MongoDB result is not reusable: contract v1.2 changed the meaning of `failed`. Watch `ditto-things` at its 768 MiB limit. The Docker stop/start events of each fault come from the recorder | `fault.txt`, `ready.txt`, outcome counts, `delta`, stop/start events |
@@ -86,13 +86,14 @@ its deadlines on a valid run.
 
 | Run | Finding |
 |---|---|
-| `nominal-r01` (2026-09-19) | 3,794 of 6,720 in the window; about 5–6 msg/s served against 11.2 offered |
+| `nominal-r01` (2026-09-19) | 3,794 of 6,720 in the window; 6.457 msg/s served over the measured window (60 s blocks 5.32–8.55 msg/s) against 11.2 offered (ADR 0011, section 1) |
 | T5 / T3 / T7 (MongoDB), 2026-09-18 | 326 of 2,016 / 132 of 1,277 / 1,012 of 3,298 late |
 | T2, 2026-09-18 | in time, with a 3.1 s margin |
 | T6 recovery bound | 120 s (`RESTART_RECOVERY_MAX_S`), never shown on a qualifying run |
 
-Under throughput choice T1 (ADR 0011, decision B) each family that misses its deadline is recorded
-as failed, so G3 is not met on it.
+Under throughput choice T1 (ADR 0011, decision B) each timed family that misses
+its deadline is recorded as failed, so G3 is not met on it; whether T3, whose
+Expected list names no deadline, is one of them is decision 3 below.
 
 **5. Logs and Docker events.** r03's controller and broker logs were not scoped
 to the run and its Docker events did not cover the kill. This block, in the
@@ -115,6 +116,9 @@ families' backlogs is open. There is no versioned battery driver.
    T6 stays invalid.
 2. The analysis rule for N1 identities. Until then any N1 in T6 is a loss and a
    `MISMATCH`, and T6 fails.
-3. Families that miss their deadlines are recorded as failed; any change to
-   G3's scope needs a dated prospective decision.
+3. Timed families that miss their deadlines are recorded as failed; which
+   families are timed (T3's late confirmations among them) and any change to
+   G3's scope need a dated prospective decision.
 4. The candidate lock and the authorisation to resume the qualifying battery.
+5. Whether duplicates added by a reconnection under option 5 fail T4's
+   "duplicate = replayed count", or are reported beside it.
