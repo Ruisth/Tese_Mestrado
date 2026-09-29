@@ -28,7 +28,11 @@ security notes), so the harness host reaches it through an SSH tunnel::
 
 Failure tolerance: a failed poll NEVER stops the sampler — the controller
 is expected to be briefly unreachable during the ``controller_restart``
-condition. Failed polls are counted (``poll_errors``) and the last error
+condition. A failed poll is a network, HTTP (including a typed
+``http.client.HTTPException`` such as ``IncompleteRead`` or
+``BadStatusLine``, which is not an ``OSError``: until 2026-09-29 it ended the
+sampler's thread, or raised from the entry poll, in the default mode) or JSON
+failure. Failed polls are counted (``poll_errors``) and the last error
 message is kept; no row is written for a failed poll, so gaps in
 ``controller_metrics.csv`` are themselves evidence of unavailability.
 
@@ -55,9 +59,7 @@ host's wall clock (same NTP-sync assumption as the measured window: good
 enough for 1 Hz windowing, never used for latency).
 
 Failed-poll retry (the finite proof only, off by default). With
-``fast_retry_s`` set, a poll that FAILED - including a typed
-``http.client.HTTPException`` such as ``IncompleteRead``, which the default
-sampler does not catch - is followed, once it has completed,
+``fast_retry_s`` set, a poll that FAILED is followed, once it has completed,
 by the next poll after ``fast_retry_s`` instead of the rest of the
 interval; a successful poll returns to the normal cadence. Requests stay
 serial (one thread, the same five-second request timeout), the stop event
@@ -319,12 +321,11 @@ class ControllerMetricsSampler:
         except http.client.HTTPException as exc:
             # A typed HTTP failure that is not an OSError - e.g. IncompleteRead,
             # a controller killed between a response's headers and its body.
-            # In the failed-poll retry mode it is a failed poll like any other
-            # (counted, logged, retried after fast_retry_s; no row is written).
-            # The default sampler keeps propagating it, as it always has: that
-            # older behaviour is a separate decision (LOG #C045).
-            if self.fast_retry_s is None:
-                raise
+            # It is a failed poll like any other, in every mode: counted and
+            # kept as last_error (and in the attempts log, when the retry mode
+            # has one), followed at the mode's cadence, and no row is written.
+            # (Until 2026-09-29 the default sampler let it end its thread or
+            # raise from the entry poll; LOG #C045, #C046.)
             self.poll_errors += 1
             self.last_error = f"{type(exc).__name__}: {exc}"
             return self.last_error

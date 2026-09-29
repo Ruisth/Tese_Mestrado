@@ -1,0 +1,14 @@
+host_utc=2026-09-28T21:01:50Z
+host_epoch=1790629310
+host_uptime_s=563
+guest_epoch=1790629309
+guest_utc=2026-09-28T21:01:49Z
+offset_s=-1
+note=the offset is informational: no criterion of the proof involves timing, and the host wall clock is stepped on this host; the driver's budget runs on /proc/uptime
+guest_timedatectl=Timezone=UTC
+guest_timedatectl=LocalRTC=no
+guest_timedatectl=CanNTP=yes
+guest_timedatectl=NTP=yes
+guest_timedatectl=NTPSynchronized=yes
+guest_timedatectl=TimeUSec=Mon 2026-09-28 21:01:50 UTC
+guest_timedatectl=RTCTimeUSec=Mon 2026-09-28 21:01:51 UTC

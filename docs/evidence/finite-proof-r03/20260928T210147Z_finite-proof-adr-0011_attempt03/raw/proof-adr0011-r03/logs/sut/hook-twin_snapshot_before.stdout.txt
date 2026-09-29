@@ -1,0 +1,40 @@
+{
+  "label": "before",
+  "seed": 265481284,
+  "devices": {
+    "ac14ff49-1496-43a0-a8b6-c828e72aff42": {
+      "device_type": "smartwatch",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    },
+    "9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83": {
+      "device_type": "smart_ring",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    },
+    "9ce5fe46-662d-4cd3-9639-f16d057debc5": {
+      "device_type": "smart_clothing",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    }
+  }
+}
+proof_hook_twins: proof-adr0011-r03 before: snapshot kept as /home/ruisth/egw-tcg/itest/proof-adr0011-r03.twins.before.json and /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/twins.before.json

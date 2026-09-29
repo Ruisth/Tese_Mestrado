@@ -1,0 +1,1 @@
+[proof] proof-adr0011-r03: supports; harness validity 'invalid' kept as recorded (admission 'sampling-gap-only', E-12); seal unsealed

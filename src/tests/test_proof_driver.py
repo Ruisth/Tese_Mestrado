@@ -66,7 +66,7 @@ if shutil.which("bash") is None or shutil.which("timeout") is None:
 
 from test_session_drivers import (  # noqa: E402
     EXPECT_SERVICES, ITEST_HELPERS, PY_CAPTURE_FAIL, TUNNEL_SH, Bench, _write, report)
-from test_proof_hooks import runbook_function  # noqa: E402
+from test_proof_hooks import EVENTS_STUB, runbook_function  # noqa: E402
 from test_proof_evaluator import STOP_RULE_ATTEMPT, STOP_RULE_HEALTHY  # noqa: E402
 from test_experiments_run import CONFIG_IDENTITY  # noqa: E402
 
@@ -196,6 +196,7 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -341,6 +342,32 @@ with tempfile.TemporaryDirectory() as tmp:
             run_dir, fetched, warnings, expected_window_start_utc=GAP_WINDOW[0],
             expected_window_end_utc=GAP_WINDOW[1], source_label=pe.INGEST_SOURCE_FETCH)
         assert ingested is False and not (run_dir / "resources.csv").exists()
+    # The last SUT hook, the docker-events fetch, stops the run's events
+    # recorder on the guest and keeps its coverage record beside the capture
+    # (proof_fetch_sut_log.sh, whose own cases are test_proof_hooks'): here
+    # only its effect on the guest - the unit stopped - and its record.
+    # 'harness-skips-events-fetch' is a harness that ended before its SUT
+    # fetches (no record, no file, the unit left running);
+    # 'events-coverage-incomplete' a capture its checker did not find
+    # complete (the fetch exits 1 and writes no DEST, the capture is kept as
+    # the partial file).
+    sut = run_dir / "logs" / "sut"
+    fetches = manifest["sut_log_fetches"]
+    events_record = next(r for r in fetches if r["hook"] == "docker_events")
+    if fails("harness-skips-events-fetch"):
+        fetches.remove(events_record)
+        (sut / "docker-events.log").unlink()
+    else:
+        subprocess.run(["ssh", "egw-tcg", f"sudo systemctl stop egw-events-{run_id}"], check=False)
+        coverage = "incomplete" if fails("events-coverage-incomplete") else "complete"
+        (sut / "docker-events.coverage.txt").write_text(
+            f"coverage={coverage}\n" + ("" if coverage == "complete" else
+                                        "reason=R7 broken: the expected event(s) kill (signal 9) of egw-controller-1 are not captured\n"),
+            "utf-8")
+        if coverage != "complete":
+            (sut / "docker-events.log").rename(sut / "docker-events.partial.jsonl")
+            events_record.update(returncode=1, dest_exists=False,
+                                 stderr_tail="STOP: proof_fetch_sut_log: the docker-events capture is NOT shown complete")
     missing = run_mod.missing_mandatory_artifacts(run_dir, "controller_restart")
     validity, reasons = run_mod.compute_validity(
         timed=True, sut_env_present=True, allow_missing_sut_env=False, resource_source=resource_source,
@@ -414,6 +441,14 @@ failures = f",{os.environ.get('EGW_STUB_FAIL', '')},"
 
 def fails(token):
     return f",{token}," in failures
+
+
+def now_ns():
+    """The stub guest's steady clock, in nanoseconds (the events' timeNano)."""
+    return int(fake_now().timestamp() * 10 ** 9)
+
+
+@@EVENTS@@
 
 
 def load():
@@ -541,9 +576,11 @@ if cmd == "inspect":
     else:
         print("")
     sys.exit(0)
+if cmd == "events":
+    docker_events(args)
 print(f"stub docker: nothing to do for {cmd!r}", file=sys.stderr)
 sys.exit(1)
-'''.replace("@@CLOCK@@", STUB_CLOCK)
+'''.replace("@@CLOCK@@", STUB_CLOCK).replace("@@EVENTS@@", EVENTS_STUB)
 
 # The section 6.1 helper stub, extended: the runbook's own `keep`, and stubs
 # of `_mline` (thirteen fields; started_at follows the controller's starts in
@@ -762,6 +799,32 @@ class ProofBench:
             path.unlink()
         for suffix in (".proof-docker.json", ".midrun", ".mline-calls", ".harness-argv"):
             Path(str(self.bench.log) + suffix).unlink(missing_ok=True)
+        # The run id's events capture on the stub guest, and its unit.
+        self.end_recorders()
+        shutil.rmtree(self.events_dir(), ignore_errors=True)
+        for path in self.bench.tmp.glob("stub.log.unit-egw-events-*"):
+            path.unlink()
+
+    def events_dir(self) -> Path:
+        """The run's events capture directory on the stub guest."""
+        return self.bench.guest_root / "tmp" / f"egw-events-{RID}"
+
+    def recorder_running(self) -> bool:
+        return subprocess.run([str(self.bench.guest_bin / "systemctl"), "is-active", "-q", f"egw-events-{RID}"],
+                              env=self.bench.env()).returncode == 0
+
+    def recorder_stops(self) -> int:
+        """How many times the unit was stopped by 'systemctl stop'."""
+        path = Path(f"{self.bench.log}.unit-egw-events-{RID}.stops")
+        return len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0
+
+    def end_recorders(self) -> None:
+        """Whatever a case left running is ended with its stream."""
+        for pid_file in self.bench.tmp.glob("stub.log.unit-egw-events-*.pid"):
+            try:
+                os.killpg(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, ValueError):
+                pass
 
     def attempt(self) -> Path:
         return self.bench.attempt(SLUG)
@@ -811,8 +874,10 @@ class ProofBench:
 
 
 @pytest.fixture
-def pbench(tmp_path: Path) -> ProofBench:
-    return ProofBench(Bench(tmp_path))
+def pbench(tmp_path: Path):
+    bench = ProofBench(Bench(tmp_path))
+    yield bench
+    bench.end_recorders()
 
 
 def _argv_value(argv: list[str], flag: str) -> str:
@@ -1330,13 +1395,19 @@ def test_the_harness_is_given_the_proof_plan_base_hooks_identity_and_restart_at_
     assert _argv_value(argv, "--twin-snapshot-cmd") == f'bash "{drivers}/proof_hook_twins.sh" {{run_id}} "{{dest}}" {seed}'
     assert _argv_value(argv, "--drain-cmd") == f'bash "{drivers}/proof_hook_drained.sh" {{run_id}}'
     assert _argv_value(argv, "--post-drain-fetch-cmd") == 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl "{dest}"'
-    for kind, flag in (("broker", "--fetch-broker-log-cmd"), ("controller", "--fetch-controller-log-cmd"),
-                       ("docker-events", "--fetch-docker-events-cmd")):
-        assert _argv_value(argv, flag) == f'bash "{drivers}/proof_fetch_sut_log.sh" {kind} "{{dest}}" {guest_epoch}'
+    # The three SUT fetches take RUN_T0 - the guest epoch at which the events
+    # recorder was found ready just before the harness, never the session's
+    # start (guest_epoch) - and the docker-events fetch the recorder's run id
+    # and the Docker actions the proof's fault generates.
+    run_t0 = pbench.session_facts()["instants"]["run_guest_t0"]
+    for kind, flag in (("broker", "--fetch-broker-log-cmd"), ("controller", "--fetch-controller-log-cmd")):
+        assert _argv_value(argv, flag) == f'bash "{drivers}/proof_fetch_sut_log.sh" {kind} "{{dest}}" {run_t0}'
+    assert _argv_value(argv, "--fetch-docker-events-cmd") == (
+        f'bash "{drivers}/proof_fetch_sut_log.sh" docker-events "{{dest}}" {run_t0} {{run_id}} kill,die,start')
     runbook_argv = _harness_argv_of(runbook_function("harness_cmd"), f"harness_cmd {RID}", pbench.bench.home)
     assert _argv_value(runbook_argv, "--fetch-events-cmd").endswith('"{dest}"')
     assert "--metrics-fast-retry" not in runbook_argv
-    assert str(guest_epoch).isdigit()
+    assert isinstance(run_t0, int) and isinstance(guest_epoch, int) and run_t0 >= guest_epoch
     # The runbook's fixed arguments, expanded in the host step (the secret
     # from the exported .env, the alias, the clone's fetch script).
     assert _argv_value(argv, "--password") == "stub-simulator-password"
@@ -1397,15 +1468,16 @@ def test_hook_templates_survive_the_harness_split_under_a_base_and_a_drivers_pat
     argv = pbench.harness()["argv"]
     assert _argv_value(argv, "--base-dir") == str(base)
     seed = plan_gen.derive_run_seed(int(MASTER_SEED), RID)
-    guest_epoch = str(pbench.session_facts()["clocks"]["guest_epoch"])
+    run_t0 = str(pbench.session_facts()["instants"]["run_guest_t0"])
     dest = base / "raw" / RID / "twins.before.json"
     expected = {
         "--restart-cmd": ["bash", str(spaced / "proof_restart_controller.sh"), RID],
         "--twin-snapshot-cmd": ["bash", str(spaced / "proof_hook_twins.sh"), RID, dest.as_posix(), str(seed)],
         "--drain-cmd": ["bash", str(spaced / "proof_hook_drained.sh"), RID],
-        "--fetch-broker-log-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "broker", dest.as_posix(), guest_epoch],
-        "--fetch-controller-log-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "controller", dest.as_posix(), guest_epoch],
-        "--fetch-docker-events-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "docker-events", dest.as_posix(), guest_epoch],
+        "--fetch-broker-log-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "broker", dest.as_posix(), run_t0],
+        "--fetch-controller-log-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "controller", dest.as_posix(), run_t0],
+        "--fetch-docker-events-cmd": ["bash", str(spaced / "proof_fetch_sut_log.sh"), "docker-events", dest.as_posix(),
+                                      run_t0, RID, "kill,die,start"],
     }
     for flag, words in expected.items():
         rendered = run_mod.format_collector_template(_argv_value(argv, flag), RID, duration_s=300, dest=dest,
@@ -2506,6 +2578,9 @@ def test_delta_exit_4_on_a_named_n1_case_is_a_result_not_a_failure(pbench):
         path.unlink()
     os.remove(str(pbench.bench.log) + ".proof-docker.json")
     os.remove(str(pbench.bench.log) + ".midrun")
+    # The run id's events capture on the stub guest is write-once too.
+    pbench.end_recorders()
+    shutil.rmtree(pbench.events_dir())
     result = pbench.run(EGW_STUB_REC_DELTA="1")
     assert result.returncode == 3, report(result)
     verdicts = pbench.verdicts()
@@ -2566,6 +2641,11 @@ def test_the_50_minute_rule_ends_the_attempt_inconclusive_and_still_restores(pbe
     # recorded once.
     assert pbench.harness_signalled() == [signal.SIGTERM]
     assert verdicts["reason"].count("stop rule reached") == 1
+    # The harness never reached its docker-events fetch: the restoration
+    # stopped the recorder, and the capture is not reported complete.
+    assert pbench.recorder_stops() == 1 and not pbench.recorder_running()
+    assert facts["events_recorder"]["stopped_by"] == "restoration"
+    assert "the Docker events capture is incomplete: the recorder unit egw-events-" in verdicts["reason"]
 
 
 def test_an_allowance_spent_before_pre_records_the_stop_rule_once_and_starts_nothing(pbench):
@@ -3028,6 +3108,123 @@ def test_a_preamble_that_cannot_be_loaded_just_before_the_harness_starts_no_harn
     assert verdicts["next_action"].startswith("the attempt is inconclusive, not passing")
 
 
+def test_the_events_recorder_is_ready_before_the_harness_and_its_record_is_kept(pbench):
+    # The run's Docker events are captured from before the workload and the
+    # fault: the recorder is started after the identity check and found
+    # ready before 'tunnel-ready' and the harness, and the guest epoch of
+    # that readiness is RUN_T0, the start of the run's window that every SUT
+    # fetch is handed. Its unit is stopped by the harness's last fetch (here
+    # the stub harness does what that fetch does to the guest), so the
+    # restoration finds it stopped.
+    result = pbench.run()
+    assert result.returncode == 0, report(result)
+    assert (pbench.verdicts()["instrumentation_validity"], pbench.verdicts()["system_outcome"]) == ("valid", "pass")
+    steps = pbench.commands()
+    order = ["ready", "pre", "identity-check", "events-recorder-start", "tunnel-ready", "harness-run", "eligibility",
+             "events-recorder-cleanup", "services-healthy-after", "evaluate"]
+    assert [steps.index(step) for step in order] == sorted(steps.index(step) for step in order), steps
+    facts = pbench.session_facts()
+    recorder = facts["events_recorder"]
+    sha = hashlib.sha256((SESSION_DIR / "proof_events_recorder.sh").read_bytes()).hexdigest()
+    assert recorder["unit"] == f"egw-events-{RID}" and recorder["guest_dir"] == f"/tmp/egw-events-{RID}"
+    assert recorder["recorder_sha256"] == sha and recorder["recorder_sha256_on_guest"] == sha
+    assert recorder["start_exit"] == 0 and 0 < recorder["start_allowance_s"] <= 600
+    assert recorder["docker_main_pid"] == 321 and recorder["docker_start_monotonic_us"] == 4200000
+    assert isinstance(recorder["boot_id"], str) and recorder["boot_id"]
+    run_t0 = facts["instants"]["run_guest_t0"]
+    # The replay starts 120 s before the start (read before the unit is
+    # started; readiness may fall a few seconds later).
+    assert recorder["ready_guest_epoch"] == run_t0 and run_t0 - 130 <= recorder["since_guest_epoch"] <= run_t0 - 120
+    assert run_t0 >= facts["clocks"]["guest_epoch"] and "guest clock, never a host instant" in facts["instants"]["run_guest_t0_note"]
+    assert recorder["coverage"] == "complete" and recorder["state_at_restoration"] == "inactive"
+    assert "stopped_by" not in recorder
+    # The step's own record: the lifecycle up to readiness, and RUN_T0.
+    console = pbench.console("events-recorder-start")
+    assert f"run_guest_t0={run_t0}" in console and f"ready epoch={run_t0} " in console
+    assert "start epoch=" in console and "cli-start epoch=" in console
+    # Stopped once, by the harness's fetch; never left running.
+    assert pbench.recorder_stops() == 1 and not pbench.recorder_running()
+    life = (pbench.events_dir() / "lifecycle.txt").read_text(encoding="utf-8").splitlines()
+    assert [line.split()[0] for line in life] == ["start", "cli-start", "ready", "cli-exit"]
+    assert life[-1].endswith("stop_requested=yes")
+
+
+@pytest.mark.parametrize("token, rc, says", [
+    ("events-unit-fails", 1, "the Docker events recorder was not started (events-recorder-start exit 1: the recorder "
+                             f"unit egw-events-{RID} could not be started)"),
+    ("events-silent", 3, "the Docker events recorder was not ready (events-recorder-start exit 3: the recorder unit "
+                         f"egw-events-{RID} did not show a live subscription"),
+])
+def test_a_recorder_that_cannot_start_or_is_not_ready_starts_no_harness(pbench, token, rc, says):
+    # Without a capture from before the workload the run's events could not
+    # be shown: the harness - and with it the fault - is not started, as
+    # after a 'tunnel-ready' that failed; the harness block was entered, so
+    # the attempt is invalid and inconclusive, never not-run, and the
+    # restoration still runs.
+    result = pbench.run(EGW_STUB_FAIL=token)
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("invalid", "inconclusive")
+    assert says in verdicts["reason"], verdicts["reason"]
+    assert "the run's events could not be captured from before the workload, so the harness was NOT started" in verdicts["reason"]
+    assert "stop rule reached" not in verdicts["reason"]
+    steps = pbench.commands()
+    assert "events-recorder-start" in steps and "tunnel-ready" not in steps and "harness-run" not in steps
+    assert pbench.harness() is None and "kill" not in pbench.docker_log()
+    assert not (pbench.base / "raw" / RID).exists()
+    assert "STOP: the Docker events recorder was not started and ready just before the harness " \
+           f"(events-recorder-start exit {rc}): the harness was NOT started" in result.stderr
+    facts = pbench.session_facts()
+    assert facts["events_recorder"]["start_exit"] == rc and facts["instants"]["run_guest_t0"] is None
+    assert facts["instants"]["harness_exit"] is None and facts["harness_exit"] == "not-started"
+    assert "services-healthy-after" in steps and verdicts["restoration"].startswith("stack=healthy")
+    assert not pbench.recorder_running()
+    assert facts["events_recorder"]["state_at_restoration"] == "inactive"
+
+
+def test_a_harness_that_ended_before_its_fetches_leaves_the_recorder_to_the_restoration(pbench):
+    # The harness ended before its SUT fetches: the recorder unit was never
+    # stopped and judged by the docker-events fetch. The restoration stops
+    # it, first, keeps its lifecycle in the console record, and the capture
+    # is recorded incomplete - never a capture that ran on to the end.
+    result = pbench.run(EGW_STUB_FAIL="harness-skips-events-fetch")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["instrumentation_validity"] == "invalid" and verdicts["system_outcome"] != "pass"
+    assert (f"the Docker events capture is incomplete: the recorder unit egw-events-{RID} was still running when the "
+            "restoration began, so the harness's docker-events fetch did not stop and judge it; it was stopped by the "
+            "restoration") in verdicts["reason"]
+    assert "logs/sut/docker-events.log: no fetch record (docker_events)" in verdicts["reason"]
+    steps = pbench.commands()
+    assert steps.index("events-recorder-cleanup") < steps.index("services-healthy-after")
+    assert pbench.recorder_stops() == 1 and not pbench.recorder_running()
+    console = pbench.console("events-recorder-cleanup")
+    assert "unit_state_before_cleanup=active" in console and "unit_state_after_cleanup=inactive" in console
+    assert "cli-exit epoch=" in console and "stop_requested=yes" in console
+    facts = pbench.session_facts()["events_recorder"]
+    assert facts["stopped_by"] == "restoration" and facts["cleanup_exit"] == 0
+    assert facts["coverage"].startswith("incomplete: the recorder unit was still running when the restoration began")
+
+
+def test_an_events_capture_not_shown_complete_makes_the_evidence_incomplete_without_an_evaluator_change(pbench):
+    # The docker-events fetch found the capture incomplete: it exited 1 and
+    # wrote no file. The existing rules take it from there - the harness's
+    # item-18 validity reason, the eligibility (P-16) and the evaluator's
+    # evidence status - so the attempt is invalid and never a pass.
+    result = pbench.run(EGW_STUB_FAIL="events-coverage-incomplete")
+    assert result.returncode == 3, report(result)
+    verdicts = pbench.verdicts()
+    assert verdicts["instrumentation_validity"] == "invalid" and verdicts["system_outcome"] == "inconclusive"
+    facts = pbench.session_facts()
+    assert facts["events_recorder"]["coverage"] == "incomplete"
+    assert any("logs/sut/docker-events.log: the fetch exited 1 and wrote no file" in p for p in facts["eligibility"]["problems"])
+    evidence = pbench.verdict_document()["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is False
+    assert any("logs/sut/docker-events.log" in f and "wrote no file" in f for f in evidence["fetch_failures"])
+    assert (pbench.base / "raw" / RID / "logs" / "sut" / "docker-events.partial.jsonl").is_file()
+    assert not (pbench.base / "raw" / RID / "logs" / "sut" / "docker-events.log").exists()
+
+
 def test_the_harness_steps_bound_is_computed_after_its_preamble_and_a_spent_allowance_starts_no_harness(pbench):
     # 'pre' ends well inside a 10 s allowance, 'tunnel-ready' finds the
     # tunnel up, and the harness step is dispatched with most of the
@@ -3246,7 +3443,8 @@ def test_the_allowance_latch_is_set_in_the_drivers_own_shell_and_never_in_a_subs
     text = (SESSION_DIR / "proof.sh").read_text(encoding="utf-8")
     assert "$(live_start" not in text
     functions = "".join(_driver_function(name) for name in
-                        ("left", "attempt_reached", "live_start", "live_end", "live_hx", "live_gx", "live_ex"))
+                        ("left", "attempt_reached", "live_start", "live_end", "live_hx", "gx_bounded", "live_gx",
+                         "live_ex"))
     script = "\n".join([
         "set -u",
         "ATTEMPT_LIMIT=10", "T0=0", "NOW=4",
@@ -3353,6 +3551,13 @@ def test_interrupt_restores_and_names_the_stack_state_on_the_final_line(pbench):
     facts = pbench.session_facts()
     assert facts["instants"]["interrupted_utc"] and facts["restoration"] == "stack=healthy restart_shown=unknown"
     assert pbench.package() is not None
+    # The events recorder the harness never got to stop was stopped by the
+    # restoration, first, and its capture is recorded as not the run's.
+    assert steps.index("events-recorder-cleanup") < steps.index("services-healthy-after")
+    assert pbench.recorder_stops() == 1 and not pbench.recorder_running()
+    assert "unit_state_before_cleanup=active" in pbench.console("events-recorder-cleanup")
+    assert facts["events_recorder"]["stopped_by"] == "restoration"
+    assert facts["events_recorder"]["coverage"].startswith("incomplete: the recorder unit was still running")
     # Long after the hang would have ended, the guest is as the ending said:
     # the controller was never killed and started again.
     remaining = 25 - (time.monotonic() - interrupted_at)

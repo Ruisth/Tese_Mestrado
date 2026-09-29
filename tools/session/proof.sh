@@ -16,11 +16,18 @@
 # controller_restart condition's load - the nominal scenario at 11.2 msg/s,
 # three wearables, no warm-up - for 300 s of publication), with the fault
 # issued by the harness restart hook at t+150 s: SIGKILL of the controller's
-# container followed by a start (proof_restart_controller.sh). The harness
+# container followed by a start (proof_restart_controller.sh). Just before
+# the harness the driver starts the run's continuous Docker events recorder
+# on the guest (proof_events_recorder.sh, the unit egw-events-RUN_ID) and
+# records the guest epoch at which it was found ready, RUN_T0: the run's
+# window on the guest clock starts there. The harness
 # takes the twin snapshot before the run and after the drain
 # (proof_hook_twins.sh), the drain (proof_hook_drained.sh: the runbook's
 # 'drained' with the values recorded below), the post-drain copy of the
-# events and the three SUT logs (proof_fetch_sut_log.sh), and seals the run
+# events and the three SUT logs (proof_fetch_sut_log.sh: the broker and
+# controller logs bounded to [RUN_T0, the guest's clock at the fetch], and
+# the events recorder stopped and its coverage judged, the fault's kill, die
+# and start required of it), and seals the run
 # directory under EGW_PROOF_BASE. The driver then shows the restart from its
 # own records, takes the /metrics reading after, runs the runbook's 'delta'
 # on the post-drain copy, packages the prefix snapshots, records the guest's
@@ -308,6 +315,11 @@ DEPLOYED=${EGW_DEPLOYED_DIR:-/opt/egw/deployment}
 P=$HOME/egw-tcg/itest
 RAWD=$BASE/raw/$RID
 CONTROLLER=egw-controller-1
+# The Docker actions of the controller's container the proof's fault
+# generates (SIGKILL, its death, the start): the docker-events fetch requires
+# them within the run's window (events_coverage.py R7). A driver of a
+# fault-free run passes none, and none is then demanded.
+EVENTS_EXPECTED=kill,die,start
 # Every value written into a guest command or into the harness step's shell
 # text is checked ONCE, before anything starts, to be the literal it is.
 for value in "$RID" "$EXPECT_SERVICES" "$DEPLOYED" "$DC" "$BASE" "$PLAN" "$P" "$DRIVERS" "$REPO" "$HOME"; do
@@ -324,6 +336,16 @@ for quoted in "drivers' path=$DRIVERS" "results base=$BASE"; do
         *[\"\\]*) driver_stop "$EXIT_PREREQUISITE" "the ${quoted%%=*} '${quoted#*=}' holds a double quote or a backslash and cannot be written double-quoted into the harness's hook templates; nothing was started" ;;
     esac
 done
+# The events recorder the driver starts on the guest just before the harness
+# (10a): its text is written there through a quoted here-document that ends
+# at a line of its own, and checked there against this sha256, so a file
+# that cannot be read, or that holds that line, is refused here.
+RECORDER=$DRIVERS/proof_events_recorder.sh
+RECORDER_SHA=$(sha256sum "$RECORDER" 2> /dev/null | cut -d' ' -f1)
+[[ $RECORDER_SHA =~ ^[0-9a-f]{64}$ ]] \
+    || driver_stop "$EXIT_PREREQUISITE" "the Docker events recorder $RECORDER cannot be read; nothing was started"
+! grep -qx 'EGW_EVENTS_RECORDER' "$RECORDER" \
+    || driver_stop "$EXIT_PREREQUISITE" "the Docker events recorder $RECORDER holds the line that ends its here-document on the guest; nothing was started"
 # json_text VALUE: VALUE as a JSON string literal (quotes and backslashes
 # escaped); non-zero for a control character, which the record could not
 # hold as the text it is.
@@ -365,7 +387,10 @@ mkdir -p "$ENVD" "$ANALYSIS" || driver_stop "$EXIT_PREREQUISITE" "$ENVD could no
 STACK_STATE=untouched    # untouched | healthy | not-healthy | unknown
 RESTART_SHOWN=unknown    # unknown | yes | no
 STARTED_AFTER=""         # the controller's started_at read after the run: the extension's baseline
-HARNESS_STARTED=0        # once the harness block is entered (tunnel-ready, then the harness step) the outcome is never 'not-run'
+HARNESS_STARTED=0        # once the harness block is entered (the events recorder, tunnel-ready, then the harness step) the outcome is never 'not-run'
+EVENTS_DISPATCHED=0      # the events recorder's start step was dispatched (its unit may be running on the guest)
+EVENTS_CLEANED=0         # the restoration looked at the recorder unit (once)
+RUN_T0=""                # the guest epoch at which the events recorder was found ready: the run's window starts there
 RESTORED=0               # the restoration wait was run
 RESTORE_NOTE=""          # what the restoration found when the stack did not come back
 EXT_RESTORE=0            # the restoration being waited for is the extension's own (recorded apart)
@@ -520,6 +545,8 @@ attempt_reached() {
             ;;
         during:tunnel-ready)
             text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('tunnel-ready', the host preamble of runbook 6.1 loaded under the bound just before the harness, was ended by 'timeout', exit $rc; a tunnel that did not open in time): the harness was NOT started; the run directory was never created" ;;
+        during:events-recorder-start)
+            text="stop rule reached: the attempt was stopped ${ATTEMPT_LIMIT} s after its first 'drained' started ('events-recorder-start', the Docker events recorder started under the bound just before the harness, was ended by 'timeout', exit $rc): the harness was NOT started; the run directory was never created" ;;
         before:*)
             text="stop rule reached: the attempt's allowance of ${ATTEMPT_LIMIT} s from its first 'drained' was spent before '$name' could start ('$name' was NOT started); no further proof step was started" ;;
         during:*)
@@ -603,19 +630,27 @@ live_hx() {
     hx_bounded "$name" "$LIVE_REST" "$script" "$@"
     live_end "$name" $?
 }
-# live_gx NAME GUEST-COMMAND: one guest command over ssh under the bound: the
-# session's ssh helpers loaded as gx loads them (97 when they cannot be, or
-# when ssh itself answers 255), inside 'bounded'.
-live_gx() {
-    local name=$1 rc rest
-    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
-    rest=$LIVE_REST
+# gx_bounded NAME REST GUEST-COMMAND: one guest command over ssh under
+# 'bounded REST': the session's ssh helpers loaded as gx loads them (97 when
+# they cannot be, or when ssh itself answers 255). REST is the remainder
+# live_start left in LIVE_REST: this function reads nothing of the
+# allowance itself (live_gx, and the events recorder's start, which shares
+# the check made before the harness is dispatched, call it).
+gx_bounded() {
+    local name=$1 rest=$2 rc
     ex "$A" "$name" bash -c "$(declare -f bounded)
 bounded $rest env E=\"\$2\" bash -c '. \"\$E/scripts/session_common.sh\" || { echo \"STOP: the session ssh helpers (\$E/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest\" >&2; exit 97; }
-gssh \"\$1\"' _ \"\$1\"" _ "$2" "$SESSION"
+gssh \"\$1\"' _ \"\$1\"" _ "$3" "$SESSION"
     rc=$?
     [ "$rc" -ne 255 ] || rc=$EXIT_NOT_REACHED
-    live_end "$name" "$rc"
+    return "$rc"
+}
+# live_gx NAME GUEST-COMMAND: gx_bounded under the attempt's allowance.
+live_gx() {
+    local name=$1
+    live_start "$name" || { not_started+=("$name"); return "$STEP_NOT_STARTED"; }
+    gx_bounded "$name" "$LIVE_REST" "$2"
+    live_end "$name" $?
 }
 # live_ex NAME CMD...: a host command under the bound.
 live_ex() {
@@ -1184,15 +1219,145 @@ HEALTHY_WHERE="the 20-minute rule (the stack with the candidate healthy within $
     --role "the prefix files of runbook 6.1 (configuration identity, /metrics readings, twin snapshots, restart record)") \
     || not_run "the prefix siblings could not be registered as a source"
 
+# --- the run's continuous Docker events recorder (10a) ----------------------------
+# The run's Docker events are captured as they happen, from before the
+# workload and the fault to after the post-drain copy, never read back from
+# the daemon's bounded history at the end (r03: a history query '--since'
+# the session's start began twenty minutes late, the fault's kill and start
+# missing, and exited 0). events_recorder_script is the guest command of the
+# step 'events-recorder-start': the run id's capture directory
+# /tmp/egw-events-RUN_ID is created write-once with the recorder's files
+# already in it (owned by the ssh user, so the readiness line can be added
+# and the fetch can read them), the clone's proof_events_recorder.sh is
+# written there through a quoted here-document and checked against its
+# sha256 (RECORDER_SHA), the guest's boot_id and the docker unit's MainPID
+# and start stamp are recorded (start-facts.txt: the fetch compares them at
+# the stop, since a daemon restarted under live-restore leaves the
+# containers' StartedAt as they were), and the recorder is started as the
+# unit egw-events-RUN_ID through 'sudo systemd-run --collect', as the
+# harness starts the resource collector (no 'nohup' or 'setsid' applet is
+# assumed). Its subscription replays the last REPLAY_S seconds, so a live
+# daemon answers at once. It is READY when the capture holds an event and
+# the unit is active, polled READY_TRIES one-second steps; ready, the step
+# appends 'ready epoch=T0' to the lifecycle record and prints
+# 'run_guest_t0=T0', the guest epoch from which the run's window is taken
+# (the two logs' '--since', the events' coverage). Not ready, the unit is
+# stopped and the step answers 3; a directory that exists, a recorder that
+# is not the clone's or a unit that could not be started answer 1. Its
+# parameters are plain assignments before QUOTED here-documents (BusyBox
+# ash): nothing is expanded twice.
+events_recorder_script() {
+    printf "SHA='%s'\nD='/tmp/egw-events-%s'\nUNIT='egw-events-%s'\nREADY_TRIES=30\nREPLAY_S=120\n" "$RECORDER_SHA" "$RID" "$RID"
+    cat << 'GUEST_EVENTS_START'
+[ ! -e "$D" ] || { echo "STOP: $D exists: the events capture of a run id is write-once; nothing was started"; exit 1; }
+mkdir "$D" || { echo "STOP: $D could not be created; nothing was started"; exit 1; }
+{ : > "$D/lifecycle.txt" && : > "$D/events.jsonl" && : > "$D/cli.stderr"; } \
+    || { echo "STOP: the recorder's files could not be created in $D; nothing was started"; exit 1; }
+cat > "$D/recorder.sh" << 'EGW_EVENTS_RECORDER'
+GUEST_EVENTS_START
+    cat "$RECORDER"
+    cat << 'GUEST_EVENTS_START'
+EGW_EVENTS_RECORDER
+got=$(sha256sum "$D/recorder.sh" | cut -d' ' -f1)
+echo "recorder_sha256=$got"
+[ "$got" = "$SHA" ] || { echo "STOP: the recorder written on the guest is not the clone's (sha256 $got, expected $SHA); nothing was started"; exit 1; }
+{
+    echo "boot_id=$(cat /proc/sys/kernel/random/boot_id)"
+    systemctl show docker -p MainPID -p ExecMainStartTimestampMonotonic
+} > "$D/start-facts.txt" || { echo "STOP: the boot and docker facts could not be recorded; nothing was started"; exit 1; }
+sed 's/^/start_fact_/' "$D/start-facts.txt"
+now=$(date +%s) || { echo "STOP: the guest clock could not be read; nothing was started"; exit 1; }
+since=$((now - REPLAY_S))
+echo "recorder_since_guest_epoch=$since"
+sudo systemd-run --unit "$UNIT" --collect sh "$D/recorder.sh" "$D" "$since" \
+    || { echo "STOP: the recorder unit $UNIT could not be started"; exit 1; }
+n=0
+until [ -s "$D/events.jsonl" ] && systemctl is-active -q "$UNIT"; do
+    n=$((n + 1))
+    if [ "$n" -gt "$READY_TRIES" ]; then
+        echo "NOT READY: the recorder unit $UNIT did not show a live subscription within $READY_TRIES one-second steps (unit $(systemctl is-active "$UNIT" 2> /dev/null), $(wc -c < "$D/events.jsonl") bytes captured); its record follows, and the unit is stopped"
+        cat "$D/lifecycle.txt"
+        head -n 20 "$D/cli.stderr"
+        sudo systemctl stop "$UNIT" 2> /dev/null
+        echo "unit_state_after_stop=$(systemctl is-active "$UNIT" 2> /dev/null)"
+        exit 3
+    fi
+    sleep 1
+done
+t0=$(date +%s) || { echo "STOP: the guest clock could not be read after readiness"; sudo systemctl stop "$UNIT"; exit 1; }
+echo "ready epoch=$t0 events_bytes=$(wc -c < "$D/events.jsonl") unit=active" >> "$D/lifecycle.txt"
+cat "$D/lifecycle.txt"
+echo "run_guest_t0=$t0"
+GUEST_EVENTS_START
+}
+# events_cleanup_script: the guest command of 'events-recorder-cleanup', run
+# by the restoration: a recorder unit still active then was not stopped and
+# judged by the harness's docker-events fetch (the harness ended before it,
+# or it failed), so its capture is not the run's: it is stopped, and its
+# lifecycle record is printed into the console record (the capture itself
+# stays on the guest, in its directory).
+events_cleanup_script() {
+    printf "D='/tmp/egw-events-%s'\nUNIT='egw-events-%s'\n" "$RID" "$RID"
+    cat << 'GUEST_EVENTS_CLEANUP'
+state=$(systemctl is-active "$UNIT" 2> /dev/null)
+echo "unit_state_before_cleanup=${state:-unknown}"
+rc=0
+if [ "$state" = active ]; then
+    echo "cleanup_stop_requested_guest_epoch=$(date +%s)"
+    sudo systemctl stop "$UNIT" || rc=1
+    echo "unit_state_after_cleanup=$(systemctl is-active "$UNIT" 2> /dev/null)"
+fi
+if [ -d "$D" ]; then
+    echo "--- the recorder's lifecycle record ($D/lifecycle.txt; its capture stays in $D)"
+    cat "$D/lifecycle.txt" 2> /dev/null
+    echo "events_lines=$(wc -l < "$D/events.jsonl" 2> /dev/null)"
+    echo "cli_stderr_bytes=$(wc -c < "$D/cli.stderr" 2> /dev/null)"
+fi
+exit $rc
+GUEST_EVENTS_CLEANUP
+}
+# events_recorder_cleanup: the first thing the restoration does, once, when
+# the recorder's start was dispatched. A unit still active is a capture NOT
+# complete - stopped here, recorded in the session facts
+# (events_recorder.stopped_by, .coverage) and a mandatory record not made -
+# never a capture that ran on to the end; a unit already stopped is what the
+# docker-events fetch leaves, and its own coverage record is in the run
+# directory. A cleanup that could not look is recorded as such.
+events_recorder_cleanup() {
+    [ "$EVENTS_DISPATCHED" -eq 1 ] && [ "$EVENTS_CLEANED" -eq 0 ] || return 0
+    EVENTS_CLEANED=1
+    local rc state
+    gx "$A" events-recorder-cleanup "$(events_cleanup_script)"
+    rc=$?
+    state=$(said events-recorder-cleanup 'unit_state_before_cleanup=' | tr -d ' ')
+    if [ "$state" = active ]; then
+        local how="it was stopped by the restoration"
+        [ "$rc" -eq 0 ] || how="the restoration could not stop it (events-recorder-cleanup exit $rc)"
+        session_update "events_recorder.stopped_by=restoration" "events_recorder.cleanup_exit=$rc" \
+            "events_recorder.coverage=incomplete: the recorder unit was still running when the restoration began, so the harness's docker-events fetch did not stop and judge it"
+        missed "the Docker events capture is incomplete: the recorder unit egw-events-$RID was still running when the restoration began, so the harness's docker-events fetch did not stop and judge it; $how (its lifecycle record is in console/, its capture stays on the guest in /tmp/egw-events-$RID)"
+    elif [ "$rc" -eq 0 ]; then
+        session_update "events_recorder.state_at_restoration=${state:-unknown}"
+    elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
+        mandatory+=("$(capture_note events-recorder-cleanup)")
+    else
+        session_update "events_recorder.state_at_restoration=unknown" "events_recorder.cleanup_exit=$rc"
+        incomplete+=("$(step_note events-recorder-cleanup "$rc" "whether the events recorder unit egw-events-$RID was still running at the restoration could not be determined (events-recorder-cleanup exit $rc)")")
+    fi
+}
+
 # --- restoration: what every ending after the harness does ----------------------
 # The proof mutates only the controller container (kill + start). The
 # restoration is the six services running and healthy again, through the
 # wait shared with gate_health.sh and persistence.sh, bounded by the same
-# EGW_HEALTH_LIMIT_S; it is never cut short by the attempt's allowance.
+# EGW_HEALTH_LIMIT_S; it is never cut short by the attempt's allowance. It
+# begins with the events recorder's unit (events_recorder_cleanup), so that
+# a capture the harness did not stop never runs on unrecorded.
 restore() {
     [ "$HARNESS_STARTED" -eq 1 ] || return 0
     [ "$RESTORED" -eq 0 ] || return 0
     RESTORED=1
+    events_recorder_cleanup
     local rc
     healthy_wait "$A" services-healthy-after "$LIMIT" "$STEP"
     rc=$?
@@ -1301,8 +1466,11 @@ elif [ "$sync_rc" -ne 0 ]; then
 fi
 
 # --- 3. the clocks: guest and host, and their offset (informational) --------------
-# The guest epoch is also what the three SUT log fetches are bounded from
-# (proof_fetch_sut_log.sh SINCE_GUEST_EPOCH), so it must be a whole number.
+# The guest epoch of the session's start, a whole number. The SUT log
+# fetches no longer take it (they are bounded from RUN_T0, the events
+# recorder's readiness just before the harness, 10a): in r03 the two logs
+# were read without any bound and held the stack's earlier sessions, and
+# the history query of the events from it began twenty minutes late.
 gx "$A" guest-clock "date +%s; date -u +%Y-%m-%dT%H:%M:%SZ; timedatectl show 2>&1 || echo 'timedatectl: not read'"
 clock_rc=$?
 [ "$clock_rc" -ne "$EXIT_CAPTURE_LOST" ] || capture_stop "$A" guest-clock "the harness was NOT started"
@@ -1749,7 +1917,8 @@ proof_harness_args() {
 # duration. That can narrow the kill's band on the controller clock (E-8);
 # it does not guarantee that a redelivered identity lands after it.
 # The remainder is checked before the step is dispatched, as for every live
-# step, and it is preceded by 'tunnel-ready' (10a below), a live step that
+# step, and it is preceded by the events recorder's start and by
+# 'tunnel-ready' (10a below), a live step that
 # loads the 6.1 preamble under the bound with a trivial body. The harness
 # step itself - its OWN 6.1 preamble, the one that actually precedes the
 # harness, and its body together - runs under 'bounded' of the positive
@@ -1793,9 +1962,26 @@ HARNESS_STARTED=1
 # The fault mutates the stack from here on: its state is unknown until the
 # restoration reads it back.
 STACK_STATE=unknown
-# --- 10a. tunnel-ready: the 6.1 preamble under the bound, just before the harness ---
-# It shares the check made before the harness is dispatched (one remainder,
-# LIVE_REST) and runs under it through hx_bounded, as the live host steps
+# --- 10a. the events recorder, then tunnel-ready, just before the harness --------
+# 'events-recorder-start' (events_recorder_script) starts the run's
+# continuous Docker events recorder on the guest and waits for it to be
+# ready; it shares the check made before the harness is dispatched (one
+# remainder, LIVE_REST) and runs under it through gx_bounded. Ready (0),
+# the guest epoch it printed is RUN_T0, the start of the run's window on the
+# guest clock that the three SUT fetches are handed. Anything else leaves
+# the harness NOT dispatched, as a 'tunnel-ready' that failed does, and the
+# attempt goes on to the restoration (which stops a unit left running) and
+# the offline work: ended by 'timeout' (124, 137) the rule is reached during
+# it; not ready (3), not started (1), not reached (97), or a readiness line
+# that cannot be read, is an evidence requirement not met (the run's events
+# could not be captured from before the workload); a lost console capture
+# (74) is recorded as such. It is not an observation of the system, so it is
+# not listed with the observations not made. Its record goes into the
+# session facts (events_recorder, instants.run_guest_t0) whatever it said.
+#
+# 'tunnel-ready' then loads the 6.1 preamble under the bound, after the
+# remainder is checked again. It shares the check made before the harness
+# is dispatched and runs under it through hx_bounded, as the live host steps
 # do. Ended by 'timeout' (124, 137), the rule is reached during it: the
 # harness is not dispatched, and the attempt goes on as for an allowance
 # spent before the harness (no harness, no fault; the restoration and the
@@ -1808,9 +1994,63 @@ STACK_STATE=unknown
 # step whose own preamble failed never was. The step is not an observation
 # of the system, so it is not listed with the observations not made.
 HARNESS_GO=0
+EVENTS_RC=not-started
+EVENTS_BOUND=null
+EVENTS_READY=0
 TUNNEL_READY_RC=not-started
 TUNNEL_READY_BOUND=null
 if live_start harness-run; then
+    EVENTS_BOUND=$LIVE_REST
+    EVENTS_DISPATCHED=1
+    gx_bounded events-recorder-start "$LIVE_REST" "$(events_recorder_script)"
+    EVENTS_RC=$?
+    RUN_T0=$(said events-recorder-start 'run_guest_t0=' | tr -d ' ')
+    case "$RUN_T0" in '' | *[!0-9]*) RUN_T0="" ;; esac
+    # What the step said when it did not become ready: its NOT READY or
+    # STOP line.
+    EVENTS_WHY=$(said events-recorder-start 'NOT READY: ')$(said events-recorder-start 'STOP: ')
+    EVENTS_WHY=${EVENTS_WHY% }
+    [ -n "$EVENTS_WHY" ] || EVENTS_WHY="it printed no reason"
+    case "$EVENTS_RC" in
+        0)
+            if [ -n "$RUN_T0" ]; then
+                EVENTS_READY=1
+            else
+                missed "the Docker events recorder reported ready without a readable guest epoch (events-recorder-start exit 0, no 'run_guest_t0=' line): the run's window cannot be bounded, so the harness was NOT started"
+            fi
+            ;;
+        124 | 137)
+            attempt_reached during events-recorder-start "$EVENTS_RC"
+            echo "STOP: the Docker events recorder was not started and ready within the attempt's allowance (events-recorder-start exit $EVENTS_RC): the harness was NOT started" >&2
+            ;;
+        3)
+            missed "the Docker events recorder was not ready (events-recorder-start exit 3: $EVENTS_WHY): the run's events could not be captured from before the workload, so the harness was NOT started"
+            ;;
+        "$EXIT_CAPTURE_LOST")
+            mandatory+=("$(capture_note events-recorder-start); whether the Docker events recorder was ready just before the harness is not known, so the harness was NOT started")
+            ;;
+        *)
+            missed "$(step_note events-recorder-start "$EVENTS_RC" "the Docker events recorder was not started (events-recorder-start exit $EVENTS_RC: $EVENTS_WHY): the run's events could not be captured from before the workload, so the harness was NOT started")"
+            ;;
+    esac
+fi
+# events_fact PREFIX: one value the start step printed, or null.
+events_fact() {
+    local v
+    v=$(said events-recorder-start "$1" | tr -d ' ')
+    printf '%s' "${v:-null}"
+}
+session_update "events_recorder.unit=egw-events-$RID" "events_recorder.guest_dir=/tmp/egw-events-$RID" \
+    "events_recorder.recorder_sha256=$RECORDER_SHA" "events_recorder.start_exit=$(json_scalar "$EVENTS_RC")" \
+    "events_recorder.start_allowance_s=$EVENTS_BOUND" \
+    "events_recorder.recorder_sha256_on_guest=$(events_fact 'recorder_sha256=')" \
+    "events_recorder.since_guest_epoch=$(events_fact 'recorder_since_guest_epoch=')" \
+    "events_recorder.boot_id=$(events_fact 'start_fact_boot_id=')" \
+    "events_recorder.docker_main_pid=$(events_fact 'start_fact_MainPID=')" \
+    "events_recorder.docker_start_monotonic_us=$(events_fact 'start_fact_ExecMainStartTimestampMonotonic=')" \
+    "events_recorder.ready_guest_epoch=${RUN_T0:-null}" "instants.run_guest_t0=${RUN_T0:-null}" \
+    "instants.run_guest_t0_note=the guest epoch at which the Docker events recorder was found ready, before tunnel-ready and the harness: the run's window on the guest clock starts there (the SUT fetches' RUN_T0); guest clock, never a host instant"
+if [ "$EVENTS_READY" -eq 1 ] && live_start harness-run; then
     TUNNEL_READY_BOUND=$LIVE_REST
     hx_bounded tunnel-ready "$LIVE_REST" 'echo "tunnel-ready: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) is loaded within the allowance"'
     TUNNEL_READY_RC=$?
@@ -1851,7 +2091,7 @@ fi
 echo \"harness_started_utc=\$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
 echo \"harness_started_host_uptime_s=\$HARNESS_UP\"
 echo \"harness_allowance_s=\$HARNESS_LEFT\"
-bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cmd 'bash \"$DRIVERS/proof_restart_controller.sh\" {run_id}' --restart-at-s $RESTART_AT --metrics-fast-retry --config-identity-from '$P/$RID.config_identity.json' --twin-snapshot-cmd 'bash \"$DRIVERS/proof_hook_twins.sh\" {run_id} \"{dest}\" $SEED' --drain-cmd 'bash \"$DRIVERS/proof_hook_drained.sh\" {run_id}' --post-drain-fetch-cmd 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"' --fetch-broker-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" broker \"{dest}\" $GUEST_EPOCH' --fetch-controller-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" controller \"{dest}\" $GUEST_EPOCH' --fetch-docker-events-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" docker-events \"{dest}\" $GUEST_EPOCH'"
+bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\" --restart-cmd 'bash \"$DRIVERS/proof_restart_controller.sh\" {run_id}' --restart-at-s $RESTART_AT --metrics-fast-retry --config-identity-from '$P/$RID.config_identity.json' --twin-snapshot-cmd 'bash \"$DRIVERS/proof_hook_twins.sh\" {run_id} \"{dest}\" $SEED' --drain-cmd 'bash \"$DRIVERS/proof_hook_drained.sh\" {run_id}' --post-drain-fetch-cmd 'scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"' --fetch-broker-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" broker \"{dest}\" $RUN_T0' --fetch-controller-log-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" controller \"{dest}\" $RUN_T0' --fetch-docker-events-cmd 'bash \"$DRIVERS/proof_fetch_sut_log.sh\" docker-events \"{dest}\" $RUN_T0 {run_id} $EVENTS_EXPECTED'"
     h_rc=$?
     HARNESS_ENDED_UTC=$(now_utc)
     # What the step itself printed immediately before the harness started:
@@ -1891,13 +2131,16 @@ bounded \"\$HARNESS_LEFT\" python -m egw_experiments run \"\${HARNESS_ARGS[@]}\"
     fi
 else
     # No harness step ran, so no step is recorded: the one stop rule
-    # reached (recorded by live_start, or during 'tunnel-ready'), or the
-    # preamble not loaded just before it (recorded above).
+    # reached (recorded by live_start, or during 'events-recorder-start' or
+    # 'tunnel-ready'), or the events recorder not ready or the preamble not
+    # loaded just before it (recorded above).
     h_rc=not-started
     harness_allowance=null
     if [ "$ATTEMPT_REACHED" -eq 1 ]; then
         harness_allowance=0
         echo "STOP: no time left in the attempt's allowance: the harness was NOT started" >&2
+    elif [ "$EVENTS_READY" -eq 0 ]; then
+        echo "STOP: the Docker events recorder was not started and ready just before the harness (events-recorder-start exit $EVENTS_RC): the harness was NOT started" >&2
     else
         echo "STOP: the host preamble of runbook 6.1 was not known to be loaded just before the harness (tunnel-ready exit $TUNNEL_READY_RC): the harness was NOT started" >&2
     fi
@@ -1954,6 +2197,12 @@ case "$h_rc" in
         elig_rc=$?
         ELIG_FACTS=$(said eligibility 'eligibility=')
         [ -z "${ELIG_FACTS// /}" ] || session_update "eligibility=$ELIG_FACTS"
+        # The events capture's own verdict, as the docker-events fetch wrote
+        # it into the run directory (its first line): the eligibility above
+        # already reads a capture not shown complete as a fetch that wrote no
+        # file; this names why, beside it.
+        EVENTS_COVERAGE=$(sed -n '1s/^coverage=//p' "$RAWD/logs/sut/docker-events.coverage.txt" 2> /dev/null)
+        session_update "events_recorder.coverage=${EVENTS_COVERAGE:-not judged: the run directory holds no logs/sut/docker-events.coverage.txt}"
         GAP_COLLECTOR=$(said eligibility 'sampling_gap_collector_file=' | tr -d ' ')
         [ -z "$GAP_COLLECTOR" ] \
             || amend_expected_artefacts "$GAP_COLLECTOR" "$(said eligibility 'sampling_gap_seal_withheld=' | tr -d ' ')"

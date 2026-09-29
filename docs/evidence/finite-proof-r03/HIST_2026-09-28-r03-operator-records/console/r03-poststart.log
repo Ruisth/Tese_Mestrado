@@ -1,0 +1,17 @@
+start /egw-mosquitto-1 started=2026-09-28T20:55:14.442480782Z restarts=0 oom=false status=running
+start /egw-mongodb-1 started=2026-09-28T20:55:13.582073214Z restarts=0 oom=false status=running
+start /egw-ditto-policies-1 started=2026-09-28T20:55:16.947695358Z restarts=0 oom=false status=running
+start /egw-ditto-things-1 started=2026-09-28T20:55:21.906308126Z restarts=0 oom=false status=running
+start /egw-ditto-gateway-1 started=2026-09-28T20:55:22.200897422Z restarts=0 oom=false status=running
+start /egw-controller-1 started=2026-09-28T20:58:05.444710738Z restarts=0 oom=false status=running
+reload_lines=0
+mounted_conf_sha256=ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615
+controller_label=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+controller_grace=130
+guest_epoch=1790629236
+broker started 183562.4 s after the installation
+six starts span 171.9 s (earliest to latest)
+start check: as required
+exported 20260928T210029Z_candidate-start-check_attempt03: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-09-28\20260928T210029Z_candidate-start-check_attempt03 (verified, 8 files, 0 excluded)
+DRIVER RESULT 20260928T210029Z_candidate-start-check_attempt03: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="candidate started as required"
+poststart exit=0 at 2026-09-28T21:00:44Z

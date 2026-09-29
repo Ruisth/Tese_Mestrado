@@ -1,0 +1,1 @@
+proof_session: wrote /home/ruisth/egw-exec/attempts/20260928T210147Z_finite-proof-adr-0011_attempt03/analysis/proof_session.json: 2 stop rules, 20 value(s)

@@ -2441,6 +2441,26 @@ def test_a_failed_sut_log_fetch_is_inconclusive() -> None:
     assert _outcome(doc)["result"] == "inconclusive"
 
 
+def test_an_events_capture_not_shown_complete_is_incomplete_evidence_and_the_controller_log_still_serves() -> None:
+    # The docker-events fetch that does not find the run's continuous capture
+    # complete exits 1 and writes no docker-events.log (proof_fetch_sut_log.sh,
+    # the r03 closure): the evidence is incomplete by the rule that already
+    # holds for any fetch, with no change to the evaluator, and nothing else
+    # follows from it - the docker events serve no criterion, so the
+    # controller log still serves S4/R3.
+    fetches = _manifest()["sut_log_fetches"]
+    assert fetches[2]["hook"] == "docker_events"
+    fetches[2] = {**fetches[2], "returncode": 1, "dest_exists": False}
+    doc = _evaluate(manifest=_manifest(sut_log_fetches=fetches))
+    evidence = doc["instrumentation"]["proof_evidence"]
+    assert evidence["complete"] is False
+    assert [f for f in evidence["fetch_failures"] if "logs/sut/" in f] == [
+        f"logs/sut/docker-events.log: the fetch {SUT_LOG_FETCH_FLAGS['docker_events']} exit 1 and wrote no file"]
+    assert not any(f.startswith("logs/sut/") for f in evidence["cannot_serve_the_criteria"])
+    assert _outcome(doc)["result"] == "inconclusive"
+    assert any(r.startswith("any fetch listed above fails") for r in _outcome(doc)["inconclusive_reasons"])
+
+
 def test_a_stop_rule_reached_in_the_session_facts_is_inconclusive() -> None:
     doc = _evaluate(session=_session(reached=True))
     assert _outcome(doc)["result"] == "inconclusive"

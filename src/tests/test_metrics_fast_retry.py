@@ -259,19 +259,109 @@ def test_an_incomplete_body_in_the_running_thread_is_retried_and_the_sampler_rec
     assert len(_csv_rows(tmp_path / "m.csv")) == s.samples_written == len(rows) - 1
 
 
-@pytest.mark.parametrize("exc", [http.client.IncompleteRead(b"", 5), http.client.BadStatusLine("")],
-                         ids=["IncompleteRead", "BadStatusLine"])
-def test_the_default_sampler_still_propagates_a_typed_http_failure(tmp_path: Path, monkeypatch, exc: Exception) -> None:
-    """The older default behaviour is kept (a separate decision): the entry poll
-    raises, and so does a poll of the thread."""
+TYPED_FAILURES = [http.client.IncompleteRead(b"", 5), http.client.BadStatusLine(""), http.client.LineTooLong("header line")]
+TYPED_IDS = ["IncompleteRead", "BadStatusLine", "LineTooLong"]
+
+
+# --- the normal sampler (work order of 2026-09-29, deliverable B): a typed HTTP
+# failure is a failed poll, as in the retry mode; cadence, timeout and stop unchanged
+
+
+@pytest.mark.parametrize("exc", TYPED_FAILURES, ids=TYPED_IDS)
+def test_the_default_sampler_counts_a_typed_http_failure_without_a_metrics_row(tmp_path: Path, monkeypatch, exc: Exception) -> None:
+    """Until 2026-09-29 the default sampler let it propagate (LOG #C045); now it
+    is counted and kept like any failed poll, with no row written."""
     monkeypatch.setattr(cm, "fetch_metrics", _Sequence(exc))
     s = _sampler(tmp_path)
-    with pytest.raises(type(exc)):
-        s.__enter__()
+    error = s._sample_once()
+    assert error is not None and error.startswith(type(exc).__name__)
+    assert (s.poll_errors, s.samples_written) == (1, 0)
+    assert (s.fast_retries, s.failure_episodes) == (0, 0)
+
+
+def test_a_typed_failure_on_the_default_entry_poll_is_counted_and_a_genuine_reading_follows(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(cm, "fetch_metrics", _Sequence(http.client.IncompleteRead(b"", 5), "ok"))
+    with cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=0.3) as s:
+        time.sleep(0.2)
+        alive = s._thread.is_alive()
+    assert alive
+    assert s.poll_errors == 1 and s.last_error.startswith("IncompleteRead")
+    assert s.samples_written >= 1 and len(_csv_rows(tmp_path / "m.csv")) == s.samples_written
+    assert s._first_wait == 0.0 and not list(tmp_path.glob("*attempts*"))
+
+
+class _Stamped(_Sequence):
+    """A _Sequence that records each call's host instants and outcome."""
+
+    def __init__(self, *script: object) -> None:
+        super().__init__(*script)
+        self.stamps: list[tuple[float, float, str]] = []
+
+    def __call__(self, url: str, timeout_s: float = 5.0) -> dict:
+        start = time.monotonic()
+        try:
+            result = super().__call__(url, timeout_s)
+        except BaseException:
+            self.stamps.append((start, time.monotonic(), "error"))
+            raise
+        self.stamps.append((start, time.monotonic(), "ok"))
+        return result
+
+
+def test_a_typed_failure_in_the_default_thread_is_counted_and_sampling_recovers_at_the_normal_cadence(tmp_path: Path, monkeypatch) -> None:
+    fetch = _Stamped("ok", "ok", http.client.IncompleteRead(b"", 10), "ok")
+    monkeypatch.setattr(cm, "fetch_metrics", fetch)
+    with cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=0.2) as s:
+        time.sleep(0.8)
+        alive = s._thread.is_alive()
+    assert alive                                            # the thread survived the typed failure
+    outcomes = [o for _, _, o in fetch.stamps]
+    assert outcomes[:4] == ["ok", "ok", "error", "ok"] and len(outcomes) >= 5
+    failed_end, next_start = fetch.stamps[2][1], fetch.stamps[3][0]
+    assert next_start - failed_end >= 0.15                  # the rest of the interval, no 50 ms retry
+    assert s.poll_errors == 1 and s.fast_retries == 0
+    assert len(_csv_rows(tmp_path / "m.csv")) == s.samples_written == len(outcomes) - 1
+
+
+def test_the_default_sampler_writes_no_row_for_typed_failures(tmp_path: Path, monkeypatch) -> None:
+    fetch = _Stamped(http.client.BadStatusLine(""))
+    monkeypatch.setattr(cm, "fetch_metrics", fetch)
+    with cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=0.1) as s:
+        time.sleep(0.35)
+    assert _csv_rows(tmp_path / "m.csv") == [] and s.samples_written == 0
+    assert s.poll_errors == len(fetch.stamps) >= 2
+
+
+def test_the_stop_event_ends_a_default_sampler_that_keeps_failing(tmp_path: Path, monkeypatch) -> None:
+    fetch = _Stamped(http.client.IncompleteRead(b"", 5))
+    monkeypatch.setattr(cm, "fetch_metrics", fetch)
+    s = cm.ControllerMetricsSampler(tmp_path / "m.csv", URL, interval_s=10.0)
+    s.__enter__()
+    time.sleep(0.3)
+    calls = len(fetch.stamps)
+    started = time.monotonic()
     s.__exit__(None, None, None)
-    assert s.poll_errors == 0 and s._thread is None
-    with pytest.raises(type(exc)):
-        _sampler(tmp_path)._sample_once()
+    assert time.monotonic() - started < 1.0 and not s._thread.is_alive()
+    assert calls == 2                                       # the entry poll and the thread's immediate first poll
+    time.sleep(0.2)
+    assert len(fetch.stamps) == calls
+
+
+@pytest.mark.parametrize("fast", [False, True], ids=["default", "fast-retry"])
+def test_a_programming_error_in_the_acquisition_still_propagates(tmp_path: Path, monkeypatch, fast: bool) -> None:
+    """Only the typed HTTP failures join the failed polls: no catch-all."""
+    monkeypatch.setattr(cm, "fetch_metrics", _Sequence(TypeError("bug")))
+    s = _sampler(tmp_path, fast_retry_s=cm.FAST_RETRY_S) if fast else _sampler(tmp_path)
+    with pytest.raises(TypeError):
+        s._sample_once()
+    assert s.poll_errors == 0
+
+
+def test_a_network_failure_keeps_its_plain_message(tmp_path: Path, monkeypatch) -> None:
+    """RemoteDisconnected is an OSError: its message stays the plain one r03 recorded."""
+    monkeypatch.setattr(cm, "fetch_metrics", _Sequence(http.client.RemoteDisconnected("Remote end closed connection without response")))
+    s = _sampler(tmp_path)
+    assert s._sample_once() == "Remote end closed connection without response"
 
 
 @pytest.mark.parametrize("exc", [http.client.IncompleteRead(b"", 5), http.client.BadStatusLine("")],

@@ -1,0 +1,148 @@
+{
+  "attempt": "20260928T210147Z_finite-proof-adr-0011_attempt03",
+  "clocks": {
+    "guest_epoch": 1790629309,
+    "guest_utc": "2026-09-28T21:01:49Z",
+    "host_epoch": 1790629310,
+    "host_uptime_s": 563,
+    "host_utc": "2026-09-28T21:01:50Z",
+    "offset_s": -1
+  },
+  "eligibility": {
+    "collector_file": "logs/collector/resources-proof-adr0011-r03.csv",
+    "collector_file_present": true,
+    "complete": true,
+    "events_fetch_ok": true,
+    "harness_admission": {
+      "admitted": true,
+      "collector_file": "logs/collector/resources-proof-adr0011-r03.csv",
+      "form": "sampling-gap-only",
+      "reasons": [
+        "the campaign's MAX_SAMPLE_GAP_S deviation alone, in the form the harness records it: the collector file rejected at ingest and kept at logs/collector/resources-proof-adr0011-r03.csv",
+        "harness validity reason (quoted): no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources",
+        "harness validity reason (quoted): mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity",
+        "ingest rejection (quoted): --collector-fetch-cmd output /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/logs/collector/resources-proof-adr0011-r03.csv REJECTED (SUT resources treated as missing): 1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': 2026-09-28T21:12:54+00:00 to 2026-09-28T21:13:02+00:00 (8.0 s)"
+      ],
+      "rule": "The harness's validity is admitted for the proof in two forms only, recognised from what run.py writes and never from free text: 'valid' (validity 'valid' with no reason); or the campaign's sampling-gap deviation the ADR anticipates (the harness 'may again mark the run invalid under MAX_SAMPLE_GAP_S'), in the one form the harness records it when its ingest rejects the collector file: validity 'invalid' with exactly the two reasons run.compute_validity writes for it ('no SUT resources' and 'mandatory artefact(s) missing from the run directory' for resources.csv alone), missing_mandatory_artifacts ['resources.csv'], resource_source 'none', and exactly one warning of the ingest rejection (run.ingest_resources: '<source> <file> REJECTED (SUT resources treated as missing): <problems>') whose every problem is resources.validate_resources_csv's MAX_SAMPLE_GAP_S sampling-gap problem; the rejected collector file present and non-empty in the run directory at the path the rejection names, relative to the run directory (logs/collector/resources-<run_id>.csv for the harness's own fetch); no resources.csv at the top of the run directory; and SHA256SUMS absent, which run.py withholds for the missing resources.csv alone, or present and verifying. A rejection that also lists another problem, a further validity reason, a rejected file outside the run directory, absent or empty, or any other invalidity is not admitted, every harness reason quoted; a manifest field that cannot be read leaves the admission unknown (P-6), never admitted. In the sampling-gap form the evidence inventory (E-11) requires the collector file where the rejection names it instead of resources.csv, and accepts the withheld seal with the reason stated: the evaluator's own sha256 of every file it read, in the document's sources, carries the integrity of what it used; a SHA256SUMS present that does not verify is never accepted. The driver applies the same function (harness_admission), so the two parts cannot disagree.",
+      "seal_withheld_for": "the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)"
+    },
+    "harness_exit": 1,
+    "harness_validity": "invalid",
+    "harness_validity_reasons": [
+      "no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources",
+      "mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity"
+    ],
+    "problems": [],
+    "resources_csv_present": false,
+    "rule": "P-16: the harness validity is admitted only as E-12 states, by the function the evaluator applies (egw_experiments.proof_evaluator.harness_admission)",
+    "sampling_gap_only": true,
+    "simulator_returncode": 0
+  },
+  "extension": null,
+  "harness_exit": 1,
+  "healthy_rule": {
+    "candidate_start_note": "the earliest StartedAt of the expected services, read before the wait (P-15)",
+    "candidate_start_utc": "2026-09-28T20:55:13.582073214Z",
+    "clock_step_band_s": 3.0,
+    "completed_upper_elapsed_s": null,
+    "earlier_completed_upper_elapsed_s": 358,
+    "earlier_elapsed_s": 351,
+    "earlier_record": "/home/ruisth/egw-exec/attempts/20260928T210104Z_g2-gate-preconditions_attempt04/console/001-services-healthy.stdout.txt",
+    "earlier_transition_completed_utc": "2026-09-28T21:01:10Z",
+    "earlier_transition_sample": 1,
+    "earlier_transition_utc": "2026-09-28T21:01:05Z",
+    "elapsed_s": 405,
+    "established_by": "earlier-record",
+    "first_healthy_completed_utc": "2026-09-28T21:02:05Z",
+    "first_healthy_instant_note": "the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services; the observation had completed by the instant the wait read after its last inspection (first_healthy_completed_utc, whole seconds: before that instant + 1 s), and that upper bound is what the deadline is judged on",
+    "first_healthy_sample": 1,
+    "first_healthy_utc": "2026-09-28T21:01:59Z",
+    "guest_epoch_at_record": 1790629311,
+    "latest_start_utc": "2026-09-28T20:58:05.444710738Z",
+    "limit_s": 1200,
+    "poll_bound_s": 1200,
+    "previous_sample_span_s": null,
+    "previous_sample_utc": null,
+    "spent_before_wait_s": 397
+  },
+  "identity": {
+    "controller_source_commit": "489bc9e5b5b0660026ea2630b8d1d124049ba2ce",
+    "stop_grace_period": "130s"
+  },
+  "instants": {
+    "delta_exit": 4,
+    "ended_utc": "2026-09-28T21:26:58Z",
+    "first_drained_started_host_uptime_s": 595,
+    "first_drained_started_utc": "2026-09-28T21:02:21Z",
+    "harness_allowance_s": 2500,
+    "harness_ended_utc": "2026-09-28T21:26:34Z",
+    "harness_exit": 1,
+    "harness_started_host_uptime_s": 1095,
+    "harness_started_utc": "2026-09-28T21:10:21Z",
+    "harness_step_allowance_s": 2500,
+    "harness_step_dispatched_utc": "2026-09-28T21:10:21Z",
+    "harness_step_exit": 1,
+    "tunnel_ready_allowance_s": 2500,
+    "tunnel_ready_exit": 0
+  },
+  "plan": {
+    "duration_s": 300,
+    "master_seed": 20260925,
+    "path": "/home/ruisth/egw-tcg/proof/plan-proof-adr0011-r03.json",
+    "rate_msg_s": 11.2,
+    "seed": 265481284,
+    "sha256": "4de4c9b2fe7430f1f737bb338be9408674d80d86c14ccdd0604dae5a20cd515c"
+  },
+  "proof": "ADR 0011, The finite proof",
+  "restart_shown": true,
+  "restart_shown_detail": "the controller process is new (2026-09-28T20:58:19.279Z, then 2026-09-28T21:13:13.526Z) and its container is the same object (a7428fc55b53), started later (2026-09-28T20:58:05.444710738Z, then 2026-09-28T21:13:03.730874694Z) ",
+  "restoration": "stack=healthy restart_shown=yes",
+  "run_id": "proof-adr0011-r03",
+  "session": "20260928T205412Z_guest-session_attempt06",
+  "stop_rule_consequence": "If a stop rule is reached, the session stops and the proof is recorded inconclusive. The student may set other values before the session; the values used are recorded before it starts",
+  "stop_rules": [
+    {
+      "id": "healthy",
+      "limit_s": 1200,
+      "reached": false,
+      "reached_at": null,
+      "rule": "the stack with the candidate healthy within 20 minutes of its start (as for the broker measurement, and on the same records)"
+    },
+    {
+      "id": "attempt",
+      "limit_s": 3000,
+      "reached": false,
+      "reached_at": null,
+      "rule": "the attempt stopped 50 minutes after its first `drained` starts"
+    }
+  ],
+  "values": {
+    "DRAIN_LIMIT_S": 900,
+    "DRAIN_QUIET_S": 490,
+    "DRAIN_STEP_S": 5,
+    "EGW_HEALTH_LIMIT_S": 1200,
+    "EGW_HEALTH_STEP_S": 15,
+    "EGW_PROOF_ATTEMPT_LIMIT_S": 3000,
+    "EGW_PROOF_BASE": "/home/ruisth/egw-tcg/proof/results",
+    "EGW_PROOF_DURATION_S": 300,
+    "EGW_PROOF_EXTENSION": "no",
+    "EGW_PROOF_EXTENSION_LIMIT_S": 1790,
+    "EGW_PROOF_HEALTHY_RECORD": "/home/ruisth/egw-exec/attempts/20260928T210104Z_g2-gate-preconditions_attempt04/console/001-services-healthy.stdout.txt",
+    "EGW_PROOF_MASTER_SEED": 20260925,
+    "EGW_PROOF_PLAN": "/home/ruisth/egw-tcg/proof/plan-proof-adr0011-r03.json",
+    "EGW_PROOF_RATE": 11.2,
+    "EGW_PROOF_RESTART_AT_S": 150,
+    "EGW_PROOF_RUNBOOK": "/home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md",
+    "EGW_READY_LIMIT_S": 300,
+    "W": 4999,
+    "expected_source_commit": "489bc9e5b5b0660026ea2630b8d1d124049ba2ce",
+    "extension_fetch_limit_s": 300,
+    "extension_restart_limit_after_grace_s": 300,
+    "stop_grace_period_s": 130
+  },
+  "verdicts": {
+    "evaluator": "supports",
+    "instrumentation_validity": "valid",
+    "system_outcome": "pass"
+  }
+}

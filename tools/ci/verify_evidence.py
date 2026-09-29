@@ -10,7 +10,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SUM_RE = re.compile(r"^([0-9A-Fa-f]{64})  (.+)$")
+# "<hash>  <name>" (text mode) or "<hash> *<name>" (the coreutils binary-mode
+# marker, which some sealed packages carry and which cannot be rewritten).
+SUM_RE = re.compile(r"^([0-9A-Fa-f]{64}) [ *](.+)$")
 
 
 def digest(path: Path) -> str:

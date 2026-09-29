@@ -6771,3 +6771,36 @@ def test_metrics_fast_retry_without_a_controller_url_is_a_usage_error(plan_path,
     rc = cli_mod.main(["run", "--plan", str(plan_path), "--run-id", "smoke_sequence-r01", "--metrics-fast-retry"])
     assert rc == 2
     assert "--metrics-fast-retry needs --controller-url" in capsys.readouterr().err
+
+
+def _typed_http_failure(url, *args, **kwargs):
+    import http.client
+
+    raise http.client.IncompleteRead(b"", 5)
+
+
+def test_a_typed_http_failure_of_the_default_sampler_is_a_counted_failed_poll_in_the_run(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Work order of 2026-09-29, deliverable B: the run completes and records the
+    failed polls; it used to lose the sampler thread (or raise from its entry)."""
+    _fake_controller_marker(monkeypatch)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _typed_http_failure)
+    base = tmp_path / "results"
+    run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        controller_url="http://127.0.0.1:8000",
+    )
+    manifest = _manifest(base, "smoke_sequence-r01")
+    record = manifest["controller_metrics"]
+    assert record["poll_errors"] >= 1 and record["last_error"].startswith("IncompleteRead")
+    assert record["samples_written"] == 0 and "fast_retry" not in record
+    assert any("controller metrics sampler had" in w for w in manifest.get("warnings", [])), manifest.get("warnings")
