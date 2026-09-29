@@ -150,8 +150,7 @@ def _only_broken(out: dict[str, list[str]], rule: str) -> None:
      "the recorder unit was 'failed', not active, when the stop was requested"),
     ("R3", {"lifecycle_txt": "".join(line + "\n" for line in LIFECYCLE.splitlines() if not line.startswith("cli-exit"))},
      "the recorder wrote 0 end(s) of its CLI, not one (none: its end by the stop is not recorded)"),
-    ("R3", {"lifecycle_txt": LIFECYCLE + f"cli-exit epoch={T1 + 4} rc=143 stop_requested=yes
-"},
+    ("R3", {"lifecycle_txt": LIFECYCLE + f"cli-exit epoch={T1 + 4} rc=143 stop_requested=yes\n"},
      "the recorder wrote 2 end(s) of its CLI, not one"),
     ("R3", {"lifecycle_txt": LIFECYCLE.replace(f"cli-exit epoch={T1 + 3}", f"cli-exit epoch={T1 - 9}")},
      f"the CLI's end ({T1 - 9}) precedes the stop request ({T1}) by more than the guest clock's step band of 3 s"),

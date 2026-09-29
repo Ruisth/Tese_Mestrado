@@ -1031,8 +1031,7 @@ def test_a_witness_read_that_failed_is_reported_unknown_not_counted(hooks, kind)
     result, dest = _fetch(hooks, kind, str(logs["run_t0"]), EGW_STUB_FAIL="witness-fails")
     assert result.returncode == 0, report(result)
     assert "excluded_before_since_lines=unknown excluded_sha256=unknown " in result.stdout
-    assert result.stdout.split("bounds ", 1)[1].split("
-", 1)[0].endswith(" excluded_read_rc=1,1")
+    assert result.stdout.split("bounds ", 1)[1].splitlines()[0].endswith(" excluded_read_rc=1,1")
     assert dest.read_text(encoding="utf-8").splitlines() == logs[kind][1]
 
 
