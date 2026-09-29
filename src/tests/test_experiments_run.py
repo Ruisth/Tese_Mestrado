@@ -9,12 +9,14 @@ real subprocesses running tiny recorded python scripts.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import shutil
 import subprocess
 import sys
 import textwrap
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -6804,3 +6806,518 @@ def test_a_typed_http_failure_of_the_default_sampler_is_a_counted_failed_poll_in
     assert record["poll_errors"] >= 1 and record["last_error"].startswith("IncompleteRead")
     assert record["samples_written"] == 0 and "fast_retry" not in record
     assert any("controller metrics sampler had" in w for w in manifest.get("warnings", [])), manifest.get("warnings")
+
+
+# ---------------------------------------------------------------------------
+# Work order of 2026-09-29 (G3 instrumentation readiness), A1: a typed HTTP
+# failure of the confirmation-marker poll is an unavailable marker, as an
+# unreachable controller is, never an exception that loses the run record
+# ---------------------------------------------------------------------------
+
+
+MARKER_URL = "http://127.0.0.1:8000/metrics"
+
+TYPED_HTTP_FAILURES = [
+    http.client.IncompleteRead(b'{"monotonic', 12),
+    http.client.BadStatusLine("garbage"),
+    http.client.LineTooLong("header line"),
+]
+TYPED_HTTP_IDS = ["IncompleteRead", "BadStatusLine", "LineTooLong"]
+
+
+def _marker_get_raising(monkeypatch, exc: BaseException) -> None:
+    def failing_get(url, timeout_s):
+        raise exc
+
+    monkeypatch.setattr(run_mod, "_http_get_json", failing_get)
+
+
+@pytest.mark.parametrize("exc", TYPED_HTTP_FAILURES, ids=TYPED_HTTP_IDS)
+def test_poll_controller_marker_records_a_typed_http_failure_as_unavailable(monkeypatch, exc) -> None:
+    _marker_get_raising(monkeypatch, exc)
+    marker = run_mod.poll_controller_marker("http://127.0.0.1:8000")
+    assert marker["ok"] is False
+    # no marker is made up from a failed read: no clock value, no wall time
+    assert marker["monotonic_ns"] is None and marker["wall_utc"] is None
+    assert marker["error"] == f"GET {MARKER_URL} failed: {type(exc).__name__}: {exc}"
+    assert marker["url"] == MARKER_URL and marker["polled_utc"]
+
+
+@pytest.mark.parametrize("exc", [TypeError("bug"), KeyError("bug"), KeyboardInterrupt()],
+                         ids=["TypeError", "KeyError", "KeyboardInterrupt"])
+def test_poll_controller_marker_lets_programming_errors_and_cancellation_propagate(monkeypatch, exc) -> None:
+    """Only the typed HTTP failures join the failed reads: no catch-all."""
+    _marker_get_raising(monkeypatch, exc)
+    with pytest.raises(type(exc)):
+        run_mod.poll_controller_marker("http://127.0.0.1:8000")
+
+
+def test_poll_controller_marker_keeps_the_plain_message_of_a_network_failure(monkeypatch) -> None:
+    """RemoteDisconnected is an OSError as well as an HTTPException: it stays
+    on the OSError branch, with the message it has always had."""
+    _marker_get_raising(
+        monkeypatch, http.client.RemoteDisconnected("Remote end closed connection without response")
+    )
+    marker = run_mod.poll_controller_marker("http://127.0.0.1:8000")
+    assert marker["error"] == f"GET {MARKER_URL} failed: Remote end closed connection without response"
+
+
+def _run_with_marker_failure(tmp_path: Path, monkeypatch, name: str, exc: BaseException) -> tuple[int, dict]:
+    """One otherwise valid timed run whose marker poll raises ``exc``, in a
+    directory and plan of its own; the /metrics sampler is refused."""
+    root = tmp_path / name
+    root.mkdir()
+    plan = root / "campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan)
+    _marker_get_raising(monkeypatch, exc)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _always_refused)
+    base = root / "results"
+    rc = run_mod.execute_run(
+        plan,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(root, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(root),
+        resources_from=_resources_file(root),
+        expect_services=FIXTURE_SERVICES,
+        controller_url="http://127.0.0.1:8000",
+    )
+    return rc, _manifest(base, "smoke_sequence-r01")
+
+
+def test_a_typed_http_failure_of_the_marker_poll_ends_the_run_like_an_unreachable_controller(
+    tmp_path, fast_run, monkeypatch
+) -> None:
+    """It used to escape execute_run from inside the measured run's try,
+    leaving no manifest. It is now recorded exactly as an unreachable
+    controller is: the same validity reasons, deviations and deadline."""
+    rc_unreachable, unreachable = _run_with_marker_failure(
+        tmp_path, monkeypatch, "unreachable", OSError("connection refused")
+    )
+    exc = http.client.IncompleteRead(b'{"monotonic', 40)
+    rc, manifest = _run_with_marker_failure(tmp_path, monkeypatch, "incomplete-read", exc)
+    assert rc == rc_unreachable == 1
+    marker = manifest["controller_marker"]
+    assert marker["ok"] is False and marker["monotonic_ns"] is None and marker["wall_utc"] is None
+    assert marker["error"] == f"GET {MARKER_URL} failed: IncompleteRead: {exc}"
+    # no deadline from a failed read
+    for key in ("controller_monotonic_at_run_end_ns", "confirmation_deadline_monotonic_ns"):
+        assert manifest[key] is None and unreachable[key] is None
+    assert manifest["confirmation_deadline_clock_domain"] == "unavailable"
+    assert unreachable["confirmation_deadline_clock_domain"] == "unavailable"
+    assert manifest["validity"] == unreachable["validity"] == "invalid"
+    assert manifest["validity_reasons"] == unreachable["validity_reasons"]
+    assert any("no controller confirmation marker" in r for r in manifest["validity_reasons"])
+
+    def kinds(m: dict) -> list[tuple[str, Any]]:
+        return [(d["kind"], d["authorized_by_flag"]) for d in m["deviations"]]
+
+    assert kinds(manifest) == kinds(unreachable)
+    assert ("confirmation_marker_unavailable", None) in kinds(manifest)
+    assert f"controller confirmation marker unavailable: {marker['error']}" in manifest["warnings"]
+
+
+# ---------------------------------------------------------------------------
+# Work order of 2026-09-29 (G3 instrumentation readiness), A2: a write or
+# flush failure of the /metrics sampler's CSV or attempts log reaches the
+# run, which cannot then be valid; a controller that does not answer stays a
+# counted failed poll, as before
+# ---------------------------------------------------------------------------
+
+
+class _FailingFile:
+    """A text handle of the sampler (opened through controller_metrics.open)
+    that raises OSError on its n-th write or flush (1-based), or on close,
+    and records that close was called; everything else is the real file.
+    The first injected failure sets ``injected``."""
+
+    def __init__(self, real, injected: threading.Event, *, fail_write_at=None, fail_flush_at=None,
+                 fail_close=False) -> None:
+        self.real, self.injected = real, injected
+        self.fail_write_at, self.fail_flush_at, self.fail_close = fail_write_at, fail_flush_at, fail_close
+        self.writes = self.flushes = 0
+        self.closed_called = False
+
+    def _fail(self, step: str) -> None:
+        self.injected.set()
+        raise OSError(28, f"No space left on device (injected at {step})")
+
+    def write(self, text: str) -> int:
+        self.writes += 1
+        if self.writes == self.fail_write_at:
+            self._fail("write")
+        return self.real.write(text)
+
+    def flush(self) -> None:
+        self.flushes += 1
+        if self.flushes == self.fail_flush_at:
+            self._fail("flush")
+        self.real.flush()
+
+    def close(self) -> None:
+        self.closed_called = True
+        self.real.close()                                   # the real handle is closed whatever follows
+        if self.fail_close:
+            self._fail("close")
+
+
+def _wrap_sampler_files(monkeypatch, specs: dict, injected: threading.Event) -> dict:
+    """Every file the sampler opens, wrapped in a _FailingFile, by file name;
+    ``specs[name]`` gives its failures, or "open" to refuse the open itself."""
+    handles: dict[str, _FailingFile] = {}
+    real_open = open
+
+    def sampler_open(path, *args, **kwargs):
+        name = Path(path).name
+        spec = specs.get(name, {})
+        if spec == "open":
+            injected.set()
+            raise PermissionError(13, "Permission denied (injected)", str(path))
+        handles[name] = _FailingFile(real_open(path, *args, **kwargs), injected, **spec)
+        return handles[name]
+
+    monkeypatch.setattr(metrics_mod, "open", sampler_open, raising=False)
+    return handles
+
+
+class _Readings:
+    """GET /metrics stub: ``failures`` refused connections first, then genuine
+    readings numbered by 'accepted' (0, 1, ...), so that a row that was not
+    read cannot pass for one that was."""
+
+    def __init__(self, failures: int = 0) -> None:
+        self.failures, self.calls, self.answered = failures, 0, 0
+
+    def __call__(self, url, timeout_s=5.0) -> dict:
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise OSError("connection refused")
+        reading = {**SIX_COUNTERS, "accepted": self.answered}
+        self.answered += 1
+        return reading
+
+
+METRICS_CSV = "controller_metrics.csv"
+ATTEMPTS_CSV = "controller_metrics.attempts.csv"
+
+#: id: (retry mode, refused polls first, file, its failure, what write_error names).
+#: The CSV's first write and flush are the header's, the second the entry
+#: poll's row; in the retry mode the entry poll is refused (its attempts row
+#: is the log's second write) so that the thread polls again after 50 ms.
+WRITE_FAILURES = {
+    "metrics-write-in-thread": (False, 0, METRICS_CSV, {"fail_write_at": 3}, f"{METRICS_CSV} write"),
+    "metrics-flush-in-thread": (False, 0, METRICS_CSV, {"fail_flush_at": 3}, f"{METRICS_CSV} flush"),
+    "attempts-write-in-thread": (True, 1, ATTEMPTS_CSV, {"fail_write_at": 3}, f"{ATTEMPTS_CSV} write"),
+    "attempts-flush-in-thread": (True, 1, ATTEMPTS_CSV, {"fail_flush_at": 3}, f"{ATTEMPTS_CSV} flush"),
+    "metrics-write-on-entry-poll": (False, 0, METRICS_CSV, {"fail_write_at": 2}, f"{METRICS_CSV} write"),
+    "metrics-open": (False, 0, METRICS_CSV, "open", f"{METRICS_CSV} open"),
+}
+
+
+def _run_with_sampler_files(tmp_path, plan_path, fast_run, monkeypatch, specs: dict, *,
+                            readings: _Readings, fast: bool = False,
+                            injected: threading.Event | None = None):
+    """A run that would be valid, with the sampler's files wrapped; the
+    measured run lasts until an injected failure has happened (at most 5 s)
+    and then until the sampler's thread has ended, if it does so on its own.
+    A stub that injects the failure itself passes its own ``injected``."""
+    _fake_controller_marker(monkeypatch)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", readings)
+    if injected is None:
+        injected = threading.Event()
+    handles = _wrap_sampler_files(monkeypatch, specs, injected)
+    samplers: list[Any] = []
+
+    class _Kept(metrics_mod.ControllerMetricsSampler):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            samplers.append(self)
+
+    monkeypatch.setattr(run_mod, "ControllerMetricsSampler", _Kept)
+    ended_on_its_own: list[bool] = []
+    simulator = run_mod._run_subprocess
+
+    def measured_run_outlasting_the_failure(cmd, log_path, timeout_s):
+        rc = simulator(cmd, log_path, timeout_s)
+        if "--run-id" in cmd and not cmd[cmd.index("--run-id") + 1].endswith(".warmup"):
+            if injected.wait(5.0) and samplers and samplers[0]._thread is not None:
+                samplers[0]._thread.join(5.0)
+                ended_on_its_own.append(not samplers[0]._thread.is_alive())
+        return rc
+
+    monkeypatch.setattr(run_mod, "_run_subprocess", measured_run_outlasting_the_failure)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        controller_url="http://127.0.0.1:8000",
+        metrics_fast_retry=fast,
+    )
+    return rc, base, samplers[0], handles, injected, ended_on_its_own
+
+
+def _plan_entry(plan_path: Path, run_id: str) -> dict:
+    plan = json.loads(Path(plan_path).read_text(encoding="utf-8"))
+    return next(e for e in plan["runs"] if e["run_id"] == run_id)
+
+
+@pytest.mark.parametrize("case", list(WRITE_FAILURES), ids=list(WRITE_FAILURES))
+def test_a_sampler_write_failure_reaches_the_run_and_makes_it_invalid(
+    tmp_path, plan_path, fast_run, monkeypatch, case
+) -> None:
+    fast, refused, name, spec, where = WRITE_FAILURES[case]
+    readings = _Readings(failures=refused)
+    rc, base, sampler, handles, injected, ended_on_its_own = _run_with_sampler_files(
+        tmp_path, plan_path, fast_run, monkeypatch, {name: spec}, readings=readings, fast=fast
+    )
+    assert injected.is_set()
+    run_id = "smoke_sequence-r01"
+    run_dir = base / "raw" / run_id
+    # The owner observes it: a manifest field, a named validity reason, a
+    # warning; no successful verdict (exit 1, the plan records 'failed').
+    manifest = _manifest(base, run_id)
+    record = manifest["controller_metrics"]
+    assert record["write_error"].startswith(f"{where} failed: ")
+    assert record["write_errors"][0] == record["write_error"]
+    assert manifest["validity"] == "invalid"
+    assert len(manifest["validity_reasons"]) == 1
+    assert record["write_error"] in manifest["validity_reasons"][0]
+    assert any(record["write_error"] in w for w in manifest["warnings"])
+    assert rc == 1
+    assert (_plan_entry(plan_path, run_id)["status"], _plan_entry(plan_path, run_id)["validity"]) == (
+        "failed", "invalid",
+    )
+    # A failed write is not a failed poll and is not retried as one.
+    assert record["poll_errors"] == refused
+    if fast:
+        assert record["fast_retry"]["fast_retries"] == refused
+    # Clean-up: the failure stopped the thread (it ended before the run
+    # joined it), and every handle the sampler opened was closed.
+    if sampler._thread is not None:
+        assert ended_on_its_own == [True]
+        assert not sampler._thread.is_alive()
+    assert all(h.closed_called for h in handles.values())
+    assert sampler._fh is None and sampler._attempts_fh is None
+    # No row invented: the CSV holds only genuine readings written before the
+    # failure, in their order, readable, each one counted.
+    csv_path = run_dir / METRICS_CSV
+    if spec == "open":
+        assert not csv_path.exists() and record["samples_written"] == 0
+    else:
+        rows = _metrics_rows(csv_path)
+        assert rows[0] == metrics_mod.CSV_HEADER
+        assert all(len(row) == len(metrics_mod.CSV_HEADER) for row in rows[1:])
+        accepted = [int(dict(zip(metrics_mod.CSV_HEADER, row))["accepted"]) for row in rows[1:]]
+        assert accepted == list(range(len(accepted)))
+        assert len(accepted) == record["samples_written"] <= readings.answered
+    if fast:
+        attempts = _metrics_rows(run_dir / ATTEMPTS_CSV)
+        assert attempts[0] == list(metrics_mod.ATTEMPTS_HEADER)
+        outcomes = [dict(zip(metrics_mod.ATTEMPTS_HEADER, row))["outcome"] for row in attempts[1:]]
+        assert outcomes == (["error"] * refused + ["ok"])[: len(outcomes)]
+
+
+def test_a_failing_close_after_a_write_failure_keeps_the_first_error_and_closes_the_file(
+    tmp_path, monkeypatch
+) -> None:
+    """The entry poll's flush fails, then so does the flush of close: the
+    first error stays write_error, the second is recorded after it, the
+    handle is closed and the sampler's thread never starts."""
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _Readings())
+    injected = threading.Event()
+    handles = _wrap_sampler_files(
+        monkeypatch, {METRICS_CSV: {"fail_flush_at": 2, "fail_close": True}}, injected
+    )
+    with metrics_mod.ControllerMetricsSampler(tmp_path / METRICS_CSV, "http://127.0.0.1:8000", interval_s=10.0) as s:
+        assert s._thread is None                            # sampling stopped at the entry poll
+    assert s.write_error.startswith(f"{METRICS_CSV} flush failed: OSError: ")
+    assert len(s.write_errors) == 2 and s.write_errors[0] == s.write_error
+    assert s.write_errors[1].startswith(f"{METRICS_CSV} close failed: OSError: ")
+    assert handles[METRICS_CSV].closed_called and handles[METRICS_CSV].real.closed and s._fh is None
+    assert (s.poll_errors, s.samples_written) == (0, 1)
+
+
+#: What json.loads gives for the JSON text "\udc80": a lone surrogate, a str
+#: that the raw rule records verbatim but that utf-8 cannot encode.
+LONE_SURROGATE = json.loads('"\\udc80"')
+
+
+class _SurrogateReadings(_Readings):
+    """GET /metrics stub for a broken controller: genuine readings, of which
+    the ``bad_from``-th and later (1 is the entry poll) carry LONE_SURROGATE
+    in the raw string ``field``. Handing out the first such one sets
+    ``handed``."""
+
+    def __init__(self, field: str, bad_from: int, handed: threading.Event) -> None:
+        super().__init__()
+        self.field, self.bad_from, self.handed = field, bad_from, handed
+
+    def __call__(self, url, timeout_s=5.0) -> dict:
+        reading = super().__call__(url, timeout_s)
+        if self.calls >= self.bad_from:
+            reading[self.field] = LONE_SURROGATE
+            self.handed.set()
+        return reading
+
+
+#: id: (raw string field, first reading that carries the surrogate).
+SURROGATE_READINGS = {
+    "in-thread": ("wall_utc", 2),
+    "on-entry-poll": ("started_at", 1),
+}
+
+
+@pytest.mark.parametrize("case", list(SURROGATE_READINGS), ids=list(SURROGATE_READINGS))
+def test_a_row_the_csv_cannot_encode_is_a_write_failure_that_reaches_the_run(
+    tmp_path, plan_path, fast_run, monkeypatch, case
+) -> None:
+    """A2, verifier round 2: a raw string that utf-8 cannot encode fails the
+    row's write with UnicodeEncodeError, a ValueError and not an OSError. It
+    is the same instrumentation failure: recorded, sampling stopped, the run
+    invalid. Before, it ended the thread silently (the run stayed valid) or
+    raised from the entry poll (no manifest). The raw rule is unchanged: the
+    value is not refused, so it is not counted as an invalid value."""
+    field, bad_from = SURROGATE_READINGS[case]
+    handed = threading.Event()
+    readings = _SurrogateReadings(field, bad_from, handed)
+    rc, base, sampler, handles, _injected, ended_on_its_own = _run_with_sampler_files(
+        tmp_path, plan_path, fast_run, monkeypatch, {}, readings=readings, injected=handed
+    )
+    assert handed.is_set()
+    run_id = "smoke_sequence-r01"
+    manifest = _manifest(base, run_id)
+    record = manifest["controller_metrics"]
+    assert manifest["validity"] == "invalid"
+    assert record["write_error"] is not None
+    assert record["write_error"].startswith(f"{METRICS_CSV} write failed: UnicodeEncodeError: ")
+    assert record["write_errors"] == [record["write_error"]]
+    assert len(manifest["validity_reasons"]) == 1
+    assert record["write_error"] in manifest["validity_reasons"][0]
+    assert any(record["write_error"] in w for w in manifest["warnings"])
+    assert rc == 1
+    entry = _plan_entry(plan_path, run_id)
+    assert (entry["status"], entry["validity"]) == ("failed", "invalid")
+    assert (record["poll_errors"], record["invalid_values"]) == (0, 0)
+    if bad_from == 1:
+        assert sampler._thread is None                      # sampling stopped at the entry poll
+    else:
+        assert ended_on_its_own == [True] and not sampler._thread.is_alive()
+    assert handles[METRICS_CSV].closed_called and sampler._fh is None
+    # Only the rows before the failed one, readable; none carries the string.
+    rows = _metrics_rows(base / "raw" / run_id / METRICS_CSV)
+    assert rows[0] == metrics_mod.CSV_HEADER
+    accepted = [int(dict(zip(metrics_mod.CSV_HEADER, row))["accepted"]) for row in rows[1:]]
+    assert accepted == list(range(bad_from - 1)) and record["samples_written"] == bad_from - 1
+
+
+def test_a_write_to_a_file_already_closed_is_recorded_not_raised(tmp_path, monkeypatch) -> None:
+    """A2, verifier round 2: a write to a handle that is already closed (a
+    thread still polling after __exit__'s 30 s join gave up and closed the
+    files) raises ValueError, 'I/O operation on closed file'. It is a write
+    failure of that file, recorded and stopping the sampling, not an
+    exception that ends the thread through threading.excepthook."""
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _Readings())
+    # Retry mode with an answered entry poll: the thread first waits the whole
+    # 10 s interval, so the poll below is the only one.
+    with metrics_mod.ControllerMetricsSampler(
+        tmp_path / METRICS_CSV, "http://127.0.0.1:8000", interval_s=10.0,
+        fast_retry_s=0.05, attempts_path=tmp_path / ATTEMPTS_CSV,
+    ) as s:
+        s._attempts_fh.close()
+        s._poll()
+        assert s._stop.is_set()
+    assert s.write_error == f"{ATTEMPTS_CSV} write failed: ValueError: I/O operation on closed file."
+    assert s.write_errors == [s.write_error]
+    assert (s.poll_errors, s.samples_written) == (0, 2)
+    assert not s._thread.is_alive() and s._fh is None and s._attempts_fh is None
+    rows = _metrics_rows(tmp_path / ATTEMPTS_CSV)
+    assert rows[0] == list(metrics_mod.ATTEMPTS_HEADER) and len(rows) == 2    # the entry poll's row only
+
+
+def test_an_unreachable_controller_with_working_files_stays_a_valid_run(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Failed polls are an observation of the controller, not a failure of
+    the instrumentation: counted, warned, and the run stays valid."""
+    _fake_controller_marker(monkeypatch)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _always_refused)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        controller_url="http://127.0.0.1:8000",
+    )
+    manifest = _manifest(base, "smoke_sequence-r01")
+    record = manifest["controller_metrics"]
+    assert rc == 0 and manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    assert record["poll_errors"] >= 1 and record["samples_written"] == 0
+    assert record["write_error"] is None and record["write_errors"] == []
+    assert any("controller metrics sampler had" in w for w in manifest["warnings"])
+
+
+def test_collect_keeps_a_run_with_a_sampler_write_failure_invalid(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """'collect' recomputes the validity from the manifest: the recorded
+    write failure must stay a reason, never be dropped by a later pass."""
+    rc, base, _sampler, _handles, _injected, _ended = _run_with_sampler_files(
+        tmp_path, plan_path, fast_run, monkeypatch,
+        {METRICS_CSV: {"fail_write_at": 3}}, readings=_Readings(),
+    )
+    assert rc == 1
+    reasons = _manifest(base, "smoke_sequence-r01")["validity_reasons"]
+    assert run_mod.collect_run("smoke_sequence-r01", base_dir=base, plan_path=plan_path) == 1
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "invalid" and manifest["validity_reasons"] == reasons
+
+
+def test_a_manifest_that_cannot_be_written_is_said_so_and_the_run_does_not_pass(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    """The outer record cannot be saved: the harness says so on the console
+    and the failure still reaches the process (non-zero), with no seal and no
+    manifest pretending to exist."""
+    _fake_controller_marker(monkeypatch)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _always_refused)
+    base = tmp_path / "results"
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    real_write_text = Path.write_text
+
+    def write_text(self, *args, **kwargs):
+        if self.name == "manifest.json" and self.parent.name == "smoke_sequence-r01" and self.parent.parent.name == "raw":
+            raise OSError(28, "No space left on device (injected)")
+        return real_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", write_text)
+    with pytest.raises(OSError, match="No space left on device"):
+        run_mod.execute_run(
+            plan_path,
+            "smoke_sequence-r01",
+            base_dir=base,
+            no_tls=True,
+            post_run_wait_s=0.0,
+            event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+            sut_env_from=_sut_env_file(tmp_path),
+            resources_from=_resources_file(tmp_path),
+            expect_services=FIXTURE_SERVICES,
+            controller_url="http://127.0.0.1:8000",
+        )
+    err = capsys.readouterr().err
+    assert "manifest.json could not be written" in err and "NOT saved" in err
+    assert not (run_dir / "manifest.json").exists() and not (run_dir / "SHA256SUMS").exists()
