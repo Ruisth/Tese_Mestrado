@@ -30,6 +30,12 @@ T1 = T0 + 1_500             # the stop request of the docker-events fetch
 FAULT = T0 + 660            # the fault's kill, die and start
 CONTROLLER = "egw-controller-1"
 BROKER = "egw-mosquitto-1"
+# The container the stop script issues its closing marker in: the
+# broker's, which the proof never faults (R7 reads the controller's).
+MARKER_C = BROKER
+# The closing marker's nonce: the guest's /proc/sys/kernel/random/uuid, read
+# by the stop script after it recorded the stop request.
+NONCE = "3f1c2a9e-5b7d-4c21-9e0a-7d6b8f4a2c10"
 
 
 def event(action: str, second: int, name: str = BROKER, fraction_ns: int = 0, **attributes: str) -> dict:
@@ -40,10 +46,22 @@ def event(action: str, second: int, name: str = BROKER, fraction_ns: int = 0, **
             "scope": "local", "time": second, "timeNano": second * NS + fraction_ns}
 
 
-def events_of_a_run(heartbeat_s: int = 30, gap: tuple[int, int] | None = None) -> list[dict]:
+def marker_events(nonce: str = NONCE, name: str = MARKER_C, second: int = T1 + 1) -> list[dict]:
+    """The daemon's events of the closing marker, the no-op 'docker exec NAME
+    sh -c ": egw-events-close NONCE"' the stop script issues after it
+    recorded the stop request: exec_create and exec_start carry the command
+    in their Action (as r03's healthcheck execs carry theirs), exec_die does
+    not."""
+    command = f"sh -c : egw-events-close {nonce}"
+    return [event(f"exec_create: {command}", second, name, 100, execID="e" * 64),
+            event(f"exec_start: {command}", second, name, 200, execID="e" * 64),
+            event("exec_die", second, name, 300, execID="e" * 64, exitCode="0")]
+
+
+def events_of_a_run(heartbeat_s: int = 30, gap: tuple[int, int] | None = None, marker: bool = True) -> list[dict]:
     """The replay from before T0, the healthchecks' exec events every
-    HEARTBEAT_S seconds through the window and past T1 (the closing
-    witness), and the fault's three events."""
+    HEARTBEAT_S seconds through the window and past T1, the fault's three
+    events and (MARKER) the closing marker's exec events."""
     out = []
     for second in range(T0 - 120, T1 + 5, heartbeat_s):
         if gap and gap[0] < second < gap[1]:
@@ -52,6 +70,8 @@ def events_of_a_run(heartbeat_s: int = 30, gap: tuple[int, int] | None = None) -
     out += [event("kill", FAULT, CONTROLLER, signal="9"), event("die", FAULT, CONTROLLER, 1000, exitCode="137"),
             event("start", FAULT + 14, CONTROLLER)]
     out.append(event("exec_die: /bin/sh -c mosquitto_sub -t $SYS/# -C 1", T1 + 2, fraction_ns=5))
+    if marker:
+        out += marker_events()
     return sorted(out, key=lambda e: e["timeNano"])
 
 
@@ -62,7 +82,10 @@ LIFECYCLE = (f"start epoch={T0 - 2} pid=4242 since={T0 - 122}\n"
 START_FACTS = "boot_id=488582b6-eae8-477b-9a6d-8f5e04947238\nMainPID=321\nExecMainStartTimestampMonotonic=4200000\n"
 STOP = (f"stop_requested_guest_epoch={T1}\nunit_state_before_stop=active\n"
         "boot_id=488582b6-eae8-477b-9a6d-8f5e04947238\nMainPID=321\nExecMainStartTimestampMonotonic=4200000\n"
-        "closing_witness_seen=yes\nunit_state_after_stop=inactive\n")
+        f"closing_marker={NONCE}\nclosing_marker_container={MARKER_C}\nclosing_marker_exec_rc=0\n"
+        "closing_marker_seen=yes\nunit_state_after_stop=inactive\n")
+# The stop record of a stop that issued no closing marker.
+STOP_WITHOUT_MARKER = "".join(line + "\n" for line in STOP.splitlines() if not line.startswith("closing_marker"))
 
 
 def capture(tmp_path: Path, events: list[dict] | None = None, **files: str | None) -> Path:
@@ -117,7 +140,9 @@ def test_a_complete_capture_holds_every_rule_on_the_guest_clock_alone(tmp_path):
 
 
 def test_a_fault_free_run_demands_no_fault_event(tmp_path):
-    quiet = [e for e in events_of_a_run() if e["Actor"]["Attributes"]["name"] != CONTROLLER]
+    # No fault: the controller's kill, die and start are absent (the
+    # closing marker, the broker's exec, stays).
+    quiet = [e for e in events_of_a_run() if e["Action"] not in ("kill", "die", "start")]
     rc, out = check(capture(tmp_path, quiet))
     assert rc == 0, out
     assert out["coverage"] == ["complete"] and out["expected"] == ["none"]
@@ -193,17 +218,119 @@ def test_the_kill_must_be_the_faults_sigkill_and_every_fault_event_within_the_wi
                                  f"within [{T0}, {T1}]")
 
 
-def test_no_event_past_the_second_of_the_stop_request_is_no_closing_witness(tmp_path):
-    # The last event is stamped IN the second of the request: that is not
-    # after it, so the stream is not shown live to the window's end.
-    events = [e for e in events_of_a_run() if e["time"] < T1] + [event("exec_die", T1, fraction_ns=900_000_000)]
-    rc, out = check(capture(tmp_path, events), *EXPECTED)
-    assert rc == 1
+# --- R5, the closing marker (PM bounded review of PR #50, F1) -------------------
+# The stop request is recorded at T1; a guest clock stepped back makes that
+# request read EARLIER than events already captured (an event stored at 100,
+# the request stamped 98). A later stamp is therefore no observation made
+# after the request: only the closing marker, caused by the fetch after it
+# recorded the request and identified by its nonce, is.
+
+
+def test_an_event_stamped_after_the_stop_request_is_no_closing_marker_and_never_complete(tmp_path):
+    # The capture holds an event stamped T1 + 2 (and none of a marker); the
+    # stop record carries no marker: nothing shows an observation made after
+    # the request, whatever the stamps say.
+    rc, out = check(capture(tmp_path, events_of_a_run(marker=False), stop_txt=STOP_WITHOUT_MARKER), *EXPECTED)
+    assert out["coverage"] != ["complete"], out
+    assert rc == 2 and out["coverage"] == ["unknown"], out
+    assert out["latest_event_guest_epoch"] == [str(T1 + 2)]
+    assert out["rule_R5"][0].startswith("unknown: the stop record carries no closing marker"), out["rule_R5"]
+    assert all(not v[0].startswith("broken: ") for k, v in out.items() if k.startswith("rule_")), out
+
+
+def test_a_closing_marker_issued_but_not_captured_is_broken_whatever_later_stamps_the_capture_holds(tmp_path):
+    # The stop record says the marker was issued (and that the guest saw it:
+    # its own claim, never read); the capture holds later-stamped events but
+    # no event of the marker.
+    rc, out = check(capture(tmp_path, events_of_a_run(marker=False)), *EXPECTED)
+    assert rc == 1, out
     _only_broken(out, "R5")
-    # One nanosecond into the next second is.
-    events[-1] = event("exec_die", T1 + 1)
-    rc, out = check(capture(tmp_path / "next", events), *EXPECTED)
+    assert out["rule_R5"][0].startswith(f"broken: the closing marker {NONCE} was issued in {MARKER_C} after the stop "
+                                        "request"), out["rule_R5"]
+    assert out["closing_marker_event_guest_epoch"] == ["null"]
+
+
+def test_the_closing_marker_captured_holds_r5_and_the_capture_is_complete(tmp_path):
+    rc, out = check(capture(tmp_path), *EXPECTED)
     assert rc == 0, out
+    assert out["coverage"] == ["complete"]
+    r5 = out["rule_R5"][0]
+    assert r5.startswith(f"held: the closing marker {NONCE}") and MARKER_C in r5, r5
+    assert "the marker was caused after the stop request was recorded" in r5
+    assert "caused after the window's end" in r5
+    assert out["closing_marker"] == [NONCE] and out["closing_marker_container"] == [MARKER_C]
+    # The marker's container is the one the stop record names, not R7's.
+    assert out["container"] == [CONTROLLER]
+    assert out["closing_marker_exec_rc"] == ["0"]
+    assert out["closing_marker_event_guest_epoch"] == [str(T1 + 1)]
+    assert out["latest_event_guest_epoch"] == [str(T1 + 2)]
+
+
+def test_the_closing_marker_holds_r5_whatever_its_stamp_and_no_later_stamp_is_needed(tmp_path):
+    # The guest clock stepped back between the request and the marker's exec:
+    # the marker's events read BEFORE T1 and nothing is stamped after it. The
+    # marker is identified by its nonce, never by a stamp.
+    events = [e for e in events_of_a_run(marker=False) if e["time"] < T1] + marker_events(second=T1 - 2)
+    rc, out = check(capture(tmp_path, sorted(events, key=lambda e: e["timeNano"])), *EXPECTED)
+    assert rc == 0, out
+    assert out["coverage"] == ["complete"] and out["rule_R5"][0].startswith("held: ")
+    assert out["closing_marker_event_guest_epoch"] == [str(T1 - 2)]
+
+
+def test_a_closing_marker_whose_exec_failed_is_broken(tmp_path):
+    # A failed exec caused nothing after the request, whatever the capture
+    # holds (here: the marker's events too, which do not count).
+    for n, events in enumerate((events_of_a_run(marker=False), events_of_a_run())):
+        rc, out = check(capture(tmp_path / str(n), events,
+                                stop_txt=STOP.replace("closing_marker_exec_rc=0", "closing_marker_exec_rc=1")),
+                        *EXPECTED)
+        assert rc == 1, out
+        _only_broken(out, "R5")
+        assert out["rule_R5"][0].startswith(f"broken: the closing marker's exec in {MARKER_C} exited 1"), out["rule_R5"]
+        assert out["closing_marker_exec_rc"] == ["1"]
+
+
+@pytest.mark.parametrize("marker", [
+    marker_events(name=CONTROLLER),                     # the nonce, in ANOTHER container
+    marker_events(nonce=NONCE[:-4]),                    # part of the nonce only
+    marker_events(nonce=NONCE[4:]),
+    marker_events(nonce="0e8b1a52-6c3d-4f10-8a7e-2b9c5d1f6e04"),   # another marker's nonce
+    marker_events()[2:],                                # the exec_die alone, which carries no command
+], ids=["another-container", "nonce-truncated-end", "nonce-truncated-start", "another-nonce", "exec-die-only"])
+def test_an_event_that_is_not_the_markers_own_is_no_closing_marker(tmp_path, marker):
+    events = sorted(events_of_a_run(marker=False) + marker, key=lambda e: e["timeNano"])
+    rc, out = check(capture(tmp_path, events), *EXPECTED)
+    assert rc == 1, out
+    _only_broken(out, "R5")
+    assert out["closing_marker_event_guest_epoch"] == ["null"]
+
+
+@pytest.mark.parametrize("stop, says", [
+    (STOP_WITHOUT_MARKER, "the stop record carries no closing marker"),
+    (STOP.replace(f"closing_marker={NONCE}", "closing_marker=none"), "the stop record carries no closing marker"),
+    (STOP.replace(f"closing_marker={NONCE}", "closing_marker="), "the stop record carries no closing marker"),
+    (STOP.replace(f"closing_marker={NONCE}", f"closing_marker={NONCE.upper()}"),
+     f"the stop record's closing marker '{NONCE.upper()}' is not a well-formed nonce"),
+    (STOP.replace(f"closing_marker={NONCE}", f"closing_marker={NONCE[:-1]}"),
+     f"the stop record's closing marker '{NONCE[:-1]}' is not a well-formed nonce"),
+    (STOP.replace(f"closing_marker_container={MARKER_C}\n", ""),
+     "the stop record does not name the container the closing marker was issued in"),
+    (STOP.replace("closing_marker_exec_rc=0\n", ""), "the stop record does not say how the closing marker's exec ended"),
+    (STOP.replace("closing_marker_exec_rc=0", "closing_marker_exec_rc=unknown"),
+     "the stop record does not say how the closing marker's exec ended"),
+    # The exec did not end within the stop script's bound and was killed
+    # (a daemon that never answered it): whatever the capture holds - here
+    # the marker's events too - its outcome is unknown.
+    (STOP.replace("closing_marker_exec_rc=0", "closing_marker_exec_rc=timeout"),
+     f"the closing marker's exec in {MARKER_C} did not end within the stop script's bound and was killed"),
+], ids=["absent", "none", "empty", "upper-case", "short", "no-container", "no-exec-rc", "exec-rc-not-a-number",
+        "exec-timed-out"])
+def test_a_closing_marker_the_stop_record_does_not_state_is_unknown_never_complete(tmp_path, stop, says):
+    rc, out = check(capture(tmp_path, stop_txt=stop), *EXPECTED)
+    assert rc == 2, out
+    assert out["coverage"] == ["unknown"]
+    assert out["rule_R5"][0].startswith("unknown: " + says), out["rule_R5"]
+    assert all(not v[0].startswith("broken: ") for k, v in out.items() if k.startswith("rule_")), out
 
 
 def test_an_empty_capture_is_broken_never_complete(tmp_path):
