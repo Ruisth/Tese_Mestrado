@@ -26,7 +26,7 @@ of its own, with its own regression tests.
 | 1b | T1's harness run on an unused `nominal` entry instead of the 30 s smoke | Adopt | The 30 s smoke runs with no margin for the 30-instant rule |
 | 2 | An N1 identity reported in its own column; `lost` and `MISMATCH` unchanged | Adopt the reporting column; no criterion changes | Same verdicts; an N1 case reads as an unexplained loss |
 | 3 | The list of timed families; T3 not timed (option 3-A); T6's zero lost taken from C12 | Adopt with option 3-A | T3's status stays ambiguous; T6 keeps two sources that disagree |
-| 4 | T4's duplicates judged per identity; redelivery duplicates reported apart | Adopt, prospectively, before T4 runs | One reconnection during the replay fails T4 |
+| 4 | T4's duplicates judged per identity; redelivery duplicates reported apart | Adopt, prospectively, before T4 runs | One reconnection during the replay can fail T4 |
 
 ## 1. Resource gaps at a restart, and the sample count of short runs
 
@@ -87,8 +87,8 @@ ingest no resource file (map).
 - T6's harness run can be valid, provided collection kept to the 5 s rule outside the proved interval.
 - It needs the events recorder wired into T6's harness command. This pull request does that, but it has not been
   verified on the guest. It also needs the capture to be `complete`.
-- It needs a read of `StartedAt` after the restart. Only the proof's restart script reads it today; T6's restart
-  command does not.
+- It needs a read of `StartedAt` after the restart. No step of T6 reads it after the restart; only the proof's
+  restart script does so today.
 - A valid T6 is still not guaranteed:
   - nobody has measured whether the edge gaps stay within 5 s under TCG;
   - the guest clock steps back by 1–3 s about every 30 s, and the rule does not absorb those steps.
@@ -212,6 +212,7 @@ decision of its own.
   G3 criterion.
 - **Deadline.** The controller marker plus 60 s (`CONFIRMATION_WINDOW_S`). `lost` includes late confirmations.
 - **The plan's G3 text** ([plan](../INTEGRATED_DEVELOPMENT_PLAN_2026.md), G3):
+  - it asks for "invalid input rejected and valid input accepted" (the clause of T3);
   - it asks for "no loss" in dropout and reconnection;
   - it asks for "recovery inside the bounded window" at the restart;
   - it asks for "a clean post-reboot smoke run";
@@ -260,8 +261,11 @@ restatement of the Expected list.
 >   turn the failure into a pass.
 > - No deadline, rate, duration or load changes. Sending the throughput question to G4 waives no G3 condition.
 >
-> **Option 3-A (T3 is not timed).** T3's acceptance is its Expected list as written. The `lost` and
-> `late_confirmations` of its valid messages are reported with its result, and decide nothing for T3.
+> **Option 3-A (T3 is not timed).** T3's acceptance is its Expected list as written. The plan's "valid input
+> accepted" is read as that list states it: no valid message rejected (`valid rejected = 0`) and every `delta` line
+> `OK`. A valid message confirmed after the deadline was still accepted; one never accepted (dropped, or `failed`
+> against Ditto) shows in `lost`. The `lost` and `late_confirmations` of its valid messages are reported with its
+> result, and decide nothing for T3.
 >
 > **Option 3-B (T3 is timed).** T3 must also meet `lost = 0` and `late_confirmations = 0` for its valid messages.
 
@@ -272,7 +276,7 @@ restatement of the Expected list.
   - `nominal-r01` served 6.457 msg/s against 11.2 msg/s offered;
   - T5 had 326 of 2,016 confirmations late;
   - T2 was in time with a margin of 3.1 s.
-- On those figures, T1, T4's reset, T5, T6 and T8's smoke may miss their deadlines. Each miss is then recorded as
+- On those figures, T1, T2 (in time by 3.1 s only), T4's reset, T5, T6 and T8's smoke may miss their deadlines. Each miss is then recorded as
   a failure, not absorbed.
 - Under 3-A, T3's late confirmations (132 of 1,277 on 2026-09-18) are reported, but they do not fail T3.
 - Under 3-B, T3 joins the families at risk.
@@ -301,7 +305,7 @@ a criterion that neither of them contains.
 - Under option 5, a reconnection inside one process can add a `duplicate` line. It adds at most one per lost
   connection, coming from the delivery in progress, and it is not a double acceptance (ADR 0011, N2;
   CONTRACTS §5).
-- So one reconnection during the replay would break "duplicate = replayed count", even though nothing was applied
+- So one reconnection during the replay can break "duplicate = replayed count", even though nothing was applied
   twice.
 
 **Proposed wording** (prospective).
@@ -338,8 +342,8 @@ differently. A second application, any change in the pre- and post-replay figure
 a queue left behind, a controller restart or an unexplained extra duplicate still fails it. The rule uses only
 snapshots that T4 already takes.
 
-**If declined.** The literal count stands. One reconnection during the replay fails T4, and it is recorded as a
-failure.
+**If declined.** The literal count stands. A reconnection during the replay that adds a duplicate fails T4, and it
+is recorded as a failure.
 
 **Recommendation:** adopt it prospectively, before T4 runs.
 

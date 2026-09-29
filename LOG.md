@@ -4024,8 +4024,8 @@ is unchanged.
 - **Date:** 2026-09-29. **Scope:** the Project Manager's work order of
   2026-09-29 (`ChatGPT/WORK_ORDER_G3_INSTRUMENTATION_READINESS_2026-09-29.md`),
   issued at the student's request for the next orders: offline only, three
-  parts (A, B, C), one pull request. No guest session, build, load, fault,
-  criterion, threshold, load or scope change; the controller, the broker, the
+  parts (A, B, C), one pull request. No guest session, image build or load,
+  fault, criterion, threshold, workload or scope change; the controller, the broker, the
   image (`489bc9e`), the proof evaluator and `analyze.py`'s rules are
   unchanged. Branch `feat/g3-instrumentation-readiness` on `dev` at `4e3c18f`
   (the merge of PR #50).
