@@ -203,6 +203,10 @@
 set -u
 . "$(dirname "$0")/common.sh"
 . "$(dirname "$0")/guest_common.sh"
+# The events recorder's two guest commands (events_recorder_script,
+# events_cleanup_script), shared with the G3 procedures of the runbook.
+. "$(dirname "$0")/events_capture.sh" \
+    || driver_stop "$EXIT_PREREQUISITE" "the events recorder's lifecycle $(dirname "$0")/events_capture.sh could not be loaded; nothing was started"
 # A missing argument is a prerequisite (2), never the 1 of a valid negative
 # result: '${1:?...}' would end the shell with 1 before any check could run.
 [ "$#" -eq 2 ] || driver_stop "$EXIT_PREREQUISITE" "usage: proof.sh RUN_ID EXPECTED_SOURCE_COMMIT (a run id never used on the guest; the commit the candidate image must carry)"
@@ -1220,102 +1224,13 @@ HEALTHY_WHERE="the 20-minute rule (the stack with the candidate healthy within $
     || not_run "the prefix siblings could not be registered as a source"
 
 # --- the run's continuous Docker events recorder (10a) ----------------------------
-# The run's Docker events are captured as they happen, from before the
-# workload and the fault to after the post-drain copy, never read back from
-# the daemon's bounded history at the end (r03: a history query '--since'
-# the session's start began twenty minutes late, the fault's kill and start
-# missing, and exited 0). events_recorder_script is the guest command of the
-# step 'events-recorder-start': the run id's capture directory
-# /tmp/egw-events-RUN_ID is created write-once with the recorder's files
-# already in it (owned by the ssh user, so the readiness line can be added
-# and the fetch can read them), the clone's proof_events_recorder.sh is
-# written there through a quoted here-document and checked against its
-# sha256 (RECORDER_SHA), the guest's boot_id and the docker unit's MainPID
-# and start stamp are recorded (start-facts.txt: the fetch compares them at
-# the stop, since a daemon restarted under live-restore leaves the
-# containers' StartedAt as they were), and the recorder is started as the
-# unit egw-events-RUN_ID through 'sudo systemd-run --collect', as the
-# harness starts the resource collector (no 'nohup' or 'setsid' applet is
-# assumed). Its subscription replays the last REPLAY_S seconds, so a live
-# daemon answers at once. It is READY when the capture holds an event and
-# the unit is active, polled READY_TRIES one-second steps; ready, the step
-# appends 'ready epoch=T0' to the lifecycle record and prints
-# 'run_guest_t0=T0', the guest epoch from which the run's window is taken
-# (the two logs' '--since', the events' coverage). Not ready, the unit is
-# stopped and the step answers 3; a directory that exists, a recorder that
-# is not the clone's or a unit that could not be started answer 1. Its
-# parameters are plain assignments before QUOTED here-documents (BusyBox
-# ash): nothing is expanded twice.
-events_recorder_script() {
-    printf "SHA='%s'\nD='/tmp/egw-events-%s'\nUNIT='egw-events-%s'\nREADY_TRIES=30\nREPLAY_S=120\n" "$RECORDER_SHA" "$RID" "$RID"
-    cat << 'GUEST_EVENTS_START'
-[ ! -e "$D" ] || { echo "STOP: $D exists: the events capture of a run id is write-once; nothing was started"; exit 1; }
-mkdir "$D" || { echo "STOP: $D could not be created; nothing was started"; exit 1; }
-{ : > "$D/lifecycle.txt" && : > "$D/events.jsonl" && : > "$D/cli.stderr"; } \
-    || { echo "STOP: the recorder's files could not be created in $D; nothing was started"; exit 1; }
-cat > "$D/recorder.sh" << 'EGW_EVENTS_RECORDER'
-GUEST_EVENTS_START
-    cat "$RECORDER"
-    cat << 'GUEST_EVENTS_START'
-EGW_EVENTS_RECORDER
-got=$(sha256sum "$D/recorder.sh" | cut -d' ' -f1)
-echo "recorder_sha256=$got"
-[ "$got" = "$SHA" ] || { echo "STOP: the recorder written on the guest is not the clone's (sha256 $got, expected $SHA); nothing was started"; exit 1; }
-{
-    echo "boot_id=$(cat /proc/sys/kernel/random/boot_id)"
-    systemctl show docker -p MainPID -p ExecMainStartTimestampMonotonic
-} > "$D/start-facts.txt" || { echo "STOP: the boot and docker facts could not be recorded; nothing was started"; exit 1; }
-sed 's/^/start_fact_/' "$D/start-facts.txt"
-now=$(date +%s) || { echo "STOP: the guest clock could not be read; nothing was started"; exit 1; }
-since=$((now - REPLAY_S))
-echo "recorder_since_guest_epoch=$since"
-sudo systemd-run --unit "$UNIT" --collect sh "$D/recorder.sh" "$D" "$since" \
-    || { echo "STOP: the recorder unit $UNIT could not be started"; exit 1; }
-n=0
-until [ -s "$D/events.jsonl" ] && systemctl is-active -q "$UNIT"; do
-    n=$((n + 1))
-    if [ "$n" -gt "$READY_TRIES" ]; then
-        echo "NOT READY: the recorder unit $UNIT did not show a live subscription within $READY_TRIES one-second steps (unit $(systemctl is-active "$UNIT" 2> /dev/null), $(wc -c < "$D/events.jsonl") bytes captured); its record follows, and the unit is stopped"
-        cat "$D/lifecycle.txt"
-        head -n 20 "$D/cli.stderr"
-        sudo systemctl stop "$UNIT" 2> /dev/null
-        echo "unit_state_after_stop=$(systemctl is-active "$UNIT" 2> /dev/null)"
-        exit 3
-    fi
-    sleep 1
-done
-t0=$(date +%s) || { echo "STOP: the guest clock could not be read after readiness"; sudo systemctl stop "$UNIT"; exit 1; }
-echo "ready epoch=$t0 events_bytes=$(wc -c < "$D/events.jsonl") unit=active" >> "$D/lifecycle.txt"
-cat "$D/lifecycle.txt"
-echo "run_guest_t0=$t0"
-GUEST_EVENTS_START
-}
-# events_cleanup_script: the guest command of 'events-recorder-cleanup', run
-# by the restoration: a recorder unit still active then was not stopped and
-# judged by the harness's docker-events fetch (the harness ended before it,
-# or it failed), so its capture is not the run's: it is stopped, and its
-# lifecycle record is printed into the console record (the capture itself
-# stays on the guest, in its directory).
-events_cleanup_script() {
-    printf "D='/tmp/egw-events-%s'\nUNIT='egw-events-%s'\n" "$RID" "$RID"
-    cat << 'GUEST_EVENTS_CLEANUP'
-state=$(systemctl is-active "$UNIT" 2> /dev/null)
-echo "unit_state_before_cleanup=${state:-unknown}"
-rc=0
-if [ "$state" = active ]; then
-    echo "cleanup_stop_requested_guest_epoch=$(date +%s)"
-    sudo systemctl stop "$UNIT" || rc=1
-    echo "unit_state_after_cleanup=$(systemctl is-active "$UNIT" 2> /dev/null)"
-fi
-if [ -d "$D" ]; then
-    echo "--- the recorder's lifecycle record ($D/lifecycle.txt; its capture stays in $D)"
-    cat "$D/lifecycle.txt" 2> /dev/null
-    echo "events_lines=$(wc -l < "$D/events.jsonl" 2> /dev/null)"
-    echo "cli_stderr_bytes=$(wc -c < "$D/cli.stderr" 2> /dev/null)"
-fi
-exit $rc
-GUEST_EVENTS_CLEANUP
-}
+# The guest commands of the steps 'events-recorder-start'
+# (events_recorder_script) and 'events-recorder-cleanup'
+# (events_cleanup_script) are defined in events_capture.sh, sourced above
+# (the start: the write-once capture directory, the clone's recorder by
+# sha256, the boot and daemon facts, the unit egw-events-RUN_ID, readiness
+# and 'run_guest_t0=T0'; the cleanup: a unit still running stopped, its
+# lifecycle record printed). They read RID, RECORDER and RECORDER_SHA.
 # events_recorder_cleanup: the first thing the restoration does, once, when
 # the recorder's start was dispatched. A unit still active is a capture NOT
 # complete - stopped here, recorded in the session facts

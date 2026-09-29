@@ -236,6 +236,9 @@ d, n = os.path.split(sys.argv[1]); os.chdir(d); socket.socket(socket.AF_UNIX).bi
 fi
 cmd="${@: -1}"
 case $cmd in
+  "date +%s") # guest_epoch (6.1): the guest's clock, or no answer at all
+    [ ! -e "$S/guest_clock_fails" ] || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    cat "$S/guest_epoch" 2>/dev/null || echo 1790000000; exit 0;;
   *sha256sum*) # the configuration identity capture of config_identity (6.1)
     if [ -e "$S/identity_exec" ]; then
       # the remote script run for real under a POSIX shell, with cd sent to the stub deployment directory (the
@@ -317,6 +320,60 @@ echo "pgrep $*" >> "$EGW_STUB_STATE/calls.log"
 exit "$(cat "$EGW_STUB_STATE/pgrep_rc" 2>/dev/null || echo 0)"
 """
 
+# The checkout's capture scripts, in the stub clone EGW_CLONE names (the real ones run against a stub guest in
+# test_runbook_capture_wiring.py). Each call is recorded in capture.log and, so that its order against the guest
+# commands can be read, in ssh.log too.
+STUB_EVENTS_CAPTURE = r"""#!/usr/bin/env bash
+# tools/session/events_capture.sh: 'start' prints the recorder's readiness and run_guest_t0 (events_start_rc 0) or a
+# NOT READY line (any other status, the unit then not running); 'cleanup' says whether the unit was still active,
+# stops it and, given a keep directory, keeps a partial capture there, write-once
+S=$EGW_STUB_STATE
+line="capture"; for a in "$@"; do line="$line [$a]"; done
+echo "$line" >> "$S/capture.log"; echo "$line" >> "$S/ssh.log"
+t0=$(cat "$S/events_t0" 2>/dev/null || echo 1790000000)
+case $1 in
+  start)
+    rc=$(cat "$S/events_start_rc" 2>/dev/null || echo 0)
+    [ "$rc" = 0 ] || { echo "NOT READY: the stub recorder unit egw-events-$2 did not show a live subscription"; exit "$rc"; }
+    echo active > "$S/unit-$2"
+    echo "ready epoch=$t0 events_bytes=100 unit=active"
+    echo "run_guest_t0=$t0"
+    exit 0;;
+  cleanup)
+    echo "unit_state_before_cleanup=$(cat "$S/unit-$2" 2>/dev/null || echo inactive)"
+    echo inactive > "$S/unit-$2"
+    if [ -n "${3:-}" ]; then
+      [ ! -e "$3" ] || { echo "STOP: events_capture: $3 exists - NOT overwritten" >&2; exit 1; }
+      mkdir -p "$3" && echo '{"Action":"exec_die","timeNano":1}' > "$3/events.partial.jsonl"
+    fi
+    exit 0;;
+esac
+exit 2
+"""
+
+STUB_FETCH_SUT_LOG = r"""#!/usr/bin/env bash
+# tools/session/proof_fetch_sut_log.sh: writes DEST, write-once, from the case's <kind>.guest file (what the guest's
+# log holds for the window) or fails as the case sets it (fetch_<kind>_rc), writing nothing; the docker-events fetch
+# stops the stub unit and keeps its stop record whatever its ending
+S=$EGW_STUB_STATE
+line="fetch"; for a in "$@"; do line="$line [$a]"; done
+echo "$line" >> "$S/capture.log"; echo "$line" >> "$S/ssh.log"
+kind=$1 dest=$2 dir=$(dirname "$2")
+mkdir -p "$dir"
+[ ! -e "$dest" ] || { echo "STOP: proof_fetch_sut_log: $dest exists - NOT overwritten; nothing was read" >&2; exit 1; }
+if [ "$kind" = docker-events ]; then
+  echo inactive > "$S/unit-$4"
+  echo "unit_state_before_stop=active" > "$dir/docker-events.stop.txt"
+fi
+rc=$(cat "$S/fetch_${kind}_rc" 2>/dev/null || echo 0)
+[ "$rc" = 0 ] || { echo "STOP: proof_fetch_sut_log: the $kind log was NOT read on the guest (stub, exit $rc)" >&2; exit "$rc"; }
+if [ -e "$S/$kind.guest" ]; then cat "$S/$kind.guest" > "$dest"
+elif [ "$kind" = docker-events ]; then echo '{"Action":"exec_die","timeNano":1}' > "$dest"
+else : > "$dest"; fi
+[ -s "$dest" ] || { rm -f "$dest"; echo "STOP: proof_fetch_sut_log: the $kind log was NOT read on the guest (stub: nothing answered)" >&2; exit 1; }
+echo "proof_fetch_sut_log: $kind: $(wc -l < "$dest") line(s), written to $dest"
+"""
+
 
 class Result:
     def __init__(self, rc: int, out: str) -> None:
@@ -347,6 +404,17 @@ class Bench:
                            ("ss", STUB_SS), ("sleep", STUB_SLEEP), ("pkill", STUB_NEVER), ("killall", STUB_NEVER)):
             self.install(name, text)
         self.install("python3", '#!/usr/bin/env bash\nexec "%s" "$@"\n' % sys.executable)
+        # The checkout EGW_CLONE names: the collector's fetch script as it is, the two capture scripts as stubs.
+        self.clone = tmp_path / "clone"
+        for name, text in (("events_capture.sh", STUB_EVENTS_CAPTURE), ("proof_fetch_sut_log.sh", STUB_FETCH_SUT_LOG)):
+            path = self.clone / "tools" / "session" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            path.chmod(0o755)
+        scripts = self.clone / "src" / "deployment" / "scripts"
+        scripts.mkdir(parents=True)
+        shutil.copyfile(ROOT / "src" / "deployment" / "scripts" / "fetch-collector-output.sh",
+                        scripts / "fetch-collector-output.sh")
         self.metrics()
 
     def install(self, name: str, text: str) -> None:
@@ -399,6 +467,11 @@ class Bench:
         f = self.state / "calls.log"
         return f.read_text(encoding="utf-8") if f.exists() else ""
 
+    def capture_calls(self) -> list[str]:
+        """The calls of the stub clone's capture scripts, in order ('capture [start] [id]', 'fetch [kind] ...')."""
+        f = self.state / "capture.log"
+        return f.read_text(encoding="utf-8").splitlines() if f.exists() else []
+
     def ssh_log(self) -> list[str]:
         f = self.state / "ssh.log"
         return f.read_text(encoding="utf-8").splitlines() if f.exists() else []
@@ -413,7 +486,7 @@ class Bench:
         env.update({"HOME": str(self.home), "PATH": f"{self.stubs}{os.pathsep}{os.environ.get('PATH', '')}",
                     "EGW_STUB_STATE": str(self.state), "EGW_REAL_SLEEP": REAL_SLEEP, "EGW_REAL_TEE": REAL_TEE,
                     "MOSQUITTO_SIMULATOR_PASSWORD": "stub-value-not-a-secret", "LC_ALL": "C",
-                    "DRAIN_QUIET_S": "0", "DRAIN_STEP_S": "0", "READY_LIMIT_S": "0"})
+                    "DRAIN_QUIET_S": "0", "DRAIN_STEP_S": "0", "READY_LIMIT_S": "0", "EGW_CLONE": str(self.clone)})
         env.update(extra)
         return env
 
@@ -920,7 +993,7 @@ def harness_argv(bench: Bench) -> list[str]:
 
 def test_harness_run_hands_the_six_services_to_the_collector_and_fetches_its_companions(bench: Bench) -> None:
     """The hooks of harness_run, split the way the harness splits them (shlex, no shell)."""
-    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'), EGW_CLONE=str(ROOT))
+    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'))
     assert r.value("RC") == "0", r.out
     argv = harness_argv(bench)
     assert argv[:4] == ["-m", "egw_experiments", "run", "--run-id"]
@@ -938,7 +1011,7 @@ def test_harness_run_hands_the_six_services_to_the_collector_and_fetches_its_com
     fetch = shlex.split(run_mod.format_collector_template(
         opts["--collector-fetch-cmd"], "smoke_sequence-r01", duration_s=150, dest=dest,
         expect_services=SIX_SERVICES.split(",")))
-    script = ROOT / "src" / "deployment" / "scripts" / "fetch-collector-output.sh"
+    script = bench.clone / "src" / "deployment" / "scripts" / "fetch-collector-output.sh"
     assert fetch == ["sh", str(script), "egw-tcg", "/tmp/resources-smoke_sequence-r01.csv", dest]
     assert script.is_file()
     # The events fetch quotes its destination as well.
@@ -948,9 +1021,94 @@ def test_harness_run_hands_the_six_services_to_the_collector_and_fetches_its_com
 
 def test_harness_run_exit_non_zero_prints_stop(bench: Bench) -> None:
     bench.set("harness_rc", 1)
-    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'), EGW_CLONE=str(ROOT))
+    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'))
     assert r.value("RC") != "0", r.out
     assert r.starting("STOP: harness_run smoke_sequence-r01: egw_experiments run exited non-zero"), r.out
+
+
+# --------------------------------------------------------------------------
+# 6.1 - harness_cmd: the run's Docker events recorder and its bounded SUT logs (work order G3 instrumentation, B)
+# --------------------------------------------------------------------------
+def sut_fetch_argv(opts: dict[str, str], hook: str, run_id: str, dest: str) -> list[str]:
+    """One SUT fetch hook of the harness's argv, rendered and split as the harness runs it (run.py
+    execute_collector_hook: format_collector_template, then shlex.split, no shell)."""
+    return shlex.split(run_mod.format_collector_template(opts[run_mod.SUT_LOG_FETCH_FLAGS[hook]], run_id, duration_s=150,
+                                                         dest=dest, expect_services=SIX_SERVICES.split(",")))
+
+
+def test_harness_cmd_starts_the_recorder_before_the_harness_and_hands_it_the_three_run_scoped_fetches(bench: Bench) -> None:
+    """Test 1 (fault-free): the recorder is started, and found ready, before the harness; the guest epoch of that
+    readiness bounds the broker and controller logs and the events; no fault event is demanded; the harness's own
+    docker-events fetch stops the unit, so the ending finds it stopped and keeps no partial capture."""
+    bench.set("events_t0", 1790000123)
+    r = bench.run(bench.with_helpers('harness_run smoke_sequence-r01\necho "RC=$?"'))
+    assert r.value("RC") == "0", r.out
+    calls = bench.capture_calls()
+    assert calls[0] == "capture [start] [smoke_sequence-r01]", calls
+    assert calls[-1] == "capture [cleanup] [smoke_sequence-r01] [%s]" % (bench.p / "smoke_sequence-r01.sut" / "events-partial"), calls
+    argv = harness_argv(bench)
+    opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
+    tools = str(bench.clone / "tools" / "session" / "proof_fetch_sut_log.sh")
+    sut = "/home/op/Projeto Mestrado/raw/smoke_sequence-r01/logs/sut"
+    assert sut_fetch_argv(opts, "broker_log", "smoke_sequence-r01", f"{sut}/broker.log") == \
+        ["bash", tools, "broker", f"{sut}/broker.log", "1790000123"]
+    assert sut_fetch_argv(opts, "controller_log", "smoke_sequence-r01", f"{sut}/controller.log") == \
+        ["bash", tools, "controller", f"{sut}/controller.log", "1790000123"]
+    # Fault-free: RUN_T0 and the run id, and no EXPECTED (events_coverage.py R7 not-required).
+    assert sut_fetch_argv(opts, "docker_events", "smoke_sequence-r01", f"{sut}/docker-events.log") == \
+        ["bash", tools, "docker-events", f"{sut}/docker-events.log", "1790000123", "smoke_sequence-r01"]
+    # The start record is kept, write-once, beside the itest artefacts.
+    record = (bench.p / "smoke_sequence-r01.sut" / "events-start.txt").read_text(encoding="utf-8")
+    assert "run_guest_t0=1790000123" in record
+
+
+def test_harness_cmd_whose_recorder_is_not_ready_never_starts_the_harness(bench: Bench) -> None:
+    """Capture start failure: the harness is not run (harness_cmd answers 2, as the harness's own refusal does, so
+    test 6's line never reads another run's directory), the unit is left stopped, and harness_run STOPs."""
+    bench.set("events_start_rc", 3)
+    r = bench.run(bench.with_helpers('harness_cmd smoke_sequence-r01; echo "HC=$?"\nharness_run smoke_sequence-r02\necho "RC=$?"'))
+    assert r.value("HC") == "2", r.out
+    assert r.value("RC") != "0", r.out
+    assert not (bench.state / "harness_argv").exists(), "the harness was started without a ready recorder"
+    assert r.starting("STOP: events_start smoke_sequence-r01: the Docker events recorder was NOT found ready"), r.out
+    assert r.starting("STOP: harness_cmd smoke_sequence-r01: the harness was NOT started"), r.out
+    assert r.starting("STOP: harness_run smoke_sequence-r02: egw_experiments run exited non-zero"), r.out
+    assert "capture [cleanup] [smoke_sequence-r01]" in bench.capture_calls()
+    assert (bench.state / "unit-smoke_sequence-r01").read_text(encoding="utf-8").strip() != "active"
+
+
+def test_harness_cmd_refuses_a_run_id_whose_start_record_exists_and_starts_nothing(bench: Bench) -> None:
+    """Write-once: an outer attempt never reuses another execution's record for the same run id."""
+    (bench.p / "smoke_sequence-r01.sut").mkdir(parents=True)
+    (bench.p / "smoke_sequence-r01.sut" / "events-start.txt").write_text("run_guest_t0=1\n", encoding="utf-8")
+    r = bench.run(bench.with_helpers('harness_cmd smoke_sequence-r01; echo "HC=$?"'))
+    assert r.value("HC") == "2", r.out
+    assert r.starting("STOP: events_start smoke_sequence-r01: "), r.out
+    assert bench.capture_calls() == [] and not (bench.state / "harness_argv").exists()
+
+
+def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_sigkill(bench: Bench) -> None:
+    """Test 6's line, executed: its harness hands the docker-events fetch the actions a compose restart must produce
+    for the controller whatever signal ended it (die, start), never 'kill' (the proof's R7 requires signal 9 of a
+    kill), and its restart command, snapshots and identity are handed as before."""
+    cmds = _host_commands("### Test 6")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
+    r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
+    argv = harness_argv(bench)
+    opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
+    dest = "/raw/controller_restart-r01/logs/sut/docker-events.log"
+    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r01", dest)
+    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r01", "die,start"], events
+    assert "kill" not in events[-1]
+    assert opts["--restart-cmd"].endswith("restart controller'") and opts["--restart-at-s"] == "300"
+    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r01]"
+    # The stub harness seals nothing, so the line stops as it did before: the capture changes none of its checks.
+    assert r.starting("STOP: test 6: the harness run was not sealed"), r.out
+    assert r.value("T6") == "stop", r.out
 
 
 # --------------------------------------------------------------------------
@@ -1653,42 +1811,153 @@ def test_flow_6_3_twin_file_cannot_be_written_prints_stop_although_the_get_succe
     assert not (bench.p / f"{rid}.twin.uuid-0001.json").exists()
 
 
-def broker_log_line() -> str:
-    return _one(_host_commands("### Test 9"), "ssh egw-tcg 'cd /opt/egw/deployment && docker compose")
+def t9_lines(sub: str) -> tuple[str, str]:
+    """Test 9 (b) or (c): the line that takes the guest epoch and runs the simulator, and the line that reads the
+    broker log bounded to that sub-check."""
+    cmds = _host_commands("### Test 9")
+    rid = {"b": "itest-auth-wrongpw", "c": "itest-notls"}[sub]
+    return _one(cmds, f"T0_9{sub.upper()}=$(guest_epoch 3); python -m egw_simulator"), _one(cmds, f"sut_log broker {rid} ")
 
 
-def call_broker_log(bench: Bench) -> Result:
-    return bench.run(bench.with_helpers("\n".join((broker_log_line().split("\n")[0], 'echo "RC9=$?"'))))
+def call_t9(bench: Bench, sub: str) -> Result:
+    run, read = t9_lines(sub)
+    return bench.run(bench.with_helpers("\n".join((run, read, 'echo "RC9=$?"'))))
 
 
-def test_test_9_broker_log_saved_returns_0_without_stop(bench: Bench) -> None:
-    bench.set("broker_log", "1758190000: Client egw-sim disconnected, not authorised.")
-    r = call_broker_log(bench)
+def test_test_9_whole_history_tail_of_the_broker_log_is_no_longer_read() -> None:
+    """(b) and (c) were judged on 'docker compose logs --tail 20 mosquitto', whatever session those lines were of."""
+    text = "\n".join(_host_commands("### Test 9"))
+    assert "--tail 20" not in text and "itest-auth.broker.txt" not in text
+
+
+@pytest.mark.parametrize("sub, rid", [("b", "itest-auth-wrongpw"), ("c", "itest-notls")])
+def test_test_9_each_sub_check_reads_the_broker_log_bounded_from_its_own_guest_epoch(bench: Bench, sub: str, rid: str) -> None:
+    bench.set("guest_epoch", 1790000456)
+    bench.set("broker.guest", "2026-09-29T10:00:01.000000000Z 1790000457: Client egw-sim disconnected, not authorised.")
+    r = call_t9(bench, sub)
     assert r.value("RC9") == "0", r.out
     assert not r.starting("STOP"), r.out
-    assert "not authorised" in (bench.p / "itest-auth.broker.txt").read_text(encoding="utf-8")
+    log = bench.p / f"{rid}.sut" / "broker.log"
+    # 3 s back: the guest clock's step band (proof_fetch_sut_log.sh CLOCK_STEP_BAND_S)
+    assert bench.capture_calls() == [f"fetch [broker] [{log}] [1790000453]"]
+    assert "not authorised" in log.read_text(encoding="utf-8") and "not authorised" in r.out
+    assert "written to" in (bench.p / f"{rid}.sut" / "broker.fetch.txt").read_text(encoding="utf-8")
 
 
-def test_test_9_broker_log_ssh_fails_with_partial_output_prints_stop_and_names_the_ssh_status(bench: Bench) -> None:
-    bench.set("broker_log", "1758190000: partial line")
-    bench.set("ssh_logs_rc", 255)
-    r = call_broker_log(bench)
+@pytest.mark.parametrize("case", ["read fails", "read answers nothing", "guest clock not read"])
+def test_test_9_a_broker_log_not_read_is_a_stop_and_never_evidence(bench: Bench, case: str) -> None:
+    if case == "read fails":
+        bench.set("fetch_broker_rc", 1)
+    elif case == "guest clock not read":
+        bench.set("guest_clock_fails")
+    r = call_t9(bench, "b")
     assert r.value("RC9") != "0", r.out
-    assert any("ssh exit=255, tee exit=0" in ln for ln in r.starting("STOP: test 9(b)/(c): the broker log was NOT saved")), r.out
+    assert r.starting("STOP: test 9(b): the broker log bounded to (b) was NOT read"), r.out
+    assert not (bench.p / "itest-auth-wrongpw.sut" / "broker.log").exists()
+    if case == "guest clock not read":
+        assert r.starting("STOP: guest_epoch: the guest clock was NOT read"), r.out
+        assert bench.capture_calls() == [], "a read bounded by an epoch that was not read"
 
 
-def test_test_9_broker_log_tee_reports_failure_prints_stop_and_names_the_tee_status(bench: Bench) -> None:
-    bench.set("broker_log", "1758190000: some line")
-    bench.install("tee", STUB_TEE_FAILS)
-    r = call_broker_log(bench)
+def test_guest_epoch_takes_its_margin_back_and_refuses_one_that_is_not_whole_seconds(bench: Bench) -> None:
+    bench.set("guest_epoch", 1790000456)
+    r = bench.run(bench.with_helpers('T=$(guest_epoch 3); echo "RC=$?"; echo "T=$T"\n'
+                                     'U=$(guest_epoch); echo "RCU=$?"; echo "U=$U"\n'
+                                     'V=$(guest_epoch 3s); echo "RCV=$?"; echo "V=$V"'))
+    assert (r.value("RC"), r.value("T")) == ("0", "1790000453"), r.out
+    assert (r.value("RCU"), r.value("U")) == ("0", "1790000456"), r.out
+    assert r.value("RCV") != "0" and r.value("V") == "", r.out
+    assert r.starting("STOP: guest_epoch: usage: guest_epoch [<seconds back>]"), r.out
+    assert sum("[date +%s]" in ln for ln in bench.ssh_log()) == 2, "a margin that is not a number reads no clock"
+
+
+def test_sut_log_is_write_once_per_name_and_reads_nothing_the_second_time(bench: Bench) -> None:
+    bench.set("broker.guest", "2026-09-29T10:00:01.000000000Z 1790000457: a line")
+    run, read = t9_lines("b")
+    r = bench.run(bench.with_helpers("\n".join((run, read, read, 'echo "RC9=$?"'))))
     assert r.value("RC9") != "0", r.out
-    assert any("ssh exit=0, tee exit=1" in ln for ln in r.starting("STOP: test 9(b)/(c): the broker log was NOT saved")), r.out
+    assert r.starting("STOP: sut_log broker itest-auth-wrongpw: "), r.out
+    assert len(bench.capture_calls()) == 1
 
 
-def test_test_9_broker_log_empty_output_prints_stop(bench: Bench) -> None:
-    r = call_broker_log(bench)
-    assert r.value("RC9") != "0", r.out
-    assert r.starting("STOP: test 9(b)/(c): the broker log was NOT saved"), r.out
+# --------------------------------------------------------------------------
+# Tests 3 and 5 - the controller and broker logs bounded to the test
+# --------------------------------------------------------------------------
+def rejected_line(stamp: str, error: str) -> str:
+    return f"{stamp} " + json.dumps({"ts": stamp, "level": "INFO", "logger": "egw_controller.service",
+                                     "message": "telemetry event processed",
+                                     "context": {"outcome": "rejected", "device_uuid": "uuid-0001", "seq": 3,
+                                                 "attempts": 0, "error": error}})
+
+
+def call_test3(bench: Bench, rid: str = "itest-invalid-01") -> Result:
+    cmds = _host_commands("### Test 3")
+    full_run(bench, rid)
+    first, read = _one(cmds, "R=itest-invalid-01"), _one(cmds, '[ "$RT" = 0 ] && sut_log controller')
+    return bench.run(bench.with_helpers("\n".join((first, 'echo "RT=$RT"', read, 'echo "RC3=$?"'))))
+
+
+def test_test_3_counts_the_rejections_of_its_own_bounded_controller_log(bench: Bench) -> None:
+    bench.set("guest_epoch", 1790000789)
+    bench.set("controller.guest", "\n".join((rejected_line("2026-09-29T10:00:01.000Z", "schema: 'bpm' is required"),
+                                             "2026-09-29T10:00:02.000Z not json")))
+    r = call_test3(bench)
+    assert r.value("RT") == "0" and r.value("RC3") == "0", r.out
+    log = bench.p / "itest-invalid-01.sut" / "controller.log"
+    assert bench.capture_calls() == [f"fetch [controller] [{log}] [1790000789]"]
+    assert any("lines=2 rejected=1 " in ln and "'bpm' is required" in ln for ln in r.lines), r.out
+
+
+@pytest.mark.parametrize("case", ["read fails", "read answers nothing"])
+def test_test_3_a_controller_log_not_read_is_a_stop_and_shows_no_rejection(bench: Bench, case: str) -> None:
+    if case == "read fails":
+        bench.set("fetch_controller_rc", 1)
+    r = call_test3(bench)
+    assert r.value("RC3") != "0", r.out
+    assert r.starting("STOP: test 3: the controller log bounded to this test was NOT read"), r.out
+    assert not r.starting("controller log of this test"), r.out
+
+
+def test_test_3_run_test_not_complete_reads_no_log(bench: Bench) -> None:
+    bench.set("ready_code", 503)
+    r = call_test3(bench)
+    assert r.value("RT") != "0" and r.value("RC3") != "0", r.out
+    assert bench.capture_calls() == []
+
+
+def call_test5(bench: Bench, rid: str = "itest-dropout-01") -> Result:
+    cmds = _host_commands("### Test 5")
+    full_run(bench, rid)
+    first, read = _one(cmds, "R=itest-dropout-01"), _one(cmds, 'if [ "$RT" != 0 ]; then stop "test 5: broker log')
+    return bench.run(bench.with_helpers("\n".join((first, 'echo "RT=$RT"', read, 'echo "RC5=$?"'))))
+
+
+def test_test_5_greps_its_client_in_the_broker_log_bounded_to_the_test(bench: Bench) -> None:
+    bench.set("guest_epoch", 1790000999)
+    bench.set("broker.guest", "\n".join((
+        "mosquitto-1  | 2026-09-29T10:00:01.0Z 1: New client connected from 172.18.0.7:52130 as egw-simulator-itest-dropout-01",
+        "mosquitto-1  | 2026-09-29T10:00:02.0Z 2: New client connected from 172.18.0.9:40000 as egw-controller",
+        "mosquitto-1  | 2026-09-29T10:00:03.0Z 3: Client egw-simulator-itest-dropout-01 closed its connection.")))
+    r = call_test5(bench)
+    assert r.value("RC5") == "0", r.out
+    log = bench.p / "itest-dropout-01.sut" / "broker.log"
+    assert bench.capture_calls() == [f"fetch [broker] [{log}] [1790000999]"]
+    excerpt = (bench.p / "itest-dropout-01.broker.txt").read_text(encoding="utf-8").splitlines()
+    assert len(excerpt) == 2 and all("egw-simulator-itest-dropout-01" in ln for ln in excerpt)
+
+
+@pytest.mark.parametrize("case, says", [
+    ("read fails", "STOP: test 5: the broker log bounded to this test was NOT read"),
+    ("no line of the client", "STOP: test 5: the broker log bounded to this test holds no line of the client"),
+])
+def test_test_5_a_log_not_read_or_without_the_client_is_a_stop(bench: Bench, case: str, says: str) -> None:
+    if case == "read fails":
+        bench.set("fetch_broker_rc", 1)
+    else:
+        bench.set("broker.guest", "mosquitto-1  | 2026-09-29T10:00:02.0Z 2: New client connected as egw-controller")
+    r = call_test5(bench)
+    assert r.value("RC5") != "0", r.out
+    assert r.starting(says), r.out
 
 
 # --------------------------------------------------------------------------
@@ -1856,6 +2125,65 @@ def test_test_7_precondition_fails_no_fault_is_injected_nothing_is_published_and
     assert r.value("EVAL_RC") != "0" and r.starting("STOP: test 7: not evaluated"), r.out
     assert bench.simulator_calls() == 0
     assert svc_commands(bench, "stop", svc) == [] and svc_commands(bench, "start", svc) == []
+
+
+def test_test_7_starts_the_recorder_after_pre_and_before_the_fault_and_judges_the_services_own_events(bench: Bench) -> None:
+    """The MongoDB sub-check: the recorder is ready before the fault job starts; after the recovery its capture is
+    fetched with the actions of the fault's own compose stop and start of egw-mongodb-1 - die, stop, start, never the
+    kill, whose signal (15) is not the proof's SIGKILL - and a unit still running is stopped."""
+    r, rid, svc = call_test7(bench)
+    assert r.value("T7_VALUE") == "0", r.out
+    log = bench.ssh_log()
+    start = log.index(f"capture [start] [{rid}]")
+    stop = next(i for i, ln in enumerate(log) if ln.endswith(f" stop {svc}]"))
+    fetch = next(i for i, ln in enumerate(log) if ln.startswith("fetch [docker-events]"))
+    recover = next(i for i, ln in enumerate(log) if ln.endswith(f" start {svc}]"))
+    assert start < stop < recover < fetch, log
+    d = bench.p / f"{rid}.sut"
+    assert log[fetch] == f"fetch [docker-events] [{d}/docker-events.log] [1790000000] [{rid}] [die,stop,start] [egw-{svc}-1]"
+    assert bench.capture_calls()[-1] == f"capture [cleanup] [{rid}]", "the fetch kept its records: nothing kept twice"
+    assert (d / "docker-events.log").is_file() and (d / "docker-events.fetch.txt").is_file()
+
+
+def test_test_7_recorder_not_ready_injects_no_fault_and_publishes_nothing(bench: Bench) -> None:
+    bench.set("events_start_rc", 3)
+    r, rid, svc = call_test7(bench)
+    assert r.value("T7_VALUE") == "stop", r.out
+    assert r.starting(f"STOP: events_start {rid}: the Docker events recorder was NOT found ready"), r.out
+    assert r.starting("STOP: test 7: precondition failed - NO fault was injected and nothing was published"), r.out
+    assert bench.simulator_calls() == 0
+    assert svc_commands(bench, "stop", svc) == [] and svc_commands(bench, "start", svc) == []
+    assert (bench.state / f"unit-{rid}").read_text(encoding="utf-8").strip() != "active"
+
+
+def test_test_7_a_capture_not_shown_complete_is_a_stop_and_leaves_the_acceptance_as_it_stands(bench: Bench) -> None:
+    """Whether an incomplete capture should block test 7 is a criterion, not decided here (work order C): the
+    capture's failure is printed as a STOP, its partial records stay, and T7 is still decided by its SHOWN lines."""
+    bench.set("fetch_docker-events_rc", 1)
+    r, rid, _ = call_test7(bench)
+    assert r.starting(f"STOP: events_stop {rid}: the Docker events capture is NOT shown complete"), r.out
+    assert not (bench.p / f"{rid}.sut" / "docker-events.log").exists()
+    assert r.value("T7_VALUE") == "0", r.out
+
+
+def test_the_ditto_repeat_of_test_7_judges_egw_ditto_things_1(bench: Bench) -> None:
+    t7 = _host_commands("### Test 7")
+    ditto = _host_commands("### Repeat of test 7 for Ditto")
+    first = _one(ditto, "R=")
+    rid, svc = run_id_of(first, "R"), re.search(r"SVC=([A-Za-z0-9_-]+)", first).group(1)
+    assert svc == "ditto-things"
+    # the helpers of test 7 (DC, svc_state, fault_recover, fault, readyp), then the repeat's own three lines
+    body = [ln for ln in t7[:-2] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"']
+    full_run(bench, rid)
+    bench.set("svc_state", "running")
+    bench.install("pgrep", STUB_PGREP)
+    bench.set("pgrep_rc", 0)
+    r = bench.run(bench.with_helpers("\n".join(body)))
+    assert r.value("T7_VALUE") == "0", r.out
+    fetch = [ln for ln in bench.capture_calls() if ln.startswith("fetch [docker-events]")]
+    assert fetch == [f"fetch [docker-events] [{bench.p / (rid + '.sut')}/docker-events.log] [1790000000] [{rid}] "
+                     f"[die,stop,start] [egw-ditto-things-1]"]
+    assert ditto[1] == _one(t7, "T7=stop; if pre $R"), "the repeat's test line is test 7's, unchanged"
 
 
 @pytest.mark.skipif(REAL_PGREP is None, reason="pgrep (procps) is not installed")
