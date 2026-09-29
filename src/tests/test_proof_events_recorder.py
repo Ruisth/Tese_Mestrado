@@ -247,7 +247,8 @@ def _guest_scripts() -> dict[str, str]:
     hook = (SESSION / "proof_fetch_sut_log.sh").read_text(encoding="utf-8").splitlines()
     start = next(i for i, line in enumerate(hook) if line.endswith("$(cat << 'GUEST_STOP'"))
     end = next(i for i in range(start + 1, len(hook)) if hook[i] == "GUEST_STOP")
-    rendered["stop"] = "D='/tmp/egw-events-r01'\nUNIT='egw-events-r01'\nWITNESS_S=45\n" + "\n".join(hook[start + 1:end]) + "\n"
+    rendered["stop"] = ("D='/tmp/egw-events-r01'\nUNIT='egw-events-r01'\nMARKER_C='egw-mosquitto-1'\nMARKER_EXEC_S=45\n"
+                        "WITNESS_S=45\n" + "\n".join(hook[start + 1:end]) + "\n")
     return rendered
 
 

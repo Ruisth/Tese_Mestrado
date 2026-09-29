@@ -16,8 +16,11 @@ workload and the fault):
     cli.stderr       what the events CLI said on stderr
     stop.txt         what the stop script printed: the stop requested
                      (stop_requested_guest_epoch), the unit's state before
-                     it, the same boot and daemon facts, the unit's state
-                     after it
+                     it, the same boot and daemon facts, the closing marker
+                     it then issued (closing_marker, the nonce;
+                     closing_marker_container; closing_marker_exec_rc;
+                     closing_marker_seen, the guest's own claim, never
+                     read), the unit's state after it
 
 A FILE THAT EXISTS, OR AN EXIT STATUS OF 0, IS NOT COVERAGE. The capture is
 COMPLETE only when every rule below holds; one that is broken makes it
@@ -38,9 +41,18 @@ broken. Nothing is guessed, and no threshold is invented:
       ended by itself - even with status 0, which the CLI answers when the
       daemon closes the stream - is a break
   R4  the CLI said nothing on stderr
-  R5  a closing witness: an event of the stream stamped AFTER the second in
-      which the stop was requested (timeNano at or past the request epoch
-      plus one second), so the subscription was live past the window's end
+  R5  the closing marker: the stop record names the marker the fetch
+      caused AFTER it recorded the stop request - a no-op 'docker exec' in
+      the named container, identified by a fresh nonce - its exec ended 0,
+      and the capture holds an exec_create or exec_start event of that
+      container whose Action carries the nonce. The marker was caused after
+      the stop request was recorded, so its presence shows the subscription
+      delivered an event caused after the window's end. No timestamp
+      decides it: the guest's wall clock steps back, so an event stored
+      BEFORE the request can be stamped after it (review of PR #50, F1).
+      A marker issued but not captured, or whose exec failed, is a break;
+      no marker in the stop record, one not well formed, or an exec the
+      stop script killed at its bound ('timeout') is unknown
   R6  every line of the capture is a JSON object with an integer timeNano
   R7  only when the scenario expects them (--expected, which the driver
       passes for the fault it issues and never for a fault-free run): each
@@ -86,6 +98,13 @@ KILL_SIGNAL = "9"
 # band): the end of the CLI, read a moment after the stop request, may read
 # up to that much earlier than it and still be the end BY that stop.
 CLOCK_STEP_BAND_S = 3
+# The closing marker's nonce, as the guest's /proc/sys/kernel/random/uuid
+# gives it, the container it is issued in, and the events of its exec that
+# carry its command in their Action ('exec_create: sh -c : egw-events-close
+# NONCE'; exec_die does not).
+MARKER_NONCE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+CONTAINER_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+MARKER_ACTIONS = ("exec_create:", "exec_start:")
 
 
 class Unreadable(Exception):
@@ -280,19 +299,61 @@ def judge(directory: Path, run_t0: int, expected: list[str], container: str) -> 
     else:
         rules["R4"] = (HELD, "the CLI's stderr is empty")
 
-    # R5: a closing witness past the second of the stop request.
+    # R5: the closing marker, caused after the stop request was recorded and
+    # found by its nonce in the capture; never by a stamp, and never by the
+    # guest's own claim (closing_marker_seen).
     latest = max((e["timeNano"] for e in events), default=None)
-    facts.append(f"latest_event_guest_epoch={latest // NS if latest is not None else 'null'}")
-    if t1 is None:
-        rules["R5"] = (UNKNOWN, "the stop request's epoch is not recorded, so no closing witness can be judged")
+    nonce = stop.get("closing_marker") if stop is not None else None
+    marker_c = stop.get("closing_marker_container") if stop is not None else None
+    exec_rc_text = stop.get("closing_marker_exec_rc") if stop is not None else None
+    exec_rc = whole(exec_rc_text)
+    marker_hits = []
+    if nonce and MARKER_NONCE.fullmatch(nonce) and marker_c:
+        marker_hits = [e for e in events
+                       if e.get("Type", "container") == "container" and attributes(e).get("name") == marker_c
+                       and isinstance(e.get("Action"), str) and e["Action"].startswith(MARKER_ACTIONS)
+                       and nonce in e["Action"].split()]
+    facts += [f"latest_event_guest_epoch={latest // NS if latest is not None else 'null'}",
+              f"closing_marker={nonce or 'null'}",
+              f"closing_marker_container={marker_c or 'null'}",
+              f"closing_marker_exec_rc={exec_rc_text or 'null'}",
+              f"closing_marker_event_guest_epoch={marker_hits[0]['timeNano'] // NS if marker_hits else 'null'}",
+              "closing_marker_note=the stamps are reported only: the marker is judged by its nonce, never by a stamp"]
+    if stop is None:
+        rules["R5"] = (UNKNOWN, f"the stop record could not be read ({stop_text}), so no closing marker can be judged")
     elif isinstance(events_text, Unreadable):
-        rules["R5"] = (UNKNOWN, "the capture could not be read")
-    elif latest is not None and latest >= (t1 + 1) * NS:
-        rules["R5"] = (HELD, f"an event at {latest // NS} ({utc(latest // NS)}), after the second of the stop request "
-                             f"({t1}): the subscription was live past the window's end")
+        rules["R5"] = (UNKNOWN, "the capture could not be read, so the closing marker cannot be sought")
+    elif t1 is None:
+        rules["R5"] = (UNKNOWN, "the stop request is not recorded, so no closing marker can be placed after it")
+    elif not nonce or nonce == "none":
+        rules["R5"] = (UNKNOWN, "the stop record carries no closing marker (none was issued), so no observation made "
+                                "after the stop request can be judged")
+    elif not MARKER_NONCE.fullmatch(nonce):
+        rules["R5"] = (UNKNOWN, f"the stop record's closing marker {nonce!r} is not a well-formed nonce, so it names no "
+                                "event")
+    elif not marker_c or not CONTAINER_NAME.fullmatch(marker_c):
+        rules["R5"] = (UNKNOWN, "the stop record does not name the container the closing marker was issued in")
+    elif exec_rc_text == "timeout":
+        rules["R5"] = (UNKNOWN, f"the closing marker's exec in {marker_c} did not end within the stop script's bound "
+                                "and was killed: how it ended, and so whether an observation was made after the stop "
+                                "request, is not known")
+    elif exec_rc is None:
+        rules["R5"] = (UNKNOWN, "the stop record does not say how the closing marker's exec ended")
+    elif exec_rc != 0:
+        rules["R5"] = (BROKEN, f"the closing marker's exec in {marker_c} exited {exec_rc}: an exec that failed is not "
+                               "a delivered marker, whatever events of it the capture holds "
+                               f"({len(marker_hits)} carrying its nonce), so the subscription is not shown live to "
+                               "the window's end")
+    elif marker_hits:
+        rules["R5"] = (HELD, f"the closing marker {nonce}, a no-op exec in {marker_c} that the fetch issued after it "
+                             f"recorded the stop request ({t1}), is captured ({marker_hits[0]['Action'].split(':')[0]}): "
+                             "the marker was caused after the stop request was recorded, so the subscription "
+                             "delivered an event caused after the window's end")
     else:
-        rules["R5"] = (BROKEN, f"no event is stamped after the second of the stop request ({t1}, {utc(t1)}): the "
-                               "subscription is not shown live to the window's end")
+        rules["R5"] = (BROKEN, f"the closing marker {nonce} was issued in {marker_c} after the stop request (its exec "
+                               f"exited 0), but no exec_create or exec_start event of {marker_c} carrying it is "
+                               "captured: no event caused after the window's end was delivered, so the subscription "
+                               "is not shown live to it")
 
     # The window [RUN_T0, the stop request], and the heartbeat gap (report only).
     window = [e for e in events if run_t0 * NS <= e["timeNano"] and (t1 is None or e["timeNano"] < (t1 + 1) * NS)]

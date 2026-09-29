@@ -17,7 +17,8 @@ own ``keep`` (read from the runbook when the test runs), a guest ``docker``
 that holds the controller container's state on disk and answers the two
 stored multi-session logs within the bounds it is given and the events (the
 daemon's bounded history of 256 and its live stream, the fault's kill, die
-and start among them), a guest ``date`` on a steady clock, and a ``$REC``
+and start among them, and the exec events of the fetch's closing marker), a
+guest ``date`` on a steady clock that a case may step back, and a ``$REC``
 whose ``snap`` records its argv and is write-once like the real one. The
 events recorder is started by the driver's own guest command
 (``events_recorder_script`` of proof.sh, rendered as the driver renders it)
@@ -33,8 +34,10 @@ an old A5 line on the same device among them, left out and witnessed; a
 read the daemon did not bound, or a line without a stamp, refused), the
 events captured continuously and judged (past the daemon's bounded history;
 a CLI that ended by itself with status 0, a restarted daemon, a CLI that
-warned, a stream that fell silent, a missing fault event: never complete;
-a fault-free run: no fault event demanded), the SIGKILL-then-start sequence
+warned, a stream that stalled, a closing marker never delivered or whose
+exec failed, a stop request stamped before events already captured, a
+missing fault event: never complete; a fault-free run: no fault event
+demanded), the SIGKILL-then-start sequence
 with both guest readings in the record and both instants in the manifest's
 500-character ``stderr_tail`` (the restart hook is run by
 ``_execute_restart_cmd`` itself, under a guest whose fault-time stderr
@@ -127,8 +130,10 @@ def proof_function(name: str) -> str:
 # anchor, read by the guest's stub `date`, the docker stub's events and
 # logs and the cases alike. The WSL2 host's wall clock is stepped backwards
 # by 2-3 s about every 30 s (LOG.md), which would reorder the guest instants
-# the events capture compares (the stop request, the closing witness) by
-# the bench's accident, never by the code under test.
+# the events capture compares (the readiness and RUN_T0, the stop request
+# and the end of the CLI) by the bench's accident, never by the code under
+# test. A case that wants the guest's clock stepped back sets
+# EGW_STUB_DATE_OFFSET_S, which moves the stub `date` alone.
 
 
 def _clock_anchor(path):
@@ -158,7 +163,11 @@ STEADY_CLOCK = ("import json, time\n\n" + inspect.getsource(_clock_anchor) + "\n
 
 DATE_STUB = '''#!/usr/bin/env python3
 """Stub date of the stub guest: the bench's steady clock, in the forms the
-guest scripts ask for ('date +%s', 'date -u +%Y-%m-%dT%H:%M:%SZ')."""
+guest scripts ask for ('date +%s', 'date -u +%Y-%m-%dT%H:%M:%SZ'), moved by
+EGW_STUB_DATE_OFFSET_S seconds (negative: the guest's wall clock stepped
+back) while the daemon's stamps of the events, on the same steady clock,
+are not: an event already stored keeps its stamp, the clock now reads
+earlier."""
 import os
 import sys
 from datetime import datetime, timezone
@@ -171,7 +180,7 @@ for arg in sys.argv[1:]:
     elif arg != "-u":
         print("stub date: unsupported argument %r" % arg, file=sys.stderr)
         sys.exit(1)
-ns = now_ns()
+ns = now_ns() + int(float(os.environ.get("EGW_STUB_DATE_OFFSET_S", "0")) * 10 ** 9)
 now = datetime.fromtimestamp(ns / 1e9, timezone.utc)
 print(now.strftime(fmt.replace("%s", str(ns // 10 ** 9))))
 '''.replace("@@CLOCK@@", STEADY_CLOCK)
@@ -191,10 +200,19 @@ print(now.strftime(fmt.replace("%s", str(ns // 10 ** 9))))
 # and exit 1 at once), 'events-silent' (the CLI runs and receives nothing),
 # 'events-stderr' (the CLI warns on stderr and goes on) - and through
 # EGW_STUB_EVENTS_EOF_AFTER (the daemon closes the stream after that many
-# heartbeats: the CLI exits 0 by itself) and EGW_STUB_EVENTS_QUIET_AFTER (no
-# heartbeat after that many, the CLI still running). A follow ends by itself
-# after EGW_STUB_EVENTS_LIFETIME_S (300 s), so a case that fails leaves no
-# stream behind. The host stub defines now_ns(), its guest clock.
+# heartbeats: the CLI exits 0 by itself), EGW_STUB_EVENTS_QUIET_AFTER (no
+# heartbeat after that many, the CLI still running and the events stored
+# since still streamed) and EGW_STUB_EVENTS_STALL_AFTER (after that many
+# heartbeats the follow delivers nothing more at all - neither a heartbeat
+# nor an event stored since - the CLI still running). A follow ends by
+# itself after EGW_STUB_EVENTS_LIFETIME_S (300 s), so a case that fails
+# leaves no stream behind. 'docker exec CONTAINER CMD...' (the closing
+# marker of the docker-events fetch) stores the daemon's exec_create and
+# exec_start events of that container, whose Action carries the command, and
+# its exec_die, and exits 0 without running anything; 'exec-fails' in
+# EGW_STUB_FAIL refuses it (stderr, exit 1, no event) and 'exec-hangs' makes
+# it block, nothing stored (a daemon that never answers it). The host stub
+# defines now_ns(), its guest clock.
 EVENTS_STUB = r'''
 EVENTS_STORE = os.environ["EGW_STUB_LOG"] + ".events-store"
 HISTORY_LIMIT = 256
@@ -258,9 +276,14 @@ def docker_events(args):
     seen = len(current)
     eof_after = int(os.environ.get("EGW_STUB_EVENTS_EOF_AFTER", "0"))
     quiet_after = int(os.environ.get("EGW_STUB_EVENTS_QUIET_AFTER", "0"))
+    stall_after = int(os.environ.get("EGW_STUB_EVENTS_STALL_AFTER", "0"))
     beats = 0
     cid = "00" + "a" * 62
     while time.monotonic() - started < lifetime:
+        if stall_after and beats >= stall_after:
+            # Stalled: the CLI runs on and delivers nothing more.
+            time.sleep(0.1)
+            continue
         current = stored_events()
         for event in current[seen:]:
             emit_event(event)
@@ -275,6 +298,31 @@ def docker_events(args):
         if eof_after and beats >= eof_after:
             sys.exit(0)
         time.sleep(0.1)
+    sys.exit(0)
+
+
+def docker_exec(args):
+    """'docker exec CONTAINER CMD...': the daemon's exec_create and
+    exec_start events of CONTAINER, their Action 'exec_create: CMD...' as
+    Docker writes it (r03's healthchecks: 'exec_create: python -c ...'), and
+    its exec_die, stored so that a follow streams them; nothing is run."""
+    if fails("exec-fails"):
+        print("Error response from daemon: stub exec refused", file=sys.stderr)
+        sys.exit(1)
+    if fails("exec-hangs"):
+        # A daemon that never answers the exec: nothing is stored and the
+        # CLI blocks (ended by a signal, or by itself after the lifetime).
+        time.sleep(float(os.environ.get("EGW_STUB_EVENTS_LIFETIME_S", "300")))
+        sys.exit(0)
+    if len(args) < 3 or args[1].startswith("-"):
+        print(f"stub docker exec: unsupported arguments {args[1:]!r}", file=sys.stderr)
+        sys.exit(1)
+    name, command = args[1], " ".join(args[2:])
+    cid = "0f" * 32 if name == "egw-controller-1" else "00" + "a" * 62
+    exec_id = "e" * 64
+    store_event(f"exec_create: {command}", name, cid, execID=exec_id)
+    store_event(f"exec_start: {command}", name, cid, execID=exec_id)
+    store_event("exec_die", name, cid, execID=exec_id, exitCode="0")
     sys.exit(0)
 '''
 
@@ -292,7 +340,8 @@ fails or that answers nothing, a daemon that ignores the bounds
 ('logs-ignore-since'), a line without a stamp in the answer
 ('log-unstamped'), a kill or a start that is refused, a start without
 effect, a start that writes past the harness's stderr budget, an inspect
-that does not answer; the events as EVENTS_STUB says. The kill and the start
+that does not answer; the events and the exec as EVENTS_STUB says, an exec
+in the controller refused while it is not running. The kill and the start
 add the daemon's kill (signal 9), die and start events to the events."""
 import json
 import os
@@ -446,6 +495,13 @@ if cmd == "logs":
     sys.exit(0)
 if cmd == "events":
     docker_events(args)
+if cmd == "exec":
+    if args[1:2] == ["egw-controller-1"] and state["status"] != "running":
+        # The daemon refuses an exec in a container that is not running
+        # (killed and not started again, or restarting).
+        print(f"Error response from daemon: container {state['id']} is not running", file=sys.stderr)
+        sys.exit(1)
+    docker_exec(args)
 if cmd == "kill":
     if fails("kill-fails"):
         print("Error response from daemon: stub kill refused", file=sys.stderr)
@@ -1182,7 +1238,8 @@ def test_events_past_the_daemons_bounded_history_are_captured_and_the_fault_is_f
     life = (hooks.sut_logs / "docker-events.lifecycle.txt").read_text(encoding="utf-8").splitlines()
     assert life[-1].startswith("cli-exit ") and life[-1].endswith("stop_requested=yes")
     stop = (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8")
-    assert "unit_state_before_stop=active" in stop and "closing_witness_seen=yes" in stop
+    assert "unit_state_before_stop=active" in stop and "closing_marker_seen=yes" in stop
+    assert "closing_marker_exec_rc=0" in stop and "closing_witness" not in stop
     assert "unit_state_after_stop=inactive" in stop
     assert not hooks.recorder_running()
 
@@ -1222,13 +1279,14 @@ def test_a_fault_free_capture_is_complete_without_expected_events_and_never_comp
     ("daemon-restarted", "R2", "the guest boot or the docker daemon changed during the capture"),
     # The CLI reported a problem on stderr.
     ("stderr", "R4", "the events CLI wrote to stderr"),
-    # The stream fell silent: no event after the stop request shows it live
-    # to the window's end.
-    ("no-witness", "R5", "no event is stamped after the second of the stop request"),
+    # The stream stalled, the CLI still running: the closing marker the
+    # fetch issued after the stop request never arrived within the wait, so
+    # nothing shows the subscription live to the window's end.
+    ("stalled", "R5", "the closing marker "),
 ])
 def test_a_capture_that_was_broken_is_kept_apart_and_never_complete(hooks, case, rule, says):
     env = {"eof": {"EGW_STUB_EVENTS_EOF_AFTER": "15"}, "stderr": {"EGW_STUB_FAIL": "events-stderr"},
-           "no-witness": {"EGW_STUB_EVENTS_QUIET_AFTER": "3"}}.get(case, {})
+           "stalled": {"EGW_STUB_EVENTS_STALL_AFTER": "3"}}.get(case, {})
     start = hooks.start_recorder(**env)
     assert start.returncode == 0, report(start)
     t0 = _run_t0(start)
@@ -1238,12 +1296,10 @@ def test_a_capture_that_was_broken_is_kept_apart_and_never_complete(hooks, case,
     if case == "daemon-restarted":
         Path(str(hooks.bench.log) + ".docker-daemon.json").write_text(
             json.dumps({"MainPID": "977", "ExecMainStartTimestampMonotonic": "9100000"}), "utf-8")
-    if case == "no-witness":
-        # Silent from a second BEFORE the one the stop is requested in: its
-        # three heartbeats captured, and the guest clock past them.
+    if case == "stalled":
+        # Stalled after its three heartbeats, on a clock that moves forward.
         hooks.wait_for(lambda: len(hooks.captured()) >= 3)
-        last = max(e["timeNano"] for e in hooks.captured()) // 10 ** 9
-        hooks.wait_for(lambda: hooks.now() > last)
+        assert hooks.recorder_running()
     result, dest = _events_fetch(hooks, t0, expected=None)
     assert result.returncode == 1, report(result)
     assert not dest.exists()
@@ -1259,6 +1315,217 @@ def test_a_capture_that_was_broken_is_kept_apart_and_never_complete(hooks, case,
     if case == "eof":
         assert "rc=0 stop_requested=no" in (hooks.sut_logs / "docker-events.lifecycle.txt").read_text(encoding="utf-8")
         assert "unit_state_before_stop=inactive" in (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8")
+    if case == "stalled":
+        # Issued, not delivered; the unit stopped all the same.
+        stop = (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8").splitlines()
+        assert value(stop, "closing_marker_exec_rc") == "0" and value(stop, "closing_marker_seen") == "no"
+        assert value(stop, "unit_state_after_stop") == "inactive"
+        assert coverage["rule_R5"][0].startswith(f"broken: the closing marker {value(stop, 'closing_marker')} was issued")
+    assert not hooks.recorder_running()
+
+
+# --- the closing marker (PM bounded review of PR #50, F1)
+
+NONCE_FORM = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+# The container the fetch issues its marker in: the broker's, which the
+# proof never faults (never the controller's, which it kills).
+MARKER_C = "egw-mosquitto-1"
+
+
+def _stop_record(hooks: Hooks) -> list[str]:
+    return (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8").splitlines()
+
+
+def _kept_apart_and_stopped(hooks: Hooks, result: subprocess.CompletedProcess, dest: Path) -> list[dict]:
+    """A capture not shown complete: the hook exits 1, DEST is absent, the
+    partial capture and every record are kept, and the unit was stopped by
+    the fetch. Returns the partial capture."""
+    assert result.returncode == 1, report(result)
+    assert not dest.exists(), "DEST was written for a capture not shown complete"
+    partial = hooks.sut_logs / "docker-events.partial.jsonl"
+    assert partial.is_file()
+    for name in ("lifecycle.txt", "start-facts.txt", "cli-stderr.txt", "stop.txt", "coverage.txt"):
+        assert (hooks.sut_logs / f"docker-events.{name}").is_file(), name
+    stop = _stop_record(hooks)
+    assert value(stop, "unit_state_before_stop") == "active" and value(stop, "unit_state_after_stop") == "inactive"
+    life = (hooks.sut_logs / "docker-events.lifecycle.txt").read_text(encoding="utf-8").splitlines()
+    assert life[-1].startswith("cli-exit ") and life[-1].endswith("stop_requested=yes"), life
+    assert not hooks.recorder_running()
+    last = result.stderr.splitlines()[-1]
+    assert last.startswith("STOP: proof_fetch_sut_log: the docker-events capture is NOT shown complete (coverage=incomplete")
+    assert last.endswith(f"was NOT written; what was captured is kept as {partial}")
+    return [json.loads(line) for line in partial.read_text(encoding="utf-8").splitlines()]
+
+
+def test_a_stop_request_stamped_before_events_already_captured_shows_no_capture_after_it(hooks):
+    """The counterexample of the review, end to end and r03-like: the stream
+    stalls (the CLI still running, nothing new delivered) and the guest's
+    clock has stepped back 2 s, so the stop request is stamped BEFORE events
+    the recorder had already captured. None of them is an observation made
+    after the request: the capture is not shown complete, DEST is not
+    written, the hook exits 1, the partial capture and every record are
+    kept, and the unit is stopped."""
+    start = hooks.start_recorder(EGW_STUB_EVENTS_STALL_AFTER="5")
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    hooks.wait_for(lambda: len(hooks.captured()) >= 5)
+    assert hooks.recorder_running()
+    result, dest = _events_fetch(hooks, t0, expected=None, EGW_STUB_DATE_OFFSET_S="-2")
+    captured = _kept_apart_and_stopped(hooks, result, dest)
+    stop = _stop_record(hooks)
+    t1 = int(value(stop, "stop_requested_guest_epoch"))
+    # The counterexample held: an event captured before the request is
+    # stamped in a later second than the request.
+    assert max(e["timeNano"] for e in captured) // 10 ** 9 > t1, (t1, captured[-1])
+    # The marker was issued after the request and never delivered.
+    nonce = value(stop, "closing_marker")
+    assert re.fullmatch(NONCE_FORM, nonce), stop
+    assert value(stop, "closing_marker_exec_rc") == "0" and value(stop, "closing_marker_seen") == "no"
+    assert not any(nonce in json.dumps(e) for e in captured)
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["incomplete"], coverage
+    assert coverage["rule_R5"][0].startswith(f"broken: the closing marker {nonce} was issued in {MARKER_C}"), coverage
+    assert [r.split(" ")[0] for r in coverage["reason"]] == ["R5"], coverage
+    assert int(coverage["latest_event_guest_epoch"][0]) > t1
+
+
+@pytest.mark.parametrize("env", [{}, {"EGW_STUB_EVENTS_QUIET_AFTER": "3"}], ids=["heartbeats", "no-heartbeat-left"])
+def test_the_closing_marker_issued_after_the_stop_request_is_captured_and_the_capture_is_complete(hooks, env):
+    """The normal path, on a clock that moves forward: the fetch records the
+    stop request, then issues its closing marker - a no-op exec in the
+    broker's container, named by a fresh nonce - and the recorder
+    captures its events. A stream whose heartbeats stopped but which still
+    delivers what happens is live, and the marker shows it."""
+    start = hooks.start_recorder(**env)
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    if env:
+        hooks.wait_for(lambda: len(hooks.captured()) >= 3)
+    result, dest = _events_fetch(hooks, t0, expected=None)
+    assert result.returncode == 0, report(result)
+    stop = _stop_record(hooks)
+    nonce = value(stop, "closing_marker")
+    assert re.fullmatch(NONCE_FORM, nonce), stop
+    # Recorded in this order: the request, the marker (before it was
+    # issued), how its exec ended, whether the guest saw it, the unit after.
+    keys = [line.partition("=")[0] for line in stop]
+    assert keys.index("stop_requested_guest_epoch") < keys.index("closing_marker") \
+        < keys.index("closing_marker_exec_rc") < keys.index("closing_marker_seen") < keys.index("unit_state_after_stop")
+    assert value(stop, "closing_marker_container") == MARKER_C
+    assert value(stop, "closing_marker_exec_rc") == "0" and value(stop, "closing_marker_seen") == "yes"
+    assert f"exec {MARKER_C} sh -c : egw-events-close {nonce}" in hooks.docker_calls()
+    captured = [json.loads(line) for line in dest.read_text(encoding="utf-8").splitlines()]
+    marker = [e for e in captured if nonce in e["Action"]]
+    assert [e["Action"] for e in marker] == [f"exec_create: sh -c : egw-events-close {nonce}",
+                                             f"exec_start: sh -c : egw-events-close {nonce}"]
+    assert {e["Actor"]["Attributes"]["name"] for e in marker} == {MARKER_C}
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["complete"], coverage
+    assert coverage["rule_R5"][0].startswith(f"held: the closing marker {nonce}"), coverage
+    assert coverage["closing_marker"] == [nonce] and coverage["closing_marker_exec_rc"] == ["0"]
+    assert coverage["closing_marker_container"] == [MARKER_C]
+    assert coverage["closing_marker_event_guest_epoch"] == [str(marker[0]["timeNano"] // 10 ** 9)]
+    assert not hooks.recorder_running()
+
+
+def test_a_closing_marker_whose_exec_failed_leaves_the_capture_not_complete_and_the_unit_stopped(hooks):
+    start = hooks.start_recorder()
+    assert start.returncode == 0, report(start)
+    result, dest = _events_fetch(hooks, _run_t0(start), expected=None, EGW_STUB_FAIL="exec-fails")
+    _kept_apart_and_stopped(hooks, result, dest)
+    stop = _stop_record(hooks)
+    assert re.fullmatch(NONCE_FORM, value(stop, "closing_marker")), stop
+    assert value(stop, "closing_marker_exec_rc") == "1" and value(stop, "closing_marker_seen") == "no"
+    # The daemon's refusal reached the capsule through the hook's stderr.
+    assert "Error response from daemon: stub exec refused" in result.stderr
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["incomplete"], coverage
+    assert coverage["rule_R5"][0].startswith(f"broken: the closing marker's exec in {MARKER_C} exited 1"), coverage
+    assert [r.split(" ")[0] for r in coverage["reason"]] == ["R5"], coverage
+
+
+def test_a_closing_marker_exec_the_daemon_never_answers_is_bounded_and_the_stop_and_the_records_follow(hooks,
+                                                                                                     monkeypatch):
+    """A wedged daemon: the stream stalled (the CLI still running, nothing
+    new) and the marker's exec never answered. The exec is bounded on the
+    guest (the image's BusyBox has no 'timeout'), so the fetch, run by the
+    harness's own hook runner with a limit far above that bound, ends by
+    itself: the exec is killed and recorded 'timeout', the unit is stopped,
+    the partial capture and every record are kept, DEST is not written, and
+    the capture is not shown complete (the exec's outcome is unknown)."""
+    start = hooks.start_recorder(EGW_STUB_EVENTS_STALL_AFTER="3")
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    hooks.wait_for(lambda: len(hooks.captured()) >= 3)
+    assert hooks.recorder_running()
+    for key, val in hooks.env(EGW_STUB_FAIL="exec-hangs").items():
+        monkeypatch.setenv(key, val)
+    label = FETCH_KINDS["docker-events"]
+    dest = hooks.sut_logs / run_mod.SUT_LOG_FILES[label]
+    template = hooks.template("proof_fetch_sut_log.sh", "docker-events", "{dest}", str(t0), "{run_id}")
+    record = run_mod.execute_collector_hook(label, template, RID, duration_s=300, dest=dest,
+                                            expect_services=list(EXPECT_SERVICES),
+                                            log_dir=hooks.sut_logs, timeout_s=40, kill_grace_s=2)
+    assert not record.get("timed_out"), record
+    assert record["returncode"] == 1, record
+    assert not dest.exists(), "DEST was written for a capture not shown complete"
+    for name in ("lifecycle.txt", "start-facts.txt", "cli-stderr.txt", "stop.txt", "coverage.txt", "partial.jsonl"):
+        assert (hooks.sut_logs / f"docker-events.{name}").is_file(), name
+    stop = _stop_record(hooks)
+    nonce = value(stop, "closing_marker")
+    assert re.fullmatch(NONCE_FORM, nonce), stop
+    assert value(stop, "closing_marker_container") == MARKER_C
+    assert value(stop, "closing_marker_exec_rc") == "timeout" and value(stop, "closing_marker_seen") == "no"
+    assert value(stop, "unit_state_before_stop") == "active" and value(stop, "unit_state_after_stop") == "inactive"
+    assert not hooks.recorder_running()
+    # The exec was killed, not left blocking on the guest.
+    left = []
+    for cmdline in Path("/proc").glob("[0-9]*/cmdline"):
+        try:
+            if f"egw-events-close {nonce}".encode() in cmdline.read_bytes():
+                left.append(cmdline.parent.name)
+        except OSError:
+            pass
+    assert left == [], left
+    kept = (hooks.sut_logs / f"hook-{label}.stderr.txt").read_text(encoding="utf-8")
+    assert f"the exec of the closing marker in {MARKER_C} did not end within 45 s: it was killed" in kept
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["unknown"], coverage
+    assert coverage["rule_R5"][0].startswith(f"unknown: the closing marker's exec in {MARKER_C} did not end"), coverage
+    assert [r.split(" ")[0] for r in coverage["reason"]] == ["R5"], coverage
+    assert kept.splitlines()[-1].startswith(
+        "STOP: proof_fetch_sut_log: the docker-events capture is NOT shown complete (coverage=unknown")
+
+
+def test_a_controller_not_running_at_the_fetch_leaves_the_closing_marker_and_the_capture_complete(hooks, monkeypatch):
+    """The fault's kill, die and start are captured; the controller then
+    stops again of its own (a crash during the drain: a failed recovery,
+    which the run records as such) and is not running at the fetch. The
+    closing marker does not depend on it: it is issued in the broker's
+    container, which the proof never faults, and the capture is shown
+    complete - an outcome of the system under test is never turned into a
+    failure of the instrument that records it."""
+    start = hooks.start_recorder()
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    manifest = hooks.run_restart_by_the_harness(monkeypatch)
+    assert manifest["returncode"] == 0, manifest
+    hooks.wait_for(lambda: any(e.get("Action") == "start" for e in hooks.captured()))
+    docker = str(hooks.bench.guest_bin / "docker")
+    crash = hooks.run_argv([docker, "kill", "egw-controller-1"])
+    assert crash.returncode == 0, report(crash)
+    refused = hooks.run_argv([docker, "exec", "egw-controller-1", "sh", "-c", ":"])
+    assert refused.returncode == 1 and "is not running" in refused.stderr, report(refused)
+    result, dest = _events_fetch(hooks, t0)
+    assert result.returncode == 0, report(result)
+    stop = _stop_record(hooks)
+    nonce = value(stop, "closing_marker")
+    assert value(stop, "closing_marker_container") == MARKER_C
+    assert value(stop, "closing_marker_exec_rc") == "0" and value(stop, "closing_marker_seen") == "yes"
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["complete"], coverage
+    assert coverage["rule_R5"][0].startswith(f"held: the closing marker {nonce}, a no-op exec in {MARKER_C}"), coverage
+    assert coverage["rule_R7"][0].startswith("held: every expected event of egw-controller-1"), coverage
     assert not hooks.recorder_running()
 
 

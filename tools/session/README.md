@@ -498,8 +498,13 @@ does (r03's two logs held the stack's earlier sessions). The docker-events
 fetch stops the recorder, fetches its capture and judges it with
 `events_coverage.py` (rules R1–R7: started and ready by `RUN_T0`, one boot
 and one daemon, ended by the stop and never by itself — even with status
-0 — nothing on the CLI's stderr, a closing witness after the stop request,
-every line JSON, and the fault's `kill` (signal 9), `die` and `start`,
+0 — nothing on the CLI's stderr, the closing marker captured (a no-op
+`docker exec` in the broker's container `egw-mosquitto-1`, which the proof
+never faults, that the fetch issues after it recorded the stop request and
+kills if it has not ended within 45 s, found in the capture by its fresh
+nonce, never by a timestamp: the guest's clock steps back, so an event
+stored before the request can be stamped after it), every line JSON, and
+the fault's `kill` (signal 9), `die` and `start`,
 passed only because this driver's scenario generates them); anything short
 of complete leaves no `docker-events.log` (the capture is kept as
 `docker-events.partial.jsonl`), and the records of the capture
