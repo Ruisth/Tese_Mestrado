@@ -1277,7 +1277,7 @@ until [ -s "$D/events.jsonl" ] && systemctl is-active -q "$UNIT"; do
     if [ "$n" -gt "$READY_TRIES" ]; then
         echo "NOT READY: the recorder unit $UNIT did not show a live subscription within $READY_TRIES one-second steps (unit $(systemctl is-active "$UNIT" 2> /dev/null), $(wc -c < "$D/events.jsonl") bytes captured); its record follows, and the unit is stopped"
         cat "$D/lifecycle.txt"
-        head -c 400 "$D/cli.stderr"
+        head -n 20 "$D/cli.stderr"
         sudo systemctl stop "$UNIT" 2> /dev/null
         echo "unit_state_after_stop=$(systemctl is-active "$UNIT" 2> /dev/null)"
         exit 3

@@ -253,13 +253,13 @@ def judge(directory: Path, run_t0: int, expected: list[str], container: str) -> 
             rules["R3"] = (UNKNOWN, "the stop record does not say when the stop was requested or the unit's state then")
         elif self_ended:
             e = self_ended[0]
-            rules["R3"] = (BROKEN, f"the events CLI ended by itself (epoch {e.get('epoch')}, exit {e.get('rc')}) before "
-                                   "any stop was requested: the stream was broken there, whatever its exit status")
+            rules["R3"] = (BROKEN, f"the events CLI ended by itself (epoch {e.get('epoch')}, exit {e.get('rc')}), "
+                                   "without a stop passed to it: the stream was broken there, whatever its exit status")
         elif state != "active":
             rules["R3"] = (BROKEN, f"the recorder unit was '{state}', not active, when the stop was requested")
         elif len(exits) != 1:
-            rules["R3"] = (BROKEN, f"the recorder wrote {len(exits)} end(s) of its CLI, not one "
-                                   "(none: its end by the stop is not recorded)")
+            rules["R3"] = (BROKEN, f"the recorder wrote {len(exits)} end(s) of its CLI, not one"
+                                   + (" (none: its end by the stop is not recorded)" if not exits else ""))
         elif whole(exits[0].get("epoch")) is None:
             rules["R3"] = (UNKNOWN, "the end of the CLI carries no guest epoch")
         elif whole(exits[0]["epoch"]) < t1 - CLOCK_STEP_BAND_S:
@@ -342,8 +342,8 @@ def judge(directory: Path, run_t0: int, expected: list[str], container: str) -> 
              "requested_until_note=the stop request of the docker-events fetch, which runs after the drain and "
              "the post-drain copy",
              "provenance=docker events --since <recorder since> --filter type=container --format {{json .}}, "
-             "followed continuously by the recorder unit from its readiness to its stop (proof_events_recorder.sh), "
-             "not a history query",
+             "subscribed by the recorder unit (proof_events_recorder.sh) before RUN_T0 and meant to be followed to "
+             "its stop, not a history query; whether it was followed throughout is the verdict and the rules below",
              "clock=guest: every epoch here is the guest's date +%s or the daemon's timeNano; no host instant",
              "expected=" + (",".join(expected) if expected else "none"),
              f"container={container}"]

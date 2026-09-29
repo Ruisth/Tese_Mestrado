@@ -321,8 +321,9 @@ class ControllerMetricsSampler:
         except http.client.HTTPException as exc:
             # A typed HTTP failure that is not an OSError - e.g. IncompleteRead,
             # a controller killed between a response's headers and its body.
-            # It is a failed poll like any other, in every mode: counted,
-            # logged, followed at the mode's cadence, and no row is written.
+            # It is a failed poll like any other, in every mode: counted and
+            # kept as last_error (and in the attempts log, when the retry mode
+            # has one), followed at the mode's cadence, and no row is written.
             # (Until 2026-09-29 the default sampler let it end its thread or
             # raise from the entry poll; LOG #C045, #C046.)
             self.poll_errors += 1
