@@ -3881,3 +3881,108 @@ is unchanged.
   failure tests.
 - **Decisions and next steps.** None accepted here. A further finite-proof
   attempt needs the student's separate decision.
+
+## Entry #C046 — r03 closure: decision, published evidence, normal-sampler repair, run-scoped logs and events, G3 readiness map
+
+- **Date:** 2026-09-29. **Scope:** the Project Manager's work order of
+  2026-09-29 (`ChatGPT/WORK_ORDER_R03_CLOSURE_G3_PREPARATION_2026-09-29.md`),
+  on the student's "Confirmo e autorizo" of the same day: one bounded offline
+  block, four deliverables (A–D), one pull request. No guest session, build,
+  load, proof attempt, pilot or G3 run; the controller, the broker, the image
+  (`489bc9e`), the evaluator and every criterion, threshold and load are
+  unchanged. Branch `feat/r03-closure-g3-prep` on `dev` at `b65a06d` (the
+  merge of PR #49).
+- **Why.** On 2026-09-29 the student accepted r03 (2026-09-28, `supports`) as
+  meeting the finite proof's diagnostic purpose for that run, with the missing
+  Docker kill/start timeline acknowledged. Three things stood between that
+  record and a qualifying battery: the default sampler's handling of a typed
+  HTTP failure (#C045, Limits), SUT log copies that held every earlier session,
+  and a Docker event query that returned only the tail of a bounded history.
+- **What.**
+  - *A, decision and evidence.* ADR 0011 gains "The decision recorded on
+    2026-09-29" (what r01–r03 recorded, what the decision keeps, what it is
+    not, what it authorises) and an implementation record for 2026-09-26 to
+    2026-09-29; its status, its index row and a PROGRESS marker follow. The
+    seven r03 packages are published byte for byte in
+    `docs/evidence/finite-proof-r03/` with a README and an outer seal (303
+    files, 8.15 MiB); the local originals, their seals and `SHA256SUMS.1` are
+    untouched. `tools/ci/verify_evidence.py` now also reads the coreutils
+    binary-mode marker (`<hash> *<name>`), which the host-preparation seal
+    uses, instead of that seal being rewritten.
+  - *B, the normal sampler.* `controller_metrics._sample_once` counts a typed
+    `http.client.HTTPException` (`IncompleteRead`, `BadStatusLine`,
+    `LineTooLong`) as a failed poll in every mode: `poll_errors`, `last_error`
+    as `Name: message`, no row, the next poll at the mode's cadence. The
+    default sampler used to end its thread (or raise from the entry poll).
+    Cadence, the five-second timeout, the stop event and the retry mode are
+    unchanged; other exceptions still propagate.
+  - *C, logs and events.* In the proof driver, `proof_fetch_sut_log.sh` reads the
+    controller and broker logs with `--since RUN_T0 --until UNTIL` on the
+    guest clock (RUN_T0: the guest epoch at which the run's events recorder
+    was found ready, before tunnel-ready, the harness, the load and the fault;
+    UNTIL: the guest's clock at the fetch), counts and hashes on the guest
+    what the bound leaves out, and checks on the host that every line carries
+    a stamp inside the window; a line outside it or without a stamp fails the
+    read with no file, since `--since` alone is no evidence of the bound. The
+    Docker events come from `proof_events_recorder.sh`, started by `proof.sh`
+    as the unit `egw-events-RUN_ID` (`systemd-run`, write-once directory,
+    recorder checked by sha256, boot id and daemon facts recorded, readiness
+    polled) before the harness, and stopped by the docker-events fetch after
+    the post-drain copy, which waits for a closing witness, copies the files
+    and runs `events_coverage.py` (R1–R7: start, readiness before RUN_T0, the
+    same boot and daemon, one stop-requested exit, empty CLI stderr, the
+    witness, JSON lines with `timeNano`, and the fault's kill, die and start
+    only when the run passes them). Only `complete` writes
+    `docker-events.log`; otherwise the hook exits 1 and keeps
+    `docker-events.partial.jsonl`, with the lifecycle, start facts, stop and
+    coverage records kept either way. A recorder that fails to start or is
+    not ready leaves the harness undispatched; the restoration stops a unit
+    the harness did not and records the capture incomplete. No change to
+    `run.py`, the eligibility rules or the evaluator: an incomplete capture
+    reaches `invalid` and `complete=false` through the existing fetch-failure
+    rules.
+  - *D, G3 readiness.* `docs/governance/g3-readiness-map-2026-09-29.md`: the
+    nine families against the plan's criterion (T2 and T9 ready; T1, T3, T4
+    with its sequence reset, T5, T7 with its Ditto half and T8 pending; T6
+    blocked), the restart resource gap, N1 under the ordinary rules, the
+    timed-delivery findings and four decisions it surfaces without making.
+- **Tests.** `test_metrics_fast_retry.py`: the typed failures (three kinds)
+  counted without a row in the default mode; on the entry poll, with a
+  genuine reading after it; in the running thread, recovering at the normal
+  cadence (no 50 ms retry); no fabricated row; the stop event ending a
+  failing sampler; a programming error still propagating in both modes; the
+  plain message of `RemoteDisconnected` kept. `test_experiments_run.py`: a
+  run whose default sampler meets only typed failures completes with them
+  counted. `test_events_coverage.py` (26 cases): each rule held and broken,
+  unreadable input `unknown`, guest-clock fields only.
+  `test_proof_events_recorder.py` (9 cases, under the host `sh` and the
+  image's BusyBox): stop, a CLI ending first, a CLI failing at start, the
+  wrapper killed, a stop before the CLI. `test_proof_hooks.py`: old-session
+  exclusion for both logs (an old A5 line on the same device included), a
+  daemon ignoring `--since`, an unstamped line, argument refusals, the
+  recorder's start, readiness and failures, events beyond a 256-event
+  history with the kill captured while the history query lacks it, a
+  fault-free run complete, broken captures (CLI end with rc 0, daemon
+  restart, stderr, no witness), a refused stop and a missing recorder
+  `unknown`, and the resulting validity reason through the harness hook
+  runner. `test_proof_driver.py`: step order, session facts, recorder
+  failure or not ready leaving the harness unstarted, the restoration's
+  cleanup after an early harness end, the 50-minute rule and an interrupt.
+  `test_proof_evaluator.py`: a failed docker-events fetch gives
+  `complete=false` without making the controller log unusable. The runs,
+  the identities they were taken on and their results are in the pull
+  request and `output_test/runs/2026-09-29/`.
+- **Limits.** The r03 record stays what it was: its events do not cover the
+  kill, its logs are unscoped, its harness run invalid, its N1 identity `lost`
+  under the ordinary rules. C is verified with stubs only; its first use on a
+  guest is still to come, and the runbook families are not yet wired to it.
+  Deferred with a trigger: `run.poll_controller_marker` catches only `OSError`
+  and `ValueError`, so a typed HTTP failure there would still end the run
+  without a manifest; and an I/O error writing a metrics or attempts row still
+  ends the sampler's thread — both before any qualifying G3 run that uses
+  `--controller-url`. This entry supersedes #C045's sentence "The default
+  sampler keeps propagating it"; #C045 itself is unchanged.
+- **Decisions and next steps.** None made here. Before G3: the lifecycle-aware
+  restart rule, the N1 analysis rule, the deadline families, the candidate lock
+  and the student's authorisation of the battery (readiness map, "Decisions to
+  surface").

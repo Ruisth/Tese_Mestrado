@@ -1,0 +1,4 @@
+ac14ff49-1496-43a0-a8b6-c828e72aff42 smartwatch: existed_before=False accepted_count None -> 300 (delta 300); accepted records in events.post-drain.jsonl 300; last_run_id proof-adr0011-r03 last_seq 299: OK
+9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83 smart_ring: existed_before=False accepted_count None -> 60 (delta 60); accepted records in events.post-drain.jsonl 60; last_run_id proof-adr0011-r03 last_seq 59: OK
+9ce5fe46-662d-4cd3-9639-f16d057debc5 smart_clothing: existed_before=False accepted_count None -> 3000 (delta 3000); accepted records in events.post-drain.jsonl 2999; last_run_id proof-adr0011-r03 last_seq 2999: MISMATCH
+/metrics: controller process RESTARTED between the two snapshots (started_at differs); its counters restarted from zero, so no delta is computed

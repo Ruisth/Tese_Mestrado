@@ -1,0 +1,21 @@
+run_id=proof-adr0011-r03
+container=egw-controller-1
+phase=before
+guest_epoch=1790629969
+guest_utc=2026-09-28T21:12:50Z
+container_id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787
+started_at=2026-09-28T20:58:05.444710738Z
+status=running
+phase=fault
+fault_command=cd /opt/egw/deployment && docker kill --signal=KILL egw-controller-1 && docker compose --env-file .env --env-file images.lock.env start controller
+fault_dispatched_host_utc=2026-09-28T21:12:52Z
+fault_exit=0
+phase=after
+guest_epoch=1790629984
+guest_utc=2026-09-28T21:13:04Z
+container_id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787
+started_at=2026-09-28T21:13:03.730874694Z
+status=running
+phase=observation
+container_id_same=yes
+started_at_changed=yes

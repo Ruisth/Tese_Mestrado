@@ -35,3 +35,8 @@ docs/evidence/integrated-qemu/** -text whitespace=-blank-at-eol,-blank-at-eof,-s
 # transcripts of the guest session keep the carriage returns of the
 # pseudo-terminal, and every file is covered by a SHA-256 manifest.
 docs/evidence/g2-complete-flow/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+
+# Preserve the captured bytes of the r03 finite-proof capsule: console
+# transcripts and metrics files keep their carriage returns, and every file is
+# covered by a SHA-256 manifest.
+docs/evidence/finite-proof-r03/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

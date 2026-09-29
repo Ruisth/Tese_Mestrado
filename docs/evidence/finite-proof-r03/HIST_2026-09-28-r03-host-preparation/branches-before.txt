@@ -1,0 +1,2 @@
+cf6bc62f730aad58a0fa4301d0740cf00ca6eec6 refs/heads/docs/integrated-yocto-plan-20260916
+fb1690d669eef89a835a1e158baf47f6e554e0d9 refs/heads/exec-dev

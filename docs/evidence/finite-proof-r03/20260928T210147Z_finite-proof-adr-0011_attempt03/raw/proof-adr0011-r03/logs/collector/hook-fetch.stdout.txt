@@ -1,0 +1,5 @@
+fetch: resources-proof-adr0011-r03.csv present sha256=bd3e3cc95a183f4ed30317ed4f4273edae2ea825a39d018c5ef4e5f180dde453 verified
+fetch: resources-proof-adr0011-r03.csv.diagnostics.log present sha256=7727f7480dfb2601afcbb645e55c94a45166dd8a0f2a9cb06b22ed89f5f3d7b6 verified
+fetch: resources-proof-adr0011-r03.csv.lifecycle.csv present sha256=22dcd318d6dc015cacf3d0f66aaca5aef21a2f54eedb1ab1ab7a32443f323c6e verified
+fetch: resources-proof-adr0011-r03.csv.self-test absent (optional)
+fetch: result exit=0 (every mandatory file present and verified)

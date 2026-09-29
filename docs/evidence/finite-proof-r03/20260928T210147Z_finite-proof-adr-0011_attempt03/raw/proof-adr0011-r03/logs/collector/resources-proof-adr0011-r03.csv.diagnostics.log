@@ -1,0 +1,38 @@
+2026-09-28T21:10:24Z start: collector_sha256=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 host=egw-qemu-integrated source=auto interval=1s duration=720s pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
+2026-09-28T21:10:24Z sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+2026-09-28T21:10:25Z calibrated: wall second 1790629825 began at uptime 999.89 s (calibration 1)
+2026-09-28T21:10:32Z sample withheld at uptime 1008.48 s: it fell in second 2026-09-28T21:10:32Z, not after the last stamped second 2026-09-28T21:10:32Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:10:33Z stamps resumed after 1 withheld sample(s): 0.98 s of elapsed time without an accepted sample (uptime 1007.47 s to 1009.45 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:10:33Z clock phase: aimed at second 2026-09-28T21:10:34Z and sampled in 2026-09-28T21:10:33Z; recalibrating
+2026-09-28T21:10:34Z clock phase: aimed at second 2026-09-28T21:10:35Z and sampled in 2026-09-28T21:10:34Z; recalibrating
+2026-09-28T21:10:35Z calibrated: wall second 1790629835 began at uptime 1011.27 s (calibration 2)
+2026-09-28T21:11:03Z sample withheld at uptime 1040.87 s: it fell in second 2026-09-28T21:11:03Z, not after the last stamped second 2026-09-28T21:11:03Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:11:04Z calibrated: wall second 1790629864 began at uptime 1041.61 s (calibration 3)
+2026-09-28T21:11:04Z stamps resumed after 1 withheld sample(s): 1.33 s of elapsed time without an accepted sample (uptime 1039.86 s to 1042.19 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:11:34Z sample withheld at uptime 1073.19 s: it fell in second 2026-09-28T21:11:34Z, not after the last stamped second 2026-09-28T21:11:34Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:11:35Z calibrated: wall second 1790629895 began at uptime 1074.00 s (calibration 4)
+2026-09-28T21:11:35Z stamps resumed after 1 withheld sample(s): 1.34 s of elapsed time without an accepted sample (uptime 1072.24 s to 1074.58 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:12:05Z sample withheld at uptime 1105.55 s: it fell in second 2026-09-28T21:12:05Z, not after the last stamped second 2026-09-28T21:12:05Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:12:06Z calibrated: wall second 1790629926 began at uptime 1106.48 s (calibration 5)
+2026-09-28T21:12:06Z stamps resumed after 1 withheld sample(s): 1.50 s of elapsed time without an accepted sample (uptime 1104.57 s to 1107.07 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:12:35Z sample withheld at uptime 1137.06 s: it fell in second 2026-09-28T21:12:35Z, not after the last stamped second 2026-09-28T21:12:35Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:12:36Z calibrated: wall second 1790629956 began at uptime 1137.75 s (calibration 6)
+2026-09-28T21:12:36Z stamps resumed after 1 withheld sample(s): 1.27 s of elapsed time without an accepted sample (uptime 1136.06 s to 1138.33 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:13:06Z sample withheld at uptime 1169.32 s: it fell in second 2026-09-28T21:13:06Z, not after the last stamped second 2026-09-28T21:13:06Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:13:07Z calibrated: wall second 1790629987 began at uptime 1170.05 s (calibration 7)
+2026-09-28T21:13:07Z stamps resumed after 1 withheld sample(s): 1.40 s of elapsed time without an accepted sample (uptime 1168.31 s to 1170.71 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:13:37Z sample withheld at uptime 1201.64 s: it fell in second 2026-09-28T21:13:37Z, not after the last stamped second 2026-09-28T21:13:37Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:13:38Z calibrated: wall second 1790630018 began at uptime 1202.44 s (calibration 8)
+2026-09-28T21:13:38Z stamps resumed after 1 withheld sample(s): 1.44 s of elapsed time without an accepted sample (uptime 1200.61 s to 1203.05 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:14:08Z sample withheld at uptime 1234.05 s: it fell in second 2026-09-28T21:14:08Z, not after the last stamped second 2026-09-28T21:14:08Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:14:09Z calibrated: wall second 1790630049 began at uptime 1234.81 s (calibration 9)
+2026-09-28T21:14:10Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-09-28T21:14:08Z)
+2026-09-28T21:14:10Z stamps resumed after 1 withheld sample(s): 1.33 s of elapsed time without an accepted sample (uptime 1233.07 s to 1236.40 s, less one interval and the 1 forward UTC-gap second(s) just counted); not in the forward UTC-gap count
+2026-09-28T21:14:39Z sample withheld at uptime 1266.47 s: it fell in second 2026-09-28T21:14:39Z, not after the last stamped second 2026-09-28T21:14:39Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:14:40Z calibrated: wall second 1790630080 began at uptime 1267.29 s (calibration 10)
+2026-09-28T21:14:40Z stamps resumed after 1 withheld sample(s): 1.45 s of elapsed time without an accepted sample (uptime 1265.46 s to 1267.91 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:15:10Z sample withheld at uptime 1298.88 s: it fell in second 2026-09-28T21:15:10Z, not after the last stamped second 2026-09-28T21:15:10Z (a clock stepped back, or two samples in one second); no rows
+2026-09-28T21:15:11Z calibrated: wall second 1790630111 began at uptime 1299.67 s (calibration 11)
+2026-09-28T21:15:11Z stamps resumed after 1 withheld sample(s): 1.56 s of elapsed time without an accepted sample (uptime 1297.88 s to 1300.44 s, less one interval); not in the forward UTC-gap count
+2026-09-28T21:15:13Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0
+2026-09-28T21:15:13Z stop: samples=298 utc_gap_seconds=1 withheld_samples=10 withheld_elapsed_s=13.60 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=11 pacing=wall-clock

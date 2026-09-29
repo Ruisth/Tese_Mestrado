@@ -3,7 +3,11 @@
 **Status:** Accepted by the student for bounded implementation (2026-09-24) —
 proposed on 2026-09-21, condition C3 met on 2026-09-23, the decision recorded
 on 2026-09-24 ("The decision recorded on 2026-09-24", under Decision); the
-finite proof and the qualifying battery are pending. It records the
+finite proof ran on 2026-09-26 (r01 and r02, inconclusive) and on 2026-09-28
+(r03, supports), and on 2026-09-29 the student accepted r03, with
+qualifications, as meeting the proof's diagnostic purpose for that run ("The
+decision recorded on 2026-09-29"); the qualifying battery is pending and G3
+stays paused. It records the
 student's decision to implement option 5, acknowledging each message
 only after its outcome is recorded, on a persistent MQTT session, **under the
 conditions that the answers to its four gate items set** (2026-09-21; six
@@ -29,11 +33,13 @@ record, in its review annex (`adr-0011-review-annex.md`), which does not enter
 changes a maturity level, or changes any threshold, confirmation window,
 deadline, offered load, ingest rule or evidence class.
 
-**Nothing in this record is a guarantee.** The code at the merged `dev`
-implements none of it. It becomes the behaviour this record proposes,
-supported by one broker measurement and one proof run, only after four things
-have happened, in this order (the first two have: the decision on 2026-09-24,
-the measurement on 2026-09-23): the student records the decision; the broker
+**Nothing in this record is a guarantee.** It becomes the behaviour this
+record proposes, supported by one broker measurement and one proof run, only
+after four things have happened, in this order (all four have, the last with
+the qualifications of "The decision recorded on 2026-09-29": the measurement
+on 2026-09-23, the decision on 2026-09-24, the change merged into `dev` on
+2026-09-25 in pull request #46, and the proof, whose third attempt supported
+the option on 2026-09-28): the student records the decision; the broker
 measurement below has run on the pinned broker and **supported** the option,
 every condition of its support row holding (S1–S5 of [I1 §7]); the change, its
 contract text and its regression tests are merged; and the finite proof below
@@ -988,6 +994,66 @@ would give the same recovery with `latency_ms` unaffected even when the backlog
 is large, but at an unmeasured per-message durable write on a guest that served
 below the offered rate in every observed phase of one run, and as the largest
 change of the five; it is held in reserve, not dismissed.
+
+### The decision recorded on 2026-09-29
+
+**On 2026-09-29 the student accepted the third attempt at the finite proof
+(r03) as meeting the purpose of that engineering diagnostic for that run**, in
+the words "Confirmo e autorizo" ("I confirm and authorise"), in answer to the
+project manager's request to confirm a qualified closure of the proof and to
+authorise a bounded offline block with G3 kept paused (the request and its
+record are held with the project manager's records outside the repository).
+The missing Docker kill/start timeline of r03 is explicitly acknowledged.
+
+The three attempts, each under the criteria, thresholds and stop rules of "The
+finite proof" unchanged, one guest session each under its own authorisation:
+
+- **r01, 2026-09-26** (tools and image at `489bc9e`): **inconclusive**
+  (evaluator exit 3). S2 did not hold, without a refutation: the one
+  `duplicate`-only identity was received inside the sampling band between the
+  last pre-kill and the first post-kill metrics readings (E-8). The 490 s quiet
+  window was also not demonstrated on the monotonic basis, because `drained`
+  timed it on the wall clock.
+- **r02, 2026-09-26** (tools with the quiet-timer repair of pull request #48):
+  **inconclusive** (exit 3), the same pattern with the one-second sampler: the
+  `duplicate`-only identity inside the band, about 0.56 s before the first
+  post-kill reading. Both drains were demonstrated on `/proc/uptime`.
+- **r03, 2026-09-28** (tools at `b65a06d`, with the proof's failed-poll retry of
+  pull request #49; the image unchanged from `489bc9e`): **supports** (exit 0).
+  S1–S6 hold, R1–R4 are not observed and no stop rule was reached. The one
+  `duplicate`-only identity was received 0.209 s after the first post-kill
+  reading, so the evaluator names it an N1 case (source kill, twin surplus 1).
+  Its record is published in
+  [`docs/evidence/finite-proof-r03/`](../evidence/finite-proof-r03/README.md),
+  byte-for-byte copies of the seven local packages.
+
+**What the decision keeps as recorded:** the verdict `supports`, for that run
+only; the harness's `invalid` classification of its raw run and its withheld
+inner seal (a collector gap of 8.0 s at the restart, beyond
+`MAX_SAMPLE_GAP_S`); the ordinary twin `delta` result, `MISMATCH` (exit 4),
+which the N1 case explains; and E-12's admission of the sampling gap, which is
+the proof's alone. r01 and r02 and their verdicts are unchanged. No further
+attempt is required merely to replace the missing timeline.
+
+**What it is not.** It is not a declaration that r03 met this record's evidence
+collection: its Docker events do not cover the kill or the start (the history
+the final query returned held 41 healthcheck events from 21:19:32Z, after the
+kill at 21:12:52Z), and its controller and broker logs are not scoped to the
+run. It is not a G3 pass or any gate decision, not exactly-once recovery, not a
+capacity or performance result and not the admission of any claim. The N1
+identity stays `lost` under the ordinary rules until the separate decision
+reserved under "What must change", and neither the proof's N1 naming nor E-12
+carries over to any G3 family. The candidate freeze named by the checkpoint of
+2026-10-03 is not recorded by this decision.
+
+**What it authorises:** one bounded offline block — this record and the r03
+evidence, the default sampler's handling of a typed HTTP failure, run-scoped
+copies of the controller and broker logs with a continuous Docker event
+capture, tested with stubs, and a
+[G3 readiness map](../governance/g3-readiness-map-2026-09-29.md) (LOG #C046).
+No guest session, image build or load, proof attempt, pilot or qualifying G3
+run; the candidate image stays the one built from `489bc9e`, and the next live
+execution needs the student's separate authorisation.
 
 ### The conditions option 5 carries
 
@@ -1988,6 +2054,43 @@ load into the guest; the build and the guest session are separate acts,
 each under the student's own authorisation. None of this runs on the guest
 without the student's separate authorisation.
 
+## Implementation record (2026-09-26 to 2026-09-29)
+
+- **Identified image (2026-09-26).** `egw-controller:0.1.0`, image id
+  `sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46`,
+  `linux/arm64`, built from `489bc9e` with a clean tree and locked
+  dependencies, and loaded into the guest under the student's authorisation of
+  that day; it stayed unchanged through r03. That was the last item "Not in the
+  repository, needed before the proof" above.
+- **Quiet timer (pull request #48).** r01 showed the host's wall
+  clock advancing 500 s while `/proc/uptime` advanced 484 s, and `drained`
+  timed its quiet window on the wall clock. The window is now timed on
+  `/proc/uptime`, reading the clock before and after each reading; the 490 s
+  value and every criterion are unchanged.
+- **Failed-poll retry for the proof (pull request #49).** In the
+  proof only (`run --metrics-fast-retry`, passed by `proof.sh` alone), a failed
+  `/metrics` poll is followed after 50 ms instead of the rest of the
+  one-second interval, at most 60 s per failure episode, each attempt logged in
+  `controller_metrics.attempts.csv`. A successful poll keeps the interval. This
+  narrowed the band that left r01 and r02 inconclusive; the evaluator and its
+  rules are unchanged.
+- **Offline block of 2026-09-29 (LOG #C046).** The default sampler now counts a
+  typed `http.client.HTTPException` (`IncompleteRead`, `BadStatusLine`) as a
+  failed poll, as the retry mode already did; before, it ended the sampler's
+  thread, or raised from the entry poll. In the proof driver, the controller
+  and broker log copies are bounded to the run on the guest clock — from
+  RUN_T0, the instant the run's Docker events recorder was found ready just
+  before the harness, to the guest's clock at the fetch — and every line is
+  checked on the host to lie in that window; the run's Docker events come
+  from that recorder, started before the load and the fault and stopped by
+  the docker-events fetch after the post-drain copy, and
+  `tools/session/events_coverage.py` judges the capture, which is never
+  reported complete when it is not (the fault's kill, die and start are
+  required only of a run that issues one). No criterion, count or rule of
+  the evaluator changed. Nothing ran on the guest; what the guest's Docker
+  25.0.9 and Compose 2.26.0 accept for these reads is to be checked before
+  the next session.
+
 ## Consequences
 
 - **Positive, if the broker measurement and the proof support the option.** The
@@ -2372,6 +2475,12 @@ same day added the twin's evidence to S4 (a named N1 case needs the device's
 sentences that predicted the zero-lost gate's failure under every option
 (option 4's row of the options table and the fallback assessment) as an
 unresolved risk, each marked where it stands.
+
+On 2026-09-29 the record gained "The decision recorded on 2026-09-29", the
+implementation record of 2026-09-26 to 2026-09-29 and the status above; the
+paragraph "Nothing in this record is a guarantee" no longer says that the
+merged `dev` implements none of it, which had been stale since
+2026-09-25. No criterion, threshold, count or stop rule changed.
 
 ---
 

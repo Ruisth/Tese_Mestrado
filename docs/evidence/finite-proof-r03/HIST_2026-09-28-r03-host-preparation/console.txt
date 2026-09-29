@@ -1,0 +1,55 @@
+
+## 2026-09-28T20:53:15.709Z no guest, no open session
+your 131072x1 screen size is bogus. expect trouble
+no qemu-system-aarch64, no current_session
+
+## 2026-09-28T20:53:15.717Z tools clone /home/ruisth/egw-exec/repo: state before
+HEAD=b7b919cf5361f86a210e8de3c95b9176f8272720 branch=(detached)
+cf6bc62f730aad58a0fa4301d0740cf00ca6eec6 refs/heads/docs/integrated-yocto-plan-20260916
+fb1690d669eef89a835a1e158baf47f6e554e0d9 refs/heads/exec-dev
+status: clean
+
+## 2026-09-28T20:53:15.779Z fetch b65a06ddc02842cd6464555e319ee4cc5e0d1bfb from the Windows repository (its origin/dev, the merge of PR #49)
+FETCH_HEAD=b65a06ddc02842cd6464555e319ee4cc5e0d1bfb
+HEAD=b65a06ddc02842cd6464555e319ee4cc5e0d1bfb tree=403452085517da468a5b344a81d86009d680feb6
+clean; every branch unchanged
+what differs from the image's commit 489bc9e5b5b0660026ea2630b8d1d124049ba2ce in the executed tooling (the controller image is NOT rebuilt):
+ src/egw_experiments/cli.py                |  13 +++
+ src/egw_experiments/controller_metrics.py | 156 ++++++++++++++++++++++++++++--
+ src/egw_experiments/run.py                |  40 +++++++-
+ tools/session/proof.sh                    |  10 +-
+ 4 files changed, 207 insertions(+), 12 deletions(-)
+(end); src/deployment must be absent above:
+src/deployment identical to 489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+
+## 2026-09-28T20:53:16.965Z helper regenerated from the b65a06ddc02842cd6464555e319ee4cc5e0d1bfb runbook (predecessor kept) and checked
+1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc  /home/ruisth/egw-tcg/itest-helpers.sh
+kept the previous helper as /home/ruisth/egw-tcg/itest-helpers.sh.1634c35bc79d
+wrote /home/ruisth/egw-tcg/itest-helpers.sh: sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines)
+runbook:  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+  heredoc sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines, 30071 bytes)
+deployed: /home/ruisth/egw-tcg/itest-helpers.sh
+  file    sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines, 30071 bytes)
+HELPERS OK: the deployed helper file is the runbook's section 6.1 heredoc, byte for byte
+-rw-r--r-- 1 ruisth ruisth 30071 Sep 28 21:53 /home/ruisth/egw-tcg/itest-helpers.sh
+-rw-r--r-- 1 ruisth ruisth 30071 Sep 28 21:53 /home/ruisth/egw-tcg/itest-helpers.sh.1634c35bc79d
+-rw-r--r-- 1 ruisth ruisth 18870 Sep 19 20:58 /home/ruisth/egw-tcg/itest-helpers.sh.c4f9f89ea64c
+-rw-r--r-- 1 ruisth ruisth 26860 Sep 26 18:33 /home/ruisth/egw-tcg/itest-helpers.sh.e76f036e49e0
+-rw-r--r-- 1 ruisth ruisth 19477 Sep 25 09:47 /home/ruisth/egw-tcg/itest-helpers.sh.f94cff6f6379
+
+## 2026-09-28T20:53:17.045Z the other identities the session reads (unchanged)
+yocto checkout: 489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+deploy_source_commit.txt: 489bc9e5b5b0660026ea2630b8d1d124049ba2ce (the deployment tree on the guest)
+egw-controller-0.1.0-arm64.tar: OK
+image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+/home/ruisth/egw-exec/repo/src/egw_experiments/__init__.py
+
+## 2026-09-28T20:53:17.188Z the preserved data-disk baseline (stage (a) of 2026-09-26)
+size=34359738368 blocks=5173960 mode=444 mtime=2026-09-23 21:14:27.485035576 +0100 /home/ruisth/egw-preservation/2026-09-26/egw-data.current-state.img
+preserved copy sha256=91e2d7b96a6ca5e43647735e765e900a2bbb66d14077ff2127a03d42d9f39cef
+live data disk: size=34359738368 blocks=5451768 mtime=2026-09-26 22:38:54.497262442 +0100 /home/ruisth/yocto/egw-integrated/egw-data.img
+
+## 2026-09-28T20:53:51.883Z run id proof-adr0011-r03 is fresh
+no record of proof-adr0011-r03
+outcome=prepared (at 2026-09-28T20:53:51.886Z)

@@ -1,0 +1,7 @@
+[2026-09-28T20:54:14Z] opening session s1
+[2026-09-28T20:54:46Z] s1: guest up, is-system-running=running, uptime=20:54:47 up 0 min,  load average: 0.77, 0.19, 0.06
+[2026-09-28T20:54:46Z] s1: the guest stays up. Watch it with: tail -F /home/ruisth/egw-exec/attempts/20260928T205412Z_guest-session_attempt06/boot/s1.log   |   ssh into it with: /home/ruisth/egw-exec/attempts/20260928T205412Z_guest-session_attempt06/scripts/gssh.sh
+[2026-09-28T21:28:08Z] s1: collecting the final guest state
+[2026-09-28T21:28:17Z] s1: QEMU ended: exit=0 finished=2026-09-28T21:28:16Z
+[2026-09-28T21:28:17Z] s1: G1 artefacts: egw-image-qemuarm64.rootfs.manifest: OK
+[2026-09-28T21:28:17Z] s1: session closed: exit=0 closed=2026-09-28T21:28:17Z

@@ -1,0 +1,8 @@
+first_healthy_utc=2026-09-28T21:01:59Z
+first_healthy_sample=1
+first_healthy_completed_utc=2026-09-28T21:02:05Z
+first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services; the observation had completed by the instant the wait read after its last inspection (first_healthy_completed_utc, whole seconds: before that instant + 1 s), and that upper bound is what the deadline is judged on
+previous_sample_utc=null
+previous_sample_span_s=null
+elapsed_s=405
+HEALTHY RULE MET: first observed healthy 405 s after the candidate start 2026-09-28T20:55:13.582073214Z (sample 1 at 2026-09-28T21:01:59Z; allowance 1200 s, established by the earlier record)

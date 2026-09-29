@@ -1,0 +1,17 @@
+harness_started_utc=2026-09-28T21:10:21Z
+harness_started_host_uptime_s=1095
+harness_allowance_s=2500
+[harness] run proof-adr0011-r03: created /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03
+[harness] collector hook --collector-start-cmd
+[harness] --twin-snapshot-cmd
+[harness] measured run: 300 s at 11.2 msg/s
+[harness] collector hook --collector-stop-cmd
+[harness] waiting 60 s confirmation window
+[harness] collector hook --collector-fetch-cmd
+[harness] --drain-cmd
+[harness] --post-drain-fetch-cmd
+[harness] --twin-snapshot-cmd
+[harness] --fetch-broker-log-cmd
+[harness] --fetch-controller-log-cmd
+[harness] --fetch-docker-events-cmd
+[harness] run proof-adr0011-r03 FAILED

@@ -8,9 +8,10 @@ and by [`../../src/CONTRACTS.md`](../../src/CONTRACTS.md); changing an accepted
 ADR therefore requires updating those sources first and logging the change in
 `LOG.md`. An ADR whose status is `Proposed` (0007; 0010, amended by 0011) records a
 proposal, not a decision fixed by the plan in force. **0011 is accepted by the
-student for bounded implementation (2026-09-24)**: a decided design whose
-implementation, finite proof and qualifying battery are pending; it accepts no
-gate and admits no claim. **0008 is accepted by the student for
+student for bounded implementation (2026-09-24)**: a decided design,
+implemented (2026-09-25), whose finite proof supported it for one run
+(r03, 2026-09-28; accepted with qualifications on 2026-09-29) and whose
+qualifying battery is pending; it accepts no gate and admits no claim. **0008 is accepted by the student for
 project execution (2026-09-18), as amended for QEMU-only execution and again on
 2026-09-19**, and is fixed by the adopted plan. Its academic framing — the title
 and the research-question wording of D011 — is **reported approved by the
@@ -41,4 +42,4 @@ Conventions:
 | [0007](0007-three-tier-platform-model.md) | Three-tier platform model: only a non-burstable native ARM64 instance may produce numbers for RQ3 | Proposed; superseded for the adopted baseline by 0008 (2026-09-18); never validated by the supervisors |
 | [0008](0008-integrated-yocto-arm64-evaluation.md) | Benchmark the service stack on the Yocto-built ARM64 guest | Accepted by the student for project execution (2026-09-18), as amended for QEMU-only execution and on 2026-09-19 — academic framing and the QEMU evaluation scope of RQ3 reported approved by the student; only D014's limitation and claim wording open (corrected 2026-09-19; previously "academic use of emulated results (D014) not agreed") |
 | [0010](0010-controller-progress-counters.md) | Progress counters in the controller's `GET /metrics`: `received`, `in_progress`, `processing_errors` | Proposed — amended by 0011 (2026-09-24), effective once 0011's implementation is merged |
-| [0011](0011-controller-restart-recovery.md) | Controller restart recovery: acknowledge each delivery after its outcome line, on a persistent MQTT session (option 5), under conditions C1 and C3–C7 with choice C2 declined | Accepted by the student for bounded implementation (2026-09-24) — proposed 2026-09-21; condition C3 met by the broker measurement of 2026-09-23; the implementation, the finite proof and the qualifying battery pending; review record in [`../reviews/2026-09-23-adr-0011-package-d/`](../reviews/2026-09-23-adr-0011-package-d/README.md) |
+| [0011](0011-controller-restart-recovery.md) | Controller restart recovery: acknowledge each delivery after its outcome line, on a persistent MQTT session (option 5), under conditions C1 and C3–C7 with choice C2 declined | Accepted by the student for bounded implementation (2026-09-24) — proposed 2026-09-21; condition C3 met by the broker measurement of 2026-09-23; implemented 2026-09-25; the finite proof's third attempt, r03, supported it on 2026-09-28, accepted with qualifications on 2026-09-29 (evidence in [`../evidence/finite-proof-r03/`](../evidence/finite-proof-r03/README.md)); the qualifying battery pending; review record in [`../reviews/2026-09-23-adr-0011-package-d/`](../reviews/2026-09-23-adr-0011-package-d/README.md) |
