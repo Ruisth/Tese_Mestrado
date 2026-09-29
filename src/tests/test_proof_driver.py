@@ -1507,10 +1507,17 @@ def test_hook_templates_survive_the_harness_split_under_a_base_and_a_drivers_pat
     assert pbench.attempts() == []
 
 
+RUNBOOK_RUN_T0 = 1790000000
+
+
 def _harness_argv_of(function_text: str, call: str, home: Path) -> list[str]:
     """Run one shell function with 'python' replaced by a function that prints
-    its arguments NUL-separated, in the environment the host preamble sets."""
-    script = (function_text + "\npython() { printf '%s\\0' \"$@\"; }\n" + call + "\n")
+    its arguments NUL-separated, in the environment the host preamble sets.
+    The runbook's harness_cmd starts the run's events recorder first
+    (events_start) and cleans it up last (events_cleanup): both stand in here
+    for the helpers of 6.1, the recorder ready at RUNBOOK_RUN_T0."""
+    script = (function_text + "\npython() { printf '%s\\0' \"$@\"; }\n"
+              + f"events_start() {{ echo {RUNBOOK_RUN_T0}; }}\nevents_cleanup() {{ :; }}\n" + call + "\n")
     env = {**os.environ, "HOME": str(home), "MQTT_PORT": "8883", "CTRL": "http://127.0.0.1:8000",
            "MOSQUITTO_SIMULATOR_PASSWORD": "stub-simulator-password", "EGW_CLONE": str(REPO_ROOT)}
     result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
@@ -1530,6 +1537,18 @@ def _driver_function(name: str) -> str:
 def test_proof_harness_cmd_fixed_arguments_equal_the_runbooks_harness_cmd_except_plan_base_and_sut_env(tmp_path):
     runbook = _harness_argv_of(runbook_function("harness_cmd"), f"harness_cmd {RID}", tmp_path)
     assert runbook[:3] == ["-m", "egw_experiments", "run"]
+    # The runbook's run-scoped fetches (2026-09-29) are the run's own hooks,
+    # bounded to its recorder's readiness: the proof hands the harness its
+    # own, with its RUN_T0 and the actions of its fault (the test above), so
+    # they are not among the fixed arguments.
+    tools = f"{REPO_ROOT}/tools/session/proof_fetch_sut_log.sh"
+    capture = {"--fetch-broker-log-cmd": f'bash "{tools}" broker "{{dest}}" {RUNBOOK_RUN_T0}',
+               "--fetch-controller-log-cmd": f'bash "{tools}" controller "{{dest}}" {RUNBOOK_RUN_T0}',
+               "--fetch-docker-events-cmd": f'bash "{tools}" docker-events "{{dest}}" {RUNBOOK_RUN_T0} {{run_id}}'}
+    for flag, value in capture.items():
+        assert _argv_value(runbook, flag) == value
+        i = runbook.index(flag)
+        del runbook[i:i + 2]
     expected = runbook[3:]
     plan, base, sut = str(tmp_path / "proof" / "plan.json"), str(tmp_path / "proof" / "results"), str(tmp_path / "sut.json")
     for flag, value in (("--plan", plan), ("--base-dir", base), ("--sut-env-from", sut)):

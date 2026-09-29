@@ -226,23 +226,15 @@ def _kill_group(proc: subprocess.Popen) -> None:
 # --------------------------------------------------------------------------
 
 
-def _function(path: Path, name: str) -> str:
-    """One shell function of a driver file, from its `name() {` line to the
-    first line that is exactly `}`."""
-    lines = path.read_text(encoding="utf-8").splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith(f"{name}() {{"))
-    end = next(i for i in range(start, len(lines)) if lines[i] == "}")
-    return "\n".join(lines[start:end + 1]) + "\n"
-
-
 def _guest_scripts() -> dict[str, str]:
-    """The guest commands of the start step and the cleanup, rendered by
-    proof.sh's own functions, and of the stop, as proof_fetch_sut_log.sh
-    writes its parameters before its here-document."""
+    """The guest commands of the start step and the cleanup, rendered by the
+    functions of events_capture.sh as proof.sh and the host command render
+    them (the file sourced, the function called), and of the stop, as
+    proof_fetch_sut_log.sh writes its parameters before its here-document."""
     env = {**os.environ, "RECORDER": str(RECORDER), "RECORDER_SHA": "0" * 64, "RID": "r01"}
     rendered = {}
     for name, function in (("start", "events_recorder_script"), ("cleanup", "events_cleanup_script")):
-        rendered[name] = subprocess.run(["bash", "-c", _function(SESSION / "proof.sh", function) + function],
+        rendered[name] = subprocess.run(["bash", "-c", f'. "{SESSION / "events_capture.sh"}" && {function}'],
                                         env=env, capture_output=True, text=True, check=True).stdout
     hook = (SESSION / "proof_fetch_sut_log.sh").read_text(encoding="utf-8").splitlines()
     start = next(i for i, line in enumerate(hook) if line.endswith("$(cat << 'GUEST_STOP'"))

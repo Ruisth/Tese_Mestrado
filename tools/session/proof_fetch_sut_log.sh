@@ -7,7 +7,7 @@
 # file as one argv split without a shell (shlex.split, run.py
 # execute_collector_hook).
 # Usage: proof_fetch_sut_log.sh broker|controller DEST RUN_T0
-#        proof_fetch_sut_log.sh docker-events DEST RUN_T0 RUN_ID [EXPECTED]
+#        proof_fetch_sut_log.sh docker-events DEST RUN_T0 RUN_ID [EXPECTED [CONTAINER]]
 #   KIND   broker         the broker's log, as test 5 collects it (runbook):
 #                         'docker compose ... logs --no-color --timestamps
 #                         mosquitto', bounded to the run (below)
@@ -29,10 +29,17 @@
 #          before the run, the load and the fault (instants.run_guest_t0)
 #   RUN_ID the harness run id ({run_id}): it names the recorder's unit and
 #          its guest directory /tmp/egw-events-RUN_ID (docker-events only)
-#   EXPECTED  the Docker actions of egw-controller-1 the run's scenario
+#   EXPECTED  the Docker actions of CONTAINER the run's scenario
 #          generates, comma-separated (the proof's fault: kill,die,start);
 #          given only for a scenario that issues a fault, never for a
 #          fault-free run, and then required within [RUN_T0, the stop]
+#          (events_coverage.py R7, which requires signal 9 of a 'kill': a
+#          fault that is not the proof's SIGKILL leaves 'kill' out)
+#   CONTAINER the container whose actions EXPECTED names (events_coverage.py
+#          --container), given only beside EXPECTED; egw-controller-1 when
+#          absent, as the proof passes nothing (test 7 of the runbook names
+#          the dependency it stops and starts: egw-mongodb-1,
+#          egw-ditto-things-1)
 #
 # THE LOG WAS READ, OR IT WAS NOT. The output is written to DEST.tmp and
 # becomes DEST only when the ssh session ended 0 AND the output is not empty:
@@ -141,14 +148,14 @@ hook_stop() {
     exit "$1"
 }
 
-USAGE="usage: proof_fetch_sut_log.sh broker|controller DEST RUN_T0, or proof_fetch_sut_log.sh docker-events DEST RUN_T0 RUN_ID [EXPECTED]"
+USAGE="usage: proof_fetch_sut_log.sh broker|controller DEST RUN_T0, or proof_fetch_sut_log.sh docker-events DEST RUN_T0 RUN_ID [EXPECTED [CONTAINER]]"
 [ "$#" -ge 3 ] || hook_stop 2 "$USAGE"
 KIND=$1
 DEST=$2
 SINCE=$3
 case "$KIND" in
     broker | controller) [ "$#" -eq 3 ] || hook_stop 2 "$USAGE: nothing was read" ;;
-    docker-events) [ "$#" -eq 4 ] || [ "$#" -eq 5 ] || hook_stop 2 "$USAGE: nothing was read" ;;
+    docker-events) [ "$#" -ge 4 ] && [ "$#" -le 6 ] || hook_stop 2 "$USAGE: nothing was read" ;;
     *) hook_stop 2 "KIND '$KIND' is not broker, controller or docker-events: nothing was read" ;;
 esac
 [ -n "$DEST" ] || hook_stop 2 "DEST is empty: nothing was read"
@@ -160,11 +167,16 @@ KEEP=()
 if [ "$KIND" = docker-events ]; then
     RID=$4
     EXPECTED=${5:-}
+    CONTAINER=${6:-}
     case "$RID" in
         '' | *[!A-Za-z0-9._-]* | . | ..) hook_stop 2 "RUN_ID '$RID' is not a plain run id: nothing was read" ;;
     esac
     [[ -z $EXPECTED || $EXPECTED =~ ^[a-z_]+(,[a-z_]+)*$ ]] \
         || hook_stop 2 "EXPECTED '$EXPECTED' is not a comma-separated list of Docker actions: nothing was read"
+    [ "$#" -lt 6 ] || [[ $CONTAINER =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] \
+        || hook_stop 2 "CONTAINER '$CONTAINER' is not a container name: nothing was read"
+    [ -z "$CONTAINER" ] || [ -n "$EXPECTED" ] \
+        || hook_stop 2 "CONTAINER '$CONTAINER' is given without the EXPECTED actions of it: nothing was read"
     # The records kept beside DEST, write-once like it.
     KEEP=(lifecycle.txt start-facts.txt cli-stderr.txt stop.txt coverage.txt partial.jsonl)
 fi
@@ -281,7 +293,7 @@ GUEST_STOP
     done
     if [ "${#host_problems[@]}" -eq 0 ]; then
         python3 "$(dirname "$0")/events_coverage.py" "$WORK" --run-t0 "$SINCE" ${EXPECTED:+--expected "$EXPECTED"} \
-            > "$WORK/coverage.txt"
+            ${CONTAINER:+--container "$CONTAINER"} > "$WORK/coverage.txt"
         cov_rc=$?
     else
         # Not judged: what the checker would read is not all here, or the stop
@@ -292,6 +304,7 @@ GUEST_STOP
             echo "requested_since_guest_epoch=$SINCE"
             echo "requested_since_utc=$(iso "$SINCE")"
             echo "expected=${EXPECTED:-none}"
+            echo "container=${CONTAINER:-egw-controller-1}"
             for p in "${host_problems[@]}"; do echo "reason=$p: the capture was not judged"; done
         } > "$WORK/coverage.txt"
     fi
@@ -308,7 +321,7 @@ GUEST_STOP
         lines=$(wc -l < "$DEST") || lines=unreadable
         bytes=$(wc -c < "$DEST") || bytes=unreadable
         sha=$(sha256sum "$DEST" | cut -d ' ' -f 1) || sha=unreadable
-        echo "proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 $SINCE ($(iso "$SINCE")) to the stop request; expected=${EXPECTED:-none}; the rules are in $SUTDIR/docker-events.coverage.txt"
+        echo "proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 $SINCE ($(iso "$SINCE")) to the stop request; expected=${EXPECTED:-none}${CONTAINER:+ of $CONTAINER}; the rules are in $SUTDIR/docker-events.coverage.txt"
         echo "proof_fetch_sut_log: docker-events: $lines line(s), $bytes bytes, sha256 $sha, written to $DEST"
         exit 0
     fi
