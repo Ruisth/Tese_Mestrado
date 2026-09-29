@@ -36,8 +36,8 @@ deadline, offered load, ingest rule or evidence class.
 **Nothing in this record is a guarantee.** It becomes the behaviour this
 record proposes, supported by one broker measurement and one proof run, only
 after four things have happened, in this order (all four have, the last with
-the qualifications of "The decision recorded on 2026-09-29": the measurement
-on 2026-09-23, the decision on 2026-09-24, the change merged into `dev` on
+the qualifications of "The decision recorded on 2026-09-29": the decision on
+2026-09-24, the measurement on 2026-09-23, the change merged into `dev` on
 2026-09-25 in pull request #46, and the proof, whose third attempt supported
 the option on 2026-09-28): the student records the decision; the broker
 measurement below has run on the pinned broker and **supported** the option,
@@ -1025,7 +1025,8 @@ finite proof" unchanged, one guest session each under its own authorisation:
   reading, so the evaluator names it an N1 case (source kill, twin surplus 1).
   Its record is published in
   [`docs/evidence/finite-proof-r03/`](../evidence/finite-proof-r03/README.md),
-  byte-for-byte copies of the seven local packages.
+  byte-for-byte copies of the seven local packages; the developer's hand-off
+  of the attempt is kept locally as `output_test/decisions/2026-09-28_finite-proof-r03-handoff.md`.
 
 **What the decision keeps as recorded:** the verdict `supports`, for that run
 only; the harness's `invalid` classification of its raw run and its withheld

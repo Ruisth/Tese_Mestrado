@@ -3904,8 +3904,9 @@ is unchanged.
     not, what it authorises) and an implementation record for 2026-09-26 to
     2026-09-29; its status, its index row and a PROGRESS marker follow. The
     seven r03 packages are published byte for byte in
-    `docs/evidence/finite-proof-r03/` with a README and an outer seal (303
-    files, 8.15 MiB); the local originals, their seals and `SHA256SUMS.1` are
+    `docs/evidence/finite-proof-r03/` with a README and an outer seal (the
+    301 package files, 8.15 MiB, and those two); the local originals, their
+    seals and `SHA256SUMS.1` are
     untouched. `tools/ci/verify_evidence.py` now also reads the coreutils
     binary-mode marker (`<hash> *<name>`), which the host-preparation seal
     uses, instead of that seal being rewritten.
@@ -3945,7 +3946,7 @@ is unchanged.
     nine families against the plan's criterion (T2 and T9 ready; T1, T3, T4
     with its sequence reset, T5, T7 with its Ditto half and T8 pending; T6
     blocked), the restart resource gap, N1 under the ordinary rules, the
-    timed-delivery findings and four decisions it surfaces without making.
+    timed-delivery findings and five decisions it surfaces without making.
 - **Tests.** `test_metrics_fast_retry.py`: the typed failures (three kinds)
   counted without a row in the default mode; on the entry poll, with a
   genuine reading after it; in the running thread, recovering at the normal
@@ -3972,6 +3973,18 @@ is unchanged.
   `complete=false` without making the controller log unusable. The runs,
   the identities they were taken on and their results are in the pull
   request and `output_test/runs/2026-09-29/`.
+- **Review.** One consolidated review of the integrated delta (five parts,
+  each finding checked by an adversarial verifier) found no material defect.
+  Its minor findings were corrected with regressions: the log check now
+  follows the daemon's own `--since` rule, under which a line of the run
+  stepped back by the guest clock (within 3 s) after the first in-window line
+  is kept and counted apart; the exclusion witness reads the same stream as
+  the log and reports `unknown` when its own read failed; the start step no
+  longer uses `head -c`, which the image's BusyBox lacks (now banned in the
+  guest-command test); the coverage record states its method, not a
+  continuity it may not have shown; and wording in R3's reasons, the sampler
+  comment, this entry, the capsule README, ADR 0011 and the readiness map
+  (T3 and T4 questions surfaced, not answered; nominal-r01's served rate).
 - **Limits.** The r03 record stays what it was: its events do not cover the
   kill, its logs are unscoped, its harness run invalid, its N1 identity `lost`
   under the ordinary rules. C is verified with stubs only; its first use on a
@@ -3983,6 +3996,7 @@ is unchanged.
   `--controller-url`. This entry supersedes #C045's sentence "The default
   sampler keeps propagating it"; #C045 itself is unchanged.
 - **Decisions and next steps.** None made here. Before G3: the lifecycle-aware
-  restart rule, the N1 analysis rule, the deadline families, the candidate lock
-  and the student's authorisation of the battery (readiness map, "Decisions to
+  restart rule, the N1 analysis rule, which families are timed, T4's
+  reconnection duplicates, the candidate lock and the student's authorisation
+  of the battery (readiness map, "Decisions to
   surface").
