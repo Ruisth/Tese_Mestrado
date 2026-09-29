@@ -3929,11 +3929,11 @@ is unchanged.
     as the unit `egw-events-RUN_ID` (`systemd-run`, write-once directory,
     recorder checked by sha256, boot id and daemon facts recorded, readiness
     polled) before the harness, and stopped by the docker-events fetch after
-    the post-drain copy, which waits for a closing witness, copies the files
-    and runs `events_coverage.py` (R1–R7: start, readiness before RUN_T0, the
-    same boot and daemon, one stop-requested exit, empty CLI stderr, the
-    witness, JSON lines with `timeNano`, and the fault's kill, die and start
-    only when the run passes them). Only `complete` writes
+    the post-drain copy, which causes a closing marker and waits for it,
+    copies the files and runs `events_coverage.py` (R1–R7: start, readiness
+    before RUN_T0, the same boot and daemon, one stop-requested exit, empty
+    CLI stderr, the closing marker captured, JSON lines with `timeNano`, and
+    the fault's kill, die and start only when the run passes them). Only `complete` writes
     `docker-events.log`; otherwise the hook exits 1 and keeps
     `docker-events.partial.jsonl`, with the lifecycle, start facts, stop and
     coverage records kept either way. A recorder that fails to start or is
@@ -3943,7 +3943,8 @@ is unchanged.
     reaches `invalid` and `complete=false` through the existing fetch-failure
     rules.
   - *D, G3 readiness.* `docs/governance/g3-readiness-map-2026-09-29.md`: the
-    nine families against the plan's criterion (T2 and T9 ready; T1, T3, T4
+    nine families against the plan's criterion (T2 ready; T9 pending the
+    run-scoped broker log its (b) and (c) read; T1, T3, T4
     with its sequence reset, T5, T7 with its Ditto half and T8 pending; T6
     blocked), the restart resource gap, N1 under the ordinary rules, the
     timed-delivery findings and five decisions it surfaces without making.
@@ -3964,7 +3965,7 @@ is unchanged.
   recorder's start, readiness and failures, events beyond a 256-event
   history with the kill captured while the history query lacks it, a
   fault-free run complete, broken captures (CLI end with rc 0, daemon
-  restart, stderr, no witness), a refused stop and a missing recorder
+  restart, stderr, no marker), a refused stop and a missing recorder
   `unknown`, and the resulting validity reason through the harness hook
   runner. `test_proof_driver.py`: step order, session facts, recorder
   failure or not ready leaving the harness unstarted, the restoration's
@@ -3985,6 +3986,23 @@ is unchanged.
   continuity it may not have shown; and wording in R3's reasons, the sampler
   comment, this entry, the capsule README, ADR 0011 and the readiness map
   (T3 and T4 questions surfaced, not answered; nominal-r01's served rate).
+- **Closing review (Project Manager, 2026-09-29, F1 and F2).** F1: the
+  capture's closing witness was an event stamped after the stop request; the
+  guest clock steps back, so an event stored before the request could pass
+  for one captured after it (event at 100, request at 98, no fresh event).
+  The witness is now causal: after recording the request, the stop step
+  reads a nonce, records it, and runs a no-op `docker exec egw-mosquitto-1
+  sh -c ": egw-events-close NONCE"` (bounded to 45 s: the image's BusyBox
+  has no `timeout`; a hung exec is killed and recorded as `timeout`), then
+  waits for a captured line carrying the nonce; R5 holds only when the
+  capture holds an exec event of that container carrying it and the exec
+  ended 0, never on a timestamp or on the guest's own `closing_marker_seen`.
+  The marker runs in the broker's container, which the proof never faults,
+  so a controller not running at the fetch stays an outcome of the run, not
+  a failure of the capture. The regressions failed on the reviewed tools
+  first (`HIST_2026-09-29-pr50-f1-red`). F2: the readiness map no longer
+  calls T9 ready: its (b) and (c) read the broker's log, which is not yet
+  scoped to the run.
 - **Limits.** The r03 record stays what it was: its events do not cover the
   kill, its logs are unscoped, its harness run invalid, its N1 identity `lost`
   under the ordinary rules. C is verified with stubs only; its first use on a

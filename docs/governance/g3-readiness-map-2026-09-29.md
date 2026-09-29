@@ -23,9 +23,9 @@ and was never admitted; it does not count, and its results below are context
 only.
 
 **Legend.** *Ready*: the procedure exists and needs only a qualifying run on
-the frozen candidate. *Pending*: offline work or an unrun sub-check comes
-first. *Blocked*: under the unchanged rules it cannot give a valid pass
-without a separate decision.
+the frozen candidate — procedural readiness, never a passed run. *Pending*:
+offline work or an unrun sub-check comes first. *Blocked*: under the unchanged
+rules it cannot give a valid pass without a separate decision.
 
 ## The nine families
 
@@ -39,7 +39,7 @@ without a separate decision.
 | **T6** controller restart | **Blocked** | `controller_restart-r01/-r02` invalid; the finite proof r03 supported recovery for that run only, with its harness run invalid and a twin `delta` `MISMATCH` | Four blockers, below: the restart resource gap, N1 under the ordinary rules, zero-lost at 11.2 msg/s never shown, and log/event capture not wired into the runbook harness. The normal-sampler defect is repaired in this block | A sealed **valid** run directory; C12 columns of `per_run.csv`; every `delta` `OK`; restart record; run-scoped logs and events |
 | **T7** MongoDB **and Ditto** fault | Pending | MongoDB half only (old candidate): 62 failed, 1,012 of 3,298 late. **`itest-ditto-fault-01` has never run** | Run both halves. The MongoDB result is not reusable: contract v1.2 changed the meaning of `failed`. Watch `ditto-things` at its 768 MiB limit. The Docker stop/start events of each fault come from the recorder | `fault.txt`, `ready.txt`, outcome counts, `delta`, stop/start events |
 | **T8** guest reboot | Pending | Shown on the old candidate: 336 events, 0 lost, 0 late | Not yet assessed: a reboot while the broker holds the controller's persistent session (60 s autosave; ADR 0011 open item). Bound the `ditto-things` power-off incident | Boot IDs, container state, previous-boot journal (OOM check), twins `same`, post-reboot smoke with `lost=0`, `late=0` |
-| **T9** TLS and authorisation | Ready | Tested checks passed on the old candidate, anonymous refusal included; negative cases remain G3 work | Run again: the broker configuration changed (C1), the ACL did not (C2 declined) | `verdict.txt` = `PASS` (an inconclusive result is never a pass), subscriber outputs, `/metrics` unchanged |
+| **T9** TLS and authorisation | Pending (log scoping) | Tested checks passed on the old candidate, anonymous refusal included; negative cases remain G3 work | Run again: the broker configuration changed (C1), the ACL did not (C2 declined). T9(b) and (c) take their evidence from the broker's log (`docker compose logs --tail 20 mosquitto`), which is not scoped to the run: a run-scoped broker log copy is a prerequisite, as for T3, T5 and T7 | `verdict.txt` = `PASS` (an inconclusive result is never a pass), subscriber outputs, run-scoped broker excerpt for (b) and (c), `/metrics` unchanged |
 
 ## The issues the work order names
 
@@ -101,7 +101,7 @@ proof driver (`tools/session/proof.sh`), bounds both log copies by the run's
 guest-clock boundaries and adds a continuous event recorder whose coverage is
 judged, tested with stubs only; its first use on a guest is still to come, and
 the runbook's harness command and the families that read logs (T1, T3, T5, T6,
-T7) are not yet wired to it.
+T7 and T9(b)/(c)) are not yet wired to it.
 
 **6. Other G3 conditions.** The candidate lock record is pending. The contracts
 are at v1.2 while the backlog's cut rule still names v1.1: a freeze record is
