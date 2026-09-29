@@ -37,7 +37,7 @@ BUSYBOX=$ROOTFS/usr/bin/busybox.nosuid
 [ -f "$BUSYBOX" ] || { echo "error: no busybox at $BUSYBOX" >&2; exit 1; }
 
 mkdir -p "$OUT"
-for applet in sh awk date grep sed head mv rm rmdir mkdir hostname uname sha256sum cat sleep wc cut env; do
+for applet in sh awk date grep sed head tail mv rm rmdir mkdir hostname uname sha256sum cat sleep wc cut env; do
     printf '#!/bin/sh\nexec "%s" -L "%s" "%s" %s "$@"\n' "$QEMU" "$ROOTFS" "$BUSYBOX" "$applet" > "$OUT/$applet"
     chmod 0755 "$OUT/$applet"
 done

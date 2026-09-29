@@ -14,32 +14,52 @@ environment the driver's host step would hand it (the stub ``.env`` exported,
 guest commands on this machine against a fake guest root - and on top of it
 this module installs the section 6.1 helper stub extended with the runbook's
 own ``keep`` (read from the runbook when the test runs), a guest ``docker``
-that holds the controller container's state on disk and answers the three
-log reads and the events read, and a ``$REC`` whose ``snap`` records its
-argv and is write-once like the real one.
+that holds the controller container's state on disk and answers the two
+stored multi-session logs within the bounds it is given and the events (the
+daemon's bounded history of 256 and its live stream, the fault's kill, die
+and start among them), a guest ``date`` on a steady clock, and a ``$REC``
+whose ``snap`` records its argv and is write-once like the real one. The
+events recorder is started by the driver's own guest command
+(``events_recorder_script`` of proof.sh, rendered as the driver renders it)
+and runs as the unit the bench's ``systemd-run`` and ``systemctl`` stubs
+keep in the background.
 
 What these cases show is the wrappers' own behaviour: the byte-stable lines
 the harness classifies, the write-once files, the D2 rule ("the log was NOT
 read on the guest ... neither observed nor excluded") applied to a failed
-and to an empty read, with the guest's reason kept in the capsule, the
-bounded events read, the SIGKILL-then-start sequence with both guest
-readings in the record and both instants in the manifest's 500-character
-``stderr_tail`` (the restart hook is run by ``_execute_restart_cmd`` itself,
-under a guest whose fault-time stderr passes through, as compose's does),
-and a helper file that cannot be loaded ending every hook before it touches
-the guest. They say nothing about a real broker, controller, docker engine,
-guest or network.
+and to an empty read, with the guest's reason kept in the capsule, the two
+logs bounded to the run on the guest clock (an earlier session's lines,
+an old A5 line on the same device among them, left out and witnessed; a
+read the daemon did not bound, or a line without a stamp, refused), the
+events captured continuously and judged (past the daemon's bounded history;
+a CLI that ended by itself with status 0, a restarted daemon, a CLI that
+warned, a stream that fell silent, a missing fault event: never complete;
+a fault-free run: no fault event demanded), the SIGKILL-then-start sequence
+with both guest readings in the record and both instants in the manifest's
+500-character ``stderr_tail`` (the restart hook is run by
+``_execute_restart_cmd`` itself, under a guest whose fault-time stderr
+passes through, as compose's does), and a helper file that cannot be loaded
+ending every hook before it touches the guest. They say nothing about a
+real broker, controller, docker engine, guest or network: that docker
+25.0.9 and compose 2.26.0 take '--since'/'--until' in epoch seconds, that
+the daemon serves its replay and live stream under one lock and that the
+CLI answers 0 when the stream is closed are for the next authorised
+session to confirm.
 """
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -51,12 +71,16 @@ if shutil.which("bash") is None:
 
 from test_session_drivers import EXPECT_SERVICES, ITEST_HELPERS, Bench, _write, report  # noqa: E402
 
+from test_proof_evaluator import D1, _a5_line  # noqa: E402
+
+from egw_experiments import proof_evaluator as pe  # noqa: E402
 from egw_experiments import run as run_mod  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNBOOK = REPO_ROOT / "docs" / "setup" / "qemu_integrated_gateway.md"
+PROOF_SH = REPO_ROOT / "tools" / "session" / "proof.sh"
 HOOKS = ("proof_hook_twins.sh", "proof_hook_drained.sh", "proof_fetch_sut_log.sh",
-         "proof_restart_controller.sh")
+         "proof_restart_controller.sh", "proof_events_recorder.sh")
 RID = "proof-adr0011-r01"
 SEED = "7"
 GUEST_T0 = "1700000000"
@@ -85,24 +109,200 @@ def runbook_function(name: str) -> str:
     return "\n".join(body[start:end + 1]) + "\n"
 
 
+def proof_function(name: str) -> str:
+    """One shell function of proof.sh, from its `name() {` line to the first
+    line that is exactly `}` (the driver's own guest commands, run here as
+    the driver renders them)."""
+    lines = PROOF_SH.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith(f"{name}() {{"))
+    end = next(i for i in range(start, len(lines)) if lines[i] == "}")
+    return "\n".join(lines[start:end + 1]) + "\n"
+
+
 # --------------------------------------------------------------------------
 # Stubs of this module
 # --------------------------------------------------------------------------
 
-DOCKER_STUB = r'''#!/usr/bin/env python3
-"""Stub docker for the proof hooks: the controller container, with its state
-on disk, the broker and controller logs, the events read, the kill and the
-compose start. What the tests steer through EGW_STUB_FAIL: a log read that
-fails or that answers nothing, an events read that fails, a kill or a start
-that is refused, a start without effect, a start that writes past the
-harness's stderr budget, an inspect that does not answer."""
-import json
+# The stub guest's clock (the bench log's anchor file): STEADY, from a real
+# anchor, read by the guest's stub `date`, the docker stub's events and
+# logs and the cases alike. The WSL2 host's wall clock is stepped backwards
+# by 2-3 s about every 30 s (LOG.md), which would reorder the guest instants
+# the events capture compares (the stop request, the closing witness) by
+# the bench's accident, never by the code under test.
+
+
+def _clock_anchor(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        pass
+    anchor = {"epoch0": time.time(), "mono0": time.monotonic()}
+    try:
+        with open(path, "x", encoding="utf-8") as fh:
+            json.dump(anchor, fh)
+    except FileExistsError:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    return anchor
+
+
+def steady_ns(path):
+    """The stub guest's clock, in nanoseconds since the epoch."""
+    anchor = _clock_anchor(path)
+    return int((anchor["epoch0"] + (time.monotonic() - anchor["mono0"])) * 1e9)
+
+
+STEADY_CLOCK = ("import json, time\n\n" + inspect.getsource(_clock_anchor) + "\n\n" + inspect.getsource(steady_ns)
+                + "\n\ndef now_ns():\n    return steady_ns(os.environ['EGW_STUB_LOG'] + '.clock')\n")
+
+DATE_STUB = '''#!/usr/bin/env python3
+"""Stub date of the stub guest: the bench's steady clock, in the forms the
+guest scripts ask for ('date +%s', 'date -u +%Y-%m-%dT%H:%M:%SZ')."""
 import os
 import sys
+from datetime import datetime, timezone
+@@CLOCK@@
+
+fmt = "%a %b %e %H:%M:%S UTC %Y"
+for arg in sys.argv[1:]:
+    if arg.startswith("+"):
+        fmt = arg[1:]
+    elif arg != "-u":
+        print("stub date: unsupported argument %r" % arg, file=sys.stderr)
+        sys.exit(1)
+ns = now_ns()
+now = datetime.fromtimestamp(ns / 1e9, timezone.utc)
+print(now.strftime(fmt.replace("%s", str(ns // 10 ** 9))))
+'''.replace("@@CLOCK@@", STEADY_CLOCK)
+
+# 'docker events' of the stub guest, shared with the proof driver's docker
+# stub (test_proof_driver): the daemon's bounded history (the last 256
+# events, as Docker documents it) and the live stream. The events the cases
+# (and this module's kill and start) put on the guest are kept, in order, in
+# LOG.events-store; a history query (--until) answers the last 256 of them
+# within its bounds, the container filter applied after that buffer, as the
+# r03 copy suggests the daemon does; a follow (no --until) replays that
+# history from --since and then streams, as it is written, every event added
+# to the store, with a healthcheck exec event of the broker every 0.1 s as
+# the stream's heartbeat, each as one JSON object the way '{{json .}}'
+# prints it, until the CLI is ended by a signal. Steered through
+# EGW_STUB_FAIL - 'events-cli-fails' (the CLI cannot reach the daemon: stderr
+# and exit 1 at once), 'events-silent' (the CLI runs and receives nothing),
+# 'events-stderr' (the CLI warns on stderr and goes on) - and through
+# EGW_STUB_EVENTS_EOF_AFTER (the daemon closes the stream after that many
+# heartbeats: the CLI exits 0 by itself) and EGW_STUB_EVENTS_QUIET_AFTER (no
+# heartbeat after that many, the CLI still running). A follow ends by itself
+# after EGW_STUB_EVENTS_LIFETIME_S (300 s), so a case that fails leaves no
+# stream behind. The host stub defines now_ns(), its guest clock.
+EVENTS_STUB = r'''
+EVENTS_STORE = os.environ["EGW_STUB_LOG"] + ".events-store"
+HISTORY_LIMIT = 256
+EVENT_NS = 10 ** 9
+
+
+def stored_events():
+    try:
+        with open(EVENTS_STORE, encoding="utf-8") as fh:
+            return [json.loads(line) for line in fh if line.strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def store_event(action, name, cid, **attributes):
+    ns = now_ns()
+    event = {"status": action, "id": cid, "from": f"stub/{name}:1", "Type": "container", "Action": action,
+             "Actor": {"ID": cid, "Attributes": {"image": f"stub/{name}:1", "name": name, **attributes}},
+             "scope": "local", "time": ns // EVENT_NS, "timeNano": ns}
+    with open(EVENTS_STORE, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(event, separators=(",", ":")) + "\n")
+    return event
+
+
+def emit_event(event):
+    sys.stdout.write(json.dumps(event, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+
+def docker_events(args):
+    def opt(name):
+        return args[args.index(name) + 1] if name in args else None
+
+    if fails("events-cli-fails"):
+        print("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
+              file=sys.stderr)
+        sys.exit(1)
+    since, until = opt("--since"), opt("--until")
+    wanted = opt("--filter")
+    current = stored_events()
+    history = [e for e in current if since is None or e["timeNano"] >= int(since) * EVENT_NS][-HISTORY_LIMIT:]
+    if until is not None:
+        for event in history:
+            if event["timeNano"] >= (int(until) + 1) * EVENT_NS:
+                continue
+            if wanted and wanted.startswith("container=") \
+                    and event["Actor"]["Attributes"].get("name") != wanted.partition("=")[2]:
+                continue
+            emit_event(event)
+        sys.exit(0)
+    started = time.monotonic()
+    lifetime = float(os.environ.get("EGW_STUB_EVENTS_LIFETIME_S", "300"))
+    if fails("events-silent"):
+        while time.monotonic() - started < lifetime:
+            time.sleep(0.1)
+        sys.exit(0)
+    for event in history:
+        emit_event(event)
+    if fails("events-stderr"):
+        print("WARNING: stub: the events stream skipped a message", file=sys.stderr, flush=True)
+    seen = len(current)
+    eof_after = int(os.environ.get("EGW_STUB_EVENTS_EOF_AFTER", "0"))
+    quiet_after = int(os.environ.get("EGW_STUB_EVENTS_QUIET_AFTER", "0"))
+    beats = 0
+    cid = "00" + "a" * 62
+    while time.monotonic() - started < lifetime:
+        current = stored_events()
+        for event in current[seen:]:
+            emit_event(event)
+        seen = len(current)
+        if not quiet_after or beats < quiet_after:
+            ns = now_ns()
+            action = ("exec_create", "exec_start", "exec_die")[beats % 3] + ": /bin/sh -c mosquitto_sub -t $SYS/# -C 1"
+            emit_event({"status": action, "id": cid, "from": "stub/egw-mosquitto-1:1", "Type": "container",
+                        "Action": action, "Actor": {"ID": cid, "Attributes": {"name": "egw-mosquitto-1"}},
+                        "scope": "local", "time": ns // EVENT_NS, "timeNano": ns})
+        beats += 1
+        if eof_after and beats >= eof_after:
+            sys.exit(0)
+        time.sleep(0.1)
+    sys.exit(0)
+'''
+
+DOCKER_STUB = r'''#!/usr/bin/env python3
+"""Stub docker for the proof hooks: the controller container, with its state
+on disk, the broker and controller logs, the events, the kill and the
+compose start. The two logs are the stored multi-session logs a case writes
+(LOG.broker-log, LOG.controller-log; a default of the run otherwise), read
+as docker reads them: '--since' and '--until' in whole seconds of the stamp
+of each line. What the tests steer through EGW_STUB_FAIL: a log read that
+fails or that answers nothing, a daemon that ignores the bounds
+('logs-ignore-since'), a line without a stamp in the answer
+('log-unstamped'), a kill or a start that is refused, a start without
+effect, a start that writes past the harness's stderr budget, an inspect
+that does not answer; the events as EVENTS_STUB says. The kill and the start
+add the daemon's kill (signal 9), die and start events to the events."""
+import json
+import os
+import re
+import sys
+import time
+from datetime import datetime, timezone
 
 STATE = os.environ["EGW_STUB_LOG"] + ".proof-docker.json"
 failures = f",{os.environ.get('EGW_STUB_FAIL', '')},"
 FIRST_ID = "0f" * 32
+STAMP = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?Z ")
+@@CLOCK@@
 
 
 def fails(token):
@@ -128,6 +328,41 @@ def log(line):
         fh.write(line + "\n")
 
 
+@@EVENTS@@
+
+
+def stored_log(kind, default):
+    try:
+        with open(os.environ["EGW_STUB_LOG"] + f".{kind}-log", encoding="utf-8") as fh:
+            return fh.read().splitlines()
+    except OSError:
+        return default
+
+
+def bounded(lines):
+    """The lines within --since/--until, by the second of each line's stamp
+    (after the compose prefix and an ESC[2K), as the daemon bounds them."""
+    since = args[args.index("--since") + 1] if "--since" in args else None
+    until = args[args.index("--until") + 1] if "--until" in args else None
+    if fails("logs-ignore-since"):
+        since = None
+    out = []
+    for line in lines:
+        bare = re.sub(r"^mosquitto-\d+ *\| ", "", line.replace("\x1b[2K", "", 1))
+        m = STAMP.match(bare)
+        if m:
+            at = datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+            if since is not None and at < int(since):
+                continue
+            if until is not None and at > int(until):
+                continue
+        out.append(line)
+    if fails("log-unstamped") and "--since" in args:
+        out.insert(len(out) // 2, "a line of the log without a stamp" if not out or "mosquitto" not in out[0]
+                   else "mosquitto-1  | a line of the log without a stamp")
+    return out
+
+
 args = sys.argv[1:]
 compose = False
 while args and (args[0] == "compose" or args[0] == "--env-file"):
@@ -148,9 +383,10 @@ if compose and cmd == "logs":
         sys.exit(1)
     if fails("broker-log-empty"):
         sys.exit(0)
-    for i in range(3):
-        print(f"mosquitto-1  | 2026-09-25T10:00:0{i}.000000000Z 2026-09-25T10:00:0{i}: "
-              "New connection from 172.18.0.7:52130 on port 8883.")
+    for line in bounded(stored_log("broker", [
+            f"mosquitto-1  | 2026-09-25T10:00:0{i}.000000000Z 2026-09-25T10:00:0{i}: "
+            "New connection from 172.18.0.7:52130 on port 8883." for i in range(3)])):
+        print(line)
     sys.exit(0)
 if compose and cmd == "start":
     if fails("start-fails"):
@@ -169,6 +405,7 @@ if compose and cmd == "start":
         state["starts"] += 1
         state["started"] = f"2026-09-25T10:05:{state['starts']:02d}.200000000Z"
         state["status"] = "running"
+        store_event("start", "egw-controller-1", state["id"])
     save(state)
     # Compose v2 prints its progress on STDERR, where the ssh session relays
     # it into the hook's own stderr and so into the manifest's tail.
@@ -188,34 +425,23 @@ if cmd == "logs":
         sys.exit(1)
     if fails("controller-log-empty"):
         sys.exit(0)
-    for i, message in enumerate(("MQTT connected", "MQTT subscription granted; bridge ready")):
-        print(f"2026-09-25T10:00:0{i}.500000000Z "
-              + json.dumps({"ts": f"2026-09-25T10:00:0{i}.500Z", "level": "INFO",
-                            "logger": "egw_controller.mqtt", "message": message}),
-              file=sys.stderr)
+    default = [f"2026-09-25T10:00:0{i}.500000000Z "
+               + json.dumps({"ts": f"2026-09-25T10:00:0{i}.500Z", "level": "INFO",
+                             "logger": "egw_controller.mqtt", "message": message})
+               for i, message in enumerate(("MQTT connected", "MQTT subscription granted; bridge ready"))]
+    for line in bounded(stored_log("controller", default)):
+        print(line, file=sys.stderr)
     sys.exit(0)
 if cmd == "events":
-    if fails("docker-events-fails"):
-        print("Cannot connect to the Docker daemon at unix:///var/run/docker.sock.", file=sys.stderr)
-        sys.exit(1)
-    if "--until" not in args:
-        # The real command without --until FOLLOWS the daemon and never
-        # returns; the stub refuses instead of hanging the test.
-        print("stub: 'docker events' without --until never returns", file=sys.stderr)
-        sys.exit(1)
-    if fails("docker-events-empty"):
-        sys.exit(0)
-    print("stub events " + " ".join(args[1:]))
-    print("2026-09-25T10:02:30.000000000Z container kill 0f0f (name=egw-controller-1, signal=9)")
-    print("2026-09-25T10:02:30.100000000Z container die 0f0f (name=egw-controller-1, exitCode=137)")
-    print("2026-09-25T10:02:31.000000000Z container start 0f0f (name=egw-controller-1)")
-    sys.exit(0)
+    docker_events(args)
 if cmd == "kill":
     if fails("kill-fails"):
         print("Error response from daemon: stub kill refused", file=sys.stderr)
         sys.exit(1)
     state["status"] = "exited"
     save(state)
+    store_event("kill", "egw-controller-1", state["id"], signal="9")
+    store_event("die", "egw-controller-1", state["id"], exitCode="137")
     print("egw-controller-1")
     sys.exit(0)
 if cmd == "inspect":
@@ -229,7 +455,7 @@ if cmd == "inspect":
     sys.exit(0)
 print(f"stub docker: nothing to do for {cmd!r}", file=sys.stderr)
 sys.exit(1)
-'''
+'''.replace("@@CLOCK@@", STEADY_CLOCK).replace("@@EVENTS@@", EVENTS_STUB)
 
 REC_STUB = r'''#!/usr/bin/env python3
 """Stub of egw_experiments.itest_reconcile for the proof hooks: 'snap' only.
@@ -289,11 +515,71 @@ class Hooks:
         self.helpers = bench.home / "egw-tcg" / "itest-helpers.sh"
         _write(self.helpers, ITEST_HELPERS + "\n" + runbook_function("keep"))
         _write(bench.guest_bin / "docker", DOCKER_STUB, executable=True)
+        _write(bench.guest_bin / "date", DATE_STUB, executable=True)
         _write(bench.bin / "rec", REC_STUB, executable=True)
         self.prefix = bench.home / "egw-tcg" / "itest"
         self.run_dir = bench.tmp / "raw" / RID
         self.sut_logs = self.run_dir / "logs" / "sut"
         self.sut_logs.mkdir(parents=True, exist_ok=True)
+        self.clock = str(bench.log) + ".clock"
+
+    # -- the stub guest's steady clock and its events ----------------------
+    def now(self) -> int:
+        """The stub guest's clock, whole seconds."""
+        return steady_ns(self.clock) // 10 ** 9
+
+    def store_events(self, *events: dict) -> None:
+        """Events the daemon emits now (LOG.events-store, in order)."""
+        with open(str(self.bench.log) + ".events-store", "a", encoding="utf-8") as fh:
+            for event in events:
+                fh.write(json.dumps(event, separators=(",", ":")) + "\n")
+
+    def events_dir(self, run_id: str = RID) -> Path:
+        """The run's capture directory on the stub guest."""
+        return self.bench.guest_root / "tmp" / f"egw-events-{run_id}"
+
+    def start_recorder(self, run_id: str = RID, **overrides) -> subprocess.CompletedProcess:
+        """The driver's own 'events-recorder-start' guest command (proof.sh's
+        events_recorder_script, run as the driver renders it), sent to the
+        stub guest as gx sends it."""
+        recorder = self.bench.drivers / "proof_events_recorder.sh"
+        rendered = subprocess.run(
+            ["bash", "-c", proof_function("events_recorder_script") + "events_recorder_script"],
+            env={**os.environ, "RECORDER": str(recorder), "RID": run_id,
+                 "RECORDER_SHA": hashlib.sha256(recorder.read_bytes()).hexdigest()},
+            capture_output=True, text=True, check=True)
+        return self.run_argv(["ssh", "-o", "BatchMode=yes", "egw@127.0.0.1", rendered.stdout], **overrides)
+
+    def recorder_pid(self, run_id: str = RID) -> int | None:
+        path = Path(f"{self.bench.log}.unit-egw-events-{run_id}.pid")
+        return int(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    def recorder_running(self, run_id: str = RID) -> bool:
+        return self.run_argv([str(self.bench.guest_bin / "systemctl"), "is-active", "-q",
+                              f"egw-events-{run_id}"]).returncode == 0
+
+    def stop_recorder(self, run_id: str = RID) -> None:
+        """What a case leaves running is ended (never a stream behind it)."""
+        pid = self.recorder_pid(run_id)
+        if pid is not None:
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    def wait_for(self, predicate, limit_s: float = 30.0) -> None:
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < limit_s:
+            if predicate():
+                return
+            time.sleep(0.05)
+        raise AssertionError("the condition did not come about in time")
+
+    def captured(self, run_id: str = RID) -> list[dict]:
+        path = self.events_dir(run_id) / "events.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.endswith("}")]
 
     # -- the environment the driver's host step hands a hook --------------
     def env(self, **overrides) -> dict:
@@ -362,8 +648,15 @@ class Hooks:
 
 
 @pytest.fixture
-def hooks(tmp_path: Path) -> Hooks:
-    return Hooks(Bench(tmp_path))
+def hooks(tmp_path: Path):
+    bench = Hooks(Bench(tmp_path))
+    yield bench
+    # A recorder unit a case left running is ended with its stream.
+    for pid_file in tmp_path.glob("stub.log.unit-egw-events-*.pid"):
+        try:
+            os.killpg(int(pid_file.read_text(encoding="utf-8")), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, ValueError):
+            pass
 
 
 def value(lines: list[str], key: str) -> str:
@@ -505,16 +798,22 @@ def test_hook_drained_refuses_a_quiet_window_below_130_s_and_a_value_that_is_not
 
 
 # --------------------------------------------------------------------------
-# proof_fetch_sut_log.sh (design 2.12 tests 13 and 14)
+# proof_fetch_sut_log.sh (design 2.12 tests 13 and 14; the r03 closure, C)
 # --------------------------------------------------------------------------
 
 FETCH_KINDS = {"broker": "broker_log", "controller": "controller_log", "docker-events": "docker_events"}
+EMPTY_SHA = hashlib.sha256(b"").hexdigest()
 
 
-def _fetch(hooks: Hooks, kind: str, **overrides) -> tuple[subprocess.CompletedProcess, Path]:
+def _fetch(hooks: Hooks, kind: str, since: str = GUEST_T0, *extra: str,
+           **overrides) -> tuple[subprocess.CompletedProcess, Path]:
     dest = hooks.sut_logs / run_mod.SUT_LOG_FILES[FETCH_KINDS[kind]]
-    template = hooks.template("proof_fetch_sut_log.sh", kind, "{dest}", GUEST_T0)
+    template = hooks.template("proof_fetch_sut_log.sh", kind, "{dest}", since, *extra)
     return hooks.run_hook(template, dest, **overrides), dest
+
+
+def _utc(epoch: int, fraction: str = "") -> str:
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + fraction + "Z"
 
 
 @pytest.mark.parametrize("kind, token, exit_text, reason", [
@@ -522,14 +821,13 @@ def _fetch(hooks: Hooks, kind: str, **overrides) -> tuple[subprocess.CompletedPr
     # the controller read merges on the guest and so counts as bytes) and a
     # read that ANSWERED NOTHING (exit 0, empty) are both a log that was not
     # read: neither leaves a file. The daemon's reason, when there is one,
-    # stays in the capsule either way.
+    # stays in the capsule either way. (The docker events are no longer one
+    # read: their capture's failures are the cases of the recorder below.)
     ("broker", "broker-log-fails", r"ssh egw-tcg exit 1, 0 bytes", "no such service: mosquitto"),
     ("broker", "broker-log-empty", r"ssh egw-tcg exit 0, 0 bytes", None),
     ("controller", "controller-log-fails", r"ssh egw-tcg exit 1, [1-9][0-9]* bytes",
      "Error: No such container: egw-controller-1"),
     ("controller", "controller-log-empty", r"ssh egw-tcg exit 0, 0 bytes", None),
-    ("docker-events", "docker-events-fails", r"ssh egw-tcg exit 1, 0 bytes", "Cannot connect to the Docker daemon"),
-    ("docker-events", "docker-events-empty", r"ssh egw-tcg exit 0, 0 bytes", None),
 ])
 def test_fetch_sut_log_writes_no_dest_on_a_failed_or_empty_read_and_says_so(hooks, kind, token, exit_text, reason):
     result, dest = _fetch(hooks, kind, EGW_STUB_FAIL=token)
@@ -566,51 +864,362 @@ def test_fetch_sut_log_writes_dest_and_prints_its_line_count_and_sha256_on_a_rea
     sha = hashlib.sha256(dest.read_bytes()).hexdigest()
     assert f"proof_fetch_sut_log: broker: 3 line(s), {dest.stat().st_size} bytes, sha256 {sha}, written to {dest}" in result.stdout
     assert not Path(str(dest) + ".tmp").exists()
-    # The read is test 5's: compose logs of the mosquitto service, without
-    # colour and with timestamps, from the deployment directory.
-    assert ("compose logs --no-color --timestamps mosquitto" in hooks.docker_calls()[-1])
+    # The read is test 5's - compose logs of the mosquitto service, without
+    # colour and with timestamps, from the deployment directory - bounded on
+    # the guest clock: from RUN_T0 to the guest's own clock read just before
+    # it, both printed with what the bound left out (nothing here).
+    until = re.search(r"until_guest_epoch=(\d+) ", result.stdout).group(1)
+    assert hooks.docker_calls()[-1] == f"compose logs --no-color --timestamps --since {GUEST_T0} --until {until} mosquitto"
     assert any("cd " in line and "/opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env logs"
                in line for line in hooks.ssh_commands())
+    assert (f"proof_fetch_sut_log: broker: bounds since_guest_epoch={GUEST_T0} ({_utc(int(GUEST_T0))}) "
+            f"until_guest_epoch={until} ({_utc(int(until))}) first=2026-09-25T10:00:00.000000000Z "
+            f"last=2026-09-25T10:00:02.000000000Z excluded_before_since_lines=0 excluded_sha256={EMPTY_SHA} "
+            "outside=0 unstamped=0") in result.stdout
+    assert abs(int(until) - hooks.now()) <= 5, "UNTIL is the guest's clock at the fetch"
     # DEST is write-once: the fetch that finds it stops without reading.
+    reads = len(hooks.ssh_commands())
     again, _ = _fetch(hooks, "broker")
     assert again.returncode == 1, report(again)
     assert f"STOP: proof_fetch_sut_log: {dest} exists - NOT overwritten; nothing was read" in again.stderr
-    assert len(hooks.ssh_commands()) == 1
+    assert len(hooks.ssh_commands()) == reads
     # The controller logs its JSON lines to stderr: the read merges the two
     # streams ON THE GUEST, so the lines reach DEST and ssh's own stderr
     # stays apart (and empty here).
     result, dest = _fetch(hooks, "controller")
     assert result.returncode == 0, report(result)
-    assert "docker logs --timestamps egw-controller-1 2>&1" in hooks.ssh_commands()[-1]
+    until = re.search(r"until_guest_epoch=(\d+) ", result.stdout).group(1)
+    assert f"docker logs --timestamps --since {GUEST_T0} --until {until} egw-controller-1 2>&1" in hooks.ssh_commands()[-1]
     entries = [json.loads(line.split(" ", 1)[1]) for line in dest.read_text(encoding="utf-8").splitlines()]
     assert [e["message"] for e in entries] == ["MQTT connected", "MQTT subscription granted; bridge ready"]
     assert result.stderr == ""
 
 
-def test_fetch_docker_events_is_bounded_by_since_and_until(hooks):
-    result, dest = _fetch(hooks, "docker-events")
+def _multi_session_logs(hooks: Hooks) -> dict:
+    """A controller log and a broker log as the containers keep them across
+    sessions: an earlier session three days ago (the controller's A5 line on
+    the SAME device, whose received_monotonic_ns is of another boot), then
+    this run's lines after RUN_T0. The broker's first line carries compose's
+    ESC[2K, as r03's did."""
+    now = hooks.now()
+    run_t0 = now - 60
+    old = now - 3 * 86400
+    stamp = lambda epoch: _utc(epoch, ".250000000")  # noqa: E731
+    old_controller = [
+        f"{stamp(old)} " + json.dumps({"ts": _utc(old), "level": "INFO", "logger": "uvicorn", "message": "Uvicorn running"}),
+        _a5_line(D1, 111_000, prefix=f"{stamp(old + 5)} "),
+        f"{stamp(old + 6)} " + json.dumps({"ts": _utc(old + 6), "level": "INFO", "logger": "egw_controller.mqtt",
+                                           "message": "MQTT subscription granted; bridge ready"}),
+    ]
+    run_controller = [
+        f"{stamp(run_t0 + 1)} " + json.dumps({"ts": _utc(run_t0 + 1), "level": "INFO", "logger": "egw_controller.mqtt",
+                                              "message": "MQTT connected"}),
+        _a5_line(D1, 999_000_000_000, prefix=f"{stamp(run_t0 + 30)} "),
+    ]
+    old_broker = [f"\x1b[2Kmosquitto-1  | {stamp(old)} mosquitto version 2.0.18 starting",
+                  f"mosquitto-1  | {stamp(old + 1)} New connection from 172.18.0.9:40000 on port 8883."]
+    run_broker = [f"mosquitto-1  | {stamp(run_t0 + 2)} New connection from 172.18.0.7:52130 on port 8883.",
+                  f"mosquitto-1  | {stamp(run_t0 + 40)} Client egw-controller closed its connection."]
+    Path(str(hooks.bench.log) + ".controller-log").write_text("\n".join(old_controller + run_controller) + "\n", "utf-8")
+    Path(str(hooks.bench.log) + ".broker-log").write_text("\n".join(old_broker + run_broker) + "\n", "utf-8")
+    return {"run_t0": run_t0, "controller": (old_controller, run_controller), "broker": (old_broker, run_broker)}
+
+
+@pytest.mark.parametrize("kind", ["controller", "broker"])
+def test_the_two_logs_keep_the_runs_lines_only_and_record_what_they_leave_out(hooks, kind):
+    logs = _multi_session_logs(hooks)
+    old, run = logs[kind]
+    result, dest = _fetch(hooks, kind, str(logs["run_t0"]))
     assert result.returncode == 0, report(result)
-    head = dest.read_text(encoding="utf-8").splitlines()[0]
-    # '--since' is the driver's guest instant, '--until' the guest's own
-    # clock when the read started: the read returns instead of following
-    # the daemon (the stub refuses an unbounded read outright).
-    match = re.fullmatch(r"stub events --filter container=egw-controller-1 --since (\d+) --until (\d+)", head)
-    assert match, head
-    assert match.group(1) == GUEST_T0
-    assert int(match.group(2)) >= int(GUEST_T0)
-    assert "docker events --filter container=egw-controller-1 --since 1700000000 --until $(date +%s)" \
-        in hooks.ssh_commands()[-1]
-    # A SINCE that is not a whole number of seconds is refused before the
-    # guest is reached.
-    bad = hooks.run_hook(hooks.template("proof_fetch_sut_log.sh", "docker-events", "{dest}", "now"),
-                         hooks.sut_logs / "events-2.log")
-    assert bad.returncode == 2, report(bad)
-    assert "SINCE_GUEST_EPOCH 'now' is not a whole number of seconds: nothing was read" in bad.stderr
-    assert len(hooks.ssh_commands()) == 1
-    unknown = hooks.run_hook(hooks.template("proof_fetch_sut_log.sh", "journal", "{dest}", GUEST_T0),
-                             hooks.sut_logs / "journal.log")
-    assert unknown.returncode == 2, report(unknown)
-    assert "KIND 'journal' is not broker, controller or docker-events: nothing was read" in unknown.stderr
+    # Only this run's lines: the earlier session - the A5 line of another
+    # boot on the same device among them - never enters the run's copy.
+    assert dest.read_text(encoding="utf-8").splitlines() == run
+    # What the bound left out is recorded on the guest, never transferred:
+    # its line count and the sha256 of exactly those lines.
+    excluded = hashlib.sha256("".join(line + "\n" for line in old).encode("utf-8")).hexdigest()
+    assert f"excluded_before_since_lines={len(old)} excluded_sha256={excluded} outside=0 unstamped=0" in result.stdout
+    assert f"since_guest_epoch={logs['run_t0']} ({_utc(logs['run_t0'])})" in result.stdout
+    assert "Uvicorn running" not in result.stdout + result.stderr and "version 2.0.18" not in result.stdout
+    if kind == "controller":
+        occurrences, notes = pe.a5_occurrences(dest.read_text(encoding="utf-8").splitlines())
+        assert [o["identity"]["received_monotonic_ns"] for o in occurrences] == [999_000_000_000]
+        assert [o["device_uuid"] for o in occurrences] == [D1]
+        assert notes["subscription_granted_ts"] == []
+
+
+@pytest.mark.parametrize("kind", ["controller", "broker"])
+def test_a_read_the_daemon_did_not_bound_is_not_the_runs_log(hooks, kind):
+    # '--since' was in r03's events read too: the bound is shown by the
+    # lines themselves, never by the flag. A daemon that answers the whole
+    # history is a read NOT bounded to the run: no file, and the old lines
+    # are named by number and stamp only, never excerpted into the capsule.
+    logs = _multi_session_logs(hooks)
+    old, _ = logs[kind]
+    result, dest = _fetch(hooks, kind, str(logs["run_t0"]), EGW_STUB_FAIL="logs-ignore-since")
+    assert result.returncode == 1, report(result)
+    assert not dest.exists() and not Path(str(dest) + ".tmp").exists()
+    assert f"of which {len(old)} lie outside [{_utc(logs['run_t0'])}, " in result.stderr, report(result)
+    assert "first: line 1, stamp " in result.stderr
+    assert result.stderr.splitlines()[-1].startswith(
+        f"STOP: proof_fetch_sut_log: the {kind} log was NOT read as bounded to the run [{_utc(logs['run_t0'])}, ")
+    assert result.stderr.splitlines()[-1].endswith(f"- {dest} was NOT written")
+    assert "Uvicorn running" not in result.stderr and "version 2.0.18" not in result.stderr
+    assert "written to" not in result.stdout
+
+
+@pytest.mark.parametrize("kind", ["controller", "broker"])
+def test_a_line_without_a_stamp_is_a_read_not_bounded_to_the_run(hooks, kind):
+    result, dest = _fetch(hooks, kind, EGW_STUB_FAIL="log-unstamped")
+    assert result.returncode == 1, report(result)
+    assert "of which 0 lie outside" in result.stderr and "and 1 carry no timestamp (first: line " in result.stderr
+    assert "was NOT read as bounded to the run" in result.stderr.splitlines()[-1]
+    assert not dest.exists()
+
+
+def test_fetch_refuses_arguments_it_cannot_use_before_the_guest_is_reached(hooks):
+    cases = [
+        (("broker", "{dest}", "now"), "RUN_T0 'now' is not a whole number of seconds"),
+        (("journal", "{dest}", GUEST_T0), "KIND 'journal' is not broker, controller or docker-events: nothing was read"),
+        (("docker-events", "{dest}", GUEST_T0), "usage: proof_fetch_sut_log.sh"),
+        (("broker", "{dest}", GUEST_T0, "{run_id}"), "usage: proof_fetch_sut_log.sh"),
+        (("docker-events", "{dest}", GUEST_T0, "../x"), "RUN_ID '../x' is not a plain run id"),
+        (("docker-events", "{dest}", GUEST_T0, "{run_id}", "kill;die"), "EXPECTED 'kill;die' is not a comma-separated list"),
+    ]
+    for args, says in cases:
+        result = hooks.run_hook(hooks.template("proof_fetch_sut_log.sh", *args), hooks.sut_logs / "docker-events.log")
+        assert result.returncode == 2, report(result)
+        assert says in result.stderr, (args, report(result))
+    assert hooks.ssh_commands() == []
+
+
+# --- the docker events: the recorder the driver starts, and the fetch that stops and judges it
+
+
+def _events_fetch(hooks: Hooks, run_t0: int, expected: str | None = "kill,die,start",
+                  **overrides) -> tuple[subprocess.CompletedProcess, Path]:
+    extra = ("{run_id}",) + ((expected,) if expected else ())
+    return _fetch(hooks, "docker-events", str(run_t0), *extra, **overrides)
+
+
+def _run_t0(start: subprocess.CompletedProcess) -> int:
+    return int(re.search(r"^run_guest_t0=(\d+)$", start.stdout, re.M).group(1))
+
+
+def _coverage(hooks: Hooks) -> dict[str, list[str]]:
+    """The coverage record the fetch kept, as {key: [values]}."""
+    out: dict[str, list[str]] = {}
+    for line in (hooks.sut_logs / "docker-events.coverage.txt").read_text(encoding="utf-8").splitlines():
+        key, _, rest = line.partition("=")
+        out.setdefault(key, []).append(rest)
+    return out
+
+
+def test_the_recorders_start_says_when_it_is_ready_and_is_write_once(hooks):
+    start = hooks.start_recorder()
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    d = hooks.events_dir()
+    recorder = hooks.bench.drivers / "proof_events_recorder.sh"
+    # The clone's recorder, written to the guest byte for byte and checked
+    # there; the boot and daemon facts; the lifecycle up to readiness.
+    assert (d / "recorder.sh").read_bytes() == recorder.read_bytes()
+    assert f"recorder_sha256={hashlib.sha256(recorder.read_bytes()).hexdigest()}" in start.stdout
+    facts = (d / "start-facts.txt").read_text(encoding="utf-8").splitlines()
+    assert facts[0].startswith("boot_id=") and len(facts[0]) > len("boot_id=")
+    assert facts[1:] == ["MainPID=321", "ExecMainStartTimestampMonotonic=4200000"]
+    life = (d / "lifecycle.txt").read_text(encoding="utf-8").splitlines()
+    assert [line.split()[0] for line in life] == ["start", "cli-start", "ready"]
+    since = int(re.search(r"^recorder_since_guest_epoch=(\d+)$", start.stdout, re.M).group(1))
+    assert f"since={since}" in life[0] and since <= t0 - 115
+    assert life[2].startswith(f"ready epoch={t0} ") and life[2].endswith("unit=active")
+    assert hooks.recorder_running()
+    assert hooks.captured(), "ready means the subscription answered"
+    # A second start for the same run id starts nothing.
+    again = hooks.start_recorder()
+    assert again.returncode == 1, report(again)
+    assert f"STOP: {d} exists: the events capture of a run id is write-once; nothing was started" in again.stdout
+    assert hooks.recorder_running() and len(hooks.ssh_commands()) == 2
+
+
+@pytest.mark.parametrize("token, rc, says", [
+    ("events-unit-fails", 1, f"STOP: the recorder unit egw-events-{RID} could not be started"),
+    ("events-silent", 3, f"NOT READY: the recorder unit egw-events-{RID} did not show a live subscription"),
+    ("events-cli-fails", 3, f"NOT READY: the recorder unit egw-events-{RID} did not show a live subscription"),
+])
+def test_a_recorder_that_cannot_start_or_is_not_ready_is_stopped_and_says_so(hooks, token, rc, says):
+    start = hooks.start_recorder(EGW_STUB_FAIL=token)
+    assert start.returncode == rc, report(start)
+    assert says in start.stdout, report(start)
+    assert "run_guest_t0=" not in start.stdout
+    assert not hooks.recorder_running()
+    life = (hooks.events_dir() / "lifecycle.txt").read_text(encoding="utf-8")
+    assert "ready " not in life
+    if token == "events-cli-fails":
+        # The CLI ended by itself at once: its end and its reason are kept.
+        assert "rc=1 stop_requested=no" in life and "Cannot connect to the Docker daemon" in start.stdout
+    if token == "events-silent":
+        # Running but receiving nothing: stopped by the step, and so ended
+        # with the stop requested.
+        assert "unit_state_after_stop=inactive" in start.stdout and "stop_requested=yes" in life
+
+
+def test_events_past_the_daemons_bounded_history_are_captured_and_the_fault_is_found(hooks, monkeypatch):
+    start = hooks.start_recorder()
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    # The fault, issued by the real restart hook: the daemon's kill (signal
+    # 9), die and start of the controller reach the live stream.
+    manifest = hooks.run_restart_by_the_harness(monkeypatch)
+    assert manifest["returncode"] == 0, manifest
+    hooks.wait_for(lambda: any(e.get("Action") == "start" for e in hooks.captured()))
+    # Then more than the daemon keeps: 300 later events of the broker.
+    filler = []
+    for i in range(300):
+        ns = steady_ns(hooks.clock)
+        filler.append({"status": "exec_die", "id": "00" + "a" * 62, "from": "stub/egw-mosquitto-1:1", "Type": "container",
+                       "Action": "exec_die", "Actor": {"ID": "00" + "a" * 62, "Attributes": {"name": "egw-mosquitto-1"}},
+                       "scope": "local", "time": ns // 10 ** 9, "timeNano": ns + i})
+    hooks.store_events(*filler)
+    # A history query as r03 made it answers from the bounded buffer: the
+    # kill and the start are no longer in it, and it says nothing of that.
+    until = hooks.now()
+    history = hooks.run_argv(["ssh", "egw-tcg", f"docker events --filter container=egw-controller-1 --since {t0} --until {until}"])
+    assert history.returncode == 0 and history.stdout == "", report(history)
+    whole = hooks.run_argv(["ssh", "egw-tcg", f"docker events --since {t0} --until {until}"])
+    assert len(whole.stdout.splitlines()) == 256
+    # The recorder captured them as they happened, and the fetch finds them
+    # within the run's window.
+    result, dest = _events_fetch(hooks, t0)
+    assert result.returncode == 0, report(result)
+    captured = [json.loads(line) for line in dest.read_text(encoding="utf-8").splitlines()]
+    kill = [e for e in captured if e["Action"] == "kill" and e["Actor"]["Attributes"]["name"] == "egw-controller-1"]
+    assert kill and kill[0]["Actor"]["Attributes"]["signal"] == "9"
+    assert sum(e["Action"] == "exec_die" for e in captured) >= 300
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["complete"]
+    assert coverage["requested_since_guest_epoch"] == [str(t0)] and coverage["expected"] == ["kill,die,start"]
+    for rule in ("R1", "R2", "R3", "R4", "R5", "R6", "R7"):
+        assert coverage[f"rule_{rule}"][0].startswith("held: "), coverage
+    assert "reason" not in coverage
+    assert coverage["expected_found"][0].startswith("kill@")
+    assert "provenance" in coverage and "not a history query" in coverage["provenance"][0]
+    assert f"proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 {t0}" in result.stdout
+    sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+    assert f"sha256 {sha}, written to {dest}" in result.stdout
+    # The records of the capture are kept beside it, and the unit is gone.
+    for name in ("lifecycle.txt", "start-facts.txt", "cli-stderr.txt", "stop.txt", "coverage.txt"):
+        assert (hooks.sut_logs / f"docker-events.{name}").is_file(), name
+    assert not (hooks.sut_logs / "docker-events.partial.jsonl").exists()
+    life = (hooks.sut_logs / "docker-events.lifecycle.txt").read_text(encoding="utf-8").splitlines()
+    assert life[-1].startswith("cli-exit ") and life[-1].endswith("stop_requested=yes")
+    stop = (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8")
+    assert "unit_state_before_stop=active" in stop and "closing_witness_seen=yes" in stop
+    assert "unit_state_after_stop=inactive" in stop
+    assert not hooks.recorder_running()
+
+
+def test_a_fault_free_capture_is_complete_without_expected_events_and_never_complete_when_they_are_missing(hooks):
+    # The events of the fault are demanded of the run whose scenario
+    # generates them, never of a fault-free run; here no fault happened.
+    first = hooks.start_recorder()
+    assert first.returncode == 0, report(first)
+    result, dest = _events_fetch(hooks, _run_t0(first))
+    assert result.returncode == 1, report(result)
+    assert not dest.exists() and (hooks.sut_logs / "docker-events.partial.jsonl").is_file()
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["incomplete"]
+    assert coverage["rule_R7"][0].startswith("broken: the expected event(s) kill (signal 9), die, start of egw-controller-1")
+    assert [r.split(" ")[0] for r in coverage["reason"]] == ["R7"]
+    assert "the docker-events capture is NOT shown complete (coverage=incomplete, checker exit 1)" in result.stderr
+    # A fault-free run: the same capture, no expectation, complete.
+    other = "fault-free-r01"
+    second = hooks.start_recorder(other)
+    assert second.returncode == 0, report(second)
+    sut = hooks.bench.tmp / "raw" / other / "logs" / "sut"
+    template = hooks.template("proof_fetch_sut_log.sh", "docker-events", "{dest}", str(_run_t0(second)), other)
+    free = hooks.run_argv(shlex.split(run_mod.format_collector_template(
+        template, other, duration_s=300, dest=sut / "docker-events.log", expect_services=list(EXPECT_SERVICES))))
+    assert free.returncode == 0, report(free)
+    text = (sut / "docker-events.coverage.txt").read_text(encoding="utf-8")
+    assert text.startswith("coverage=complete\n") and "rule_R7=not-required: " in text and "expected=none" in text
+
+
+@pytest.mark.parametrize("case, rule, says", [
+    # The CLI ended by itself mid-run, with status 0 - the CLI's answer when
+    # the daemon closes the stream: a break, never read as coverage.
+    ("eof", "R3", "the events CLI ended by itself"),
+    # The daemon was restarted (its MainPID and start stamp changed): what
+    # the stream missed meanwhile is unknown.
+    ("daemon-restarted", "R2", "the guest boot or the docker daemon changed during the capture"),
+    # The CLI reported a problem on stderr.
+    ("stderr", "R4", "the events CLI wrote to stderr"),
+    # The stream fell silent: no event after the stop request shows it live
+    # to the window's end.
+    ("no-witness", "R5", "no event is stamped after the second of the stop request"),
+])
+def test_a_capture_that_was_broken_is_kept_apart_and_never_complete(hooks, case, rule, says):
+    env = {"eof": {"EGW_STUB_EVENTS_EOF_AFTER": "15"}, "stderr": {"EGW_STUB_FAIL": "events-stderr"},
+           "no-witness": {"EGW_STUB_EVENTS_QUIET_AFTER": "3"}}.get(case, {})
+    start = hooks.start_recorder(**env)
+    assert start.returncode == 0, report(start)
+    t0 = _run_t0(start)
+    if case == "eof":
+        hooks.wait_for(lambda: "cli-exit" in (hooks.events_dir() / "lifecycle.txt").read_text(encoding="utf-8"))
+        assert not hooks.recorder_running()
+    if case == "daemon-restarted":
+        Path(str(hooks.bench.log) + ".docker-daemon.json").write_text(
+            json.dumps({"MainPID": "977", "ExecMainStartTimestampMonotonic": "9100000"}), "utf-8")
+    if case == "no-witness":
+        # Silent from a second BEFORE the one the stop is requested in: its
+        # three heartbeats captured, and the guest clock past them.
+        hooks.wait_for(lambda: len(hooks.captured()) >= 3)
+        last = max(e["timeNano"] for e in hooks.captured()) // 10 ** 9
+        hooks.wait_for(lambda: hooks.now() > last)
+    result, dest = _events_fetch(hooks, t0, expected=None)
+    assert result.returncode == 1, report(result)
+    assert not dest.exists()
+    assert (hooks.sut_logs / "docker-events.partial.jsonl").is_file()
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["incomplete"], coverage
+    assert coverage[f"rule_{rule}"][0].startswith("broken: " + says), coverage
+    assert any(r.startswith(f"{rule} broken: {says}") for r in coverage["reason"])
+    assert f"proof_fetch_sut_log: docker-events: {rule} broken: {says}" in result.stderr
+    last = result.stderr.splitlines()[-1]
+    assert last.startswith("STOP: proof_fetch_sut_log: the docker-events capture is NOT shown complete (coverage=incomplete")
+    assert last.endswith(f"was NOT written; what was captured is kept as {hooks.sut_logs}/docker-events.partial.jsonl")
+    if case == "eof":
+        assert "rc=0 stop_requested=no" in (hooks.sut_logs / "docker-events.lifecycle.txt").read_text(encoding="utf-8")
+        assert "unit_state_before_stop=inactive" in (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8")
+    assert not hooks.recorder_running()
+
+
+def test_a_recorder_the_fetch_could_not_stop_is_not_judged(hooks):
+    # The stop was refused: the capture was not shown to end by it, so it is
+    # not judged, whatever it holds, and the unit is left to the driver's
+    # restoration, which stops it and records the capture incomplete.
+    start = hooks.start_recorder()
+    assert start.returncode == 0, report(start)
+    result, dest = _events_fetch(hooks, _run_t0(start), expected=None, EGW_STUB_FAIL="events-stop-fails")
+    assert result.returncode == 1, report(result)
+    assert f"STOP: 'systemctl stop egw-events-{RID}' failed" in result.stderr
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["unknown"]
+    assert coverage["reason"] == [f"the stop of the recorder unit egw-events-{RID} on the guest exited 1 (ssh egw-tcg): "
+                                  "the capture was not judged"]
+    assert "unit_state_after_stop=active" in (hooks.sut_logs / "docker-events.stop.txt").read_text(encoding="utf-8")
+    assert not dest.exists() and (hooks.sut_logs / "docker-events.partial.jsonl").is_file()
+    assert hooks.recorder_running()
+
+
+def test_an_events_fetch_with_no_recorder_on_the_guest_is_not_judged(hooks):
+    result, dest = _events_fetch(hooks, hooks.now() - 60)
+    assert result.returncode == 1, report(result)
+    assert f"STOP: /tmp/egw-events-{RID} is not on the guest" in result.stderr.replace(str(hooks.bench.guest_root), "")
+    coverage = _coverage(hooks)
+    assert coverage["coverage"] == ["unknown"]
+    assert any("the stop of the recorder unit" in r and "the capture was not judged" in r for r in coverage["reason"])
+    assert not dest.exists() and not (hooks.sut_logs / "docker-events.partial.jsonl").exists()
+    assert "coverage=unknown, checker exit 2" in result.stderr.splitlines()[-1]
 
 
 @pytest.mark.parametrize("kind, token, flag, reason", [
@@ -647,6 +1256,29 @@ def test_fetch_sut_log_run_by_the_harness_hook_runner_keeps_the_stop_line_in_the
     record["dest_file"] = f"logs/sut/{run_mod.SUT_LOG_FILES[label]}"
     reasons = run_mod.sut_log_fetch_failures([record])
     assert len(reasons) == 1 and reasons[0].startswith(f"SUT log fetch {flag} failed with exit code 1")
+
+
+def test_an_incomplete_events_capture_run_by_the_harness_hook_runner_is_a_fetch_failure(hooks, monkeypatch):
+    """A capture the checker does not find complete leaves the harness a
+    fetch that exited 1 and wrote no file: the validity reason of item 18,
+    the eligibility's and the evaluator's incomplete evidence, unchanged."""
+    start = hooks.start_recorder(EGW_STUB_EVENTS_EOF_AFTER="15")
+    assert start.returncode == 0, report(start)
+    hooks.wait_for(lambda: not hooks.recorder_running())
+    for key, val in hooks.env().items():
+        monkeypatch.setenv(key, val)
+    dest = hooks.sut_logs / run_mod.SUT_LOG_FILES["docker_events"]
+    template = hooks.template("proof_fetch_sut_log.sh", "docker-events", "{dest}", str(_run_t0(start)), "{run_id}",
+                              "kill,die,start")
+    record = run_mod.execute_collector_hook("docker_events", template, RID, duration_s=300, dest=dest,
+                                            expect_services=list(EXPECT_SERVICES), log_dir=hooks.sut_logs, timeout_s=120)
+    assert record["returncode"] == 1 and record["flag"] == "--fetch-docker-events-cmd"
+    assert "the docker-events capture is NOT shown complete (coverage=incomplete" in record["stderr_tail"]
+    record["dest_exists"] = dest.is_file()
+    record["dest_file"] = "logs/sut/docker-events.log"
+    assert record["dest_exists"] is False
+    reasons = run_mod.sut_log_fetch_failures([record])
+    assert len(reasons) == 1 and reasons[0].startswith("SUT log fetch --fetch-docker-events-cmd failed with exit code 1")
 
 
 # --------------------------------------------------------------------------
