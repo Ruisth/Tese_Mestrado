@@ -544,6 +544,14 @@ def test_a_whole_number_too_long_to_convert_gives_no_interval_and_never_raises(t
     _no_interval(tmp_path / "until", "whole-number", coverage=_coverage(until=huge))
 
 
+def test_a_die_and_a_start_past_any_utc_instant_give_no_interval_and_never_raise(tmp_path) -> None:
+    """The same for a window whose bounds convert but lie past the last UTC second text can name (year 9999): a die
+    and a start inside it are not instants the rows' whole seconds can be compared with."""
+    t0 = 10 ** 19
+    events = [_event("die", C, CID, (t0 + 10) * NS, exitCode="0"), _event("start", C, CID, (t0 + 15) * NS)]
+    _no_interval(tmp_path, "UTC", events=events, coverage=_coverage(since=str(t0), until=str(t0 + 100)))
+
+
 def test_a_started_at_fetch_that_failed_gives_no_interval(tmp_path) -> None:
     fetches = [_fetch("docker_events", "logs/sut/docker-events.log"),
                _fetch("started_at", "logs/sut/controller-started-at.txt", returncode=1, dest_exists=False)]
