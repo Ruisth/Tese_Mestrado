@@ -531,13 +531,18 @@ its own device received before its earliest received redelivery; each
 source explains one identity), and, on a run qualified `recovery_observed`,
 its device's twin excess equals exactly the identities named there (all or
 nothing per device; a duplicate-only identity of another run id on the
-device, as an `--also` file holds, leaves none named); every other one is
-unexplained, with its failed conditions. A
+device, as an `--also` file holds, leaves none named, and one whose lines
+name no device, or an accepted line without a device, leaves none named on
+any device); every other one is unexplained, with its failed conditions. A
 stated limit: the death has no order check, it is attributed by count
 only. The identity stays in `lost` and in every zero-lost criterion; no
 count, criterion or exit code changes. `itest_reconcile delta` prints the
 same report only with `--n1-report`, `--controller-log FILE` or
-`--restart-evidence RUN_DIR` (test 6 names the last two).
+`--restart-evidence RUN_DIR` (test 6 names the last two); without the last,
+its evidence of a quiet drain is the 'to' `/metrics` reading, quiet as
+CONTRACTS §5 defines one reading (one reading, not `drained`'s window).
+Nothing in the files read makes the layer or `delta` stop or change an
+exit code: a report that cannot be made says so.
 
 **The finite proof's evaluator (ADR 0011, "The finite proof").** A layer
 beside `recovery_qualification`, for one proof session rather than a

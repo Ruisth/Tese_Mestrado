@@ -43,10 +43,14 @@ it is false and names the runs that are not, with their qualification and
 reason. Without a campaign plan the planned set is unknown and the
 criterion is false, saying so.
 
-This layer changes no count: lost, late, N1 and every other figure come
-from ``egw_experiments.analyze``, whose per-run, summary, acceptance and
-saturation outputs it neither reads nor rewrites, and it adds no row to the
-acceptance table. The qualification is read from the sealed manifests'
+This layer changes no count: lost, late and every other figure of the
+analysis come from ``egw_experiments.analyze``, whose per-run, summary,
+acceptance and saturation outputs it neither reads nor rewrites, and it
+adds no row to the acceptance table. N1 is counted nowhere: the two N1
+columns below are this layer's own report of identities, read from the
+run's files, and change no figure of the analysis (``STATEMENT``, written
+unchanged into the JSON, speaks of the analysis's figures). The
+qualification is read from the sealed manifests'
 restart evidence records alone (``drain``, ``twin_snapshots``,
 ``events_post_drain_fetch``, ``validity``, ``exclusion``) and the
 ``SHA256SUMS`` verification. The ``analyze`` command runs it after the
