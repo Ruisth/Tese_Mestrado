@@ -934,32 +934,37 @@ sut_log() {
 # write-once in $P/<run-id>.sut/events-start.txt and shown on stderr. Not ready, not started or not reached: a STOP,
 # nothing on stdout, a unit the start may have left running is stopped - start neither the workload nor the fault.
 # Interrupted (INT, TERM, HUP) at any moment of the start, the unit may already run: it is stopped before the step ends,
-# and the step answers 130 (a STOP, no RUN_T0).
+# and the step answers 130 (a STOP, no RUN_T0). A cleanup that did not end 0 (the guest not reached) has not shown the
+# unit stopped: the STOP then says the unit may still run, and the cleanup is to be repeated until it ends 0.
 events_start() {
   local id=$1 d="$P/$1.sut"
   [[ $id =~ ^[A-Za-z0-9._-]+$ ]] || { stop "events_start: usage: events_start <run-id> - nothing was started"; return 1; }
   mkdir -p "$d" || { stop "events_start $id: $d could not be created - nothing was started"; return 1; }
   [ ! -e "$d/events-start.txt" ] || { stop "events_start $id: $d/events-start.txt exists - a run id's recorder is started once; nothing was started"; return 1; }
   (
-    trap 'bash "$EGW_CLONE/tools/session/events_capture.sh" cleanup "$id" >&2; stop "events_start $id: interrupted - a recorder unit the start had begun is stopped (above); start neither the workload nor the fault"; exit 130' INT TERM HUP
+    trap 'unit="a recorder unit the start had begun is stopped (above)"; bash "$EGW_CLONE/tools/session/events_capture.sh" cleanup "$id" >&2 || unit="its cleanup ended $? - egw-events-$id may still run on the guest: repeat the cleanup (bash $EGW_CLONE/tools/session/events_capture.sh cleanup $id) until it ends 0"; stop "events_start $id: interrupted - $unit; start neither the workload nor the fault"; exit 130' INT TERM HUP
     bash "$EGW_CLONE/tools/session/events_capture.sh" start "$id" > "$d/events-start.txt" 2>&1; rc=$?
     cat "$d/events-start.txt" >&2
     t0=$(sed -n 's/^run_guest_t0=//p' "$d/events-start.txt")
     if [ "$rc" = 0 ] && [[ $t0 =~ ^[0-9]+$ ]]; then echo "$t0"; exit 0; fi
-    bash "$EGW_CLONE/tools/session/events_capture.sh" cleanup "$id" >&2
-    stop "events_start $id: the Docker events recorder was NOT found ready (events_capture.sh start exit $rc; $d/events-start.txt) - start neither the workload nor the fault"
+    unit="a unit the start may have left running is stopped (above)"
+    bash "$EGW_CLONE/tools/session/events_capture.sh" cleanup "$id" >&2 \
+      || unit="its cleanup ended $? - egw-events-$id may still run on the guest: repeat the cleanup (bash $EGW_CLONE/tools/session/events_capture.sh cleanup $id) until it ends 0"
+    stop "events_start $id: the Docker events recorder was NOT found ready (events_capture.sh start exit $rc; $d/events-start.txt); $unit - start neither the workload nor the fault"
   )
 }
 
 # events_cleanup <run-id> <records-dir>: what every ending does once the run's docker-events fetch ran or could not run:
-# a recorder unit still running is stopped (events_capture.sh cleanup) and, when <records-dir> holds no stop record of
-# that fetch (docker-events.stop.txt: the fetch never ran, or was cut short), what the recorder captured is copied
-# write-once to $P/<run-id>.sut/events-partial/ - never as a docker-events.log. A STOP when the unit was not shown
-# stopped or the copy failed. Repeated, it still stops a unit still running: the copy is made only once the unit is
-# shown stopped, and is never made again into an events-partial/ that exists.
+# a recorder unit still running is stopped (events_capture.sh cleanup) and, unless that fetch kept the capture in
+# <records-dir> (docker-events.log when shown complete, docker-events.partial.jsonl otherwise; its stop record alone
+# says only that the fetch reached its stop step, and is written even when nothing was copied), what the recorder
+# captured is copied write-once to $P/<run-id>.sut/events-partial/ - never as a docker-events.log. A STOP when the unit
+# was not shown stopped or the copy failed. Repeated, it still stops a unit still running: the copy is made only once
+# the unit is shown stopped, events-partial/ only appears once all of it arrived, and it is never made again into an
+# events-partial/ that exists.
 events_cleanup() {
   local id=$1 keep=
-  [ -e "$2/docker-events.stop.txt" ] || keep="$P/$id.sut/events-partial"
+  [ -e "$2/docker-events.log" ] || [ -e "$2/docker-events.partial.jsonl" ] || keep="$P/$id.sut/events-partial"
   bash "$EGW_CLONE/tools/session/events_capture.sh" cleanup "$id" ${keep:+"$keep"} \
     || { stop "events_cleanup $id: the recorder unit egw-events-$id was not shown stopped, or what it captured was not all kept${keep:+ in $keep}"; return 1; }
 }
@@ -1000,15 +1005,21 @@ events_stop() {
 # harness - its exit or an interruption (INT, TERM, HUP) - the unit is then stopped and what it captured kept
 # (events_cleanup). The interruption is caught from before the recorder's start: interrupted while it starts, or once
 # it is ready but before the harness, the harness is not started and the unit is stopped (events_start, then
-# events_capture.sh cleanup).
+# events_capture.sh cleanup; a cleanup that did not end 0 is named in the STOP, the unit then possibly still running).
+# A run id whose run directory exists is refused before the recorder starts (2): the harness refuses that directory,
+# and the records in it are another execution's, never this run's.
 harness_cmd() {
   local id=$1 tools="$EGW_CLONE/tools/session"; shift
   (
     intr=
     trap 'intr=1; echo "harness_cmd $id: interrupted - the Docker events recorder is stopped next" >&2' INT TERM HUP
+    [ -z "$id" ] || [ ! -e ~/egw-tcg/pilot/results/raw/"$id" ] || {
+      stop "harness_cmd $id: ~/egw-tcg/pilot/results/raw/$id exists - another execution's run directory, which the harness refuses: no Docker events recorder was started, the harness was NOT started"; exit 2; }
     t0=$(events_start "$id") && [ -z "$intr" ] || {
-      [ -z "$intr" ] || bash "$tools/events_capture.sh" cleanup "$id" >&2
-      stop "harness_cmd $id: the harness was NOT started (no Docker events recorder ready before the workload, or an interruption)"; exit 2; }
+      unit=
+      [ -z "$intr" ] || bash "$tools/events_capture.sh" cleanup "$id" >&2 \
+        || unit="; its cleanup ended $? - egw-events-$id may still run on the guest: repeat the cleanup (bash $tools/events_capture.sh cleanup $id) until it ends 0"
+      stop "harness_cmd $id: the harness was NOT started (no Docker events recorder ready before the workload, or an interruption)$unit"; exit 2; }
     python -m egw_experiments run --run-id "$id" --plan ~/egw-tcg/pilot/campaign_plan.json --base-dir ~/egw-tcg/pilot/results \
       --broker 127.0.0.1 --port "$MQTT_PORT" --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert ~/egw-tcg/ca.crt \
       --controller-url "$CTRL" --sut-env-from ~/egw-tcg/sut_environment.json \
@@ -1120,7 +1131,7 @@ EOF
 host$ bash -n ~/egw-tcg/itest-helpers.sh && . ~/egw-tcg/itest-helpers.sh && $REC --help >/dev/null && echo "helpers loaded, reconcile helper importable"
 ```
 
-**`EGW_CLONE` must name the checkout the harness runs from** — the clean clone whose editable install `python -m egw_experiments` imports, for example `export EGW_CLONE=$HOME/egw-exec/repo` before the helper file is sourced. `harness_run` builds its fetch hook from `$EGW_CLONE/src/deployment/scripts/fetch-collector-output.sh`, and the manifest records the sha256 of the script that ran (`collector.fetch_helper_sha256`, with `collector.fetch_helper_path`), so a fetch run with another checkout's script is identifiable. The default kept in the helper file, `/home/ruisth/yocto/egw`, is the older Yocto clone; while it does not carry the fetch script, the fetch hook exits non-zero there and every `harness_run` ends invalid.
+**`EGW_CLONE` must name the checkout the harness runs from** — the clean clone whose editable install `python -m egw_experiments` imports, for example `export EGW_CLONE=$HOME/egw-exec/repo` before the helper file is sourced. `harness_run` builds its fetch hook from `$EGW_CLONE/src/deployment/scripts/fetch-collector-output.sh`, and the manifest records the sha256 of the script that ran (`collector.fetch_helper_sha256`, with `collector.fetch_helper_path`), so a fetch run with another checkout's script is identifiable. The default kept in the helper file, `/home/ruisth/yocto/egw`, is the older Yocto clone; while it does not carry the capture scripts of `tools/session` (`events_capture.sh`, `proof_events_recorder.sh`), `events_start` fails there and the harness is not started (`harness_cmd` answers 2, `harness_run` STOPs), and an older `proof_fetch_sut_log.sh` would only make the run's SUT fetches fail (the run invalid); and a checkout without the fetch script leaves the fetch hook exiting non-zero, so its runs end invalid.
 
 How the helpers enforce the order (what each one refuses to do):
 
@@ -1137,7 +1148,7 @@ How the helpers enforce the order (what each one refuses to do):
 | `finish <run-id>` | `wait && drained && fetch && accounted && snap_pair after`, then `check` **and** `delta` (both always run) | any capture step fails, `check` exits non-zero (3 = not a protocol check) or `delta` exits non-zero (4 = `MISMATCH` or queue not empty), or published records without a logged outcome were accepted by the operator; repeatable after the cause is fixed — an existing `after` pair is kept, never retaken; a lone `after` file is a `STOP` |
 | `sim_post <run-id> <sim args>` | simulator (stderr teed to `<run-id>.stderr.txt`), then `post` immediately **whatever the simulator's exit status**, then one `TEST STATUS` line | the transcript file cannot be created (the simulator is then **not** started); simulator exit ≠ 0, `tee` exit ≠ 0, an empty transcript or `post` ≠ 0 — the marker and the evidence are still collected |
 | `run_test <run-id> <seed> [sim args]` | `pre`, and only then `sim_post` with the same seed (and `DEVICES`, if set) | `pre` fails: `TEST STATUS <id>: precondition failed -> simulator NOT started` |
-| `harness_run <plan-run-id> [args]` | one `egw_experiments run` against the pilot plan, with the six expected services and the fetch of the collector's CSV and companions (Section 7, test 1), after `events_start`: the broker and controller logs and the Docker events of the run, bounded to the recorder's readiness, are fetched by the harness last (`--fetch-*-log-cmd`), and the unit is stopped whatever ends the harness; `harness_cmd` is the same command line without the stop, for test 6, whose run is invalid by design until its restart evidence is ingested (`EVENTS_EXPECTED=die,start`: the events its own restart must produce) | the recorder is not ready (the harness is not started: `harness_cmd` answers 2); the harness exits non-zero, which includes an invalid run: a collector hook that exits non-zero, a missing companion, an expected service without rows or a SUT fetch that failed or wrote no file (an events capture not shown complete among them) makes the run invalid |
+| `harness_run <plan-run-id> [args]` | one `egw_experiments run` against the pilot plan, with the six expected services and the fetch of the collector's CSV and companions (Section 7, test 1), after `events_start`: the broker and controller logs and the Docker events of the run, bounded to the recorder's readiness, are fetched by the harness last (`--fetch-*-log-cmd`), and the unit is stopped whatever ends the harness; `harness_cmd` is the same command line without the stop, for test 6, whose run is invalid by design until its restart evidence is ingested (`EVENTS_EXPECTED=die,start`: the events its own restart must produce) | the recorder is not ready, or the run directory exists (the harness is not started: `harness_cmd` answers 2); the harness exits non-zero, which includes an invalid run: a collector hook that exits non-zero, a missing companion, an expected service without rows or a SUT fetch that failed or wrote no file (an events capture not shown complete among them) makes the run invalid |
 | `guest_epoch [seconds back]`, `sut_log broker\|controller <name> <run-t0>` | the guest's clock in whole seconds, read just before a test's first action (3 s back for test 9(b)/(c), whose evidence follows it within seconds: the guest clock's step band); the broker's or controller's log bounded to [that epoch, the guest's clock at the read] by `tools/session/proof_fetch_sut_log.sh` of `EGW_CLONE`, written once to `$P/<name>.sut/<kind>.log` with the read's record `<kind>.fetch.txt` (tests 3, 5, 9(b)/(c)) | the guest clock not read; the read failed, answered nothing, or answered a line outside the window or without a stamp; the name's record exists (write-once) - no log is left, and it shows no rejection, connection or refusal, nor their absence |
 | `events_start <run-id>`, `events_stop <run-id> <run-t0> [expected [container]]`, `events_cleanup <run-id> <dir>` | the run's Docker events recorder of the finite proof (`tools/session/events_capture.sh`): started and found ready (its epoch printed, the start record in `$P/<run-id>.sut/`), then stopped after a closing marker and judged (`events_coverage.py` R1-R7, `expected` the actions of `container` the test's own operation generates), `docker-events.log` only for a capture shown complete; the cleanup stops a unit still running and keeps a capture the fetch did not keep in `events-partial/` (tests 1, 6, 7); an interrupted start stops its own unit, and a repeated `events_stop` or `events_cleanup` still stops a unit still running (the copy is write-once) | not ready, not started or not reached (the workload and the fault are then not started); the capture not shown complete (its records and the partial capture are kept); a record that exists (write-once) |
 | `config_identity <out-file>` | the configuration identity of the guest stack in one JSON file, as the harness validates it (`--config-identity-from`, test 6): the broker configuration's sha256 and its six C1 options, whether the broker reloaded its configuration since the container started, the controller's `stop_grace_period`, the controller image id and its `org.opencontainers.image.revision` label, the `paho-mqtt` version in that image, `a3_choice` `a`; read on the guest in one `ssh` session, written write-once | the file exists; `ssh` exits non-zero; the broker log not read on the guest (`docker compose logs` non-zero or empty: whether the broker reloaded is then not observed); a value missing or not of the expected form (nothing is written: the harness refuses an incomplete identity, and a fabricated value would state what the run did not rest on) |
@@ -1465,8 +1476,10 @@ host$ python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run
 # step between that read and the broker's line would stamp the line before the bound, where '--since' drops it), and
 # reads the broker log bounded to [that epoch, the guest's clock at the read] right after it (sut_log, 6.1): never an
 # earlier session's line. Those 3 s may hold the last line of the step before it ((a)'s TLS failure in (b)'s log; one
-# of (b)'s in (c)'s, if (b)'s read took less than 3 s): (b)'s evidence is a refusal naming its client id,
-# egw-simulator-itest-auth-wrongpw, and a line in (c)'s log that names that client id is (b)'s, never (c)'s.
+# of (b)'s in (c)'s, if (b)'s read took less than 3 s). A line in (c)'s log that names (b)'s client id,
+# egw-simulator-itest-auth-wrongpw, is (b)'s, never (c)'s. UNVERIFIED: whether the broker's "not authorised" line names
+# the client id at all or reads <unknown> (as in (e) below); either way a "not authorised" line in (c)'s log, named or
+# <unknown>, is never (c)'s evidence, which is a TLS/socket error (Expected below).
 # (b) wrong password -> CONNACK not authorised
 host$ T0_9B=$(guest_epoch 3); python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"
 host$ sut_log broker itest-auth-wrongpw "$T0_9B" && cat ~/egw-tcg/itest/itest-auth-wrongpw.sut/broker.log || stop "test 9(b): the broker log bounded to (b) was NOT read - (b) has no evidence (a read that failed shows no refusal)"
