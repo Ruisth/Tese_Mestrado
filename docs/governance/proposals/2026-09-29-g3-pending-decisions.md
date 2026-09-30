@@ -60,8 +60,9 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
 - *Where it applies.* Only at the harness's run-time ingest of the collector file (`run.ingest_resources`), only in
   a `controller_restart` run, and only when the `StartedAt` record was fetched: the option `--fetch-started-at-cmd`
   was given, and its fetch ended 0 with a non-empty `logs/sut/controller-started-at.txt`. `collect` does not apply
-  it.
-- *Without that record* there is no interval, and every result is byte-identical to the rule before. The finite
+  it, and does not re-judge a run whose file was judged at run time under the interval.
+- *Without the option* there is no interval, and every result is byte-identical to the rule before. With the
+  option but no usable record there is no interval, and a failed fetch is a validity reason (below). The finite
   proof never passes the option, so it is unchanged.
 - *The container.* C is `egw-controller-1`, the container T6's restart names. The capture's `container=` and the
   `StartedAt` record's container must both be C.
@@ -74,8 +75,8 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
   3. In the capture window [t0, t1 + 1), C has exactly one `die` and exactly one `start`, the start strictly after
      the die, both with the same container id. D is the die, S is the start. None, several, the wrong order or
      different ids: no interval.
-  4. The `StartedAt` record parses. Its container id is the pair's, it was read at or after S, and
-     |S − `StartedAt`| ≤ 1 s.
+  4. The `StartedAt` record parses. Its container id is the pair's, it was read at or after S (its guest epoch is
+     taken before the inspect), and |S − `StartedAt`| ≤ 1 s.
   5. C has a row stamped at or before sec(D) and a row stamped after sec(S).
 - *The checks on C.*
   - A row stamped after sec(D) and before sec(S) is rejected: no instance was running to measure. Its values do
@@ -189,7 +190,9 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
 - *The sequence reset.* T4 also includes `itest-dup-02` (`run_test itest-dup-02 42 --scenario smoke --duration
   60`), never run so far. It must give `lost = 0`, `late_confirmations = 0` (timed, decision 3) and every `delta`
   line `OK`. A failure of either part is a failure of T4.
-- Checked by `itest_reconcile replay-check`.
+- Checked by `itest_reconcile replay-check`. A limit that is not conservative (runbook test 4 states it): a
+  first-run line received after the `after` reading and before the replay (a redelivery after a reconnection)
+  cannot be told from the replay's line, and can stand for a replayed identity's `duplicate`.
 
 ### The conventions pinned for 1a
 

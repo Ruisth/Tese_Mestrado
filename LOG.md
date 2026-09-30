@@ -4226,26 +4226,30 @@ is unchanged.
     The proposals index, the readiness map (T1, T3, T4 and T6, issues 2 to 4,
     the decisions list; T6 moves from *Blocked* to "Pending, high risk of
     failure"), PROGRESS, ADR 0011 (dated later notes only), the 2026-09-19
-    acceptance proposal (§1 answered, §2 superseded), its row in the docs
-    index, R31 and C12 carry dated notes.
+    acceptance proposal (§1 answered, §2 superseded), its rows in the docs
+    and proposals indexes, R31 and C12 carry dated notes.
   - *1a, the proved-down interval.* At a controller restart, the rows of
     `egw-controller-1` missing between its captured `die` (D) and its next
     `start` (S) are not a gap, up to the effective end E = min(S, D + 120 s).
     The interval exists only when the restart ran with exit 0, the Docker
     events capture is `complete`, the capture window holds exactly one `die`
     and one `start` of that container with one container id, and the
-    `StartedAt` read (at or after S) agrees with S to 1 s; anything else
-    grants none. In whole seconds: a row after sec(D) and before sec(S), or in
-    sec(S) itself, is rejected; the edge before (sec(D) minus the last row
-    before it) and the edge after (the first row after sec(S) minus sec(E))
-    keep the 5 s rule. It applies only at the harness's run-time ingest, only
+    `StartedAt` read (at or after S, its guest epoch taken before the
+    inspect) agrees with S to 1 s; anything else grants none. In whole
+    seconds: a row after sec(D) and before sec(S), or in sec(S) itself, is
+    rejected; the edge before (sec(D) minus the last row before it) and the
+    edge after (the first row after sec(S) minus sec(E)) keep the 5 s rule.
+    It applies only at the harness's run-time ingest, only
     in a `controller_restart` run given the new option `--fetch-started-at-cmd`
     (the guest read `tools/session/fetch_started_at.sh`, written to
     `logs/sut/controller-started-at.txt`); the manifest records the outcomes
-    under `resources_proved_down`. Runbook test 6 passes the option; `collect`
-    and the finite proof do not, and without it every result is byte-identical.
-    No row is added, removed, zero-filled or interpolated, and no delivery,
-    recovery or C12 figure changes.
+    under `resources_proved_down`. Runbook test 6 passes the option, on
+    `controller_restart-r03` (the first `controller_restart` entry unused on
+    the evidence held; a used one is refused before anything starts);
+    `collect` and the finite proof do not (nor does `collect` re-judge a file
+    judged at run time under the interval), and without the option every
+    result is byte-identical. No row is added, removed, zero-filled or
+    interpolated, and no delivery, recovery or C12 figure changes.
   - *1b, T1's harness run.* Runbook test 1 names `nominal-r02`, a `nominal`
     entry never used on the guest, under its own run identity, with its
     duration and warm-up unchanged, instead of `smoke_sequence-r01`; an entry
@@ -4273,7 +4277,9 @@ is unchanged.
     be `accepted` in the events copy fetched after its final drain, kept
     write-once as `$P/$R.events.post-drain.jsonl` and checked by
     `itest_reconcile acceptance`; a drain that gives up leaves T3 not
-    evaluated. The Expected lists of runbook tests 1, 3, 5, 6 and 8 say so.
+    evaluated, and on a run id already used on the guest test 3 publishes
+    nothing (a STOP). The Expected lists of runbook tests 1, 3, 5, 6 and 8
+    say so.
   - *4, T4 per identity.* `itest_reconcile replay-check` applies the
     contract's same-process checks (the same `started_at`, `uptime_s`, the
     cumulative counters and `mqtt_connection` not decreasing), then requires
@@ -4296,7 +4302,8 @@ is unchanged.
   change: @@GREEN@@.
 - **Review.** @@REVIEW@@
 - **Limits.** Everything is verified on the host with stubs and fixtures
-  only; nothing ran on the guest. 1a: the `StartedAt` read, T6's `die` and
+  only; nothing ran on the guest (the runbook's Appendix B, item 24, lists
+  what these decisions added). 1a: the `StartedAt` read, T6's `die` and
   `start` events and the edge gaps under TCG are unverified; the guest
   clock's 1–3 s backward steps are not absorbed; a restart whose S − D
   exceeds about 124 s leaves the file rejected; adoption guarantees no valid
@@ -4304,8 +4311,12 @@ is unchanged.
   check; any N1 identity still fails T6. 3: the timed families remain at risk
   (`nominal-r01` confirmed 3,794 of 6,720 in time; T5 had 326 of 2,016 late;
   T2 was in time by 3.1 s). 4: the tolerance can pass an extra duplicate that
-  coincides with an unrelated reconnection. `itest-dup-02` and
-  `itest-ditto-fault-01` have never run.
+  coincides with an unrelated reconnection; and, a limit that is not
+  conservative (runbook test 4 states it), a first-run line received after
+  the `after` reading and before the replay (a redelivery after a
+  reconnection) cannot be told from the replay's line and can stand for a
+  replayed identity's `duplicate`. `itest-dup-02` and `itest-ditto-fault-01`
+  have never run.
 - **Decisions and next steps.** The student's decisions are recorded on the
   pending-decisions page; nothing here accepts a gate or admits a claim, and
   G3 stays paused and `Not decided`. No supervisor decision is recorded; D007
