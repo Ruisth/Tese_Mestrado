@@ -1,12 +1,18 @@
 # G3 pending decisions (2026-09-29)
 
-**Status: PROPOSED, for Rui's decision. None of these proposals is adopted.**
+**Status: ADOPTED by Rui on 2026-09-30, prospectively and with conditions** (see
+["The decision of 2026-09-30"](#the-decision-of-2026-09-30) below). Sections 1 to 4 keep the text as proposed on
+2026-09-29, as the historical proposal. Where the decision differs from it, the decision governs. *(Until
+2026-09-30 this line read: "PROPOSED, for Rui's decision. None of these proposals is adopted.")*
 
 This page covers four decisions that must be taken before a qualifying G3 run. The
 [G3 readiness map](../g3-readiness-map-2026-09-29.md) raises them as its decisions 1, 2, 3 and 5. For each one,
 the page gives the current rule and where it comes from, the exact wording proposed, the families it affects,
 what adopting or declining it does, and a recommendation. The map's decision 4 (lock the candidate and authorise
 the battery to resume) stays with Rui and comes after these four.
+
+*The state before 2026-09-30, kept as written. The first bullet is overtaken by the decision of 2026-09-30; the
+other three still hold.*
 
 - Merging this page adopts nothing.
 - G3 stays paused and `Not decided` ([gate decision log](../gate_decision_log.md)).
@@ -16,7 +22,8 @@ the battery to resume) stays with Rui and comes after these four.
 
 **Implementing any of these in validators, `analyze.py`, `delta`, the evaluator or gate criteria needs Rui's
 dated decision.** That decision is recorded in [LOG](../../../LOG.md). The implementation then comes as a change
-of its own, with its own regression tests.
+of its own, with its own regression tests. *(2026-09-30: the decision was taken on that date. It is recorded in
+LOG #C049, and the change that records it implements it offline, with its own regression tests.)*
 
 ## At a glance
 
@@ -27,6 +34,208 @@ of its own, with its own regression tests.
 | 2 | An N1 identity reported in its own column; `lost` and `MISMATCH` unchanged | Adopt the reporting column; no criterion changes | Same verdicts; an N1 case reads as an unexplained loss |
 | 3 | The list of timed families; T3 not timed (option 3-A); T6's zero lost taken from C12 | Adopt with option 3-A | T3's status stays ambiguous; T6 keeps two sources that disagree |
 | 4 | T4's duplicates judged per identity; redelivery duplicates reported apart | Adopt, prospectively, before T4 runs | One reconnection during the replay can fail T4 |
+
+## The decision of 2026-09-30
+
+### Authority
+
+- On 2026-09-30 Rui adopted the Project Manager's recommendations on this page, with their conditions. They are
+  those of the Project Manager's register entry "2026-09-30 17:01 WEST — PR52 favourable; G3 recommendations
+  remain prospective", held outside the repository.
+- His words: "As minhas respostas são as mesmas dadas pelo Senior Project Manager" ("My answers are the same as
+  those given by the Senior Project Manager").
+- For the end of T3's collection (decision 3) he chose "Cópia pós-drenagem" ("post-drain copy").
+- It is the student's decision. It is not a gate decision: G3 stays paused and `Not decided`
+  ([gate decision log](../gate_decision_log.md)). It is not a supervisor decision, and it records none. D007 stays
+  unsent.
+- Everything below is **prospective**. It applies to runs made after it, never to a run already made.
+
+### The adopted rules
+
+This section records the rules as adopted. Like every page in this directory, it is not itself the text in force:
+that is the [runbook](../../setup/qemu_integrated_gateway.md)'s section 7 and the code named below (LOG #C049).
+Sections 1 to 4 further down are the proposal as written on 2026-09-29.
+
+**1a. The proved-down interval at a controller restart.**
+- *Where it applies.* Only at the harness's run-time ingest of the collector file (`run.ingest_resources`), only in
+  a `controller_restart` run, and only when the `StartedAt` record was fetched: the option `--fetch-started-at-cmd`
+  was given, and its fetch ended 0 with a non-empty `logs/sut/controller-started-at.txt`. `collect` does not apply
+  it.
+- *Without that record* there is no interval, and every result is byte-identical to the rule before. The finite
+  proof never passes the option, so it is unchanged.
+- *The container.* C is `egw-controller-1`, the container T6's restart names. The capture's `container=` and the
+  `StartedAt` record's container must both be C.
+- *When the interval exists.* All five must hold. Otherwise there is no interval, the reason is recorded, and the
+  ordinary rule decides the file exactly as before.
+  1. The restart record shows that the restart ran with return code 0.
+  2. The docker-events fetch ended 0 and `logs/sut/docker-events.log` exists. `logs/sut/docker-events.coverage.txt`
+     starts with `coverage=complete`, names `container=egw-controller-1`, expects `die` and `start`, and gives
+     whole-number bounds t0 and t1 (`requested_since_guest_epoch`, `requested_until_guest_epoch`).
+  3. In the capture window [t0, t1 + 1), C has exactly one `die` and exactly one `start`, the start strictly after
+     the die, both with the same container id. D is the die, S is the start. None, several, the wrong order or
+     different ids: no interval.
+  4. The `StartedAt` record parses. Its container id is the pair's, it was read at or after S, and
+     |S − `StartedAt`| ≤ 1 s.
+  5. C has a row stamped at or before sec(D) and a row stamped after sec(S).
+- *The checks on C.*
+  - A row stamped after sec(D) and before sec(S) is rejected: no instance was running to measure. Its values do
+    not matter.
+  - A row stamped in sec(S) itself is rejected: the first row after S must come at least one sampling interval
+    (1 s) after sec(S).
+  - The one pair (last row at or before sec(D), first row after sec(S)) is replaced by two gaps. Each is judged
+    against `MAX_SAMPLE_GAP_S` (5 s), like any other gap. The edge before is sec(D) minus the last row before. The
+    edge after is the first row after minus sec(E).
+  - When the interval is capped (S later than D + 120 s), the edge after includes the time from D + 120 s to S. A
+    restart whose S − D exceeds about 124 s therefore leaves the file rejected.
+- *Unchanged.* C's other gaps, the head and tail gaps against the measured window, every other container, the 90 %
+  coverage, the 30 distinct instants (per container and overall), and the host, numeric and order checks. No row is
+  added, removed, zero-filled or interpolated. The file ingested is the collector's file, byte for byte.
+- *Recorded.* The manifest key `resources_proved_down`, for every `controller_restart` run given the option: whether
+  the interval applied, or why not; C and its container id; D, S and E (ns and UTC text); `capped`; `StartedAt`
+  and S − `StartedAt`; S − D and E − D in seconds; the last row before D and the first row after S; both edge
+  gaps; and the rejected rows.
+- *Reported only.* No delivery, recovery or C12 figure changes. `analyze.py` is unchanged: its per-run
+  `resources_per_container_sufficient` flag still reads false for C when C's gap exceeds 5 s, so no saturation
+  reading uses that run.
+- *A failed fetch.* A failed `StartedAt` fetch is a failed configured SUT fetch like the others: a validity reason,
+  and no interval. The read is `tools/session/fetch_started_at.sh`, which T6's harness line runs against the guest.
+- *Limits.* The edges have never been measured under TCG. The guest clock's 1–3 s backward steps are not absorbed.
+  Adoption does not make T6 valid or passing.
+
+**1b. T1's harness run.**
+- It uses a `nominal` entry of the pilot plan never used on the guest, under its own run identity, instead of
+  `smoke_sequence-r01`. The runbook names `nominal-r02`, the first unused entry on the evidence held.
+- The harness and the runbook refuse an existing raw directory, so an entry already used is never reused.
+- Its declared duration and warm-up are unchanged.
+- It is judged by T1's harness Expected list (the artefact chain), under the unchanged ingest rule: 30 distinct
+  instants, 90 % coverage, 5 s gaps. Its delivery figures are reported as measured.
+- It is not a passed 30 s smoke, not a performance approval and not a successful nominal delivery. It is distinct
+  from T1's three wearable functional runs. It does not count towards C14's ten `smoke_sequence` repetitions.
+
+**2. N1 identities, reported only.**
+- An identity is reported as `n1_applied_unconfirmed` only if all three hold:
+  1. Its only outcome lines are `duplicate` (lines of this run id, in the events copy compared with the post-drain
+     `after` snapshot), and it is a valid published identity of the run (in `sent_events.jsonl`, not intended
+     invalid).
+  2. The run records a source for it. Either a controller death: a restart record whose restart ran with exit 0
+     and whose complete capture holds a `die` of `egw-controller-1` inside the capture window (the 120 s replayed
+     before RUN_T0 excluded), at most one death per run. Or a connection end that the controller logged under A3
+     (the ERROR line "MQTT connection ended by the controller"; an INFO line is a graceful stop, not A3) on the
+     identity's own device, whose delivery in progress was received (`received_monotonic_ns`) before the
+     identity's first `duplicate` line. Each source explains at most one identity.
+  3. On its device, the twin's Δ`accepted_count` between the `before` snapshot and the `after` snapshot taken after
+     a quiet drain exceeds the device's `accepted` lines in that events copy by exactly the number of identities
+     reported on that device. The twin's `last_seq` is not below each reported identity's `seq`. The absolute
+     `accepted_count` is never used.
+- *Per device, all or nothing.* If a device has more duplicate-only identities than its surplus, or any of them
+  fails a condition, none of them is named: they cannot be told apart.
+- *Unexplained.* Every other duplicate-only identity is reported as `duplicate_only_unexplained`, with the failed
+  conditions named. When the attribution is not demonstrated (a source not read, a stamp not readable, a death two
+  devices would need, a drain not quiet, snapshots not verified), the identity is unexplained, never N1.
+- *What it does not change.* The identity stays in `lost` and in every zero-lost criterion. The `delta` line stays
+  `MISMATCH`, annotated with the named identities, and the exit codes are unchanged. It is never counted as
+  accepted, delivered or on time. There is no exactly-once claim and no fabricated `accepted` record. Without the
+  new options, `delta`'s output is byte-identical.
+- *Where it lives.* `src/egw_experiments/n1_report.py`; the columns `n1_applied_unconfirmed` and
+  `duplicate_only_unexplained` of `processed/recovery_qualification.{csv,json}`; the `itest_reconcile delta` options
+  `--n1-report`, `--controller-log FILE` and `--restart-evidence RUN_DIR`.
+
+**3. The timed families, and T3.**
+- The timed families of G3 are T1 (each of its three runs), T2, T4's sequence reset `itest-dup-02`, T5, T6 and T8's
+  post-reboot smoke.
+- Each must meet `lost = 0` and `late_confirmations = 0` under the controller-clock deadline: the marker plus 60 s.
+- A family that misses a mandatory deadline is recorded as failed, and G3 is not met on it (ADR 0011, throughput
+  choice T1). The miss is also recorded as a sizing finding for the pilot. That record does not turn the failure
+  into a pass.
+- No deadline, rate, duration or load changes. Sending the throughput question to G4 waives no G3 condition.
+- *T6.* Its zero lost is C12's obligation (`delivery_across_restart_zero_lost`: `lost = 0`, late confirmations
+  included), read on T6's own `per_run.csv` row (`lost = 0` and `late_confirmations = 0`). It must also meet its
+  recovery bound (`RESTART_RECOVERY_MAX_S`, "samples resuming within 120 s"). The Expected list's "reported as
+  measured" becomes a report beside that criterion, not a replacement for it. C12's row in
+  `acceptance_by_condition.csv` needs the plan's three restart runs, so T6 reads its own row.
+- *T3 is not timed:* no delivery deadline is imposed on it. But every valid sent identity of T3's run must have a
+  demonstrated `accepted` outcome by the end of the planned collection.
+  - That end is the events copy fetched after the run's final drain. `finish` already runs `drained` before its
+    fetch, so that copy is T3's post-drain copy. It is kept write-once as `$P/$R.events.post-drain.jsonl` and
+    checked by `itest_reconcile acceptance`.
+  - A valid identity accepted late, but present as `accepted` in that copy, meets the condition.
+  - A valid identity with only `failed`, `duplicate`, other or no outcome lines fails T3.
+  - T3 still requires `valid rejected = 0` and every `delta` line `OK`, as written.
+  - Its `lost` and `late_confirmations` are reported and decide nothing else for T3.
+  - A drain that gives up leaves no post-drain copy. T3 is then not evaluated (a STOP), never passed.
+  - This is an explicit prospective reconciliation of the plan's "valid input accepted". It does not claim that the
+    old Expected list already checked it.
+
+**4. T4 judged per identity (the replay `itest-dup-01`).**
+- *Same process first.* Before any difference of the `after` and `replay` `/metrics` snapshots, the contract's
+  same-process checks must hold ([CONTRACTS](../../../src/CONTRACTS.md), "Restart between two readings A and B",
+  rule 1): the same `started_at`; `uptime_s` and the cumulative counters `received`, `accepted`, `rejected`,
+  `duplicate`, `failed`, `dropped` and `processing_errors` not decreasing; and `mqtt_connection` (cumulative too,
+  v1.2) not decreasing. Otherwise the readings are of different processes, and T4 fails.
+- *Every replayed identity* (every `message_id` of the replay's `sent_events.jsonl`) must gain at least one
+  `duplicate` line from the replay, gain no `accepted` line from the replay, and have at most one `accepted` line
+  in total (`double_accepted = 0`, counted on the raw lines).
+- *Two counts.* `duplicate_replayed` is the replayed identities that gained a `duplicate` line; it must equal the
+  number of replayed identities. `duplicate_redelivery` is every further `duplicate` line added during the replay
+  interval.
+- *The tolerance.* Extras up to Δ`mqtt_connection` between the `after` and `replay` snapshots are tolerated, and
+  labelled "consistent with the reconnection budget". That is a tolerance, not proof that a reconnection caused
+  them: Δ`mqtt_connection` counts successful CONNACKs, and an extra duplicate and an unrelated reconnection can
+  meet the ceiling together. Extras beyond it fail T4.
+- *Reported, deciding nothing.* The `/metrics` Δ`duplicate`, beside the sum of the two counts.
+- *Unchanged.* Every other item of test 4's Expected list: `delivered_unique`, `lost`, `late_confirmations` and
+  `double_accepted` `UNCHANGED` between the pre- and post-replay accounting; the twins `same` between `after` and
+  `replay`; the `/metrics` Δ`accepted` 0, `queue_depth` 0 and the same `started_at`.
+- *The sequence reset.* T4 also includes `itest-dup-02` (`run_test itest-dup-02 42 --scenario smoke --duration
+  60`), never run so far. It must give `lost = 0`, `late_confirmations = 0` (timed, decision 3) and every `delta`
+  line `OK`. A failure of either part is a failure of T4.
+- Checked by `itest_reconcile replay-check`.
+
+### The conventions pinned for 1a
+
+- **Whole seconds.** The collector stamps whole UTC seconds. sec(x) is the whole second containing x (its floor).
+  Every check on C compares whole seconds.
+- **One clock.** Every instant of the interval is on the guest clock: the Docker events' `timeNano`,
+  `State.StartedAt` and the resource rows.
+- **The effective end.** E = min(S, D + 120 s), with 120 s = `RESTART_RECOVERY_MAX_S`. `capped` means S is later
+  than D + 120 s. The ordinary edge rule resumes from E, even when S is later.
+- **The start's agreement.** |S − `StartedAt`| ≤ 1 s, the resolution of the rows.
+
+### Where the adopted rule differs from the proposal below
+
+- **1a.** The effective end E = min(S, D + 120 s), with the edge after judged from E; the whole-second convention;
+  |S − `StartedAt`| ≤ 1 s; exactly one `die` and one `start`, with the same container id, and a `StartedAt` read at
+  or after S. The proposal's "If adopted" noted that no step of T6 read `StartedAt` after the restart: T6's harness
+  line now does, through `--fetch-started-at-cmd`. The rule applies only at the harness's run-time ingest.
+- **3.** Option 3-A as proposed said that a valid message never accepted "shows in `lost`" and decides nothing. The
+  adopted rule makes it a failure of T3, judged on the post-drain copy.
+- **4.** The proposal's "If adopted" promised that "an unexplained extra duplicate still fails" T4. That promise is
+  withdrawn: extras within the reconnection budget are tolerated as "consistent with the reconnection budget", and
+  only extras beyond it fail. The full same-process checks are added.
+- **1b and 2** are adopted as proposed. The adopted text adds what 1b is not (a performance approval, a successful
+  nominal delivery, one of T1's three wearable runs), and states how 2's conditions are read: which lines, which
+  sources, and per device all or nothing.
+
+### What it does not change
+
+- **Past runs and verdicts.** No past run, verdict, sealed package or historical figure changes. The finite proof
+  runs r01–r03, `controller_restart-r01`/`-r02`, `smoke_sequence-r01`/`-r02`, `nominal-r01` and the battery of
+  2026-09-18 keep their records. The past restart runs stay invalid under the rules they were run with.
+- **Thresholds and deadlines.** No threshold, deadline, rate, duration, load, coverage or minimum-count rule moves:
+  5 s, 120 s, 60 s, 30 instants and 90 % stay, with D007.
+- **The finite proof.** Unchanged: ADR 0011's E-12 and N1 naming, `proof_evaluator.py` and the proof's drivers and
+  capture scripts. The proof's behaviour stays byte-identical.
+- **CONTRACTS v1.2.** Unchanged. Its `lost` (§9) and its "until a separate decision" (§5) still hold: the counting
+  decision that ADR 0011 reserves is not taken.
+- **`PROTOCOL_VERSION`.** Not bumped: `protocol.py` requires a bump only after G4.
+
+### What it authorises
+
+- Only the offline change that records and implements it (LOG #C049): the harness, the reconcile helper, the
+  runbook's test text and their regression tests, run on the host with stubs.
+- Nothing on the guest. No session, build, load or run is authorised by it.
+- The candidate freeze and the battery's authorisation remain separate decisions (the map's decision 4).
+- G3 stays paused.
 
 ## 1. Resource gaps at a restart, and the sample count of short runs
 
@@ -380,7 +589,9 @@ is recorded as a failure.
 ## What still stands between this and G3
 
 The [readiness map](../g3-readiness-map-2026-09-29.md) keeps the full list. In short:
-- these four decisions, and the map's fourth (lock the candidate and authorise the battery to resume);
+- these four decisions, and the map's fourth (lock the candidate and authorise the battery to resume) *(2026-09-30:
+  the four were taken on that date, see "The decision of 2026-09-30", implemented offline and not yet run on the
+  guest; the map's fourth remains)*;
 - the families' own procedures on the guest: the shared capture helpers (recorder, bounded controller and broker
   reads, closing marker) were verified compatible in one short window, without load or faults (2026-09-30,
   `compat-capture-r01`), but no family's own procedure ran there, and the T6 and T7 event sets, delivery and log

@@ -1327,6 +1327,13 @@ re-decided, never run silently with a smaller window.
   [I3 §5 L3; `gates/out/item3_probe.out.txt:14-15`], so a failed first line
   could add a second line for the identity; the event-log change of "What must
   change" removes that path.
+  (Later note, 2026-09-30: for test 4's replay, the student adopted
+  prospectively a per-identity rule, decision 4 of the
+  [pending-decisions page](../governance/proposals/2026-09-29-g3-pending-decisions.md):
+  after the contract's same-process checks, extra `duplicate` lines are
+  tolerated up to the replay's Δ`mqtt_connection`, as "consistent with the
+  reconnection budget" and not as proof of this cause, and fail T4 beyond it;
+  implemented offline, not run on the guest; LOG #C049.)
 - **N3. Not durability against a broker restart or a guest loss.** The broker's
   store is written every 60 s (`mosquitto.conf:33-35`; its comment at `:30-31`
   states the intent that in-flight and queued state survive broker restarts).
@@ -1400,6 +1407,15 @@ re-decided, never run silently with a smaller window.
   r01's file admissible. Whether a collector sampling at a true 1 Hz would keep
   the gap under the limit is unresolved (r02's 6.0 s gap was recorded at
   0.83 samples/s [F:R02.6]).
+  (Later note, 2026-09-30: the student adopted prospectively a narrower rule
+  than that proposal's window, decision 1a of the
+  [pending-decisions page](../governance/proposals/2026-09-29-g3-pending-decisions.md):
+  the proved-down interval from the controller's captured `die` (D) to its next
+  `start` (S), ending at E = min(S, D + 120 s), granted only when the capture is
+  complete, the pair is unique and `StartedAt` agrees with S to 1 s, with the
+  5 s rule on both edges; implemented offline, not run on the guest. r01, r02
+  and the proof runs stay as recorded, and the proof never applies it;
+  LOG #C049.)
 - **N9. Nothing about the past runs.** r02's in-flight identity stays as
   section 1.6 leaves it; the end-of-run blocks of both restart runs were
   settled by the guests' own event logs (late, not lost), not by this option.
@@ -1785,6 +1801,14 @@ gate note.
   explicit rule, in its own column and checked against the twin, changes what
   the project measures and is **a separate decision**. Until it is taken, such
   an identity counts as `lost`, as today.
+  (Later note, 2026-09-30: the reporting half was adopted prospectively,
+  decision 2 of the
+  [pending-decisions page](../governance/proposals/2026-09-29-g3-pending-decisions.md):
+  the column `n1_applied_unconfirmed`, checked against the twin's
+  Δ`accepted_count` and `last_seq`, with `duplicate_only_unexplained` for the
+  rest. The identity stays `lost` and the `delta` line `MISMATCH`; counting it
+  as delivered is not taken, and `analyze.py`'s figures are unchanged;
+  implemented offline, not run on the guest; LOG #C049.)
 - ADR 0005 unchanged under P5's condition; ADR 0006 relied upon and unchanged;
   ADR 0010's first follow-up taken up (the sampler fields), and its third — a
   failed event write leaves a message without an outcome — not repaired but
@@ -2168,6 +2192,13 @@ way, and only the battery measures it. What the options settle is whether the
 restart classes are processed late or never; they do not settle that gate
 *(corrected 2026-09-24; this paragraph had said the gate was expected to fail
 under every option and that the options did not differ in whether it passes)*.
+(Later note, 2026-09-30: the student set, prospectively, which G3 families
+are timed under choice T1, decision 3 of the
+[pending-decisions page](../governance/proposals/2026-09-29-g3-pending-decisions.md):
+T1's three runs, T2, `itest-dup-02`, T5, T6 and T8's post-reboot smoke. Test
+6's zero lost is this C12 gate, read on its own `per_run.csv` row; test 3 is
+not timed, but a valid identity without an `accepted` line in its post-drain
+copy fails it. No deadline, rate or load changed; LOG #C049.)
 
 Whether throughput work belongs to the candidate before G3 is **a separate
 decision for the student**. The G3 qualifying runs stay paused until the
@@ -2340,6 +2371,9 @@ closed by a bounded engineering diagnostic, never by a G3 run.
    before the freeze is left to the student, or to the G4 protocol decision
    (T4).
 4. **The analysis rule for N1 identities** — a separate decision.
+   (Later note, 2026-09-30: its reporting half was adopted, prospectively, on
+   2026-09-30 — see the later note under "What must change"; counting such an
+   identity as delivered stays a separate decision, not taken; LOG #C049.)
 5. **The acknowledgement order — answered** [I3 §1]. MQTT 3.1.1 requires
    PUBACKs in receipt order; with one FIFO consumer the order follows by
    construction, to be pinned by the regression tests; a delivery that cannot
@@ -2414,6 +2448,10 @@ unverified (`qemu_integrated_gateway.md:502`).
 - The throughput decision (T1 to T4).
 - The lifecycle-aware ingest rule for a deliberate restart (proposal section 2),
   and a collector that samples at a true 1 Hz.
+  (Later note, 2026-09-30: the first part is answered, prospectively, by the
+  narrower proved-down interval adopted on 2026-09-30 — see the later note
+  under N8; the proposal's own window is not adopted. A collector at a true
+  1 Hz remains a follow-up; LOG #C049.)
 - The fate of r02's in-flight identity (`smart_clothing` seq 1422), which the
   twins' counters on the guest's data disk would settle (item 2 above). Both
   restart runs' end-of-run blocks are settled: late, not lost (section 1.6).
