@@ -1138,6 +1138,33 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     assert r.value("T6") == "stop", r.out
 
 
+def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(bench: Bench) -> None:
+    """Review of decision 1a (2026-09-30, round 0): harness_cmd answers 2, the harness NOT started, when the run
+    directory already exists - another execution's - so that test 6's line never reads another run's directory; its
+    resources_proved_down summary must then print nothing of that directory's manifest."""
+    cmds = _host_commands("### Test 6")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    other = bench.home / "egw-tcg" / "pilot" / "results" / "raw" / "controller_restart-r01"
+    other.mkdir(parents=True)
+    (other / "manifest.json").write_text(json.dumps({"validity": "valid", "resources_proved_down": {
+        "applies": True, "why_not": None, "die_utc": "2026-10-01T10:05:00.400000000Z",
+        "start_utc": "2026-10-01T10:05:06.300000000Z", "effective_end_utc": "2026-10-01T10:05:06.300000000Z",
+        "capped": False, "edge_gap_before_s": 0.0, "edge_gap_after_s": 2.0, "rejected_rows": [],
+        "resources_ingested": True}}), encoding="utf-8")
+    body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
+    r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
+    assert not (bench.state / "harness_argv").exists(), "the harness was started over another execution's directory"
+    assert r.starting("STOP: harness_cmd controller_restart-r01: "), r.out
+    summary = r.starting("test 6: resources_proved_down: ")
+    assert len(summary) == 1, r.out
+    assert "applies=" not in summary[0] and "2026-10-01T10:05" not in summary[0], summary
+    assert "harness_cmd answered 2" in summary[0], summary
+    assert r.value("T6") == "stop", r.out
+
+
 @pytest.mark.parametrize("harness_rc", [0, 1])
 def test_harness_cmd_whose_cleanup_fails_answers_3_and_names_the_harness_status(bench: Bench, harness_rc: int) -> None:
     """Review of PR #51, B2: the cleanup after the harness cannot show the unit stopped; harness_cmd exited with the
