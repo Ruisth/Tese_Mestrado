@@ -290,6 +290,27 @@ def test_expect_services_is_forwarded_by_run_campaign_and_collect(monkeypatch) -
     assert seen == {"run": expected, "campaign": expected, "collect": expected}
 
 
+def test_run_passes_the_started_at_read_through_and_campaign_does_not_take_it(monkeypatch, capsys) -> None:
+    """Decision 1a (adopted 2026-09-30): --fetch-started-at-cmd is an option of
+    'run' (test 6 hands it to its harness); absent, execute_run gets None and
+    every run is as before. The campaign does not take it."""
+    seen: dict[str, object] = {}
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen.setdefault("run", []).append(kwargs.get("fetch_started_at_cmd", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    template = 'bash "tools/session/fetch_started_at.sh" "{dest}"'
+    assert cli.main(["run", "--run-id", "controller_restart-r01", "--fetch-started-at-cmd", template]) == 0
+    assert cli.main(["run", "--run-id", "controller_restart-r01"]) == 0
+    assert seen["run"] == [template, None]
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(["campaign", "--fetch-started-at-cmd", template])
+    assert exc.value.code == 2
+    assert "--fetch-started-at-cmd" in capsys.readouterr().err
+
+
 def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:
     # A wide terminal keeps argparse from wrapping inside hyphenated paths;
     # no colour codes (argparse >= 3.14 may colour its help).

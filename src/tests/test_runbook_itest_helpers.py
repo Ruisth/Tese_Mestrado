@@ -1127,6 +1127,12 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     assert hook("--post-drain-fetch-cmd", f"{run_dir}/events.post-drain.jsonl") == \
         ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r01/events.jsonl",
          f"{run_dir}/events.post-drain.jsonl"]
+    # Decision 1a (adopted 2026-09-30): the StartedAt read the harness runs after its docker-events fetch and before
+    # it ingests the resources, through the checkout's script, into the run's logs/sut/.
+    assert hook("--fetch-started-at-cmd", f"{run_dir}/logs/sut/controller-started-at.txt") == \
+        ["bash", str(session / "fetch_started_at.sh"), f"{run_dir}/logs/sut/controller-started-at.txt"]
+    # After the harness, one read-only line on the manifest's resources_proved_down (the stub harness wrote none).
+    assert r.starting("test 6: resources_proved_down: "), r.out
     # The stub harness seals nothing, so the line stops: its run directory was not sealed.
     assert r.starting("STOP: test 6: the harness run was not sealed"), r.out
     assert r.value("T6") == "stop", r.out
@@ -1448,6 +1454,30 @@ def test_test_6_harness_line_captures_the_identity_and_hands_it_to_the_harness()
     assert 'elif [ "$HR" = 0 ] && [ -s $RAW6/SHA256SUMS ]; then' in command
     assert "DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$DRAIN_LIMIT_S " \
            "EVENTS_EXPECTED=die,start harness_cmd $RID" in command
+
+
+def test_test_6_hands_the_harness_the_started_at_read_and_summarises_the_proved_down_record() -> None:
+    """Decision 1a (adopted 2026-09-30): the StartedAt read is one more argument of harness_cmd (the 6.1 heredoc is
+    unchanged), and once the harness returns the line prints one read-only summary of resources_proved_down."""
+    line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    command = line.split("     #", 1)[0]
+    after = command.split("harness_cmd $RID", 1)[1]
+    assert '--fetch-started-at-cmd "bash \\"$EGW_CLONE/tools/session/fetch_started_at.sh\\" \\"{dest}\\""' in after
+    assert after.index("--fetch-started-at-cmd") < after.index("HR=$?")
+    summary = after.split("HR=$?;", 1)[1].split('if [ "$HR" = 3 ]', 1)[0]
+    assert "resources_proved_down" in summary and "$RAW6/manifest.json" in summary
+    assert "HR=" not in summary, "the summary must not change the harness's status"
+    helpers = helpers_heredoc()
+    assert "fetch-started-at" not in helpers and "fetch_started_at" not in helpers
+
+
+def test_test_6_note_records_the_prospective_adoption_of_the_proved_down_interval() -> None:
+    text = " ".join("\n".join(_section("### Test 6")).split())
+    note = text.split("*Note (2026-09-19):*", 1)[1]
+    assert "**proposed, not adopted**" in note
+    assert "on 2026-09-30 the student adopted the proved-down interval (decision 1a) prospectively" in note
+    assert "`fetch_started_at.sh`" in note
+    assert "stay invalid under the rules they were run with" in note
 
 
 def test_test_6_takes_no_drain_post_drain_copy_or_after_snapshot_outside_the_harness() -> None:
