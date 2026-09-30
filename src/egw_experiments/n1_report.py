@@ -62,18 +62,22 @@ the identity is unexplained, never N1. The readings taken here:
 - condition 2, the death: "the capture window" is the coverage record's
   ``[requested_since_guest_epoch, requested_until_guest_epoch + 1)`` over the
   daemon's ``timeNano``, the window rule R7 of events_coverage.py reads (in
-  ASCII digits, as it reads them), and the record must start with
-  ``coverage=complete``; the restart record must show ``executed``,
+  ASCII digits, as it reads them; each key given once, as decision 1a reads
+  it), and the record must start with ``coverage=complete``; the restart
+  record must show ``executed``,
   ``started_utc``, ``finished_utc``, ``returncode`` 0 and no ``error``
   (analyze's ``restart_hook_ok``);
 - condition 2, the sources: a device is served when a maximum matching of
   its duplicate-only identities to its own A3 ends (one source per
   controller log line) covers them all, or all but one and the one death is
   left to it. The death is left to a device only when no other device has
-  a duplicate-only identity its own ends leave uncovered: that identity may
-  have been the death's one delivery (not applied), so which device the
-  death explained cannot be told. The matching is computed without
-  recursion (the options are nested, see :func:`_served`);
+  a duplicate-only identity its own ends leave uncovered, and when no
+  device has a duplicate-only identity to which no ends are matched at all
+  (one whose lines name several devices, one of another run id, a duplicate
+  line without a readable identity): that identity may have been the
+  death's one delivery (not applied), so which device the death explained
+  cannot be told. The matching is computed without recursion (the options
+  are nested, see :func:`_served`);
 - the readers: a file that cannot be read is "not read", and a line that
   is not a JSON object - one nested too deeply for the decoder included -
   is not a record; nothing in the data raises;
@@ -150,28 +154,35 @@ def _device(value: Any) -> str | None:
 
 
 def read_text_lines(
-    path: str | Path, name: str | None = None
+    path: str | Path, name: str | None = None, *, newlines_only: bool = False
 ) -> tuple[list[str] | None, str | None]:
     """The lines of a log file, read as the finite proof reads the
     controller log (UTF-8, undecodable bytes replaced), or (None, why);
     ``why`` names the file as ``name`` when given (its role), else by its
-    file name."""
+    file name. With ``newlines_only`` the text is split at newlines only,
+    as the analysis reader and the proof split a JSON-lines file."""
     path = Path(path)
     name = path.name if name is None else name
     try:
-        return path.read_text(encoding="utf-8", errors="replace").splitlines(), None
+        text = path.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
         return None, f"{name} missing"
     except OSError as exc:
         return None, f"{name} unreadable ({type(exc).__name__})"
+    return (text.split("\n") if newlines_only else text.splitlines()), None
 
 
 def read_jsonl(path: str | Path) -> tuple[list[dict[str, Any]] | None, str | None]:
     """The JSON objects of a JSON-lines file (a line that is not one is
     skipped, as the analysis reader does: CONTRACTS v1.2 allows a torn last
     line; so is a line nested too deeply for the decoder, which raises
-    RecursionError rather than ValueError), or (None, why)."""
-    lines, why = read_text_lines(path)
+    RecursionError rather than ValueError), or (None, why). The file is
+    split at newlines only, as the analysis reader and the finite proof
+    split it: str.splitlines would also break a line at a raw U+2028,
+    U+2029 or U+0085, which the controller writes unescaped inside a string
+    field (ensure_ascii=False), and drop both halves (review of
+    2026-09-30)."""
+    lines, why = read_text_lines(path, newlines_only=True)
     if lines is None:
         return None, why
     records = []
@@ -283,17 +294,26 @@ def _restart_problem(record: Any) -> str | None:
 
 def capture_window(coverage_text: str | None) -> tuple[tuple[int, int] | None, str | None]:
     """The capture window [since, until] (guest epochs) of a coverage record
-    that starts with ``coverage=complete``, or (None, why)."""
+    that starts with ``coverage=complete``, or (None, why). Each window key
+    must be given exactly once, as decision 1a reads the same record
+    (proved_down.py): a key given twice makes the window ambiguous (review
+    of 2026-09-30)."""
     if coverage_text is None:
         return None, "the capture's coverage record was not read"
     lines = coverage_text.splitlines()
     if not lines or lines[0].strip() != "coverage=complete":
         return None, "the capture is not shown complete (its coverage record does not start with coverage=complete)"
     values: dict[str, str] = {}
+    counts: dict[str, int] = {}
     for text in lines:
         key, sep, value = text.strip().partition("=")
-        if sep and key and key not in values:
-            values[key] = value
+        if sep and key:
+            counts[key] = counts.get(key, 0) + 1
+            values.setdefault(key, value)
+    for key in ("requested_since_guest_epoch", "requested_until_guest_epoch"):
+        if counts.get(key, 0) > 1:
+            return None, (f"the coverage record gives {key}= {counts[key]} times, not once: the capture window "
+                          "is ambiguous")
     since, until = values.get("requested_since_guest_epoch", ""), values.get("requested_until_guest_epoch", "")
     no_window = "the coverage record gives no whole-number capture window"
     # ASCII digits only, as events_coverage.py reads them: str.isdigit()
@@ -627,6 +647,13 @@ def n1_applied_unconfirmed(
         for device, mids in by_device.items()
     }
     wanting = sorted(device for device, short in uncovered.items() if short > 0)
+    # The devices of the duplicate-only identities no ends are matched to -
+    # lines naming several devices, another run id, a duplicate line without
+    # a readable identity (review of 2026-09-30): each may have been the
+    # death's one delivery, so the death is left to no device while one
+    # exists. One whose lines name no device leaves no identity named
+    # anywhere already (condition 3).
+    contending = sorted(set(unplaced_on) | set(other_by_device))
     if a3_ends is None:
         a3_text = f"controller log not read ({a3_note or 'not given'})"
     else:
@@ -652,6 +679,11 @@ def n1_applied_unconfirmed(
         elif len(wanting) > 1:
             why = (f"the one controller death would be needed by duplicate-only identities on {len(wanting)} "
                    f"devices ({', '.join(wanting)}): which one it explained cannot be told")
+        elif contending:
+            why = ("the one controller death may have been the delivery of a duplicate-only identity to which no "
+                   "A3 connection end is matched (its outcome lines name several devices, it is of another run id, "
+                   f"or its line has no readable identity), on {', '.join(contending)}: which one it explained "
+                   "cannot be told")
         else:
             continue
         for mid in mids:
@@ -670,7 +702,7 @@ def n1_applied_unconfirmed(
                         f"{other} fails condition(s) {', '.join(sorted(reasons[other]))}" for other in failing
                     ) + ", so the twin cannot tell which identity it applied")
             continue
-        death_possible = death is not None and wanting in ([], [device])
+        death_possible = death is not None and not contending and wanting in ([], [device])
         for mid in mids:
             sources = [
                 {"source": SOURCE_A3, "controller_log_line": end.get("line"),

@@ -49,7 +49,7 @@ acceptance and saturation outputs it neither reads nor rewrites, and it
 adds no row to the acceptance table. N1 is counted nowhere: the two N1
 columns below are this layer's own report of identities, read from the
 run's files, and change no figure of the analysis (``STATEMENT``, written
-unchanged into the JSON, speaks of the analysis's figures). The
+unchanged into the JSON, says so). The
 qualification is read from the sealed manifests'
 restart evidence records alone (``drain``, ``twin_snapshots``,
 ``events_post_drain_fetch``, ``validity``, ``exclusion``) and the
@@ -121,8 +121,10 @@ CSV_FILENAME = "recovery_qualification.csv"
 STATEMENT = (
     "This layer changes no count of lost, late or N1 messages and adds "
     "nothing to the analyser's acceptance table (acceptance_by_condition.csv): "
-    "every figure comes from egw_experiments.analyze, unchanged (ADR 0011); "
-    "the qualification is read from the sealed manifests' restart evidence "
+    "every figure of the analysis comes from egw_experiments.analyze, "
+    "unchanged (ADR 0011); the N1 columns are this layer's report of "
+    "identities read from the run's files and change no figure; the "
+    "qualification is read from the sealed manifests' restart evidence "
     "records alone."
 )
 
