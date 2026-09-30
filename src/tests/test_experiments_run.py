@@ -1087,9 +1087,9 @@ def test_restart_cmd_executed_once_and_recorded(
     assert manifest["validity"] == "invalid"
     assert "allow_missing_restart_evidence" not in manifest
     assert not any(d["kind"] == "missing_restart_evidence" for d in manifest["deviations"])
-    # The runbook's test 6 (docs/setup/qemu_integrated_gateway.md) filters
-    # the harness's reasons on this phrase to tell the evidence still to be
-    # ingested from any other defect: keep it byte-stable.
+    # Every reason names the missing restart evidence step. (Until
+    # 2026-09-30 the runbook's test 6 filtered the harness's reasons on this
+    # phrase; it now hands the harness the evidence hooks and no longer does.)
     assert all(
         "without its restart evidence step" in r for r in manifest["validity_reasons"]
     )
