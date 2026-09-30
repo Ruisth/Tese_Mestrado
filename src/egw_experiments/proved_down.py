@@ -78,8 +78,10 @@ STARTED_AT_TOLERANCE_NS = _NS
 
 _WHOLE = re.compile(r"[0-9]+")
 _CONTAINER_ID = re.compile(r"[0-9a-f]{64}")
+#: RFC 3339's DIGIT is ASCII 0-9: [0-9], never \d, which also matches every
+#: other Unicode decimal digit (and int() converts them).
 _RFC3339_Z = re.compile(
-    r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?Z"
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?Z"
 )
 _STARTED_AT_KEYS = ("container", "container_id", "started_at", "guest_epoch")
 
