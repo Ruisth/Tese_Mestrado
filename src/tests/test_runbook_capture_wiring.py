@@ -2,13 +2,15 @@
 
 Under test, executed for real: the helper functions of runbook 6.1 as the runbook writes them (read from
 docs/setup/qemu_integrated_gateway.md when the test runs: guest_epoch, sut_log, events_start, events_cleanup,
-events_stop, harness_cmd, harness_run), the lines of tests 3, 5 and 9(b)/(c), the harness invocation of test 6 and
-the compose command of test 7, and the checkout's own scripts they call (tools/session/events_capture.sh,
-proof_fetch_sut_log.sh, proof_events_recorder.sh, events_coverage.py). They run on the stub guest of
-test_proof_hooks (the ssh, scp, systemd-run and systemctl stubs of test_session_drivers; the docker stub that keeps
-the multi-session logs, the daemon's events and the compose operations; the guest's steady clock). The harness is a
-stub that does what the capture depends on by the harness's own code (run.py execute_collector_hook,
-sut_log_fetch_failures, _execute_restart_cmd), and seals nothing.
+events_stop, harness_cmd, harness_run), the lines of tests 3, 5 and 9(b)/(c), the lines of test 6 and the compose
+command of test 7, and the checkout's own scripts they call (tools/session/events_capture.sh,
+proof_fetch_sut_log.sh, proof_events_recorder.sh, events_coverage.py, and test 6's restart-evidence hooks
+proof_hook_twins.sh and proof_hook_drained.sh). They run on the stub guest of test_proof_hooks (the ssh, scp,
+systemd-run and systemctl stubs of test_session_drivers; the docker stub that keeps the multi-session logs, the
+daemon's events and the compose operations; the guest's steady clock). The harness is a stub that does what the
+capture depends on by the harness's own code (run.py execute_collector_hook, _execute_restart_cmd, drain_hook_outcome,
+fetch_events_via_cmd, sut_log_fetch_failures, restart_evidence_failures), in the order of run.py execute_run, and
+seals its run directory with a plain SHA256SUMS.
 
 What these cases show is the wiring: the recorder is ready before the workload and the fault, every log and the
 events are bounded to the run or the sub-check, a read or capture that failed never becomes evidence, the unit is
@@ -68,11 +70,20 @@ exec "$EGW_WIRING_PY" "$@"
 '''
 
 FAKE_HARNESS = r'''"""Stub of 'python -m egw_experiments run' for the runbook's harness_cmd: what the harness does that the capture
-depends on, by the harness's own code, and nothing else. It makes the run directory (one that exists is refused,
-exit 2), logs a connection line of the broker and of the controller on the stub guest's clock (the workload),
-issues --restart-cmd through run.py's _execute_restart_cmd when one is given, holds EGW_WIRING_HOLD_S seconds, then
-runs the three SUT fetch hooks through run.py's execute_collector_hook and judges them with sut_log_fetch_failures
-into manifest.json: exit 1 when that makes the run invalid, 0 otherwise. Nothing is sealed."""
+depends on, by the harness's own code and in the order of run.py execute_run, and nothing else. It makes the run
+directory (one that exists is refused, exit 2), takes the 'before' twin snapshot when --twin-snapshot-cmd is given,
+logs a connection line of the broker and of the controller on the stub guest's clock (the workload), issues
+--restart-cmd through run.py's _execute_restart_cmd when one is given and holds EGW_WIRING_HOLD_S seconds. Then, as
+execute_run does after its events fetch: the drain (--drain-cmd, its outcome read by drain_hook_outcome), the
+post-drain copy of the events (--post-drain-fetch-cmd, through fetch_events_via_cmd and verify_post_drain_record),
+the 'after' snapshot and, LAST, the three SUT fetch hooks, each through execute_collector_hook. They are judged with
+sut_log_fetch_failures and, for a run with a --restart-cmd (a controller_restart run), restart_evidence_failures,
+into manifest.json: exit 1 when that makes the run invalid, 0 otherwise. The run directory is then sealed
+(SHA256SUMS). Not run.py's: a twin snapshot counts as verified when its hook ended 0 and wrote its file (the devices
+of the plan's seed are not checked here). EGW_WIRING_HARNESS_DIES=before-drain ends it with an exception after the
+measured run, before its drain: no drain, no fetch, no manifest. Once the three fetches have run, it leaves
+LOG.fetches-done and holds EGW_WIRING_HOLD_AFTER_FETCHES_S seconds before it judges and seals them."""
+import hashlib
 import json
 import os
 import sys
@@ -84,6 +95,7 @@ from egw_experiments import run as run_mod
 @@CLOCK@@
 
 args = sys.argv[1:]
+SERVICES = @@SERVICES@@
 
 
 def opt(name):
@@ -102,8 +114,37 @@ if run_dir.exists():
 sut = run_dir / "logs" / "sut"
 sut.mkdir(parents=True)
 log = os.environ["EGW_STUB_LOG"]
+
+
+def hook(name, template, dest, timeout_s=None):
+    """One item-18 hook, as execute_run's _run_sut_hook runs it."""
+    record = run_mod.execute_collector_hook(name, template, run_id, duration_s=300, dest=dest,
+                                            expect_services=SERVICES, log_dir=sut, timeout_s=timeout_s)
+    for stream in ("stdout", "stderr"):
+        path = record.pop(f"{stream}_path", None)
+        if path is not None:
+            record[f"{stream}_file"] = Path(path).relative_to(run_dir).as_posix()
+    record["dest_exists"] = Path(dest).is_file()
+    return record
+
+
+twin_snapshots = []
+
+
+def twin(name):
+    template = opt("--twin-snapshot-cmd")
+    if not template:
+        return
+    file = run_mod.TWIN_SNAPSHOT_FILES[name]
+    record = hook(name, template, run_dir / file, timeout_s=run_mod.SNAPSHOT_TIMEOUT_S)
+    record.update({"file": file, "source": "hook", "problems": [],
+                   "verified": record.get("returncode") == 0 and record["dest_exists"]})
+    twin_snapshots.append(record)
+
+
 with open(log + ".harness-started", "w", encoding="utf-8") as fh:
     fh.write(run_id)
+twin("twin_snapshot_before")
 with open(log + ".broker-log", "a", encoding="utf-8") as fh:
     fh.write(f"mosquitto-1  | {guest_stamp()} New client connected from 172.18.0.7:52130 as egw-simulator-{run_id}\n")
 with open(log + ".controller-log", "a", encoding="utf-8") as fh:
@@ -113,26 +154,93 @@ restart = {}
 if opt("--restart-cmd"):
     run_mod._execute_restart_cmd(opt("--restart-cmd"), run_id, restart)
 time.sleep(float(os.environ.get("EGW_WIRING_HOLD_S", "0")))
+if os.environ.get("EGW_WIRING_HARNESS_DIES") == "before-drain":
+    raise RuntimeError("stub: the harness failed after its measured run, before its drain")
+drain = None
+if opt("--drain-cmd"):
+    drain = hook("drain", opt("--drain-cmd"), sut / run_mod.DRAIN_TRANSCRIPT_FILENAME,
+                 timeout_s=run_mod.DRAIN_TIMEOUT_S)
+    drain.pop("dest_exists", None)
+    drain["source"] = "hook"
+    drain["outcome"] = run_mod.drain_hook_outcome(drain, run_dir)
+    drain["verified"] = drain["outcome"] != "error"
+post_drain = None
+if opt("--post-drain-fetch-cmd"):
+    ok, command, attempts = run_mod.fetch_events_via_cmd(opt("--post-drain-fetch-cmd"), run_id,
+                                                         run_dir / run_mod.POST_DRAIN_EVENTS_FILENAME)
+    post_drain = {"template": opt("--post-drain-fetch-cmd"), "command": command, "attempts": attempts, "ok": ok,
+                  "file": run_mod.POST_DRAIN_EVENTS_FILENAME, "source": "hook"}
+    run_mod.verify_post_drain_record(post_drain, run_dir, run_id)
+twin("twin_snapshot_after")
 fetches = []
-for hook, flag in run_mod.SUT_LOG_FETCH_FLAGS.items():
+for name, flag in run_mod.SUT_LOG_FETCH_FLAGS.items():
     template = opt(flag)
     if not template:
         continue
-    dest = sut / run_mod.SUT_LOG_FILES[hook]
-    record = run_mod.execute_collector_hook(hook, template, run_id, duration_s=300, dest=dest,
-                                            expect_services=@@SERVICES@@, log_dir=sut)
-    record["dest_exists"] = dest.is_file()
+    dest = sut / run_mod.SUT_LOG_FILES[name]
+    record = hook(name, template, dest)
     record["dest_file"] = dest.relative_to(run_dir).as_posix()
     fetches.append(record)
+with open(log + ".fetches-done", "w", encoding="utf-8") as fh:
+    fh.write(run_id)
+time.sleep(float(os.environ.get("EGW_WIRING_HOLD_AFTER_FETCHES_S", "0")))
 reasons = run_mod.sut_log_fetch_failures(fetches)
+if opt("--restart-cmd"):
+    reasons += run_mod.restart_evidence_failures(twin_snapshots, drain, post_drain)
 manifest = {"run_id": run_id, "validity": "invalid" if reasons else "valid", "validity_reasons": reasons,
-            "restart": restart, "sut_log_fetches": fetches}
+            "restart": restart, "twin_snapshots": twin_snapshots, "drain": drain,
+            "events_post_drain_fetch": post_drain, "sut_log_fetches": fetches}
 (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str) + "\n", encoding="utf-8")
+sums = [f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(run_dir).as_posix()}"
+        for p in sorted(run_dir.rglob("*")) if p.is_file()]
+(run_dir / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
 print(f"[harness] run {run_id}: validity {manifest['validity']}")
 for reason in reasons:
     print(f"[harness] INVALID: {reason}", file=sys.stderr)
 sys.exit(1 if reasons else 0)
 '''.replace("@@CLOCK@@", STEADY_CLOCK).replace("@@SERVICES@@", repr(list(EXPECT_SERVICES)))
+
+# The drain the harness runs: proof_hook_drained.sh sources the helper file and calls 'drained' once the stub harness
+# has started (test 6's precondition 'drained' runs before it and is the stub's). With EGW_WIRING_DRAIN set, what the
+# drain does then and only then, while it would poll /metrics: the controller logs a line and the daemon records an
+# exec in egw-mongodb-1 (egw-drain-probe), both of this run; then 'quiet' ends with the stub's quiet line, 'gave-up'
+# with the helper's give-up and 'hang' waits (an operator's Ctrl-C never reaches it: the harness runs its hooks in a
+# session of their own). The hook's pid is left in LOG.drain-probed.
+DRAIN_WRAPPER = r'''
+eval "$(declare -f drained | sed '1s/^drained/stub_drained/')"
+drained() {
+  local rid stamp
+  if [ -z "${EGW_WIRING_DRAIN:-}" ] || [ ! -e "$EGW_STUB_LOG.harness-started" ]; then stub_drained "$@"; return; fi
+  rid=$(cat "$EGW_STUB_LOG.harness-started")
+  stamp=$("$EGW_STUB_GUEST_BIN/date" -u +%Y-%m-%dT%H:%M:%S.500000000Z)
+  printf '%s {"level": "INFO", "logger": "egw_controller.service", "message": "drain-only probe (%s)"}\n' \
+    "$stamp" "$rid" >> "$EGW_STUB_LOG.controller-log"
+  ssh egw-tcg "docker exec egw-mongodb-1 egw-drain-probe $rid" || return 1
+  echo "$$" > "$EGW_STUB_LOG.drain-probed"
+  sleep 1
+  case $EGW_WIRING_DRAIN in
+    gave-up) stop "drained: no quiet window of ${DRAIN_QUIET_S:-130} s within ${DRAIN_LIMIT_S:-900} s (last reading: 4 0 0 true 2026-09-19T20:00:00Z 1 64 60 0 0 0 0 0) - do not take snapshots, do not start a run"; return 1;;
+    hang) sleep 60;;
+  esac
+  stub_drained "$@"
+}
+'''
+
+# $REC of the bench: 'delta' checks that what test 6's delta line names is there - the two twin snapshots beside the
+# prefix and the events file - and records its argv; anything else goes to the proof hooks' recording 'snap' stub.
+REC_WITH_DELTA = r'''#!/usr/bin/env bash
+if [ "${1:-}" = delta ]; then
+  printf '%s\n' "$*" >> "$EGW_STUB_LOG.rec-delta"
+  prefix=; events=; prev=
+  for a in "$@"; do case $prev in --prefix) prefix=$a;; --events) events=$a;; esac; prev=$a; done
+  for f in "$prefix.twins.before.json" "$prefix.twins.after.json" "$events"; do
+    [ -s "$f" ] || { echo "stub delta: $f is missing or empty" >&2; exit 2; }
+  done
+  echo "stub delta: read $prefix.twins.before.json, $prefix.twins.after.json and $events"
+  exit 0
+fi
+exec "$EGW_STUB_BIN/rec-snap" "$@"
+'''
 
 # A line of the stub guest's logs stamped on its own clock, as the daemon stamps what a container writes now.
 GUEST_LOG = r'''
@@ -151,7 +259,11 @@ class Wiring:
     def __init__(self, bench: Hooks) -> None:
         self.hooks = bench
         self.p = bench.bench.home / "egw-tcg" / "itest"
-        _write(bench.helpers, ITEST_HELPERS + "\n" + "".join(runbook_function(name) for name in HELPERS))
+        _write(bench.helpers, ITEST_HELPERS + "\n" + "".join(runbook_function(name) for name in HELPERS)
+               + DRAIN_WRAPPER)
+        shutil.copyfile(bench.bench.bin / "rec", bench.bench.bin / "rec-snap")
+        (bench.bench.bin / "rec-snap").chmod(0o755)
+        _write(bench.bench.bin / "rec", REC_WITH_DELTA, executable=True)
         self.harness = bench.bench.tmp / "fake_harness.py"
         _write(self.harness, FAKE_HARNESS)
         _write(bench.bench.bin / "python", PYTHON_STUB, executable=True)
@@ -202,6 +314,47 @@ def coverage(path: Path) -> dict[str, list[str]]:
 
 def events_of(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+T6_RID = "controller_restart-r01"
+# The configuration identity of test 6 (config_identity of 6.1 reads the guest): a write-once stand-in, which the stub
+# harness does not read.
+CONFIG_IDENTITY_STUB = ('config_identity() { [ ! -e "$1" ] || return 1; '
+                        "echo '{\"stub\": \"configuration identity\"}' > \"$1\"; }")
+
+
+def _t6_lines(wiring: Wiring, until_harness: bool = False) -> str:
+    """Test 6's commands as the runbook gives them - every command but the closing 'analyze', or those up to and
+    including the harness line - then T6's value; the plan holds the run's seed and the stub guest holds the run's
+    events, which the post-drain copy fetches."""
+    bench = wiring.hooks.bench
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": T6_RID, "seed": 7}]}), encoding="utf-8")
+    events = bench.guest_root / "opt" / "egw" / "deployment" / "data" / "events" / T6_RID / "events.jsonl"
+    events.parent.mkdir(parents=True, exist_ok=True)
+    events.write_text(json.dumps({"run_id": T6_RID, "message_id": "m-1", "outcome": "accepted"}) + "\n",
+                      encoding="utf-8")
+    cmds = _host_commands("### Test 6")
+    harness = cmds.index(_one(cmds, "T6=stop; if"))
+    chosen = cmds[:harness + 1] if until_harness else \
+        [c for c in cmds if not c.startswith("python -m egw_experiments analyze")]
+    return "\n".join((CONFIG_IDENTITY_STUB, *chosen, 'echo "T6=$T6"'))
+
+
+def _t6_value(result: subprocess.CompletedProcess) -> str | None:
+    values = re.findall(r"^T6=(.*)$", result.stdout, re.M)
+    return values[-1] if values else None
+
+
+def _stop_record(sut: Path) -> dict[str, str]:
+    lines = (sut / "docker-events.stop.txt").read_text(encoding="utf-8").splitlines()
+    return dict(line.split("=", 1) for line in lines if "=" in line)
+
+
+def _drain_probe(captured: list[dict]) -> list[dict]:
+    """The exec the drain alone caused (DRAIN_WRAPPER), as the daemon recorded it."""
+    return [e for e in captured if e["Action"].startswith(f"exec_create: egw-drain-probe {T6_RID}")]
 
 
 # --------------------------------------------------------------------------
@@ -425,13 +578,10 @@ def test_a_fault_free_harness_run_is_captured_from_readiness_and_its_logs_are_th
 
 
 def test_the_test_6_restart_is_judged_by_its_own_events_and_never_by_the_proofs_sigkill(wiring):
-    rid = "controller_restart-r01"
+    rid = T6_RID
     wiring.old_logs()
-    cmds = _host_commands("### Test 6")
-    call = re.search(r"EVENTS_EXPECTED=\S+ harness_cmd \$RID [^;]*", _one(cmds, "T6=stop; if")).group(0)
-    body = "\n".join((f"RID={rid}", _one(cmds, "RESTART="), call + '; echo "HC=$?"'))
-    result = wiring.run(body)
-    assert "HC=0" in result.stdout, report(result)
+    result = wiring.run(_t6_lines(wiring, until_harness=True))
+    assert _t6_value(result) == "ok", report(result)
     sut = wiring.raw(rid) / "logs" / "sut"
     cov = coverage(sut / "docker-events.coverage.txt")
     assert cov["coverage"] == ["complete"] and cov["expected"] == ["die,start"], cov
@@ -625,6 +775,171 @@ def test_harness_cmd_refuses_a_run_directory_another_execution_left_before_any_r
 
 
 # --------------------------------------------------------------------------
+# Test 6: the drain and the post-drain copy inside the run's own capture (review of PR #51, B1)
+# --------------------------------------------------------------------------
+
+
+def _assert_the_drain_is_inside_the_capture(wiring: Wiring) -> tuple[Path, dict]:
+    """The exec and the controller line that only the drain produced are in the run's sealed capture, and the
+    recorder's stop and its closing marker come after them on the guest's clock."""
+    assert Path(f"{wiring.hooks.bench.log}.drain-probed").exists(), "the drain never ran once the harness had started"
+    run_dir = wiring.raw(T6_RID)
+    sut = run_dir / "logs" / "sut"
+    captured = events_of(sut / "docker-events.log")
+    probes = _drain_probe(captured)
+    assert len(probes) == 1, "the event only the drain caused is not in the run's docker-events.log"
+    probe = probes[0]
+    assert probe["Actor"]["Attributes"]["name"] == "egw-mongodb-1"
+    assert f"drain-only probe ({T6_RID})" in (sut / "controller.log").read_text(encoding="utf-8"), \
+        "the controller line only the drain caused is not in the run's controller.log"
+    stop = _stop_record(sut)
+    marker = next(e for e in captured if stop["closing_marker"] in e["Action"])
+    assert wiring.run_t0(T6_RID) <= probe["time"] <= int(stop["stop_requested_guest_epoch"])
+    assert probe["timeNano"] < marker["timeNano"], "the closing marker came before the drain's event"
+    assert coverage(sut / "docker-events.coverage.txt")["coverage"] == ["complete"]
+    assert not wiring.hooks.recorder_running(T6_RID)
+    return run_dir, json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+
+
+def test_test_6_its_drain_and_post_drain_copy_are_inside_the_runs_capture_and_the_stop_comes_after(wiring):
+    """The finite proof's restart-evidence hooks run by test 6's harness: the drain (a quiet window), the post-drain
+    copy and the 'after' snapshot come before the three SUT fetches, so what the drain alone caused is in the sealed
+    docker-events.log and controller.log; delta then reads the twin hook's siblings and the post-drain copy."""
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring), EGW_WIRING_DRAIN="quiet")
+    run_dir, manifest = _assert_the_drain_is_inside_the_capture(wiring)
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == [], manifest
+    assert manifest["drain"]["outcome"] == "quiet" and manifest["drain"]["source"] == "hook"
+    transcript = (run_dir / manifest["drain"]["stdout_file"]).read_text(encoding="utf-8")
+    assert f"proof_hook_drained: {T6_RID}: drained with DRAIN_QUIET_S=130 DRAIN_STEP_S=5 DRAIN_LIMIT_S=900" in transcript
+    assert manifest["events_post_drain_fetch"]["verified"] and (run_dir / "events.post-drain.jsonl").is_file()
+    for label in ("before", "after"):
+        assert (wiring.p / f"{T6_RID}.twins.{label}.json").read_bytes() == \
+            (run_dir / f"twins.{label}.json").read_bytes()
+    assert (run_dir / "SHA256SUMS").is_file()
+    assert _t6_value(result) == "ok", report(result)
+    delta = Path(f"{wiring.hooks.bench.log}.rec-delta").read_text(encoding="utf-8").splitlines()
+    assert delta == [f"delta {run_dir} --prefix {wiring.p}/{T6_RID} --events {run_dir}/events.post-drain.jsonl"]
+    assert "stub delta: read " in result.stdout and "STOP: test 6" not in result.stderr, report(result)
+
+
+def test_test_6_a_drain_that_gives_up_is_captured_the_post_drain_copy_still_runs_and_the_run_records_gave_up(wiring):
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring), EGW_WIRING_DRAIN="gave-up")
+    run_dir, manifest = _assert_the_drain_is_inside_the_capture(wiring)
+    assert manifest["drain"]["outcome"] == "gave-up" and manifest["validity"] == "valid", manifest
+    stderr = (run_dir / manifest["drain"]["stderr_file"]).read_text(encoding="utf-8")
+    assert "STOP: drained: no quiet window of 130 s within 900 s" in stderr
+    assert manifest["events_post_drain_fetch"]["verified"] and (run_dir / "events.post-drain.jsonl").is_file()
+    assert _t6_value(result) == "gaveup", report(result)
+    assert "STOP: test 6: the drain gave up" in result.stderr, report(result)
+    assert not Path(f"{wiring.hooks.bench.log}.rec-delta").exists(), "delta ran on a drain that gave up"
+
+
+def test_test_6_a_harness_that_fails_before_its_drain_stops_the_unit_and_keeps_the_partial_capture(wiring):
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring, until_harness=True), EGW_WIRING_DRAIN="quiet",
+                        EGW_WIRING_HARNESS_DIES="before-drain")
+    assert _t6_value(result) == "stop", report(result)
+    assert not Path(f"{wiring.hooks.bench.log}.drain-probed").exists()
+    assert not wiring.hooks.recorder_running(T6_RID), "the unit was left running after the harness failed"
+    keep = wiring.sut(T6_RID) / "events-partial"
+    assert (keep / "events.partial.jsonl").stat().st_size > 0, report(result)
+    assert not list(wiring.hooks.bench.home.rglob("docker-events.log"))
+
+
+@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM], ids=["INT", "TERM"])
+def test_test_6_interrupted_during_its_drain_stops_the_unit_and_keeps_a_partial_capture_that_holds_the_drain(wiring,
+                                                                                                              sig):
+    wiring.old_logs()
+    probed = Path(f"{wiring.hooks.bench.log}.drain-probed")
+    try:
+        out, err = _interrupt_once(wiring, _t6_lines(wiring, until_harness=True), probed.exists, sig,
+                                   EGW_WIRING_DRAIN="hang")
+        # The harness runs its hooks in a session of their own: the step's signal does not reach the drain hook,
+        # which is still waiting when the step has ended (the runbook says so).
+        try:
+            os.kill(int(probed.read_text(encoding="utf-8")), 0)
+            hook_alive = True
+        except ProcessLookupError:
+            hook_alive = False
+    finally:
+        if probed.exists():
+            try:
+                os.killpg(int(probed.read_text(encoding="utf-8")), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, ValueError):
+                pass
+    assert hook_alive, "the drain hook was ended by the step's signal"
+    assert "T6=ok" not in out.splitlines(), out + err
+    assert f"harness_cmd {T6_RID}: interrupted" in err, out + err
+    assert not wiring.hooks.recorder_running(T6_RID), "the unit was left running after the interruption"
+    partial = events_of(wiring.sut(T6_RID) / "events-partial" / "events.partial.jsonl")
+    assert len(_drain_probe(partial)) == 1, "the partial capture does not hold the drain it was interrupted in"
+    assert not list(wiring.hooks.bench.home.rglob("docker-events.log"))
+
+
+def test_test_6_interrupted_after_its_docker_events_fetch_keeps_the_capture_in_the_run_directory_as_fetched(wiring):
+    """Review of PR #51, B1, second round (the text, not the behaviour, was wrong): interrupted once the harness's
+    docker-events fetch has run - while it judges or seals - the fetch has already stopped the recorder and written the
+    capture in the run directory's logs/sut (complete here, as it was fetched), so the ending keeps no events-partial/
+    and the run directory is left unsealed; T6 is not ok. Before that fetch, the capture goes to events-partial/ (the
+    two cases above)."""
+    wiring.old_logs()
+    done = Path(f"{wiring.hooks.bench.log}.fetches-done")
+    out, err = _interrupt_once(wiring, _t6_lines(wiring, until_harness=True), done.exists, signal.SIGINT,
+                               EGW_WIRING_DRAIN="quiet", EGW_WIRING_HOLD_AFTER_FETCHES_S="60")
+    assert "T6=ok" not in out.splitlines(), out + err
+    assert f"harness_cmd {T6_RID}: interrupted" in err, out + err
+    sut = wiring.raw(T6_RID) / "logs" / "sut"
+    assert coverage(sut / "docker-events.coverage.txt")["coverage"] == ["complete"], out + err
+    assert len(_drain_probe(events_of(sut / "docker-events.log"))) == 1, "the capture does not hold the drain"
+    assert not (wiring.raw(T6_RID) / "SHA256SUMS").exists() and not (wiring.raw(T6_RID) / "manifest.json").exists()
+    assert not (wiring.sut(T6_RID) / "events-partial").exists(), "the capture the fetch kept was kept twice"
+    assert not wiring.hooks.recorder_running(T6_RID)
+
+
+# --------------------------------------------------------------------------
+# Collection and cleanup failures reach the callers (review of PR #51, B2)
+# --------------------------------------------------------------------------
+
+
+def test_harness_cmd_whose_cleanup_fails_after_a_valid_run_answers_3_and_names_the_harness_status(wiring):
+    """The harness answered 0 and its capture is complete, but the cleanup after it cannot show the unit stopped:
+    harness_cmd answers 3 (never a status of the harness), its STOP names both, and the sealed capture stays as it
+    is."""
+    rid = "smoke_sequence-r14"
+    wiring.old_logs()
+    result = wiring.run(f'harness_run {rid}; echo "RC=$?"', EGW_STUB_SSH_REFUSE="unit_state_before_cleanup")
+    assert "RC=3" in result.stdout, report(result)
+    stop = next(ln for ln in result.stderr.splitlines() if ln.startswith(f"STOP: harness_cmd {rid}: "))
+    assert "the harness answered 0" in stop and "cleanup" in stop and "FAILED" in stop, stop
+    assert f"egw-events-{rid} may still run" in stop and "INCOMPLETE" in stop, stop
+    assert f"STOP: harness_run {rid}: the procedure is INCOMPLETE" in result.stderr, report(result)
+    assert f"STOP: harness_run {rid}: egw_experiments run exited non-zero" not in result.stderr
+    sut = wiring.raw(rid) / "logs" / "sut"
+    manifest = json.loads((wiring.raw(rid) / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["validity"] == "valid", manifest
+    assert coverage(sut / "docker-events.coverage.txt")["coverage"] == ["complete"]
+    assert (sut / "docker-events.log").stat().st_size > 0
+
+
+def test_test_6_a_valid_harness_run_whose_cleanup_fails_is_never_ok_and_is_kept_as_evidence(wiring):
+    """The old line tolerated any non-zero harness status whose reasons named only the restart evidence: a cleanup
+    failure hidden behind the harness's status set T6 ok. Now T6 is ok only when harness_cmd answered 0."""
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring, until_harness=True), EGW_WIRING_DRAIN="quiet",
+                        EGW_STUB_SSH_REFUSE="unit_state_before_cleanup")
+    assert _t6_value(result) == "incomplete", report(result)
+    assert f"STOP: harness_cmd {T6_RID}: the harness answered 0" in result.stderr, report(result)
+    stop = next(ln for ln in result.stderr.splitlines() if ln.startswith("STOP: test 6: "))
+    assert "INCOMPLETE" in stop and "kept" in stop, stop
+    run_dir = wiring.raw(T6_RID)
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["validity"] == "valid" and (run_dir / "SHA256SUMS").is_file()
+    assert coverage(run_dir / "logs" / "sut" / "docker-events.coverage.txt")["coverage"] == ["complete"]
+
+
+# --------------------------------------------------------------------------
 # Tests 3, 5 and 9(b)/(c): the logs bounded to the test and to the sub-check
 # --------------------------------------------------------------------------
 
@@ -752,6 +1067,61 @@ def test_test_7_a_dependency_fault_is_captured_and_judged_on_that_dependencys_co
     assert (d / "docker-events.fetch.txt").is_file() and not wiring.hooks.recorder_running(rid)
 
 
+def test_test_7_a_complete_capture_whose_cleanup_fails_stays_complete_and_events_stop_answers_3(wiring):
+    """Review of PR #51, B2: the fetch shows the capture complete, then the cleanup cannot show the unit stopped.
+    events_stop answered 0 (the fetch's status); it now answers 3 - the capture stays complete as it was fetched, the
+    procedure is incomplete and the unit may still run - and the repeated cleanup changes nothing in the capture."""
+    rid = "itest-mongodb-fault-06"
+    body = "\n".join((_dc_line(), f"R={rid}; SVC=mongodb", 'T0_7=$(events_start $R) || exit 9',
+                      'ssh egw-tcg "$DC stop $SVC"', 'ssh egw-tcg "$DC start $SVC"',
+                      'events_stop $R "$T0_7" die,stop,start egw-$SVC-1; echo "EV=$?"'))
+    result = wiring.run(body, EGW_STUB_SSH_REFUSE="unit_state_before_cleanup")
+    assert "EV=3" in result.stdout, report(result)
+    d = wiring.sut(rid)
+    assert coverage(d / "docker-events.coverage.txt")["coverage"] == ["complete"]
+    kept = (d / "docker-events.log").read_bytes()
+    assert kept, "the complete capture was not kept"
+    stop = next(ln for ln in result.stderr.splitlines() if ln.startswith(f"STOP: events_stop {rid}: "))
+    assert "IS shown complete" in stop and "INCOMPLETE" in stop and f"egw-events-{rid} may still run" in stop, stop
+    assert "NOT shown complete" not in result.stderr, report(result)
+    again = wiring.hooks.run_argv(["bash", str(SESSION / "events_capture.sh"), "cleanup", rid])
+    assert again.returncode == 0 and not wiring.hooks.recorder_running(rid), report(again)
+    assert (d / "docker-events.log").read_bytes() == kept
+    assert coverage(d / "docker-events.coverage.txt")["coverage"] == ["complete"]
+    assert not (d / "events-partial").exists()
+
+
+def test_test_7_events_stop_pasted_again_after_a_complete_capture_answers_3_then_0_and_never_1(wiring):
+    """Review of PR #51, B2, second round: the complete capture's cleanup fails (3); pasted again while the guest is
+    still not reached, events_stop answered 1 - 'the capture not shown complete' - and, once it is reached, 1 again,
+    whatever the cleanup showed. It now answers 3 and then 0: the capture fetched before stays complete as it was
+    fetched, nothing is fetched again, and only the procedure's close changes."""
+    rid = "itest-mongodb-fault-07"
+    body = "\n".join((_dc_line(), f"R={rid}; SVC=mongodb", 'T0_7=$(events_start $R) || exit 9',
+                      'ssh egw-tcg "$DC stop $SVC"', 'ssh egw-tcg "$DC start $SVC"',
+                      'events_stop $R "$T0_7" die,stop,start egw-$SVC-1; echo "EV=$?"'))
+    refuse = {"EGW_STUB_SSH_REFUSE": "unit_state_before_cleanup"}
+    first = wiring.run(body, **refuse)
+    assert "EV=3" in first.stdout, report(first)
+    d, t0 = wiring.sut(rid), wiring.run_t0(rid)
+    kept = {name: (d / name).read_bytes() for name in ("docker-events.log", "docker-events.fetch.txt",
+                                                       "docker-events.coverage.txt")}
+    paste = f'events_stop {rid} {t0} die,stop,start egw-mongodb-1; echo "EV2=$?"'
+    still = wiring.run(paste, **refuse)
+    assert "EV2=3" in still.stdout, report(still)
+    stop = next(ln for ln in still.stderr.splitlines() if ln.startswith(f"STOP: events_stop {rid}: "))
+    assert "nothing was fetched again" in stop and "IS shown complete" in stop and "INCOMPLETE" in stop, stop
+    assert f"egw-events-{rid} may still run" in stop, stop
+    closed = wiring.run(paste)
+    assert "EV2=0" in closed.stdout, report(closed)
+    assert f"STOP: events_stop {rid}" not in closed.stderr, report(closed)
+    said = next(ln for ln in closed.stdout.splitlines() if ln.startswith(f"events_stop {rid}: "))
+    assert "nothing was fetched again" in said and "IS shown complete" in said, said
+    assert "showed the unit stopped" in said, said
+    assert {name: (d / name).read_bytes() for name in kept} == kept, "the complete capture or its records changed"
+    assert not (d / "events-partial").exists() and not wiring.hooks.recorder_running(rid)
+
+
 def test_test_7_events_judged_on_another_container_or_with_the_proofs_kill_are_not_complete(wiring):
     """The container named is the one R7 judges (the controller, by default, holds none of the fault's events), and
     the proof's R7 is unchanged: a kill is required with signal 9, which a compose stop never sends."""
@@ -839,6 +1209,19 @@ def test_test_9_does_not_state_as_fact_that_the_refusal_names_its_client_id():
     comment = _comment_text(lines[start:end])
     assert "(b)'s evidence is a refusal naming its client id" not in comment, comment
     assert "UNVERIFIED:" in comment and "<unknown>" in comment, comment
+
+
+def test_test_6_says_where_an_interruption_leaves_the_capture_before_and_after_the_harnesss_events_fetch():
+    """Review of PR #51, B1, second round: the paragraph said that an interruption 'at any point' of the harness
+    leaves the capture in events-partial/ and never as a docker-events.log; after the harness's docker-events fetch
+    the capture is already in the run directory as that fetch left it (the case above), and an interruption during
+    that fetch leaves the fetch running in its own session."""
+    paragraph = next(p for p in RUNBOOK.read_text(encoding="utf-8").split("\n\n")
+                     if p.startswith("**The run's own capture"))
+    assert "at any point of it" not in paragraph, paragraph
+    assert "before the harness's docker-events fetch" in paragraph, paragraph
+    assert "after that fetch" in paragraph and "unsealed" in paragraph, paragraph
+    assert "during that fetch" in paragraph, paragraph
 
 
 def test_an_older_clone_without_the_capture_scripts_never_starts_the_harness_and_the_docs_say_so(wiring):

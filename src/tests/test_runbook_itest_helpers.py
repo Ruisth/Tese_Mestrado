@@ -326,7 +326,8 @@ exit "$(cat "$EGW_STUB_STATE/pgrep_rc" 2>/dev/null || echo 0)"
 STUB_EVENTS_CAPTURE = r"""#!/usr/bin/env bash
 # tools/session/events_capture.sh: 'start' prints the recorder's readiness and run_guest_t0 (events_start_rc 0) or a
 # NOT READY line (any other status, the unit then not running); 'cleanup' says whether the unit was still active,
-# stops it and, given a keep directory, keeps a partial capture there, write-once
+# stops it and, given a keep directory, keeps a partial capture there, write-once - or, with events_cleanup_rc set,
+# cannot show the unit stopped (the guest not reached): a STOP, that status, the unit's state left as it was
 S=$EGW_STUB_STATE
 line="capture"; for a in "$@"; do line="$line [$a]"; done
 echo "$line" >> "$S/capture.log"; echo "$line" >> "$S/ssh.log"
@@ -341,6 +342,8 @@ case $1 in
     exit 0;;
   cleanup)
     echo "unit_state_before_cleanup=$(cat "$S/unit-$2" 2>/dev/null || echo inactive)"
+    rc=$(cat "$S/events_cleanup_rc" 2>/dev/null || echo 0)
+    [ "$rc" = 0 ] || { echo "STOP: events_capture: the recorder unit egw-events-$2 was not shown stopped - it may still run (stub, exit $rc)" >&2; exit "$rc"; }
     echo inactive > "$S/unit-$2"
     if [ -n "${3:-}" ]; then
       [ ! -e "$3" ] || { echo "STOP: events_capture: $3 exists - NOT overwritten" >&2; exit 1; }
@@ -353,8 +356,9 @@ exit 2
 
 STUB_FETCH_SUT_LOG = r"""#!/usr/bin/env bash
 # tools/session/proof_fetch_sut_log.sh: writes DEST, write-once, from the case's <kind>.guest file (what the guest's
-# log holds for the window) or fails as the case sets it (fetch_<kind>_rc), writing nothing; the docker-events fetch
-# stops the stub unit and keeps its stop record whatever its ending
+# log holds for the window) or fails as the case sets it (fetch_<kind>_rc), writing nothing - or, with
+# fetch_<kind>_nofile, ends 0 and writes nothing; the docker-events fetch stops the stub unit and keeps its stop record
+# whatever its ending
 S=$EGW_STUB_STATE
 line="fetch"; for a in "$@"; do line="$line [$a]"; done
 echo "$line" >> "$S/capture.log"; echo "$line" >> "$S/ssh.log"
@@ -365,6 +369,7 @@ if [ "$kind" = docker-events ]; then
   echo inactive > "$S/unit-$4"
   echo "unit_state_before_stop=active" > "$dir/docker-events.stop.txt"
 fi
+[ ! -e "$S/fetch_${kind}_nofile" ] || { echo "proof_fetch_sut_log: $kind: (stub) exit 0, nothing written"; exit 0; }
 rc=$(cat "$S/fetch_${kind}_rc" 2>/dev/null || echo 0)
 [ "$rc" = 0 ] || { echo "STOP: proof_fetch_sut_log: the $kind log was NOT read on the guest (stub, exit $rc)" >&2; exit "$rc"; }
 if [ -e "$S/$kind.guest" ]; then cat "$S/$kind.guest" > "$dest"
@@ -1106,9 +1111,107 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     assert "kill" not in events[-1]
     assert opts["--restart-cmd"].endswith("restart controller'") and opts["--restart-at-s"] == "300"
     assert bench.capture_calls()[0] == "capture [start] [controller_restart-r01]"
-    # The stub harness seals nothing, so the line stops as it did before: the capture changes none of its checks.
+    # The finite proof's restart-evidence hooks of the checkout, rendered and split as the harness runs them (review
+    # of PR #51, B1): the twin snapshots with the plan's seed, the drain, the post-drain copy of this run's events.
+    session = bench.clone / "tools" / "session"
+    run_dir = "/raw/controller_restart-r01"
+
+    def hook(flag: str, dest: str) -> list[str]:
+        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r01", duration_s=600,
+                                                             dest=dest, expect_services=SIX_SERVICES.split(",")))
+
+    assert hook("--twin-snapshot-cmd", f"{run_dir}/twins.before.json") == \
+        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r01", f"{run_dir}/twins.before.json", "7"]
+    assert hook("--drain-cmd", f"{run_dir}/logs/sut/drain.txt") == \
+        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r01"]
+    assert hook("--post-drain-fetch-cmd", f"{run_dir}/events.post-drain.jsonl") == \
+        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r01/events.jsonl",
+         f"{run_dir}/events.post-drain.jsonl"]
+    # The stub harness seals nothing, so the line stops: its run directory was not sealed.
     assert r.starting("STOP: test 6: the harness run was not sealed"), r.out
     assert r.value("T6") == "stop", r.out
+
+
+@pytest.mark.parametrize("harness_rc", [0, 1])
+def test_harness_cmd_whose_cleanup_fails_answers_3_and_names_the_harness_status(bench: Bench, harness_rc: int) -> None:
+    """Review of PR #51, B2: the cleanup after the harness cannot show the unit stopped; harness_cmd exited with the
+    harness's status, hiding it. It now answers 3, which the harness never answers, and its STOP names both."""
+    bench.set("harness_rc", harness_rc)
+    bench.set("events_cleanup_rc", 1)
+    r = bench.run(bench.with_helpers('harness_cmd smoke_sequence-r01; echo "HC=$?"'))
+    assert r.value("HC") == "3", r.out
+    stop = r.starting("STOP: harness_cmd smoke_sequence-r01: ")
+    assert len(stop) == 1 and f"the harness answered {harness_rc}" in stop[0] and "FAILED" in stop[0], r.out
+    assert "egw-events-smoke_sequence-r01 may still run" in stop[0] and "INCOMPLETE" in stop[0], r.out
+
+
+@pytest.mark.parametrize("fetch_rc, first_cleanup, again_cleanup, first, again", [
+    (0, 0, 0, "0", "0"),
+    (0, 1, 0, "3", "0"),
+    (0, 1, 1, "3", "3"),
+    (1, 0, 0, "1", "1"),
+], ids=["complete-cleanup_ok-then_ok", "complete-cleanup_failed-then_ok", "complete-cleanup_failed_twice",
+        "not_complete"])
+def test_events_stop_called_again_answers_by_the_capture_fetched_before_and_the_cleanup_now(
+        bench: Bench, fetch_rc: int, first_cleanup: int, again_cleanup: int, first: str, again: str) -> None:
+    """Review of PR #51, B2, second round: called again, events_stop fetches nothing and answered 1 - 'the capture
+    not shown complete' - whatever the capture fetched before was and whatever the cleanup showed. It now answers by
+    the two results kept apart: the capture fetched before (complete when it wrote docker-events.log, which stays as
+    it was) and the cleanup now (0 when it showed the unit stopped, 3 when it failed); 1 only without a complete
+    capture."""
+    rid = "itest-mongo-fault-09"
+    bench.set("fetch_docker-events_rc", fetch_rc)
+    bench.set("events_cleanup_rc", first_cleanup)
+    r1 = bench.run(bench.with_helpers(f'T0=$(events_start {rid}); echo "$T0" > "$HOME/t0"\n'
+                                      f'events_stop {rid} "$T0" die,stop,start egw-mongodb-1; echo "EV1=$?"'))
+    assert r1.value("EV1") == first, r1.out
+    log = bench.p / f"{rid}.sut" / "docker-events.log"
+    kept = log.read_bytes() if log.exists() else None
+    assert (kept is not None) == (fetch_rc == 0), r1.out
+    bench.set("events_cleanup_rc", again_cleanup)
+    r2 = bench.run(bench.with_helpers(f'events_stop {rid} "$(cat "$HOME/t0")" die,stop,start egw-mongodb-1\n'
+                                      'echo "EV2=$?"'))
+    assert r2.value("EV2") == again, r2.out
+    assert len([c for c in bench.capture_calls() if c.startswith("fetch [docker-events]")]) == 1, "fetched twice"
+    assert bench.capture_calls()[-1].startswith(f"capture [cleanup] [{rid}]"), "the repeat did not run the cleanup"
+    said = [ln for ln in r2.lines if ln.startswith((f"STOP: events_stop {rid}: ", f"events_stop {rid}: "))]
+    assert len(said) == 1 and "docker-events.fetch.txt exists" in said[0], r2.out
+    if kept is None:
+        assert said[0].startswith("STOP: ") and "nothing was fetched" in said[0], r2.out
+        assert "IS shown complete" not in said[0] and not log.exists(), r2.out
+        return
+    assert log.read_bytes() == kept, "the complete capture was changed by the repeat"
+    assert "nothing was fetched again" in said[0] and "IS shown complete" in said[0], r2.out
+    assert "NOT shown complete" not in r2.out, r2.out
+    if again == "3":
+        assert said[0].startswith("STOP: ") and "INCOMPLETE" in said[0], r2.out
+        assert f"egw-events-{rid} may still run" in said[0], r2.out
+    else:
+        assert not said[0].startswith("STOP") and "showed the unit stopped" in said[0], r2.out
+
+
+def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_unit_may_still_run(bench: Bench) -> None:
+    """Review of PR #51, B2, second round (nit): harness_cmd answers 2 whenever the harness was not started, a cleanup
+    that failed on the way included (the harness never ran, so there is no status of it to keep apart); test 6's STOP
+    for 2 said only that the harness was not started. The status stays 2, and harness_cmd's STOP and test 6's point to
+    the failed cleanup."""
+    cmds = _host_commands("### Test 6")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    bench.set("events_start_rc", 3)
+    bench.set("events_cleanup_rc", 1)
+    body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
+    r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
+    assert r.value("T6") == "stop", r.out
+    assert not (bench.state / "harness_argv").exists(), "the harness was started without a ready recorder"
+    start = r.starting("STOP: events_start controller_restart-r01: ")
+    assert len(start) == 1 and "egw-events-controller_restart-r01 may still run" in start[0], r.out
+    hc = r.starting("STOP: harness_cmd controller_restart-r01: the harness was NOT started")
+    assert len(hc) == 1 and "events_start's STOP above" in hc[0], r.out
+    t6 = r.starting("STOP: test 6: ")
+    assert len(t6) == 1 and "exited 2" in t6[0] and "may then still run" in t6[0], r.out
 
 
 # --------------------------------------------------------------------------
@@ -1333,19 +1436,47 @@ def test_config_identity_fragment_an_empty_log_read_stops_and_writes_no_file(ben
 # --------------------------------------------------------------------------
 def test_test_6_harness_line_captures_the_identity_and_hands_it_to_the_harness() -> None:
     line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    command = line.split("     #", 1)[0]  # the command, without its trailing comment
     capture = "config_identity $P/$RID.config_identity.json"
-    assert capture in line and line.index(capture) < line.index("harness_cmd $RID")
-    assert "--config-identity-from $P/$RID.config_identity.json" in line.split("harness_cmd $RID", 1)[1]
-    # No identity tolerance: only the restart-evidence-step reasons are expected from this harness run.
-    assert "'without its restart evidence step' not in r" in line
-    assert "identity" not in line.split("python3 -c", 1)[1].split("sys.exit", 1)[0]
+    assert capture in command and command.index(capture) < command.index("harness_cmd $RID")
+    assert "--config-identity-from $P/$RID.config_identity.json" in command.split("harness_cmd $RID", 1)[1]
+    # Review of PR #51, B1/B2: the harness takes the restart evidence itself, so no harness status is tolerated any
+    # more - T6 is ok only on harness_cmd's 0, a cleanup failure (3) is its own state - and the drain has this
+    # shell's own window, step and limit.
+    assert "without its restart evidence step" not in command
+    assert 'if [ "$HR" = 3 ]; then T6=incomplete' in command
+    assert 'elif [ "$HR" = 0 ] && [ -s $RAW6/SHA256SUMS ]; then' in command
+    assert "DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$DRAIN_LIMIT_S " \
+           "EVENTS_EXPECTED=die,start harness_cmd $RID" in command
+
+
+def test_test_6_takes_no_drain_post_drain_copy_or_after_snapshot_outside_the_harness() -> None:
+    """Review of PR #51, B1: the drain, the post-drain copy and the 'after' snapshot ran after harness_cmd had
+    stopped the recorder, outside the run's capture; the harness now takes them, and nothing ingests them later."""
+    commands = [c.split("     #", 1)[0] for c in _host_commands("### Test 6")]
+    text = "\n".join(commands)
+    for gone in ("drained 2>&1 | tee", "events.post-drain.jsonl && [ -s", "--label after", "egw_experiments collect",
+                 "--drain-transcript-from", "--twins-before-from", "--post-drain-events-from"):
+        assert gone not in text, gone
+    assert "$REC snap" not in text
 
 
 def test_test_6_delta_line_names_the_post_drain_copy() -> None:
-    line = _one(_host_commands("### Test 6"), '[ "$T6" = collected ] && $REC delta')
+    line = _one(_host_commands("### Test 6"), '[ "$T6" = ok ] && $REC delta')
     command = line.split("     #", 1)[0]  # the command, without its trailing comment
     assert "--events $RAW6/events.post-drain.jsonl" in command
+    assert "--prefix $P/$RID" in command
     assert "--also" not in command
+
+
+def test_test_6_names_the_limit_the_harness_puts_on_its_drain_hook() -> None:
+    """Review of PR #51, B1, second round: test 6's drain runs as the harness's hook, which run.py ends after
+    DRAIN_TIMEOUT_S and records as a drain in error (an invalid run), where the external 'drained' had no such limit.
+    The comment that gives the drain's window, step and limit names that one too, with run.py's value."""
+    line = _one(_host_commands("### Test 6"), "RAW6=")
+    comment = line.split("     #", 1)[1]
+    assert f"after {int(run_mod.DRAIN_TIMEOUT_S)} s (run.py DRAIN_TIMEOUT_S)" in comment, comment
+    assert "gave-up" in comment and "'error'" in comment, comment
 
 
 def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_post_drain_copy() -> None:
@@ -1355,7 +1486,7 @@ def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_po
     cmds = _host_commands("### Test 6")
     assert [c for c in cmds if "--also" in c.split("     #", 1)[0]] == []  # the command part, not its comment
     with_events = [c for c in cmds if "--events" in c.split("     #", 1)[0]]
-    assert with_events == [_one(cmds, '[ "$T6" = collected ] && $REC delta')]
+    assert with_events == [_one(cmds, '[ "$T6" = ok ] && $REC delta')]
     text = "\n".join(_section("### Test 6"))
     assert "No executable procedure for that variant is given here" in text
     assert "warm-up" in text and "--also" in text  # the option and the reason for it are still explained
@@ -1364,46 +1495,6 @@ def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_po
 def test_helper_table_names_config_identity() -> None:
     text = RUNBOOK.read_text(encoding="utf-8")
     assert "| `config_identity <out-file>` |" in text
-
-
-def drain_line() -> str:
-    return _one(_host_commands("### Test 6"), 'if [ "$T6" = ok ]; then printf')
-
-
-def call_drain_line(bench: Bench, **env: str) -> Result:
-    return bench.run(bench.with_helpers("\n".join(("RID=controller_restart-r01", "T6=ok", drain_line(),
-                                                   'echo "T6=$T6"'))), **env)
-
-
-def test_test_6_drain_line_writes_the_envelope_then_the_helpers_quiet_line(bench: Bench) -> None:
-    """The transcript the collect line ingests: the envelope written before `drained` runs, then the helper's
-    line through tee -a. The harness binds it to the run by that envelope (run.py, F6a) and classifies it quiet."""
-    r = call_drain_line(bench)
-    assert r.value("T6") == "drained", r.out
-    text = (bench.p / "controller_restart-r01.drained.txt").read_text(encoding="utf-8")
-    lines = text.splitlines()
-    assert len(lines) == 2, text
-    assert re.fullmatch(r"run_id=controller_restart-r01 captured_utc=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", lines[0])
-    assert lines[1].startswith(QUIET_LINE)
-    problems, captured = run_mod.drain_transcript_envelope_problems(
-        text, run_id="controller_restart-r01", window_end_utc="2026-09-18T10:00:00.000Z")
-    assert problems == [] and captured == lines[0].split("captured_utc=")[1]
-    assert run_mod.classify_drain_output(text, None) == "quiet"
-    assert run_mod.drain_transcript_envelope_problems(text, run_id="controller_restart-r02",
-                                                       window_end_utc="2026-09-18T10:00:00.000Z")[0]
-
-
-def test_test_6_drain_line_that_gives_up_keeps_the_envelope_and_the_stop_line(bench: Bench) -> None:
-    bench.metrics(queue_depth=1)
-    r = call_drain_line(bench, DRAIN_LIMIT_S="0")
-    assert r.value("T6") == "gaveup", r.out
-    assert r.starting("STOP: test 6: 'drained' gave up or failed"), r.out
-    text = (bench.p / "controller_restart-r01.drained.txt").read_text(encoding="utf-8")
-    lines = text.splitlines()
-    assert lines[0].startswith("run_id=controller_restart-r01 captured_utc=") and lines[1].startswith(STOP_NO_WINDOW)
-    assert run_mod.drain_transcript_envelope_problems(
-        text, run_id="controller_restart-r01", window_end_utc="2026-09-18T10:00:00.000Z")[0] == []
-    assert run_mod.classify_drain_output(text, None) == "gave-up"
 
 
 # --------------------------------------------------------------------------
@@ -1999,10 +2090,29 @@ def _t7_body(prefix: str = "") -> tuple[str, str, str]:
     return "\n".join(body), rid, svc.group(1)
 
 
-def call_test7(bench: Bench, stub_pgrep_rc: int | None = 0, prefix: str = "", **env: str) -> tuple[Result, str, str]:
-    body, rid, svc = _t7_body(prefix)
+def _ditto_body() -> tuple[str, str, str]:
+    """The Ditto repeat as the runbook has it pasted: test 7's helpers (DC, svc_state, fault_recover, fault, readyp),
+    then the repeat's own three lines; returns (body, run id, service)."""
+    t7, ditto = _host_commands("### Test 7"), _host_commands("### Repeat of test 7 for Ditto")
+    first = _one(ditto, "R=")
+    rid, svc = run_id_of(first, "R"), re.search(r"SVC=([A-Za-z0-9_-]+)", first).group(1)
+    body = [ln for ln in t7[:-2] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"',
+                                                                 ditto[2].split("\n")[0], 'echo "EVAL_RC=$?"']
+    return "\n".join(body), rid, svc
+
+
+def _t7_guest_logs(bench: Bench) -> None:
+    """What the guest's controller and broker logs hold for a sub-check's window (read by sut_log)."""
+    bench.set("controller.guest", '2026-09-29T10:00:01.000000000Z {"level": "WARNING", "message": "Ditto PATCH failed"}')
+    bench.set("broker.guest", "2026-09-29T10:00:01.000000000Z 1790000001: Client egw-controller has exceeded timeout")
+
+
+def call_test7(bench: Bench, stub_pgrep_rc: int | None = 0, prefix: str = "", sub: str = "mongodb",
+               **env: str) -> tuple[Result, str, str]:
+    body, rid, svc = _t7_body(prefix) if sub == "mongodb" else _ditto_body()
     full_run(bench, rid)
     bench.set("svc_state", "running")
+    _t7_guest_logs(bench)
     if stub_pgrep_rc is not None:
         bench.install("pgrep", STUB_PGREP)
         bench.set("pgrep_rc", stub_pgrep_rc)
@@ -2179,34 +2289,118 @@ def test_test_7_recorder_not_ready_injects_no_fault_and_publishes_nothing(bench:
     assert (bench.state / f"unit-{rid}").read_text(encoding="utf-8").strip() != "active"
 
 
-def test_test_7_a_capture_not_shown_complete_is_a_stop_and_leaves_the_acceptance_as_it_stands(bench: Bench) -> None:
-    """Whether an incomplete capture should block test 7 is a criterion, not decided here (work order C): the
-    capture's failure is printed as a STOP, its partial records stay, and T7 is still decided by its SHOWN lines."""
-    bench.set("fetch_docker-events_rc", 1)
-    r, rid, _ = call_test7(bench)
-    assert r.starting(f"STOP: events_stop {rid}: the Docker events capture is NOT shown complete"), r.out
-    assert not (bench.p / f"{rid}.sut" / "docker-events.log").exists()
-    assert r.value("T7_VALUE") == "0", r.out
-
-
 def test_the_ditto_repeat_of_test_7_judges_egw_ditto_things_1(bench: Bench) -> None:
     t7 = _host_commands("### Test 7")
     ditto = _host_commands("### Repeat of test 7 for Ditto")
-    first = _one(ditto, "R=")
-    rid, svc = run_id_of(first, "R"), re.search(r"SVC=([A-Za-z0-9_-]+)", first).group(1)
+    r, rid, svc = call_test7(bench, sub="ditto")
     assert svc == "ditto-things"
-    # the helpers of test 7 (DC, svc_state, fault_recover, fault, readyp), then the repeat's own three lines
-    body = [ln for ln in t7[:-2] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"']
-    full_run(bench, rid)
-    bench.set("svc_state", "running")
-    bench.install("pgrep", STUB_PGREP)
-    bench.set("pgrep_rc", 0)
-    r = bench.run(bench.with_helpers("\n".join(body)))
     assert r.value("T7_VALUE") == "0", r.out
     fetch = [ln for ln in bench.capture_calls() if ln.startswith("fetch [docker-events]")]
     assert fetch == [f"fetch [docker-events] [{bench.p / (rid + '.sut')}/docker-events.log] [1790000000] [{rid}] "
                      f"[die,stop,start] [egw-ditto-things-1]"]
     assert ditto[1] == _one(t7, "T7=stop; if pre $R"), "the repeat's test line is test 7's, unchanged"
+
+
+# --------------------------------------------------------------------------
+# Test 7, both sub-checks: an incomplete capture or scoped log is never an accepted fault test (review of PR #51, B2)
+# --------------------------------------------------------------------------
+SUB_CHECKS = ["mongodb", "ditto"]
+
+
+def assert_incomplete_keeps_the_observations(bench: Bench, r: Result, rid: str, svc: str, *parts: str) -> None:
+    """T7 is neither 0 nor 'failed:' (the system's behaviour was shown), the STOP says the instrumentation is
+    incomplete, the observations are printed and kept, and the evaluation line refuses."""
+    value = r.value("T7_VALUE")
+    assert value.startswith("incomplete:") and all(p in value for p in parts), r.out
+    assert r.starting(f"INTERRUPTION SHOWN: {svc} went from 'running' to 'exited'"), r.out
+    assert r.starting(f"RECOVERY SHOWN: {svc} is 'running' after start"), r.out
+    stop = [ln for ln in r.starting("STOP: test 7: ") if "INCOMPLETE" in ln]
+    assert len(stop) == 1 and "the interruption and the recovery are shown" in stop[0], r.out
+    assert not r.starting("STOP: test 7: NOT accepted"), r.out
+    assert r.value("EVAL_RC") != "0" and not r.starting("Counter("), r.out
+    fault = (bench.p / f"{rid}.fault.txt").read_text(encoding="utf-8")
+    assert "INTERRUPTION SHOWN" in fault and "RECOVERY SHOWN" in fault
+    assert (bench.p / f"{rid}.ready.txt").stat().st_size > 0, "the /ready record was not kept"
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+@pytest.mark.parametrize("case", ["incomplete", "missing"])
+def test_test_7_both_faults_shown_but_the_capture_not_complete_is_not_accepted_and_keeps_the_observations(
+        bench: Bench, sub: str, case: str) -> None:
+    """The capture not shown complete (the fetch's status 1), or answered 0 without a docker-events.log: T7 was 0,
+    decided by the SHOWN lines alone; it is now 'incomplete:' and the evaluation line refuses."""
+    bench.set("fetch_docker-events_rc" if case == "incomplete" else "fetch_docker-events_nofile", 1)
+    r, rid, svc = call_test7(bench, sub=sub)
+    assert_incomplete_keeps_the_observations(bench, r, rid, svc, "events_stop=1")
+    assert r.starting(f"STOP: events_stop {rid}: the Docker events capture is NOT shown complete"), r.out
+    assert not (bench.p / f"{rid}.sut" / "docker-events.log").exists()
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+@pytest.mark.parametrize("kind", ["controller", "broker"])
+def test_test_7_both_faults_shown_but_a_scoped_log_not_read_is_not_accepted(bench: Bench, sub: str,
+                                                                             kind: str) -> None:
+    bench.set(f"fetch_{kind}_rc", 1)
+    r, rid, svc = call_test7(bench, sub=sub)
+    assert_incomplete_keeps_the_observations(bench, r, rid, svc, f"{kind}_log=1", "events_stop=0")
+    assert r.starting(f"STOP: sut_log {kind} {rid}: the {kind} log bounded to"), r.out
+    assert not (bench.p / f"{rid}.sut" / f"{kind}.log").exists()
+    assert (bench.p / f"{rid}.sut" / "docker-events.log").is_file(), "the complete capture was not kept"
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+def test_test_7_a_complete_capture_whose_cleanup_fails_stays_complete_and_the_sub_check_is_incomplete(
+        bench: Bench, sub: str) -> None:
+    bench.set("events_cleanup_rc", 1)
+    r, rid, svc = call_test7(bench, sub=sub)
+    assert_incomplete_keeps_the_observations(bench, r, rid, svc, "events_stop=3")
+    stop = [ln for ln in r.starting(f"STOP: events_stop {rid}: ")]
+    assert len(stop) == 1 and "IS shown complete" in stop[0] and "INCOMPLETE" in stop[0], r.out
+    assert f"egw-events-{rid} may still run" in stop[0], r.out
+    assert (bench.p / f"{rid}.sut" / "docker-events.log").is_file(), "the complete capture was not kept"
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+def test_test_7_both_sub_checks_read_their_logs_from_the_recorders_readiness_after_the_recovery_and_before_the_fetch(
+        bench: Bench, sub: str) -> None:
+    """The scoped logs of the sub-check (sut_log), bounded by its own T0_7 - the recorder's readiness, not the guest
+    clock at the read - read after the recovery and before events_stop, whose window then still covers them."""
+    bench.set("events_t0", 1790000321)
+    r, rid, svc = call_test7(bench, sub=sub)
+    assert r.value("T7_VALUE") == "0", r.out
+    assert not r.starting("STOP"), r.out
+    assert r.value("EVAL_RC") == "0" and r.starting("Counter("), r.out
+    d = bench.p / f"{rid}.sut"
+    log = bench.ssh_log()
+    recover = next(i for i, ln in enumerate(log) if ln.endswith(f" start {svc}]"))
+    controller = log.index(f"fetch [controller] [{d}/controller.log] [1790000321]")
+    broker = log.index(f"fetch [broker] [{d}/broker.log] [1790000321]")
+    fetch = next(i for i, ln in enumerate(log) if ln.startswith("fetch [docker-events]"))
+    assert recover < controller < broker < fetch, log
+    assert (d / "controller.log").is_file() and (d / "broker.log").is_file()
+    assert (d / "controller.fetch.txt").is_file() and (d / "broker.fetch.txt").is_file()
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+@pytest.mark.parametrize("capture, ev", [("complete", "0"), ("not_complete", "1")])
+def test_test_7_an_observation_that_failed_keeps_the_instrumentations_statuses_beside_it(bench: Bench, sub: str,
+                                                                                         capture: str, ev: str) -> None:
+    """Review of PR #51, B2, second round: when an observation of the system failed, the 'failed:' value and its STOP
+    named only sim_post, the fault job and the /ready poller, so a capture or log that was incomplete as well showed
+    only in the helpers' own STOPs. The value and the STOP now carry the three instrumentation statuses too, in every
+    branch, beside the system's and never in place of them."""
+    bench.set("ssh_stop_rc", 1)
+    if capture == "not_complete":
+        bench.set("fetch_docker-events_rc", 1)
+    r, rid, svc = call_test7(bench, sub=sub)
+    assert_test7_not_accepted(r)
+    assert r.value("T7_VALUE") == \
+        f"failed:sim_post=0,fault_job=1,readyp_kill=0,events_stop={ev},controller_log=0,broker_log=0", r.out
+    stop = r.starting("STOP: test 7: NOT accepted")
+    assert len(stop) == 1, r.out
+    assert "sim_post exit=0, fault job exit=1, kill of the /ready poller exit=0" in stop[0], stop[0]
+    assert f"events_stop exit={ev}, controller log read exit=0, broker log read exit=0" in stop[0], stop[0]
+    assert not r.starting("STOP: test 7: the interruption and the recovery are shown"), r.out
 
 
 @pytest.mark.skipif(REAL_PGREP is None, reason="pgrep (procps) is not installed")
