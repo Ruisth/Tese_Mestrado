@@ -387,6 +387,21 @@ measured run, and is recorded in the manifest with timestamps and exit
 code. A `controller_restart` run without a successfully executed restart is
 invalid.
 
+Decision 1a (adopted 2026-09-30, prospective): `run` takes
+`--fetch-started-at-cmd` (the runbook's test 6 passes
+`bash "$EGW_CLONE/tools/session/fetch_started_at.sh" "{dest}"`), the
+restarted controller's id and `State.StartedAt` read on the guest right after
+the docker-events fetch into `logs/sut/controller-started-at.txt`, recorded
+among `sut_log_fetches` (a failed read is a validity reason). On a
+`controller_restart` run the harness then derives the proved-down interval
+(`egw_experiments.proved_down`: a complete capture with exactly one `die` and
+one `start` of `egw-controller-1`, one container id, StartedAt within 1 s of
+the start) and applies it at the resources ingest (see the validity rules);
+the manifest records `resources_proved_down` (whether it applied or why not,
+D, S, E, both edge gaps, the rows rejected). It is reported only: no
+delivery, recovery or C12 figure reads it. Without the option nothing of this
+runs or is recorded, and `collect` never applies it.
+
 ### 2b. Recovery: the `collect` subcommand (audit 9.3)
 
 If post-run collection failed (VM unreachable, missing fetch template,
@@ -819,6 +834,21 @@ Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
   the specific defect. The analysis reader still tolerates the legacy
   5-column header for pre-P1 raw runs and fixtures — but run-time
   ingestion never does;
+
+  the proved-down interval (decision 1a, adopted 2026-09-30, prospective)
+  changes one gap and nothing else: at the run-time ingest of a
+  `controller_restart` run given `--fetch-started-at-cmd`, when the interval
+  is established, the restarted controller's gap across its restart is
+  judged as two gaps against `MAX_SAMPLE_GAP_S` (5 s) — from its last row at
+  or before the die's whole second to that second, and from the whole second
+  of E = min(S, D + `RESTART_RECOVERY_MAX_S`) to its first row at least one
+  sampling interval after the start's second — and its rows between the die
+  and the start, or in the start's own second, are rejected
+  (`resources.validate_resources_csv`, keyword `proved_down`). Every other
+  gap, container, coverage, instant, host, numeric and order check is
+  unchanged; no row is added, removed or filled, and the file ingested is the
+  collector's, byte for byte. Without the interval every result and message
+  is the one the file always had;
 - a clean simulator exit: a non-zero measured-run exit code marks the run
   invalid with the code in the reason, and there is NO override;
 - a clean warm-up exit: non-zero marks the run invalid unless

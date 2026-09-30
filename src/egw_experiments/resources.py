@@ -42,6 +42,13 @@ Notes:
   writes one row per container, so 30 rows can be five seconds of six
   containers) and, when the caller knows it, a span consistent with the
   run's measured window.
+- The proved-down interval of decision 1a (adopted 2026-09-30, prospective):
+  given a :class:`ProvedDownInterval` (``proved_down=``), the validator
+  judges the restarted container's gap across its restart by the interval's
+  edges instead of as one gap (:func:`proved_down_outcomes`). Only the
+  harness's run-time ingest of a ``controller_restart`` run given the
+  StartedAt read passes one (``egw_experiments.proved_down``); without it
+  every result and every problem text is the one the file always had.
 """
 
 from __future__ import annotations
@@ -53,11 +60,17 @@ import platform
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from .protocol import MAX_SAMPLE_GAP_S, RESOURCE_SAMPLE_INTERVAL_S
+from .protocol import (
+    MAX_SAMPLE_GAP_S,
+    RESOURCE_SAMPLE_INTERVAL_S,
+    RESTART_RECOVERY_MAX_S,
+)
 
 #: Canonical resources.csv schema (work order P1: host provenance column).
 #: Written by BOTH producers: this local dev sampler and the SUT-side
@@ -260,6 +273,147 @@ def _numeric_defect(value: str) -> str | None:
     return None
 
 
+_NS_PER_S = 1_000_000_000
+_RESTART_RECOVERY_MAX_NS = round(RESTART_RECOVERY_MAX_S * _NS_PER_S)
+
+
+def whole_second(ns: int) -> datetime:
+    """``sec(x)`` of decision 1a: the whole UTC second containing the instant
+    ``ns`` (integer nanoseconds since the epoch, floored), the resolution of
+    the collector's rows, which it stamps in whole seconds."""
+    return datetime.fromtimestamp(ns // _NS_PER_S, tz=timezone.utc)
+
+
+def ns_utc_text(ns: int) -> str:
+    """An instant in integer nanoseconds as RFC 3339 UTC text with nine
+    fractional digits (``2026-10-01T10:01:00.400000000Z``)."""
+    return whole_second(ns).strftime("%Y-%m-%dT%H:%M:%S") + f".{ns % _NS_PER_S:09d}Z"
+
+
+@dataclass(frozen=True)
+class ProvedDownInterval:
+    """The proved-down interval of one restarted container (decision 1a,
+    adopted 2026-09-30, prospective): the Docker ``die`` (D) and ``start``
+    (S) of ``container``, both in integer nanoseconds on the GUEST clock,
+    the clock of the resource rows. ``egw_experiments.proved_down`` derives
+    it from a run's complete events capture and its StartedAt read; the
+    validator is only ever handed one that derivation established.
+
+    The effective end is E = min(S, D + RESTART_RECOVERY_MAX_S): the
+    ordinary rule resumes from E even when S is later (``capped``)."""
+
+    container: str
+    die_ns: int
+    start_ns: int
+
+    @property
+    def effective_end_ns(self) -> int:
+        return min(self.start_ns, self.die_ns + _RESTART_RECOVERY_MAX_NS)
+
+    @property
+    def capped(self) -> bool:
+        return self.start_ns > self.die_ns + _RESTART_RECOVERY_MAX_NS
+
+
+def proved_down_outcomes(
+    instants: Iterable[datetime], interval: ProvedDownInterval
+) -> dict[str, Any]:
+    """What the proved-down interval does to one container's sample instants
+    (decision 1a), in whole seconds: ``sec(D)``, ``sec(S)`` and ``sec(E)``
+    (:func:`whole_second`) against the rows.
+
+    - the rows stamped at or before ``sec(D)`` (the last of them opens the
+      edge before), those strictly between ``sec(D)`` and ``sec(S)`` (no
+      instance was running to measure), those in ``sec(S)`` itself (less than
+      one sampling interval, :data:`RESOURCE_SAMPLE_INTERVAL_S`, after S) and
+      those at least one sampling interval after ``sec(S)`` (the first of
+      them closes the edge after);
+    - the interval applies only when the container has a row on both sides:
+      at or before ``sec(D)`` and after ``sec(S)``. Otherwise ``applies`` is
+      False with ``why_not``, and the ordinary rule decides the file;
+    - when it applies, the one pair (last row before, first row after) is
+      replaced by two gaps: ``edge_gap_before_s`` = ``sec(D)`` - the last
+      row before and ``edge_gap_after_s`` = the first row after - ``sec(E)``
+      (the ordinary rule resumes from E, so when capped the time from
+      D + RESTART_RECOVERY_MAX_S to S is part of the edge after); the rows
+      between and in ``sec(S)`` are ``rejected_rows``.
+
+    Pure: no row is added, removed, zero-filled or interpolated.
+    """
+    ordered = sorted(set(instants))
+    sec_d = whole_second(interval.die_ns)
+    sec_s = whole_second(interval.start_ns)
+    sec_e = whole_second(interval.effective_end_ns)
+    one_interval = timedelta(seconds=RESOURCE_SAMPLE_INTERVAL_S)
+    before = [t for t in ordered if t <= sec_d]
+    between = [t for t in ordered if sec_d < t < sec_s]
+    in_start_second = [t for t in ordered if sec_s <= t < sec_s + one_interval]
+    after = [t for t in ordered if t >= sec_s + one_interval]
+    outcome: dict[str, Any] = {
+        "container": interval.container,
+        "applies": False,
+        "why_not": None,
+        "capped": interval.capped,
+        "interval_s": (interval.start_ns - interval.die_ns) / _NS_PER_S,
+        "exempt_s": (interval.effective_end_ns - interval.die_ns) / _NS_PER_S,
+        "die_second_utc": sec_d.isoformat(),
+        "start_second_utc": sec_s.isoformat(),
+        "effective_end_second_utc": sec_e.isoformat(),
+        "last_row_before_die": before[-1].isoformat() if before else None,
+        "first_row_after_start": after[0].isoformat() if after else None,
+        "edge_gap_before_s": None,
+        "edge_gap_after_s": None,
+        "rows_between": [t.isoformat() for t in between],
+        "rows_in_start_second": [t.isoformat() for t in in_start_second],
+        "rejected_rows": [],
+    }
+    if interval.start_ns <= interval.die_ns:
+        outcome["why_not"] = "the start is not after the die"
+    elif not before:
+        outcome["why_not"] = (
+            f"container {interval.container!r} has no row stamped at or before "
+            f"the die's second {sec_d.isoformat()}"
+        )
+    elif not after:
+        outcome["why_not"] = (
+            f"container {interval.container!r} has no row stamped after the "
+            f"start's second {sec_s.isoformat()}"
+        )
+    else:
+        outcome["applies"] = True
+        outcome["edge_gap_before_s"] = (sec_d - before[-1]).total_seconds()
+        outcome["edge_gap_after_s"] = (after[0] - sec_e).total_seconds()
+        outcome["rejected_rows"] = [
+            t.isoformat() for t in sorted(set(between) | set(in_start_second))
+        ]
+    return outcome
+
+
+def _series_pairs(
+    ordered: list[datetime],
+    span: tuple[datetime, datetime] | None = None,
+    edges: tuple[tuple[str, float], ...] = (),
+):
+    """The consecutive pairs of one container's ordered instants as
+    ``(label, left, right, gap_s)``. With ``span`` (the proved-down
+    interval's last row before the die and first row after the start) the
+    pairs inside it are replaced, in their place, by ``edges`` (the two edge
+    gaps, labelled), which share the span's bounds for the window test.
+    Without it, exactly the pairs and labels the validator always judged."""
+    for left, right in zip(ordered, ordered[1:]):
+        if span is not None and span[0] <= left and right <= span[1]:
+            if left == span[0]:
+                for label, gap in edges:
+                    yield label, span[0], span[1], gap
+            continue
+        yield (
+            f"{left.isoformat()} to {right.isoformat()}",
+            left,
+            right,
+            (right - left).total_seconds(),
+        )
+
+
 def validate_resources_csv(
     path: str | Path,
     *,
@@ -270,6 +424,8 @@ def validate_resources_csv(
     expected_window_start_utc: str | datetime | None = None,
     expected_window_end_utc: str | datetime | None = None,
     max_sample_gap_s: float = MAX_SAMPLE_GAP_S,
+    proved_down: ProvedDownInterval | None = None,
+    proved_down_outcome: dict[str, Any] | None = None,
 ) -> list[str]:
     """Validate a resources.csv before RUN-TIME ingestion (work order P1,
     hardened semantically in sprint P5 — report 5.4).
@@ -316,6 +472,18 @@ def validate_resources_csv(
       distinct sample instants may not exceed ``max_sample_gap_s`` (the
       protocol's :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S` by
       default).
+
+    ``proved_down`` (keyword-only; decision 1a, adopted 2026-09-30): the
+    proved-down interval of the one container a ``controller_restart`` run
+    restarted, established from the run's events capture and StartedAt read
+    (``egw_experiments.proved_down``). When that container has a row on both
+    sides of it (:func:`proved_down_outcomes`), its one gap across the
+    restart is judged as two edge gaps against ``max_sample_gap_s``, and its
+    rows between the die and the start, or in the start's own second, are
+    each a problem; every other check, gap and container is unchanged. With
+    ``proved_down_outcome`` (a dict) the outcomes are written into it. With
+    ``proved_down`` None (the default) the code path and every problem text
+    are the ones the validator always had.
     """
     path = Path(path)
     if not path.is_file():
@@ -588,6 +756,67 @@ def validate_resources_csv(
                         "measured window"
                     )
 
+    # The proved-down interval (decision 1a): the restarted container's rows
+    # against it, its own problems, and the span whose one pair its two edge
+    # gaps replace below. None of this runs without an interval.
+    pd_span: tuple[datetime, datetime] | None = None
+    pd_edges: tuple[tuple[str, float], ...] = ()
+    if proved_down is not None:
+        pd_outcome = proved_down_outcomes(
+            container_instants.get(proved_down.container, ()), proved_down
+        )
+        if proved_down_outcome is not None:
+            proved_down_outcome.update(pd_outcome)
+        if pd_outcome["applies"]:
+            pd_name = proved_down.container
+            die_text = ns_utc_text(proved_down.die_ns)
+            start_text = ns_utc_text(proved_down.start_ns)
+            if pd_outcome["rows_between"]:
+                problems.append(
+                    f"{len(pd_outcome['rows_between'])} row(s) of container "
+                    f"{pd_name!r} stamped between the die at {die_text} and "
+                    f"the start at {start_text}, when no instance of it was "
+                    "running to measure (the proved-down interval, decision "
+                    "1a): rejected whatever their values: "
+                    + _head(pd_outcome["rows_between"])
+                )
+            if pd_outcome["rows_in_start_second"]:
+                problems.append(
+                    f"{len(pd_outcome['rows_in_start_second'])} row(s) of "
+                    f"container {pd_name!r} stamped in the second of the start "
+                    f"at {start_text}, less than one sampling interval "
+                    f"(RESOURCE_SAMPLE_INTERVAL_S, {RESOURCE_SAMPLE_INTERVAL_S:g} "
+                    "s) after it: the first row after the proved-down interval "
+                    "(decision 1a) must be at least one sampling interval "
+                    "after the start's second: "
+                    + _head(pd_outcome["rows_in_start_second"])
+                )
+            last_before = parse_csv_timestamp(pd_outcome["last_row_before_die"])
+            first_after = parse_csv_timestamp(pd_outcome["first_row_after_start"])
+            assert last_before is not None and first_after is not None
+            pd_span = (last_before, first_after)
+            pd_edges = (
+                (
+                    f"{pd_outcome['last_row_before_die']} to the die's second "
+                    f"{pd_outcome['die_second_utc']} (edge before the "
+                    "proved-down interval, decision 1a)",
+                    pd_outcome["edge_gap_before_s"],
+                ),
+                (
+                    f"the effective end's second "
+                    f"{pd_outcome['effective_end_second_utc']} to "
+                    f"{pd_outcome['first_row_after_start']} (edge after the "
+                    "proved-down interval, decision 1a"
+                    + (
+                        ", resumed from the die plus RESTART_RECOVERY_MAX_S"
+                        if proved_down.capped
+                        else ""
+                    )
+                    + ")",
+                    pd_outcome["edge_gap_after_s"],
+                ),
+            )
+
     if max_sample_gap_s <= 0:
         problems.append("max_sample_gap_s must be positive")
     else:
@@ -596,6 +825,11 @@ def validate_resources_csv(
         for container_name, series_instants in sorted(series_by_name.items()):
             ordered_instants = sorted(series_instants)
             prefix = f"container {container_name!r}: "
+            span = (
+                pd_span
+                if proved_down is not None and container_name == proved_down.container
+                else None
+            )
             if valid_window_bounds and ordered_instants:
                 assert window_start is not None and window_end is not None
                 series_first = ordered_instants[0]
@@ -616,18 +850,12 @@ def validate_resources_csv(
                             (series_first - window_start).total_seconds(),
                         )
                     )
-                for left, right in zip(
-                    ordered_instants, ordered_instants[1:]
+                for label, left, right, gap in _series_pairs(
+                    ordered_instants, span, pd_edges
                 ):
                     if right < window_start or left > window_end:
                         continue
-                    gaps.append(
-                        (
-                            prefix
-                            + f"{left.isoformat()} to {right.isoformat()}",
-                            (right - left).total_seconds(),
-                        )
-                    )
+                    gaps.append((prefix + label, gap))
                 if series_last < window_end:
                     gaps.append(
                         (
@@ -637,12 +865,9 @@ def validate_resources_csv(
                     )
             elif not valid_window_bounds:
                 gaps.extend(
-                    (
-                        prefix + f"{left.isoformat()} to {right.isoformat()}",
-                        (right - left).total_seconds(),
-                    )
-                    for left, right in zip(
-                        ordered_instants, ordered_instants[1:]
+                    (prefix + label, gap)
+                    for label, _left, _right, gap in _series_pairs(
+                        ordered_instants, span, pd_edges
                     )
                 )
         excessive = [(label, gap) for label, gap in gaps if gap > max_sample_gap_s]

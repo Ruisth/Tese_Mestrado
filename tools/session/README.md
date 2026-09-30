@@ -548,6 +548,18 @@ expected actions R7 judges (`egw-controller-1` when absent, as the proof
 passes nothing); test 7 names the dependency it stops and starts and leaves
 `kill` out of its expectation, since R7 requires signal 9 of a `kill`.
 
+`fetch_started_at.sh DEST [CONTAINER]` is the StartedAt read of decision 1a
+(adopted 2026-09-30, prospective), the harness's `--fetch-started-at-cmd`
+that the runbook's test 6 passes (never `proof.sh`): one `ssh egw-tcg`
+session reads the container's id and `State.StartedAt` (`egw-controller-1`
+when absent) with one `docker inspect -f` each, as
+`proof_restart_controller.sh` reads them, then the guest's `date +%s`, and
+writes DEST write-once (`container=`, `container_id=`, `started_at=`,
+`guest_epoch=`); anything missing or malformed leaves no file and ends
+non-zero. The harness runs it right after the docker-events fetch and derives
+the proved-down interval from it and the capture
+(`egw_experiments.proved_down`).
+
 **Rules of the driver's own, by label** (beside the design flags P-1 to
 P-9 of the evaluator and the driver, each to be confirmed by the Project
 Manager):
