@@ -4208,7 +4208,10 @@ is unchanged.
   v1.2, `PROTOCOL_VERSION` and the finite proof (its evaluator and drivers,
   E-12 and the N1 naming) are unchanged. Branch
   `feat/g3-methodology-decisions`, started from `94a5741` (the head of
-  PR #52); commits @@COMMITS@@.
+  PR #52); commits `c737712` (the records); 1a `740e73d` (tests) to `2344d1a`; 2 `3f2b71c` (tests)
+  to `1e12e42`; 3, 4 and 1b `3566a00` (tests) to `fd67fd4`; integrated at `af2fd7b`;
+  the review corrections `37b357a` to `a2ebd71`, `1a49490` to `bc84b51` and
+  `44ba9fa`, merged at `2fa5ac5`.
 - **Why.** The four decisions stood before any qualifying G3 run (the
   readiness map's decisions 1, 2, 3 and 5). Under the rules as they were,
   every restart recorded so far left a 6–9 s resource gap that made T6's
@@ -4298,9 +4301,39 @@ is unchanged.
     identity as delivered, which ADR 0011 reserves, is not taken).
     `PROTOCOL_VERSION` is not bumped: `protocol.py` requires a bump only
     after G4.
-- **Tests.** Regressions first, red on the unchanged code: @@RED@@. With the
-  change: @@GREEN@@.
-- **Review.** @@REVIEW@@
+- **Tests.** Regressions first, red on the unchanged code: each stream's tests-only
+  commit failed for the absent behaviour (1a: 90 failed at `740e73d`, the 7
+  passing being guards; 2: 69 failed and one module not importable at
+  `3f2b71c`; 3, 4 and 1b: 102 failed at `3566a00`), and so did the
+  corrections' (17 at `37b357a`; 63 at `1a49490`, the eight behaviour cases
+  and the pins of the changed lines). Two implementation commits (`b00cee1`,
+  `00ae268`) also edited a test their tests-only commit had added, as their
+  messages say; the edited tests fail on the tests-only trees for the same
+  absent-behaviour reason. Records:
+  `output_test/runs/2026-09-30/HIST_2026-09-30-g3-methodology-red-first` and
+  `HIST_2026-09-30-g3-methodology-review-corrections`. With the
+  change: the integrated selection of 17
+  modules, with the source identity recorded before it, gave 2,002 passed on
+  `af2fd7b` (`HIST_2026-09-30-g3-methodology-integrated-attempt01`) and, after
+  the review corrections, 2,027 passed on `2fa5ac5`, the final code; the commit
+  that fills this entry changes this entry only
+  (`HIST_2026-09-30-g3-methodology-integrated-attempt02`).
+- **Review.** Two adversarial rounds per stream while it was
+  built, then one consolidated review of the integrated head `af2fd7b` in six
+  areas, each finding checked by a second reviewer who tried to refute it: 21
+  findings stood (10 minor and 11 wording; the two first rated material were
+  rated minor on reproduction) and 3 were refuted. All 21 were corrected, red
+  first where behaviour changed, and one bounded check per correction bundle
+  left nothing open. Among them: `collect` could re-judge, under the ordinary
+  rule, a file the run-time ingest had rejected under the interval (it now
+  keeps the run-time judgement); the `StartedAt` read took its guest epoch
+  after the inspect (now before it); test 6 named `controller_restart-r01`,
+  already used (now `-r03`, with a refusal guard); test 3 published on a run
+  id already used on the guest (now a STOP); the N1 report split lines at
+  Unicode separators and could leave a contested death to one device (now
+  newlines only, and contested). Two refuted points were applied all the same
+  for the runbook's own rules (Appendix B item 24; no publication on a used
+  run id). Record: `HIST_2026-09-30-g3-methodology-consolidated-review`.
 - **Limits.** Everything is verified on the host with stubs and fixtures
   only; nothing ran on the guest (the runbook's Appendix B, item 24, lists
   what these decisions added). 1a: the `StartedAt` read, T6's `die` and
