@@ -261,6 +261,13 @@ case $cmd in
     [ "$rc" != 0 ] || echo running > "$S/svc_state"
     exit "$rc";;
   *" logs "*) cat "$S/broker_log" 2>/dev/null; exit "$(cat "$S/ssh_logs_rc" 2>/dev/null || echo 0)";;
+  "[ ! -e /opt/egw/deployment/data/events/"*" ]") # test 3's first line: does the guest hold an event log of the run id?
+    [ ! -e "$S/guest_check_fails" ] || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    rid=${cmd#"[ ! -e /opt/egw/deployment/data/events/"}; rid=${rid%" ]"}
+    [ ! -e "$S/guest_events/$rid" ]; exit;;
+  "cat /opt/egw/deployment/data/events/"*"/events.jsonl") # test 3's keep line: the guest's event log as it is now
+    [ ! -e "$S/guest_log_read_fails" ] || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    cat "$S/remote_events.jsonl"; exit;;
 esac
 echo "ssh stub: unexpected command: $cmd" >&2; exit 98
 """
@@ -2171,6 +2178,127 @@ def test_test_3_an_existing_post_drain_copy_is_never_overwritten_and_nothing_is_
     assert acceptance_calls(bench) == []
 
 
+@pytest.mark.parametrize("case", ["the guest holds a log of the run id", "the guest does not answer"])
+def test_test_3_a_run_id_the_guest_already_holds_is_never_judged(bench: Bench, case: str) -> None:
+    """The guest's event log of a run id persists and is appended to (test 8: the old data/events/* directories are
+    intact), and the host's $P/$R cannot show it. An earlier execution of the same run id (the same seed, so the same
+    message_ids) left its accepted lines there and this execution only adds duplicates: the fetched copy would show
+    every valid message accepted. The run id is fresh only when neither the host nor the guest holds it, and a guest
+    that does not answer leaves it used: not kept, not judged, test 3 not evaluated."""
+    t3_guest_log(bench)
+    bench.jsonl("remote_events.jsonl", [event(T3, "v-1", "accepted"), event(T3, "v-2", "accepted"),
+                                        event(T3, "i-1", "rejected"), event(T3, "v-1", "duplicate"),
+                                        event(T3, "v-2", "duplicate"), event(T3, "i-1", "rejected")])
+    if case == "the guest holds a log of the run id":
+        (bench.state / "guest_events" / T3).mkdir(parents=True)
+    else:
+        bench.set("guest_check_fails")
+    r = call_test3_acceptance(bench)
+    assert r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run (F3='used'"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert acceptance_calls(bench) == []
+    assert any(f"[[ ! -e /opt/egw/deployment/data/events/{T3} ]]" in ln for ln in bench.ssh_log()), bench.ssh_log()
+
+
+def test_test_3_a_run_id_neither_the_host_nor_the_guest_holds_is_fresh(bench: Bench) -> None:
+    t3_guest_log(bench)
+    (bench.state / "guest_events" / "itest-invalid-02").mkdir(parents=True)  # another run id's log on the guest
+    r = call_test3_acceptance(bench)
+    assert (r.value("RT"), r.value("C3"), r.value("RA")) == ("0", "ok", "0"), r.out
+
+
+#: scp that fails part-way, leaving the bytes it had written (OpenSSH scp and sftp leave a partial destination): here
+#: the first line of the guest's log, cut on a line boundary so that it still parses
+PARTIAL_SCP = r"""#!/usr/bin/env bash
+S=$EGW_STUB_STATE
+echo "scp $*" >> "$S/calls.log"
+head -n 1 "$S/remote_events.jsonl" > "${@: -1}"
+echo "scp: stub: connection lost part-way" >&2
+exit 1
+"""
+
+#: scp that copies the guest's log whole; the controller then appends one more line to it (after the fetch)
+SCP_THEN_APPEND = r"""#!/usr/bin/env bash
+S=$EGW_STUB_STATE
+echo "scp $*" >> "$S/calls.log"
+cp "$S/remote_events.jsonl" "${@: -1}"
+cat "$S/appended_after_fetch.jsonl" >> "$S/remote_events.jsonl"
+"""
+
+
+@pytest.mark.parametrize("case", ["the fetch failed part-way", "a line was appended after the fetch",
+                                  "the guest does not answer"])
+def test_test_3_keeps_only_a_copy_that_is_the_guests_whole_log(bench: Bench, case: str) -> None:
+    """Decision 3: test 3 is judged on the copy of the events fetched after the drain; without it, it is not evaluated
+    (a STOP), never passed. A fetch that failed part-way leaves a partial file (the missing lines judged 'never
+    accepted': a verdict on a copy that was never fetched), and a log that grew after the fetch cannot be told from
+    one: the second line keeps the file only when it is the guest's log as a whole, else nothing is judged."""
+    t3_guest_log(bench)
+    if case == "the fetch failed part-way":
+        bench.install("scp", PARTIAL_SCP)
+    elif case == "a line was appended after the fetch":
+        bench.install("scp", SCP_THEN_APPEND)
+        bench.jsonl("appended_after_fetch.jsonl", [event(T3, "v-2", "duplicate")])
+    else:
+        bench.set("guest_log_read_fails")
+    r = call_test3_acceptance(bench, real_rec=True)
+    if case == "the fetch failed part-way":
+        assert r.starting(f"STOP: fetch {T3}: scp of events.jsonl failed") and r.value("RT") != "0", r.out
+    else:
+        assert r.value("RT") == "0", r.out
+    assert r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert not any("NEVER ACCEPTED" in ln or ln.startswith("ACCEPTANCE BY THE END") for ln in r.lines), r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run (F3='fresh'"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert any("[cat /opt/egw/deployment/data/events/" + T3 + "/events.jsonl]" in ln for ln in bench.ssh_log()), \
+        bench.ssh_log()
+
+
+def t4_metrics_difference_line() -> str:
+    hits = [c for c in _host_commands("### Test 4")
+            if "'$P/$R.metrics.after.json'" in c and "'$P/$R.metrics.replay.json'" in c]
+    assert len(hits) == 1, hits
+    return hits[0]
+
+
+T4_AFTER = {"started_at": STARTED, "uptime_s": 500.0, "monotonic_ns": 2_000, "queue_depth": 0, "received": 125,
+            "accepted": 100, "rejected": 5, "duplicate": 5, "failed": 5, "dropped": 5, "processing_errors": 5,
+            "in_progress": 0, "unacked": 0, "mqtt_subscribed": True, "mqtt_connection": 1}
+T4_REPLAY = dict(T4_AFTER, uptime_s=560.0, monotonic_ns=62_000, received=128, duplicate=8)
+T4_REPLAYS = {
+    "one process": T4_REPLAY,
+    "started_at differs": dict(T4_REPLAY, started_at="2026-09-18T10:30:00Z", uptime_s=40.0, received=3, accepted=0,
+                               rejected=0, duplicate=3, failed=0, dropped=0, processing_errors=0),
+    "uptime_s decreased": dict(T4_REPLAY, uptime_s=499.0),
+    "accepted decreased": dict(T4_REPLAY, accepted=99, received=127),
+    "processing_errors decreased": dict(T4_REPLAY, processing_errors=4, received=127),
+    "mqtt_connection decreased": dict(T4_REPLAY, mqtt_connection=0),
+}
+
+
+@pytest.mark.parametrize("case", list(T4_REPLAYS))
+def test_test_4_metrics_difference_line_differences_only_two_readings_of_one_process(bench: Bench, case: str) -> None:
+    """Decision 4: before any difference of the 'after' and 'replay' /metrics readings, the same-process checks of
+    CONTRACTS 5 must hold (the same started_at; uptime_s, the cumulative counters and mqtt_connection non-decreasing).
+    The line printed the differences of two processes too, beside 'same controller process: False', and ended 0."""
+    rid = "itest-dup-01"
+    bench.p.mkdir(parents=True, exist_ok=True)
+    (bench.p / f"{rid}.metrics.after.json").write_text(json.dumps(T4_AFTER), encoding="utf-8")
+    (bench.p / f"{rid}.metrics.replay.json").write_text(json.dumps(T4_REPLAYS[case]), encoding="utf-8")
+    r = bench.run(bench.with_helpers("\n".join((f"R={rid}; REPLAYED=captured", t4_metrics_difference_line(),
+                                                'echo "RCD=$?"'))))
+    differences = [ln for ln in r.lines if ln.startswith("{'accepted': ")]
+    if case == "one process":
+        assert differences == ["{'accepted': 0, 'rejected': 0, 'duplicate': 3, 'failed': 0, 'dropped': 0} "
+                               "same controller process: True"], r.out
+        assert r.value("RCD") == "0" and not r.starting("STOP"), r.out
+    else:
+        assert differences == [], r.out
+        assert r.value("RCD") != "0", r.out
+        assert r.starting("STOP: test 4: "), r.out
+
+
 def t4_check_line() -> str:
     return _one(_host_commands("### Test 4"), '[ "$REPLAYED" = captured ] && $REC replay-check')
 
@@ -2272,8 +2400,15 @@ def test_test_3_expected_list_requires_every_valid_message_accepted_by_the_end_o
                    "`valid rejected = 0`", "every `delta` line `OK`",
                    # a STOP of 'finish' after its fetch leaves the copy: judged, never 'not evaluated'
                    "stops after its fetch", "without any outcome line fails test 3", "`F3`",
-                   "can only make test 3 fail"):
+                   # fresh on the host AND on the guest, whose log of a run id persists and is appended to
+                   "neither the host (`$P/$R`) nor the guest holds it", "a guest that does not answer leaves `F3`",
+                   # a partial fetch is no copy: not kept, not judged
+                   "the guest's whole log", "failed part-way", "appended to the guest's log after the fetch",
+                   # judged as fetched: a line between the drain's last reading and the fetch counts
+                   "after the last reading of the drain and before the fetch", "cannot make a message accepted"):
         assert needle in expected, needle
+    # an accepted line that reached the controller after the drain and before the fetch is in the copy and counts
+    assert "is beyond the planned collection and can only make test 3 fail" not in expected
 
 
 def test_test_4_expected_list_judges_the_replay_per_identity_and_includes_the_sequence_reset() -> None:
@@ -2286,7 +2421,9 @@ def test_test_4_expected_list_judges_the_replay_per_identity_and_includes_the_se
                    "never been run", "`lost = 0`, `late_confirmations = 0`", "a failure of test 4",
                    # the replay's lines: beyond the copy AND received after the 'after' reading
                    "`received_monotonic_ns`", "at or before the `after` reading", "exit 1",
-                   "A stated limit, not conservative"):
+                   "A stated limit, not conservative",
+                   # the difference line: no difference of two processes
+                   "takes no difference of two readings that are not of one process"):
         assert needle in expected, needle
     assert "caused by" not in expected
     # a line appended after the pre-replay fetch can stand for a replay line: it does NOT only make test 4 fail
