@@ -2438,7 +2438,10 @@ def test_test_7_the_optional_n1_report_reruns_delta_with_the_sub_checks_controll
     assert _n1_reruns(bench) == [f"python -m egw_experiments.itest_reconcile delta {bench.p}/{rid} "
                                  f"--controller-log {bench.p}/{rid}.sut/controller.log"]
     for line in _host_commands("### Test 7")[-1:] + _host_commands("### Repeat of test 7 for Ditto")[-1:]:
-        assert line.startswith(T7_N1_LINE) and "T7=" not in line.split("     #", 1)[0], line  # read-only: T7 stands
+        command = line.split("     #", 1)[0]
+        # read-only: no assignment of T7 (its value is only quoted in the stop message), and no redirection
+        assert line.startswith(T7_N1_LINE) and not re.search(r"(^|[;&|{]|then|else)\s*T7=", command), line
+        assert ">" not in command, line
 
 
 @pytest.mark.parametrize("sub", SUB_CHECKS)

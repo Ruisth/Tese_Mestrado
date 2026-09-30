@@ -20,6 +20,25 @@ write-once run directory itself is never modified by this module. Nothing is
 read from the network at import time; only ``mark``, ``wait`` (controller
 GET /metrics) and ``snap`` (Ditto GET thing) open a connection.
 
+``delta`` can add the N1 report of decision 2 of 2026-09-30
+(egw_experiments.n1_report), opt-in: ``--n1-report`` prints it,
+``--controller-log FILE`` gives it the A3 source (the controller log of the
+run) and ``--restart-evidence RUN_DIR`` the death source (a harness run
+directory: its ``restart`` record and its Docker events capture) together
+with the evidence that the 'after' snapshot follows a quiet drain (its
+recovery qualification, its verified snapshots and post-drain copy, which
+must be the ones compared); either source option implies ``--n1-report``.
+Without ``--restart-evidence`` that evidence is the 'to' /metrics reading
+(queue_depth 0: the runbook's ``finish`` takes the 'after' pair only after
+``drained``), and without either, condition 3 is not shown. The report is an
+explanation, never a status: under a device line that stays ``MISMATCH`` it
+names the ``n1_applied_unconfirmed`` identities of that device, and after
+the last line it prints the counts, the sources and every
+``duplicate_only_unexplained`` identity with its failed conditions; no line
+it adds holds the upper-case status words, a named source that cannot be
+read is reported as not read (never exit 1), and no exit code changes.
+Without the options the output is byte for byte what it was.
+
 Exit codes (the runbook's shell helpers test them):
 
 - 0  the step was carried out. For ``check`` this is NOT a verdict: it exits 0
@@ -60,11 +79,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from egw_experiments import n1_report
+from egw_experiments import recovery_qualification as rq
 from egw_experiments.analyze import compute_run_metrics
 from egw_experiments.environment import utc_now_iso
 from egw_experiments.protocol import CONFIRMATION_WINDOW_S
 from egw_experiments.run import (
     CONTROLLER_MARKER_LAG_TOLERANCE_S,
+    MANIFEST_FILENAME,
+    POST_DRAIN_EVENTS_FILENAME,
+    TWIN_SNAPSHOT_FILES,
     poll_controller_marker,
 )
 from egw_simulator.devices import DEVICE_TYPES, make_devices
@@ -477,6 +501,137 @@ def cmd_snap(args) -> int:
 
 
 # --- delta: per-device and per-process differences vs the event log --------
+def _restart_evidence(run_dir: Path, primary_run, primary: list[dict],
+                      before: dict, after: dict, labels: tuple[str, str]):
+    """The death source and the condition-3 problems a harness run directory
+    gives the N1 report: (deaths, deaths_note, problems). Everything is read
+    tolerantly; what cannot be read is named, never raised."""
+    manifest, why = n1_report.read_json_object(run_dir / MANIFEST_FILENAME)
+    if manifest is None:
+        text = f"restart evidence not read ({why})"
+        return None, text, [text + ": the drain and the snapshots are not shown"]
+    if manifest.get("run_id") != primary_run:
+        text = ("restart evidence not read as this run's: its manifest names "
+                f"run {manifest.get('run_id')!r}, the compared events "
+                f"{primary_run!r}")
+        return None, text, [text]
+    try:
+        facts, manifest = rq.run_facts(run_dir, str(primary_run), planned=False)
+    except (OSError, ValueError) as exc:
+        text = f"restart evidence not read ({type(exc).__name__})"
+        return None, text, [text]
+    problems = []
+    problem = rq.n1_evidence_problem(facts)
+    if problem is not None:
+        problems.append(problem)
+    # The snapshots and the copy delta compares must be the verified ones.
+    for label, devices, hook in ((labels[0], before, "twin_snapshot_before"),
+                                 (labels[1], after, "twin_snapshot_after")):
+        file = TWIN_SNAPSHOT_FILES[hook]
+        verified = n1_report.twin_devices(
+            n1_report.read_json_object(run_dir / file)[0])
+        if verified != devices:
+            problems.append(f"the '{label}' snapshot compared is not the run's "
+                            f"verified snapshot {file}")
+    post_drain, _why = n1_report.read_jsonl(run_dir / POST_DRAIN_EVENTS_FILENAME)
+    if post_drain != primary:
+        problems.append("the events copy compared is not the run's verified "
+                        f"post-drain copy ({POST_DRAIN_EVENTS_FILENAME})")
+    deaths, deaths_note = rq.n1_death_source(run_dir, manifest)
+    return deaths, deaths_note, problems
+
+
+def n1_delta_report(args, primary: list[dict], events: list[dict], primary_run,
+                    before: dict, after: dict, to_reading: dict | None) -> dict:
+    """The N1 report (decision 2 of 2026-09-30) of the log and snapshots
+    delta compares, with the sources its options name. Never raises."""
+    sent, sent_why = n1_report.read_jsonl(Path(args.run_dir) / "sent_events.jsonl")
+    problems = []
+    if to_reading is not None:
+        for key in ("queue_depth", "in_progress", "unacked"):
+            value = to_reading.get(key)
+            if is_int(value) and value != 0:
+                problems.append(f"the '{args.to}' /metrics reading shows "
+                                f"{key}={value}: the controller was not quiet")
+    deaths, deaths_note = None, "no --restart-evidence given"
+    if args.restart_evidence:
+        deaths, deaths_note, more = _restart_evidence(
+            Path(args.restart_evidence), primary_run, primary, before, after,
+            (args.frm, args.to))
+        problems += more
+    elif to_reading is None:
+        problems.append(f"no evidence that the '{args.to}' snapshot follows a "
+                        "quiet drain (no --restart-evidence and no "
+                        f"'{args.to}' /metrics reading)")
+    ends, a3_note = None, "no --controller-log given"
+    if args.controller_log:
+        lines, a3_note = n1_report.read_text_lines(args.controller_log)
+        if lines is not None:
+            ends = n1_report.a3_connection_ends(lines)
+    report = n1_report.n1_applied_unconfirmed(
+        run_id=primary_run, sent_records=sent, events=events,
+        twins_before=before, twins_after=after,
+        twin_evidence_problem="; ".join(problems) or None,
+        deaths=deaths, deaths_note=deaths_note, a3_ends=ends, a3_note=a3_note)
+    log = Path(args.controller_log).name if args.controller_log else None
+    return {"report": report, "sent_note": sent_why, "controller_log": log}
+
+
+def n1_annotation(case: dict) -> str:
+    """The line under a device line for one named identity."""
+    sources = [
+        f"{n1_report.SOURCE_A3} at controller log line "
+        f"{s.get('controller_log_line')}"
+        if s.get("source") == n1_report.SOURCE_A3 else str(s.get("source"))
+        for s in case["possible_sources"]
+    ]
+    return (f"  n1_applied_unconfirmed on {case['device_uuid']}: "
+            f"{case['message_id']} seq {case['seq']} (possible "
+            f"source{'' if len(sources) == 1 else 's'}: {'; '.join(sources)}) "
+            "- reported, not delivered: it stays in lost and its device line "
+            "stays a mismatch")
+
+
+def n1_summary(n1: dict) -> list[str]:
+    """The lines printed after delta's last line: the counts, the sources,
+    what leaves condition 3 unshown, each unexplained identity with its
+    failed conditions, and what the report does not change."""
+    report = n1["report"]
+    named = report["n1_applied_unconfirmed"]
+    unexplained = report["duplicate_only_unexplained"]
+    src = report["sources"]
+    if src["controller_log_read"]:
+        log = (f"controller log {n1['controller_log']}: {src['a3_ends']} A3 "
+               "connection end(s)")
+    else:
+        log = f"controller log not read ({src['controller_log_note']})"
+    if src["deaths"]:
+        death = (f"controller death: one die of {n1_report.CONTROLLER_CONTAINER} "
+                 "captured in the window")
+    elif src["deaths_read"]:
+        death = f"controller death: none ({src['deaths_note']})"
+    else:
+        death = f"controller death not read ({src['deaths_note']})"
+    lines = [
+        "N1 REPORT (explanation only; lost and every delta status unchanged): "
+        f"n1_applied_unconfirmed={len(named)} "
+        f"duplicate_only_unexplained={len(unexplained)}",
+        f"  sources: {log}; {death}",
+    ]
+    if n1["sent_note"]:
+        lines.append(f"  sent_events.jsonl not read ({n1['sent_note']}): no "
+                     "identity is shown valid")
+    if report["twin_evidence_problem"]:
+        lines.append(f"  condition 3 evidence: {report['twin_evidence_problem']}")
+    for case in unexplained:
+        lines.append(f"  duplicate_only_unexplained {case['message_id']} on "
+                     f"{case['device_uuid']} seq {case['seq']}: failed "
+                     f"condition(s) {', '.join(case['failed'])}: {case['reason']}")
+    lines += [f"  note: {note}" for note in report["notes"]]
+    lines.append(f"  {report['note']}")
+    return lines
+
+
 def cmd_delta(args) -> int:
     prefix = args.prefix or args.run_dir
     before = load_devices(sib(prefix, f".twins.{args.frm}.json"))
@@ -510,6 +665,12 @@ def cmd_delta(args) -> int:
         readings[path] = body
     # events.jsonl is one file per run_id (controller EventLogger bucket).
     primary_run = next((e["run_id"] for e in primary if e.get("run_id")), None)
+    # The N1 report (decision 2 of 2026-09-30), opt-in: computed before any
+    # line is printed, from sources read tolerantly; it never touches 'ok'.
+    n1 = None
+    if args.n1_report or args.controller_log or args.restart_evidence:
+        n1 = n1_delta_report(args, primary, events, primary_run, before, after,
+                             readings.get(m_after))
     ok = True
     # The loop below filters the log by the snapshot; this filters the snapshot
     # by the log. A snapshot taken with another seed or --devices than the run
@@ -550,6 +711,10 @@ def cmd_delta(args) -> int:
               f"records in {log_name} {len(acc)}; last_run_id "
               f"{a['ingestion']['last_run_id']} last_seq "
               f"{a['ingestion']['last_seq']}: {'OK' if line_ok else 'MISMATCH'}")
+        if n1 is not None:
+            for case in n1["report"]["n1_applied_unconfirmed"]:
+                if case["device_uuid"] == device_uuid:
+                    print(n1_annotation(case))
     if len(readings) < 2:
         missing = [str(p) for p in (m_before, m_after) if p not in readings]
         print(f"/metrics: NOT compared ({' and '.join(missing)} missing)")
@@ -577,6 +742,9 @@ def cmd_delta(args) -> int:
         print(f"/metrics queue_depth={readings[m_after]['queue_depth']} in "
               "the 'to' snapshot: the controller was still draining; repeat "
               "the fetch and the snapshots under a new label")
+    if n1 is not None:
+        for text in n1_summary(n1):
+            print(text)
     return EXIT_OK if ok else EXIT_MISMATCH
 
 
@@ -634,6 +802,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="extra events.jsonl of ANOTHER run id (e.g. the "
                         "harness warm-up run); never a second copy of the "
                         "same records, which would be counted twice")
+    s.add_argument("--n1-report", action="store_true",
+                   help="add the N1 report (decision 2 of 2026-09-30): the "
+                        "duplicate-only identities, named "
+                        "n1_applied_unconfirmed or duplicate_only_unexplained; "
+                        "an explanation that changes no line status and no "
+                        "exit code")
+    s.add_argument("--controller-log", default=None, metavar="FILE",
+                   help="the run's controller log, the A3 source of the N1 "
+                        "report (implies --n1-report)")
+    s.add_argument("--restart-evidence", default=None, metavar="RUN_DIR",
+                   help="a harness run directory: its restart record and "
+                        "Docker events capture are the death source of the N1 "
+                        "report, its drain and verified snapshots the "
+                        "evidence for condition 3 (implies --n1-report)")
     s = sub.add_parser("same")
     s.add_argument("--prefix", required=True)
     s.add_argument("label_a")

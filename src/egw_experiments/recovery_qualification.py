@@ -6,10 +6,11 @@ are computed from the measured-window events and metrics, so a VALID run
 whose drain gave up — a failed recovery, retained by ``run.py`` as an
 observation and never a validity reason — can pass every row of
 ``acceptance_by_condition.csv``. ADR 0011 leaves ``analyze.py`` unchanged
-and reserves the N1 counting for a separate decision, so the qualification
-is enforced and reported here, in a layer of its own, and propagated into
-the authoritative report as two files written beside the analyser's outputs
-under ``processed/``:
+and reserves the N1 counting for a separate decision (decision 2 of
+2026-09-30 adopted the reporting column below and took no counting
+decision), so the qualification is enforced and reported here, in a layer
+of its own, and propagated into the authoritative report as two files
+written beside the analyser's outputs under ``processed/``:
 
 - ``recovery_qualification.json``: one record per controller_restart run of
   the campaign plan (in plan order; any unplanned controller_restart
@@ -45,12 +46,31 @@ criterion is false, saying so.
 This layer changes no count: lost, late, N1 and every other figure come
 from ``egw_experiments.analyze``, whose per-run, summary, acceptance and
 saturation outputs it neither reads nor rewrites, and it adds no row to the
-acceptance table. It reads the sealed manifests' restart evidence records
-alone (``drain``, ``twin_snapshots``, ``events_post_drain_fetch``,
-``validity``, ``exclusion``) and the ``SHA256SUMS`` verification. The
-``analyze`` command runs it after the analysis and keeps its own exit code
-(``cli._cmd_analyze`` says why); ``recovery`` runs it alone. No timestamp
-enters the files, so repeated runs over the same evidence are identical.
+acceptance table. The qualification is read from the sealed manifests'
+restart evidence records alone (``drain``, ``twin_snapshots``,
+``events_post_drain_fetch``, ``validity``, ``exclusion``) and the
+``SHA256SUMS`` verification. The ``analyze`` command runs it after the
+analysis and keeps its own exit code (``cli._cmd_analyze`` says why);
+``recovery`` runs it alone. No timestamp enters the files, so repeated runs
+over the same evidence are identical.
+
+The N1 identities (decision 2 of 2026-09-30, :mod:`egw_experiments.n1_report`)
+are reported beside the qualification, per run with a directory: the columns
+``n1_applied_unconfirmed`` and ``duplicate_only_unexplained`` (how many
+duplicate-only identities are named and how many are not; empty for a
+planned run without a directory, or when no events copy can be read) and,
+in the JSON record, ``n1`` with every identity, its possible sources or its
+failed conditions. For them the layer also reads the run's files:
+``sent_events.jsonl``, the post-drain copy (the timed ``events.jsonl`` only
+when that copy is not present and verified, and then only to list the
+identities as unexplained), the two twin snapshots, ``logs/sut/controller.log``
+(the A3 source) and ``logs/sut/docker-events.log`` with its coverage record
+(the death source, with the manifest's ``restart`` record), each only when
+its fetch record shows it written. Condition 3 is evaluable only on a run
+whose qualification is ``recovery_observed`` and whose before snapshot is
+verified. The death carries no order check (attribution by count only, a
+stated limit of the module). A named identity stays lost: no count, no
+criterion and no qualification changes.
 """
 
 from __future__ import annotations
@@ -61,6 +81,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from . import n1_report
 from .analyze import (
     INTEGRITY_FAILED,
     INTEGRITY_OK,
@@ -73,6 +94,8 @@ from .run import (
     DRAIN_OUTCOMES,
     MANIFEST_FILENAME,
     POST_DRAIN_EVENTS_FILENAME,
+    SUT_LOG_FILES,
+    SUT_LOG_SUBDIR,
     TWIN_SNAPSHOT_FILES,
 )
 
@@ -112,7 +135,18 @@ CSV_COLUMNS = [
     "post_drain_verified",
     "qualification",
     "reason",
+    # Decision 2 of 2026-09-30 (n1_report): reported, never counted.
+    "n1_applied_unconfirmed",
+    "duplicate_only_unexplained",
 ]
+
+#: The coverage record the Docker events fetch (proof_fetch_sut_log.sh)
+#: keeps beside the capture, under logs/sut/.
+DOCKER_EVENTS_COVERAGE = "docker-events.coverage.txt"
+
+#: The timed copy of the events, read for the N1 identities only when the
+#: post-drain copy is not present and verified.
+TIMED_EVENTS_FILENAME = "events.jsonl"
 
 _INTEGRITY_WORDS = {
     INTEGRITY_OK: "ok",
@@ -176,9 +210,13 @@ def _record_state(
     return present, present and record.get("verified") is True
 
 
-def inspect_run(run_dir: Path, run_id: str, *, planned: bool) -> dict[str, Any]:
+def run_facts(
+    run_dir: Path, run_id: str, *, planned: bool
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """The facts of one controller_restart run, read from its sealed
-    manifest, plus its qualification."""
+    manifest, with its qualification, and the manifest itself (None when it
+    is absent or unreadable)."""
+    manifest: Any = None
     facts: dict[str, Any] = {
         "run_id": run_id,
         "planned": planned,
@@ -232,7 +270,133 @@ def inspect_run(run_dir: Path, run_id: str, *, planned: bool) -> dict[str, Any]:
             )
             facts["post_drain_present"], facts["post_drain_verified"] = present, verified
     facts["qualification"], facts["reason"] = qualification_of(facts)
+    return facts, (manifest if isinstance(manifest, dict) else None)
+
+
+def inspect_run(run_dir: Path, run_id: str, *, planned: bool) -> dict[str, Any]:
+    """The facts of one controller_restart run, read from its sealed
+    manifest, plus its qualification and its N1 identities (decision 2 of
+    2026-09-30: reported, never counted)."""
+    facts, manifest = run_facts(run_dir, run_id, planned=planned)
+    n1 = n1_of_run(run_dir, run_id, facts, manifest) if run_dir.is_dir() else None
+    counted = n1 is not None and n1.get("events_copy") is not None
+    facts["n1_applied_unconfirmed"] = len(n1["n1_applied_unconfirmed"]) if counted else None
+    facts["duplicate_only_unexplained"] = len(n1["duplicate_only_unexplained"]) if counted else None
+    facts["n1"] = n1
     return facts
+
+
+# ---------------------------------------------------------------------------
+# the N1 identities of a run directory (decision 2 of 2026-09-30)
+# ---------------------------------------------------------------------------
+
+
+def n1_evidence_problem(facts: dict[str, Any]) -> str | None:
+    """What leaves condition 3 of the N1 rule unshown on a run, or None: the
+    after snapshot must follow a quiet drain, and the snapshots and the
+    post-drain copy must be present and verified on a valid, sealed and
+    verified run that is not excluded - the qualification
+    ``recovery_observed``, plus the before snapshot verified."""
+    if facts.get("qualification") != "recovery_observed":
+        return (
+            f"the run's recovery qualification is {facts.get('qualification')!r} "
+            f"({facts.get('reason')})"
+        )
+    if not facts.get("twins_before_verified"):
+        return (
+            f"the before snapshot ({TWIN_SNAPSHOT_FILES['twin_snapshot_before']}) "
+            "is not present and verified"
+        )
+    return None
+
+
+def _fetch_problem(manifest: dict[str, Any] | None, hook: str) -> str | None:
+    """None when the manifest's record of the SUT fetch ``hook`` shows its
+    file written (exit 0 and the file present), else why not."""
+    if manifest is None:
+        return "the run's manifest was not read"
+    records = manifest.get("sut_log_fetches")
+    record = next(
+        (r for r in (records if isinstance(records, list) else [])
+         if isinstance(r, dict) and r.get("hook") == hook),
+        None,
+    )
+    if record is None:
+        return f"the manifest records no {hook} fetch"
+    if record.get("returncode") != 0 or not record.get("dest_exists"):
+        return f"the {hook} fetch did not end 0 with its file"
+    return None
+
+
+def n1_death_source(
+    run_dir: Path, manifest: dict[str, Any] | None
+) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """The death source of a harness run directory, from the manifest's
+    ``restart`` record and the Docker events capture with its coverage
+    record: (deaths, note), deaths None when the capture cannot be read."""
+    why = _fetch_problem(manifest, "docker_events")
+    if why is not None:
+        return None, why
+    sut = Path(run_dir) / "logs" / SUT_LOG_SUBDIR
+    lines, why = n1_report.read_text_lines(sut / SUT_LOG_FILES["docker_events"])
+    if lines is None:
+        return None, f"the Docker events capture was not read ({why})"
+    coverage, _why = n1_report.read_text_lines(sut / DOCKER_EVENTS_COVERAGE)
+    return n1_report.controller_deaths(
+        manifest.get("restart"), lines, "\n".join(coverage) if coverage is not None else None
+    )
+
+
+def n1_a3_source(
+    run_dir: Path, manifest: dict[str, Any] | None
+) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """The A3 connection ends of a harness run's controller log: (ends,
+    None), or (None, why) when the log cannot be read."""
+    why = _fetch_problem(manifest, "controller_log")
+    if why is not None:
+        return None, why
+    lines, why = n1_report.read_text_lines(
+        Path(run_dir) / "logs" / SUT_LOG_SUBDIR / SUT_LOG_FILES["controller_log"]
+    )
+    if lines is None:
+        return None, why
+    return n1_report.a3_connection_ends(lines), None
+
+
+def n1_of_run(
+    run_dir: Path, run_id: str, facts: dict[str, Any], manifest: dict[str, Any] | None
+) -> dict[str, Any]:
+    """The N1 report of one run directory (:mod:`egw_experiments.n1_report`),
+    with the events copy it read (``events_copy``): the post-drain copy when
+    it is present and verified, otherwise the timed copy, whose identities
+    are then listed as unexplained only."""
+    copy = POST_DRAIN_EVENTS_FILENAME if facts.get("post_drain_verified") else TIMED_EVENTS_FILENAME
+    events, why = n1_report.read_jsonl(Path(run_dir) / copy)
+    if events is None:
+        return {"events_copy": None, "problem": f"no events copy could be read ({why})"}
+    sent, _why = n1_report.read_jsonl(Path(run_dir) / "sent_events.jsonl")
+    snapshots = {
+        hook: n1_report.twin_devices(n1_report.read_json_object(Path(run_dir) / file)[0])
+        for hook, file in TWIN_SNAPSHOT_FILES.items()
+    }
+    problem = n1_evidence_problem(facts)
+    if problem is None and copy != POST_DRAIN_EVENTS_FILENAME:
+        problem = f"the post-drain copy ({POST_DRAIN_EVENTS_FILENAME}) is not present and verified"
+    deaths, deaths_note = n1_death_source(run_dir, manifest)
+    ends, a3_note = n1_a3_source(run_dir, manifest)
+    report = n1_report.n1_applied_unconfirmed(
+        run_id=run_id,
+        sent_records=sent,
+        events=events,
+        twins_before=snapshots["twin_snapshot_before"],
+        twins_after=snapshots["twin_snapshot_after"],
+        twin_evidence_problem=problem,
+        deaths=deaths,
+        deaths_note=deaths_note,
+        a3_ends=ends,
+        a3_note=a3_note,
+    )
+    return {"events_copy": copy, **report}
 
 
 def qualify_recovery(
