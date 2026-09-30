@@ -1,6 +1,6 @@
 """Operator helper for the ad-hoc itest-* runs of qemu_integrated_gateway.md.
 
-``python -m egw_experiments.itest_reconcile {mark,wait,check,snap,delta,same}``
+``python -m egw_experiments.itest_reconcile {mark,wait,check,snap,delta,same,acceptance,replay-check}``
 
 Runs on the HOST, in the venv where the repository is installed
 (pip install -e .../src). It implements NO protocol rule of its own:
@@ -12,7 +12,11 @@ Runs on the HOST, in the venv where the repository is installed
   window is always the imported constant: a marker file whose deadline is not
   exactly marker + CONFIRMATION_WINDOW_S is refused, never used;
 - delivered / lost / late / duplicate accounting is done by
-  egw_experiments.analyze.compute_run_metrics, unchanged.
+  egw_experiments.analyze.compute_run_metrics, unchanged;
+- ``acceptance`` and ``replay-check`` apply items of the Expected lists of
+  the runbook's tests 3 and 4 as the decisions of 2026-09-30 word them, per
+  identity and on raw lines; they apply no deadline and change no figure of
+  that accounting.
 
 Every file it writes is a SIBLING of the simulator run directory
 (<prefix>.marker.json, <prefix>.twins.<label>.json, ...); the simulator's
@@ -60,22 +64,45 @@ Exit codes (the runbook's shell helpers test them):
      ``events.post-drain.jsonl``: messages completed during the drain are in
      the after twin but not in the timed copy, which keeps its deadline
      accounting untouched); ``--also`` adds the log of another run id (the
-     warm-up), never a second copy of the same records.
+     warm-up), never a second copy of the same records. For ``acceptance``
+     (test 3, decision of 2026-09-30): every valid message of the run's
+     ``sent_events.jsonl`` has an ``accepted`` line of that run in the copy
+     of the events ``--events`` names (the copy fetched after the run's final
+     drain); no timestamp is read, so a late acceptance counts. For
+     ``replay-check`` (test 4, decision of 2026-09-30): the two /metrics
+     readings are of one process and every per-identity condition, the
+     reconnection budget, /metrics accepted unchanged and an empty queue in
+     the 'to' reading held. Neither writes anything.
 - 1  the step was NOT carried out: marker unavailable, a write-once file
      already exists, an input file is missing or malformed, the controller
-     clock went backwards, ``wait`` gave up, Ditto unreachable.
+     clock went backwards, ``wait`` gave up, Ditto unreachable. For
+     ``acceptance`` and ``replay-check`` also: a published record without a
+     usable message_id, a message_id twice, records of more than one run id,
+     a sent_events.jsonl whose record count is not the totals.sent of the
+     simulator manifest beside it, no message to judge, a /metrics field
+     absent or not of its type (never read as zero), a pre-replay copy that
+     is not a prefix of the log, a line of the log that carries another run
+     id, and (one process) a line beyond the pre-replay copy that was
+     received at or before the 'from' reading, or a 'from' reading without
+     an integer monotonic_ns.
 - 2  command-line usage error (argparse).
 - 3  ``check`` only: the row was computed and saved, but the deadline is not
      on the controller marker (no marker file), so it is NOT a protocol check.
 - 4  ``delta``: a per-device or /metrics MISMATCH, accepted records of a device
      that the 'from' snapshot does not hold, or a non-empty queue in the 'to'
-     snapshot; ``same``: the two snapshots are DIFFERENT.
+     snapshot; ``same``: the two snapshots are DIFFERENT; ``acceptance``: a
+     valid message never accepted in the copy; ``replay-check``: readings of
+     two processes, a replayed identity without a duplicate line from the
+     replay, with an accepted line from it or with more than one accepted
+     line, more further duplicates than reconnections, /metrics accepted
+     moved or a non-empty queue.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 import sys
 import time
@@ -828,8 +855,322 @@ def cmd_same(args) -> int:
     return EXIT_OK if ok else EXIT_MISMATCH
 
 
+# --- shared by acceptance and replay-check: identities of one run -----------
+def sent_identities(path: Path) -> tuple[str, dict[str, dict]]:
+    """The run id and the published records of a sent_events.jsonl.
+
+    One run's file or nothing: every record carries the same non-empty run_id
+    and a non-empty message_id that no other record carries. Otherwise the
+    identities cannot be told apart and nothing is judged. And the whole
+    file: the simulator manifest beside it (written last, in a finally) must
+    count as many published records (totals.sent) as the file holds; a
+    message missing from the file would never be judged, which is not the
+    same as judged and passed.
+    """
+    records = jsonl(path)
+    if not records:
+        raise HelperError(
+            f"{path} holds no published record: nothing would be judged")
+    run_ids = {r.get("run_id") if isinstance(r.get("run_id"), str) else None
+               for r in records}
+    run_id = run_ids.pop() if len(run_ids) == 1 else None
+    if not run_id:
+        raise HelperError(f"{path}: the records do not all carry one run_id "
+                          "- not one run's file")
+    by_id: dict[str, dict] = {}
+    for number, record in enumerate(records, 1):
+        message_id = record.get("message_id")
+        if not isinstance(message_id, str) or not message_id:
+            raise HelperError(f"{path} record {number} has no usable "
+                              "message_id: NOT reconcilable by identity")
+        if message_id in by_id:
+            raise HelperError(f"{path}: message_id {message_id} occurs more "
+                              "than once: NOT reconcilable by identity")
+        by_id[message_id] = record
+    manifest_path = path.parent / "manifest.json"
+    totals = load(manifest_path).get("totals")
+    declared = totals.get("sent") if isinstance(totals, dict) else None
+    if not is_int(declared) or declared != len(records):
+        raise HelperError(
+            f"{path} holds {len(records)} record(s) but {manifest_path} "
+            f"gives totals.sent={declared!r}: the file is not shown to hold "
+            "every message the simulator published")
+    return run_id, by_id
+
+
+def message_key(record: dict) -> str | None:
+    message_id = record.get("message_id")
+    return message_id if isinstance(message_id, str) else None
+
+
+def named(label: str, ids: list[str], note=None, limit: int = 20) -> None:
+    for message_id in ids[:limit]:
+        print(f"  {label}: {message_id}{note(message_id) if note else ''}")
+    if len(ids) > limit:
+        print(f"  {label}: ... and {len(ids) - limit} more")
+
+
+# --- acceptance: test 3, every valid message accepted by the end of the drain
+def outcome_lines(outcomes: list) -> str:
+    """The outcome lines of one identity: failed, duplicate or other (named)."""
+    if not outcomes:
+        return "none"
+    kinds = Counter(o if o in ("failed", "duplicate") else "other"
+                    for o in outcomes)
+    text = ", ".join(f"{k} x{kinds[k]}"
+                     for k in ("failed", "duplicate", "other") if kinds[k])
+    others = sorted({str(o) for o in outcomes
+                     if o not in ("failed", "duplicate")})
+    return text + (f" ({', '.join(others)})" if others else "")
+
+
+def cmd_acceptance(args) -> int:
+    sent_path = Path(args.run_dir) / "sent_events.jsonl"
+    run_id, published = sent_identities(sent_path)
+    events_path = Path(args.events)
+    events = jsonl(events_path)
+    # Valid unless the simulator marked it intended invalid: only a literal
+    # true exempts a message, any other value keeps it required.
+    valid = [m for m, r in published.items()
+             if r.get("intended_invalid") is not True]
+    if not valid:
+        raise HelperError(
+            f"{sent_path} holds no valid message: nothing would be judged")
+    # The identity is the message_id WITHIN this run id. No timestamp is
+    # read: an acceptance after the controller-clock deadline counts, as long
+    # as it is in this copy (the end of the planned collection).
+    lines: dict[str, list] = {m: [] for m in valid}
+    for record in events:
+        message_id = message_key(record)
+        if record.get("run_id") == run_id and message_id in lines:
+            lines[message_id].append(record.get("outcome"))
+    never = [m for m in valid if "accepted" not in lines[m]]
+    print(f"ACCEPTANCE BY THE END OF THE DRAIN {run_id} ({events_path.name}): "
+          f"valid={len(valid)} accepted by the end of the drain="
+          f"{len(valid) - len(never)} never accepted={len(never)}")
+    for message_id in never:  # each one: the list is the evidence
+        record = published[message_id]
+        print(f"  NEVER ACCEPTED: {message_id} ({record.get('device_type')} "
+              f"seq={record.get('seq')}) outcome lines in the copy: "
+              f"{outcome_lines(lines[message_id])}")
+    if never:
+        print(f"-> FAIL: {len(never)} valid message(s) of {run_id} have no "
+              f"accepted line in {events_path.name}")
+        return EXIT_MISMATCH
+    print(f"-> OK: every valid message of {run_id} has an accepted line in "
+          f"{events_path.name} (a late acceptance counts: no deadline is "
+          "applied)")
+    return EXIT_OK
+
+
+# --- replay-check: test 4, the replay judged per identity -------------------
+#: The cumulative /metrics fields of the contract's same-process rule
+#: (CONTRACTS 5, "Restart between two readings A and B", rule 1), with
+#: mqtt_connection, cumulative too: none may decrease from A to B.
+SAME_PROCESS_COUNTERS = ("received", "accepted", "rejected", "duplicate",
+                         "failed", "dropped", "processing_errors",
+                         "mqtt_connection")
+
+
+def load_reading(path: Path) -> dict:
+    """A /metrics reading with every field replay-check reads.
+
+    started_at a non-empty string, uptime_s a non-negative number, the
+    cumulative counters and queue_depth non-negative integers (is_int: not a
+    bool, not a float). An absent field is never read as zero.
+    """
+    body = load(path)
+    started_at = body.get("started_at")
+    bad = [] if isinstance(started_at, str) and started_at else ["started_at"]
+    uptime = body.get("uptime_s")
+    if not (isinstance(uptime, (int, float)) and not isinstance(uptime, bool)
+            and math.isfinite(uptime) and uptime >= 0):
+        bad.append("uptime_s")
+    bad += [key for key in SAME_PROCESS_COUNTERS + ("queue_depth",)
+            if not (is_int(body.get(key)) and body[key] >= 0)]
+    if bad:
+        raise HelperError(
+            f"{path} is not a usable /metrics reading: {', '.join(bad)} "
+            "absent or not of its type; an absent field is never read as zero"
+        )
+    return body
+
+
+def read_bytes(path: Path) -> bytes:
+    try:
+        return Path(path).read_bytes()
+    except FileNotFoundError:
+        raise HelperError(f"{path} missing") from None
+    except OSError as exc:
+        raise HelperError(f"{path} unreadable: {exc}") from None
+
+
+def cmd_replay_check(args) -> int:
+    prefix = args.prefix or args.run_dir
+    run_id, replayed = sent_identities(
+        Path(args.replay_dir) / "sent_events.jsonl")
+    ids = list(replayed)
+    # The replay interval of the log: the lines the re-fetched events.jsonl
+    # holds beyond the pre-replay copy. The guest log is append-only, so the
+    # copy must be a byte prefix of it that ends on a whole line.
+    before_path = (Path(args.events_before) if args.events_before
+                   else sib(prefix, ".events.pre-replay.jsonl"))
+    log_path = Path(args.run_dir) / "events.jsonl"
+    before_bytes, log_bytes = read_bytes(before_path), read_bytes(log_path)
+    if not before_bytes.endswith(b"\n"):
+        raise HelperError(f"{before_path} is empty or does not end with a "
+                          "whole line: the replay interval cannot be told")
+    if not log_bytes.startswith(before_bytes):
+        raise HelperError(f"{before_path} is not a prefix of {log_path}: the "
+                          "guest log is append-only, so these are not two "
+                          "readings of one log")
+    before, log = jsonl(before_path), jsonl(log_path)
+    for number, record in enumerate(log, 1):
+        if record.get("run_id") != run_id:
+            raise HelperError(
+                f"{log_path} record {number} carries run_id "
+                f"{record.get('run_id')!r}, not the replay's {run_id!r}: not "
+                "this run's log")
+    added = log[len(before):]
+    frm = sib(prefix, f".metrics.{args.frm}.json")
+    ma, mr = load_reading(frm), load_reading(
+        sib(prefix, f".metrics.{args.to}.json"))
+    # One process first (CONTRACTS 5): no difference across two processes.
+    reasons = [] if ma["started_at"] == mr["started_at"] else [
+        f"started_at {ma['started_at']} != {mr['started_at']}"]
+    reasons += [f"{key} {ma[key]} -> {mr[key]} decreased"
+                for key in ("uptime_s", *SAME_PROCESS_COUNTERS)
+                if mr[key] < ma[key]]
+    if not reasons:
+        # Within one process the controller stamps every line on the clock of
+        # the readings (CONTRACTS 5, received_monotonic_ns). The copy was
+        # fetched before the 'from' reading, so a line received at or before
+        # that reading is the first run's, appended after the fetch, and by
+        # position alone it would stand for a line of the replay (the same
+        # run id and message_id). Across two processes the stamps are not
+        # compared (a new boot restarts the clock): the check fails below.
+        at = ma.get("monotonic_ns")
+        if not is_int(at):
+            raise HelperError(
+                f"{frm}: monotonic_ns absent or not an integer: no line can "
+                "be shown to be the replay's; an absent field is never read "
+                "as zero")
+        early = [number for number, record in enumerate(added, len(before) + 1)
+                 if not (is_int(record.get("received_monotonic_ns"))
+                         and record["received_monotonic_ns"] > at)]
+        if early:
+            raise HelperError(
+                f"{log_path} record {early[0]} ({len(early)} line(s) in all) "
+                f"is beyond {before_path.name} but was received at or before "
+                f"the '{args.frm}' reading (monotonic_ns {at}), or carries no "
+                "integer received_monotonic_ns: it is not shown to be the "
+                "replay's, so the replay interval cannot be told")
+
+    def by_identity(records: list[dict], outcome: str) -> Counter:
+        return Counter(message_key(r) for r in records
+                       if r.get("outcome") == outcome)
+
+    # Raw lines, not the in-window accounting of compute_run_metrics, which
+    # files a late repeat under late_confirmations, never double_accepted.
+    added_dup = by_identity(added, "duplicate")
+    added_acc = by_identity(added, "accepted")
+    total_acc = by_identity(log, "accepted")
+    no_dup = [m for m in ids if added_dup[m] == 0]
+    acc_from_replay = [m for m in ids if added_acc[m] > 0]
+    multi_acc = [m for m in ids if total_acc[m] > 1]
+    duplicate_replayed = len(ids) - len(no_dup)
+    # every further duplicate line: the second and later of a replayed
+    # identity and any of an identity that was not replayed
+    duplicate_redelivery = sum(added_dup.values()) - duplicate_replayed
+    outcomes = ("accepted", "duplicate", "rejected", "failed")
+    kinds = Counter(r.get("outcome") if r.get("outcome") in outcomes
+                    else "other" for r in added)
+    print(f"REPLAY CHECK {run_id}: replayed identities={len(ids)}; lines "
+          f"added since the pre-replay copy={len(added)} ("
+          + ", ".join(f"{k} {kinds[k]}" for k in (*outcomes, "other")) + ")")
+    failed: list[str] = []
+
+    def judge(ok: bool, text: str, what: str = "") -> None:
+        print(f"{text}: {'OK' if ok else 'FAIL'}")
+        if not ok:
+            failed.append(what)
+
+    judge(not no_dup, f"per identity: duplicate_replayed={duplicate_replayed} "
+          f"of {len(ids)} (replayed identities that gained a duplicate line "
+          "from the replay)", "a replayed identity without a duplicate line")
+    judge(not acc_from_replay, f"per identity: {len(acc_from_replay)} "
+          "replayed identity(ies) gained an accepted line from the replay "
+          "(must be 0)", "an accepted line from the replay")
+    judge(not multi_acc, f"per identity: {len(multi_acc)} replayed "
+          "identity(ies) with more than one accepted line in the log (raw "
+          "lines; double_accepted must be 0)", "more than one accepted line")
+    labels = f"'{args.frm}' -> '{args.to}'"
+    if reasons:
+        judge(False, f"/metrics {labels}: NOT one controller process "
+              f"({'; '.join(reasons)}): the readings are of different "
+              "processes and no difference is taken",
+              "readings of two processes")
+        judge(False, f"duplicate_redelivery={duplicate_redelivery} (further "
+              "duplicate lines added during the replay interval): the "
+              "reconnection budget is not evaluable across two processes",
+              "the reconnection budget not evaluable")
+        judge(False, "/metrics accepted: not evaluable across two processes",
+              "/metrics accepted not evaluable")
+    else:
+        judge(True, f"/metrics {labels}: one controller process (same "
+              f"started_at; uptime_s and {', '.join(SAME_PROCESS_COUNTERS)} "
+              "non-decreasing)")
+        budget = mr["mqtt_connection"] - ma["mqtt_connection"]
+        text = (f"duplicate_redelivery={duplicate_redelivery} (further "
+                "duplicate lines added during the replay interval); "
+                f"mqtt_connection {ma['mqtt_connection']} -> "
+                f"{mr['mqtt_connection']} (delta {budget})")
+        if duplicate_redelivery == 0:
+            judge(True, text)
+        elif duplicate_redelivery <= budget:
+            # A tolerance only: a delta of mqtt_connection counts successful
+            # CONNACKs, so an extra duplicate and an unrelated reconnection
+            # can meet the ceiling together.
+            judge(True, f"{text}: consistent with the reconnection budget "
+                  "(tolerated, not attributed)")
+        else:
+            judge(False, f"{text}: beyond the reconnection budget",
+                  "further duplicates beyond the reconnection budget")
+        moved = mr["accepted"] - ma["accepted"]
+        judge(moved == 0, f"/metrics accepted: {ma['accepted']} -> "
+              f"{mr['accepted']} (delta {moved})", "/metrics accepted moved")
+    # The 'to' reading alone settles this, as in delta.
+    judge(mr["queue_depth"] == 0, f"/metrics queue_depth={mr['queue_depth']} "
+          f"in the '{args.to}' reading", "a non-empty queue")
+    if reasons:
+        print("/metrics duplicate: not differenced across two processes "
+              "(reported, decides nothing)")
+    else:
+        total = duplicate_replayed + duplicate_redelivery
+        moved = mr["duplicate"] - ma["duplicate"]
+        print(f"/metrics duplicate: {ma['duplicate']} -> {mr['duplicate']} "
+              f"(delta {moved}); duplicate_replayed + duplicate_redelivery = "
+              f"{duplicate_replayed} + {duplicate_redelivery} = {total}: "
+              f"{'equal' if moved == total else 'NOT EQUAL'} (reported, "
+              "decides nothing)")
+    named("NO DUPLICATE FROM THE REPLAY", no_dup)
+    named("ACCEPTED FROM THE REPLAY", acc_from_replay)
+    named("MORE THAN ONE ACCEPTED LINE", multi_acc,
+          lambda m: f" ({total_acc[m]} accepted lines)")
+    if failed:
+        print(f"-> FAIL: {'; '.join(failed)}")
+        return EXIT_MISMATCH
+    print("-> OK: every replayed identity gained a duplicate line and no "
+          "accepted line from the replay, none has more than one accepted "
+          "line, the further duplicates are within the reconnection budget, "
+          "and the two /metrics readings are of one process with accepted "
+          "unchanged and an empty queue")
+    return EXIT_OK
+
+
 COMMANDS = {"mark": cmd_mark, "wait": cmd_wait, "check": cmd_check,
-            "snap": cmd_snap, "delta": cmd_delta, "same": cmd_same}
+            "snap": cmd_snap, "delta": cmd_delta, "same": cmd_same,
+            "acceptance": cmd_acceptance, "replay-check": cmd_replay_check}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -838,7 +1179,9 @@ def build_parser() -> argparse.ArgumentParser:
         description=__doc__.splitlines()[0],
         epilog="exit codes: 0 step carried out (check: not a verdict); "
                "1 step not carried out; 2 usage; 3 check: not a protocol "
-               "check; 4 delta: MISMATCH or queue not empty, same: DIFFERENT",
+               "check; 4 delta: MISMATCH or queue not empty, same: DIFFERENT, "
+               "acceptance: a valid message never accepted, replay-check: "
+               "a condition of test 4 failed",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("mark", "wait", "check"):
@@ -886,6 +1229,23 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--prefix", required=True)
     s.add_argument("label_a")
     s.add_argument("label_b")
+    s = sub.add_parser("acceptance")
+    s.add_argument("run_dir")
+    s.add_argument("--events", required=True,
+                   help="the copy of the event log fetched after the run's "
+                        "final drain (the runbook's test 3 keeps it as "
+                        "<run>.events.post-drain.jsonl)")
+    s = sub.add_parser("replay-check")
+    s.add_argument("run_dir")
+    s.add_argument("--replay-dir", required=True,
+                   help="the replay's simulator directory: its "
+                        "sent_events.jsonl names the replayed identities")
+    s.add_argument("--prefix", default=None)
+    s.add_argument("--events-before", default=None,
+                   help="the copy of the log taken before the replay "
+                        "(default: <prefix>.events.pre-replay.jsonl)")
+    s.add_argument("--from", dest="frm", default="after")
+    s.add_argument("--to", default="replay")
     return p
 
 
