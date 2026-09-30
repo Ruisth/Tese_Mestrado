@@ -4118,14 +4118,26 @@ is unchanged.
   left running while the cleanup reported success - every state but
   `inactive` or `failed` is now stopped and the cleanup fails unless the unit
   is shown stopped; and test 9(b)/(c) ran their probe even when their lower
-  bound was not read - they now STOP before any attempt.
+  bound was not read - they now STOP before any attempt. The Project
+  Manager's bounded review of the pull request then held it for two
+  unfinished parts of B, corrected with regressions that failed first: T6's
+  capture ended before its external drain - test 6 now hands the harness the
+  restart-evidence hooks the finite proof uses, so the drain, the post-drain
+  copy and the after snapshot run before the three bounded fetches and the
+  window covers them (a drain that gives up included); and three callers
+  dropped a capture or cleanup failure - `events_stop` answers 0, 1 (capture
+  not complete) or 3 (capture complete, cleanup failed: procedure
+  incomplete), `harness_cmd` answers 3 when its cleanup failed after the
+  harness ran, test 6 is ok only on 0, and each test 7 sub-check reads its
+  bounded controller and broker logs and is 0 only when the capture and the
+  reads succeeded beside its two `SHOWN` lines.
 - **Limits.** Everything in B is exercised with stubs only: what Docker 25.0.9
   and Compose 2.26.0 do with these commands on the guest, the event sets of
-  T6's restart and T7's stops, and an interactive Ctrl-C are unverified. An
-  incomplete T7 capture does not change T7's verdict, and the runbook's T6
-  drain lies outside the captured window: both are decisions (the page), not
-  wired. `nominal.sh` now inherits the fetch-failure validity rule through
-  `harness_run`. T8 is not wired.
+  T6's restart and T7's stops, and an interactive Ctrl-C are unverified.
+  `nominal.sh` now inherits the fetch-failure validity rule through
+  `harness_run`. T8 is not wired. The harness ends its drain hook after
+  1,800 s (`DRAIN_TIMEOUT_S`), so a `DRAIN_LIMIT_S` near that would turn T6's
+  give-up into an error (the runbook's 900 s is well below it).
 - **Decisions and next steps.** None made here. Rui's decisions on the page's
   four items, the candidate lock, and the compatibility session's
   authorisation come before any qualifying run; G3 stays paused.

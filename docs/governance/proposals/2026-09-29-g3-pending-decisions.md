@@ -355,16 +355,6 @@ is recorded as a failure.
    This is a timed item (decision 3).
 3. Keep both results. A failure of either one is a failure of T4.
 
-## Two further points from the wiring (for decision, not implemented)
-
-- **T7 and an incomplete events capture.** Test 7 now records each fault's Docker events and judges them on the
-  container it stops. A capture not shown complete is a STOP with its records kept, but T7's own verdict is still
-  decided by its two `SHOWN` lines, as the runbook states it. Making an incomplete capture fail T7 would change T7's
-  acceptance: a decision, not wired here.
-- **T6's drain.** The harness's three fetches run inside `run.py`, after its own post-drain step. The runbook's T6
-  line then runs its own drain, snapshot and `collect` after the harness, outside the captured window. Covering them
-  would need `collect` to ingest the SUT logs, or the fetches moved: an evidence-path change, not made here.
-
 ## Candidate manifest (draft, not a freeze)
 
 | Part | Identity | Status |
