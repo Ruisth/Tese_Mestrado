@@ -2039,6 +2039,227 @@ def test_test_3_run_test_not_complete_reads_no_log(bench: Bench) -> None:
     assert bench.capture_calls() == []
 
 
+# --------------------------------------------------------------------------
+# Decisions of 2026-09-30 (prospective): test 3's post-drain copy and its per-identity acceptance check (3), test
+# 4's replay judged per identity (4), test 1's harness run on a nominal entry never used (1b), the timed families (3)
+# --------------------------------------------------------------------------
+T3 = "itest-invalid-01"
+#: v-1 and v-2 valid, i-1 intended invalid, as the simulator writes them (one run id, one message_id each)
+T3_SENT = [{"run_id": T3, "message_id": m, "device_type": "smartwatch", "device_uuid": "uuid-0001", "seq": i,
+            "intended_invalid": m.startswith("i-")} for i, m in enumerate(("v-1", "v-2", "i-1"))]
+
+
+def t3_guest_log(bench: Bench, v2: str = "accepted") -> None:
+    bench.jsonl("sent_events.jsonl", T3_SENT)
+    bench.jsonl("remote_events.jsonl", [event(T3, "v-1", "accepted"), event(T3, "v-2", v2), event(T3, "i-1", "rejected")])
+
+
+def call_test3_acceptance(bench: Bench, real_rec: bool = False) -> Result:
+    """Test 3's run, the line that keeps the copy fetched after the drain and the acceptance line, as pasted. With
+    real_rec the acceptance line runs this checkout's itest_reconcile on the kept copy (the capture before it keeps
+    the stub: the real mark, wait and check would need a controller)."""
+    cmds = _host_commands("### Test 3")
+    first, keep_line = _one(cmds, "R=itest-invalid-01"), _one(cmds, "C3=stop;")
+    check = _one(cmds, '[ "$C3" = ok ] && $REC acceptance')
+    real = ('REC="python3 -m egw_experiments.itest_reconcile"',) if real_rec else ()
+    body = "\n".join((first, 'echo "RT=$RT"', keep_line, 'echo "C3=$C3"', *real, check, 'echo "RA=$?"'))
+    return bench.run(bench.with_helpers(body), PYTHONPATH=str(ROOT / "src"))
+
+
+def acceptance_calls(bench: Bench) -> list[str]:
+    return [ln for ln in bench.calls().splitlines() if "itest_reconcile acceptance" in ln]
+
+
+def test_test_3_keeps_the_copy_fetched_after_the_drain_and_checks_every_valid_message_on_it(bench: Bench) -> None:
+    t3_guest_log(bench)
+    r = call_test3_acceptance(bench)
+    assert (r.value("RT"), r.value("C3"), r.value("RA")) == ("0", "ok", "0"), r.out
+    assert not r.starting("STOP"), r.out
+    kept = bench.p / f"{T3}.events.post-drain.jsonl"
+    # the file 'finish' fetched after its 'drained' (wait && drained && fetch), kept as it was
+    assert kept.read_bytes() == (bench.p / T3 / "events.jsonl").read_bytes()
+    assert acceptance_calls(bench) == [
+        f"python -m egw_experiments.itest_reconcile acceptance {bench.p}/{T3} --events {kept}"]
+
+
+@pytest.mark.parametrize("rc", [4, 1], ids=["never-accepted", "not-evaluable"])
+def test_test_3_an_acceptance_check_that_does_not_end_0_is_a_stop(bench: Bench, rc: int) -> None:
+    t3_guest_log(bench)
+    bench.set("rec_acceptance_rc", rc)
+    r = call_test3_acceptance(bench)
+    assert r.value("C3") == "ok" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: the per-identity acceptance check"), r.out
+
+
+@pytest.mark.parametrize("v2, ok", [("accepted", True), ("failed", False), ("duplicate", False)])
+def test_test_3_acceptance_line_runs_the_real_check_on_the_kept_copy(bench: Bench, v2: str, ok: bool) -> None:
+    t3_guest_log(bench, v2)
+    r = call_test3_acceptance(bench, real_rec=True)
+    assert r.value("RT") == "0" and r.value("C3") == "ok", r.out
+    if ok:
+        assert r.value("RA") == "0", r.out
+        assert any("valid=2 accepted by the end of the drain=2 never accepted=0" in ln for ln in r.lines), r.out
+    else:
+        assert r.value("RA") != "0", r.out
+        assert f"  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: {v2} x1" in r.lines, r.out
+        assert r.starting("STOP: test 3: the per-identity acceptance check"), r.out
+
+
+@pytest.mark.parametrize("case", ["precondition fails", "fetch fails"])
+def test_test_3_without_a_post_drain_copy_is_not_evaluated(bench: Bench, case: str) -> None:
+    """No copy after the drain (the run stopped before its fetch: a drain that gave up does the same): the copy is
+    not kept, nothing is judged and test 3 is not passed."""
+    t3_guest_log(bench)
+    if case == "precondition fails":
+        bench.set("ready_code", 503)
+    else:
+        (bench.state / "remote_events.jsonl").unlink()
+    r = call_test3_acceptance(bench)
+    assert r.value("RT") != "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: run_test did not complete"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert acceptance_calls(bench) == []
+
+
+def test_test_3_an_existing_post_drain_copy_is_never_overwritten_and_nothing_is_judged(bench: Bench) -> None:
+    t3_guest_log(bench)
+    bench.p.mkdir(parents=True, exist_ok=True)
+    kept = bench.p / f"{T3}.events.post-drain.jsonl"
+    kept.write_text("old\n", encoding="utf-8")
+    r = call_test3_acceptance(bench)
+    assert r.value("RT") == "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting(f"STOP: keep: {kept} exists - NOT overwritten"), r.out
+    assert kept.read_text(encoding="utf-8") == "old\n"
+    assert acceptance_calls(bench) == []
+
+
+def t4_check_line() -> str:
+    return _one(_host_commands("### Test 4"), '[ "$REPLAYED" = captured ] && $REC replay-check')
+
+
+@pytest.mark.parametrize("replayed, rc, passes", [("stop", 0, False), ("ok", 0, False), ("captured", 4, False),
+                                                  ("captured", 1, False), ("captured", 0, True)])
+def test_test_4_replay_check_line_runs_only_on_a_captured_replay_and_passes_only_on_0(bench: Bench, replayed: str,
+                                                                                     rc: int, passes: bool) -> None:
+    bench.set("rec_replay-check_rc", rc)
+    r = bench.run(bench.with_helpers("\n".join((f"R=itest-dup-01; REPLAYED={replayed}", t4_check_line(),
+                                                'echo "RC4=$?"'))))
+    calls = [ln for ln in bench.calls().splitlines() if "itest_reconcile replay-check" in ln]
+    if replayed == "captured":
+        assert calls == [f"python -m egw_experiments.itest_reconcile replay-check {bench.p}/itest-dup-01 --replay-dir "
+                         f"{bench.home}/egw-tcg/itest-replay/itest-dup-01 --events-before "
+                         f"{bench.p}/itest-dup-01.events.pre-replay.jsonl"], bench.calls()
+    else:
+        assert calls == [], bench.calls()
+    if passes:
+        assert r.value("RC4") == "0" and not r.starting("STOP"), r.out
+    else:
+        assert r.value("RC4") != "0", r.out
+        assert r.starting("STOP: test 4: the per-identity replay check"), r.out
+
+
+def t1_harness_lines() -> tuple[str, str]:
+    cmds = _host_commands("### Test 1")
+    return _one(cmds, "RID=nominal-r02"), _one(cmds, '[ "$T1H" = ok ] && wait_ready')
+
+
+def test_test_1_harness_run_takes_nominal_r02_when_it_was_never_used(bench: Bench) -> None:
+    check, run = t1_harness_lines()
+    r = bench.run(bench.with_helpers("\n".join((check, 'echo "T1H=$T1H"', run, 'echo "RC1=$?"'))))
+    assert r.value("T1H") == "ok" and r.value("RC1") == "0", r.out
+    argv = harness_argv(bench)
+    assert argv[argv.index("--run-id") + 1] == "nominal-r02"
+    assert "--duration" not in argv and "--warmup" not in " ".join(argv)  # the plan's 600 s and 120 s, unchanged
+
+
+@pytest.mark.parametrize("used", ["raw directory", "start record"])
+def test_test_1_harness_entry_already_used_is_refused_and_nothing_starts(bench: Bench, used: str) -> None:
+    trace = (bench.home / "egw-tcg" / "pilot" / "results" / "raw" / "nominal-r02" if used == "raw directory"
+             else bench.p / "nominal-r02.sut")
+    trace.mkdir(parents=True)
+    check, run = t1_harness_lines()
+    r = bench.run(bench.with_helpers("\n".join((check, 'echo "T1H=$T1H"', run, 'echo "RC1=$?"'))))
+    assert r.value("T1H") == "stop" and r.value("RC1") != "0", r.out
+    assert r.starting("STOP: test 1 (harness): nominal-r02 was already used"), r.out
+    assert not (bench.state / "harness_argv").exists()
+    assert bench.capture_calls() == []  # no recorder was started either
+
+
+def test_test_1_plan_listing_shows_the_nominal_entries(bench: Bench) -> None:
+    from egw_experiments import plan_gen
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps(plan_gen.generate_campaign_plan(42)), encoding="utf-8")
+    listing = _one(_host_commands("### Test 1"), 'python3 -c "import json;p=json.load(')
+    assert "expected ['nominal-r01', 'nominal-r02', 'nominal-r03']" in listing
+    r = bench.run(listing)
+    assert "['nominal-r01', 'nominal-r02', 'nominal-r03']" in r.lines, r.out
+
+
+def _paragraph(heading: str, start: str) -> str:
+    hits = [p for p in "\n".join(_section(heading)).split("\n\n") if p.startswith(start)]
+    assert len(hits) == 1, f"{heading}: {len(hits)} paragraph(s) starting with {start!r}"
+    return hits[0]
+
+
+def test_section_7_states_the_timed_families() -> None:
+    text = _paragraph("## 7.", "**Timed families (decision of 2026-09-30")
+    for needle in ("test 1 (each of its three runs)", "test 2", "`itest-dup-02`", "test 5", "test 6",
+                   "test 8's post-reboot smoke", "`lost = 0` and `late_confirmations = 0`", "marker plus 60 s",
+                   "recorded as failed", "sizing finding", "does not turn the failure into a pass",
+                   "throughput choice T1", "not test 1", "`delivery_across_restart_zero_lost`",
+                   "`RESTART_RECOVERY_MAX_S`", "Test 3 is not timed", "`$P/$R.events.post-drain.jsonl`",
+                   "decide nothing else for test 3", "No deadline, rate, duration or load changes"):
+        assert needle in text, needle
+
+
+def test_test_1_names_what_its_harness_run_is_and_is_not() -> None:
+    cmds = _host_commands("### Test 1")
+    assert not [c for c in cmds if c.startswith("RID=smoke_sequence")]
+    text = "\n".join(_section("### Test 1"))
+    assert "if the run is marked invalid for coverage, repeat with `--run-id` of a nominal entry" not in text
+    expected = _paragraph("### Test 1", "Expected per run:")
+    assert "`late_confirmations > 0` fails test 1" in expected and "sizing finding" in expected
+    for needle in ("30 distinct instants, 90 % coverage, 5 s gaps", "reported as measured",
+                   "**not** a passed 30 s smoke", "**not** a performance approval or a successful nominal delivery",
+                   "distinct from the three wearable functional runs", "ten `smoke_sequence` repetitions of C14"):
+        assert needle in text, needle
+
+
+def test_test_3_expected_list_requires_every_valid_message_accepted_by_the_end_of_the_drain() -> None:
+    expected = _paragraph("### Test 3", "Expected:")
+    for needle in ("`$P/$R.events.post-drain.jsonl`", "accepted late", "fails test 3", "gives up",
+                   "not evaluated", "never passed", "Test 3 is not timed", "decide nothing else for test 3",
+                   "`valid rejected = 0`", "every `delta` line `OK`"):
+        assert needle in expected, needle
+
+
+def test_test_4_expected_list_judges_the_replay_per_identity_and_includes_the_sequence_reset() -> None:
+    expected = _paragraph("### Test 4", "Expected")
+    assert "`duplicate` equals the number of replayed messages" not in expected
+    assert "`duplicate` = number of replayed messages" not in expected
+    for needle in ("`started_at`", "`uptime_s`", "`processing_errors`", "`mqtt_connection`", "non-decreasing",
+                   "`duplicate_replayed`", "`duplicate_redelivery`", "consistent with the reconnection budget",
+                   "decides nothing", "`accepted 0`", "`queue_depth 0`", "UNCHANGED", "`itest-dup-02`",
+                   "never been run", "`lost = 0`, `late_confirmations = 0`", "a failure of test 4"):
+        assert needle in expected, needle
+    assert "caused by" not in expected
+
+
+def test_tests_5_6_and_8_are_timed_and_section_8_names_the_spent_entry() -> None:
+    t5 = _paragraph("### Test 5", "Expected:")
+    assert "test 5 fails" in t5 and "sizing finding" in t5
+    assert "a guest-speed finding under TCG, reported as measured;" not in t5
+    t6 = "\n".join(_section("### Test 6"))
+    assert "is reported as measured, never suppressed" not in t6
+    for needle in ("`delivery_across_restart_zero_lost`", "own row of `per_run.csv`",
+                   "`lost = 0` and `late_confirmations = 0`", "beside that criterion"):
+        assert needle in t6, needle
+    assert "a timed family" in _paragraph("### Test 8", "Expected:")
+    order = _paragraph("## 8.", "1. **Order.**")
+    assert "`nominal-r02`" in order and "test 1" in order.lower()
+
+
 def call_test5(bench: Bench, rid: str = "itest-dropout-01") -> Result:
     cmds = _host_commands("### Test 5")
     full_run(bench, rid)
