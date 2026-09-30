@@ -46,7 +46,13 @@ nothing to retry and no row is written in place of the lost one. The files
 are still closed, so the rows written before the failure stay readable. The
 owner reads ``write_error`` after ``__exit__`` (run.py makes it a validity
 reason); ``poll_errors`` and the retry mode never see it. Until 2026-09-29 a
-failed write ended the thread silently, or raised from the entry poll.
+failed write ended the thread silently, or raised from the entry poll. A
+thread still running when ``__exit__``'s join (:data:`JOIN_TIMEOUT_S`) gives
+up is recorded the same way, before the files are closed under it; they are
+closed and their handles cleared under the lock, so no row is written and no
+write failure recorded after ``__exit__`` returns (review of 2026-09-30:
+until then the thread's late write failed on the closed file after the owner
+had read ``write_error``).
 
 Two recording rules, one per kind of field. The eleven counters
 (:data:`METRIC_FIELDS`) are COUNTS, so a recorded value must be a
@@ -111,6 +117,12 @@ from .protocol import RESOURCE_SAMPLE_INTERVAL_S
 #: settings, not acceptance criteria; off unless a caller enables them.
 FAST_RETRY_S = 0.05
 FAST_RETRY_CAP_S = 60.0
+
+#: How long ``__exit__`` waits for the sampling thread to end. A thread still
+#: running after it is an instrumentation failure (review of 2026-09-30):
+#: its files are closed once any write in progress ends, and a reading it
+#: returns after that is not written.
+JOIN_TIMEOUT_S = 30.0
 
 #: The attempts log of the failed-poll retry mode: one row per poll, with
 #: the HOST's instants (never the controller clock) and the wait chosen.
@@ -302,7 +314,8 @@ class ControllerMetricsSampler:
         self.invalid_values = 0
         self.last_invalid: str | None = None
         # Instrumentation failures (A2): the first failed open/write/flush/
-        # close of either file, which stops sampling, and every one in order.
+        # close of either file, or the thread outliving __exit__'s join,
+        # which stops sampling, and every one in order.
         self.write_error: str | None = None
         self.write_errors: list[str] = []
         self._stop = threading.Event()
@@ -327,10 +340,11 @@ class ControllerMetricsSampler:
             )
 
     def _write_failed(self, what: str, exc: OSError | ValueError) -> None:
-        """Record a failed open/write/flush/close of one file and stop
-        sampling. An instrumentation failure, never a failed poll: it is not
-        counted in ``poll_errors``, not retried, and no row replaces the one
-        that was lost. The first failure is kept in ``write_error``."""
+        """Record a failed open/write/flush/close of one file (or the thread
+        outliving the join) and stop sampling. An instrumentation failure,
+        never a failed poll: it is not counted in ``poll_errors``, not
+        retried, and no row replaces the one that was lost. The first failure
+        is kept in ``write_error``."""
         message = f"{what} failed: {type(exc).__name__}: {exc}"
         self.write_errors.append(message)
         if self.write_error is None:
@@ -412,6 +426,10 @@ class ControllerMetricsSampler:
             else:
                 row.append(value)
         with self._lock:
+            if self._writer is None:
+                # __exit__ closed the files under a thread that outlived its
+                # join, and recorded that first: no row.
+                return None
             step = "write"
             try:
                 self._writer.writerow(row)
@@ -457,28 +475,30 @@ class ControllerMetricsSampler:
         error = self._sample_once()
         finished = time.monotonic()
         wait = self._next_wait(error is None, started, finished)
-        # No attempts row once a file has failed: sampling has stopped.
-        if self._attempts_writer is not None and self.write_error is None:
+        # No attempts row once a file has failed: sampling has stopped. Checked
+        # under the lock, under which __exit__ closes and clears the handles.
+        with self._lock:
+            if self._attempts_writer is None or self.write_error is not None:
+                return wait
             self._attempts += 1
-            with self._lock:
-                step = "write"
-                try:
-                    self._attempts_writer.writerow(
-                        [
-                            self._attempts,
-                            started_utc,
-                            f"{started:.6f}",
-                            f"{finished:.6f}",
-                            "ok" if error is None else "error",
-                            "" if error is None else " ".join(error.split())[:200],
-                            f"{wait:.3f}",
-                        ]
-                    )
-                    step = "flush"
-                    self._attempts_fh.flush()
-                except (OSError, ValueError) as exc:
-                    # as for the metrics row, ValueError included
-                    self._write_failed(f"{self.attempts_path.name} {step}", exc)
+            step = "write"
+            try:
+                self._attempts_writer.writerow(
+                    [
+                        self._attempts,
+                        started_utc,
+                        f"{started:.6f}",
+                        f"{finished:.6f}",
+                        "ok" if error is None else "error",
+                        "" if error is None else " ".join(error.split())[:200],
+                        f"{wait:.3f}",
+                    ]
+                )
+                step = "flush"
+                self._attempts_fh.flush()
+            except (OSError, ValueError) as exc:
+                # as for the metrics row, ValueError included
+                self._write_failed(f"{self.attempts_path.name} {step}", exc)
         return wait
 
     def _loop(self) -> None:
@@ -513,14 +533,28 @@ class ControllerMetricsSampler:
     def __exit__(self, exc_type, exc, tb) -> None:
         self._stop.set()
         if self._thread is not None:
-            self._thread.join(timeout=30.0)
+            self._thread.join(timeout=JOIN_TIMEOUT_S)
+            if self._thread.is_alive():
+                # Recorded before the files are closed under it, so that the
+                # owner, which reads write_error once this returns, sees it
+                # (review of 2026-09-30).
+                self._write_failed(
+                    "sampler thread join",
+                    TimeoutError(
+                        f"still running {JOIN_TIMEOUT_S} s after the stop; its "
+                        "files are closed once any write in progress ends, and "
+                        "a reading it returns after that is not written"
+                    ),
+                )
         # Closed after a write failure too, so that the rows written before
-        # it stay readable.
-        if self._fh is not None:
-            fh, self._fh = self._fh, None
-            self._close(fh, self.csv_path.name)
-        if self._attempts_fh is not None:
-            fh, self._attempts_fh = self._attempts_fh, None
+        # it stay readable; under the lock, so that a thread still running
+        # finds the handles cleared and writes nothing more.
+        with self._lock:
+            fh, self._fh, self._writer = self._fh, None, None
+            attempts_fh, self._attempts_fh = self._attempts_fh, None
             self._attempts_writer = None
-            self._close(fh, self.attempts_path.name)
+            if fh is not None:
+                self._close(fh, self.csv_path.name)
+            if attempts_fh is not None:
+                self._close(attempts_fh, self.attempts_path.name)
         return None

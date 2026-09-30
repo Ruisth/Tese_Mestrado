@@ -337,9 +337,10 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
 # 1.4 (work order of 2026-09-29, A2; additive within the version, no reader
 # change needed): 'controller_metrics' gains 'write_error' (the first file of
-# the sampler that could not be opened, written, flushed or closed; null when
-# none) and 'write_errors' (every such failure in order). A write_error is a
-# validity reason of every run, re-applied by 'collect'.
+# the sampler that could not be opened, written, flushed or closed, or its
+# thread still running after the join; null when none) and 'write_errors'
+# (every such failure in order). A write_error is a validity reason of every
+# run, re-applied by 'collect'.
 # 1.4 (ADR 0011 item 18; additive within the version, no reader change
 # needed): adds 'sut_log_fetches' (the records of --fetch-broker-log-cmd,
 # --fetch-controller-log-cmd and --fetch-docker-events-cmd, shaped like a
@@ -3612,8 +3613,9 @@ def compute_validity(
     a failed recovery is retained and analysed.
 
     Work order of 2026-09-29 (A2): a file of the controller /metrics
-    sampler that could not be opened, written, flushed or closed
-    (``metrics_write_error``) is a reason on every run, with no override:
+    sampler that could not be opened, written, flushed or closed, or its
+    thread still running after the join (``metrics_write_error``), is a
+    reason on every run, with no override:
     the instrumentation failed, so its evidence stops at the last row
     written. Failed polls (the controller not answering) are an observation
     and stay warnings.
@@ -3733,8 +3735,9 @@ def compute_validity(
             f"({metrics_write_error}): sampling stopped there, so "
             "controller_metrics.csv (and the attempts log, if any) holds only "
             "the rows written before the failure. This is a failure of the "
-            "harness's instrumentation, not an observation of the controller "
-            "(failed polls are counted in poll_errors instead); there is no "
+            "harness's instrumentation, whatever set it off (a value the "
+            "controller sent that the CSV cannot hold included), and not a "
+            "failed poll, which poll_errors counts instead; there is no "
             "override: repeat the run under a new run identity"
         )
     return ("valid" if not reasons else "invalid"), reasons
@@ -4794,14 +4797,20 @@ def execute_run(
             f"{metrics_sampler.invalid_values} counter value(s) that are not "
             f"non-negative integers; last: {metrics_sampler.last_invalid}"
         )
+    # One snapshot of the sampler's file failures, taken once __exit__ has
+    # returned (after which nothing more is recorded; a thread that outlived
+    # its join is itself one), serves both the validity and the manifest.
     metrics_write_error = (
         metrics_sampler.write_error if metrics_sampler is not None else None
+    )
+    metrics_write_errors = (
+        list(metrics_sampler.write_errors) if metrics_sampler is not None else []
     )
     if metrics_write_error is not None:
         # An instrumentation failure (work order of 2026-09-29, A2), unlike
         # the failed polls above: a validity reason, not only a warning.
         warnings.append(
-            "controller metrics sampler stopped on a file failure: "
+            "controller metrics sampler stopped on an instrumentation failure: "
             f"{metrics_write_error}; its files hold only the rows written "
             "before it"
         )
@@ -5297,11 +5306,12 @@ def execute_run(
                 # are not non-negative integers are written as empty cells.
                 "invalid_values": metrics_sampler.invalid_values,
                 "last_invalid_value": metrics_sampler.last_invalid,
-                # A file of the sampler that failed (A2): the first failure,
-                # which stopped sampling and is a validity reason, and every
-                # one in order (a close that failed after it, say).
-                "write_error": metrics_sampler.write_error,
-                "write_errors": list(metrics_sampler.write_errors),
+                # A file of the sampler that failed (A2), or its thread still
+                # running after the join: the first failure, which stopped
+                # sampling and is a validity reason, and every one in order
+                # (a close that failed after it, say); the snapshot above.
+                "write_error": metrics_write_error,
+                "write_errors": metrics_write_errors,
                 # The finite proof's failed-poll retry, recorded only when
                 # the run enabled it (settings, not acceptance criteria).
                 **(

@@ -7220,11 +7220,13 @@ def test_a_row_the_csv_cannot_encode_is_a_write_failure_that_reaches_the_run(
 
 
 def test_a_write_to_a_file_already_closed_is_recorded_not_raised(tmp_path, monkeypatch) -> None:
-    """A2, verifier round 2: a write to a handle that is already closed (a
-    thread still polling after __exit__'s 30 s join gave up and closed the
-    files) raises ValueError, 'I/O operation on closed file'. It is a write
-    failure of that file, recorded and stopping the sampling, not an
-    exception that ends the thread through threading.excepthook."""
+    """A2, verifier round 2: a write to a handle that is already closed
+    raises ValueError, 'I/O operation on closed file'. It is a write failure
+    of that file, recorded and stopping the sampling, not an exception that
+    ends the thread through threading.excepthook. (__exit__ itself no longer
+    closes a handle under a running thread: it records a thread that outlived
+    its join and clears the handles under the lock; see the two tests of the
+    review of 2026-09-30 below.)"""
     monkeypatch.setattr(metrics_mod, "fetch_metrics", _Readings())
     # Retry mode with an answered entry poll: the thread first waits the whole
     # 10 s interval, so the poll below is the only one.
@@ -7241,6 +7243,193 @@ def test_a_write_to_a_file_already_closed_is_recorded_not_raised(tmp_path, monke
     assert not s._thread.is_alive() and s._fh is None and s._attempts_fh is None
     rows = _metrics_rows(tmp_path / ATTEMPTS_CSV)
     assert rows[0] == list(metrics_mod.ATTEMPTS_HEADER) and len(rows) == 2    # the entry poll's row only
+
+
+def test_a_sampler_thread_that_outlives_the_join_is_seen_before_the_validity(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-09-30 [A 0]: the thread's first poll stalls past
+    __exit__'s join (shortened through JOIN_TIMEOUT_S) and returns only
+    during the confirmation window, after the owner has read the sampler.
+    Before, the files were closed under the thread, whose late write then
+    failed on the closed file after the validity was computed: the run was
+    sealed 'valid' with exit 0 while its own manifest carried a write_error,
+    and a later 'collect' made it invalid. Now __exit__ records the thread
+    before closing the files, the late poll writes nothing, and one
+    snapshot of the failure serves the validity and the manifest alike."""
+    _fake_controller_marker(monkeypatch)
+    monkeypatch.setattr(metrics_mod, "JOIN_TIMEOUT_S", 0.2, raising=False)
+    stalled, release = threading.Event(), threading.Event()
+    calls: list[str] = []
+
+    def fetch(url, timeout_s=5.0) -> dict:
+        calls.append(url)
+        if len(calls) == 2:                                 # the thread's first poll
+            stalled.set()
+            release.wait(60.0)
+        return dict(SIX_COUNTERS)
+
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", fetch)
+    samplers: list[Any] = []
+
+    class _Kept(metrics_mod.ControllerMetricsSampler):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            samplers.append(self)
+
+    monkeypatch.setattr(run_mod, "ControllerMetricsSampler", _Kept)
+    simulator = run_mod._run_subprocess
+
+    def measured_run_with_the_poll_stalled(cmd, log_path, timeout_s):
+        rc = simulator(cmd, log_path, timeout_s)
+        if "--run-id" in cmd and not cmd[cmd.index("--run-id") + 1].endswith(".warmup"):
+            assert stalled.wait(5.0)
+        return rc
+
+    monkeypatch.setattr(run_mod, "_run_subprocess", measured_run_with_the_poll_stalled)
+
+    class _Time:
+        """run.py's time module, whose one sleep is the confirmation window:
+        the stalled poll returns there and the thread is let finish."""
+
+        def __getattr__(self, name):
+            return getattr(time, name)
+
+        def sleep(self, seconds) -> None:
+            release.set()
+            samplers[0]._thread.join(10.0)
+
+    monkeypatch.setattr(run_mod, "time", _Time())
+    base = tmp_path / "results"
+    run_id = "smoke_sequence-r01"
+    rc = run_mod.execute_run(
+        plan_path,
+        run_id,
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=3.0,
+        skip_cooldown=True,
+        event_log_dir=_local_events(tmp_path, run_id),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        controller_url="http://127.0.0.1:8000",
+    )
+    assert release.is_set() and not samplers[0]._thread.is_alive()
+    manifest = _manifest(base, run_id)
+    record = manifest["controller_metrics"]
+    # The validity and the manifest agree: the failure the manifest records
+    # is the reason that made the run invalid.
+    assert record["write_error"] is not None
+    assert record["write_error"] in " ".join(manifest["validity_reasons"])
+    assert manifest["validity"] == "invalid" and len(manifest["validity_reasons"]) == 1
+    assert rc == 1
+    entry = _plan_entry(plan_path, run_id)
+    assert (entry["status"], entry["validity"]) == ("failed", "invalid")
+    # It names the thread, not a file: nothing was written after the owner read.
+    assert record["write_error"].startswith("sampler thread join failed: TimeoutError: ")
+    assert record["write_errors"] == [record["write_error"]] == samplers[0].write_errors
+    assert record["poll_errors"] == 0 and record["samples_written"] == 1
+    rows = _metrics_rows(base / "raw" / run_id / METRICS_CSV)
+    assert rows[0] == metrics_mod.CSV_HEADER and len(rows) == 2    # the entry poll's row only
+    assert run_mod.collect_run(run_id, base_dir=base, plan_path=plan_path) == 1
+    assert _manifest(base, run_id)["validity_reasons"] == manifest["validity_reasons"]
+
+
+class _StallingFile:
+    """A text handle of the sampler whose ``stall_at``-th write reaches the
+    real file and then waits, the sampler's lock held (the thread between
+    its row and its flush), until ``until()`` is true (at most 60 s)."""
+
+    def __init__(self, real, stall_at: int, until) -> None:
+        self.real, self.stall_at, self.until = real, stall_at, until
+        self.writes = 0
+        self.stalled = threading.Event()
+        self.closed_called = False
+
+    def write(self, text: str) -> int:
+        self.writes += 1
+        written = self.real.write(text)
+        if self.writes == self.stall_at:
+            self.stalled.set()
+            deadline = time.monotonic() + 60.0
+            while not self.until() and time.monotonic() < deadline:
+                time.sleep(0.01)
+        return written
+
+    def flush(self) -> None:
+        self.real.flush()
+
+    def close(self) -> None:
+        self.closed_called = True
+        self.real.close()
+
+
+def test_a_thread_between_its_row_and_its_flush_when_the_join_gives_up_raises_nothing(
+    tmp_path, monkeypatch
+) -> None:
+    """Review of 2026-09-30 [A 0], the narrower variant: the join gives up
+    while the thread is between its row and its flush. Before, __exit__
+    cleared the handle without the lock and the thread's flush raised
+    AttributeError on None, which ended it through threading.excepthook with
+    nothing recorded. Now the handles are closed and cleared under the lock,
+    after the thread was recorded, and its row is flushed first."""
+    monkeypatch.setattr(metrics_mod, "JOIN_TIMEOUT_S", 0.2, raising=False)
+    monkeypatch.setattr(metrics_mod, "fetch_metrics", _Readings())
+    samplers: list[Any] = []
+
+    def released() -> bool:
+        return samplers[0]._fh is None or samplers[0].write_error is not None
+
+    handles: list[_StallingFile] = []
+    real_open = open
+
+    def sampler_open(path, *args, **kwargs):
+        # write 1 is the header, 2 the entry poll's row, 3 the thread's row
+        handles.append(_StallingFile(real_open(path, *args, **kwargs), 3, released))
+        return handles[-1]
+
+    monkeypatch.setattr(metrics_mod, "open", sampler_open, raising=False)
+    caught: list[type] = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: caught.append(args.exc_type))
+    s = metrics_mod.ControllerMetricsSampler(tmp_path / METRICS_CSV, "http://127.0.0.1:8000", interval_s=10.0)
+    samplers.append(s)
+    with s:
+        assert handles[0].stalled.wait(5.0)
+    s._thread.join(60.0)
+    assert caught == []
+    assert not s._thread.is_alive()
+    assert s.write_error is not None and s.write_error.startswith("sampler thread join failed: TimeoutError: ")
+    assert s.write_errors == [s.write_error]
+    assert handles[0].closed_called and handles[0].real.closed and s._fh is None
+    rows = _metrics_rows(tmp_path / METRICS_CSV)
+    accepted = [int(dict(zip(metrics_mod.CSV_HEADER, row))["accepted"]) for row in rows[1:]]
+    assert accepted == [0, 1] and s.samples_written == 2 and s.poll_errors == 0
+
+
+def test_the_write_failure_reason_keeps_its_class_without_clearing_the_controller() -> None:
+    """Review of 2026-09-30 [A 1]: a row the CSV cannot encode can carry a
+    string the controller sent (a lone surrogate). The reason keeps its
+    class - the harness could not record its evidence, not a failed poll,
+    no override - but no longer says the controller had no part in it."""
+    try:
+        LONE_SURROGATE.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        error = f"{METRICS_CSV} write failed: UnicodeEncodeError: {exc}"
+    common = dict(
+        sut_env_present=True,
+        allow_missing_sut_env=False,
+        resource_source="sut-collector",
+        allow_missing_resources=False,
+        restart_required=False,
+        restart_ok=False,
+    )
+    for timed in (True, False):
+        validity, reasons = run_mod.compute_validity(timed=timed, metrics_write_error=error, **common)
+        assert validity == "invalid" and len(reasons) == 1 and error in reasons[0]
+        assert "not an observation of the controller" not in reasons[0]
+        assert "instrumentation" in reasons[0] and "poll_errors" in reasons[0]
+        assert "no override" in reasons[0]
 
 
 def test_an_unreachable_controller_with_working_files_stays_a_valid_run(
