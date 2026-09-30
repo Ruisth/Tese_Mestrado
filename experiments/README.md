@@ -535,6 +535,30 @@ persistence comparison of the runbook's test 6, `itest_reconcile delta
 --events <file>` selects the post-drain copy of the events explicitly (F6c);
 the timed `events.jsonl` and its deadline accounting are never touched.
 
+**N1 identities (decision 2 of 2026-09-30, reporting only).** The same
+files carry two more columns per run with a directory,
+`n1_applied_unconfirmed` and `duplicate_only_unexplained`, and the JSON
+record names the identities (`egw_experiments.n1_report`). A duplicate-only
+identity is named only when it is a valid published identity of the run,
+the run records a source for it (the controller's `die` captured in the
+window of a restart that exited 0, one per run, or an A3 connection end of
+its own device received before its earliest received redelivery; each
+source explains one identity), and, on a run qualified `recovery_observed`,
+its device's twin excess equals exactly the identities named there (all or
+nothing per device; a duplicate-only identity of another run id on the
+device, as an `--also` file holds, leaves none named, and one whose lines
+name no device, or an accepted line without a device, leaves none named on
+any device); every other one is unexplained, with its failed conditions. A
+stated limit: the death has no order check, it is attributed by count
+only. The identity stays in `lost` and in every zero-lost criterion; no
+count, criterion or exit code changes. `itest_reconcile delta` prints the
+same report only with `--n1-report`, `--controller-log FILE` or
+`--restart-evidence RUN_DIR` (test 6 names the last two); without the last,
+its evidence of a quiet drain is the 'to' `/metrics` reading, quiet as
+CONTRACTS §5 defines one reading (one reading, not `drained`'s window).
+Nothing in the files read makes the layer or `delta` stop or change an
+exit code: a report that cannot be made says so.
+
 **The finite proof's evaluator (ADR 0011, "The finite proof").** A layer
 beside `recovery_qualification`, for one proof session rather than a
 campaign: `python -m egw_experiments.proof_evaluator --run-dir raw/<run_id>

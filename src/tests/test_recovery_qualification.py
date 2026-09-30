@@ -20,12 +20,15 @@ import pytest
 from egw_experiments import analyze as analyze_mod
 from egw_experiments import cli
 from egw_experiments import recovery_qualification as rq
+from egw_experiments import run as run_mod
+from egw_experiments.checksums import write_sha256sums
 from test_experiments_run import (  # noqa: F401  (fixtures registered by import)
     DRAIN_GAVE_UP_LINE,
     _bare_restart_run,
     _external_evidence,
     _item18_run,
     _manifest,
+    _plan_seed,
     fast_run,
     plan_path,
 )
@@ -393,6 +396,265 @@ def test_recovery_subcommand_runs_the_layer_alone(
     empty.mkdir()
     assert cli.main(["recovery", "--base-dir", str(empty), "--plan", str(plan_path)]) == 2
     assert "does not exist" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# decision 2 of 2026-09-30: the N1 identities, reported beside the
+# qualification and never counted
+# ---------------------------------------------------------------------------
+
+NS = 1_000_000_000
+RUN_T0 = 1_790_000_000  # the capture's requested_since, guest clock
+
+
+def _n1_evidence(base: Path, plan_path: Path, run_id: str = R01, *, die: bool = True) -> str:
+    """Rewrite a sealed restart run so that m2, published on the run's
+    smartwatch, has only a duplicate line in the post-drain copy while the
+    twin grew by one more than the device's accepted lines and ended on its
+    seq; the controller's die is inside the capture's window (unless
+    ``die`` is false) and the restart record is the harness's own (exit 0).
+    The directory is sealed again, as a harness run leaves it. Returns the
+    smartwatch's uuid."""
+    run_dir = base / "raw" / run_id
+    devices = run_mod.expected_twin_devices(_plan_seed(plan_path, run_id))
+    watch = next(u for u, t in devices.items() if t == "smartwatch")
+    sent = [{"run_id": run_id, "message_id": f"m{i}", "device_uuid": watch, "device_type": "smartwatch",
+             "seq": i, "publish_monotonic_ns": i, "puback_monotonic_ns": i, "intended_invalid": False}
+            for i in range(3)]
+    lines = [dict(sent[i], received_monotonic_ns=1000 * (i + 1), outcome=outcome,
+                  ditto_ack_monotonic_ns=None, latency_ms=None, attempts=1, error=None)
+             for i, outcome in ((0, "accepted"), (1, "accepted"), (2, "duplicate"))]
+    for name, rows in (("sent_events.jsonl", sent), (run_mod.POST_DRAIN_EVENTS_FILENAME, lines)):
+        (run_dir / name).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    before = json.loads((run_dir / "twins.before.json").read_text(encoding="utf-8"))
+    after = json.loads(json.dumps(before))
+    ingestion = after["devices"][watch]["ingestion"]
+    ingestion.update(accepted_count=before["devices"][watch]["ingestion"]["accepted_count"] + 3,
+                     last_run_id=run_id, last_seq=2)
+    (run_dir / "twins.after.json").write_text(json.dumps(after) + "\n", encoding="utf-8")
+    sut = run_dir / "logs" / "sut"
+    at = (RUN_T0 + 300) * NS + 17
+    event = {"Type": "container", "Action": "die" if die else "kill", "time": at // NS, "timeNano": at,
+             "Actor": {"ID": "c" * 64, "Attributes": {"name": "egw-controller-1"}}}
+    (sut / "docker-events.log").write_text(json.dumps(event) + "\n", encoding="utf-8")
+    (sut / "docker-events.coverage.txt").write_text(
+        f"coverage=complete\nrequested_since_guest_epoch={RUN_T0}\nrequested_until_guest_epoch={RUN_T0 + 900}\n"
+        "expected=die,start\ncontainer=egw-controller-1\n", encoding="utf-8")
+    write_sha256sums(run_dir)
+    return watch
+
+
+def test_a_duplicate_only_identity_with_its_death_and_twin_excess_is_reported_and_never_counted(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    restart = _manifest(base, R01)["restart"]
+    assert restart["executed"] is True and restart["returncode"] == 0
+    watch = _n1_evidence(base, plan_path)
+    assert analyze_mod.analyze(base_dir=base, plan_path=plan_path) == 0
+    alone = _processed(base)
+    capsys.readouterr()
+    assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+    assert _processed(base) == alone  # the analyser's files are what analyze() alone writes
+    doc, rows = _files(base)
+    row = _row(doc, R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] == 1 and row["duplicate_only_unexplained"] == 0
+    (case,) = row["n1"]["n1_applied_unconfirmed"]
+    assert case["message_id"] == "m2" and case["device_uuid"] == watch and case["seq"] == 2
+    assert [s["source"] for s in case["possible_sources"]] == ["controller-death"]
+    assert row["n1"]["events_copy"] == run_mod.POST_DRAIN_EVENTS_FILENAME
+    assert rows[0]["n1_applied_unconfirmed"] == "1" and rows[0]["duplicate_only_unexplained"] == "0"
+    assert set(rows[0]) == set(rq.CSV_COLUMNS)
+    # Reported, never counted: the identity stays lost for the analyser and
+    # the layer's statement, criterion and qualification rule are unchanged.
+    per_run = list(csv.DictReader((base / "processed" / "per_run.csv").read_text(encoding="utf-8").splitlines()))
+    assert int(next(r for r in per_run if r["run_id"] == R01)["lost"]) >= 1
+    assert doc["statement"] == rq.STATEMENT
+    for word in ("lost", "late", "N1", "acceptance"):
+        assert word in doc["statement"]
+    assert "n1_applied_unconfirmed" not in (base / "processed" / "acceptance_by_condition.csv").read_text("utf-8")
+
+
+def test_without_the_captured_die_the_identity_is_unexplained(tmp_path, plan_path, fast_run, monkeypatch) -> None:
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path, die=False)
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 1
+    (case,) = row["n1"]["duplicate_only_unexplained"]
+    assert case["message_id"] == "m2" and case["failed"] == ["2"]
+
+
+def test_a_drain_that_gave_up_names_no_identity(tmp_path, plan_path, fast_run, monkeypatch) -> None:
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch, drain=("gaveup", 1))
+    _n1_evidence(base, plan_path)
+    doc = rq.qualify_recovery(base, plan_path)
+    row = _row(doc, R01)
+    assert row["qualification"] == "recovery_failed"
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 1
+    (case,) = row["n1"]["duplicate_only_unexplained"]
+    assert "3" in case["failed"] and "drain" in case["reason"]
+
+
+def test_a_planned_run_without_a_directory_has_empty_n1_columns(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    assert cli.main(["recovery", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+    doc, rows = _files(base)
+    for run_id in (R02, R03):
+        absent = _row(doc, run_id)
+        assert absent["n1_applied_unconfirmed"] is None and absent["duplicate_only_unexplained"] is None
+        assert absent["n1"] is None
+        row = next(r for r in rows if r["run_id"] == run_id)
+        assert row["n1_applied_unconfirmed"] == "" and row["duplicate_only_unexplained"] == ""
+    # The harness's own run: the fixture's post-drain copy holds one accepted
+    # line and no duplicate-only identity, so both counts are zero.
+    assert _row(doc, R01)["n1_applied_unconfirmed"] == 0 and _row(doc, R01)["duplicate_only_unexplained"] == 0
+
+
+def test_a_malformed_capture_window_is_no_death_and_never_stops_the_layer(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A coverage record whose window is not in ASCII digits (a superscript
+    digit passes str.isdigit but not int) gives no death source: the layer
+    and the recovery command run on, and the identity is unexplained."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path)
+    coverage = base / "raw" / R01 / "logs" / "sut" / "docker-events.coverage.txt"
+    coverage.write_text(coverage.read_text(encoding="utf-8").replace(
+        "requested_until_guest_epoch=", "requested_until_guest_epoch=²"), encoding="utf-8")
+    write_sha256sums(base / "raw" / R01)
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 1
+    (case,) = row["n1"]["duplicate_only_unexplained"]
+    assert case["failed"] == ["2"] and "whole-number capture window" in case["reason"]
+    assert cli.main(["recovery", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+
+
+# round 1 of the verification ---------------------------------------------------
+
+
+def test_a_duplicate_line_without_a_device_in_the_post_drain_copy_blocks_the_naming(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """mx, published on the watch, has a duplicate line without a device in
+    the verified post-drain copy (the harness's check of the copy accepts
+    it) and the twin ended on its seq: the watch has two duplicate-only
+    identities against a surplus of one, so neither is named."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    watch = _n1_evidence(base, plan_path)
+    run_dir = base / "raw" / R01
+    mx_sent = {"run_id": R01, "message_id": "mx", "device_uuid": watch, "device_type": "smartwatch", "seq": 3,
+               "publish_monotonic_ns": 3, "puback_monotonic_ns": 3, "intended_invalid": False}
+    mx_line = {"run_id": R01, "message_id": "mx", "device_type": "smartwatch", "seq": 3,
+               "received_monotonic_ns": 5000, "outcome": "duplicate", "ditto_ack_monotonic_ns": None,
+               "latency_ms": None, "attempts": 1, "error": None}
+    for name, row in (("sent_events.jsonl", mx_sent), (run_mod.POST_DRAIN_EVENTS_FILENAME, mx_line)):
+        path = run_dir / name
+        path.write_text(path.read_text(encoding="utf-8") + json.dumps(row) + "\n", encoding="utf-8")
+    after = json.loads((run_dir / "twins.after.json").read_text(encoding="utf-8"))
+    after["devices"][watch]["ingestion"]["last_seq"] = 3
+    (run_dir / "twins.after.json").write_text(json.dumps(after) + "\n", encoding="utf-8")
+    write_sha256sums(run_dir)
+    assert run_mod.post_drain_events_problems(run_dir / run_mod.POST_DRAIN_EVENTS_FILENAME, R01) == []
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 2
+    cases = {case["message_id"]: case for case in row["n1"]["duplicate_only_unexplained"]}
+    assert "3" in cases["m2"]["failed"] and "3" in cases["mx"]["failed"]
+
+
+DEEP = "[" * 100_000
+
+#: (n1_applied_unconfirmed, duplicate_only_unexplained) of each case: m2 keeps
+#: its death source unless the capture window is lost, and its twin
+#: evidence unless the before snapshot is.
+NEVER_STOPS = {
+    "coverage epoch of 4301 digits": (0, 1),
+    "deeply nested controller log line": (1, 0),
+    "deeply nested Docker events line": (1, 0),
+    "deeply nested sent line": (1, 0),
+    "deeply nested snapshot": (0, 1),
+    "many identities": (0, 1201),
+}
+
+
+@pytest.mark.parametrize("case", sorted(NEVER_STOPS))
+def test_the_layer_never_stops_on_the_files_it_reads_for_the_n1_report(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys, case
+) -> None:
+    """The N1 report reads files the layer did not read before; nothing in
+    them stops the layer (the default analyze runs it): a line the JSON
+    decoder cannot nest into (RecursionError) is not a record, a window
+    beyond int()'s digit limit is no window, and the matching of many
+    identities to many A3 ends is not recursive."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    watch = _n1_evidence(base, plan_path)
+    run_dir = base / "raw" / R01
+    sut = run_dir / "logs" / "sut"
+    if case == "coverage epoch of 4301 digits":
+        coverage = sut / "docker-events.coverage.txt"
+        coverage.write_text(coverage.read_text(encoding="utf-8").replace(
+            "requested_until_guest_epoch=", "requested_until_guest_epoch=1" + "0" * 4300 + "\nx="), encoding="utf-8")
+    elif case == "deeply nested controller log line":
+        (sut / "controller.log").write_text("2026-09-30T10:03:10.000000000Z {\"message\": " + DEEP + "\n",
+                                            encoding="utf-8")
+    elif case == "deeply nested Docker events line":
+        capture = sut / "docker-events.log"
+        capture.write_text("{\"Action\": " + DEEP + "\n" + capture.read_text(encoding="utf-8"), encoding="utf-8")
+    elif case == "deeply nested sent line":
+        sent_file = run_dir / "sent_events.jsonl"
+        sent_file.write_text(sent_file.read_text(encoding="utf-8") + "{\"a\": " + DEEP + "\n", encoding="utf-8")
+    elif case == "deeply nested snapshot":
+        (run_dir / "twins.before.json").write_text("{\"devices\": " + DEEP + "\n", encoding="utf-8")
+    else:
+        count = 1200
+        sent = [{"run_id": R01, "message_id": f"k{i}", "device_uuid": watch, "device_type": "smartwatch",
+                 "seq": 10 + i, "publish_monotonic_ns": 1, "puback_monotonic_ns": 1, "intended_invalid": False}
+                for i in range(count)]
+        lines = [dict(record, received_monotonic_ns=NS + i, outcome="duplicate", ditto_ack_monotonic_ns=None,
+                      latency_ms=None, attempts=1, error=None) for i, record in enumerate(sent)]
+        for name, rows in (("sent_events.jsonl", sent), (run_mod.POST_DRAIN_EVENTS_FILENAME, lines)):
+            path = run_dir / name
+            path.write_text(path.read_text(encoding="utf-8") + "".join(json.dumps(r) + "\n" for r in rows),
+                            encoding="utf-8")
+        end = {"ts": "2026-09-30T10:03:10.001Z", "level": "ERROR", "message": "MQTT connection ended by the controller",
+               "context": {"cause": "write-failed", "connection": 2,
+                           "identity": {"topic": f"c2dt/egw-01/{watch}/telemetry", "received_monotonic_ns": 1}}}
+        (sut / "controller.log").write_text("".join(json.dumps(end) + "\n" for _ in range(count)), encoding="utf-8")
+    write_sha256sums(run_dir)
+    assert cli.main(["recovery", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+    if case != "deeply nested sent line":  # the analyser itself reads sent_events.jsonl (and stops on that line)
+        assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+    capsys.readouterr()
+    doc, _rows = _files(base)
+    row = _row(doc, R01)
+    assert row["qualification"] == "recovery_observed"
+    assert (row["n1_applied_unconfirmed"], row["duplicate_only_unexplained"]) == NEVER_STOPS[case]
+
+
+def test_an_n1_report_that_cannot_be_made_never_stops_the_layer(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    """Whatever the report meets, the qualification and the files stand:
+    an exception inside it leaves the run's N1 columns empty and says why."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path)
+
+    def boom(**_kwargs):
+        raise RuntimeError("unforeseen")
+
+    monkeypatch.setattr(rq.n1_report, "n1_applied_unconfirmed", boom)
+    assert cli.main(["recovery", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+    capsys.readouterr()
+    doc, rows = _files(base)
+    row = _row(doc, R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] is None and row["duplicate_only_unexplained"] is None
+    assert row["n1"]["events_copy"] is None and "RuntimeError" in row["n1"]["problem"]
+    assert rows[0]["n1_applied_unconfirmed"] == "" and rows[0]["duplicate_only_unexplained"] == ""
 
 
 def test_recovery_subcommand_is_documented_with_the_analyze_defaults() -> None:
