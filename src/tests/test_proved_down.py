@@ -280,6 +280,46 @@ def test_a_die_and_a_start_in_one_second_reject_the_row_of_that_second_conservat
 
 
 # --------------------------------------------------------------------------
+# The rows between D and S, each end pinned (review of 2026-09-30, round 1:
+# rejecting only from sec(D) + 2 s, only to sec(S) - 2 s, or only to sec(E)
+# when capped, all passed the cases above)
+# --------------------------------------------------------------------------
+
+
+def test_a_row_in_the_first_second_after_the_dies_second_is_between_d_and_s(tmp_path) -> None:
+    """D = 10:01:00.4, S = 10:01:06.3: the row stamped 10:01:01 = sec(D) + 1 s is in (sec(D), sec(S))."""
+    path = _csv(tmp_path / "f.csv", absent={C: ("10:01:02", "10:01:07")})
+    outcome: dict = {}
+    problems = _validate(path, proved_down=_interval(), proved_down_outcome=outcome)
+    assert outcome["rows_between"] == ["2026-10-01T10:01:01+00:00"], outcome
+    assert any("stamped between the die" in p and "2026-10-01T10:01:01+00:00" in p for p in problems), problems
+
+
+def test_a_row_in_the_last_second_before_the_starts_second_is_between_d_and_s(tmp_path) -> None:
+    """D = 10:01:00.4, S = 10:01:06.3: the row stamped 10:01:05 = sec(S) - 1 s is in (sec(D), sec(S))."""
+    path = _csv(tmp_path / "f.csv", absent={C: [("10:01:01", "10:01:04"), ("10:01:06", "10:01:07")]})
+    outcome: dict = {}
+    problems = _validate(path, proved_down=_interval(), proved_down_outcome=outcome)
+    assert outcome["rows_between"] == ["2026-10-01T10:01:05+00:00"], outcome
+    assert outcome["rows_in_start_second"] == [] and outcome["edge_gap_after_s"] == 2.0, outcome
+    assert any("stamped between the die" in p and "2026-10-01T10:01:05+00:00" in p for p in problems), problems
+
+
+def test_a_capped_restart_rejects_a_row_between_the_effective_end_and_the_start(tmp_path) -> None:
+    """Capped: D = 10:01:00.4, S = 10:03:02.4 (122 s), E = D + 120 s = 10:03:00.4. The edge after (10:03:00 to
+    10:03:03, 3 s) is within 5 s, so only the rule on the rows between D and S can reject the row stamped
+    10:03:01: after sec(E), but still before sec(S), when no instance was running."""
+    path = _csv(tmp_path / "f.csv", end="10:05:00", absent={C: [("10:01:01", "10:03:00"), ("10:03:02", "10:03:02")]})
+    outcome: dict = {}
+    problems = _validate(path, end="10:05:00", proved_down=_interval("10:01:00.4", "10:03:02.4"),
+                         proved_down_outcome=outcome)
+    assert outcome["capped"] is True and outcome["effective_end_second_utc"] == "2026-10-01T10:03:00+00:00"
+    assert outcome["edge_gap_after_s"] == 3.0, outcome
+    assert outcome["rows_between"] == ["2026-10-01T10:03:01+00:00"], outcome
+    assert any("stamped between the die" in p and "2026-10-01T10:03:01+00:00" in p for p in problems), problems
+
+
+# --------------------------------------------------------------------------
 # The derivation from the run directory
 # --------------------------------------------------------------------------
 
