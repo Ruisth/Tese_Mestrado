@@ -41,7 +41,7 @@ from test_session_drivers import EXPECT_SERVICES, ITEST_HELPERS, _write, report 
 
 from test_proof_hooks import STEADY_CLOCK, Hooks, capture_script, hooks, runbook_function  # noqa: E402,F401
 
-from test_runbook_itest_helpers import _host_commands, _one  # noqa: E402
+from test_runbook_itest_helpers import _host_commands, _one, t9_lines  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SESSION = REPO_ROOT / "tools" / "session"
@@ -303,6 +303,74 @@ def test_a_start_whose_session_dropped_and_whose_cleanup_failed_says_the_unit_ma
     assert f"events_capture.sh cleanup {rid}" in stop, stop
     again = wiring.hooks.run_argv(["bash", str(SESSION / "events_capture.sh"), "cleanup", rid])
     assert again.returncode == 0 and not wiring.hooks.recorder_running(rid), report(again)
+
+
+def _stops(hooks, rid: str) -> int:
+    """How many 'systemctl stop' calls ended the unit (the systemctl stub's record)."""
+    path = Path(f"{hooks.bench.log}.unit-egw-events-{rid}.stops")
+    return len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0
+
+
+def test_a_cleanup_stops_an_activating_unit_and_ends_0_only_once_it_is_shown_stopped(wiring):
+    """Review of PR #51, P1: only 'inactive' and 'failed' are stopped; a unit in a state between (here 'activating')
+    was left running with exit 0, and its capture copied as partial while it still ran."""
+    hooks, rid = wiring.hooks, "cap-r03"
+    capture = SESSION / "events_capture.sh"
+    assert hooks.run_argv(["bash", str(capture), "start", rid]).returncode == 0
+    keep = wiring.p / f"{rid}.sut" / "events-partial"
+    clean = hooks.run_argv(["bash", str(capture), "cleanup", rid, str(keep)], EGW_STUB_FAIL="events-activating")
+    assert "unit_state_before_cleanup=activating" in clean.stdout, report(clean)
+    assert "cleanup_stop_requested_guest_epoch=" in clean.stdout, report(clean)
+    assert not hooks.recorder_running(rid) and _stops(hooks, rid) == 1, report(clean)
+    assert "unit_state_after_cleanup=inactive" in clean.stdout and clean.returncode == 0, report(clean)
+    assert sorted(p.name for p in keep.iterdir()) == ["cli-stderr.txt", "events.partial.jsonl", "lifecycle.txt",
+                                                      "start-facts.txt"]
+
+
+@pytest.mark.parametrize("token, after", [("events-stop-noeffect", "active"), ("events-state-unreadable", "unknown")])
+def test_a_cleanup_that_cannot_show_the_unit_stopped_fails_says_it_may_still_run_and_copies_nothing(wiring, token,
+                                                                                                    after):
+    """Review of PR #51, P1: a stop with no effect, or a state that cannot be read, never ends the cleanup 0 - the
+    host command (and the runbook's events_cleanup) STOPs saying the unit may still run, and no partial copy is made
+    while it may still write; once it can be shown stopped, the repeated cleanup keeps the capture."""
+    hooks, rid = wiring.hooks, f"cap-{token}"
+    capture = SESSION / "events_capture.sh"
+    assert hooks.run_argv(["bash", str(capture), "start", rid]).returncode == 0
+    keep = wiring.p / f"{rid}.sut" / "events-partial"
+    clean = hooks.run_argv(["bash", str(capture), "cleanup", rid, str(keep)], EGW_STUB_FAIL=token)
+    assert clean.returncode != 0, report(clean)
+    assert "cleanup_stop_requested_guest_epoch=" in clean.stdout, report(clean)
+    assert f"unit_state_after_cleanup={after}" in clean.stdout, report(clean)
+    stop = next(ln for ln in clean.stderr.splitlines() if ln.startswith("STOP: events_capture: "))
+    assert f"egw-events-{rid} was not shown stopped" in stop and "may still run" in stop, stop
+    assert not wiring.sut(rid).exists() or not any(wiring.sut(rid).iterdir()), report(clean)
+    bare = hooks.run_argv(["bash", str(capture), "cleanup", rid], EGW_STUB_FAIL=token)
+    assert bare.returncode != 0 and "may still run" in bare.stderr, report(bare)
+    records = hooks.bench.tmp / "no-stop-record"
+    runbook = wiring.run(f'events_cleanup {rid} {records}; echo "EC=$?"', EGW_STUB_FAIL=token)
+    assert "EC=1" in runbook.stdout, report(runbook)
+    stop = next(ln for ln in runbook.stderr.splitlines() if ln.startswith(f"STOP: events_cleanup {rid}: "))
+    assert "may still run" in stop, stop
+    assert not keep.exists(), report(runbook)
+    again = wiring.run(f'events_cleanup {rid} {records}; echo "EC=$?"')
+    assert "EC=0" in again.stdout and not hooks.recorder_running(rid), report(again)
+    assert (keep / "events.partial.jsonl").stat().st_size > 0
+
+
+def test_a_cleanup_of_a_unit_the_fetch_already_stopped_requests_no_stop_and_keeps_the_capture(wiring):
+    """The normal path, unchanged: the docker-events fetch stopped the unit ('inactive'), so the cleanup stops
+    nothing, ends 0 and keeps what the recorder captured."""
+    hooks, rid = wiring.hooks, "cap-r04"
+    capture = SESSION / "events_capture.sh"
+    assert hooks.run_argv(["bash", str(capture), "start", rid]).returncode == 0
+    assert hooks.run_argv(["ssh", "egw-tcg", f"sudo systemctl stop egw-events-{rid}"]).returncode == 0
+    assert not hooks.recorder_running(rid) and _stops(hooks, rid) == 1
+    keep = wiring.p / f"{rid}.sut" / "events-partial"
+    clean = hooks.run_argv(["bash", str(capture), "cleanup", rid, str(keep)])
+    assert clean.returncode == 0, report(clean)
+    assert "unit_state_before_cleanup=inactive" in clean.stdout, report(clean)
+    assert "cleanup_stop_requested_guest_epoch=" not in clean.stdout and _stops(hooks, rid) == 1, report(clean)
+    assert (keep / "events.partial.jsonl").stat().st_size > 0
 
 
 def test_the_host_command_refuses_what_it_cannot_use_before_the_guest_is_reached(wiring):
@@ -599,17 +667,15 @@ def test_test_3_counts_only_the_rejections_of_its_own_bounded_controller_log(wir
 
 def test_test_9_b_and_c_each_read_the_broker_log_bounded_from_their_own_guest_epoch(wiring):
     old = wiring.old_logs(broker=("Client egw-simulator-itest-auth-wrongpw disconnected, not authorised.",))
-    cmds = _host_commands("### Test 9")
-    body = "\n".join((_one(cmds, "T0_9B=$(guest_epoch 3); python -m egw_simulator"),
-                      _one(cmds, "sut_log broker itest-auth-wrongpw "), 'echo "RCB=$?"',
+    body = "\n".join((*t9_lines("b"), 'echo "RCB=$?"',
                       # (b) lasts ~15 s on the guest (its CONNACK timeout) before its read; the stub simulator ends at
                       # once, so the gap is modelled: more than the 3 s (c)'s window opens before its epoch, in
                       # whole seconds of the guest clock
                       "sleep 4",
-                      _one(cmds, "T0_9C=$(guest_epoch 3); python -m egw_simulator"),
-                      _one(cmds, "sut_log broker itest-notls "), 'echo "RCC=$?"'))
+                      *t9_lines("c"), 'echo "RCC=$?"'))
     result = wiring.run(body)
     assert "RCB=0" in result.stdout and "RCC=0" in result.stdout, report(result)
+    assert re.findall(r"^exit=.*$", result.stdout, re.M) == ["exit=1", "exit=1"], report(result)
     b = (wiring.sut("itest-auth-wrongpw") / "broker.log").read_text(encoding="utf-8").splitlines()
     c = (wiring.sut("itest-notls") / "broker.log").read_text(encoding="utf-8").splitlines()
     assert len(b) == 1 and "egw-simulator-itest-auth-wrongpw disconnected, not authorised" in b[0]
@@ -623,9 +689,10 @@ def test_test_9_b_keeps_its_refusal_when_the_guest_clock_steps_back_right_after_
     '--since' (applied until the first line at or after it) would leave it out of (b)'s read."""
     old = wiring.old_logs(broker=("Client egw-simulator-itest-auth-wrongpw disconnected, not authorised.",))
     cmds = _host_commands("### Test 9")
-    lines = [c for c in cmds if c.startswith("T0_9B=") and "python -m egw_simulator" in c]
-    assert len(lines) == 1, lines
-    epoch, simulator = lines[0].split("; ", 1)
+    line, _ = t9_lines("b")
+    # the runbook's own epoch read and simulator command, run apart so that the clock can be stepped between them
+    epoch = re.search(r"T0_9B=\$\(guest_epoch 3\)", line).group(0)
+    simulator = re.search(r'python -m egw_simulator run [^;]*; echo "exit=\$\?"', line).group(0)
     taken = wiring.run(epoch + '; echo "T0=$T0_9B"')
     t0 = re.search(r"^T0=(\d+)$", taken.stdout, re.M)
     assert t0, report(taken)
@@ -639,6 +706,22 @@ def test_test_9_b_keeps_its_refusal_when_the_guest_clock_steps_back_right_after_
     b = (wiring.sut("itest-auth-wrongpw") / "broker.log").read_text(encoding="utf-8").splitlines()
     assert len(b) == 1 and "egw-simulator-itest-auth-wrongpw disconnected, not authorised" in b[0], b
     assert not set(old["broker"]) & set(b), "an earlier session's refusal is never (b)'s evidence"
+
+
+@pytest.mark.parametrize("sub, rid", [("b", "itest-auth-wrongpw"), ("c", "itest-notls")])
+def test_test_9_b_and_c_make_no_connection_attempt_when_the_guest_clock_was_not_read(wiring, sub, rid):
+    """Review of PR #51, P2: the guest does not answer 'date +%s', so (b)'s or (c)'s lower bound is not read: no
+    connection attempt reaches the broker (its log is unchanged), no 'exit=' is printed - it would be the refusal
+    status (b) and (c) expect - and the STOP names the sub-check."""
+    run, read = t9_lines(sub)
+    result = wiring.run(run + '\necho "RUN=$?"\n' + read + '\necho "READ=$?"', EGW_STUB_SSH_REFUSE="date +%s")
+    assert "RUN=1" in result.stdout and "READ=1" in result.stdout, report(result)
+    assert not re.search(r"^exit=", result.stdout, re.M), report(result)
+    broker = Path(f"{wiring.hooks.bench.log}.broker-log")
+    assert not broker.exists() or f"egw-simulator-{rid}" not in broker.read_text(encoding="utf-8"), report(result)
+    assert f"STOP: test 9({sub}): the lower bound of ({sub})'s evidence was NOT read - the probe was NOT run" \
+        in result.stderr, report(result)
+    assert not (wiring.sut(rid) / "broker.log").exists(), report(result)
 
 
 # --------------------------------------------------------------------------

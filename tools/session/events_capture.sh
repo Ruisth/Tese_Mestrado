@@ -19,9 +19,10 @@
 #       not ready (the unit then stopped), 255 the guest not reached (whether
 #       a unit was started is then unknown: run 'cleanup')
 #   events_capture.sh cleanup RUN_ID [KEEP_DIR]
-#       stops a unit still running and prints the recorder's lifecycle,
-#       whatever KEEP_DIR's state (a repeated cleanup, after the guest was not
-#       reached or after an interruption, must still stop the unit); with
+#       stops a unit not shown stopped (any state but inactive or failed)
+#       and prints the recorder's lifecycle, whatever KEEP_DIR's state (a
+#       repeated cleanup, after the guest was not reached or after an
+#       interruption, must still stop the unit); with
 #       KEEP_DIR it then copies what the recorder captured there -
 #       events.partial.jsonl, lifecycle.txt, start-facts.txt, cli-stderr.txt -
 #       a partial capture, never named or read as the run's docker-events.log:
@@ -31,7 +32,8 @@
 #       the files are copied beside it and become KEEP_DIR only once all four
 #       arrived, so a copy that failed leaves no KEEP_DIR and the cleanup can
 #       be repeated then too. Non-zero when the unit could not be shown
-#       stopped, KEEP_DIR exists or a copy failed.
+#       stopped (a STOP then says it may still run), KEEP_DIR exists or a
+#       copy failed.
 # A usage or a recorder that cannot be sent answers 2, and nothing is run on
 # the guest.
 #
@@ -105,22 +107,35 @@ echo "run_guest_t0=$t0"
 GUEST_EVENTS_START
 }
 # events_cleanup_script: the guest command of the cleanup, run by proof.sh's
-# restoration and by the host command below: a recorder unit still active
-# then was not stopped and judged by the docker-events fetch (the run ended
-# before it, or it failed), so its capture is not the run's: it is stopped,
-# and its lifecycle record is printed into the console record (the capture
-# itself stays on the guest, in its directory).
+# restoration and by the host command below. Only 'inactive' and 'failed' are
+# a unit already stopped (a transient unit that no longer exists answers
+# 'inactive', with a non-zero status); any other answer - active, a state
+# between (activating, deactivating, reloading) or none at all ('unknown') -
+# is a unit not shown stopped by the docker-events fetch (the run ended
+# before it, or it failed), so its capture is not the run's: it is stopped
+# and its state read again, and the step answers non-zero unless it is then
+# 'inactive' or 'failed' (it may still run). Its lifecycle record is printed
+# into the console record (the capture itself stays on the guest, in its
+# directory).
 events_cleanup_script() {
     printf "D='/tmp/egw-events-%s'\nUNIT='egw-events-%s'\n" "$RID" "$RID"
     cat << 'GUEST_EVENTS_CLEANUP'
 state=$(systemctl is-active "$UNIT" 2> /dev/null)
 echo "unit_state_before_cleanup=${state:-unknown}"
 rc=0
-if [ "$state" = active ]; then
-    echo "cleanup_stop_requested_guest_epoch=$(date +%s)"
-    sudo systemctl stop "$UNIT" || rc=1
-    echo "unit_state_after_cleanup=$(systemctl is-active "$UNIT" 2> /dev/null)"
-fi
+case "$state" in
+    inactive | failed) ;;
+    *)
+        echo "cleanup_stop_requested_guest_epoch=$(date +%s)"
+        sudo systemctl stop "$UNIT" || rc=1
+        state=$(systemctl is-active "$UNIT" 2> /dev/null)
+        echo "unit_state_after_cleanup=${state:-unknown}"
+        case "$state" in
+            inactive | failed) ;;
+            *) rc=1 ;;
+        esac
+        ;;
+esac
 if [ -d "$D" ]; then
     echo "--- the recorder's lifecycle record ($D/lifecycle.txt; its capture stays in $D)"
     cat "$D/lifecycle.txt" 2> /dev/null
@@ -170,10 +185,10 @@ fi
 KEEP=${3:-}
 ssh egw-tcg "$(events_cleanup_script)"
 rc=$?
-[ -n "$KEEP" ] || exit "$rc"
-# What the recorder captured, kept once the unit was shown stopped: a partial
-# capture, under names that are never the run's docker-events.log.
-[ "$rc" = 0 ] || { echo "STOP: events_capture: the unit egw-events-$RID was not shown stopped (exit $rc) - nothing was copied to $KEEP; repeat the cleanup" >&2; exit "$rc"; }
+# What the recorder captured is kept only once the unit was shown stopped: a
+# partial capture, under names that are never the run's docker-events.log.
+[ "$rc" = 0 ] || { echo "STOP: events_capture: the unit egw-events-$RID was not shown stopped (exit $rc) - it may still run on the guest${KEEP:+; nothing was copied to $KEEP}: repeat the cleanup until it ends 0" >&2; exit "$rc"; }
+[ -n "$KEEP" ] || exit 0
 [ ! -e "$KEEP" ] || { echo "STOP: events_capture: $KEEP exists - NOT overwritten; the unit's cleanup ran above, nothing was copied" >&2; exit 1; }
 # The files are copied beside KEEP and the copy becomes KEEP only once all
 # four arrived: KEEP holds the whole partial capture or does not exist, so a

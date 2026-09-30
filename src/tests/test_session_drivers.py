@@ -676,7 +676,13 @@ systemd ends a unit's control group, and waits for it (SIGKILL after 20 s,
 as systemd does after TimeoutStopSec). 'show docker' answers the daemon's
 MainPID and start stamp from LOG.docker-daemon.json (a restarted daemon is
 that file changed). Steered through EGW_STUB_FAIL: 'events-stop-fails' (the
-stop is refused and the unit keeps running)."""
+stop is refused and the unit keeps running), 'events-stop-noeffect' (the stop
+answers 0 and the unit keeps running) and, once the unit's start has recorded
+it ready (the 'ready' line of its lifecycle record on the stub guest, so that
+a start is still found ready), 'events-activating' (a unit still running is
+answered 'activating', exit 3, as systemd answers every state but active and
+reloading) and 'events-state-unreadable' (no state at all: nothing on stdout
+and exit 1, as a systemctl that cannot reach the manager answers)."""
 import json
 import os
 import signal
@@ -705,11 +711,31 @@ def unit_pid(unit):
     return None if state in ("Z", "X") else pid
 
 
+def found_ready(unit):
+    """The unit's start recorded it ready: its capture directory on the stub
+    guest (/tmp/UNIT) holds the 'ready' line in its lifecycle record."""
+    path = os.environ.get("EGW_STUB_GUEST_ROOT", "") + f"/tmp/{unit}/lifecycle.txt"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return any(line.startswith("ready ") for line in fh)
+    except OSError:
+        return False
+
+
 if cmd == "is-system-running":
     print("running")
     sys.exit(0)
 if cmd == "is-active":
-    running = unit_pid(args[-1]) is not None
+    unit = args[-1]
+    running = unit_pid(unit) is not None
+    if unit.startswith("egw-events-") and found_ready(unit):
+        if ",events-state-unreadable," in failures:
+            print("Failed to connect to bus: Connection refused", file=sys.stderr)
+            sys.exit(1)
+        if running and ",events-activating," in failures:
+            if not quiet:
+                print("activating")
+            sys.exit(3)
     if not quiet:
         print("active" if running else "inactive")
     sys.exit(0 if running else 3)
@@ -720,6 +746,8 @@ if cmd == "stop":
         if ",events-stop-fails," in failures:
             print(f"Failed to stop {unit}.service: stub refusal", file=sys.stderr)
             sys.exit(1)
+        if ",events-stop-noeffect," in failures:
+            sys.exit(0)
         with open(f"{LOG}.unit-{unit}.stops", "a", encoding="utf-8") as fh:
             fh.write("stop\\n")
         try:

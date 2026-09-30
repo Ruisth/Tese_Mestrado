@@ -955,18 +955,19 @@ events_start() {
 }
 
 # events_cleanup <run-id> <records-dir>: what every ending does once the run's docker-events fetch ran or could not run:
-# a recorder unit still running is stopped (events_capture.sh cleanup) and, unless that fetch kept the capture in
-# <records-dir> (docker-events.log when shown complete, docker-events.partial.jsonl otherwise; its stop record alone
-# says only that the fetch reached its stop step, and is written even when nothing was copied), what the recorder
-# captured is copied write-once to $P/<run-id>.sut/events-partial/ - never as a docker-events.log. A STOP when the unit
-# was not shown stopped or the copy failed. Repeated, it still stops a unit still running: the copy is made only once
-# the unit is shown stopped, events-partial/ only appears once all of it arrived, and it is never made again into an
+# a recorder unit not shown stopped (any state but inactive or failed, none at all included) is stopped and its state
+# read again (events_capture.sh cleanup) and, unless that fetch kept the capture in <records-dir> (docker-events.log
+# when shown complete, docker-events.partial.jsonl otherwise; its stop record alone says only that the fetch reached
+# its stop step, and is written even when nothing was copied), what the recorder captured is copied write-once to
+# $P/<run-id>.sut/events-partial/ - never as a docker-events.log. A STOP when the unit was not shown stopped (it may
+# still run) or the copy failed. Repeated, it still stops a unit still running: the copy is made only once the unit is
+# shown stopped, events-partial/ only appears once all of it arrived, and it is never made again into an
 # events-partial/ that exists.
 events_cleanup() {
   local id=$1 keep=
   [ -e "$2/docker-events.log" ] || [ -e "$2/docker-events.partial.jsonl" ] || keep="$P/$id.sut/events-partial"
   bash "$EGW_CLONE/tools/session/events_capture.sh" cleanup "$id" ${keep:+"$keep"} \
-    || { stop "events_cleanup $id: the recorder unit egw-events-$id was not shown stopped, or what it captured was not all kept${keep:+ in $keep}"; return 1; }
+    || { stop "events_cleanup $id: the recorder unit egw-events-$id was not shown stopped - it may still run on the guest - or what it captured was not all kept${keep:+ in $keep} (the STOP above says which)"; return 1; }
 }
 
 # events_stop <run-id> <run-t0> [<expected> [<container>]]: the run's docker-events fetch (proof_fetch_sut_log.sh
@@ -1479,12 +1480,14 @@ host$ python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run
 # of (b)'s in (c)'s, if (b)'s read took less than 3 s). A line in (c)'s log that names (b)'s client id,
 # egw-simulator-itest-auth-wrongpw, is (b)'s, never (c)'s. UNVERIFIED: whether the broker's "not authorised" line names
 # the client id at all or reads <unknown> (as in (e) below); either way a "not authorised" line in (c)'s log, named or
-# <unknown>, is never (c)'s evidence, which is a TLS/socket error (Expected below).
+# <unknown>, is never (c)'s evidence, which is a TLS/socket error (Expected below). A lower bound that was not read runs
+# no probe and prints no 'exit=' (a STOP names the sub-check): exit 1 is the refusal status (b) and (c) expect, so an
+# unbounded probe's exit could read as their evidence, and its connection attempt would change the broker log.
 # (b) wrong password -> CONNACK not authorised
-host$ T0_9B=$(guest_epoch 3); python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"
+host$ if T0_9B=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"; else stop "test 9(b): the lower bound of (b)'s evidence was NOT read - the probe was NOT run"; fi
 host$ sut_log broker itest-auth-wrongpw "$T0_9B" && cat ~/egw-tcg/itest/itest-auth-wrongpw.sut/broker.log || stop "test 9(b): the broker log bounded to (b) was NOT read - (b) has no evidence (a read that failed shows no refusal)"
 # (c) plaintext against the TLS listener
-host$ T0_9C=$(guest_epoch 3); python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-notls --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --no-tls --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD"; echo "exit=$?"
+host$ if T0_9C=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-notls --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --no-tls --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD"; echo "exit=$?"; else stop "test 9(c): the lower bound of (c)'s evidence was NOT read - the probe was NOT run"; fi
 host$ sut_log broker itest-notls "$T0_9C" && cat ~/egw-tcg/itest/itest-notls.sut/broker.log || stop "test 9(c): the broker log bounded to (c) was NOT read - (c) has no evidence (a read that failed shows no refusal)"
 # (d)+(e) ACL proven in both directions with concurrent known traffic, and anonymous refusal. Runs in the guest, inside the
 # broker container (mosquitto_pub/mosquitto_sub of the image; nothing to install on the host; no 'timeout' applet needed).

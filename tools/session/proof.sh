@@ -1229,15 +1229,20 @@ HEALTHY_WHERE="the 20-minute rule (the stack with the candidate healthy within $
 # (events_cleanup_script) are defined in events_capture.sh, sourced above
 # (the start: the write-once capture directory, the clone's recorder by
 # sha256, the boot and daemon facts, the unit egw-events-RUN_ID, readiness
-# and 'run_guest_t0=T0'; the cleanup: a unit still running stopped, its
-# lifecycle record printed). They read RID, RECORDER and RECORDER_SHA.
+# and 'run_guest_t0=T0'; the cleanup: a unit not shown stopped stopped and
+# its state read again, its lifecycle record printed). They read RID,
+# RECORDER and RECORDER_SHA.
 # events_recorder_cleanup: the first thing the restoration does, once, when
-# the recorder's start was dispatched. A unit still active is a capture NOT
-# complete - stopped here, recorded in the session facts
-# (events_recorder.stopped_by, .coverage) and a mandatory record not made -
-# never a capture that ran on to the end; a unit already stopped is what the
-# docker-events fetch leaves, and its own coverage record is in the run
-# directory. A cleanup that could not look is recorded as such.
+# the recorder's start was dispatched. Only a unit 'inactive' or 'failed' is
+# one the docker-events fetch stopped, and its own coverage record is in the
+# run directory. Any other state the cleanup read - active, a state between
+# (activating, deactivating, reloading) or 'unknown' - is a unit not stopped
+# and judged by that fetch, so a capture NOT complete - stopped here, recorded
+# in the session facts (events_recorder.stopped_by, .coverage) and a
+# mandatory record not made - never a capture that ran on to the end. A
+# cleanup that could not read the state at all (the guest not reached, the
+# console record lost) observed nothing: it is recorded as such, and the
+# fetch's own coverage record stands.
 events_recorder_cleanup() {
     [ "$EVENTS_DISPATCHED" -eq 1 ] && [ "$EVENTS_CLEANED" -eq 0 ] || return 0
     EVENTS_CLEANED=1
@@ -1245,12 +1250,16 @@ events_recorder_cleanup() {
     gx "$A" events-recorder-cleanup "$(events_cleanup_script)"
     rc=$?
     state=$(said events-recorder-cleanup 'unit_state_before_cleanup=' | tr -d ' ')
-    if [ "$state" = active ]; then
+    if [ -n "$state" ] && [ "$state" != inactive ] && [ "$state" != failed ]; then
+        local was="was still running when the restoration began, so the harness's docker-events fetch did not stop and judge it"
+        [ "$state" = active ] \
+            || was="was not shown stopped when the restoration began (unit state '$state'), so the harness's docker-events fetch had not stopped and judged it"
         local how="it was stopped by the restoration"
-        [ "$rc" -eq 0 ] || how="the restoration could not stop it (events-recorder-cleanup exit $rc)"
+        [ "$rc" -eq 0 ] \
+            || how="the restoration did not show it stopped - it may still run on the guest ($(step_note events-recorder-cleanup "$rc" "events-recorder-cleanup exit $rc"))"
         session_update "events_recorder.stopped_by=restoration" "events_recorder.cleanup_exit=$rc" \
-            "events_recorder.coverage=incomplete: the recorder unit was still running when the restoration began, so the harness's docker-events fetch did not stop and judge it"
-        missed "the Docker events capture is incomplete: the recorder unit egw-events-$RID was still running when the restoration began, so the harness's docker-events fetch did not stop and judge it; $how (its lifecycle record is in console/, its capture stays on the guest in /tmp/egw-events-$RID)"
+            "events_recorder.coverage=incomplete: the recorder unit $was"
+        missed "the Docker events capture is incomplete: the recorder unit egw-events-$RID $was; $how (its lifecycle record is in console/, its capture stays on the guest in /tmp/egw-events-$RID)"
     elif [ "$rc" -eq 0 ]; then
         session_update "events_recorder.state_at_restoration=${state:-unknown}"
     elif [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
