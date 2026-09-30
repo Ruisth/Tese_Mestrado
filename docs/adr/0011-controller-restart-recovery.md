@@ -2090,7 +2090,10 @@ without the student's separate authorisation.
   required only of a run that issues one). No criterion, count or rule of
   the evaluator changed. Nothing ran on the guest; what the guest's Docker
   25.0.9 and Compose 2.26.0 accept for these reads is to be checked before
-  the next session.
+  the next session. (Later note, 2026-09-30: checked in one short window
+  without load or faults, `compat-capture-r01`: both accept `--since`/`--until`
+  as epoch seconds, and the capture was judged complete under R1–R6, R7 not
+  exercised; LOG #C048.)
 
 ## Consequences
 

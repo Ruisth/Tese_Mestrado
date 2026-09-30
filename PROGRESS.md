@@ -511,7 +511,11 @@ acceptance.*
   into the runbook's G3 procedures, tested with stubs only (LOG #C047); the
   decisions needed before G3 are set out, not taken, in the
   [pending-decisions page](docs/governance/proposals/2026-09-29-g3-pending-decisions.md);
-  G3 stays paused.)*
+  G3 stays paused.)* *(Marker added 2026-09-30: capture compatibility verified on
+  the guest in a short window, without load or faults - one authorised session,
+  `compat-capture-r01` (LOG #C048). It is not G3 readiness: the four decisions
+  of that page, and any changes they require, come next; then the candidate
+  lock and the battery's authorisation; G3 stays paused.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;
