@@ -1350,6 +1350,13 @@ def test_acceptance_exits_1_on_bad_input(tmp_path, capsys, case) -> None:
         "two run ids": [sent(0), dict(sent(1), run_id="itest-other")],
         "no run id": [{k: v for k, v in sent(0).items() if k != "run_id"}, sent(1)],
     }
+    reason = {
+        "copy missing": "post-drain.jsonl missing", "copy truncated": "not a JSON object",
+        "sent missing": "sent_events.jsonl missing", "sent truncated": "not a JSON object",
+        "sent empty": "holds no published record", "no valid message": "holds no valid message",
+        "message_id missing": "no usable message_id", "message_id empty": "no usable message_id",
+        "message_id twice": "occurs more than once", "two run ids": "one run_id", "no run id": "one run_id",
+    }[case]
     if case == "copy missing":
         copy.unlink()
     elif case == "copy truncated":
@@ -1360,10 +1367,14 @@ def test_acceptance_exits_1_on_bad_input(tmp_path, capsys, case) -> None:
         sent_path.write_text(sent_path.read_text("utf-8") + '{"message_id": ', "utf-8")
     else:
         write_jsonl(sent_path, rewrite[case])
+        # the manifest agrees with the rewritten file: each case is refused for its own reason
+        write_json(run_dir / "manifest.json",
+                   sim_manifest(totals={"sent": len(rewrite[case]), "intended_invalid": 1}))
     before = tree(tmp_path)
     assert acceptance(run_dir, copy) == rec.EXIT_FAILED
     captured = capsys.readouterr()
     assert captured.err.startswith("error: ") and captured.out == ""  # nothing judged, nothing printed
+    assert reason in captured.err, captured.err
     assert tree(tmp_path) == before
 
 
@@ -1375,20 +1386,24 @@ REPLAY_SENT = [sent(0), sent(1), sent(2)]
 PRE = [event(0, "accepted", T0 - 5, received_ns=T0 - 4 * NS),
        event(1, "accepted", T0 - 4, received_ns=T0 - 3 * NS),
        event(2, "accepted", T0 - 3, received_ns=T0 - 2 * NS)]
-#: The 'after' reading: every field the same-process rule reads, above zero.
+#: The 'after' reading: every field the same-process rule reads, above zero, and the controller clock when it was
+#: read ('finish' takes it after the window closed; the replay is published later still).
 AFTER = metrics(accepted=100, rejected=5, duplicate=5, failed=5, dropped=5, processing_errors=5,
-                received=125, in_progress=0, mqtt_connection=1, uptime_s=50.0, unacked=0)
+                received=125, in_progress=0, mqtt_connection=1, uptime_s=50.0, unacked=0,
+                monotonic_ns=DEADLINE + 10 * NS)
+#: when the replay's lines are received: after the 'after' reading
+REPLAY_NS = DEADLINE + 100 * NS
 
 
 def dup(seq: int) -> dict:
     """A duplicate line the replay adds to the log."""
-    return event(seq, "duplicate", received_ns=DEADLINE + 100 * NS)
+    return event(seq, "duplicate", received_ns=REPLAY_NS)
 
 
 def replay_reading(duplicates: int, **changes) -> dict:
     """The 'replay' reading of the same process: only duplicate (and received) moved."""
     body = dict(AFTER, duplicate=AFTER["duplicate"] + duplicates, received=AFTER["received"] + duplicates,
-                uptime_s=AFTER["uptime_s"] + 400.0)
+                uptime_s=AFTER["uptime_s"] + 400.0, monotonic_ns=AFTER["monotonic_ns"] + 400 * NS)
     body.update(changes)
     return body
 
@@ -1477,7 +1492,8 @@ def test_replay_check_a_replayed_identity_without_a_duplicate_fails(tmp_path, ca
 
 
 def test_replay_check_an_acceptance_from_the_replay_fails(tmp_path, capsys) -> None:
-    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), event(2, "accepted", DEADLINE + 10 * NS)],
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), event(2, "accepted", REPLAY_NS + NS,
+                                                                       received_ns=REPLAY_NS)],
                                       replay=replay_reading(2, accepted=101, received=128))
     assert replay_check(run_dir, replay_dir) == rec.EXIT_MISMATCH
     lines = capsys.readouterr().out.splitlines()
@@ -1625,6 +1641,110 @@ def test_replay_check_exits_1_on_a_line_of_another_run_id(tmp_path, capsys) -> N
     assert replay_check(run_dir, replay_dir) == rec.EXIT_FAILED
     captured = capsys.readouterr()
     assert "itest-other" in captured.err and captured.out == ""
+
+
+@pytest.mark.parametrize("received_ns", [T0 + 2 * NS, AFTER["monotonic_ns"], None],
+                         ids=["before-the-after-reading", "at-the-after-reading", "no-stamp"])
+def test_replay_check_never_credits_the_replay_with_a_line_received_before_the_after_reading(tmp_path, capsys,
+                                                                                            received_ns) -> None:
+    """A line of the FIRST run appended after the pre-replay fetch and received before the 'after' reading (a late
+    redelivery of m0), while the replay's own m0 left no line: by position alone it would stand for m0's duplicate
+    from the replay. The controller stamps it on the clock of the 'after' reading (one process), so it is not the
+    replay's: the replay interval cannot be told from the copy, nothing is judged (exit 1), never a pass."""
+    gap = dict(event(0, "duplicate", received_ns=T0), received_monotonic_ns=received_ns)
+    run_dir, replay_dir = make_replay(tmp_path, [gap, dup(1), dup(2)])
+    before = tree(tmp_path)
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_FAILED
+    captured = capsys.readouterr()
+    assert "record 4" in captured.err and "'after' reading" in captured.err, captured.err
+    assert "replay interval cannot be told" in captured.err, captured.err
+    assert captured.out == ""  # nothing judged, nothing printed
+    assert tree(tmp_path) == before
+
+
+def test_replay_check_the_line_of_the_verifier_counter_example_is_not_a_pass(tmp_path, capsys) -> None:
+    """The counter-example as found: the 'after' reading already counts the gap duplicate (it was logged before it),
+    the replay adds m1 and m2 only. Before the fix this exited 0 with 'duplicate_replayed=3 of 3'."""
+    gap = event(0, "duplicate", received_ns=T0 + 2 * NS)
+    after = dict(AFTER, duplicate=AFTER["duplicate"] + 1, received=AFTER["received"] + 1)
+    run_dir, replay_dir = make_replay(tmp_path, [gap, dup(1), dup(2)], after=after,
+                                      replay=dict(after, duplicate=after["duplicate"] + 2,
+                                                  received=after["received"] + 2, uptime_s=450.0,
+                                                  monotonic_ns=after["monotonic_ns"] + 400 * NS))
+    assert replay_check(run_dir, replay_dir) != rec.EXIT_OK
+    assert "duplicate_replayed=3 of 3" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("value", ["absent", None, "123", 1.5, True])
+def test_replay_check_exits_1_without_the_controller_clock_of_the_after_reading(tmp_path, capsys, value) -> None:
+    """Within one process the 'after' reading's monotonic_ns bounds the replay's lines; without it (an integer, CONTRACTS
+    5) no line can be shown to be the replay's, and an absent field is never read as zero."""
+    after = _without(AFTER, "monotonic_ns") if value == "absent" else dict(AFTER, monotonic_ns=value)
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(2)], after=after)
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_FAILED
+    captured = capsys.readouterr()
+    assert ".metrics.after.json" in captured.err and "monotonic_ns" in captured.err, captured.err
+    assert captured.out == ""
+
+
+def test_replay_check_two_processes_still_fail_whatever_the_stamps(tmp_path, capsys) -> None:
+    """Across two processes the stamps are not read (the clock of a new boot starts again): test 4 fails, as the
+    same-process rule says, and is not turned into 'not evaluated'."""
+    early = [event(seq, "duplicate", received_ns=T0) for seq in range(3)]
+    run_dir, replay_dir = make_replay(tmp_path, early, replay=replay_reading(3, started_at="2026-09-18T11:00:00.000Z",
+                                                                             monotonic_ns=NS))
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_MISMATCH
+    assert "NOT one controller process" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# acceptance and replay-check: the sent file must be the whole of what the
+# simulator says it published (totals.sent of its manifest.json)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("manifest", [
+    sim_manifest(totals={"sent": 4, "intended_invalid": 1}, completed=False),
+    sim_manifest(totals={"sent": 4, "intended_invalid": 1}),
+    sim_manifest(totals={"sent": "3", "intended_invalid": 1}),
+    sim_manifest(totals=None),
+    None,
+], ids=["one-record-short-not-completed", "one-record-short", "totals-sent-a-string", "no-totals", "no-manifest"])
+def test_acceptance_exits_1_on_a_sent_file_the_simulator_totals_do_not_match(tmp_path, capsys, manifest) -> None:
+    """m3 was published (the simulator counted it) but its record is not in the file: a message never judged is not
+    a message accepted. Without a whole file nothing is judged."""
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), event(1, "accepted", T0)])
+    if manifest is None:
+        (run_dir / "manifest.json").unlink()
+    else:
+        write_json(run_dir / "manifest.json", manifest)
+    before = tree(tmp_path)
+    assert acceptance(run_dir, copy) == rec.EXIT_FAILED
+    captured = capsys.readouterr()
+    assert "manifest.json" in captured.err and captured.out == "", captured.err
+    assert tree(tmp_path) == before
+
+
+def test_acceptance_a_simulator_run_not_completed_is_judged_on_the_whole_file_it_left(tmp_path, capsys) -> None:
+    """completed=false with a whole file (totals.sent = the records): every published message is listed, so it is
+    judged; nothing about the interruption is decided here."""
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), event(1, "accepted", T0)])
+    write_json(run_dir / "manifest.json", sim_manifest(totals={"sent": 3, "intended_invalid": 1}, completed=False))
+    assert acceptance(run_dir, copy) == rec.EXIT_OK
+    assert "valid=2 accepted by the end of the drain=2 never accepted=0" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("manifest", [sim_manifest(totals={"sent": 4, "intended_invalid": 0}, completed=False),
+                                      sim_manifest(totals={"sent": 2, "intended_invalid": 0}), None],
+                         ids=["one-record-short", "one-record-too-many", "no-manifest"])
+def test_replay_check_exits_1_on_a_replay_sent_file_the_simulator_totals_do_not_match(tmp_path, capsys,
+                                                                                     manifest) -> None:
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(2)])
+    if manifest is None:
+        (replay_dir / "manifest.json").unlink()
+    else:
+        write_json(replay_dir / "manifest.json", manifest)
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_FAILED
+    captured = capsys.readouterr()
+    assert "manifest.json" in captured.err and captured.out == "", captured.err
 
 
 # ---------------------------------------------------------------------------

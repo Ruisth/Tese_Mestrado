@@ -179,6 +179,8 @@ if [ "$1" = -m ] && [ "$2" = egw_simulator ]; then
   out=; rid=; prev=
   for a in "$@"; do case $prev in --output) out=$a;; --run-id) rid=$a;; esac; prev=$a; done
   if [ -s "$S/sent_events.jsonl" ]; then mkdir -p "$out/$rid" && cp "$S/sent_events.jsonl" "$out/$rid/sent_events.jsonl"; fi
+  # the simulator manifest, only for the cases that give one (a real itest_reconcile reads its totals)
+  if [ -s "$S/sim_manifest.json" ]; then mkdir -p "$out/$rid" && cp "$S/sim_manifest.json" "$out/$rid/manifest.json"; fi
   [ -e "$S/sim_silent" ] || echo "egw_simulator stub: done run_id=$rid" >&2
   [ ! -s "$S/sim_sleep" ] || "$EGW_REAL_SLEEP" "$(cat "$S/sim_sleep")"
   exit "$(cat "$S/sim_rc" 2>/dev/null || echo 0)"
@@ -2049,9 +2051,13 @@ T3_SENT = [{"run_id": T3, "message_id": m, "device_type": "smartwatch", "device_
             "intended_invalid": m.startswith("i-")} for i, m in enumerate(("v-1", "v-2", "i-1"))]
 
 
-def t3_guest_log(bench: Bench, v2: str = "accepted") -> None:
+def t3_guest_log(bench: Bench, v2: str | None = "accepted") -> None:
+    """v2=None: v-2 has no outcome line at all in the guest's log."""
     bench.jsonl("sent_events.jsonl", T3_SENT)
-    bench.jsonl("remote_events.jsonl", [event(T3, "v-1", "accepted"), event(T3, "v-2", v2), event(T3, "i-1", "rejected")])
+    (bench.state / "sim_manifest.json").write_text(json.dumps(
+        {"run_id": T3, "completed": True, "totals": {"sent": len(T3_SENT), "intended_invalid": 1}}), encoding="utf-8")
+    bench.jsonl("remote_events.jsonl", [event(T3, "v-1", "accepted"), *([event(T3, "v-2", v2)] if v2 else []),
+                                        event(T3, "i-1", "rejected")])
 
 
 def call_test3_acceptance(bench: Bench, real_rec: bool = False) -> Result:
@@ -2116,7 +2122,39 @@ def test_test_3_without_a_post_drain_copy_is_not_evaluated(bench: Bench, case: s
         (bench.state / "remote_events.jsonl").unlink()
     r = call_test3_acceptance(bench)
     assert r.value("RT") != "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
-    assert r.starting("STOP: test 3: run_test did not complete"), r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run"), r.out
+    assert r.starting("STOP: test 3: the per-identity acceptance check was not run (C3='stop')"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert acceptance_calls(bench) == []
+
+
+def test_test_3_a_valid_message_without_any_outcome_line_fails_test_3_not_left_unevaluated(bench: Bench) -> None:
+    """Decision 3: a valid message with no outcome line in the copy fetched after the drain fails test 3. 'accounted'
+    names it and stops 'finish' AFTER its fetch (run_test ends non-zero), so the copy exists: it is kept and judged
+    (exit 4: test 3 FAILS), not reported as 'not evaluated'."""
+    t3_guest_log(bench, v2=None)
+    r = call_test3_acceptance(bench, real_rec=True)
+    assert r.value("RT") != "0", r.out
+    assert r.starting(f"STOP: accounted {T3}: published records of this run are named above"), r.out
+    assert r.value("C3") == "ok" and r.value("RA") != "0", r.out
+    kept = bench.p / f"{T3}.events.post-drain.jsonl"
+    assert kept.read_bytes() == (bench.p / T3 / "events.jsonl").read_bytes()
+    assert "  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: none" in r.lines, r.out
+    assert r.starting("STOP: test 3: the per-identity acceptance check"), r.out
+    assert any("(exit 4: test 3 FAILS)" in ln for ln in r.lines if ln.startswith("STOP: test 3")), r.out
+    assert not r.starting("STOP: test 3: no copy"), r.out
+
+
+def test_test_3_a_used_run_id_never_judges_the_copy_an_earlier_execution_left(bench: Bench) -> None:
+    """The run id was already used: 'pre' refuses it and nothing is published, but the earlier execution's fetched
+    copy is still there (every message accepted). It is not this run's post-drain copy: not kept, not judged."""
+    t3_guest_log(bench)
+    old = bench.p / T3
+    old.mkdir(parents=True)
+    (old / "events.jsonl").write_bytes((bench.state / "remote_events.jsonl").read_bytes())
+    r = call_test3_acceptance(bench)
+    assert r.value("RT") != "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run"), r.out
     assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
     assert acceptance_calls(bench) == []
 
@@ -2231,7 +2269,10 @@ def test_test_3_expected_list_requires_every_valid_message_accepted_by_the_end_o
     expected = _paragraph("### Test 3", "Expected:")
     for needle in ("`$P/$R.events.post-drain.jsonl`", "accepted late", "fails test 3", "gives up",
                    "not evaluated", "never passed", "Test 3 is not timed", "decide nothing else for test 3",
-                   "`valid rejected = 0`", "every `delta` line `OK`"):
+                   "`valid rejected = 0`", "every `delta` line `OK`",
+                   # a STOP of 'finish' after its fetch leaves the copy: judged, never 'not evaluated'
+                   "stops after its fetch", "without any outcome line fails test 3", "`F3`",
+                   "can only make test 3 fail"):
         assert needle in expected, needle
 
 
@@ -2242,9 +2283,14 @@ def test_test_4_expected_list_judges_the_replay_per_identity_and_includes_the_se
     for needle in ("`started_at`", "`uptime_s`", "`processing_errors`", "`mqtt_connection`", "non-decreasing",
                    "`duplicate_replayed`", "`duplicate_redelivery`", "consistent with the reconnection budget",
                    "decides nothing", "`accepted 0`", "`queue_depth 0`", "UNCHANGED", "`itest-dup-02`",
-                   "never been run", "`lost = 0`, `late_confirmations = 0`", "a failure of test 4"):
+                   "never been run", "`lost = 0`, `late_confirmations = 0`", "a failure of test 4",
+                   # the replay's lines: beyond the copy AND received after the 'after' reading
+                   "`received_monotonic_ns`", "at or before the `after` reading", "exit 1",
+                   "A stated limit, not conservative"):
         assert needle in expected, needle
     assert "caused by" not in expected
+    # a line appended after the pre-replay fetch can stand for a replay line: it does NOT only make test 4 fail
+    assert "it can only make test 4 fail" not in expected
 
 
 def test_tests_5_6_and_8_are_timed_and_section_8_names_the_spent_entry() -> None:
