@@ -227,16 +227,24 @@ drained() {
 '''
 
 # $REC of the bench: 'delta' checks that what test 6's delta line names is there - the two twin snapshots beside the
-# prefix and the events file - and records its argv; anything else goes to the proof hooks' recording 'snap' stub.
+# prefix, the events file and, for the N1 report (decision 2 of 2026-09-30), the controller log and the restart
+# evidence's run directory with its manifest - and records its argv; anything else goes to the proof hooks'
+# recording 'snap' stub.
 REC_WITH_DELTA = r'''#!/usr/bin/env bash
 if [ "${1:-}" = delta ]; then
   printf '%s\n' "$*" >> "$EGW_STUB_LOG.rec-delta"
-  prefix=; events=; prev=
-  for a in "$@"; do case $prev in --prefix) prefix=$a;; --events) events=$a;; esac; prev=$a; done
+  prefix=; events=; clog=; restart=; prev=
+  for a in "$@"; do
+    case $prev in --prefix) prefix=$a;; --events) events=$a;; --controller-log) clog=$a;; --restart-evidence) restart=$a;; esac
+    prev=$a
+  done
   for f in "$prefix.twins.before.json" "$prefix.twins.after.json" "$events"; do
     [ -s "$f" ] || { echo "stub delta: $f is missing or empty" >&2; exit 2; }
   done
-  echo "stub delta: read $prefix.twins.before.json, $prefix.twins.after.json and $events"
+  [ -z "$clog" ] || [ -s "$clog" ] || { echo "stub delta: the controller log $clog is missing or empty" >&2; exit 2; }
+  [ -z "$restart" ] || { [ -d "$restart" ] && [ -s "$restart/manifest.json" ]; } \
+    || { echo "stub delta: $restart is not a run directory with its manifest" >&2; exit 2; }
+  echo "stub delta: read $prefix.twins.before.json, $prefix.twins.after.json and $events${clog:+; the controller log $clog}${restart:+; the restart evidence of $restart}"
   exit 0
 fi
 exec "$EGW_STUB_BIN/rec-snap" "$@"
@@ -819,8 +827,13 @@ def test_test_6_its_drain_and_post_drain_copy_are_inside_the_runs_capture_and_th
     assert (run_dir / "SHA256SUMS").is_file()
     assert _t6_value(result) == "ok", report(result)
     delta = Path(f"{wiring.hooks.bench.log}.rec-delta").read_text(encoding="utf-8").splitlines()
-    assert delta == [f"delta {run_dir} --prefix {wiring.p}/{T6_RID} --events {run_dir}/events.post-drain.jsonl"]
+    # Decision 2 of 2026-09-30: the line also names the run's sealed controller log and the run directory itself,
+    # the N1 report's two sources (the report changes no status and no exit code).
+    assert delta == [f"delta {run_dir} --prefix {wiring.p}/{T6_RID} --events {run_dir}/events.post-drain.jsonl "
+                     f"--controller-log {run_dir}/logs/sut/controller.log --restart-evidence {run_dir}"]
     assert "stub delta: read " in result.stdout and "STOP: test 6" not in result.stderr, report(result)
+    assert f"; the controller log {run_dir}/logs/sut/controller.log; the restart evidence of {run_dir}" \
+        in result.stdout, report(result)
 
 
 def test_test_6_a_drain_that_gives_up_is_captured_the_post_drain_copy_still_runs_and_the_run_records_gave_up(wiring):

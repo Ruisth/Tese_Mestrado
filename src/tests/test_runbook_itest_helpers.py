@@ -1467,6 +1467,11 @@ def test_test_6_delta_line_names_the_post_drain_copy() -> None:
     assert "--events $RAW6/events.post-drain.jsonl" in command
     assert "--prefix $P/$RID" in command
     assert "--also" not in command
+    # Decision 2 of 2026-09-30: the N1 report's two sources, the run's sealed controller log and the run directory
+    # (its restart record, its Docker events capture and its drain); the line's guard and stop are unchanged.
+    assert "--controller-log $RAW6/logs/sut/controller.log --restart-evidence $RAW6 ||" in command
+    assert command.startswith('[ "$T6" = ok ] && $REC delta ')
+    assert command.endswith(''' || stop "test 6: delta NOT run (T6='$T6') or it exited non-zero (4 = MISMATCH)"''')
 
 
 def test_test_6_names_the_limit_the_harness_puts_on_its_drain_hook() -> None:
@@ -2077,27 +2082,40 @@ def test_test_5_a_log_not_read_or_without_the_client_is_a_stop(bench: Bench, cas
 # --------------------------------------------------------------------------
 # defect 2 - test 7: interruption AND recovery must both be shown
 # --------------------------------------------------------------------------
-def _t7_body(prefix: str = "") -> tuple[str, str, str]:
-    """All host$ lines of the test 7 block in their order; returns (body, run id, service)."""
+#: The start of the optional, read-only re-run of delta with the N1 report (decision 2 of 2026-09-30) that closes the
+#: test 7 block and its Ditto repeat, after the evaluation line.
+T7_N1_LINE = '[ "$LC" = 0 ] && [ -s $P/$R.sut/controller.log ] && [ -s $P/$R.twins.after.json ] && { $REC delta '
+
+
+def _t7_body(prefix: str = "", n1: bool = False) -> tuple[str, str, str]:
+    """All host$ lines of the test 7 block in their order, the optional N1 re-run of delta left out unless ``n1``;
+    returns (body, run id, service)."""
     cmds = _host_commands("### Test 7")
     first = _one(cmds, "R=")
     rid = run_id_of(first, "R")
     svc = re.search(r"SVC=([A-Za-z0-9_-]+)", first)
     assert svc, first
     test_line = _one(cmds, "T7=stop; if pre $R")
-    assert cmds.index(test_line) == len(cmds) - 2, "the evaluation line is expected right after the test line"
-    body = [prefix, *cmds[:-1], 'echo "T7_VALUE=$T7"', cmds[-1].split("\n")[0], 'echo "EVAL_RC=$?"']
+    n1_line = _one(cmds, T7_N1_LINE)
+    assert cmds.index(test_line) == len(cmds) - 3, "the evaluation line is expected right after the test line"
+    assert cmds[-1] == n1_line, "the optional N1 re-run of delta is expected last, after the evaluation line"
+    body = [prefix, *cmds[:-2], 'echo "T7_VALUE=$T7"', cmds[-2].split("\n")[0], 'echo "EVAL_RC=$?"']
+    if n1:
+        body += [n1_line.split("     #", 1)[0], 'echo "N1_RC=$?"']
     return "\n".join(body), rid, svc.group(1)
 
 
-def _ditto_body() -> tuple[str, str, str]:
+def _ditto_body(n1: bool = False) -> tuple[str, str, str]:
     """The Ditto repeat as the runbook has it pasted: test 7's helpers (DC, svc_state, fault_recover, fault, readyp),
-    then the repeat's own three lines; returns (body, run id, service)."""
+    then the repeat's own lines (the optional N1 re-run of delta only with ``n1``); returns (body, run id, service)."""
     t7, ditto = _host_commands("### Test 7"), _host_commands("### Repeat of test 7 for Ditto")
     first = _one(ditto, "R=")
     rid, svc = run_id_of(first, "R"), re.search(r"SVC=([A-Za-z0-9_-]+)", first).group(1)
-    body = [ln for ln in t7[:-2] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"',
+    assert len(ditto) == 4 and ditto[3] == _one(ditto, T7_N1_LINE)
+    body = [ln for ln in t7[:-3] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"',
                                                                  ditto[2].split("\n")[0], 'echo "EVAL_RC=$?"']
+    if n1:
+        body += [ditto[3].split("     #", 1)[0], 'echo "N1_RC=$?"']
     return "\n".join(body), rid, svc
 
 
@@ -2108,8 +2126,8 @@ def _t7_guest_logs(bench: Bench) -> None:
 
 
 def call_test7(bench: Bench, stub_pgrep_rc: int | None = 0, prefix: str = "", sub: str = "mongodb",
-               **env: str) -> tuple[Result, str, str]:
-    body, rid, svc = _t7_body(prefix) if sub == "mongodb" else _ditto_body()
+               n1: bool = False, **env: str) -> tuple[Result, str, str]:
+    body, rid, svc = _t7_body(prefix, n1=n1) if sub == "mongodb" else _ditto_body(n1=n1)
     full_run(bench, rid)
     bench.set("svc_state", "running")
     _t7_guest_logs(bench)
@@ -2401,6 +2419,50 @@ def test_test_7_an_observation_that_failed_keeps_the_instrumentations_statuses_b
     assert "sim_post exit=0, fault job exit=1, kill of the /ready poller exit=0" in stop[0], stop[0]
     assert f"events_stop exit={ev}, controller log read exit=0, broker log read exit=0" in stop[0], stop[0]
     assert not r.starting("STOP: test 7: the interruption and the recovery are shown"), r.out
+
+
+# --------------------------------------------------------------------------
+# Test 7, both sub-checks: the optional N1 report of delta (decision 2 of 2026-09-30)
+# --------------------------------------------------------------------------
+def _n1_reruns(bench: Bench) -> list[str]:
+    """The delta calls that name a controller log: the optional re-run only ('finish' names none)."""
+    return [ln for ln in bench.calls().splitlines()
+            if ln.startswith("python -m egw_experiments.itest_reconcile delta ") and "--controller-log" in ln]
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+def test_test_7_the_optional_n1_report_reruns_delta_with_the_sub_checks_controller_log(bench: Bench, sub: str) -> None:
+    r, rid, _svc = call_test7(bench, sub=sub, n1=True)
+    assert r.value("T7_VALUE") == "0", r.out
+    assert r.value("N1_RC") == "0" and not r.starting("STOP"), r.out
+    assert _n1_reruns(bench) == [f"python -m egw_experiments.itest_reconcile delta {bench.p}/{rid} "
+                                 f"--controller-log {bench.p}/{rid}.sut/controller.log"]
+    for line in _host_commands("### Test 7")[-1:] + _host_commands("### Repeat of test 7 for Ditto")[-1:]:
+        assert line.startswith(T7_N1_LINE) and "T7=" not in line.split("     #", 1)[0], line  # read-only: T7 stands
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+def test_test_7_the_n1_report_runs_beside_a_delta_mismatch_and_changes_no_status(bench: Bench, sub: str) -> None:
+    """An N1 identity makes the device line a MISMATCH, so 'finish' stops and T7 is 'failed:'; the re-run still
+    reports (exit 4 is a result), with no STOP of its own, and the failed T7 stands."""
+    bench.set("rec_delta_rc", 4)
+    r, rid, _svc = call_test7(bench, sub=sub, n1=True)
+    assert r.value("T7_VALUE").startswith("failed:sim_post="), r.out
+    assert r.value("N1_RC") == "0" and not r.starting("STOP: test 7: the optional N1 report"), r.out
+    assert len(_n1_reruns(bench)) == 1
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+@pytest.mark.parametrize("case", ["controller log not read", "delta not carried out"])
+def test_test_7_the_n1_report_not_produced_is_a_stop_of_its_own(bench: Bench, sub: str, case: str) -> None:
+    if case == "controller log not read":
+        bench.set("fetch_controller_rc", 1)
+    else:
+        bench.set("rec_delta_rc", 1)
+    r, _rid, _svc = call_test7(bench, sub=sub, n1=True)
+    assert r.value("N1_RC") != "0", r.out
+    assert len(r.starting("STOP: test 7: the optional N1 report was NOT produced")) == 1, r.out
+    assert len(_n1_reruns(bench)) == (0 if case == "controller log not read" else 1)
 
 
 @pytest.mark.skipif(REAL_PGREP is None, reason="pgrep (procps) is not installed")
