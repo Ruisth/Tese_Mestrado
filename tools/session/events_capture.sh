@@ -27,9 +27,11 @@
 #       a partial capture, never named or read as the run's docker-events.log:
 #       only once the unit was shown stopped (KEEP_DIR is not even created
 #       otherwise, so the cleanup can be repeated) and only into a KEEP_DIR
-#       that does not exist yet (write-once: one that exists is not written).
-#       Non-zero when the unit could not be shown stopped, KEEP_DIR exists or
-#       a copy failed.
+#       that does not exist yet (write-once: one that exists is not written);
+#       the files are copied beside it and become KEEP_DIR only once all four
+#       arrived, so a copy that failed leaves no KEEP_DIR and the cleanup can
+#       be repeated then too. Non-zero when the unit could not be shown
+#       stopped, KEEP_DIR exists or a copy failed.
 # A usage or a recorder that cannot be sent answers 2, and nothing is run on
 # the guest.
 #
@@ -173,16 +175,32 @@ rc=$?
 # capture, under names that are never the run's docker-events.log.
 [ "$rc" = 0 ] || { echo "STOP: events_capture: the unit egw-events-$RID was not shown stopped (exit $rc) - nothing was copied to $KEEP; repeat the cleanup" >&2; exit "$rc"; }
 [ ! -e "$KEEP" ] || { echo "STOP: events_capture: $KEEP exists - NOT overwritten; the unit's cleanup ran above, nothing was copied" >&2; exit 1; }
-mkdir -p "$KEEP" || { echo "STOP: events_capture: $KEEP could not be created - the partial capture was NOT kept" >&2; exit 1; }
+# The files are copied beside KEEP and the copy becomes KEEP only once all
+# four arrived: KEEP holds the whole partial capture or does not exist, so a
+# cleanup whose copy failed can be repeated (the guest's files no longer
+# change once the unit is shown stopped).
+STAGE=
+mkdir -p "$(dirname "$KEEP")" && STAGE=$(mktemp -d "$KEEP.copy.XXXXXX") \
+    || { echo "STOP: events_capture: $KEEP could not be created - the partial capture was NOT kept" >&2; exit 1; }
+# An empty staging directory is removed at the end; one that holds files a
+# failed copy did bring back is kept, named as incomplete in the STOP (never
+# as KEEP), so what reached the host is not thrown away.
+trap 'rmdir "$STAGE" 2> /dev/null' EXIT
 kept=0
 for pair in events.jsonl:events.partial.jsonl lifecycle.txt:lifecycle.txt start-facts.txt:start-facts.txt \
     cli.stderr:cli-stderr.txt; do
-    if scp -q "egw-tcg:/tmp/egw-events-$RID/${pair%%:*}" "$KEEP/${pair#*:}"; then
+    if scp -q "egw-tcg:/tmp/egw-events-$RID/${pair%%:*}" "$STAGE/${pair#*:}"; then
         kept=$((kept + 1))
     else
         echo "events_capture: /tmp/egw-events-$RID/${pair%%:*} was not copied from the guest" >&2
         rc=1
     fi
 done
-echo "events_capture: cleanup: $kept of the recorder's 4 files kept in $KEEP (a partial capture, not the run's)"
-exit "$rc"
+if [ "$rc" = 0 ] && [ ! -e "$KEEP" ] && mv -T "$STAGE" "$KEEP"; then
+    echo "events_capture: cleanup: the recorder's 4 files kept in $KEEP (a partial capture, not the run's)"
+    exit 0
+fi
+incomplete=""
+[ "$kept" = 0 ] || incomplete=", kept INCOMPLETE in $STAGE (not the run's capture, not $KEEP)"
+echo "STOP: events_capture: $kept of the recorder's 4 files copied$incomplete; NONE kept in $KEEP - repeat the cleanup before the guest powers off (its capture stays in /tmp/egw-events-$RID until then)" >&2
+exit 1

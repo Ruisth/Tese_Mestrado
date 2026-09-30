@@ -267,6 +267,44 @@ def test_a_cleanup_that_did_not_reach_the_guest_keeps_nothing_and_can_be_repeate
     assert (keep / "events.partial.jsonl").stat().st_size > 0 and (keep / "lifecycle.txt").is_file()
 
 
+def test_a_cleanup_whose_copy_failed_can_be_repeated_and_then_keeps_the_whole_capture(wiring):
+    """The copy is write-once as a whole: a cleanup that stopped the unit but whose copies failed leaves no
+    events-partial/, so its repeat, once the guest answers, keeps the recorder's four files there (review of part B,
+    item 2: an events-partial/ made before the copies stayed empty and refused every repeat)."""
+    rid = "smoke_sequence-r10"
+    start = wiring.run(f'events_start {rid}; echo "ES=$?"')
+    assert "ES=0" in start.stdout, report(start)
+    keep = wiring.sut(rid) / "events-partial"
+    records = wiring.hooks.bench.tmp / "no-stop-record"
+    first = wiring.run(f'events_cleanup {rid} {records}; echo "EC1=$?"', EGW_STUB_SCP_FAIL="egw-events-")
+    assert "EC1=1" in first.stdout and f"STOP: events_cleanup {rid}: " in first.stderr, report(first)
+    assert not wiring.hooks.recorder_running(rid), report(first)
+    assert not keep.exists(), f"{keep} was made by a copy that failed: " + report(first)
+    second = wiring.run(f'events_cleanup {rid} {records}; echo "EC2=$?"')
+    assert "EC2=0" in second.stdout, report(second)
+    assert sorted(p.name for p in keep.iterdir()) == ["cli-stderr.txt", "events.partial.jsonl", "lifecycle.txt",
+                                                      "start-facts.txt"]
+    assert (keep / "events.partial.jsonl").stat().st_size > 0
+    assert sorted(p.name for p in wiring.sut(rid).iterdir()) == ["events-partial", "events-start.txt"], \
+        "a staging copy was left beside the capture"
+
+
+def test_a_start_whose_session_dropped_and_whose_cleanup_failed_says_the_unit_may_still_run(wiring):
+    """The ssh of the start drops once the guest has started the unit (255), and the cleanup after it cannot reach
+    the guest: the STOP never claims the unit was stopped - it says it may still run and names the repeat (review of
+    part B, item 3)."""
+    rid = "smoke_sequence-r11"
+    result = wiring.run(f'T0=$(events_start {rid}); echo "ES=$?"', EGW_STUB_SSH_DROP="run_guest_t0=",
+                        EGW_STUB_SSH_REFUSE="unit_state_before_cleanup")
+    assert "ES=0" not in result.stdout, report(result)
+    assert wiring.hooks.recorder_running(rid), "the case needs the unit the dropped session had started"
+    stop = next(ln for ln in result.stderr.splitlines() if ln.startswith(f"STOP: events_start {rid}: "))
+    assert "NOT found ready" in stop and f"egw-events-{rid} may still run" in stop, stop
+    assert f"events_capture.sh cleanup {rid}" in stop, stop
+    again = wiring.hooks.run_argv(["bash", str(SESSION / "events_capture.sh"), "cleanup", rid])
+    assert again.returncode == 0 and not wiring.hooks.recorder_running(rid), report(again)
+
+
 def test_the_host_command_refuses_what_it_cannot_use_before_the_guest_is_reached(wiring):
     capture = SESSION / "events_capture.sh"
     for args in (["start"], ["start", "../x"], ["start", "a b"], ["stop", "r01"], ["cleanup", "r01", "k", "x"]):
@@ -453,6 +491,71 @@ def test_an_interruption_after_the_recorder_is_ready_but_before_the_harness_stop
     assert f"harness_cmd {rid}: interrupted" in err and f"STOP: harness_cmd {rid}: the harness was NOT started" in err
 
 
+@pytest.mark.parametrize("where", ["while_it_starts", "before_the_harness"])
+def test_an_interruption_whose_cleanup_cannot_reach_the_guest_says_the_unit_may_still_run(wiring, where):
+    """events_start's interruption and harness_cmd's: the cleanup that follows cannot reach the guest, so the STOP
+    says the unit may still run and names the repeat, never that it was stopped (review of part B, item 3)."""
+    rid = "smoke_sequence-r12"
+    refuse = {"EGW_STUB_SSH_REFUSE": "unit_state_before_cleanup"}
+    if where == "while_it_starts":
+        out, err = _interrupt_once(wiring, f'R={rid}; T0_7=$(events_start $R); echo "ES=$?"',
+                                   lambda: wiring.hooks.recorder_running(rid), signal.SIGINT,
+                                   EGW_STUB_FAIL="events-silent", **refuse)
+        prefix = f"STOP: events_start {rid}: interrupted"
+    else:
+        gap = Path(f"{wiring.hooks.bench.log}.start-returned")
+        body = ('eval "$(declare -f events_start | sed \'1s/^events_start/real_events_start/\')"\n'
+                'events_start() { real_events_start "$@"; local rc=$?; : > "$EGW_STUB_LOG.start-returned"; sleep 60; '
+                'return $rc; }\n' + f'harness_run {rid}; echo "RC=$?"')
+        out, err = _interrupt_once(wiring, body, gap.exists, signal.SIGINT, **refuse)
+        prefix = f"STOP: harness_cmd {rid}: the harness was NOT started"
+    assert not Path(f"{wiring.hooks.bench.log}.harness-started").exists(), out + err
+    assert wiring.hooks.recorder_running(rid), "the case needs a cleanup that could not reach the guest: " + out + err
+    stop = next((ln for ln in err.splitlines() if ln.startswith(prefix)), out + err)
+    assert f"egw-events-{rid} may still run" in stop and f"events_capture.sh cleanup {rid}" in stop, stop
+
+
+def test_a_harness_fetch_that_stopped_the_unit_but_kept_no_capture_leaves_it_to_the_ending(wiring):
+    """The docker-events fetch reached the guest's stop (its stop record is written) but its copy of the capture
+    failed: the run is invalid, and the ending, finding neither docker-events.log nor docker-events.partial.jsonl,
+    keeps what the recorder captured in events-partial/ (review of part B, item 1: the stop record alone was read as
+    the capture kept)."""
+    rid = "smoke_sequence-r09"
+    wiring.old_logs()
+    result = wiring.run(f'harness_run {rid}; echo "RC=$?"', EGW_STUB_SCP_FAIL_DEST="events.jsonl")
+    assert "RC=0" not in result.stdout, report(result)
+    manifest = json.loads((wiring.raw(rid) / "manifest.json").read_text(encoding="utf-8"))
+    assert any("--fetch-docker-events-cmd failed" in r for r in manifest["validity_reasons"]), manifest
+    sut = wiring.raw(rid) / "logs" / "sut"
+    assert (sut / "docker-events.stop.txt").is_file()
+    assert not (sut / "docker-events.log").exists() and not (sut / "docker-events.partial.jsonl").exists()
+    assert not wiring.hooks.recorder_running(rid)
+    keep = wiring.sut(rid) / "events-partial"
+    assert (keep / "events.partial.jsonl").is_file(), report(result)
+    assert (keep / "events.partial.jsonl").stat().st_size > 0
+    assert not list(wiring.hooks.bench.home.rglob("docker-events.log"))
+
+
+def test_harness_cmd_refuses_a_run_directory_another_execution_left_before_any_recorder_starts(wiring):
+    """The harness refuses a run directory that exists, and the records in it are another execution's: harness_cmd
+    refuses it first (2), so no recorder is started whose ending would decide from them (review of part B,
+    item 1)."""
+    rid = "smoke_sequence-r08"
+    old_sut = wiring.raw(rid) / "logs" / "sut"
+    old_sut.mkdir(parents=True)
+    for name in ("docker-events.log", "docker-events.stop.txt"):
+        (old_sut / name).write_text("an earlier execution's record\n", encoding="utf-8")
+    result = wiring.run(f'harness_cmd {rid}; echo "HC=$?"')
+    assert "HC=2" in result.stdout, report(result)
+    assert f"STOP: harness_cmd {rid}: " in result.stderr and "the harness was NOT started" in result.stderr, \
+        report(result)
+    assert not wiring.sut(rid).exists(), "a recorder was started for a run the harness refuses: " + report(result)
+    assert not any(f"egw-events-{rid}" in c for c in wiring.hooks.ssh_commands())
+    assert not Path(f"{wiring.hooks.bench.log}.harness-started").exists()
+    assert {p.name: p.read_text(encoding="utf-8") for p in old_sut.iterdir()} == \
+        {"docker-events.log": "an earlier execution's record\n", "docker-events.stop.txt": "an earlier execution's record\n"}
+
+
 # --------------------------------------------------------------------------
 # Tests 3, 5 and 9(b)/(c): the logs bounded to the test and to the sub-check
 # --------------------------------------------------------------------------
@@ -607,3 +710,96 @@ def test_test_7_events_stop_interrupted_in_its_fetch_and_pasted_again_stops_the_
     assert not wiring.hooks.recorder_running(rid), "the pasted events_stop left the unit running"
     assert (d / "events-partial" / "events.partial.jsonl").stat().st_size > 0, report(again)
     assert not (d / "docker-events.log").exists()
+
+
+def test_test_7_events_stop_whose_fetch_copied_nothing_leaves_the_capture_to_the_cleanup_and_the_paste_keeps_it(wiring):
+    """The guest stops answering during the fetch: its stop ssh and its copies fail, and it still writes its (empty)
+    stop record. The capture was not kept, so the cleanup - which cannot reach the guest either - and then the paste
+    of events_stop that test 7's prose prescribes, once the guest answers, keep it in events-partial/ (review of part
+    B, item 1: the stop record alone was read as the capture kept, and the capture was left to the guest's tmpfs)."""
+    rid = "itest-mongodb-fault-05"
+    start = wiring.run(f'events_start {rid}; echo "ES=$?"')
+    assert "ES=0" in start.stdout, report(start)
+    t0 = wiring.run_t0(rid)
+    first = wiring.run(f'events_stop {rid} {t0} die,stop,start egw-mongodb-1; echo "EV1=$?"',
+                       EGW_STUB_SSH_REFUSE="stop_requested_guest_epoch", EGW_STUB_SCP_FAIL="egw-events-")
+    assert "EV1=1" in first.stdout, report(first)
+    d = wiring.sut(rid)
+    assert (d / "docker-events.stop.txt").is_file()
+    assert not (d / "docker-events.log").exists() and not (d / "docker-events.partial.jsonl").exists()
+    assert wiring.hooks.recorder_running(rid), "the case needs a cleanup that could not reach the guest"
+    assert not (d / "events-partial").exists(), report(first)
+    again = wiring.run(f'events_stop {rid} {t0} die,stop,start egw-mongodb-1; echo "EV2=$?"')
+    assert "EV2=1" in again.stdout and f"{d}/docker-events.fetch.txt exists" in again.stderr, report(again)
+    assert not wiring.hooks.recorder_running(rid), "the pasted events_stop left the unit running"
+    assert (d / "events-partial" / "events.partial.jsonl").is_file(), report(again)
+    assert (d / "events-partial" / "events.partial.jsonl").stat().st_size > 0
+    assert not (d / "docker-events.log").exists()
+
+
+# --------------------------------------------------------------------------
+# What the runbook and the fetch hook say about the capture
+# --------------------------------------------------------------------------
+RUNBOOK = REPO_ROOT / "docs" / "setup" / "qemu_integrated_gateway.md"
+
+
+def _comment_text(lines: list[str]) -> str:
+    return " ".join(ln.strip().lstrip("#").strip() for ln in lines)
+
+
+def test_test_9_does_not_state_as_fact_that_the_refusal_names_its_client_id():
+    """Whether Mosquitto 2.0.22's 'not authorised' line carries the client id or <unknown> is UNVERIFIED (test 9(e));
+    the comment of (b) and (c) says so, and how such a line in (c)'s window is read (review of part B, item 4)."""
+    lines = RUNBOOK.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("# (b) and (c): the broker log is the actual evidence"))
+    end = next(i for i in range(start, len(lines)) if lines[i].startswith("# (b) wrong password"))
+    comment = _comment_text(lines[start:end])
+    assert "(b)'s evidence is a refusal naming its client id" not in comment, comment
+    assert "UNVERIFIED:" in comment and "<unknown>" in comment, comment
+
+
+def test_an_older_clone_without_the_capture_scripts_never_starts_the_harness_and_the_docs_say_so(wiring):
+    """EGW_CLONE naming a checkout without tools/session/events_capture.sh (as the helper file's default, the older
+    Yocto clone): harness_cmd answers 2 and the harness is not started. The EGW_CLONE paragraph says that, and the
+    fetch hook's header names who starts the recorder and supplies RUN_T0 (review of part B, item 5)."""
+    rid = "smoke_sequence-r13"
+    older = wiring.hooks.bench.tmp / "older-clone"
+    (older / "src").mkdir(parents=True)
+    result = wiring.run(f'harness_run {rid}; echo "RC=$?"', EGW_CLONE=str(older))
+    assert "RC=0" not in result.stdout, report(result)
+    assert f"STOP: harness_cmd {rid}: the harness was NOT started" in result.stderr, report(result)
+    assert not Path(f"{wiring.hooks.bench.log}.harness-started").exists() and not wiring.raw(rid).exists()
+    assert wiring.hooks.ssh_commands() == []
+    paragraph = next(p for p in RUNBOOK.read_text(encoding="utf-8").split("\n\n")
+                     if p.startswith("**`EGW_CLONE` must name the checkout"))
+    assert "every `harness_run` ends invalid" not in paragraph, paragraph
+    assert "the harness is not started" in paragraph, paragraph
+    header = _comment_text((SESSION / "proof_fetch_sut_log.sh").read_text(encoding="utf-8").splitlines()[1:43])
+    assert "that proof.sh started" not in header and "the instant proof.sh recorded" not in header, header
+    assert "events_capture.sh" in header and "events_start" in header, header
+
+
+def test_a_copy_that_brought_back_some_files_keeps_them_apart_as_incomplete_and_the_repeat_keeps_the_capture(wiring):
+    """A cleanup whose copy failed for one file keeps the files that did arrive, in a directory named as incomplete
+    and named in its STOP, never as events-partial/; the repeat then keeps the whole capture (second review of part B:
+    the staging directory was deleted on failure, so a partial capture that reached the host was thrown away)."""
+    rid = "smoke_sequence-r31"
+    start = wiring.run(f'events_start {rid}; echo "ES=$?"')
+    assert "ES=0" in start.stdout, report(start)
+    keep = wiring.sut(rid) / "events-partial"
+    records = wiring.hooks.bench.tmp / "no-stop-record-31"
+    first = wiring.run(f'events_cleanup {rid} {records}; echo "EC1=$?"', EGW_STUB_SCP_FAIL_DEST="cli-stderr.txt")
+    assert "EC1=1" in first.stdout, report(first)
+    assert not wiring.hooks.recorder_running(rid), report(first)
+    assert not keep.exists(), report(first)
+    stages = [p for p in wiring.sut(rid).iterdir() if p.name.startswith("events-partial.copy.")]
+    assert len(stages) == 1, sorted(p.name for p in wiring.sut(rid).iterdir())
+    assert sorted(p.name for p in stages[0].iterdir()) == ["events.partial.jsonl", "lifecycle.txt", "start-facts.txt"]
+    assert (stages[0] / "events.partial.jsonl").stat().st_size > 0
+    stop = next(ln for ln in first.stderr.splitlines() if ln.startswith("STOP: events_capture: 3 of the recorder"))
+    assert "INCOMPLETE" in stop and str(stages[0]) in stop, stop
+    second = wiring.run(f'events_cleanup {rid} {records}; echo "EC2=$?"')
+    assert "EC2=0" in second.stdout, report(second)
+    assert sorted(p.name for p in keep.iterdir()) == ["cli-stderr.txt", "events.partial.jsonl", "lifecycle.txt",
+                                                      "start-facts.txt"]
+    assert stages[0].is_dir(), "the incomplete copy of the first attempt is kept as its record"

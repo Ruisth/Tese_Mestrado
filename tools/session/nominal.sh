@@ -253,8 +253,10 @@ post_window after-snapshots "$snap_rc" "the 'after' snapshots were not taken"
 # The four snapshots are the counter and twin baseline of the run, and this
 # copy is the ONLY path by which the mandatory 'pre' and 'after-snapshots'
 # evidence reaches the package: both calls are checked and the copy's own
-# diagnostics are kept.
-if mkdir -p "$A/analysis/snapshots" && cp "$P/$RID".* "$A/analysis/snapshots/"; then
+# diagnostics are kept. The glob also takes the directory harness_run leaves
+# beside them, $P/$RID.sut/ (the start record of the run's Docker events
+# recorder and any partial capture: runbook 6.1, events_start), hence '-r'.
+if mkdir -p "$A/analysis/snapshots" && cp -r "$P/$RID".* "$A/analysis/snapshots/"; then
     ls -l "$A/analysis/snapshots/"
 else
     mandatory+=("the before/after snapshots were not copied into the package")

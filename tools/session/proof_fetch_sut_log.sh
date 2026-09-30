@@ -16,17 +16,23 @@
 #                         guest: the controller logs its JSON lines to stderr
 #                         (logging_config.py); bounded to the run (below)
 #          docker-events  the run's continuous Docker events capture: the
-#                         recorder unit egw-events-RUN_ID that proof.sh
-#                         started before the workload and the fault
-#                         (proof_events_recorder.sh) is stopped here, its
-#                         files are fetched and its coverage is judged
-#                         (events_coverage.py); never a history query
+#                         recorder unit egw-events-RUN_ID started before the
+#                         workload and the fault (proof_events_recorder.sh,
+#                         through events_capture.sh: by proof.sh, or by the
+#                         runbook's events_start, which its harness_cmd
+#                         calls, 6.1) is stopped here, its files are fetched
+#                         and its coverage is judged (events_coverage.py);
+#                         never a history query
 #   DEST   the file the harness expects (<run dir>/logs/sut/broker.log,
-#          controller.log or docker-events.log)
+#          controller.log or docker-events.log), or the runbook's own
+#          record ($P/<name>.sut/, 6.1: sut_log, events_stop)
 #   RUN_T0 the guest epoch, in whole seconds, from which the run's window is
-#          taken: the instant proof.sh recorded when the events recorder was
-#          found ready, before tunnel-ready, the harness, the twin snapshot
-#          before the run, the load and the fault (instants.run_guest_t0)
+#          taken: the instant the events recorder was found ready - recorded
+#          by proof.sh before tunnel-ready, the harness, the twin snapshot
+#          before the run, the load and the fault (instants.run_guest_t0),
+#          or printed by the runbook's events_start - or, for the runbook's
+#          tests 3, 5 and 9(b)/(c), the guest epoch read just before the
+#          test's first action (guest_epoch, 6.1)
 #   RUN_ID the harness run id ({run_id}): it names the recorder's unit and
 #          its guest directory /tmp/egw-events-RUN_ID (docker-events only)
 #   EXPECTED  the Docker actions of CONTAINER the run's scenario
