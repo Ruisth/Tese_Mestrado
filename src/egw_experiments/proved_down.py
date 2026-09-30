@@ -48,11 +48,12 @@ import calendar
 import json
 import re
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .resources import ProvedDownInterval, ns_utc_text
+from .protocol import RESOURCE_SAMPLE_INTERVAL_S
+from .resources import ProvedDownInterval, ns_utc_text, whole_second
 
 #: The restarted container: the one test 6's restart names, the one its
 #: capture's coverage verdict and its StartedAt record must both name.
@@ -304,6 +305,16 @@ def derive_proved_down(
         )
     if s_ns <= d_ns:
         return no(f"the start at {start_utc} is not after the die at {die_utc}")
+    try:
+        # The validator looks for the first row one sampling interval after
+        # the start's second: that second must be nameable too.
+        whole_second(s_ns) + timedelta(seconds=RESOURCE_SAMPLE_INTERVAL_S)
+    except OverflowError:
+        return no(
+            f"the second one sampling interval after the start at {start_utc} is "
+            "past the last instant UTC text can name, so no row can be stamped "
+            "after the start"
+        )
     interval = ProvedDownInterval(container=CONTAINER, die_ns=d_ns, start_ns=s_ns)
     exit_code = die["Actor"]["Attributes"].get("exitCode")
     facts.update({
