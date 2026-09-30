@@ -100,6 +100,18 @@ def parse_rfc3339_ns(text: str) -> int | None:
     return calendar.timegm(whole.timetuple()) * _NS + int(frac.ljust(9, "0") or "0")
 
 
+def _whole_number(text: str) -> int | None:
+    """Digits only, as an int; None for anything else, and for digits too
+    many for Python to convert from text (``sys.get_int_max_str_digits()``),
+    which would otherwise raise inside the harness."""
+    if not _WHOLE.fullmatch(text):
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
 def _key_values(text: str) -> tuple[dict[str, list[str]], list[str]]:
     """``key=value`` lines as {key: [values]}, plus the lines that are not."""
     values: dict[str, list[str]] = {}
@@ -227,13 +239,13 @@ def derive_proved_down(
             "include die and start"
         )
     since, until = values["requested_since_guest_epoch"][0], values["requested_until_guest_epoch"][0]
-    if not (_WHOLE.fullmatch(since) and _WHOLE.fullmatch(until)) or int(until) < int(since):
+    t0, t1 = _whole_number(since), _whole_number(until)
+    if t0 is None or t1 is None or t1 < t0:
         return no(
             "the capture's requested_since_guest_epoch and "
             f"requested_until_guest_epoch ({since!r}, {until!r}) are not a "
             "whole-number window"
         )
-    t0, t1 = int(since), int(until)
     facts["capture_since_guest_epoch"] = t0
     facts["capture_until_guest_epoch"] = t1
 
@@ -320,17 +332,17 @@ def derive_proved_down(
         )
     record_fields = {key: fields[key][0] for key in _STARTED_AT_KEYS}
     started_ns = parse_rfc3339_ns(record_fields["started_at"])
+    read_epoch = _whole_number(record_fields["guest_epoch"])
     if (
         started_ns is None
         or not _CONTAINER_ID.fullmatch(record_fields["container_id"])
-        or not _WHOLE.fullmatch(record_fields["guest_epoch"])
+        or read_epoch is None
     ):
         return no(
             f"the StartedAt record {STARTED_AT_REL} is not of the expected form "
             "(a 64 lower-case hex container_id, an RFC 3339 started_at ending Z, "
             "a whole-number guest_epoch)"
         )
-    read_epoch = int(record_fields["guest_epoch"])
     facts.update({
         "started_at": record_fields["started_at"],
         "started_at_ns": started_ns,
