@@ -36,6 +36,24 @@ failure. Failed polls are counted (``poll_errors``) and the last error
 message is kept; no row is written for a failed poll, so gaps in
 ``controller_metrics.csv`` are themselves evidence of unavailability.
 
+Write failures are not failed polls (work order of 2026-09-29, A2). When
+either file cannot be opened, written, flushed or closed (an OSError; for a
+row, also a ValueError: a string utf-8 cannot encode, or a handle already
+closed), the sampler records it (``write_error``, the first failure;
+``write_errors``, every one in order) and stops sampling: the evidence is
+incomplete from that point, so there is
+nothing to retry and no row is written in place of the lost one. The files
+are still closed, so the rows written before the failure stay readable. The
+owner reads ``write_error`` after ``__exit__`` (run.py makes it a validity
+reason); ``poll_errors`` and the retry mode never see it. Until 2026-09-29 a
+failed write ended the thread silently, or raised from the entry poll. A
+thread still running when ``__exit__``'s join (:data:`JOIN_TIMEOUT_S`) gives
+up is recorded the same way, before the files are closed under it; they are
+closed and their handles cleared under the lock, so no row is written and no
+write failure recorded after ``__exit__`` returns (review of 2026-09-30:
+until then the thread's late write failed on the closed file after the owner
+had read ``write_error``).
+
 Two recording rules, one per kind of field. The eleven counters
 (:data:`METRIC_FIELDS`) are COUNTS, so a recorded value must be a
 non-negative integer (sprint P5.4 defect 4). Two layers enforce it.
@@ -99,6 +117,12 @@ from .protocol import RESOURCE_SAMPLE_INTERVAL_S
 #: settings, not acceptance criteria; off unless a caller enables them.
 FAST_RETRY_S = 0.05
 FAST_RETRY_CAP_S = 60.0
+
+#: How long ``__exit__`` waits for the sampling thread to end. A thread still
+#: running after it is an instrumentation failure (review of 2026-09-30):
+#: its files are closed once any write in progress ends, and a reading it
+#: returns after that is not written.
+JOIN_TIMEOUT_S = 30.0
 
 #: The attempts log of the failed-poll retry mode: one row per poll, with
 #: the HOST's instants (never the controller clock) and the wait chosen.
@@ -238,9 +262,10 @@ class ControllerMetricsSampler:
             ...  # timed run
         sampler.samples_written / sampler.poll_errors / sampler.last_error
         sampler.invalid_values / sampler.last_invalid  # refused values
+        sampler.write_error / sampler.write_errors  # files that failed
 
     The CSV (header included) is always created so the run directory
-    structure stays uniform (plan 5.8).
+    structure stays uniform (plan 5.8), unless creating it is what failed.
     """
 
     def __init__(
@@ -288,6 +313,11 @@ class ControllerMetricsSampler:
         # Values refused by the count rule (P5.4 defect 4) or the raw rule.
         self.invalid_values = 0
         self.last_invalid: str | None = None
+        # Instrumentation failures (A2): the first failed open/write/flush/
+        # close of either file, or the thread outliving __exit__'s join,
+        # which stops sampling, and every one in order.
+        self.write_error: str | None = None
+        self.write_errors: list[str] = []
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._fh = None
@@ -308,6 +338,48 @@ class ControllerMetricsSampler:
                 file=sys.stderr,
                 flush=True,
             )
+
+    def _write_failed(self, what: str, exc: OSError | ValueError) -> None:
+        """Record a failed open/write/flush/close of one file (or the thread
+        outliving the join) and stop sampling. An instrumentation failure,
+        never a failed poll: it is not counted in ``poll_errors``, not
+        retried, and no row replaces the one that was lost. The first failure
+        is kept in ``write_error``."""
+        message = f"{what} failed: {type(exc).__name__}: {exc}"
+        self.write_errors.append(message)
+        if self.write_error is None:
+            self.write_error = message
+            print(
+                f"[metrics-sampler] error: {message}; sampling stopped",
+                file=sys.stderr,
+                flush=True,
+            )
+        self._stop.set()
+
+    def _open_stream(self, path: Path, header) -> tuple[Any, Any]:
+        """Create one file and write its header: ``(handle, writer)``. A
+        failure is recorded; a handle already opened is still returned, for
+        ``__exit__`` to close."""
+        fh = writer = None
+        step = "open"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fh = open(path, "w", encoding="utf-8", newline="")
+            writer = csv.writer(fh)
+            step = "write"
+            writer.writerow(header)
+            step = "flush"
+            fh.flush()
+        except OSError as exc:
+            self._write_failed(f"{path.name} {step}", exc)
+        return fh, writer
+
+    def _close(self, fh, name: str) -> None:
+        try:
+            fh.close()
+        except OSError as exc:
+            # close flushes: a second failure is recorded after the first
+            self._write_failed(f"{name} close", exc)
 
     def _sample_once(self) -> str | None:
         """One poll: writes the row of a successful one. Returns None on
@@ -354,9 +426,22 @@ class ControllerMetricsSampler:
             else:
                 row.append(value)
         with self._lock:
-            self._writer.writerow(row)
-            self.samples_written += 1
-            self._fh.flush()
+            if self._writer is None:
+                # __exit__ closed the files under a thread that outlived its
+                # join, and recorded that first: no row.
+                return None
+            step = "write"
+            try:
+                self._writer.writerow(row)
+                self.samples_written += 1
+                step = "flush"
+                self._fh.flush()
+            except (OSError, ValueError) as exc:
+                # The poll itself succeeded; the file did not (A2). ValueError
+                # is a row that utf-8 cannot encode (UnicodeEncodeError: a raw
+                # string with a lone surrogate, which json.loads can return)
+                # or a handle already closed.
+                self._write_failed(f"{self.csv_path.name} {step}", exc)
         return None
 
     def _next_wait(self, ok: bool, started: float, finished: float) -> float:
@@ -390,9 +475,14 @@ class ControllerMetricsSampler:
         error = self._sample_once()
         finished = time.monotonic()
         wait = self._next_wait(error is None, started, finished)
-        if self._attempts_writer is not None:
+        # No attempts row once a file has failed: sampling has stopped. Checked
+        # under the lock, under which __exit__ closes and clears the handles.
+        with self._lock:
+            if self._attempts_writer is None or self.write_error is not None:
+                return wait
             self._attempts += 1
-            with self._lock:
+            step = "write"
+            try:
                 self._attempts_writer.writerow(
                     [
                         self._attempts,
@@ -404,7 +494,11 @@ class ControllerMetricsSampler:
                         f"{wait:.3f}",
                     ]
                 )
+                step = "flush"
                 self._attempts_fh.flush()
+            except (OSError, ValueError) as exc:
+                # as for the metrics row, ValueError included
+                self._write_failed(f"{self.attempts_path.name} {step}", exc)
         return wait
 
     def _loop(self) -> None:
@@ -416,18 +510,19 @@ class ControllerMetricsSampler:
     # -- context manager ---------------------------------------------------
 
     def __enter__(self) -> "ControllerMetricsSampler":
-        self.csv_path.parent.mkdir(parents=True, exist_ok=True)
-        self._fh = open(self.csv_path, "w", encoding="utf-8", newline="")
-        self._writer = csv.writer(self._fh)
-        self._writer.writerow(CSV_HEADER)
-        self._fh.flush()
-        if self.attempts_path is not None:
-            self.attempts_path.parent.mkdir(parents=True, exist_ok=True)
-            self._attempts_fh = open(self.attempts_path, "w", encoding="utf-8", newline="")
-            self._attempts_writer = csv.writer(self._attempts_fh)
-            self._attempts_writer.writerow(ATTEMPTS_HEADER)
-            self._attempts_fh.flush()
+        # A file that cannot be created or written, here or on the entry
+        # poll, is recorded and ends sampling without raising into the
+        # owner's bookkeeping; __exit__ still closes what was opened (A2).
+        self._fh, self._writer = self._open_stream(self.csv_path, CSV_HEADER)
+        if self.attempts_path is not None and self.write_error is None:
+            self._attempts_fh, self._attempts_writer = self._open_stream(
+                self.attempts_path, ATTEMPTS_HEADER
+            )
+        if self.write_error is not None:
+            return self
         first_wait = self._poll()
+        if self.write_error is not None:
+            return self
         self._first_wait = first_wait if self.fast_retry_s is not None else 0.0
         self._thread = threading.Thread(
             target=self._loop, name="controller-metrics-sampler", daemon=True
@@ -438,12 +533,28 @@ class ControllerMetricsSampler:
     def __exit__(self, exc_type, exc, tb) -> None:
         self._stop.set()
         if self._thread is not None:
-            self._thread.join(timeout=30.0)
-        if self._fh is not None:
-            self._fh.close()
-            self._fh = None
-        if self._attempts_fh is not None:
-            self._attempts_fh.close()
-            self._attempts_fh = None
+            self._thread.join(timeout=JOIN_TIMEOUT_S)
+            if self._thread.is_alive():
+                # Recorded before the files are closed under it, so that the
+                # owner, which reads write_error once this returns, sees it
+                # (review of 2026-09-30).
+                self._write_failed(
+                    "sampler thread join",
+                    TimeoutError(
+                        f"still running {JOIN_TIMEOUT_S} s after the stop; its "
+                        "files are closed once any write in progress ends, and "
+                        "a reading it returns after that is not written"
+                    ),
+                )
+        # Closed after a write failure too, so that the rows written before
+        # it stay readable; under the lock, so that a thread still running
+        # finds the handles cleared and writes nothing more.
+        with self._lock:
+            fh, self._fh, self._writer = self._fh, None, None
+            attempts_fh, self._attempts_fh = self._attempts_fh, None
             self._attempts_writer = None
+            if fh is not None:
+                self._close(fh, self.csv_path.name)
+            if attempts_fh is not None:
+                self._close(attempts_fh, self.attempts_path.name)
         return None

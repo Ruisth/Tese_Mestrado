@@ -506,7 +506,12 @@ acceptance.*
   *(Marker added 2026-09-29: the readiness of each family on the option-5
   candidate, with what blocks it, is mapped in the
   [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md); no family
-  was run and no criterion changed.)*
+  was run and no criterion changed.)* *(Marker added 2026-09-29, later: the two
+  deferred acquisition defects are repaired and the run-scoped capture is wired
+  into the runbook's G3 procedures, tested with stubs only (LOG #C047); the
+  decisions needed before G3 are set out, not taken, in the
+  [pending-decisions page](docs/governance/proposals/2026-09-29-g3-pending-decisions.md);
+  G3 stays paused.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;

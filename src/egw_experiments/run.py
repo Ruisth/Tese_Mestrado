@@ -261,6 +261,7 @@ incomplete run must never look like sealed evidence.
 from __future__ import annotations
 
 import csv
+import http.client
 import json
 import math
 import os
@@ -334,6 +335,12 @@ HOOK_KILL_GRACE_S = 5.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.4 (work order of 2026-09-29, A2; additive within the version, no reader
+# change needed): 'controller_metrics' gains 'write_error' (the first file of
+# the sampler that could not be opened, written, flushed or closed, or its
+# thread still running after the join; null when none) and 'write_errors'
+# (every such failure in order). A write_error is a validity reason of every
+# run, re-applied by 'collect'.
 # 1.4 (ADR 0011 item 18; additive within the version, no reader change
 # needed): adds 'sut_log_fetches' (the records of --fetch-broker-log-cmd,
 # --fetch-controller-log-cmd and --fetch-docker-events-cmd, shaped like a
@@ -991,9 +998,11 @@ def poll_controller_marker(
     The 60 s window itself is NOT touched here; only the instrumentation
     that fixes the END INSTANT is.
 
-    Returns ``{url, polled_utc, ok, monotonic_ns, wall_utc, error}``; never
-    raises — an unreachable or too-old controller is recorded, and the
-    caller applies the validity rules.
+    Returns ``{url, polled_utc, ok, monotonic_ns, wall_utc, error}``; a
+    failed read never raises — an unreachable controller, a typed HTTP
+    failure (``http.client.HTTPException``) or a too-old controller is
+    recorded, and the caller applies the validity rules. One request, no
+    retry; a programming error or a cancellation propagates.
     """
     record: dict[str, Any] = {
         "url": None,
@@ -1016,6 +1025,16 @@ def poll_controller_marker(
         payload = _http_get_json(url, timeout_s)
     except (OSError, ValueError) as exc:
         record["error"] = f"GET {url} failed: {exc}"
+        return record
+    except http.client.HTTPException as exc:
+        # A typed HTTP failure that is not an OSError (IncompleteRead,
+        # BadStatusLine, LineTooLong: a controller killed or restarted
+        # mid-response) is a failed read like any other, named by its type:
+        # no marker, so no deadline. Until 2026-09-29 it escaped execute_run
+        # before the manifest was written, and crashed itest_reconcile's
+        # mark and wait. Anything else (a programming error, a cancellation)
+        # still propagates.
+        record["error"] = f"GET {url} failed: {type(exc).__name__}: {exc}"
         return record
     if not isinstance(payload, dict):
         record["error"] = f"GET {url} did not return a JSON object"
@@ -3512,6 +3531,7 @@ def compute_validity(
     drain: dict[str, Any] | None = None,
     events_post_drain_fetch: dict[str, Any] | None = None,
     config_identity_ok: bool = True,
+    metrics_write_error: str | None = None,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -3591,6 +3611,14 @@ def compute_validity(
     whose outcome is 'gave-up' is NOT a reason: exclusion follows the
     validity of the evidence, never the outcome, so a valid run that shows
     a failed recovery is retained and analysed.
+
+    Work order of 2026-09-29 (A2): a file of the controller /metrics
+    sampler that could not be opened, written, flushed or closed, or its
+    thread still running after the join (``metrics_write_error``), is a
+    reason on every run, with no override:
+    the instrumentation failed, so its evidence stops at the last row
+    written. Failed polls (the controller not answering) are an observation
+    and stay warnings.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -3700,6 +3728,17 @@ def compute_validity(
             "marked invalid and NOT sealed (no SHA256SUMS); recover the "
             "missing evidence with 'collect' or repeat the run under a new "
             "run identity"
+        )
+    if metrics_write_error is not None:
+        reasons.append(
+            "controller metrics sampler could not record its evidence "
+            f"({metrics_write_error}): sampling stopped there, so "
+            "controller_metrics.csv (and the attempts log, if any) holds only "
+            "the rows written before the failure. This is a failure of the "
+            "harness's instrumentation, whatever set it off (a value the "
+            "controller sent that the CSV cannot hold included), and not a "
+            "failed poll, which poll_errors counts instead; there is no "
+            "override: repeat the run under a new run identity"
         )
     return ("valid" if not reasons else "invalid"), reasons
 
@@ -4758,6 +4797,29 @@ def execute_run(
             f"{metrics_sampler.invalid_values} counter value(s) that are not "
             f"non-negative integers; last: {metrics_sampler.last_invalid}"
         )
+    # One snapshot of the sampler's file failures, taken once __exit__ has
+    # returned (after which nothing more is recorded; a thread that outlived
+    # its join is itself one), serves both the validity and the manifest.
+    metrics_write_error = (
+        metrics_sampler.write_error if metrics_sampler is not None else None
+    )
+    metrics_write_errors = (
+        list(metrics_sampler.write_errors) if metrics_sampler is not None else []
+    )
+    if metrics_write_error is not None:
+        # An instrumentation failure (work order of 2026-09-29, A2), unlike
+        # the failed polls above: a validity reason, not only a warning.
+        warnings.append(
+            "controller metrics sampler stopped on an instrumentation failure: "
+            f"{metrics_write_error}; its files hold only the rows written "
+            "before it"
+        )
+        print(
+            f"[harness] error: controller metrics sampler stopped on a file "
+            f"failure: {metrics_write_error}",
+            file=sys.stderr,
+            flush=True,
+        )
     if sim_returncode != 0:
         warnings.append(f"simulator exited with code {sim_returncode}")
 
@@ -5183,6 +5245,7 @@ def execute_run(
         drain=drain_record,
         events_post_drain_fetch=events_post_drain_fetch,
         config_identity_ok=configuration_identity is not None,
+        metrics_write_error=metrics_write_error,
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -5243,6 +5306,12 @@ def execute_run(
                 # are not non-negative integers are written as empty cells.
                 "invalid_values": metrics_sampler.invalid_values,
                 "last_invalid_value": metrics_sampler.last_invalid,
+                # A file of the sampler that failed (A2), or its thread still
+                # running after the join: the first failure, which stopped
+                # sampling and is a validity reason, and every one in order
+                # (a close that failed after it, say); the snapshot above.
+                "write_error": metrics_write_error,
+                "write_errors": metrics_write_errors,
                 # The finite proof's failed-poll retry, recorded only when
                 # the run enabled it (settings, not acceptance criteria).
                 **(
@@ -5391,9 +5460,22 @@ def execute_run(
         "exclusion": None,
         "warnings": warnings,
     }
-    (run_dir / MANIFEST_FILENAME).write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    try:
+        (run_dir / MANIFEST_FILENAME).write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        # The run's own record cannot be saved (work order of 2026-09-29,
+        # A2): say so plainly, then let the failure reach the process exit
+        # status as before; nothing is sealed and no status is recorded.
+        print(
+            f"[harness] error: run {run_id!r}: {MANIFEST_FILENAME} could not "
+            f"be written ({exc}); the run record is NOT saved and the run "
+            "directory is not sealed",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise
 
     # SHA256SUMS is written last so it covers every file in the run dir —
     # and ONLY when the run is COMPLETE (audit 9.3, hardened in sprint P5 /
@@ -5968,6 +6050,14 @@ def collect_run(
         allow_missing_resources=allow_missing_resources,
     )
     manifest["missing_mandatory_artifacts"] = missing_artifacts
+    # A failed file of the /metrics sampler (A2) happened at run time and
+    # stays a reason: 'collect' cannot bring the lost rows back.
+    recorded_metrics = manifest.get("controller_metrics")
+    recorded_write_error = (
+        recorded_metrics.get("write_error")
+        if isinstance(recorded_metrics, dict)
+        else None
+    )
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -5994,6 +6084,9 @@ def collect_run(
         drain=recorded_drain,
         events_post_drain_fetch=recorded_post_drain,
         config_identity_ok=configuration_identity is not None,
+        metrics_write_error=(
+            None if recorded_write_error is None else str(recorded_write_error)
+        ),
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons

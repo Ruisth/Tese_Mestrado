@@ -21,7 +21,8 @@ and start among them, and the exec events of the fetch's closing marker), a
 guest ``date`` on a steady clock that a case may step back, and a ``$REC``
 whose ``snap`` records its argv and is write-once like the real one. The
 events recorder is started by the driver's own guest command
-(``events_recorder_script`` of proof.sh, rendered as the driver renders it)
+(``events_recorder_script`` of events_capture.sh, which proof.sh sources,
+rendered as the driver renders it)
 and runs as the unit the bench's ``systemd-run`` and ``systemctl`` stubs
 keep in the background.
 
@@ -81,9 +82,9 @@ from egw_experiments import run as run_mod  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNBOOK = REPO_ROOT / "docs" / "setup" / "qemu_integrated_gateway.md"
-PROOF_SH = REPO_ROOT / "tools" / "session" / "proof.sh"
+EVENTS_CAPTURE_SH = REPO_ROOT / "tools" / "session" / "events_capture.sh"
 HOOKS = ("proof_hook_twins.sh", "proof_hook_drained.sh", "proof_fetch_sut_log.sh",
-         "proof_restart_controller.sh", "proof_events_recorder.sh")
+         "proof_restart_controller.sh", "proof_events_recorder.sh", "events_capture.sh")
 RID = "proof-adr0011-r01"
 SEED = "7"
 GUEST_T0 = "1700000000"
@@ -112,14 +113,12 @@ def runbook_function(name: str) -> str:
     return "\n".join(body[start:end + 1]) + "\n"
 
 
-def proof_function(name: str) -> str:
-    """One shell function of proof.sh, from its `name() {` line to the first
-    line that is exactly `}` (the driver's own guest commands, run here as
-    the driver renders them)."""
-    lines = PROOF_SH.read_text(encoding="utf-8").splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith(f"{name}() {{"))
-    end = next(i for i in range(start, len(lines)) if lines[i] == "}")
-    return "\n".join(lines[start:end + 1]) + "\n"
+def capture_script(name: str, env: dict) -> str:
+    """The guest command of the recorder's start or cleanup (events_recorder_script, events_cleanup_script),
+    rendered as proof.sh renders it: tools/session/events_capture.sh sourced, the function then called with RID,
+    RECORDER and RECORDER_SHA set."""
+    return subprocess.run(["bash", "-c", f'. "{EVENTS_CAPTURE_SH}" && {name}'], env=env, capture_output=True,
+                          text=True, check=True).stdout
 
 
 # --------------------------------------------------------------------------
@@ -342,7 +341,9 @@ fails or that answers nothing, a daemon that ignores the bounds
 effect, a start that writes past the harness's stderr budget, an inspect
 that does not answer; the events and the exec as EVENTS_STUB says, an exec
 in the controller refused while it is not running. The kill and the start
-add the daemon's kill (signal 9), die and start events to the events."""
+add the daemon's kill (signal 9), die and start events to the events; a
+compose stop, start or restart of a service adds that service's own events
+(a stop's kill carries signal 15)."""
 import json
 import os
 import re
@@ -448,6 +449,33 @@ if compose and cmd == "logs":
             f"mosquitto-1  | 2026-09-25T10:00:0{i}.000000000Z 2026-09-25T10:00:0{i}: "
             "New connection from 172.18.0.7:52130 on port 8883." for i in range(3)])):
         print(line)
+    sys.exit(0)
+if compose and len(args) == 2 and (cmd in ("stop", "restart") or (cmd == "start" and args[1] != "controller")):
+    # The compose operations of the G3 procedures, as Docker 25 records them
+    # (its documentation; UNVERIFIED on the guest's engine): a stop sends
+    # SIGTERM - a kill event with signal 15 - then die and stop; a start is
+    # start; a restart is the stop's three, then start and restart. Test 7
+    # stops and starts a dependency (mongodb, ditto-things); test 6 restarts
+    # the controller, whose state on disk then follows.
+    service = args[1]
+    name = f"egw-{service}-1"
+    cid = state["id"] if service == "controller" else (service.encode().hex() * 64)[:64]
+    if cmd in ("stop", "restart"):
+        store_event("kill", name, cid, signal="15")
+        store_event("die", name, cid, exitCode="0")
+        store_event("stop", name, cid)
+        if service == "controller":
+            state["status"] = "exited"
+    if cmd in ("start", "restart"):
+        store_event("start", name, cid)
+        if service == "controller":
+            state["starts"] += 1
+            state["started"] = f"2026-09-25T10:05:{state['starts']:02d}.200000000Z"
+            state["status"] = "running"
+    if cmd == "restart":
+        store_event("restart", name, cid)
+    save(state)
+    print(f" Container {name}  " + {"stop": "Stopped", "start": "Started", "restart": "Restarted"}[cmd], file=sys.stderr)
     sys.exit(0)
 if compose and cmd == "start":
     if fails("start-fails"):
@@ -607,16 +635,14 @@ class Hooks:
         return self.bench.guest_root / "tmp" / f"egw-events-{run_id}"
 
     def start_recorder(self, run_id: str = RID, **overrides) -> subprocess.CompletedProcess:
-        """The driver's own 'events-recorder-start' guest command (proof.sh's
-        events_recorder_script, run as the driver renders it), sent to the
-        stub guest as gx sends it."""
+        """The driver's own 'events-recorder-start' guest command
+        (events_recorder_script of events_capture.sh, which proof.sh sources,
+        run as the driver renders it), sent to the stub guest as gx sends it."""
         recorder = self.bench.drivers / "proof_events_recorder.sh"
-        rendered = subprocess.run(
-            ["bash", "-c", proof_function("events_recorder_script") + "events_recorder_script"],
-            env={**os.environ, "RECORDER": str(recorder), "RID": run_id,
-                 "RECORDER_SHA": hashlib.sha256(recorder.read_bytes()).hexdigest()},
-            capture_output=True, text=True, check=True)
-        return self.run_argv(["ssh", "-o", "BatchMode=yes", "egw@127.0.0.1", rendered.stdout], **overrides)
+        rendered = capture_script("events_recorder_script",
+                                  {**os.environ, "RECORDER": str(recorder), "RID": run_id,
+                                   "RECORDER_SHA": hashlib.sha256(recorder.read_bytes()).hexdigest()})
+        return self.run_argv(["ssh", "-o", "BatchMode=yes", "egw@127.0.0.1", rendered], **overrides)
 
     def recorder_pid(self, run_id: str = RID) -> int | None:
         path = Path(f"{self.bench.log}.unit-egw-events-{run_id}.pid")
@@ -1109,6 +1135,12 @@ def test_fetch_refuses_arguments_it_cannot_use_before_the_guest_is_reached(hooks
         (("broker", "{dest}", GUEST_T0, "{run_id}"), "usage: proof_fetch_sut_log.sh"),
         (("docker-events", "{dest}", GUEST_T0, "../x"), "RUN_ID '../x' is not a plain run id"),
         (("docker-events", "{dest}", GUEST_T0, "{run_id}", "kill;die"), "EXPECTED 'kill;die' is not a comma-separated list"),
+        # The container R7 judges (a dependency's fault, test 7): a name, and only beside the actions expected of it.
+        (("docker-events", "{dest}", GUEST_T0, "{run_id}", "die,stop,start", "egw;x"),
+         "CONTAINER 'egw;x' is not a container name"),
+        (("docker-events", "{dest}", GUEST_T0, "{run_id}", "''", "egw-mongodb-1"),
+         "CONTAINER 'egw-mongodb-1' is given without the EXPECTED actions of it"),
+        (("docker-events", "{dest}", GUEST_T0, "{run_id}", "die", "egw-mongodb-1", "x"), "usage: proof_fetch_sut_log.sh"),
     ]
     for args, says in cases:
         result = hooks.run_hook(hooks.template("proof_fetch_sut_log.sh", *args), hooks.sut_logs / "docker-events.log")

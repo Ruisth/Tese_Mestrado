@@ -1507,10 +1507,17 @@ def test_hook_templates_survive_the_harness_split_under_a_base_and_a_drivers_pat
     assert pbench.attempts() == []
 
 
+RUNBOOK_RUN_T0 = 1790000000
+
+
 def _harness_argv_of(function_text: str, call: str, home: Path) -> list[str]:
     """Run one shell function with 'python' replaced by a function that prints
-    its arguments NUL-separated, in the environment the host preamble sets."""
-    script = (function_text + "\npython() { printf '%s\\0' \"$@\"; }\n" + call + "\n")
+    its arguments NUL-separated, in the environment the host preamble sets.
+    The runbook's harness_cmd starts the run's events recorder first
+    (events_start) and cleans it up last (events_cleanup): both stand in here
+    for the helpers of 6.1, the recorder ready at RUNBOOK_RUN_T0."""
+    script = (function_text + "\npython() { printf '%s\\0' \"$@\"; }\n"
+              + f"events_start() {{ echo {RUNBOOK_RUN_T0}; }}\nevents_cleanup() {{ :; }}\n" + call + "\n")
     env = {**os.environ, "HOME": str(home), "MQTT_PORT": "8883", "CTRL": "http://127.0.0.1:8000",
            "MOSQUITTO_SIMULATOR_PASSWORD": "stub-simulator-password", "EGW_CLONE": str(REPO_ROOT)}
     result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
@@ -1530,6 +1537,18 @@ def _driver_function(name: str) -> str:
 def test_proof_harness_cmd_fixed_arguments_equal_the_runbooks_harness_cmd_except_plan_base_and_sut_env(tmp_path):
     runbook = _harness_argv_of(runbook_function("harness_cmd"), f"harness_cmd {RID}", tmp_path)
     assert runbook[:3] == ["-m", "egw_experiments", "run"]
+    # The runbook's run-scoped fetches (2026-09-29) are the run's own hooks,
+    # bounded to its recorder's readiness: the proof hands the harness its
+    # own, with its RUN_T0 and the actions of its fault (the test above), so
+    # they are not among the fixed arguments.
+    tools = f"{REPO_ROOT}/tools/session/proof_fetch_sut_log.sh"
+    capture = {"--fetch-broker-log-cmd": f'bash "{tools}" broker "{{dest}}" {RUNBOOK_RUN_T0}',
+               "--fetch-controller-log-cmd": f'bash "{tools}" controller "{{dest}}" {RUNBOOK_RUN_T0}',
+               "--fetch-docker-events-cmd": f'bash "{tools}" docker-events "{{dest}}" {RUNBOOK_RUN_T0} {{run_id}}'}
+    for flag, value in capture.items():
+        assert _argv_value(runbook, flag) == value
+        i = runbook.index(flag)
+        del runbook[i:i + 2]
     expected = runbook[3:]
     plan, base, sut = str(tmp_path / "proof" / "plan.json"), str(tmp_path / "proof" / "results"), str(tmp_path / "sut.json")
     for flag, value in (("--plan", plan), ("--base-dir", base), ("--sut-env-from", sut)):
@@ -3206,6 +3225,35 @@ def test_a_harness_that_ended_before_its_fetches_leaves_the_recorder_to_the_rest
     assert facts["coverage"].startswith("incomplete: the recorder unit was still running when the restoration began")
 
 
+@pytest.mark.parametrize("token, state, confirmed", [("events-activating", "activating", True),
+                                                     ("events-state-unreadable", "unknown", False)])
+def test_a_recorder_the_restoration_does_not_find_stopped_is_a_capture_recorded_incomplete(pbench, token, state,
+                                                                                          confirmed):
+    # Review of PR #51, P1: only 'inactive' and 'failed' are a unit the
+    # docker-events fetch stopped. A unit in a state between ('activating')
+    # or whose state cannot be read was taken as stopped: the restoration
+    # neither stopped it nor recorded its capture incomplete.
+    result = pbench.run(EGW_STUB_FAIL=f"harness-skips-events-fetch,{token}")
+    assert result.returncode == 3, report(result)
+    console = pbench.console("events-recorder-cleanup")
+    assert f"unit_state_before_cleanup={state}" in console and "cleanup_stop_requested_guest_epoch=" in console
+    assert pbench.recorder_stops() == 1 and not pbench.recorder_running()
+    facts = pbench.session_facts()["events_recorder"]
+    assert facts["stopped_by"] == "restoration" and "state_at_restoration" not in facts, facts
+    assert (facts["cleanup_exit"] == 0) is confirmed, facts
+    assert facts["coverage"].startswith(f"incomplete: the recorder unit was not shown stopped when the restoration "
+                                        f"began (unit state '{state}'), so the harness's docker-events fetch had not "
+                                        f"stopped and judged it"), facts
+    verdicts = pbench.verdicts()
+    assert verdicts["instrumentation_validity"] == "invalid" and verdicts["system_outcome"] != "pass"
+    assert f"the Docker events capture is incomplete: the recorder unit egw-events-{RID} was not shown stopped" \
+        in verdicts["reason"], verdicts["reason"]
+    if confirmed:
+        assert "unit_state_after_cleanup=inactive" in console
+    else:
+        assert "unit_state_after_cleanup=unknown" in console and "it may still run on the guest" in verdicts["reason"]
+
+
 def test_an_events_capture_not_shown_complete_makes_the_evidence_incomplete_without_an_evaluator_change(pbench):
     # The docker-events fetch found the capture incomplete: it exited 1 and
     # wrote no file. The existing rules take it from there - the harness's
@@ -3959,3 +4007,18 @@ def test_the_readme_names_the_driver_its_values_and_the_three_verdicts():
     assert "must be the ADR's fault instant, 150 s" in readme and "`egw_experiments.proof_evaluator.PROOF_RESTART_AT_S`" in readme
     assert "the ADR gives no `/ready` figure" in readme and "runbook's `wait_ready` default of 60 s" in readme
     assert "the 300 s of the planning ceiling" not in readme
+
+
+def test_a_restoration_that_could_not_read_the_units_state_keeps_the_fetchs_coverage(pbench):
+    # Second verification of the review of PR #51, P1: the harness's fetch
+    # stopped the unit and judged the capture complete; only the
+    # restoration's cleanup could not reach the guest. Nothing was observed
+    # there, so it records that it could not tell - it never claims it
+    # stopped the unit and never overwrites the fetch's own coverage.
+    result = pbench.run(EGW_STUB_SSH_REFUSE="unit_state_before_cleanup")
+    facts = pbench.session_facts()["events_recorder"]
+    assert facts["coverage"] == "complete", facts
+    assert "stopped_by" not in facts and facts["state_at_restoration"] == "unknown", facts
+    verdicts = pbench.verdicts()
+    assert "the Docker events capture is incomplete" not in verdicts["reason"], verdicts["reason"]
+    assert "could not be determined (events-recorder-cleanup exit" in verdicts["reason"], report(result)

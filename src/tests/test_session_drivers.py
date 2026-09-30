@@ -179,6 +179,9 @@ pre() {
 }
 
 harness_run() {
+    # As the runbook's (6.1): events_start writes the run's start record in
+    # $P/<run-id>.sut/ before the harness, whatever ends the harness then.
+    mkdir -p "$P/$1.sut" && echo "run_guest_t0=1790000000" > "$P/$1.sut/events-start.txt"
     stub_fails harness_run && { stop "harness_run $1: egw_experiments run exited non-zero"; return 1; }
     "$EGW_STUB_BIN/harness" "$1"
 }
@@ -553,6 +556,10 @@ if refuse and refuse in command:
     print(f"ssh: connect to host 127.0.0.1 port 2222: Connection refused ({refuse})",
           file=sys.stderr)
     sys.exit(255)
+# A session that drops once the guest has run the command: what it did stands,
+# and the status is ssh's own 255.
+drop = os.environ.get("EGW_STUB_SSH_DROP")
+dropped = bool(drop) and drop in command
 for old, new in SUBSTITUTIONS:
     command = command.replace(old, new)
 for path in PATHS:
@@ -560,7 +567,11 @@ for path in PATHS:
 command = command.replace("D='/tmp/egw-events-", "D='" + root + "/tmp/egw-events-")
 env = dict(os.environ)
 env["PATH"] = os.environ["EGW_STUB_GUEST_BIN"] + os.pathsep + env["PATH"]
-sys.exit(subprocess.run(["sh", "-c", command], env=env).returncode)
+rc = subprocess.run(["sh", "-c", command], env=env).returncode
+if dropped:
+    print(f"Connection to 127.0.0.1 closed by remote host ({drop}).", file=sys.stderr)
+    sys.exit(255)
+sys.exit(rc)
 '''
 
 SCP_STUB = '''#!/usr/bin/env python3
@@ -604,6 +615,12 @@ for source in positional[:-1]:
     fail = os.environ.get("EGW_STUB_SCP_FAIL")
     if fail and fail in path:
         print(f"scp: stub transfer failure for {path}", file=sys.stderr)
+        sys.exit(1)
+    # A transfer that fails by where it writes: one copy of a guest file
+    # fails while another copy of the same file succeeds.
+    fail_dest = os.environ.get("EGW_STUB_SCP_FAIL_DEST")
+    if fail_dest and fail_dest in destination:
+        print(f"scp: stub transfer failure to {destination}", file=sys.stderr)
         sys.exit(1)
     if not os.path.isfile(path):
         print(f"scp: {path}: No such file or directory", file=sys.stderr)
@@ -659,7 +676,13 @@ systemd ends a unit's control group, and waits for it (SIGKILL after 20 s,
 as systemd does after TimeoutStopSec). 'show docker' answers the daemon's
 MainPID and start stamp from LOG.docker-daemon.json (a restarted daemon is
 that file changed). Steered through EGW_STUB_FAIL: 'events-stop-fails' (the
-stop is refused and the unit keeps running)."""
+stop is refused and the unit keeps running), 'events-stop-noeffect' (the stop
+answers 0 and the unit keeps running) and, once the unit's start has recorded
+it ready (the 'ready' line of its lifecycle record on the stub guest, so that
+a start is still found ready), 'events-activating' (a unit still running is
+answered 'activating', exit 3, as systemd answers every state but active and
+reloading) and 'events-state-unreadable' (no state at all: nothing on stdout
+and exit 1, as a systemctl that cannot reach the manager answers)."""
 import json
 import os
 import signal
@@ -688,11 +711,31 @@ def unit_pid(unit):
     return None if state in ("Z", "X") else pid
 
 
+def found_ready(unit):
+    """The unit's start recorded it ready: its capture directory on the stub
+    guest (/tmp/UNIT) holds the 'ready' line in its lifecycle record."""
+    path = os.environ.get("EGW_STUB_GUEST_ROOT", "") + f"/tmp/{unit}/lifecycle.txt"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return any(line.startswith("ready ") for line in fh)
+    except OSError:
+        return False
+
+
 if cmd == "is-system-running":
     print("running")
     sys.exit(0)
 if cmd == "is-active":
-    running = unit_pid(args[-1]) is not None
+    unit = args[-1]
+    running = unit_pid(unit) is not None
+    if unit.startswith("egw-events-") and found_ready(unit):
+        if ",events-state-unreadable," in failures:
+            print("Failed to connect to bus: Connection refused", file=sys.stderr)
+            sys.exit(1)
+        if running and ",events-activating," in failures:
+            if not quiet:
+                print("activating")
+            sys.exit(3)
     if not quiet:
         print("active" if running else "inactive")
     sys.exit(0 if running else 3)
@@ -703,6 +746,8 @@ if cmd == "stop":
         if ",events-stop-fails," in failures:
             print(f"Failed to stop {unit}.service: stub refusal", file=sys.stderr)
             sys.exit(1)
+        if ",events-stop-noeffect," in failures:
+            sys.exit(0)
         with open(f"{LOG}.unit-{unit}.stops", "a", encoding="utf-8") as fh:
             fh.write("stop\\n")
         try:
@@ -3969,8 +4014,23 @@ def test_nominal_keeps_the_snapshots_in_the_package(bench):
     assert result.returncode == 0, report(result)
     package = bench.package("nominal-instrumentation-120-600")
     kept = sorted(p.name for p in (package / "analysis" / "snapshots").iterdir())
-    assert kept == ["nominal-r01.metrics.after.json", "nominal-r01.metrics.before.json",
+    assert kept == ["nominal-r01.metrics.after.json", "nominal-r01.metrics.before.json", "nominal-r01.sut",
                     "nominal-r01.twins.after.json", "nominal-r01.twins.before.json"]
+
+
+def test_nominal_packages_the_capture_record_harness_run_leaves_beside_the_snapshots(bench):
+    """harness_run (runbook 6.1) leaves the directory $P/<run-id>.sut/ (events_start's start record) where the
+    snapshots are: the copy that takes the run's files into the package takes it too, and a valid run with every
+    message in time stays a valid pass (review of part B, item 0: a plain 'cp' of that glob refused the directory,
+    exited 1 and made every nominal run invalid)."""
+    _plan(bench)
+    result = bench.run("nominal.sh", "nominal-r01")
+    assert result.returncode == 0, report(result)
+    verdicts = bench.verdicts("nominal-instrumentation-120-600")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass"), verdicts
+    assert "snapshots were not copied" not in (verdicts.get("reason") or "")
+    record = bench.package("nominal-instrumentation-120-600") / "analysis" / "snapshots" / "nominal-r01.sut"
+    assert (record / "events-start.txt").read_text(encoding="utf-8") == "run_guest_t0=1790000000\n"
 
 
 def test_nominal_snapshots_that_did_not_reach_the_package_are_mandatory(bench):

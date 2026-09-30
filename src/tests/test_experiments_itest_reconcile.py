@@ -8,6 +8,7 @@ replaced in the module under test; the accounting is the UNMODIFIED
 from __future__ import annotations
 
 import ast
+import http.client
 import io
 import json
 import os
@@ -1225,3 +1226,80 @@ def test_save_new_never_overwrites(tmp_path) -> None:
     with pytest.raises(rec.HelperError):
         rec.save_new(path, {"a": 2})
     assert json.loads(path.read_text("utf-8")) == {"a": 1}
+
+
+# ---------------------------------------------------------------------------
+# Work order of 2026-09-29 (G3 instrumentation readiness), A1: a typed HTTP
+# failure of the real marker poll (run.poll_controller_marker, the network
+# read replaced) is a failed poll, never a crash and never a marker
+# ---------------------------------------------------------------------------
+
+
+class ScriptedGet:
+    """Stands for run._http_get_json under the REAL poll_controller_marker:
+    an exception in the script is raised, an integer answers as the
+    controller clock; the last item repeats."""
+
+    def __init__(self, *script) -> None:
+        self.script = list(script)
+        self.calls = 0
+
+    def __call__(self, url, timeout_s):
+        item = self.script[min(self.calls, len(self.script) - 1)]
+        self.calls += 1
+        if isinstance(item, BaseException):
+            raise item
+        return {"monotonic_ns": item, "wall_utc": "2026-09-18T10:01:02.000Z"}
+
+
+def real_poll_with(monkeypatch, *script) -> ScriptedGet:
+    get = ScriptedGet(*script)
+    monkeypatch.setattr(run_mod, "_http_get_json", get)
+    # the helper's own poll, in case a fixture replaced it with a fake
+    monkeypatch.setattr(rec, "poll_controller_marker", run_mod.poll_controller_marker)
+    return get
+
+
+def test_mark_exits_1_without_a_marker_file_on_a_typed_http_failure(tmp_path, monkeypatch, capsys) -> None:
+    run_dir = make_run(tmp_path, events=None)
+    real_poll_with(monkeypatch, http.client.IncompleteRead(b'{"mono', 30))
+    assert rec.main(["mark", str(run_dir), "--controller-url", CTRL]) == rec.EXIT_FAILED
+    err = capsys.readouterr().err
+    assert "marker UNAVAILABLE" in err and "IncompleteRead" in err
+    assert not (tmp_path / f"{RUN_ID}.marker.json").exists()
+
+
+def test_wait_counts_a_typed_http_failure_as_a_failed_poll_and_closes_on_the_real_reading(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    run_dir, clock, _ = _wait_fixture(tmp_path, monkeypatch, [DEADLINE + 1])
+    get = real_poll_with(monkeypatch, http.client.BadStatusLine(""), DEADLINE + 1)
+    assert rec.main(["wait", str(run_dir), "--controller-url", CTRL]) == rec.EXIT_OK
+    assert get.calls == 2
+    assert clock.sleeps == [rec.WAIT_POLL_INTERVAL_S]      # the failure waits the usual interval, no fast retry
+    closed = json.loads((tmp_path / f"{RUN_ID}.window-closed.json").read_text("utf-8"))
+    # the window file is the real reading, nothing of the failed one
+    assert closed["ok"] is True and closed["error"] is None
+    assert closed["monotonic_ns"] == DEADLINE + 1
+    assert "window closed on the controller clock" in capsys.readouterr().out
+
+
+def test_wait_gives_up_on_typed_http_failures_without_a_window_file(tmp_path, monkeypatch, capsys) -> None:
+    run_dir, clock, _ = _wait_fixture(tmp_path, monkeypatch, [DEADLINE + 1])
+    real_poll_with(monkeypatch, http.client.IncompleteRead(b"", 5))
+    assert rec.main(["wait", str(run_dir), "--extra-timeout", "4"]) == rec.EXIT_FAILED
+    assert "gave up" in capsys.readouterr().err
+    budget = protocol.CONFIRMATION_WINDOW_S + 4
+    assert budget < sum(clock.sleeps) <= budget + rec.WAIT_POLL_INTERVAL_S
+    assert set(clock.sleeps) == {rec.WAIT_POLL_INTERVAL_S}
+    assert not (tmp_path / f"{RUN_ID}.window-closed.json").exists()
+
+
+@pytest.mark.parametrize("exc", [KeyboardInterrupt(), TypeError("bug")], ids=["KeyboardInterrupt", "TypeError"])
+def test_wait_lets_cancellation_and_programming_errors_propagate(tmp_path, monkeypatch, capsys, exc) -> None:
+    run_dir, _clock, _ = _wait_fixture(tmp_path, monkeypatch, [DEADLINE + 1])
+    get = real_poll_with(monkeypatch, http.client.IncompleteRead(b"", 5), exc)
+    with pytest.raises(type(exc)):
+        rec.main(["wait", str(run_dir)])
+    assert get.calls == 2
+    assert not (tmp_path / f"{RUN_ID}.window-closed.json").exists()

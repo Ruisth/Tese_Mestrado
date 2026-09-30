@@ -17,7 +17,7 @@ clone that holds this folder is the `REPO` whose commit every attempt records.
 | `slice.sh RUN SEED` | runbook 6.2-6.4: one smartwatch at 1 Hz for 60 s, isolated run id and unused seed, identity reconciliation, twin read-back, `check` and `delta` | `smartwatch slice 1 Hz 60 s` |
 | `persistence.sh RUN` | runbook 6.5 on the run the slice produced: quiesce, the state before, `compose down` then `up -d` with the volumes preserved, the restart **shown**, ready and healthy again, the `post-restart` snapshot, `same`, and an independent twin read — with nothing published between the two snapshots | `G2 twin persistence restart` |
 | `broker_measure.sh` | the broker-hold measurement of ADR 0011, condition C3 (`tools/probe/README.md`): the stack **stopped**, a throwaway pinned broker on its own volume with measurement copies of the configuration (W = 4,999, Q = 1,000, expiry 1 h), the phases P0–P8 with the probe's own client ids, every record kept, the probe removed, the stack **started** and waited for, the verdict of S1–S5 / R1–R6 applied by `broker_hold.py`; an engineering diagnostic, not a G3 run, and its values are probe settings | `broker hold measurement (C3)` |
-| `nominal.sh RUN_ID` | the pilot plan's nominal entry (120 s warm-up, 600 s measured) through `harness_run`, between two records of the guest's container state, then the drain, the post-drain and warm-up event logs, snapshots and an identity accounting (`nominal_account.py`) | `nominal instrumentation 120+600` |
+| `nominal.sh RUN_ID` | the pilot plan's nominal entry (120 s warm-up, 600 s measured) through `harness_run` (which, since 2026-09-29, starts the run's Docker events recorder first and has the harness fetch the broker and controller logs and the events bounded to its readiness, so a failed fetch makes the run invalid), between two records of the guest's container state, then the drain, the post-drain and warm-up event logs, snapshots (copied into the package with the run's capture records, `$P/<run-id>.sut/`) and an identity accounting (`nominal_account.py`) | `nominal instrumentation 120+600` |
 | `proof.sh RUN_ID EXPECTED_SOURCE_COMMIT` | the finite proof of ADR 0011 ("The finite proof"; see [The finite proof](#the-finite-proof-proofsh) below): one harness run of a one-entry diagnostic plan (`proof_plan.py`: the `controller_restart` condition's load, 300 s, no warm-up) with SIGKILL of the controller's container followed by a start at t+150 s through the harness restart hook, the twin snapshots, the drain, the post-drain copy and the three SUT logs through the `proof_*` hook wrappers, then the restart **shown**, the `/metrics` reading after, the runbook's `delta` on the post-drain copy, the guest state after with the controller's one restart expected, the stack running and healthy again (the restoration, never cut short), the session facts (`proof_session.py`) and, last, the proof's evaluator (`egw_experiments.proof_evaluator`: S1–S6, R1–R4, the inconclusive rule); an engineering diagnostic, not a G3 run, run only inside an authorised session | `finite proof (ADR 0011)` |
 | `guest_session_close.sh` | stops the stack **before** power-off (runbook 3.3), keeps the journal and final state, powers off, checks the G1 artefacts of the sealed **non-integrated** build (`src/yocto/build`, which is what the G1 reference lists) | closes and exports `guest session` |
 
@@ -519,7 +519,34 @@ each template without a shell (`shlex.split`), so the hook's path and
 path works, and a drivers' path holding a double quote or a backslash is
 refused before anything starts. A test pins the fixed arguments to the
 runbook's function line by line, and another renders the templates as the
-harness does against a base with a space.
+harness does against a base with a space. (The runbook's `harness_cmd`
+also carries its own three `--fetch-*-log-cmd`, bounded to its own
+recorder's readiness since 2026-09-29; they are the run's hooks, not fixed
+arguments, and the proof hands the harness its own.)
+
+The recorder's two guest commands — the start (`events_recorder_script`)
+and the cleanup of a unit not shown stopped (`events_cleanup_script`) — are
+defined once, in `events_capture.sh`, which `proof.sh` sources and runs
+through its own steps. Executed, the same file is the host command the
+runbook's G3 procedures use (6.1: `events_start`, `events_stop`,
+`events_cleanup`, `harness_cmd`): `events_capture.sh start RUN_ID` prints
+`run_guest_t0=` once the recorder is ready, and `events_capture.sh cleanup
+RUN_ID [KEEP_DIR]` stops a unit not shown stopped — any state but
+`inactive` or `failed`, a state between or none at all included — and
+reads its state again, whatever KEEP_DIR's state (so a repeated cleanup
+still stops it); it ends non-zero, with a STOP that says the unit may
+still run, unless the unit is then `inactive` or `failed`. Only once the
+unit is shown stopped, and given a directory that does not exist, does it
+copy what the recorder captured there as a partial capture
+(`events.partial.jsonl`), never as a `docker-events.log`; the directory
+appears only once all four files arrived, so a cleanup whose copy failed
+can be repeated. The runbook's
+endings leave that copy to the cleanup unless the fetch kept the capture
+(`docker-events.log` or `docker-events.partial.jsonl`). The
+docker-events fetch takes an optional sixth argument, the container whose
+expected actions R7 judges (`egw-controller-1` when absent, as the proof
+passes nothing); test 7 names the dependency it stops and starts and leaves
+`kill` out of its expectation, since R7 requires signal 9 of a `kill`.
 
 **Rules of the driver's own, by label** (beside the design flags P-1 to
 P-9 of the evaluator and the driver, each to be confirmed by the Project
