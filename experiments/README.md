@@ -400,7 +400,11 @@ the start) and applies it at the resources ingest (see the validity rules);
 the manifest records `resources_proved_down` (whether it applied or why not,
 D, S, E, both edge gaps, the rows rejected). It is reported only: no
 delivery, recovery or C12 figure reads it. Without the option nothing of this
-runs or is recorded, and `collect` never applies it.
+runs or is recorded, and `collect` never applies it. Nor does `collect`
+re-judge by the ordinary rule a run whose interval applied: it ignores
+`--resources-from` for that run with a warning, the run-time judgement
+standing; otherwise it judges the file as before and, once it has ingested
+it, sets the record's `resources_ingested`.
 
 ### 2b. Recovery: the `collect` subcommand (audit 9.3)
 

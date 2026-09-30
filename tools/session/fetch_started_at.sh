@@ -13,14 +13,16 @@
 #              6's restart names)
 #
 # WHAT IS READ, AND IN WHICH ORDER. One ssh session to the guest ('egw-tcg',
-# the alias of ~/.ssh/config the runbook's helpers use) reads the container's
-# id and its State.StartedAt, each with its own 'docker inspect' exactly as
-# proof_restart_controller.sh reads them (as the session's own user, without
-# elevation; one template per field, so an empty StartedAt reaches the host
-# as empty and never as another field),
-# and then the guest's clock ('date +%s'), AFTER them: the epoch is an instant
-# at or after the read. The guest command runs under BusyBox ash and holds no
-# bashism; its STOP lines go to stderr.
+# the alias of ~/.ssh/config the runbook's helpers use) reads the guest's
+# clock ('date +%s') first, BEFORE the inspects, as
+# proof_restart_controller.sh reads it: the inspects run at or after that
+# epoch, so an epoch at or after S shows that they ran at or after S. Then it
+# reads the container's id and its State.StartedAt, each with its own
+# 'docker inspect' exactly as proof_restart_controller.sh reads them (as the
+# session's own user, without elevation; one template per field, so an empty
+# StartedAt reaches the host as empty and never as another field). The guest
+# command runs under BusyBox ash and holds no bashism; its STOP lines go to
+# stderr.
 #
 # WHAT IS WRITTEN. DEST, write-once (a DEST that exists stops the hook before
 # the guest is reached), as four lines:
@@ -54,9 +56,9 @@ esac
 # in place of @CONTAINER@.
 read_script() {
     sed "s/@CONTAINER@/$C/g" << 'GUEST_READ'
+epoch=$(date +%s) || { echo 'STOP: the guest clock could not be read' >&2; exit 3; }
 cid=$(docker inspect -f '{{.Id}}' @CONTAINER@) || { echo 'STOP: docker inspect @CONTAINER@ (.Id) failed on the guest' >&2; exit 4; }
 sat=$(docker inspect -f '{{.State.StartedAt}}' @CONTAINER@) || { echo 'STOP: docker inspect @CONTAINER@ (.State.StartedAt) failed on the guest' >&2; exit 4; }
-epoch=$(date +%s) || { echo 'STOP: the guest clock could not be read' >&2; exit 3; }
 echo "container_id=$cid"
 echo "started_at=$sat"
 echo "guest_epoch=$epoch"
