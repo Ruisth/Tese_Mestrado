@@ -420,6 +420,18 @@ def test_started_at_is_parsed_to_integer_nanoseconds(stamp, expected) -> None:
     assert _pd().parse_rfc3339_ns(stamp) == expected
 
 
+@pytest.mark.parametrize("zero", [0xFF10, 0x0660], ids=["fullwidth", "arabic-indic"])
+def test_a_started_at_in_digits_other_than_ascii_is_not_rfc_3339(tmp_path, zero) -> None:
+    """Review of 2026-09-30, round 1: RFC 3339's DIGIT is ASCII 0-9 (fetch_started_at.sh checks [0-9]); a
+    started_at in other Unicode decimal digits, which Python's regex digit class and int() both accept, is not of
+    the record's form: it parses to nothing and gives no interval."""
+    stamp = "2026-10-01T10:01:06.299812345Z".translate(
+        str.maketrans("0123456789", "".join(chr(zero + i) for i in range(10)))
+    )
+    assert _pd().parse_rfc3339_ns(stamp) is None
+    _no_interval(tmp_path, "StartedAt", started_at=_started_at(started_at=stamp))
+
+
 def _no_interval(tmp_path: Path, words: str, **kwargs) -> dict:
     run_dir, manifest = _run_dir(tmp_path, **kwargs)
     interval, why_not, facts = _pd().derive_proved_down(run_dir, manifest)
