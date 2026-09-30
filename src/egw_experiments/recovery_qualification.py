@@ -58,7 +58,8 @@ The N1 identities (decision 2 of 2026-09-30, :mod:`egw_experiments.n1_report`)
 are reported beside the qualification, per run with a directory: the columns
 ``n1_applied_unconfirmed`` and ``duplicate_only_unexplained`` (how many
 duplicate-only identities are named and how many are not; empty for a
-planned run without a directory, or when no events copy can be read) and,
+planned run without a directory, when no events copy can be read, or when
+the report could not be made at all, which never stops the layer) and,
 in the JSON record, ``n1`` with every identity, its possible sources or its
 failed conditions. For them the layer also reads the run's files:
 ``sent_events.jsonl``, the post-drain copy (the timed ``events.jsonl`` only
@@ -278,7 +279,12 @@ def inspect_run(run_dir: Path, run_id: str, *, planned: bool) -> dict[str, Any]:
     manifest, plus its qualification and its N1 identities (decision 2 of
     2026-09-30: reported, never counted)."""
     facts, manifest = run_facts(run_dir, run_id, planned=planned)
-    n1 = n1_of_run(run_dir, run_id, facts, manifest) if run_dir.is_dir() else None
+    n1 = None
+    if run_dir.is_dir():
+        try:
+            n1 = n1_of_run(run_dir, run_id, facts, manifest)
+        except Exception as exc:  # broad on purpose: the report never stops the layer (analyze runs it)
+            n1 = {"events_copy": None, "problem": f"the N1 report was not made ({type(exc).__name__})"}
     counted = n1 is not None and n1.get("events_copy") is not None
     facts["n1_applied_unconfirmed"] = len(n1["n1_applied_unconfirmed"]) if counted else None
     facts["duplicate_only_unexplained"] = len(n1["duplicate_only_unexplained"]) if counted else None

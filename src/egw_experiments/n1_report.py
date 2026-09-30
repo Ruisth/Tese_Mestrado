@@ -46,6 +46,14 @@ the identity is unexplained, never N1. The readings taken here:
   without a readable identity: the device's accepted lines count every run
   id, so the twin may have applied it; it is never named or listed here,
   and while one is on the device none of the device's identities is named;
+- the device: an identity is placed on the one device its outcome lines
+  name (a readable ``device_uuid`` is a non-empty string). One whose lines
+  name several devices may count on each, and one whose lines name none -
+  of this run or not - on any device: it is never placed, and none of those
+  devices' identities is named. An ``accepted`` line without a readable
+  device (of any run id) is counted on no device by delta's arithmetic, so
+  every device's excess may be overstated: while one is in the compared
+  log, no identity is named;
 - condition 2, the order: the identity's first duplicate line is its
   earliest received one (the finite proof reads the minimum too), not the
   first in the file; a duplicate line without a readable
@@ -59,11 +67,16 @@ the identity is unexplained, never N1. The readings taken here:
   ``started_utc``, ``finished_utc``, ``returncode`` 0 and no ``error``
   (analyze's ``restart_hook_ok``);
 - condition 2, the sources: a device is served when a maximum matching of
-  its duplicate-only identities to its own A3 ends covers them all, or all
-  but one and the one death is left to it. The death is left to a device
-  only when no other device has a duplicate-only identity its own ends
-  leave uncovered: that identity may have been the death's one delivery
-  (not applied), so which device the death explained cannot be told;
+  its duplicate-only identities to its own A3 ends (one source per
+  controller log line) covers them all, or all but one and the one death is
+  left to it. The death is left to a device only when no other device has
+  a duplicate-only identity its own ends leave uncovered: that identity may
+  have been the death's one delivery (not applied), so which device the
+  death explained cannot be told. The matching is computed without
+  recursion (the options are nested, see :func:`_served`);
+- the readers: a file that cannot be read is "not read", and a line that
+  is not a JSON object - one nested too deeply for the decoder included -
+  is not a record; nothing in the data raises;
 - condition 3: the twin snapshots are read as ``itest_reconcile delta``
   reads them (an absent twin's null ``accepted_count`` is 0; every
   ``accepted`` line of the compared log counts, whatever its run id), so
@@ -126,6 +139,11 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _device(value: Any) -> str | None:
+    """A readable ``device_uuid``: a non-empty string, else None."""
+    return value if isinstance(value, str) and value else None
+
+
 # ---------------------------------------------------------------------------
 # tolerant readers: a file that cannot be read is "not read", never an error
 # ---------------------------------------------------------------------------
@@ -151,7 +169,8 @@ def read_text_lines(
 def read_jsonl(path: str | Path) -> tuple[list[dict[str, Any]] | None, str | None]:
     """The JSON objects of a JSON-lines file (a line that is not one is
     skipped, as the analysis reader does: CONTRACTS v1.2 allows a torn last
-    line), or (None, why)."""
+    line; so is a line nested too deeply for the decoder, which raises
+    RecursionError rather than ValueError), or (None, why)."""
     lines, why = read_text_lines(path)
     if lines is None:
         return None, why
@@ -161,7 +180,7 @@ def read_jsonl(path: str | Path) -> tuple[list[dict[str, Any]] | None, str | Non
             continue
         try:
             obj = json.loads(text)
-        except ValueError:
+        except (ValueError, RecursionError):
             continue
         if isinstance(obj, dict):
             records.append(obj)
@@ -175,7 +194,7 @@ def read_json_object(path: str | Path) -> tuple[dict[str, Any] | None, str | Non
         obj = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None, f"{path.name} missing"
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         return None, f"{path.name} unreadable ({type(exc).__name__})"
     if not isinstance(obj, dict):
         return None, f"{path.name} is not a JSON object"
@@ -202,7 +221,7 @@ def _json_after_prefix(line: str) -> dict[str, Any] | None:
         return None
     try:
         obj = json.loads(line[start:])
-    except ValueError:
+    except (ValueError, RecursionError):
         return None
     return obj if isinstance(obj, dict) else None
 
@@ -276,12 +295,19 @@ def capture_window(coverage_text: str | None) -> tuple[tuple[int, int] | None, s
         if sep and key and key not in values:
             values[key] = value
     since, until = values.get("requested_since_guest_epoch", ""), values.get("requested_until_guest_epoch", "")
+    no_window = "the coverage record gives no whole-number capture window"
     # ASCII digits only, as events_coverage.py reads them: str.isdigit()
     # also takes digits int() refuses (a superscript) or reads (other
     # scripts), neither of which the capture writes.
-    if not (re.fullmatch(r"[0-9]+", since) and re.fullmatch(r"[0-9]+", until)) or int(until) < int(since):
-        return None, "the coverage record gives no whole-number capture window"
-    return (int(since), int(until)), None
+    if not (re.fullmatch(r"[0-9]+", since) and re.fullmatch(r"[0-9]+", until)):
+        return None, no_window
+    try:
+        window = int(since), int(until)
+    except ValueError:  # beyond int()'s digit limit (4300 digits by default)
+        return None, no_window
+    if window[1] < window[0]:
+        return None, no_window
+    return window, None
 
 
 def controller_deaths(
@@ -309,7 +335,7 @@ def controller_deaths(
             continue
         try:
             event = json.loads(text)
-        except ValueError:
+        except (ValueError, RecursionError):
             continue
         if not isinstance(event, dict):
             continue
@@ -344,23 +370,24 @@ def controller_deaths(
 # ---------------------------------------------------------------------------
 
 
-def _matching_size(order: list[str], options: dict[str, list[Any]]) -> int:
-    """The size of a maximum matching of identities to sources, each source
-    serving one identity (augmenting paths; the size does not depend on the
-    order)."""
-    held: dict[Any, str] = {}
-
-    def augment(identity: str, seen: set[Any]) -> bool:
-        for source in options.get(identity, []):
-            if source in seen:
-                continue
-            seen.add(source)
-            if source not in held or augment(held[source], seen):
-                held[source] = identity
-                return True
-        return False
-
-    return sum(1 for identity in order if augment(identity, set()))
+def _served(first_redeliveries: list[int | None], end_stamps: list[int]) -> int:
+    """How many of one device's identities its A3 ends can serve, each end
+    serving one identity and only one whose first redelivery it precedes:
+    the size of a maximum matching. The options are nested (an end that
+    precedes a redelivery precedes every later one), so serving the
+    earliest redeliveries first, each with any end still free, is maximum.
+    Iterative and O(n log n) whatever the number of identities (an
+    augmenting-path search recursed once per identity it displaced)."""
+    pending = sorted(end_stamps)
+    free = served = taken = 0
+    for stamp in sorted(s for s in first_redeliveries if s is not None):
+        while taken < len(pending) and pending[taken] < stamp:
+            free += 1
+            taken += 1
+        if free:
+            free -= 1
+            served += 1
+    return served
 
 
 def _count(entry: Any) -> tuple[bool, int | None]:
@@ -416,7 +443,9 @@ def n1_applied_unconfirmed(
     # The duplicate-only identities of the compared log that are not this
     # run's (another run id, as delta's --also file, or a duplicate line
     # without a readable identity): never named or listed, but each may be
-    # the one the twin applied on its device, which then names none.
+    # the one the twin applied on its device, which then names none; one
+    # whose lines name no device may be on any device, so it names none
+    # anywhere.
     others: dict[Any, list[dict[str, Any]]] = {}
     for index, record in enumerate(events):
         if not isinstance(record, dict):
@@ -428,13 +457,22 @@ def n1_applied_unconfirmed(
         key = (repr(record.get("run_id")), message_id) if readable else ("unreadable line", index)
         others.setdefault(key, []).append(record)
     other_by_device: dict[str, int] = {}
+    other_anywhere = 0
     for lines in others.values():
         if not all(line.get("outcome") == "duplicate" for line in lines):
             continue
-        device = next((line["device_uuid"] for line in lines
-                       if isinstance(line.get("device_uuid"), str) and line["device_uuid"]), None)
-        if device is not None:
+        devices = {_device(line.get("device_uuid")) for line in lines} - {None}
+        for device in devices:
             other_by_device[device] = other_by_device.get(device, 0) + 1
+        other_anywhere += not devices
+    # An accepted line without a readable device (whatever its run id) is
+    # counted on no device by delta's arithmetic: any device's accepted
+    # lines may then be undercounted and its excess overstated.
+    accepted_without_device = sum(
+        1 for record in events
+        if isinstance(record, dict) and record.get("outcome") == "accepted"
+        and _device(record.get("device_uuid")) is None
+    )
 
     valid: dict[str, dict[str, Any]] | None = None
     if sent_records is not None:
@@ -460,10 +498,16 @@ def n1_applied_unconfirmed(
 
     facts: dict[str, dict[str, Any]] = {}
     by_device: dict[str, list[str]] = {}
+    # A candidate is placed on the one device its lines name. One whose
+    # lines name several may count on each of them, one whose lines name
+    # none on any device: neither is placed, and each leaves those devices'
+    # own identities unnamed.
+    unplaced_on: dict[str, int] = {}
+    unplaced_anywhere = 0
     for mid in candidates:
         lines = lines_by_id[mid]
-        device = next((line["device_uuid"] for line in lines
-                       if isinstance(line.get("device_uuid"), str) and line["device_uuid"]), None)
+        named_devices = sorted({_device(line.get("device_uuid")) for line in lines} - {None})
+        device = named_devices[0] if len(named_devices) == 1 else None
         record = valid.get(mid) if valid is not None else None
         seq = (record or lines[0]).get("seq")
         # The first redelivery is the earliest received duplicate line, and
@@ -483,8 +527,13 @@ def n1_applied_unconfirmed(
                            "run id, intended invalid, or published more than once): it can never be N1")
         elif record.get("device_uuid") != device:
             fail(mid, "1", "its published record names another device than its outcome lines")
-        if device is None:
-            fail(mid, "3", "its outcome lines name no device")
+        if not named_devices:
+            fail(mid, "3", "its outcome lines name no device (it may count on any device)")
+            unplaced_anywhere += 1
+        elif device is None:
+            fail(mid, "3", f"its outcome lines name {len(named_devices)} devices ({', '.join(named_devices)})")
+            for other in named_devices:
+                unplaced_on[other] = unplaced_on.get(other, 0) + 1
         else:
             by_device.setdefault(device, []).append(mid)
 
@@ -500,7 +549,10 @@ def n1_applied_unconfirmed(
         excess = delta - accepted if delta is not None else None
         devices_out[device] = {"delta": delta, "accepted_lines": accepted, "excess": excess,
                                "duplicate_only": len(by_device.get(device, [])),
-                               "other_run_duplicate_only": other_by_device.get(device, 0), "reported": 0}
+                               "other_run_duplicate_only": other_by_device.get(device, 0),
+                               "unplaced_duplicate_only": unplaced_on.get(device, 0) + unplaced_anywhere
+                               + other_anywhere,
+                               "reported": 0}
         if excess is not None and excess > 0 and not by_device.get(device):
             notes.append(f"device {device}: excess {excess} with no duplicate-only identity of this run: "
                          "nothing is named")
@@ -522,6 +574,15 @@ def n1_applied_unconfirmed(
             why = (f"the compared log holds {count} duplicate-only identit{'y' if count == 1 else 'ies'} of another "
                    "run id (or without a readable identity) on the device, which the twin's surplus may count: "
                    "which identity it applied cannot be told, so none is named")
+        elif figures["unplaced_duplicate_only"]:
+            count = figures["unplaced_duplicate_only"]
+            why = (f"{count} duplicate-only identit{'y' if count == 1 else 'ies'} whose outcome lines name no device, "
+                   "or more than one, may be on the device, and the twin's surplus may count "
+                   f"{'it' if count == 1 else 'them'}: which identity it applied cannot be told, so none is named")
+        elif accepted_without_device:
+            why = (f"the compared log holds {accepted_without_device} accepted line(s) without a readable device, "
+                   "which the device arithmetic counts on no device: the device's accepted lines may be "
+                   "undercounted and its excess overstated, so none is named")
         elif len(mids) > figures["excess"]:
             why = (f"{len(mids)} duplicate-only identities on the device against an excess of {figures['excess']}: "
                    "they cannot be told apart, so none is named")
@@ -543,16 +604,28 @@ def n1_applied_unconfirmed(
     # Condition 2: the sources, each explaining one identity at most.
     ends = [end for end in (a3_ends or []) if isinstance(end, dict)]
     death = deaths[0] if deaths else None
-    options: dict[str, list[Any]] = {}
+    # Each candidate's options: the ends of its device received before its
+    # first redelivery. A source is one controller log line (a line read
+    # twice keeps its later stamp, which serves fewer identities).
+    options: dict[str, list[dict[str, Any]]] = {}
     for mid in candidates:
-        stamp = facts[mid]["first_duplicate_received_monotonic_ns"]
+        stamp, device = facts[mid]["first_duplicate_received_monotonic_ns"], facts[mid]["device_uuid"]
         options[mid] = [
-            end.get("line") for end in ends
-            if end.get("device_uuid") == facts[mid]["device_uuid"] and facts[mid]["device_uuid"] is not None
-            and _is_int(end.get("received_monotonic_ns")) and stamp is not None
+            end for end in ends
+            if end.get("device_uuid") == device and _is_int(end.get("received_monotonic_ns"))
             and end["received_monotonic_ns"] < stamp
-        ]
-    uncovered = {device: len(mids) - _matching_size(mids, options) for device, mids in by_device.items()}
+        ] if device is not None and stamp is not None else []
+    end_stamps: dict[str, dict[Any, int]] = {}
+    for end in ends:
+        device, stamp = end.get("device_uuid"), end.get("received_monotonic_ns")
+        if isinstance(device, str) and _is_int(stamp):
+            by_line = end_stamps.setdefault(device, {})
+            by_line[end.get("line")] = max(by_line.get(end.get("line"), stamp), stamp)
+    uncovered = {
+        device: len(mids) - _served([facts[mid]["first_duplicate_received_monotonic_ns"] for mid in mids],
+                                    list(end_stamps.get(device, {}).values()))
+        for device, mids in by_device.items()
+    }
     wanting = sorted(device for device, short in uncovered.items() if short > 0)
     if a3_ends is None:
         a3_text = f"controller log not read ({a3_note or 'not given'})"
@@ -568,7 +641,7 @@ def n1_applied_unconfirmed(
         short = uncovered[device]
         if short == 0:
             continue
-        own = len({line for mid in mids for line in options[mid]})
+        own = len({end.get("line") for mid in mids for end in options[mid]})
         if death is None:
             why = (f"no source may precede {'it' if len(mids) == 1 else 'them all'}: its device's A3 connection ends "
                    f"that precede the redelivery ({own}) serve {len(mids) - short} of its {len(mids)} "
@@ -602,7 +675,7 @@ def n1_applied_unconfirmed(
             sources = [
                 {"source": SOURCE_A3, "controller_log_line": end.get("line"),
                  "received_monotonic_ns": end.get("received_monotonic_ns")}
-                for end in ends if end.get("line") in options[mid]
+                for end in options[mid]
             ]
             if death_possible:
                 sources.append({key: death[key] for key in ("source", "die_time_nano") if key in death})
@@ -631,6 +704,7 @@ def n1_applied_unconfirmed(
             "deaths_note": deaths_note,
             "deaths": list(deaths or []),
         },
+        "accepted_lines_without_device": accepted_without_device,
         "twin_evidence_problem": twin_evidence_problem,
         "notes": notes,
         "note": NOTE,

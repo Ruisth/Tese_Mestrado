@@ -28,9 +28,13 @@ directory: its ``restart`` record and its Docker events capture) together
 with the evidence that the 'after' snapshot follows a quiet drain (its
 recovery qualification, its verified snapshots and post-drain copy, which
 must be the ones compared); either source option implies ``--n1-report``.
-Without ``--restart-evidence`` that evidence is the 'to' /metrics reading
-(queue_depth 0: the runbook's ``finish`` takes the 'after' pair only after
-``drained``), and without either, condition 3 is not shown. The report is an
+Without ``--restart-evidence`` that evidence is the 'to' /metrics reading,
+quiet as CONTRACTS 5 defines one reading (queue_depth, in_progress and
+unacked 0, mqtt_subscribed true and the accounting identity holding; a
+field that is absent is never read as zero or false): one reading, not the
+quiet window of ``drained``, which the runbook's ``finish`` observes before
+it takes the 'after' pair and which delta cannot re-check. Without either,
+condition 3 is not shown. The report is an
 explanation, never a status: under a device line that stays ``MISMATCH`` it
 names the ``n1_applied_unconfirmed`` identities of that device, and after
 the last line it prints the counts, the sources and every
@@ -38,7 +42,8 @@ the last line it prints the counts, the sources and every
 it adds holds the upper-case status words (it names the options' labels and
 files by their role, never by the names given), a named source that cannot
 be read, or holds a malformed record, is reported as not read (never exit
-1), and no exit code changes.
+1), a report that cannot be made at all is one line saying so, and no exit
+code changes.
 Without the options the output is byte for byte what it was.
 
 Exit codes (the runbook's shell helpers test them):
@@ -503,6 +508,11 @@ def cmd_snap(args) -> int:
 
 
 # --- delta: per-device and per-process differences vs the event log --------
+#: The first line of the N1 report delta adds (decision 2 of 2026-09-30).
+N1_HEADER = ("N1 REPORT (explanation only; lost and every delta status "
+             "unchanged)")
+
+
 def _restart_evidence(run_dir: Path, primary_run, primary: list[dict],
                       before: dict, after: dict):
     """The death source and the condition-3 problems a harness run directory
@@ -544,20 +554,53 @@ def _restart_evidence(run_dir: Path, primary_run, primary: list[dict],
     return deaths, deaths_note, problems
 
 
+#: The terms of the accounting identity of one /metrics reading (CONTRACTS
+#: 5): received equals their sum.
+IDENTITY_TERMS = ("accepted", "rejected", "duplicate", "failed", "dropped",
+                  "processing_errors", "in_progress", "queue_depth")
+
+
+def quiet_reading_problem(reading: dict) -> str | None:
+    """Why one /metrics reading is not shown quiet as CONTRACTS 5 defines a
+    quiet reading, or None: queue_depth, in_progress and unacked 0,
+    mqtt_subscribed true and the accounting identity holding, every value
+    from that one reading (the runbook's 'drained' reads each reading so).
+    A field that is absent or not of its type is never read as zero or
+    false. One reading is not drained's quiet window: that window is the
+    runbook's (finish takes the 'after' pair only after 'drained'), and
+    delta cannot re-check it."""
+    unread = [key for key in ("received", "unacked") + IDENTITY_TERMS
+              if not (is_int(reading.get(key)) and reading[key] >= 0)]
+    if not isinstance(reading.get("mqtt_subscribed"), bool):
+        unread.append("mqtt_subscribed")
+    if unread:
+        return f"{', '.join(unread)} absent or not of the contract's type"
+    busy = [f"{key}={reading[key]}" for key in ("queue_depth", "in_progress", "unacked")
+            if reading[key] != 0]
+    if reading["mqtt_subscribed"] is not True:
+        busy.append("mqtt_subscribed=false")
+    if busy:
+        return ", ".join(busy)
+    total = sum(reading[key] for key in IDENTITY_TERMS)
+    if reading["received"] != total:
+        return (f"the accounting identity fails (received {reading['received']}, "
+                f"the sum of its terms {total})")
+    return None
+
+
 def n1_delta_report(args, primary: list[dict], events: list[dict], primary_run,
                     before: dict, after: dict, to_reading: dict | None) -> dict:
     """The N1 report (decision 2 of 2026-09-30) of the log and snapshots
-    delta compares, with the sources its options name. Never raises. The
-    options' labels and paths are named by their role ('to', the
-    --controller-log file), never echoed."""
+    delta compares, with the sources its options name. The options' labels
+    and paths are named by their role ('to', the --controller-log file),
+    never echoed."""
     sent, sent_why = n1_report.read_jsonl(Path(args.run_dir) / "sent_events.jsonl")
     problems = []
     if to_reading is not None:
-        for key in ("queue_depth", "in_progress", "unacked"):
-            value = to_reading.get(key)
-            if is_int(value) and value != 0:
-                problems.append("the 'to' /metrics reading shows "
-                                f"{key}={value}: the controller was not quiet")
+        why = quiet_reading_problem(to_reading)
+        if why is not None:
+            problems.append("the 'to' /metrics reading is not shown quiet "
+                            f"(CONTRACTS 5): {why}")
     deaths, deaths_note = None, "no --restart-evidence given"
     if args.restart_evidence:
         deaths, deaths_note, more = _restart_evidence(
@@ -610,15 +653,16 @@ def n1_summary(n1: dict) -> list[str]:
     else:
         log = f"controller log not read ({src['controller_log_note']})"
     if src["deaths"]:
-        death = (f"controller death: one die of {n1_report.CONTROLLER_CONTAINER} "
-                 "captured in the window")
+        dies = src["deaths"][0].get("dies_in_window")
+        death = (f"controller death: one death counted ({dies} "
+                 f"{'die' if dies == 1 else 'dies'} of "
+                 f"{n1_report.CONTROLLER_CONTAINER} captured in the window)")
     elif src["deaths_read"]:
         death = f"controller death: none ({src['deaths_note']})"
     else:
         death = f"controller death not read ({src['deaths_note']})"
     lines = [
-        "N1 REPORT (explanation only; lost and every delta status unchanged): "
-        f"n1_applied_unconfirmed={len(named)} "
+        f"{N1_HEADER}: n1_applied_unconfirmed={len(named)} "
         f"duplicate_only_unexplained={len(unexplained)}",
         f"  sources: {log}; {death}",
     ]
@@ -634,6 +678,25 @@ def n1_summary(n1: dict) -> list[str]:
     lines += [f"  note: {note}" for note in report["notes"]]
     lines.append(f"  {report['note']}")
     return lines
+
+
+def n1_delta_lines(args, primary: list[dict], events: list[dict], primary_run,
+                   before: dict, after: dict,
+                   to_reading: dict | None) -> tuple[dict[str, list[str]], list[str]]:
+    """The lines the N1 report adds, made before delta prints its first
+    line: (the annotation lines by device, the summary lines). Never
+    raises: a report that cannot be made is one summary line saying so,
+    and delta's own lines and exit stand."""
+    try:
+        n1 = n1_delta_report(args, primary, events, primary_run, before, after,
+                             to_reading)
+        annotations: dict[str, list[str]] = {}
+        for case in n1["report"]["n1_applied_unconfirmed"]:
+            annotations.setdefault(case["device_uuid"], []).append(n1_annotation(case))
+        return annotations, n1_summary(n1)
+    except Exception as exc:  # broad on purpose: the report never changes delta's lines or exit
+        return {}, [f"{N1_HEADER}: not made ({type(exc).__name__}); no "
+                    "identity is named"]
 
 
 def cmd_delta(args) -> int:
@@ -669,12 +732,12 @@ def cmd_delta(args) -> int:
         readings[path] = body
     # events.jsonl is one file per run_id (controller EventLogger bucket).
     primary_run = next((e["run_id"] for e in primary if e.get("run_id")), None)
-    # The N1 report (decision 2 of 2026-09-30), opt-in: computed before any
-    # line is printed, from sources read tolerantly; it never touches 'ok'.
+    # The N1 report (decision 2 of 2026-09-30), opt-in: made before any line
+    # is printed, from sources read tolerantly; it never touches 'ok'.
     n1 = None
     if args.n1_report or args.controller_log or args.restart_evidence:
-        n1 = n1_delta_report(args, primary, events, primary_run, before, after,
-                             readings.get(m_after))
+        n1 = n1_delta_lines(args, primary, events, primary_run, before, after,
+                            readings.get(m_after))
     ok = True
     # The loop below filters the log by the snapshot; this filters the snapshot
     # by the log. A snapshot taken with another seed or --devices than the run
@@ -716,9 +779,8 @@ def cmd_delta(args) -> int:
               f"{a['ingestion']['last_run_id']} last_seq "
               f"{a['ingestion']['last_seq']}: {'OK' if line_ok else 'MISMATCH'}")
         if n1 is not None:
-            for case in n1["report"]["n1_applied_unconfirmed"]:
-                if case["device_uuid"] == device_uuid:
-                    print(n1_annotation(case))
+            for text in n1[0].get(device_uuid, []):
+                print(text)
     if len(readings) < 2:
         missing = [str(p) for p in (m_before, m_after) if p not in readings]
         print(f"/metrics: NOT compared ({' and '.join(missing)} missing)")
@@ -747,7 +809,7 @@ def cmd_delta(args) -> int:
               "the 'to' snapshot: the controller was still draining; repeat "
               "the fetch and the snapshots under a new label")
     if n1 is not None:
-        for text in n1_summary(n1):
+        for text in n1[1]:
             print(text)
     return EXIT_OK if ok else EXIT_MISMATCH
 
