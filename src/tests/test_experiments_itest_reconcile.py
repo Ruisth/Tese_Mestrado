@@ -1192,14 +1192,25 @@ def a3_line(device_uuid: str, received_ns: int, level: str = "ERROR", cause: str
                                  "dup": False, "connection": 2, "received_monotonic_ns": received_ns}}})
 
 
+def quiet_metrics(**counters) -> dict:
+    """metrics() as the controller serves a whole /metrics reading that is
+    quiet (CONTRACTS 5): queue_depth, in_progress and unacked 0,
+    mqtt_subscribed true and the accounting identity holding."""
+    body = metrics(**counters)
+    body.update(in_progress=0, unacked=0, mqtt_subscribed=True, mqtt_connection=1, processing_errors=0)
+    body["received"] = sum(body[key] for key in ("accepted", "rejected", "duplicate", "failed", "dropped",
+                                                 "processing_errors", "in_progress", "queue_depth"))
+    return body
+
+
 def make_n1_fixture(tmp_path: Path) -> tuple[Path, Path]:
     """make_delta_fixture plus m5 (published, seq 5) whose only line is a
     duplicate, and a twin that grew by one more than the device's accepted
     records and ended on seq 5: the device line is a MISMATCH. The
     controller log holds one A3 connection end of DEV received before m5's
-    redelivery."""
+    redelivery; the 'after' /metrics reading is quiet."""
     run_dir = make_delta_fixture(tmp_path, after_count=504,
-                                 after_metrics=metrics(accepted=103, duplicate=2, rejected=1))
+                                 after_metrics=quiet_metrics(accepted=103, duplicate=2, rejected=1))
     write_jsonl(run_dir / "sent_events.jsonl", SENT + [sent(5)])
     write_jsonl(run_dir / "events.jsonl", EVENTS + [event(5, "duplicate", received_ns=DEADLINE)])
     write_json(rec.sib(str(run_dir), ".twins.after.json"), twins(504, last_run_id=RUN_ID, last_seq=5))
@@ -1488,7 +1499,7 @@ def test_delta_n1_report_counts_the_also_files_duplicate_only_identities_on_the_
     warm = tmp_path / "warmup-events.jsonl"
     write_jsonl(warm, [dict(event(0, "duplicate", run_id=f"{RUN_ID}.warmup", received_ns=T0 - 9 * NS),
                             message_id="w0")])
-    write_json(rec.sib(str(run_dir), ".metrics.after.json"), metrics(accepted=103, duplicate=3, rejected=1))
+    write_json(rec.sib(str(run_dir), ".metrics.after.json"), quiet_metrics(accepted=103, duplicate=3, rejected=1))
     argv = ["delta", str(run_dir), "--also", str(warm)]
     assert rec.main(argv) == 4
     plain = capsys.readouterr().out
@@ -1564,6 +1575,160 @@ def test_delta_n1_lines_hold_no_status_word_whatever_the_operator_names(tmp_path
     assert rec.main(argv) == plain_rc
     added = n1_added_lines(capsys.readouterr().out, plain)
     assert all("OK" not in ln and "MISMATCH" not in ln for ln in added), added
+
+
+# --- round 1 of the verification ---------------------------------------------
+
+
+@pytest.mark.parametrize("change", [
+    "in_progress absent", "unacked absent", "mqtt_subscribed absent", "received absent",
+    "mqtt_subscribed false", "in_progress 1", "unacked 2", "in_progress not-an-integer", "identity fails",
+])
+def test_delta_n1_report_needs_a_to_reading_quiet_as_the_contract_defines_one(tmp_path, capsys, change) -> None:
+    """Without --restart-evidence the twin evidence is the 'to' /metrics
+    reading, which must be quiet as CONTRACTS 5 defines one reading
+    (queue_depth, in_progress and unacked 0, mqtt_subscribed true and the
+    accounting identity holding; an absent field is never read as zero or
+    false): otherwise condition 3 is not shown and nothing is named."""
+    run_dir, log = make_n1_fixture(tmp_path)
+    reading = quiet_metrics(accepted=103, duplicate=2, rejected=1)
+    field, _sep, value = change.partition(" ")
+    if change == "identity fails":
+        reading["received"] += 1
+    elif value == "absent":
+        del reading[field]
+    elif value == "false":
+        reading[field] = False
+    elif value == "not-an-integer":
+        reading[field] = "0"
+    else:
+        reading[field] = int(value)
+    write_json(rec.sib(str(run_dir), ".metrics.after.json"), reading)
+    plain_rc = rec.main(["delta", str(run_dir)])
+    plain = capsys.readouterr().out
+    assert rec.main(["delta", str(run_dir), "--controller-log", str(log)]) == plain_rc == 4
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=1" in out
+    (evidence,) = [ln for ln in out.splitlines() if ln.startswith("  condition 3 evidence: ")]
+    assert "not shown quiet" in evidence, evidence
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in n1_added_lines(out, plain))
+
+
+@pytest.mark.parametrize("device", [None, ""])
+def test_delta_n1_report_places_a_duplicate_line_without_a_device_on_its_published_device(
+    tmp_path, capsys, device
+) -> None:
+    """m6, published on DEV, has a duplicate line that names no device and
+    the twin ended on its seq: DEV has two duplicate-only identities against
+    a surplus of one, so m5 is not named."""
+    run_dir, log = make_n1_fixture(tmp_path)
+    m6 = dict(event(6, "duplicate", received_ns=DEADLINE + NS), device_uuid=device)
+    write_jsonl(run_dir / "sent_events.jsonl", SENT + [sent(5), sent(6)])
+    write_jsonl(run_dir / "events.jsonl", EVENTS + [event(5, "duplicate", received_ns=DEADLINE), m6])
+    write_json(rec.sib(str(run_dir), ".twins.after.json"), twins(504, last_run_id=RUN_ID, last_seq=6))
+    write_json(rec.sib(str(run_dir), ".metrics.after.json"), quiet_metrics(accepted=103, duplicate=3, rejected=1))
+    plain_rc = rec.main(["delta", str(run_dir)])
+    plain = capsys.readouterr().out
+    assert rec.main(["delta", str(run_dir), "--controller-log", str(log)]) == plain_rc == 4
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=2" in out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("  duplicate_only_unexplained m5 ")]
+    assert "failed condition(s) 3:" in line, line
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in n1_added_lines(out, plain))
+
+
+def test_delta_n1_report_with_many_identities_keeps_its_exit(tmp_path, capsys) -> None:
+    """1200 duplicate-only identities of DEV with 1200 A3 ends before them
+    (the matching's longest augmenting paths): the report is made, and the
+    exit is the plain one."""
+    count = 1200
+    run_dir = make_delta_fixture(tmp_path, after_metrics=quiet_metrics(accepted=103, duplicate=1 + count, rejected=1))
+    extra = [dict(event(10 + i, "duplicate", received_ns=DEADLINE + i), message_id=f"k{i}") for i in range(count)]
+    write_jsonl(run_dir / "sent_events.jsonl", SENT + [dict(sent(10 + i), message_id=f"k{i}") for i in range(count)])
+    write_jsonl(run_dir / "events.jsonl", EVENTS + extra)
+    log = tmp_path / "controller.log"
+    log.write_text("".join(a3_line(DEV, T0 + i) + "\n" for i in range(count)), encoding="utf-8")
+    assert rec.main(["delta", str(run_dir)]) == 0
+    capsys.readouterr()
+    assert rec.main(["delta", str(run_dir), "--controller-log", str(log)]) == 0
+    out = capsys.readouterr().out
+    assert f"n1_applied_unconfirmed=0 duplicate_only_unexplained={count}" in out
+    assert f"controller log (--controller-log): {count} A3 connection end(s)" in out
+
+
+DEEP = "[" * 100_000
+
+
+@pytest.mark.parametrize("where", ["controller log", "sent_events.jsonl", "restart manifest", "verified snapshot",
+                                   "docker events capture"])
+def test_delta_n1_report_with_a_deeply_nested_json_line_keeps_its_exit(tmp_path, capsys, where) -> None:
+    """The JSON decoder raises RecursionError on deep nesting: in a source
+    the N1 options name, such a line is one that is not a record (never an
+    exception, never exit 1)."""
+    if where in ("controller log", "sent_events.jsonl"):
+        run_dir, log = make_n1_fixture(tmp_path)
+        plain_argv = ["delta", str(run_dir)]
+        argv = plain_argv + ["--controller-log", str(log)]
+        if where == "controller log":
+            log.write_text("2026-09-30T10:03:10.000000000Z {\"message\": " + DEEP + "\n"
+                           + a3_line(DEV, DEADLINE - NS) + "\n", encoding="utf-8")
+        else:
+            sent_file = run_dir / "sent_events.jsonl"
+            sent_file.write_text(sent_file.read_text(encoding="utf-8") + "{\"a\": " + DEEP + "\n", encoding="utf-8")
+        expected = "n1_applied_unconfirmed=1 duplicate_only_unexplained=0"
+    else:
+        from egw_experiments.checksums import write_sha256sums
+
+        run_dir, prefix = make_restart_evidence(tmp_path)
+        argv = t6_delta(run_dir, prefix)
+        plain_argv = argv[:6]
+        target = {"restart manifest": run_dir / "manifest.json", "verified snapshot": run_dir / "twins.after.json",
+                  "docker events capture": run_dir / "logs" / "sut" / "docker-events.log"}[where]
+        if where == "docker events capture":
+            target.write_text("{\"Action\": " + DEEP + "\n" + target.read_text(encoding="utf-8"), encoding="utf-8")
+            write_sha256sums(run_dir)
+            expected = "n1_applied_unconfirmed=1 duplicate_only_unexplained=0"
+        else:
+            target.write_text("{\"devices\": " + DEEP + "\n", encoding="utf-8")
+            expected = "n1_applied_unconfirmed=0 duplicate_only_unexplained=1"
+    plain_rc = rec.main(plain_argv)
+    plain = capsys.readouterr().out
+    assert rec.main(argv) == plain_rc == 4
+    out = capsys.readouterr().out
+    assert expected in out, out
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in n1_added_lines(out, plain))
+
+
+def test_delta_n1_report_that_cannot_be_made_changes_no_exit_and_no_line(tmp_path, capsys, monkeypatch) -> None:
+    """Whatever the report meets, delta's own lines and exit stand: an
+    exception inside it is reported as a report not made."""
+    run_dir, log = make_n1_fixture(tmp_path)
+
+    def boom(**_kwargs):
+        raise RuntimeError("unforeseen")
+
+    monkeypatch.setattr(rec.n1_report, "n1_applied_unconfirmed", boom)
+    assert rec.main(["delta", str(run_dir), "--controller-log", str(log)]) == 4
+    out = capsys.readouterr().out
+    added = n1_added_lines(out, N1_FIXTURE_PLAIN)
+    assert added[0].startswith("N1 REPORT") and "not made (RuntimeError)" in added[0], added
+    assert "  n1_applied_unconfirmed on " not in out
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in added)
+
+
+def test_delta_n1_sources_line_counts_the_dies_the_window_holds(tmp_path, capsys) -> None:
+    """At most one death per run is a source, however many dies of the
+    controller the window holds; the sources line says how many it holds."""
+    from egw_experiments.checksums import write_sha256sums
+
+    run_dir, prefix = make_restart_evidence(tmp_path)
+    capture = run_dir / "logs" / "sut" / "docker-events.log"
+    first = json.loads(capture.read_text(encoding="utf-8").splitlines()[0])
+    write_jsonl(capture, [first, dict(first, timeNano=first["timeNano"] + 60 * NS, time=first["time"] + 60)])
+    write_sha256sums(run_dir)
+    assert rec.main(t6_delta(run_dir, prefix)) == 4
+    (sources,) = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("  sources: ")]
+    assert "one death counted (2 dies of egw-controller-1 captured in the window)" in sources, sources
 
 
 # ---------------------------------------------------------------------------

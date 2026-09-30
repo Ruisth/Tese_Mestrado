@@ -622,3 +622,126 @@ def test_the_capture_window_is_read_in_ascii_digits_only_and_never_raises(value:
         assert window is None and "whole-number" in why
         deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, cov)
         assert deaths == [] and why
+
+
+# ---------------------------------------------------------------------------
+# round 1 of the verification: lines without one readable device, and inputs
+# that raised (the recursion of the matching and of the JSON decoder, the
+# integer digit limit)
+# ---------------------------------------------------------------------------
+
+
+def _no_device(record: dict, variant: str) -> dict:
+    record = dict(record)
+    if variant == "missing":
+        del record["device_uuid"]
+    else:
+        record["device_uuid"] = {"null": None, "empty": "", "not a string": 7}[variant]
+    return record
+
+
+@pytest.mark.parametrize("variant", ["missing", "null", "empty", "not a string"])
+def test_a_duplicate_only_identity_whose_lines_name_no_device_blocks_its_published_device(variant) -> None:
+    """mx is published on D, but its duplicate line names no device: it may
+    be the identity the twin applied on D (the twin even ended on its seq),
+    so D has two duplicate-only identities against an excess of one and
+    none is named (adopted rule 2, condition 3: all or nothing per device)."""
+    mx = _no_device(line("mx", 3, "duplicate", 5500), variant)
+    doc = report(events=EVENTS + [mx], sent_records=SENT + [sent("mx", 3)], twins_after={D: twin(13, R, 3)})
+    assert doc["devices"][D]["excess"] == 1
+    assert named(doc) == []
+    assert "3" in failed(doc, "m2") and "3" in failed(doc, "mx")
+    # Unpublished as well, its device cannot be told at all: it may count on
+    # any device, so it blocks every one.
+    doc = report(events=EVENTS + [mx], twins_after={D: twin(13, R, 3)})
+    assert named(doc) == [] and "3" in failed(doc, "m2")
+
+
+def test_a_duplicate_only_identity_whose_lines_name_two_devices_blocks_both() -> None:
+    """m9's two duplicate lines name D and E: which twin it may have reached
+    cannot be told, so neither device names its own identity."""
+    sent_records = SENT + [sent("n5", 5, device=E), sent("m9", 9)]
+    events = EVENTS + [line("n5", 5, "duplicate", 6000, device=E), line("m9", 9, "duplicate", 5600),
+                       line("m9", 9, "duplicate", 5700, device=E)]
+    doc = report(sent_records=sent_records, events=events,
+                 twins_before={D: twin(10, "old", 9), E: twin(20, "old", 9)},
+                 twins_after={D: twin(13, R, 9), E: twin(21, R, 5)},
+                 a3_ends=[end(D, 4000, 7), end(E, 5500, 8)])
+    assert named(doc) == []
+    assert "3" in failed(doc, "m2") and "3" in failed(doc, "n5") and "3" in failed(doc, "m9")
+
+
+@pytest.mark.parametrize("variant", ["missing", "null", "not a string"])
+def test_an_accepted_line_without_a_readable_device_names_nothing(variant) -> None:
+    """m1's accepted line names no device: delta's arithmetic (the lines'
+    device_uuid) counts it on no device, so a device's accepted lines may be
+    undercounted and its excess overstated - here the twin grew by exactly
+    D's two accepted records, m2 was not applied, and nothing is named."""
+    m1 = _no_device(line("m1", 1, "accepted", 2000), variant)
+    doc = report(events=[EVENTS[0], m1, EVENTS[2]], twins_after={D: twin(12, R, 2)})
+    assert doc["devices"][D]["accepted_lines"] == 1  # delta's count, unchanged
+    assert named(doc) == [] and failed(doc, "m2") == ["3"]
+    assert "without a readable device" in unexplained(doc)["m2"]["reason"]
+    # Of another run id too (an --also file's line, which delta counts).
+    warm = _no_device(line("w1", 1, "accepted", 2000, run_id=f"{R}.warmup"), variant)
+    assert named(report(events=EVENTS + [warm])) == []
+
+
+@pytest.mark.parametrize("identity", ["another run id", "no readable message_id"])
+def test_a_duplicate_only_line_of_no_readable_device_that_is_not_this_runs_blocks_every_device(identity) -> None:
+    other = line("w0", 0, "duplicate", 3000, run_id=f"{R}.warmup")
+    del other["device_uuid"]
+    if identity == "no readable message_id":
+        other = dict(other, run_id=R, message_id=None)
+    doc = report(events=EVENTS + [other])
+    assert named(doc) == [] and failed(doc, "m2") == ["3"]
+
+
+def test_many_identities_and_ends_never_raise_and_are_matched() -> None:
+    """The matching of identities to A3 ends is not recursive: 1200
+    duplicate-only identities, each with the same 1200 ends before it (the
+    shape whose augmenting paths are the longest), are all served; with one
+    end fewer one identity is left without a source. The twin shows no
+    surplus, so condition 3 alone fails and nothing is named either way."""
+    count = 1200
+    sent_records = [sent(f"k{i}", i) for i in range(count)]
+    events = [line(f"k{i}", i, "duplicate", NS + i) for i in range(count)]
+    ends = [end(D, 1 + i, i + 1) for i in range(count)]
+    kwargs = dict(run_id=R, sent_records=sent_records, events=events, twins_before={D: twin(0, "old", 0)},
+                  twins_after={D: twin(0, R, count - 1)}, deaths=[])
+    doc = n1.n1_applied_unconfirmed(**kwargs, a3_ends=ends)
+    assert doc["n1_applied_unconfirmed"] == []
+    assert {tuple(case["failed"]) for case in doc["duplicate_only_unexplained"]} == {("3",)}
+    doc = n1.n1_applied_unconfirmed(**kwargs, a3_ends=ends[1:])
+    assert {tuple(case["failed"]) for case in doc["duplicate_only_unexplained"]} == {("2", "3")}
+    assert len(doc["duplicate_only_unexplained"]) == count
+
+
+DEEP = "[" * 100_000
+
+
+def test_a_deeply_nested_json_line_is_not_read_never_raised(tmp_path) -> None:
+    """The JSON decoder raises RecursionError (not a ValueError) on deep
+    nesting: every reader takes such a line as one that is not a record."""
+    jsonl = tmp_path / "sent_events.jsonl"
+    jsonl.write_text(json.dumps(SENT[0]) + "\n" + "{\"a\": " + DEEP + "\n", encoding="utf-8")
+    assert n1.read_jsonl(jsonl) == ([SENT[0]], None)
+    obj = tmp_path / "twins.after.json"
+    obj.write_text("{\"devices\": " + DEEP + "\n", encoding="utf-8")
+    records, why = n1.read_json_object(obj)
+    assert records is None and "unreadable" in why
+    deep_log = "2026-09-30T10:03:10.000000000Z {\"message\": " + DEEP
+    assert n1.a3_connection_ends([deep_log, _a3_line(D, 4000)])[0]["line"] == 2
+    deaths, why = n1.controller_deaths(RESTART, ["{\"Action\": " + DEEP] + DOCKER_LINES, coverage())
+    assert why is None and deaths[0]["die_line"] == 4
+
+
+def test_a_capture_window_beyond_the_integer_digit_limit_is_no_window() -> None:
+    """int() refuses a string of more than 4300 digits (ValueError): such a
+    window is not a whole-number window, never an exception."""
+    huge = "1" + "0" * 4300
+    for cov in (coverage(since=huge), coverage(until=huge)):
+        window, why = n1.capture_window(cov)
+        assert window is None and "whole-number" in why
+        deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, cov)
+        assert deaths == [] and why
