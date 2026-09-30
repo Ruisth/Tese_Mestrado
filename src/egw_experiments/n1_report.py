@@ -41,13 +41,23 @@ the identity is unexplained, never N1. The readings taken here:
   ``intended_invalid`` is not ``false``, is not shown to be a valid
   identity. An unpublished duplicate-only identity can never be N1, but it
   counts among its device's duplicate-only identities (it may be the one
-  the twin applied);
+  the twin applied). So does a duplicate-only identity of another run id
+  in the compared log (``delta``'s ``--also`` file), or a duplicate line
+  without a readable identity: the device's accepted lines count every run
+  id, so the twin may have applied it; it is never named or listed here,
+  and while one is on the device none of the device's identities is named;
+- condition 2, the order: the identity's first duplicate line is its
+  earliest received one (the finite proof reads the minimum too), not the
+  first in the file; a duplicate line without a readable
+  ``received_monotonic_ns`` leaves the first redelivery unread, so no A3
+  end can be shown to precede it;
 - condition 2, the death: "the capture window" is the coverage record's
   ``[requested_since_guest_epoch, requested_until_guest_epoch + 1)`` over the
-  daemon's ``timeNano``, the window rule R7 of events_coverage.py reads, and
-  the record must start with ``coverage=complete``; the restart record must
-  show ``executed``, ``started_utc``, ``finished_utc``, ``returncode`` 0 and
-  no ``error`` (analyze's ``restart_hook_ok``);
+  daemon's ``timeNano``, the window rule R7 of events_coverage.py reads (in
+  ASCII digits, as it reads them), and the record must start with
+  ``coverage=complete``; the restart record must show ``executed``,
+  ``started_utc``, ``finished_utc``, ``returncode`` 0 and no ``error``
+  (analyze's ``restart_hook_ok``);
 - condition 2, the sources: a device is served when a maximum matching of
   its duplicate-only identities to its own A3 ends covers them all, or all
   but one and the one death is left to it. The death is left to a device
@@ -86,6 +96,7 @@ what the proof's A5 parser reads, and a drift test holds the two together.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -120,16 +131,21 @@ def _is_int(value: Any) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def read_text_lines(path: str | Path) -> tuple[list[str] | None, str | None]:
+def read_text_lines(
+    path: str | Path, name: str | None = None
+) -> tuple[list[str] | None, str | None]:
     """The lines of a log file, read as the finite proof reads the
-    controller log (UTF-8, undecodable bytes replaced), or (None, why)."""
+    controller log (UTF-8, undecodable bytes replaced), or (None, why);
+    ``why`` names the file as ``name`` when given (its role), else by its
+    file name."""
     path = Path(path)
+    name = path.name if name is None else name
     try:
         return path.read_text(encoding="utf-8", errors="replace").splitlines(), None
     except FileNotFoundError:
-        return None, f"{path.name} missing"
+        return None, f"{name} missing"
     except OSError as exc:
-        return None, f"{path.name} unreadable ({type(exc).__name__})"
+        return None, f"{name} unreadable ({type(exc).__name__})"
 
 
 def read_jsonl(path: str | Path) -> tuple[list[dict[str, Any]] | None, str | None]:
@@ -260,7 +276,10 @@ def capture_window(coverage_text: str | None) -> tuple[tuple[int, int] | None, s
         if sep and key and key not in values:
             values[key] = value
     since, until = values.get("requested_since_guest_epoch", ""), values.get("requested_until_guest_epoch", "")
-    if not (since.isdigit() and until.isdigit()) or int(until) < int(since):
+    # ASCII digits only, as events_coverage.py reads them: str.isdigit()
+    # also takes digits int() refuses (a superscript) or reads (other
+    # scripts), neither of which the capture writes.
+    if not (re.fullmatch(r"[0-9]+", since) and re.fullmatch(r"[0-9]+", until)) or int(until) < int(since):
         return None, "the coverage record gives no whole-number capture window"
     return (int(since), int(until)), None
 
@@ -394,6 +413,28 @@ def n1_applied_unconfirmed(
         mid for mid, lines in lines_by_id.items()
         if all(line.get("outcome") == "duplicate" for line in lines)
     ]
+    # The duplicate-only identities of the compared log that are not this
+    # run's (another run id, as delta's --also file, or a duplicate line
+    # without a readable identity): never named or listed, but each may be
+    # the one the twin applied on its device, which then names none.
+    others: dict[Any, list[dict[str, Any]]] = {}
+    for index, record in enumerate(events):
+        if not isinstance(record, dict):
+            continue
+        message_id = record.get("message_id")
+        readable = isinstance(message_id, str) and bool(message_id)
+        if readable and isinstance(run_id, str) and run_id and record.get("run_id") == run_id:
+            continue
+        key = (repr(record.get("run_id")), message_id) if readable else ("unreadable line", index)
+        others.setdefault(key, []).append(record)
+    other_by_device: dict[str, int] = {}
+    for lines in others.values():
+        if not all(line.get("outcome") == "duplicate" for line in lines):
+            continue
+        device = next((line["device_uuid"] for line in lines
+                       if isinstance(line.get("device_uuid"), str) and line["device_uuid"]), None)
+        if device is not None:
+            other_by_device[device] = other_by_device.get(device, 0) + 1
 
     valid: dict[str, dict[str, Any]] | None = None
     if sent_records is not None:
@@ -425,12 +466,14 @@ def n1_applied_unconfirmed(
                        if isinstance(line.get("device_uuid"), str) and line["device_uuid"]), None)
         record = valid.get(mid) if valid is not None else None
         seq = (record or lines[0]).get("seq")
-        stamp = lines[0].get("received_monotonic_ns")
+        # The first redelivery is the earliest received duplicate line, and
+        # it is unread when any duplicate line carries no readable stamp.
+        stamps = [line.get("received_monotonic_ns") for line in lines]
         facts[mid] = {
             "message_id": mid,
             "device_uuid": device,
             "seq": seq if _is_int(seq) else None,
-            "first_duplicate_received_monotonic_ns": stamp if _is_int(stamp) else None,
+            "first_duplicate_received_monotonic_ns": min(stamps) if all(_is_int(s) for s in stamps) else None,
         }
         if valid is None:
             fail(mid, "1", "sent_events.jsonl was not read, so it is not shown to be a valid published identity "
@@ -456,7 +499,8 @@ def n1_applied_unconfirmed(
                        and record.get("device_uuid") == device and record.get("outcome") == "accepted")
         excess = delta - accepted if delta is not None else None
         devices_out[device] = {"delta": delta, "accepted_lines": accepted, "excess": excess,
-                               "duplicate_only": len(by_device.get(device, [])), "reported": 0}
+                               "duplicate_only": len(by_device.get(device, [])),
+                               "other_run_duplicate_only": other_by_device.get(device, 0), "reported": 0}
         if excess is not None and excess > 0 and not by_device.get(device):
             notes.append(f"device {device}: excess {excess} with no duplicate-only identity of this run: "
                          "nothing is named")
@@ -473,6 +517,11 @@ def n1_applied_unconfirmed(
             why = (f"the twin shows no surplus on the device (delta {figures['delta']} against "
                    f"{figures['accepted_lines']} accepted line(s): excess {figures['excess']}), so no identity "
                    "is shown applied")
+        elif figures["other_run_duplicate_only"]:
+            count = figures["other_run_duplicate_only"]
+            why = (f"the compared log holds {count} duplicate-only identit{'y' if count == 1 else 'ies'} of another "
+                   "run id (or without a readable identity) on the device, which the twin's surplus may count: "
+                   "which identity it applied cannot be told, so none is named")
         elif len(mids) > figures["excess"]:
             why = (f"{len(mids)} duplicate-only identities on the device against an excess of {figures['excess']}: "
                    "they cannot be told apart, so none is named")

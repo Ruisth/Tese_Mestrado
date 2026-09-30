@@ -35,8 +35,10 @@ explanation, never a status: under a device line that stays ``MISMATCH`` it
 names the ``n1_applied_unconfirmed`` identities of that device, and after
 the last line it prints the counts, the sources and every
 ``duplicate_only_unexplained`` identity with its failed conditions; no line
-it adds holds the upper-case status words, a named source that cannot be
-read is reported as not read (never exit 1), and no exit code changes.
+it adds holds the upper-case status words (it names the options' labels and
+files by their role, never by the names given), a named source that cannot
+be read, or holds a malformed record, is reported as not read (never exit
+1), and no exit code changes.
 Without the options the output is byte for byte what it was.
 
 Exit codes (the runbook's shell helpers test them):
@@ -502,22 +504,24 @@ def cmd_snap(args) -> int:
 
 # --- delta: per-device and per-process differences vs the event log --------
 def _restart_evidence(run_dir: Path, primary_run, primary: list[dict],
-                      before: dict, after: dict, labels: tuple[str, str]):
+                      before: dict, after: dict):
     """The death source and the condition-3 problems a harness run directory
     gives the N1 report: (deaths, deaths_note, problems). Everything is read
-    tolerantly; what cannot be read is named, never raised."""
+    tolerantly; what cannot be read is named, never raised. The texts name
+    the snapshots by their role ('from', 'to'), never by the labels or the
+    paths given, so that no added line can spell a status word."""
     manifest, why = n1_report.read_json_object(run_dir / MANIFEST_FILENAME)
     if manifest is None:
         text = f"restart evidence not read ({why})"
         return None, text, [text + ": the drain and the snapshots are not shown"]
     if manifest.get("run_id") != primary_run:
         text = ("restart evidence not read as this run's: its manifest names "
-                f"run {manifest.get('run_id')!r}, the compared events "
-                f"{primary_run!r}")
+                "another run id than the compared events")
         return None, text, [text]
     try:
         facts, manifest = rq.run_facts(run_dir, str(primary_run), planned=False)
-    except (OSError, ValueError) as exc:
+        deaths, deaths_note = rq.n1_death_source(run_dir, manifest)
+    except Exception as exc:  # broad on purpose: a malformed record is "not read", never exit 1
         text = f"restart evidence not read ({type(exc).__name__})"
         return None, text, [text]
     problems = []
@@ -525,47 +529,48 @@ def _restart_evidence(run_dir: Path, primary_run, primary: list[dict],
     if problem is not None:
         problems.append(problem)
     # The snapshots and the copy delta compares must be the verified ones.
-    for label, devices, hook in ((labels[0], before, "twin_snapshot_before"),
-                                 (labels[1], after, "twin_snapshot_after")):
+    for role, devices, hook in (("from", before, "twin_snapshot_before"),
+                                ("to", after, "twin_snapshot_after")):
         file = TWIN_SNAPSHOT_FILES[hook]
         verified = n1_report.twin_devices(
             n1_report.read_json_object(run_dir / file)[0])
         if verified != devices:
-            problems.append(f"the '{label}' snapshot compared is not the run's "
+            problems.append(f"the '{role}' snapshot compared is not the run's "
                             f"verified snapshot {file}")
     post_drain, _why = n1_report.read_jsonl(run_dir / POST_DRAIN_EVENTS_FILENAME)
     if post_drain != primary:
         problems.append("the events copy compared is not the run's verified "
                         f"post-drain copy ({POST_DRAIN_EVENTS_FILENAME})")
-    deaths, deaths_note = rq.n1_death_source(run_dir, manifest)
     return deaths, deaths_note, problems
 
 
 def n1_delta_report(args, primary: list[dict], events: list[dict], primary_run,
                     before: dict, after: dict, to_reading: dict | None) -> dict:
     """The N1 report (decision 2 of 2026-09-30) of the log and snapshots
-    delta compares, with the sources its options name. Never raises."""
+    delta compares, with the sources its options name. Never raises. The
+    options' labels and paths are named by their role ('to', the
+    --controller-log file), never echoed."""
     sent, sent_why = n1_report.read_jsonl(Path(args.run_dir) / "sent_events.jsonl")
     problems = []
     if to_reading is not None:
         for key in ("queue_depth", "in_progress", "unacked"):
             value = to_reading.get(key)
             if is_int(value) and value != 0:
-                problems.append(f"the '{args.to}' /metrics reading shows "
+                problems.append("the 'to' /metrics reading shows "
                                 f"{key}={value}: the controller was not quiet")
     deaths, deaths_note = None, "no --restart-evidence given"
     if args.restart_evidence:
         deaths, deaths_note, more = _restart_evidence(
-            Path(args.restart_evidence), primary_run, primary, before, after,
-            (args.frm, args.to))
+            Path(args.restart_evidence), primary_run, primary, before, after)
         problems += more
     elif to_reading is None:
-        problems.append(f"no evidence that the '{args.to}' snapshot follows a "
-                        "quiet drain (no --restart-evidence and no "
-                        f"'{args.to}' /metrics reading)")
+        problems.append("no evidence that the 'to' snapshot follows a quiet "
+                        "drain (no --restart-evidence and no 'to' /metrics "
+                        "reading)")
     ends, a3_note = None, "no --controller-log given"
     if args.controller_log:
-        lines, a3_note = n1_report.read_text_lines(args.controller_log)
+        lines, a3_note = n1_report.read_text_lines(
+            args.controller_log, name="the --controller-log file")
         if lines is not None:
             ends = n1_report.a3_connection_ends(lines)
     report = n1_report.n1_applied_unconfirmed(
@@ -573,8 +578,7 @@ def n1_delta_report(args, primary: list[dict], events: list[dict], primary_run,
         twins_before=before, twins_after=after,
         twin_evidence_problem="; ".join(problems) or None,
         deaths=deaths, deaths_note=deaths_note, a3_ends=ends, a3_note=a3_note)
-    log = Path(args.controller_log).name if args.controller_log else None
-    return {"report": report, "sent_note": sent_why, "controller_log": log}
+    return {"report": report, "sent_note": sent_why}
 
 
 def n1_annotation(case: dict) -> str:
@@ -601,7 +605,7 @@ def n1_summary(n1: dict) -> list[str]:
     unexplained = report["duplicate_only_unexplained"]
     src = report["sources"]
     if src["controller_log_read"]:
-        log = (f"controller log {n1['controller_log']}: {src['a3_ends']} A3 "
+        log = (f"controller log (--controller-log): {src['a3_ends']} A3 "
                "connection end(s)")
     else:
         log = f"controller log not read ({src['controller_log_note']})"
