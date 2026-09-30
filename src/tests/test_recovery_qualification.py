@@ -513,6 +513,26 @@ def test_a_planned_run_without_a_directory_has_empty_n1_columns(
     assert _row(doc, R01)["n1_applied_unconfirmed"] == 0 and _row(doc, R01)["duplicate_only_unexplained"] == 0
 
 
+def test_a_malformed_capture_window_is_no_death_and_never_stops_the_layer(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """A coverage record whose window is not in ASCII digits (a superscript
+    digit passes str.isdigit but not int) gives no death source: the layer
+    and the recovery command run on, and the identity is unexplained."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path)
+    coverage = base / "raw" / R01 / "logs" / "sut" / "docker-events.coverage.txt"
+    coverage.write_text(coverage.read_text(encoding="utf-8").replace(
+        "requested_until_guest_epoch=", "requested_until_guest_epoch=²"), encoding="utf-8")
+    write_sha256sums(base / "raw" / R01)
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 1
+    (case,) = row["n1"]["duplicate_only_unexplained"]
+    assert case["failed"] == ["2"] and "whole-number capture window" in case["reason"]
+    assert cli.main(["recovery", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+
+
 def test_recovery_subcommand_is_documented_with_the_analyze_defaults() -> None:
     args = cli.build_parser().parse_args(["recovery"])
     assert args.plan == cli.DEFAULT_PLAN_PATH and args.base_dir is None

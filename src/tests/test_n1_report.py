@@ -548,3 +548,77 @@ def test_case_21_the_device_arithmetic_equals_what_delta_prints(tmp_path, capsys
                                         twins_before={D: twin(10, "old", 9)}, twins_after={D: twin(16, R, 2)})
         assert doc["devices"][D]["delta"] == int(match.group(1))
         assert doc["devices"][D]["accepted_lines"] == int(match.group(2))
+
+
+# ---------------------------------------------------------------------------
+# round 0 of the verification: the duplicate-only identities of another run
+# id, the first redelivery, and a capture window that never raises
+# ---------------------------------------------------------------------------
+
+
+def test_a_duplicate_only_identity_of_another_run_id_on_the_device_blocks_the_naming() -> None:
+    """delta's arithmetic counts every accepted line of the compared log,
+    whatever its run id (the --also file of the warm-up run): a duplicate-only
+    identity of that other run on the device may be the one the twin applied,
+    so the device has two duplicate-only identities against an excess of one
+    and none is named (adopted rule 2, condition 3)."""
+    events = EVENTS + [line("w0", 0, "duplicate", 3000, run_id=f"{R}.warmup")]
+    doc = report(events=events)
+    assert named(doc) == []
+    assert failed(doc, "m2") == ["3"]
+    assert "another run id" in unexplained(doc)["m2"]["reason"]
+    assert doc["devices"][D]["other_run_duplicate_only"] == 1
+    # It is not an identity of this run: listed in neither list.
+    assert "w0" not in unexplained(doc)
+    # Nor with a surplus that would also cover it: the reported count (m2
+    # alone) would not equal the excess.
+    doc = report(events=events, twins_after={D: twin(14, R, 2)})
+    assert named(doc) == [] and failed(doc, "m2") == ["3"]
+
+
+def test_another_run_ids_identities_block_only_their_own_device_and_only_when_duplicate_only() -> None:
+    other = f"{R}.warmup"
+    on_e = EVENTS + [line("w0", 0, "duplicate", 3000, device=E, run_id=other)]
+    assert named(report(events=on_e)) == ["m2"]
+    # An identity of the other run with an accepted line (N2 there) is not
+    # duplicate-only; its accepted line is in the device's accepted lines.
+    n2 = EVENTS + [line("w0", 0, "accepted", 2500, run_id=other), line("w0", 0, "duplicate", 3000, run_id=other)]
+    assert named(report(events=n2, twins_after={D: twin(14, R, 2)})) == ["m2"]
+
+
+def test_the_first_duplicate_line_is_the_earliest_received_whatever_the_file_order() -> None:
+    """P-4's order rule reads the identity's first redelivery: the earliest
+    received duplicate line (the finite proof reads the minimum), not the
+    first line of the file. An end received between the two redeliveries
+    cannot precede the first one."""
+    events = EVENTS[:2] + [line("m2", 2, "duplicate", 7000), line("m2", 2, "duplicate", 5000)]
+    doc = report(events=events, a3_ends=[end(D, 6000, 7)])
+    assert named(doc) == [] and failed(doc, "m2") == ["2"]
+    assert unexplained(doc)["m2"]["first_duplicate_received_monotonic_ns"] == 5000
+    doc = report(events=events, a3_ends=[end(D, 4000, 7)])
+    assert named(doc) == ["m2"]
+    assert doc["n1_applied_unconfirmed"][0]["first_duplicate_received_monotonic_ns"] == 5000
+
+
+def test_a_duplicate_line_without_a_stamp_leaves_the_first_redelivery_unread() -> None:
+    """A duplicate line without received_monotonic_ns may be the first
+    redelivery: the order is not shown, so no end can serve (an unreadable
+    stamp is never N1)."""
+    events = EVENTS[:2] + [line("m2", 2, "duplicate", 5000), dict(line("m2", 2, "duplicate", 0),
+                                                                  received_monotonic_ns=None)]
+    doc = report(events=events, a3_ends=[end(D, 4000, 7)])
+    assert named(doc) == [] and failed(doc, "m2") == ["2"]
+    assert unexplained(doc)["m2"]["first_duplicate_received_monotonic_ns"] is None
+
+
+@pytest.mark.parametrize("value", ["²", "١٧٩٠٠٠٠٠٠٠",
+                                   "+1790000000", "1_790_000_000"])
+def test_the_capture_window_is_read_in_ascii_digits_only_and_never_raises(value: str) -> None:
+    """events_coverage.py reads the window with re.fullmatch("[0-9]+"): any
+    other value gives no window (never an exception, whatever str.isdigit
+    or int would make of it)."""
+    for cov in (coverage(since=value), coverage(until=value)):
+        window, why = n1.capture_window(cov)
+        assert window is None and "whole-number" in why
+        deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, cov)
+        assert deaths == [] and why

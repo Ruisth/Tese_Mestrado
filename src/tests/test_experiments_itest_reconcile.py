@@ -1476,6 +1476,96 @@ def test_delta_parser_takes_the_n1_options() -> None:
         True, "raw/r/logs/sut/controller.log", "raw/r")
 
 
+# --- round 0 of the verification ---------------------------------------------
+
+
+def test_delta_n1_report_counts_the_also_files_duplicate_only_identities_on_the_device(tmp_path, capsys) -> None:
+    """The --also file of another run id (the harness warm-up) is in delta's
+    arithmetic; a duplicate-only identity of it on DEV may be the one the
+    twin applied: two duplicate-only identities against an excess of one,
+    so none is named."""
+    run_dir, log = make_n1_fixture(tmp_path)
+    warm = tmp_path / "warmup-events.jsonl"
+    write_jsonl(warm, [dict(event(0, "duplicate", run_id=f"{RUN_ID}.warmup", received_ns=T0 - 9 * NS),
+                            message_id="w0")])
+    write_json(rec.sib(str(run_dir), ".metrics.after.json"), metrics(accepted=103, duplicate=3, rejected=1))
+    argv = ["delta", str(run_dir), "--also", str(warm)]
+    assert rec.main(argv) == 4
+    plain = capsys.readouterr().out
+    assert rec.main(argv + ["--controller-log", str(log)]) == 4
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=1" in out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("  duplicate_only_unexplained m5 ")]
+    assert "failed condition(s) 3:" in line and "another run id" in line, line
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in n1_added_lines(out, plain))
+
+
+@pytest.mark.parametrize("value", ["²", "١٧٩٠"])
+def test_delta_restart_evidence_with_a_malformed_capture_window_is_not_fatal(tmp_path, capsys, value) -> None:
+    run_dir, prefix = make_restart_evidence(tmp_path)
+    coverage = run_dir / "logs" / "sut" / "docker-events.coverage.txt"
+    coverage.write_text(coverage.read_text(encoding="utf-8").replace(
+        "requested_until_guest_epoch=", f"requested_until_guest_epoch={value}"), encoding="utf-8")
+    assert rec.main(t6_delta(run_dir, prefix)) == 4  # as without the options; never 1
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=1" in out
+    assert "whole-number capture window" in out
+
+
+@pytest.mark.parametrize("file", [["twins.before.json"], {"name": "twins.before.json"}])
+def test_delta_restart_evidence_with_a_malformed_manifest_is_not_fatal(tmp_path, capsys, file) -> None:
+    run_dir, prefix = make_restart_evidence(tmp_path)
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    manifest["twin_snapshots"] = [{"file": file, "verified": True}, {"file": "twins.after.json", "verified": True}]
+    write_json(run_dir / "manifest.json", manifest)
+    assert rec.main(t6_delta(run_dir, prefix)) == 4  # as without the options; never 1
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=1" in out
+    assert "restart evidence not read" in out
+
+
+def _status_word_case(tmp_path: Path, case: str) -> tuple[list[str], list[str]]:
+    """(plain argv, argv with the N1 options) whose options carry an
+    operator-chosen name spelling a status word."""
+    if case.startswith("restart evidence"):
+        run_dir, prefix = make_restart_evidence(tmp_path)
+        for label in ("OK", "MISMATCH"):
+            source = rec.sib(prefix, ".twins.before.json" if label == "OK" else ".twins.after.json")
+            write_json(rec.sib(prefix, f".twins.{label}.json"), json.loads(source.read_text(encoding="utf-8")))
+        # the 'to' snapshot compared is not the run's verified one
+        write_json(rec.sib(prefix, ".twins.MISMATCH.json"), twins(504, last_run_id=RUN_ID, last_seq=6))
+        argv = t6_delta(run_dir, prefix)[:6] + ["--from", "OK", "--to", "MISMATCH"]
+        return argv, argv + ["--restart-evidence", str(run_dir)]
+    run_dir, log = make_n1_fixture(tmp_path)
+    argv = ["delta", str(run_dir)]
+    if case == "log named OK":
+        named = tmp_path / "OK.log"
+        named.write_bytes(log.read_bytes())
+        return argv, argv + ["--controller-log", str(named)]
+    if case == "missing log named MISMATCH":
+        return argv, argv + ["--controller-log", str(tmp_path / "MISMATCH.log")]
+    prefix = str(run_dir)
+    write_json(rec.sib(prefix, ".twins.OK.json"), json.loads(rec.sib(prefix, ".twins.after.json").read_text("utf-8")))
+    argv = argv + ["--to", "OK"]
+    if case == "label OK, draining reading":
+        write_json(rec.sib(prefix, ".metrics.OK.json"), metrics(accepted=103, duplicate=2, rejected=1, queue_depth=1))
+    return argv, argv + ["--controller-log", str(log)]
+
+
+@pytest.mark.parametrize("case", ["log named OK", "missing log named MISMATCH", "label OK, draining reading",
+                                  "label OK, no reading", "restart evidence with labels OK and MISMATCH"])
+def test_delta_n1_lines_hold_no_status_word_whatever_the_operator_names(tmp_path, capsys, case) -> None:
+    """No line the N1 report adds holds the upper-case status words, even
+    when a file name or a snapshot label the operator chose spells one: the
+    added lines name the options' roles, never the names given."""
+    plain_argv, argv = _status_word_case(tmp_path, case)
+    plain_rc = rec.main(plain_argv)
+    plain = capsys.readouterr().out
+    assert rec.main(argv) == plain_rc
+    added = n1_added_lines(capsys.readouterr().out, plain)
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in added), added
+
+
 # ---------------------------------------------------------------------------
 # same
 # ---------------------------------------------------------------------------
