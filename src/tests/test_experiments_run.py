@@ -5709,12 +5709,15 @@ def _pd_epoch(clock: str) -> int:
     return int(datetime.fromisoformat(f"2026-09-07T{clock}+00:00").timestamp())
 
 
-def _gap_resources_file(tmp_path: Path) -> Path:
+def _gap_resources_file(
+    tmp_path: Path, *, kept: tuple[str, ...] = (), filename: str = "gap-resources.csv"
+) -> Path:
     """The collector's CSV of a restart: the broker and the controller at every
     second from 09:59:30 to 10:00:40, the controller's rows 09:59:58 to
-    10:00:04 absent (an 8 s gap across the measured window), with its
-    companions (the collector's window 09:59:30 to 10:00:41, 71 samples)."""
-    path = tmp_path / "gap-resources.csv"
+    10:00:04 absent (an 8 s gap across the measured window) except the
+    seconds ``kept`` names (HH:MM:SS), with its companions (the collector's
+    window 09:59:30 to 10:00:41, 71 samples)."""
+    path = tmp_path / filename
     lines = [RESOURCES_HEADER]
     t = datetime(2026, 9, 7, 9, 59, 30, tzinfo=timezone.utc)
     hole = (
@@ -5724,7 +5727,11 @@ def _gap_resources_file(tmp_path: Path) -> Path:
     while t <= datetime(2026, 9, 7, 10, 0, 40, tzinfo=timezone.utc):
         stamp = t.strftime("%Y-%m-%dT%H:%M:%SZ")
         for name in PD_SERVICES:
-            if name == "egw-controller-1" and hole[0] <= t <= hole[1]:
+            if (
+                name == "egw-controller-1"
+                and hole[0] <= t <= hole[1]
+                and t.strftime("%H:%M:%S") not in kept
+            ):
                 continue
             lines.append(f"{stamp},{name},10.0,1024,1.0,{SUT_NODE}")
         t += timedelta(seconds=1)
@@ -5789,16 +5796,19 @@ def _proved_down_run(
     *,
     started_at_rc: int | None = 0,
     started_at: str = PD_STARTED_AT,
+    kept: tuple[str, ...] = (),
+    resources_from: Path | None = None,
 ) -> tuple[int, Path, Path, Path, str | None]:
     """A controller_restart run whose collector file has the controller's 8 s
-    gap, with the complete capture of its restart; ``started_at_rc`` None
-    runs it without --fetch-started-at-cmd."""
-    src = _gap_resources_file(tmp_path)
+    gap (but the rows ``kept``), with the complete capture of its restart;
+    ``started_at_rc`` None runs it without --fetch-started-at-cmd, and
+    ``resources_from`` gives the run another --resources-from path."""
+    src = _gap_resources_file(tmp_path, kept=kept)
     files = _pd_guest_files(tmp_path, started_at=started_at)
     script = _write_script(tmp_path, "copy_step.py", COPY_STEP_SCRIPT)
     record = tmp_path / "sut-steps.txt"
     overrides: dict[str, Any] = {
-        "resources_from": src,
+        "resources_from": src if resources_from is None else resources_from,
         "expect_services": PD_SERVICES,
         "fetch_docker_events_cmd": _copy_tpl(
             script, record, "docker_events", 0, files["docker-events.log"],
@@ -5980,6 +5990,75 @@ def test_the_started_at_read_on_another_condition_is_fetched_but_records_no_inte
     assert manifest["validity"] == "valid"
     assert [f["hook"] for f in manifest["sut_log_fetches"]] == ["started_at"]
     assert "resources_proved_down" not in manifest
+
+
+def test_collect_keeps_the_run_time_judgement_of_a_file_judged_under_the_interval(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-09-30 (1a-collect-overturns-rejection): the controller's
+    row at 10:00:01 lies between D and S, so the interval rejects the file at
+    run time, although the ordinary rule accepts it (two 4 s gaps). 'collect'
+    given the same file does not re-judge it by the ordinary rule: the run
+    stays invalid and unsealed, nothing is ingested, the interval's record is
+    unchanged and one warning names decision 1a."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, kept=("10:00:01",)
+    )
+    base = run_dir.parent.parent
+    assert rc == 1
+    manifest = _manifest(base, "controller_restart-r01")
+    pd = manifest["resources_proved_down"]
+    assert pd["applies"] is True and pd["resources_ingested"] is False
+    assert pd["rows_between"] == ["2026-09-07T10:00:01+00:00"]
+    assert manifest["resource_source"] == "none"
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=src
+        )
+        == 1
+    )
+    after = _manifest(base, "controller_restart-r01")
+    assert after["validity"] == "invalid" and after["resource_source"] == "none"
+    assert after["validity_reasons"] == manifest["validity_reasons"]
+    assert not (run_dir / "resources.csv").exists()
+    assert not (run_dir / checksums.SUMS_FILENAME).exists()
+    assert after["resources_proved_down"] == pd
+    added = after["warnings"][len(manifest["warnings"]):]
+    assert len(added) == 1 and "decision 1a" in added[0] and str(src) in added[0], added
+    assert "not re-judged by the ordinary rule" in added[0]
+
+
+def test_collect_that_ingests_a_file_no_interval_judged_records_it_ingested(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-09-30: the collector's file was missing at run time, so
+    the interval, derived, was not applied; 'collect' judges the file given
+    later by the ordinary rule, as before, and once it has ingested it the
+    record's resources_ingested agrees with the manifest."""
+    late = tmp_path / "late" / "resources.csv"
+    rc, run_dir, _record, _src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, resources_from=late
+    )
+    base = run_dir.parent.parent
+    assert rc == 1
+    pd = _manifest(base, "controller_restart-r01")["resources_proved_down"]
+    assert pd["applies"] is False and pd["resources_ingested"] is False
+    late.parent.mkdir()
+    full = _gap_resources_file(
+        late.parent,
+        kept=("09:59:58", "09:59:59", "10:00:00", "10:00:01", "10:00:02", "10:00:03", "10:00:04"),
+        filename=late.name,
+    )
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=full
+        )
+        == 0
+    )
+    after = _manifest(base, "controller_restart-r01")
+    assert after["validity"] == "valid" and after["resource_source"] == "sut-collector"
+    assert (run_dir / "resources.csv").read_bytes() == full.read_bytes()
+    assert after["resources_proved_down"] == {**pd, "resources_ingested": True}
 
 
 EXTERNAL_EVIDENCE_CLI = [

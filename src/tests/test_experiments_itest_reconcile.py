@@ -1750,6 +1750,45 @@ def test_delta_n1_sources_line_counts_the_dies_the_window_holds(tmp_path, capsys
     assert "one death counted (2 dies of egw-controller-1 captured in the window)" in sources, sources
 
 
+# review of 2026-09-30 --------------------------------------------------------
+
+
+def test_delta_restart_evidence_reads_the_post_drain_copy_split_at_newlines_only(tmp_path, capsys) -> None:
+    """D2-1: m5's failed line, before its duplicate in the post-drain copy,
+    carries a raw U+2028 in its error (the controller writes its lines with
+    ensure_ascii=False). delta reads the copy line by line at newlines, and
+    so does the check that it is the run's verified post-drain copy: no
+    condition-3 problem is named for it, and m5 is not duplicate-only."""
+    from egw_experiments.checksums import write_sha256sums
+
+    run_dir, prefix = make_restart_evidence(tmp_path)
+    failed = dict(event(5, "failed", received_ns=DEADLINE - NS), error="Ditto 502: bad gateway")
+    (run_dir / "events.post-drain.jsonl").write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n"
+                for r in EVENTS + [failed, event(5, "duplicate", received_ns=DEADLINE)]),
+        encoding="utf-8")
+    write_sha256sums(run_dir)
+    assert rec.main(t6_delta(run_dir, prefix)) == 4
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=0" in out, out
+    assert "post-drain copy" not in out and "condition 3 evidence" not in out, out
+
+
+def test_delta_n1_summary_names_no_device_for_an_identity_whose_lines_name_several(tmp_path, capsys) -> None:
+    """D2-5: an unexplained identity whose outcome lines name two devices is
+    printed 'on no single device', never with the Python literal None."""
+    run_dir, log = make_n1_fixture(tmp_path)
+    m9 = [event(9, "duplicate", received_ns=DEADLINE + NS),
+          dict(event(9, "duplicate", received_ns=DEADLINE + 2 * NS), device_uuid=RING)]
+    write_jsonl(run_dir / "sent_events.jsonl", SENT + [sent(5), sent(9)])
+    write_jsonl(run_dir / "events.jsonl", EVENTS + [event(5, "duplicate", received_ns=DEADLINE)] + m9)
+    rec.main(["delta", str(run_dir), "--controller-log", str(log)])
+    out = capsys.readouterr().out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("  duplicate_only_unexplained m9 ")]
+    assert line.startswith("  duplicate_only_unexplained m9 on no single device seq 9: failed "), line
+    assert "None" not in line, line
+
+
 # ---------------------------------------------------------------------------
 # same
 # ---------------------------------------------------------------------------

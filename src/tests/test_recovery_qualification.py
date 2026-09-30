@@ -657,6 +657,41 @@ def test_an_n1_report_that_cannot_be_made_never_stops_the_layer(
     assert rows[0]["n1_applied_unconfirmed"] == "" and rows[0]["duplicate_only_unexplained"] == ""
 
 
+# review of 2026-09-30 -------------------------------------------------------
+
+
+def test_a_raw_line_separator_in_a_failed_line_keeps_the_identity_off_both_n1_columns(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """D2-1: m2's failed line, before its duplicate in the post-drain copy,
+    carries a raw U+2028 in its error (the controller writes its lines with
+    ensure_ascii=False). The layer splits the copy at newlines only, as the
+    analyser does: m2 is not duplicate-only, so it is in neither column."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path)
+    run_dir = base / "raw" / R01
+    copy = run_dir / run_mod.POST_DRAIN_EVENTS_FILENAME
+    rows = [json.loads(text) for text in copy.read_text(encoding="utf-8").splitlines()]
+    failed = dict(rows[2], outcome="failed", received_monotonic_ns=2500, error="Ditto 502: bad gateway")
+    copy.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows[:2] + [failed, rows[2]]),
+                    encoding="utf-8")
+    write_sha256sums(run_dir)
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 0
+
+
+def test_the_statement_names_the_n1_columns_and_scopes_the_analysers_figures() -> None:
+    """D2-4: the statement written into the JSON no longer says that every
+    figure comes from analyze: the N1 columns are this layer's report of
+    identities read from the run's files, and they change no figure."""
+    assert "every figure comes from" not in rq.STATEMENT
+    assert "every figure of the analysis comes from egw_experiments.analyze, unchanged" in rq.STATEMENT
+    assert "the N1 columns are this layer's report" in rq.STATEMENT and "change no figure" in rq.STATEMENT
+    for word in ("lost", "late", "N1", "acceptance"):
+        assert word in rq.STATEMENT
+
+
 def test_recovery_subcommand_is_documented_with_the_analyze_defaults() -> None:
     args = cli.build_parser().parse_args(["recovery"])
     assert args.plan == cli.DEFAULT_PLAN_PATH and args.base_dir is None

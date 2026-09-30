@@ -4,8 +4,8 @@ The harness's --fetch-started-at-cmd hook, run as the harness runs it (one argv,
 device), against a stub ssh that runs the guest command on this machine - under the gateway image's busybox when
 EGW_TEST_BUSYBOX_DIR names the wrappers of tools/test/make-busybox-wrappers.sh (PATH then holds nothing else but the
 guest stubs), under sh otherwise - with a stub docker (inspect only, answering from the environment) and a stub date.
-Every stub call is logged in order, so the cases see one ssh session, both inspect reads and the guest clock after
-them. What these cases show is the script's own behaviour: the four lines written once, and no file, a non-zero exit
+Every stub call is logged in order, so the cases see one ssh session, the guest clock and both inspect reads after
+it. What these cases show is the script's own behaviour: the four lines written once, and no file, a non-zero exit
 and a reason on stderr whenever a value is missing or malformed. They say nothing about a real guest or engine.
 """
 from __future__ import annotations
@@ -120,7 +120,9 @@ def _report(result: subprocess.CompletedProcess) -> str:
     return f"exit {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
-def test_one_session_reads_the_id_and_started_at_then_the_guest_clock_and_writes_the_record_once(bench) -> None:
+def test_one_session_reads_the_guest_clock_then_the_id_and_started_at_and_writes_the_record_once(bench) -> None:
+    """The guest clock is read BEFORE the inspects, as proof_restart_controller.sh reads it (review of
+    2026-09-30): only then does a guest_epoch at or after S show that the inspect ran at or after S."""
     result = bench.run()
     assert result.returncode == 0, _report(result)
     assert bench.dest.read_text(encoding="utf-8") == (
@@ -128,9 +130,9 @@ def test_one_session_reads_the_id_and_started_at_then_the_guest_clock_and_writes
     )
     assert bench.log() == [
         "ssh egw-tcg",
+        "date +%s",
         "docker inspect -f {{.Id}} egw-controller-1",
         "docker inspect -f {{.State.StartedAt}} egw-controller-1",
-        "date +%s",
     ]
     assert bench.leftovers() == [], "a temporary file was left beside the record"
     assert "STOP" not in result.stderr, _report(result)
