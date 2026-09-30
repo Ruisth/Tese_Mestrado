@@ -5920,6 +5920,37 @@ def test_a_failed_started_at_fetch_is_a_validity_reason_and_grants_no_interval(
     assert manifest["resource_source"] == "none"
 
 
+def test_a_started_at_read_that_exits_0_without_its_file_is_a_validity_reason(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-09-30, round 1: as for every other SUT fetch, a StartedAt
+    read that exits 0 but writes no file is a validity reason - here the only
+    one, on a restart run whose resources pass the ordinary rule."""
+    script = _write_script(tmp_path, "sut_step.py", SUT_STEP_SCRIPT)
+    rc, run_dir, record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        fetch_started_at_cmd=_step_tpl(
+            script, tmp_path / "sut-steps.txt", "started_at", "noop", 0
+        ),
+    )
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert _step_lines(record)[-1] == "started_at controller-started-at.txt"
+    fetch = manifest["sut_log_fetches"][-1]
+    assert fetch["hook"] == "started_at" and fetch["returncode"] == 0
+    assert fetch["dest_exists"] is False
+    assert manifest["resources_proved_down"]["applies"] is False
+    assert manifest["validity_reasons"] == [
+        "SUT fetch --fetch-started-at-cmd exited 0 but wrote no file at "
+        "logs/sut/controller-started-at.txt, so the restarted controller's "
+        "StartedAt cannot be read from the run directory and no proved-down "
+        "interval is granted (decision 1a)"
+    ]
+    assert rc == 1 and manifest["validity"] == "invalid"
+
+
 def test_the_started_at_read_on_another_condition_is_fetched_but_records_no_interval(
     tmp_path, plan_path, fast_run
 ) -> None:
