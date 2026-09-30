@@ -261,3 +261,81 @@ def test_the_guest_commands_parse_under_the_guests_shell(tmp_path, name):
     for construct in ("[[", "<<<", "$'", "PIPESTATUS", "pipefail", "EPOCHREALTIME", "%N", "local ", "head -1",
                       "head -c", "tail -c", "trap '' SIG", "SIGTERM"):
         assert construct not in script, (name, construct)
+
+
+FAKE_SYSTEMCTL = """#!/bin/sh
+# fake systemctl of the cleanup: the unit's state is the content of
+# FAKE_UNIT_STATE, an empty one a state that cannot be read (nothing on
+# stdout, exit 1); 'is-active' answers 0 for active only, 3 otherwise, as
+# systemd does for a unit that no longer exists; 'stop' answers FAKE_STOP_RC
+# and leaves FAKE_STATE_AFTER_STOP behind ('unchanged': a stop with no
+# effect). Every call is recorded in FAKE_SYSTEMCTL_CALLS.
+echo "$*" >> "$FAKE_SYSTEMCTL_CALLS"
+case "$1" in
+    is-active)
+        state=$(cat "$FAKE_UNIT_STATE")
+        if [ -z "$state" ]; then
+            echo "Failed to connect to bus: Connection refused" >&2
+            exit 1
+        fi
+        echo "$state"
+        [ "$state" = active ] && exit 0
+        exit 3 ;;
+    stop)
+        [ "$FAKE_STATE_AFTER_STOP" = unchanged ] || echo "$FAKE_STATE_AFTER_STOP" > "$FAKE_UNIT_STATE"
+        exit "${FAKE_STOP_RC:-0}" ;;
+esac
+exit 1
+"""
+
+
+@pytest.mark.parametrize("before, after_stop, stop_rc, rc, after", [
+    # definitively stopped: no stop is requested
+    ("inactive", "-", 0, 0, None),
+    ("failed", "-", 0, 0, None),
+    # anything else is stopped and its state read again (review of PR #51, P1)
+    ("active", "inactive", 0, 0, "inactive"),
+    ("activating", "inactive", 0, 0, "inactive"),
+    ("deactivating", "failed", 0, 0, "failed"),
+    ("reloading", "inactive", 0, 0, "inactive"),
+    ("", "inactive", 0, 0, "inactive"),
+    # not shown stopped after the stop: non-zero
+    ("active", "unchanged", 0, 1, "active"),
+    ("activating", "activating", 0, 1, "activating"),
+    ("active", "", 0, 1, "unknown"),
+    # a stop that failed stays non-zero, as before
+    ("active", "inactive", 1, 1, "inactive"),
+])
+def test_the_cleanup_stops_every_unit_not_shown_stopped_and_ends_0_only_once_it_is(tmp_path, before, after_stop,
+                                                                                    stop_rc, rc, after):
+    """The cleanup's guest command run under the guest's shell (the image's busybox with EGW_TEST_BUSYBOX_DIR): only
+    'inactive' and 'failed' are a unit already stopped; any other state - one between, or none at all - is stopped
+    and read again, and the step answers 0 only when it is then 'inactive' or 'failed'."""
+    capture, env = _bench(tmp_path)
+    bin_dir = tmp_path / "bin"
+    for name, text in (("systemctl", FAKE_SYSTEMCTL), ("sudo", '#!/bin/sh\nexec "$@"\n')):
+        (bin_dir / name).write_text(text, encoding="utf-8")
+        (bin_dir / name).chmod(0o755)
+    (capture / "lifecycle.txt").write_text("start epoch=1790629300 pid=4242\n", encoding="utf-8")
+    state = tmp_path / "unit.state"
+    state.write_text(before + "\n", encoding="utf-8")
+    env.update(FAKE_UNIT_STATE=str(state), FAKE_STATE_AFTER_STOP=after_stop, FAKE_STOP_RC=str(stop_rc),
+               FAKE_SYSTEMCTL_CALLS=str(tmp_path / "systemctl.calls"))
+    script = _guest_scripts()["cleanup"]
+    assert "D='/tmp/egw-events-r01'\n" in script
+    path = tmp_path / "cleanup.sh"
+    path.write_text(script.replace("D='/tmp/egw-events-r01'\n", f"D='{capture}'\n"), encoding="utf-8")
+    result = subprocess.run([*_shell(), str(path)], env=env, capture_output=True, text=True, timeout=60)
+    out = result.stdout.splitlines()
+    assert result.returncode == rc, result.stdout + result.stderr
+    assert f"unit_state_before_cleanup={before or 'unknown'}" in out, result.stdout
+    calls = (tmp_path / "systemctl.calls").read_text(encoding="utf-8").splitlines()
+    if after is None:
+        assert "stop egw-events-r01" not in calls and not any(line.startswith("cleanup_stop_requested_guest_epoch=")
+                                                              or line.startswith("unit_state_after_cleanup=")
+                                                              for line in out), result.stdout
+    else:
+        assert "stop egw-events-r01" in calls and "cleanup_stop_requested_guest_epoch=1790629309" in out, result.stdout
+        assert f"unit_state_after_cleanup={after}" in out, result.stdout
+    # The recorder's lifecycle record is printed whatever the state.
+    assert "start epoch=1790629300 pid=4242" in out and "events_lines=0" in out and "cli_stderr_bytes=0" in out

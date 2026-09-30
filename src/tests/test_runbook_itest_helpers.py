@@ -1816,7 +1816,10 @@ def t9_lines(sub: str) -> tuple[str, str]:
     broker log bounded to that sub-check."""
     cmds = _host_commands("### Test 9")
     rid = {"b": "itest-auth-wrongpw", "c": "itest-notls"}[sub]
-    return _one(cmds, f"T0_9{sub.upper()}=$(guest_epoch 3); python -m egw_simulator"), _one(cmds, f"sut_log broker {rid} ")
+    run = [c for c in cmds if f"T0_9{sub.upper()}=$(guest_epoch 3);" in c and "python -m egw_simulator" in c]
+    if len(run) != 1:
+        pytest.fail(f"expected exactly one runbook command of test 9({sub}) that reads the epoch and runs the simulator, found {len(run)}")
+    return run[0], _one(cmds, f"sut_log broker {rid} ")
 
 
 def call_t9(bench: Bench, sub: str) -> Result:
@@ -1837,6 +1840,7 @@ def test_test_9_each_sub_check_reads_the_broker_log_bounded_from_its_own_guest_e
     r = call_t9(bench, sub)
     assert r.value("RC9") == "0", r.out
     assert not r.starting("STOP"), r.out
+    assert bench.simulator_calls() == 1 and r.value("exit") == "0", r.out
     log = bench.p / f"{rid}.sut" / "broker.log"
     # 3 s back: the guest clock's step band (proof_fetch_sut_log.sh CLOCK_STEP_BAND_S)
     assert bench.capture_calls() == [f"fetch [broker] [{log}] [1790000453]"]
@@ -1857,6 +1861,25 @@ def test_test_9_a_broker_log_not_read_is_a_stop_and_never_evidence(bench: Bench,
     if case == "guest clock not read":
         assert r.starting("STOP: guest_epoch: the guest clock was NOT read"), r.out
         assert bench.capture_calls() == [], "a read bounded by an epoch that was not read"
+
+
+@pytest.mark.parametrize("sub", ["b", "c"])
+@pytest.mark.parametrize("failure", ["ssh refused", "not whole seconds"])
+def test_test_9_b_and_c_run_no_probe_and_print_no_exit_when_their_lower_bound_was_not_read(bench: Bench, sub: str,
+                                                                                           failure: str) -> None:
+    """Review of PR #51, P2: with ';' a guest clock that was not read still ran the simulator (an authentication
+    attempt that changes the broker log) and printed its 'exit=', which for (b) and (c) is the expected refusal status:
+    an unbounded probe could read as their evidence."""
+    if failure == "ssh refused":
+        bench.set("guest_clock_fails")
+    else:
+        bench.set("guest_epoch", "Tue Sep 29 10:00:00 UTC 2026")
+    run, _ = t9_lines(sub)
+    r = bench.run(bench.with_helpers(run + '\necho "RUN=$?"'))
+    assert bench.simulator_calls() == 0, "the probe ran without its lower bound:\n" + r.out
+    assert not r.starting("exit="), r.out
+    assert r.starting(f"STOP: test 9({sub}): the lower bound of ({sub})'s evidence was NOT read - the probe was NOT run"), r.out
+    assert r.value("RUN") == "1", r.out
 
 
 def test_guest_epoch_takes_its_margin_back_and_refuses_one_that_is_not_whole_seconds(bench: Bench) -> None:

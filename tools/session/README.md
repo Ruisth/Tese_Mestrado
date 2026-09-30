@@ -525,18 +525,22 @@ recorder's readiness since 2026-09-29; they are the run's hooks, not fixed
 arguments, and the proof hands the harness its own.)
 
 The recorder's two guest commands — the start (`events_recorder_script`)
-and the cleanup of a unit still running (`events_cleanup_script`) — are
+and the cleanup of a unit not shown stopped (`events_cleanup_script`) — are
 defined once, in `events_capture.sh`, which `proof.sh` sources and runs
 through its own steps. Executed, the same file is the host command the
 runbook's G3 procedures use (6.1: `events_start`, `events_stop`,
 `events_cleanup`, `harness_cmd`): `events_capture.sh start RUN_ID` prints
 `run_guest_t0=` once the recorder is ready, and `events_capture.sh cleanup
-RUN_ID [KEEP_DIR]` stops a unit still running, whatever KEEP_DIR's state
-(so a repeated cleanup still stops it), and, once the unit is shown stopped
-and given a directory that does not exist, copies what the recorder
-captured there as a partial capture (`events.partial.jsonl`), never as a
-`docker-events.log`; the directory appears only once all four files
-arrived, so a cleanup whose copy failed can be repeated. The runbook's
+RUN_ID [KEEP_DIR]` stops a unit not shown stopped — any state but
+`inactive` or `failed`, a state between or none at all included — and
+reads its state again, whatever KEEP_DIR's state (so a repeated cleanup
+still stops it); it ends non-zero, with a STOP that says the unit may
+still run, unless the unit is then `inactive` or `failed`. Only once the
+unit is shown stopped, and given a directory that does not exist, does it
+copy what the recorder captured there as a partial capture
+(`events.partial.jsonl`), never as a `docker-events.log`; the directory
+appears only once all four files arrived, so a cleanup whose copy failed
+can be repeated. The runbook's
 endings leave that copy to the cleanup unless the fetch kept the capture
 (`docker-events.log` or `docker-events.partial.jsonl`). The
 docker-events fetch takes an optional sixth argument, the container whose
