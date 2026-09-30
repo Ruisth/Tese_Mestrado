@@ -533,6 +533,17 @@ def test_a_malformed_started_at_record_gives_no_interval(tmp_path, record) -> No
     _no_interval(tmp_path, "StartedAt", started_at=record)
 
 
+def test_a_whole_number_too_long_to_convert_gives_no_interval_and_never_raises(tmp_path) -> None:
+    """Review of 2026-09-30, round 0: a guest epoch or a capture bound of digits only, but more of them than Python
+    converts from text (sys.get_int_max_str_digits(), 4300 by default; fetch_started_at.sh checks digits only), is
+    not of its form: no interval, never an exception - the derivation runs inside the harness, before its manifest
+    is written."""
+    huge = "9" * 5000
+    _no_interval(tmp_path / "epoch", "StartedAt", started_at=_started_at(guest_epoch=huge))
+    _no_interval(tmp_path / "since", "whole-number", coverage=_coverage(since=huge))
+    _no_interval(tmp_path / "until", "whole-number", coverage=_coverage(until=huge))
+
+
 def test_a_started_at_fetch_that_failed_gives_no_interval(tmp_path) -> None:
     fetches = [_fetch("docker_events", "logs/sut/docker-events.log"),
                _fetch("started_at", "logs/sut/controller-started-at.txt", returncode=1, dest_exists=False)]
