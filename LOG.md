@@ -4111,7 +4111,14 @@ is unchanged.
   corrected too: a failed partial copy now keeps what arrived, apart and
   named as incomplete, and can be repeated; a cleanup that cannot reach the
   guest says the unit may still run; test 9's client-id claim is marked
-  unverified; and the decision page quotes the plan's T3 clause.
+  unverified; and the decision page quotes the plan's T3 clause. Two
+  comments of the pull request's own review were then corrected, each with a
+  regression that failed first: the recorder cleanup stopped a unit only in
+  the state `active`, so a unit in a state between (or unreadable) could be
+  left running while the cleanup reported success - every state but
+  `inactive` or `failed` is now stopped and the cleanup fails unless the unit
+  is shown stopped; and test 9(b)/(c) ran their probe even when their lower
+  bound was not read - they now STOP before any attempt.
 - **Limits.** Everything in B is exercised with stubs only: what Docker 25.0.9
   and Compose 2.26.0 do with these commands on the guest, the event sets of
   T6's restart and T7's stops, and an interactive Ctrl-C are unverified. An
