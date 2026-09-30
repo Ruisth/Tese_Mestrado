@@ -4099,7 +4099,19 @@ is unchanged.
   integration; their findings (an unencodable write, an interruption during
   the recorder's start, the order of the cleanup's refusals, T9's bound, and
   factual errors in the decision page) were corrected with regressions where
-  they were behaviour.
+  they were behaviour. The one consolidated review of the integrated delta
+  (`4e3c18f..b925359`; three parts, each finding checked by an adversarial
+  verifier) confirmed three material defects, all corrected with regressions
+  that failed first: a sampler thread outliving its join could fail a write
+  after the validity was computed, so a run was sealed valid while its
+  manifest held the error; `nominal.sh`'s snapshot copy failed on the new
+  `.sut` directory, so every nominal run would have been invalid; and
+  `events_cleanup` took the fetch's stop record for proof that the capture
+  was kept, so a partial capture could be lost. Its minor findings were
+  corrected too: a failed partial copy now keeps what arrived, apart and
+  named as incomplete, and can be repeated; a cleanup that cannot reach the
+  guest says the unit may still run; test 9's client-id claim is marked
+  unverified; and the decision page quotes the plan's T3 clause.
 - **Limits.** Everything in B is exercised with stubs only: what Docker 25.0.9
   and Compose 2.26.0 do with these commands on the guest, the event sets of
   T6's restart and T7's stops, and an interactive Ctrl-C are unverified. An
