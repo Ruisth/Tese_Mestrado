@@ -294,20 +294,25 @@ def derive_proved_down(
     if not isinstance(die_id, str) or not _CONTAINER_ID.fullmatch(die_id):
         return no(f"the container id {die_id!r} of the die and the start is not 64 lower-case hex")
     d_ns, s_ns = die["timeNano"], start["timeNano"]
-    if s_ns <= d_ns:
+    try:
+        die_utc, start_utc = ns_utc_text(d_ns), ns_utc_text(s_ns)
+    except (OverflowError, OSError, ValueError):
         return no(
-            f"the start at {ns_utc_text(s_ns)} is not after the die at "
-            f"{ns_utc_text(d_ns)}"
+            f"the die ({d_ns} ns) or the start ({s_ns} ns) is not an instant "
+            "UTC text can name, so the rows' whole seconds cannot be compared "
+            "with it"
         )
+    if s_ns <= d_ns:
+        return no(f"the start at {start_utc} is not after the die at {die_utc}")
     interval = ProvedDownInterval(container=CONTAINER, die_ns=d_ns, start_ns=s_ns)
     exit_code = die["Actor"]["Attributes"].get("exitCode")
     facts.update({
         "container_id": die_id,
         "die_ns": d_ns,
-        "die_utc": ns_utc_text(d_ns),
+        "die_utc": die_utc,
         "die_exit_code": exit_code if isinstance(exit_code, str) else None,
         "start_ns": s_ns,
-        "start_utc": ns_utc_text(s_ns),
+        "start_utc": start_utc,
         "effective_end_ns": interval.effective_end_ns,
         "effective_end_utc": ns_utc_text(interval.effective_end_ns),
         "capped": interval.capped,
