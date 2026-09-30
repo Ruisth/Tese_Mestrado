@@ -552,6 +552,28 @@ def test_a_die_and_a_start_past_any_utc_instant_give_no_interval_and_never_raise
     _no_interval(tmp_path, "UTC", events=events, coverage=_coverage(since=str(t0), until=str(t0 + 100)))
 
 
+def test_a_start_in_the_last_second_utc_text_can_name_gives_no_interval_and_never_raises(tmp_path) -> None:
+    """Review of 2026-09-30, round 1: a start in 9999-12-31T23:59:59 can be named, but the second one sampling
+    interval after its own - where the validator looks for the first row after the start - cannot, and the
+    validator raised there, inside the harness's ingest. No row can be stamped after that second, so the
+    derivation gives no interval; the ingest is never handed one it cannot judge."""
+    last = calendar.timegm((9999, 12, 31, 23, 59, 59, 0, 0, 0))
+    die_ns, start_ns = (last - 9) * NS + 400_000_000, last * NS + 500_000_000
+    run_dir, manifest = _run_dir(
+        tmp_path,
+        events=[_event("die", C, CID, die_ns, exitCode="0"), _event("start", C, CID, start_ns)],
+        coverage=_coverage(since=str(last - 59), until=str(last)),
+        started_at=_started_at(started_at="9999-12-31T23:59:59.4Z", guest_epoch=str(last + 1)),
+    )
+    interval, why_not, _facts = _pd().derive_proved_down(run_dir, manifest)
+    assert interval is None and "sampling interval after the start" in why_not, why_not
+    rows = "".join(f"9999-12-31T23:59:{second:02d}Z,{name},1.5,1048576,0.5,{HOST}\n"
+                   for second in range(20, 51) for name in ("egw-mosquitto-1", C))
+    path = tmp_path / "f.csv"
+    path.write_text("ts_utc,container,cpu_pct,mem_bytes,mem_pct,host\n" + rows, encoding="utf-8")
+    assert resources.validate_resources_csv(path, expected_host=HOST, proved_down=interval) == []
+
+
 def test_a_started_at_fetch_that_failed_gives_no_interval(tmp_path) -> None:
     fetches = [_fetch("docker_events", "logs/sut/docker-events.log"),
                _fetch("started_at", "logs/sut/controller-started-at.txt", returncode=1, dest_exists=False)]
