@@ -4045,7 +4045,10 @@ is unchanged.
   - *A2, the sampler's writes.* A write, flush, open or close failure of the
     metrics CSV or the attempts log (`OSError`, or a `ValueError` such as an
     unencodable value or a closed file) is recorded as `write_error` and stops
-    sampling; the files are closed with their partial bytes; `execute_run`
+    sampling, and so is a sampling thread still running when `__exit__`'s join
+    gives up, before its files are closed and cleared under the lock (review
+    of 2026-09-30: its late write used to fail after the validity was
+    computed); the files are closed with their partial bytes; `execute_run`
     makes the run invalid with a named reason, a warning and the manifest
     fields `controller_metrics.write_error`/`write_errors`, and `collect`
     cannot make it valid again. It is never a poll error, a retry or a row.
