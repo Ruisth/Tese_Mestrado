@@ -2197,7 +2197,8 @@ def test_test_1_plan_listing_shows_the_nominal_entries(bench: Bench) -> None:
 
 
 def _paragraph(heading: str, start: str) -> str:
-    hits = [p for p in "\n".join(_section(heading)).split("\n\n") if p.startswith(start)]
+    # strip: the first paragraph of a section follows the blank line after its heading
+    hits = [p.strip("\n") for p in "\n".join(_section(heading)).split("\n\n") if p.strip("\n").startswith(start)]
     assert len(hits) == 1, f"{heading}: {len(hits)} paragraph(s) starting with {start!r}"
     return hits[0]
 
