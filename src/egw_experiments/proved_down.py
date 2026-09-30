@@ -30,8 +30,9 @@ named, and the ordinary rule then decides the file exactly as before
    names egw-controller-1 and the pair's container id, its ``started_at`` is
    RFC 3339 ending ``Z`` with at most nine fractional digits (parsed to
    integer nanoseconds here, never through ``datetime.fromisoformat``), it
-   was read at or after S (``guest_epoch``, read after the inspect, times
-   10^9 not before S) and |S - StartedAt| <= 1 s.
+   was read at or after S (``guest_epoch``, read before the inspect so that
+   the inspect is at or after it, times 10^9 not before S) and
+   |S - StartedAt| <= 1 s.
 
 The last condition of the rule - the container has a row at or before
 ``sec(D)`` and one after ``sec(S)`` - is the validator's

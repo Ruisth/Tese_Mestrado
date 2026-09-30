@@ -5814,6 +5814,13 @@ def collect_run(
     right one can follow it, and stays a validity reason until it does. An
     artefact a hook took at run time is never replaced by a file (exit 2).
     On any other condition the four are ignored with a warning.
+
+    Decision 1a (adopted 2026-09-30; review of 2026-09-30): ``collect``
+    never applies the proved-down interval. A run whose
+    ``resources_proved_down`` record says the interval applied keeps its
+    run-time judgement: ``resources_from`` is ignored with a warning, never
+    re-judged by the ordinary rule. Otherwise the file is judged as before,
+    and once it is ingested the record's ``resources_ingested`` is set.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -6155,7 +6162,31 @@ def collect_run(
         measured_window.get("end") if isinstance(measured_window, dict) else None
     )
     previous_collector: dict[str, Any] | None = None
-    if resources_from is not None:
+    # Decision 1a (adopted 2026-09-30): 'collect' never applies the
+    # proved-down interval, and it does not re-judge by the ordinary rule a
+    # file the run judged under it either (review of 2026-09-30): the
+    # run-time judgement stands.
+    recorded_proved_down = manifest.get("resources_proved_down")
+    if not isinstance(recorded_proved_down, dict):
+        recorded_proved_down = None
+    if (
+        resources_from is not None
+        and recorded_proved_down is not None
+        and recorded_proved_down.get("applies") is True
+    ):
+        warnings.append(
+            f"--resources-from {resources_from} ignored: this run's resources "
+            "were judged at run time under the proved-down interval of "
+            "decision 1a (manifest 'resources_proved_down': applies), which "
+            "'collect' does not apply, and a file judged under the interval "
+            "is not re-judged by the ordinary rule; the run-time judgement "
+            "stands"
+        )
+        actions.append(
+            f"--resources-from {resources_from} not judged (decision 1a: the "
+            "run-time judgement under the proved-down interval stands)"
+        )
+    elif resources_from is not None:
         src = Path(resources_from)
         dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
         try:
@@ -6182,6 +6213,10 @@ def collect_run(
             ):
                 manifest["resource_source"] = "sut-collector"
                 actions.append("ingested resources.csv (sut-collector)")
+                if recorded_proved_down is not None:
+                    # The interval did not apply: the record follows the
+                    # manifest now that the file is ingested.
+                    recorded_proved_down["resources_ingested"] = True
             copy_resources_from_outputs(copy_pairs, run_dir)
         except SealedRunError as exc:
             print(f"error: {exc}", file=sys.stderr)

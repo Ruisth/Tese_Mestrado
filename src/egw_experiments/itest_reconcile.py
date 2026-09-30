@@ -699,8 +699,10 @@ def n1_summary(n1: dict) -> list[str]:
     if report["twin_evidence_problem"]:
         lines.append(f"  condition 3 evidence: {report['twin_evidence_problem']}")
     for case in unexplained:
+        device = ("no single device" if case["device_uuid"] is None
+                  else case["device_uuid"])
         lines.append(f"  duplicate_only_unexplained {case['message_id']} on "
-                     f"{case['device_uuid']} seq {case['seq']}: failed "
+                     f"{device} seq {case['seq']}: failed "
                      f"condition(s) {', '.join(case['failed'])}: {case['reason']}")
     lines += [f"  note: {note}" for note in report["notes"]]
     lines.append(f"  {report['note']}")

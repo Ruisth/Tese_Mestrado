@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 
+from egw_experiments import analyze as analyze_mod
 from egw_experiments import itest_reconcile as rec
 from egw_experiments import n1_report as n1
 from egw_experiments import proof_evaluator as pe
@@ -745,3 +746,73 @@ def test_a_capture_window_beyond_the_integer_digit_limit_is_no_window() -> None:
         assert window is None and "whole-number" in why
         deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, cov)
         assert deaths == [] and why
+
+
+# ---------------------------------------------------------------------------
+# review of 2026-09-30: the events copy split at newlines only (D2-1), the
+# death contended by an identity no A3 end is matched to (D2-2), a capture
+# window key given twice (D2-3)
+# ---------------------------------------------------------------------------
+
+F = "ffffffff-0000-5000-8000-00000000000f"
+
+
+@pytest.mark.parametrize("separator", [" ", " ", "\u0085"])
+def test_a_raw_line_separator_inside_a_string_field_does_not_split_the_line(tmp_path, separator) -> None:
+    """The controller writes its lines with ensure_ascii=False, so a failed
+    line's error (a snippet of Ditto's body) may hold a raw U+2028, U+2029 or
+    U+0085. The copy is split at newlines only, as the analysis reader splits
+    it: m2 keeps its failed line, so it is not duplicate-only and nothing is
+    named or listed."""
+    failed_line = dict(line("m2", 2, "failed", 4500), error=f"Ditto 502: bad{separator}gateway")
+    path = tmp_path / "events.post-drain.jsonl"
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"
+                            for r in EVENTS[:2] + [failed_line, EVENTS[2]]), encoding="utf-8")
+    records, why = n1.read_jsonl(path)
+    assert why is None and records == analyze_mod._read_jsonl(path)
+    assert [r["outcome"] for r in records] == ["accepted", "accepted", "failed", "duplicate"]
+    doc = report(events=records)
+    assert named(doc) == [] and doc["duplicate_only_unexplained"] == []
+
+
+@pytest.mark.parametrize("variant", ["lines naming two other devices", "a duplicate line without a message_id",
+                                     "another run id's identity"])
+def test_the_death_is_contended_by_a_duplicate_only_identity_no_a3_end_is_matched_to(variant) -> None:
+    """m2 on D needs the one death (no A3 end). A duplicate-only identity on
+    other devices to which no device's A3 ends are matched - its lines name
+    two devices, its line has no readable message_id, or it is of another
+    run id - may have been the death's one delivery (not applied): which one
+    the death explained cannot be told, so m2 is not named. An own A3 end
+    still frees m2, and the death is then no possible source of it."""
+    deaths, _why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage())
+    assert named(report(a3_ends=[], deaths=deaths)) == ["m2"]
+    sent_records = SENT
+    if variant == "lines naming two other devices":
+        extra = [line("m9", 9, "duplicate", 5600, device=E), line("m9", 9, "duplicate", 5700, device=F)]
+        sent_records = SENT + [sent("m9", 9, device=E)]
+    elif variant == "a duplicate line without a message_id":
+        extra = [dict(line("m9", 9, "duplicate", 5600, device=E), message_id=None)]
+    else:
+        extra = [line("w9", 9, "duplicate", 5600, device=E, run_id=f"{R}.warmup")]
+    doc = report(a3_ends=[], deaths=deaths, events=EVENTS + extra, sent_records=sent_records)
+    assert named(doc) == []
+    assert failed(doc, "m2") == ["2"] and "cannot be told" in unexplained(doc)["m2"]["reason"]
+    doc = report(a3_ends=[end(D, 4000, 7)], deaths=deaths, events=EVENTS + extra, sent_records=sent_records)
+    assert named(doc) == ["m2"]
+    assert [s["source"] for s in doc["n1_applied_unconfirmed"][0]["possible_sources"]] == [n1.SOURCE_A3]
+
+
+@pytest.mark.parametrize("key", ["requested_since_guest_epoch", "requested_until_guest_epoch"])
+@pytest.mark.parametrize("order", ["earlier first", "later first"])
+def test_a_capture_window_key_given_twice_is_ambiguous_and_gives_no_death(key, order) -> None:
+    """As decision 1a reads the same record (proved_down.py): each window key
+    exactly once, or the window is ambiguous and there is no death, whichever
+    of the two values comes first."""
+    own = T0_EPOCH if key == "requested_since_guest_epoch" else T1_EPOCH
+    values = (own - 200, own) if order == "earlier first" else (own, own - 200)
+    cov = coverage().replace(f"{key}={own}\n", "".join(f"{key}={value}\n" for value in values))
+    assert cov.count(f"{key}=") == 2
+    window, why = n1.capture_window(cov)
+    assert window is None and "ambiguous" in why
+    deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, cov)
+    assert deaths == [] and "ambiguous" in why
