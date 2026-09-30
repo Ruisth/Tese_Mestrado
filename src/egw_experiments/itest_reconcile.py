@@ -52,9 +52,13 @@ Exit codes (the runbook's shell helpers test them):
      clock went backwards, ``wait`` gave up, Ditto unreachable. For
      ``acceptance`` and ``replay-check`` also: a published record without a
      usable message_id, a message_id twice, records of more than one run id,
-     no message to judge, a /metrics field absent or not of its type (never
-     read as zero), a pre-replay copy that is not a prefix of the log, a
-     line of the log that carries another run id.
+     a sent_events.jsonl whose record count is not the totals.sent of the
+     simulator manifest beside it, no message to judge, a /metrics field
+     absent or not of its type (never read as zero), a pre-replay copy that
+     is not a prefix of the log, a line of the log that carries another run
+     id, and (one process) a line beyond the pre-replay copy that was
+     received at or before the 'from' reading, or a 'from' reading without
+     an integer monotonic_ns.
 - 2  command-line usage error (argparse).
 - 3  ``check`` only: the row was computed and saved, but the deadline is not
      on the controller marker (no marker file), so it is NOT a protocol check.
@@ -623,7 +627,11 @@ def sent_identities(path: Path) -> tuple[str, dict[str, dict]]:
 
     One run's file or nothing: every record carries the same non-empty run_id
     and a non-empty message_id that no other record carries. Otherwise the
-    identities cannot be told apart and nothing is judged.
+    identities cannot be told apart and nothing is judged. And the whole
+    file: the simulator manifest beside it (written last, in a finally) must
+    count as many published records (totals.sent) as the file holds; a
+    message missing from the file would never be judged, which is not the
+    same as judged and passed.
     """
     records = jsonl(path)
     if not records:
@@ -645,6 +653,14 @@ def sent_identities(path: Path) -> tuple[str, dict[str, dict]]:
             raise HelperError(f"{path}: message_id {message_id} occurs more "
                               "than once: NOT reconcilable by identity")
         by_id[message_id] = record
+    manifest_path = path.parent / "manifest.json"
+    totals = load(manifest_path).get("totals")
+    declared = totals.get("sent") if isinstance(totals, dict) else None
+    if not is_int(declared) or declared != len(records):
+        raise HelperError(
+            f"{path} holds {len(records)} record(s) but {manifest_path} "
+            f"gives totals.sent={declared!r}: the file is not shown to hold "
+            "every message the simulator published")
     return run_id, by_id
 
 
@@ -785,6 +801,36 @@ def cmd_replay_check(args) -> int:
     frm = sib(prefix, f".metrics.{args.frm}.json")
     ma, mr = load_reading(frm), load_reading(
         sib(prefix, f".metrics.{args.to}.json"))
+    # One process first (CONTRACTS 5): no difference across two processes.
+    reasons = [] if ma["started_at"] == mr["started_at"] else [
+        f"started_at {ma['started_at']} != {mr['started_at']}"]
+    reasons += [f"{key} {ma[key]} -> {mr[key]} decreased"
+                for key in ("uptime_s", *SAME_PROCESS_COUNTERS)
+                if mr[key] < ma[key]]
+    if not reasons:
+        # Within one process the controller stamps every line on the clock of
+        # the readings (CONTRACTS 5, received_monotonic_ns). The copy was
+        # fetched before the 'from' reading, so a line received at or before
+        # that reading is the first run's, appended after the fetch, and by
+        # position alone it would stand for a line of the replay (the same
+        # run id and message_id). Across two processes the stamps are not
+        # compared (a new boot restarts the clock): the check fails below.
+        at = ma.get("monotonic_ns")
+        if not is_int(at):
+            raise HelperError(
+                f"{frm}: monotonic_ns absent or not an integer: no line can "
+                "be shown to be the replay's; an absent field is never read "
+                "as zero")
+        early = [number for number, record in enumerate(added, len(before) + 1)
+                 if not (is_int(record.get("received_monotonic_ns"))
+                         and record["received_monotonic_ns"] > at)]
+        if early:
+            raise HelperError(
+                f"{log_path} record {early[0]} ({len(early)} line(s) in all) "
+                f"is beyond {before_path.name} but was received at or before "
+                f"the '{args.frm}' reading (monotonic_ns {at}), or carries no "
+                "integer received_monotonic_ns: it is not shown to be the "
+                "replay's, so the replay interval cannot be told")
 
     def by_identity(records: list[dict], outcome: str) -> Counter:
         return Counter(message_key(r) for r in records
@@ -824,12 +870,6 @@ def cmd_replay_check(args) -> int:
     judge(not multi_acc, f"per identity: {len(multi_acc)} replayed "
           "identity(ies) with more than one accepted line in the log (raw "
           "lines; double_accepted must be 0)", "more than one accepted line")
-    # One process first (CONTRACTS 5): no difference across two processes.
-    reasons = [] if ma["started_at"] == mr["started_at"] else [
-        f"started_at {ma['started_at']} != {mr['started_at']}"]
-    reasons += [f"{key} {ma[key]} -> {mr[key]} decreased"
-                for key in ("uptime_s", *SAME_PROCESS_COUNTERS)
-                if mr[key] < ma[key]]
     labels = f"'{args.frm}' -> '{args.to}'"
     if reasons:
         judge(False, f"/metrics {labels}: NOT one controller process "
