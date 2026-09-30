@@ -5658,6 +5658,330 @@ def test_collect_ingests_the_configuration_identity_and_reapplies_the_restart_re
     )
 
 
+# ---------------------------------------------------------------------------
+# Decision 1a (adopted 2026-09-30, prospective): the proved-down interval of
+# the restarted controller, applied at the run-time ingest only when the run
+# is given the StartedAt read (--fetch-started-at-cmd)
+# ---------------------------------------------------------------------------
+
+#: The guest-clock die and start of egw-controller-1 the fixtures below
+#: capture, around the fake clock's measured window (2026-09-07T10:00, 100 ms
+#: ticks) and inside the controller's 8 s hole of :func:`_gap_resources_file`.
+PD_DIE = "2026-09-07T09:59:57.400000000Z"
+PD_START = "2026-09-07T10:00:04.300000000Z"
+PD_STARTED_AT = "2026-09-07T10:00:04.299812345Z"
+PD_CID = "5a" * 32
+PD_SERVICES = ["egw-mosquitto-1", "egw-controller-1"]
+PD_NS = 1_000_000_000
+#: What the ordinary rule says of that file: the finite proof's E-12 parses
+#: this form, so without the StartedAt read it must stay exactly this.
+PD_GAP_PROBLEM = (
+    "1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): "
+    "container 'egw-controller-1': 2026-09-07T09:59:57+00:00 to "
+    "2026-09-07T10:00:05+00:00 (8.0 s)"
+)
+
+COPY_STEP_SCRIPT = """\
+import shutil
+import sys
+from pathlib import Path
+
+record, label, dest, rc = sys.argv[1:5]
+with Path(record).open("a", encoding="utf-8") as fh:
+    fh.write(" ".join((label, Path(dest).name)) + "\\n")
+sys.stderr.write(label + " step stderr\\n")
+if rc == "0":
+    shutil.copyfile(sys.argv[5], dest)
+    for extra in sys.argv[6:]:
+        shutil.copyfile(extra, Path(dest).parent / Path(extra).name)
+sys.exit(int(rc))
+"""
+
+
+def _pd_ns(stamp: str) -> int:
+    """An RFC 3339 instant with nine fractional digits, as integer ns."""
+    whole, frac = stamp[:-1].split(".")
+    seconds = int(datetime.fromisoformat(whole + "+00:00").timestamp())
+    return seconds * PD_NS + int(frac)
+
+
+def _pd_epoch(clock: str) -> int:
+    return int(datetime.fromisoformat(f"2026-09-07T{clock}+00:00").timestamp())
+
+
+def _gap_resources_file(tmp_path: Path) -> Path:
+    """The collector's CSV of a restart: the broker and the controller at every
+    second from 09:59:30 to 10:00:40, the controller's rows 09:59:58 to
+    10:00:04 absent (an 8 s gap across the measured window), with its
+    companions (the collector's window 09:59:30 to 10:00:41, 71 samples)."""
+    path = tmp_path / "gap-resources.csv"
+    lines = [RESOURCES_HEADER]
+    t = datetime(2026, 9, 7, 9, 59, 30, tzinfo=timezone.utc)
+    hole = (
+        datetime(2026, 9, 7, 9, 59, 58, tzinfo=timezone.utc),
+        datetime(2026, 9, 7, 10, 0, 4, tzinfo=timezone.utc),
+    )
+    while t <= datetime(2026, 9, 7, 10, 0, 40, tzinfo=timezone.utc):
+        stamp = t.strftime("%Y-%m-%dT%H:%M:%SZ")
+        for name in PD_SERVICES:
+            if name == "egw-controller-1" and hole[0] <= t <= hole[1]:
+                continue
+            lines.append(f"{stamp},{name},10.0,1024,1.0,{SUT_NODE}")
+        t += timedelta(seconds=1)
+    path.write_text("\n".join(lines) + "\n", "utf-8")
+    _write_companions(path, PD_SERVICES)
+    diagnostics = Path(f"{path}.diagnostics.log")
+    diagnostics.write_text(
+        diagnostics.read_text(encoding="utf-8")
+        .replace("2026-09-07T09:59:59Z start:", "2026-09-07T09:59:30Z start:")
+        .replace("samples=41", "samples=71"),
+        "utf-8",
+    )
+    return path
+
+
+def _pd_guest_files(tmp_path: Path, *, started_at: str = PD_STARTED_AT) -> dict[str, Path]:
+    """What the guest-side fetches deliver: the complete capture of the run
+    (docker-events.log and its coverage verdict) and the StartedAt record."""
+    guest = tmp_path / "guest-reads"
+    guest.mkdir(exist_ok=True)
+    die, start = _pd_ns(PD_DIE), _pd_ns(PD_START)
+
+    def event(action: str, ns: int, **attrs: str) -> dict:
+        return {"status": action, "id": PD_CID, "from": "egw/controller:1", "Type": "container",
+                "Action": action, "Actor": {"ID": PD_CID, "Attributes": {"name": "egw-controller-1", **attrs}},
+                "scope": "local", "time": ns // PD_NS, "timeNano": ns}
+
+    events = [event("kill", die - 300_000_000, signal="15"), event("die", die, exitCode="0"),
+              event("stop", die + 1_000_000), event("start", start), event("restart", start + 1_000_000)]
+    (guest / "docker-events.log").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+    t1 = _pd_epoch("10:01:00")
+    (guest / "docker-events.coverage.txt").write_text(
+        "coverage=complete\n"
+        f"requested_since_guest_epoch={_pd_epoch('09:59:20')}\n"
+        f"requested_until_guest_epoch={t1}\n"
+        "clock=guest\nexpected=die,start\ncontainer=egw-controller-1\n",
+        encoding="utf-8",
+    )
+    (guest / "controller-started-at.txt").write_text(
+        f"container=egw-controller-1\ncontainer_id={PD_CID}\nstarted_at={started_at}\n"
+        f"guest_epoch={t1 + 5}\n",
+        encoding="utf-8",
+    )
+    return {name: guest / name for name in ("docker-events.log", "docker-events.coverage.txt",
+                                            "controller-started-at.txt")}
+
+
+def _copy_tpl(script: Path, record: Path, label: str, rc: int, *sources: Path) -> str:
+    return (
+        f'"{PY}" "{script.as_posix()}" "{record.as_posix()}" {label} "{{dest}}" {rc} '
+        + " ".join(f'"{s.as_posix()}"' for s in sources)
+    )
+
+
+def _proved_down_run(
+    tmp_path: Path,
+    plan_path: Path,
+    fast_run,
+    monkeypatch,
+    *,
+    started_at_rc: int | None = 0,
+    started_at: str = PD_STARTED_AT,
+) -> tuple[int, Path, Path, Path, str | None]:
+    """A controller_restart run whose collector file has the controller's 8 s
+    gap, with the complete capture of its restart; ``started_at_rc`` None
+    runs it without --fetch-started-at-cmd."""
+    src = _gap_resources_file(tmp_path)
+    files = _pd_guest_files(tmp_path, started_at=started_at)
+    script = _write_script(tmp_path, "copy_step.py", COPY_STEP_SCRIPT)
+    record = tmp_path / "sut-steps.txt"
+    overrides: dict[str, Any] = {
+        "resources_from": src,
+        "expect_services": PD_SERVICES,
+        "fetch_docker_events_cmd": _copy_tpl(
+            script, record, "docker_events", 0, files["docker-events.log"],
+            files["docker-events.coverage.txt"],
+        ),
+    }
+    started_tpl = None
+    if started_at_rc is not None:
+        started_tpl = _copy_tpl(
+            script, record, "started_at", started_at_rc, files["controller-started-at.txt"]
+        )
+        overrides["fetch_started_at_cmd"] = started_tpl
+    rc, run_dir, record = _item18_run(tmp_path, plan_path, fast_run, monkeypatch, **overrides)
+    return rc, run_dir, record, src, started_tpl
+
+
+def test_without_the_started_at_read_a_restart_gap_is_rejected_exactly_as_before(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Option absent (the finite proof's case): no StartedAt fetch, no
+    resources_proved_down key, no config echo, and the rejection and the two
+    reasons in the form E-12 parses, byte for byte."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, started_at_rc=None
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert "resources_proved_down" not in manifest
+    assert "fetch_started_at_cmd" not in manifest["config"]["cli"]
+    assert [f["hook"] for f in manifest["sut_log_fetches"]] == list(SUT_LOG_FILES)
+    assert manifest["resource_source"] == "none"
+    assert manifest["missing_mandatory_artifacts"] == ["resources.csv"]
+    rejected = [w for w in manifest["warnings"] if "REJECTED" in w]
+    assert rejected == [
+        f"--resources-from {src} REJECTED (SUT resources treated as missing): {PD_GAP_PROBLEM}"
+    ]
+    assert len(manifest["validity_reasons"]) == 2
+    assert manifest["validity_reasons"][0].startswith("no SUT resources: ")
+    assert manifest["validity_reasons"][1].startswith("mandatory artefact(s) missing ")
+    assert not (run_dir / checksums.SUMS_FILENAME).exists()
+
+
+def test_a_restart_run_given_the_started_at_read_ingests_its_proved_down_gap_and_is_sealed(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Option present, a complete capture with one die and one start, the
+    StartedAt read agreeing with the start: the controller's 8 s gap is the
+    proved-down interval with edges of 0 s and 1 s, so the collector file is
+    ingested byte for byte, the run is valid and sealed, and the manifest
+    records D, S, E and the edges."""
+    rc, run_dir, record, src, started_tpl = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch
+    )
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert rc == 0, manifest["validity_reasons"]
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    assert _step_lines(record)[-2:] == [
+        "docker_events docker-events.log",
+        "started_at controller-started-at.txt",
+    ]
+    assert manifest["resource_source"] == "sut-collector"
+    assert (run_dir / "resources.csv").read_bytes() == src.read_bytes()
+    assert not any("REJECTED" in w for w in manifest["warnings"])
+    sealed = _sealed_names(run_dir)
+    assert "resources.csv" in sealed and "logs/sut/controller-started-at.txt" in sealed
+    assert checksums.verify_sha256sums(run_dir) == []
+    fetch = manifest["sut_log_fetches"][-1]
+    assert fetch["hook"] == "started_at" and fetch["flag"] == "--fetch-started-at-cmd"
+    assert fetch["returncode"] == 0 and fetch["dest_exists"] is True
+    assert fetch["dest_file"] == "logs/sut/controller-started-at.txt"
+    assert manifest["config"]["cli"]["fetch_started_at_cmd"] == started_tpl
+    pd = manifest["resources_proved_down"]
+    assert pd["applies"] is True and pd["why_not"] is None
+    assert pd["container"] == "egw-controller-1" and pd["container_id"] == PD_CID
+    assert pd["die_ns"] == _pd_ns(PD_DIE) and pd["die_utc"] == PD_DIE
+    assert pd["start_ns"] == _pd_ns(PD_START) and pd["start_utc"] == PD_START
+    assert pd["effective_end_ns"] == _pd_ns(PD_START) and pd["effective_end_utc"] == PD_START
+    assert pd["capped"] is False
+    assert pd["started_at"] == PD_STARTED_AT
+    assert pd["start_minus_started_at_s"] == pytest.approx(0.000187655)
+    assert pd["interval_s"] == pytest.approx(6.9) and pd["exempt_s"] == pytest.approx(6.9)
+    assert pd["last_row_before_die"] == "2026-09-07T09:59:57+00:00"
+    assert pd["first_row_after_start"] == "2026-09-07T10:00:05+00:00"
+    assert pd["edge_gap_before_s"] == 0.0 and pd["edge_gap_after_s"] == 1.0
+    assert pd["rejected_rows"] == []
+
+
+def test_a_started_at_read_that_does_not_agree_with_the_start_grants_no_interval(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """StartedAt 1.5 s from the captured start: no interval, the reason
+    recorded, and the ordinary rule rejects the file in its usual words."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, started_at="2026-09-07T10:00:05.800000000Z"
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    pd = manifest["resources_proved_down"]
+    assert pd["applies"] is False and "1 s" in pd["why_not"]
+    assert [w for w in manifest["warnings"] if "REJECTED" in w] == [
+        f"--resources-from {src} REJECTED (SUT resources treated as missing): {PD_GAP_PROBLEM}"
+    ]
+    assert manifest["resource_source"] == "none"
+
+
+def test_a_failed_started_at_fetch_is_a_validity_reason_and_grants_no_interval(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, _record, _src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, started_at_rc=1
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    reasons = [r for r in manifest["validity_reasons"] if "--fetch-started-at-cmd" in r]
+    assert len(reasons) == 1 and "exit code 1" in reasons[0], manifest["validity_reasons"]
+    assert "logs/sut/controller-started-at.txt" in reasons[0]
+    pd = manifest["resources_proved_down"]
+    assert pd["applies"] is False and "StartedAt" in pd["why_not"]
+    assert manifest["resource_source"] == "none"
+
+
+def test_a_started_at_read_that_exits_0_without_its_file_is_a_validity_reason(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-09-30, round 1: as for every other SUT fetch, a StartedAt
+    read that exits 0 but writes no file is a validity reason - here the only
+    one, on a restart run whose resources pass the ordinary rule."""
+    script = _write_script(tmp_path, "sut_step.py", SUT_STEP_SCRIPT)
+    rc, run_dir, record = _item18_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        fetch_started_at_cmd=_step_tpl(
+            script, tmp_path / "sut-steps.txt", "started_at", "noop", 0
+        ),
+    )
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert _step_lines(record)[-1] == "started_at controller-started-at.txt"
+    fetch = manifest["sut_log_fetches"][-1]
+    assert fetch["hook"] == "started_at" and fetch["returncode"] == 0
+    assert fetch["dest_exists"] is False
+    assert manifest["resources_proved_down"]["applies"] is False
+    assert manifest["validity_reasons"] == [
+        "SUT fetch --fetch-started-at-cmd exited 0 but wrote no file at "
+        "logs/sut/controller-started-at.txt, so the restarted controller's "
+        "StartedAt cannot be read from the run directory and no proved-down "
+        "interval is granted (decision 1a)"
+    ]
+    assert rc == 1 and manifest["validity"] == "invalid"
+
+
+def test_the_started_at_read_on_another_condition_is_fetched_but_records_no_interval(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The fetch follows the docker-events fetch's pattern on any run; the
+    rule itself belongs to controller_restart, so no resources_proved_down."""
+    files = _pd_guest_files(tmp_path)
+    script = _write_script(tmp_path, "copy_step.py", COPY_STEP_SCRIPT)
+    record = tmp_path / "sut-steps.txt"
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        fetch_started_at_cmd=_copy_tpl(
+            script, record, "started_at", 0, files["controller-started-at.txt"]
+        ),
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["validity"] == "valid"
+    assert [f["hook"] for f in manifest["sut_log_fetches"]] == ["started_at"]
+    assert "resources_proved_down" not in manifest
+
+
 EXTERNAL_EVIDENCE_CLI = [
     "--twins-before-from",
     "ev/before.json",

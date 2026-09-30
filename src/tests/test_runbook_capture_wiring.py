@@ -181,6 +181,13 @@ for name, flag in run_mod.SUT_LOG_FETCH_FLAGS.items():
     record = hook(name, template, dest)
     record["dest_file"] = dest.relative_to(run_dir).as_posix()
     fetches.append(record)
+# The StartedAt read of decision 1a (run.py: --fetch-started-at-cmd into logs/sut/controller-started-at.txt), after
+# the docker-events fetch, recorded among the SUT fetches so that a failed read is a reason like theirs.
+if opt("--fetch-started-at-cmd"):
+    dest = sut / "controller-started-at.txt"
+    record = hook("started_at", opt("--fetch-started-at-cmd"), dest)
+    record["dest_file"] = dest.relative_to(run_dir).as_posix()
+    fetches.append(record)
 with open(log + ".fetches-done", "w", encoding="utf-8") as fh:
     fh.write(run_id)
 time.sleep(float(os.environ.get("EGW_WIRING_HOLD_AFTER_FETCHES_S", "0")))
@@ -601,6 +608,35 @@ def test_the_test_6_restart_is_judged_by_its_own_events_and_never_by_the_proofs_
                               capture_output=True, text=True)
     assert proof_r7.returncode == 1, proof_r7.stdout
     assert "rule_R7=broken: the expected event(s) kill (signal 9) of egw-controller-1" in proof_r7.stdout
+
+
+def test_test_6_reads_the_restarted_controllers_started_at_after_its_capture_and_seals_it(wiring):
+    """Decision 1a (adopted 2026-09-30): the harness's StartedAt read runs the checkout's fetch_started_at.sh on the
+    guest after the docker-events fetch, and its record - the controller the compose restart started again - is
+    sealed in the run's logs/sut/; the line then prints one read-only summary of resources_proved_down."""
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring, until_harness=True))
+    assert _t6_value(result) == "ok", report(result)
+    run_dir = wiring.raw(T6_RID)
+    record = (run_dir / "logs" / "sut" / "controller-started-at.txt").read_text(encoding="utf-8").splitlines()
+    assert record[:3] == ["container=egw-controller-1", "container_id=" + "0f" * 32,
+                          "started_at=2026-09-25T10:05:01.200000000Z"], record
+    assert re.fullmatch(r"guest_epoch=\d+", record[3]) and len(record) == 4, record
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    fetches = manifest["sut_log_fetches"]
+    assert [f["hook"] for f in fetches][-2:] == ["docker_events", "started_at"]
+    assert fetches[-1]["returncode"] == 0 and fetches[-1]["dest_exists"] is True
+    assert "logs/sut/controller-started-at.txt" in (run_dir / "SHA256SUMS").read_text(encoding="utf-8")
+    assert re.search(r"^test 6: resources_proved_down: ", result.stdout, re.M), report(result)
+
+
+def test_test_6_whose_started_at_read_failed_is_invalid_and_never_ok(wiring):
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring, until_harness=True), EGW_STUB_FAIL="inspect-fails")
+    assert _t6_value(result) == "stop", report(result)
+    assert not (wiring.raw(T6_RID) / "logs" / "sut" / "controller-started-at.txt").exists()
+    assert "[harness] INVALID: SUT fetch --fetch-started-at-cmd failed" in result.stderr, report(result)
+    assert "STOP: test 6: the harness run was not sealed, or it exited 1" in result.stderr, report(result)
 
 
 def test_a_capture_whose_closing_marker_never_arrives_leaves_the_run_invalid_and_no_docker_events_log(wiring):

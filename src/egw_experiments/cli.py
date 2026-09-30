@@ -77,6 +77,13 @@ error) and only 'error' is a reason; a ``controller_restart`` run without
 its configuration identity, or without its restart evidence, is invalid —
 no flag excuses the evidence.
 
+Decision 1a (adopted 2026-09-30, prospective): ``run`` alone accepts
+``--fetch-started-at-cmd``, the StartedAt read of the restarted controller
+(``tools/session/fetch_started_at.sh``), run right after the docker-events
+fetch into ``logs/sut/controller-started-at.txt``; on a ``controller_restart``
+run the proved-down interval is then applied to the resources ingest and
+recorded as ``resources_proved_down``. Absent, every run is as before.
+
 Recovery qualification (review finding F2): the analyser never reads
 ``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
 after the analysis, which writes ``processed/recovery_qualification.json``
@@ -553,6 +560,20 @@ def build_parser() -> argparse.ArgumentParser:
     _add_collector_hook_arguments(p_run)
     _add_sut_log_fetch_arguments(p_run)
     p_run.add_argument(
+        "--fetch-started-at-cmd",
+        default=None,
+        help="decision 1a (adopted 2026-09-30): command template that writes "
+        "the restarted controller's id and State.StartedAt, read on the guest "
+        "after the run, to {dest} (logs/sut/controller-started-at.txt), e.g. "
+        "'bash \"tools/session/fetch_started_at.sh\" \"{dest}\"'; run like "
+        "--fetch-docker-events-cmd, right after it, and a failure is a "
+        "validity reason. On a controller_restart run the proved-down "
+        "interval (the controller's die to its start, from the run's complete "
+        "events capture and this read) is then applied to the resources "
+        "ingest and recorded as resources_proved_down; without the option "
+        "nothing of this runs",
+    )
+    p_run.add_argument(
         "--local-resources",
         action="store_true",
         help="DEV ONLY: sample docker stats on THIS host (the load "
@@ -790,6 +811,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         fetch_broker_log_cmd=args.fetch_broker_log_cmd,
         fetch_controller_log_cmd=args.fetch_controller_log_cmd,
         fetch_docker_events_cmd=args.fetch_docker_events_cmd,
+        fetch_started_at_cmd=args.fetch_started_at_cmd,
         twin_snapshot_cmd=args.twin_snapshot_cmd,
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
