@@ -331,7 +331,7 @@ def events_of(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-T6_RID = "controller_restart-r01"
+T6_RID = "controller_restart-r03"
 # The configuration identity of test 6 (config_identity of 6.1 reads the guest): a write-once stand-in, which the stub
 # harness does not read.
 CONFIG_IDENTITY_STUB = ('config_identity() { [ ! -e "$1" ] || return 1; '

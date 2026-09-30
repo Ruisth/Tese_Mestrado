@@ -1108,33 +1108,33 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     argv = harness_argv(bench)
     opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
-    dest = "/raw/controller_restart-r01/logs/sut/docker-events.log"
-    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r01", dest)
-    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r01", "die,start"], events
+    dest = "/raw/controller_restart-r03/logs/sut/docker-events.log"
+    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r03", dest)
+    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r03", "die,start"], events
     assert "kill" not in events[-1]
     assert opts["--restart-cmd"].endswith("restart controller'") and opts["--restart-at-s"] == "300"
-    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r01]"
+    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r03]"
     # The finite proof's restart-evidence hooks of the checkout, rendered and split as the harness runs them (review
     # of PR #51, B1): the twin snapshots with the plan's seed, the drain, the post-drain copy of this run's events.
     session = bench.clone / "tools" / "session"
-    run_dir = "/raw/controller_restart-r01"
+    run_dir = "/raw/controller_restart-r03"
 
     def hook(flag: str, dest: str) -> list[str]:
-        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r01", duration_s=600,
+        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r03", duration_s=600,
                                                              dest=dest, expect_services=SIX_SERVICES.split(",")))
 
     assert hook("--twin-snapshot-cmd", f"{run_dir}/twins.before.json") == \
-        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r01", f"{run_dir}/twins.before.json", "7"]
+        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r03", f"{run_dir}/twins.before.json", "7"]
     assert hook("--drain-cmd", f"{run_dir}/logs/sut/drain.txt") == \
-        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r01"]
+        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r03"]
     assert hook("--post-drain-fetch-cmd", f"{run_dir}/events.post-drain.jsonl") == \
-        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r01/events.jsonl",
+        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r03/events.jsonl",
          f"{run_dir}/events.post-drain.jsonl"]
     # Decision 1a (adopted 2026-09-30): the StartedAt read the harness runs after its docker-events fetch and before
     # it ingests the resources, through the checkout's script, into the run's logs/sut/.
@@ -1150,23 +1150,27 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
 def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(bench: Bench) -> None:
     """Review of decision 1a (2026-09-30, round 0): harness_cmd answers 2, the harness NOT started, when the run
     directory already exists - another execution's - so that test 6's line never reads another run's directory; its
-    resources_proved_down summary must then print nothing of that directory's manifest."""
+    resources_proved_down summary must then print nothing of that directory's manifest. (The directory appears after
+    the run id's own guard found the entry unused, as another execution in between would leave it: the guard itself
+    refuses an existing one first.)"""
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
-    other = bench.home / "egw-tcg" / "pilot" / "results" / "raw" / "controller_restart-r01"
+    other = bench.tmp / "another-execution"
     other.mkdir(parents=True)
     (other / "manifest.json").write_text(json.dumps({"validity": "valid", "resources_proved_down": {
         "applies": True, "why_not": None, "die_utc": "2026-10-01T10:05:00.400000000Z",
         "start_utc": "2026-10-01T10:05:06.300000000Z", "effective_end_utc": "2026-10-01T10:05:06.300000000Z",
         "capped": False, "edge_gap_before_s": 0.0, "edge_gap_after_s": 2.0, "rejected_rows": [],
         "resources_ingested": True}}), encoding="utf-8")
-    body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
+    appears = f'mkdir -p ~/egw-tcg/pilot/results/raw && mv {shlex.quote(str(other))} ~/egw-tcg/pilot/results/raw/$RID'
+    body = [_one(cmds, "RID="), appears, _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="),
+            _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert not (bench.state / "harness_argv").exists(), "the harness was started over another execution's directory"
-    assert r.starting("STOP: harness_cmd controller_restart-r01: "), r.out
+    assert r.starting("STOP: harness_cmd controller_restart-r03: "), r.out
     summary = r.starting("test 6: resources_proved_down: ")
     assert len(summary) == 1, r.out
     assert "applies=" not in summary[0] and "2026-10-01T10:05" not in summary[0], summary
@@ -1240,7 +1244,7 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     bench.set("events_start_rc", 3)
     bench.set("events_cleanup_rc", 1)
@@ -1248,12 +1252,48 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert r.value("T6") == "stop", r.out
     assert not (bench.state / "harness_argv").exists(), "the harness was started without a ready recorder"
-    start = r.starting("STOP: events_start controller_restart-r01: ")
-    assert len(start) == 1 and "egw-events-controller_restart-r01 may still run" in start[0], r.out
-    hc = r.starting("STOP: harness_cmd controller_restart-r01: the harness was NOT started")
+    start = r.starting("STOP: events_start controller_restart-r03: ")
+    assert len(start) == 1 and "egw-events-controller_restart-r03 may still run" in start[0], r.out
+    hc = r.starting("STOP: harness_cmd controller_restart-r03: the harness was NOT started")
     assert len(hc) == 1 and "events_start's STOP above" in hc[0], r.out
     t6 = r.starting("STOP: test 6: ")
     assert len(t6) == 1 and "exited 2" in t6[0] and "may then still run" in t6[0], r.out
+
+
+def test_test_6_takes_controller_restart_r03_the_first_entry_never_used_on_the_guest() -> None:
+    """Review of 2026-09-30 (RB-3): test 6 named controller_restart-r01, which the pilot tree already holds (r01 ran on
+    2026-09-18 and r02 on 2026-09-19), so harness_cmd refused it and the documented line could only stop."""
+    assert run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID") == "controller_restart-r03"
+
+
+@pytest.mark.parametrize("used", ["raw directory", "start record"])
+def test_test_6_entry_already_used_is_refused_and_nothing_starts(bench: Bench, used: str) -> None:
+    """Review of 2026-09-30 (RB-3): like test 1's, test 6's entry is refused when it was already used - its raw
+    directory in the pilot tree, or its record beside the itest artefacts - before anything starts: no readiness
+    check, no drain, no configuration identity, no recorder, no harness; and the delta line after it refuses too."""
+    cmds = _host_commands("### Test 6")
+    first = _one(cmds, "RID=")
+    rid = run_id_of(first, "RID")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": f"controller_restart-r0{i}", "seed": 6 + i} for i in (1, 2, 3)]}),
+                    encoding="utf-8")
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    trace = (bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid if used == "raw directory"
+             else bench.p / f"{rid}.sut")
+    trace.mkdir(parents=True)
+    body = [first, 'echo "F6=$F6"', _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="),
+            _one(cmds, "T6=stop; if"), 'echo "T6=$T6"', _one(cmds, '[ "$T6" = ok ] && $REC delta'), 'echo "RD=$?"']
+    r = bench.run(bench.with_helpers("\n".join(body)))
+    assert r.value("F6") == "used" and r.value("T6") == "stop" and r.value("RD") != "0", r.out
+    refused = r.starting(f"STOP: test 6: {rid} was already used")
+    assert len(refused) == 1 and "record the choice" in refused[0], r.out
+    assert any("the harness run was NOT started" in ln and "F6='used'" in ln for ln in r.starting("STOP: test 6: ")), r.out
+    assert not (bench.state / "harness_argv").exists() and bench.capture_calls() == []
+    assert "/ready" not in bench.calls() and "/metrics" not in bench.calls(), bench.calls()
+    assert not (bench.p / f"{rid}.config_identity.json").exists()
+    assert "itest_reconcile delta" not in bench.calls()
+    assert list(trace.iterdir()) == [], "the earlier execution's trace was changed"
 
 
 # --------------------------------------------------------------------------
@@ -2270,6 +2310,30 @@ def test_test_3_a_run_id_neither_the_host_nor_the_guest_holds_is_fresh(bench: Be
     assert (r.value("RT"), r.value("C3"), r.value("RA")) == ("0", "ok", "0"), r.out
 
 
+@pytest.mark.parametrize("case", ["the guest holds a log of the run id", "the guest does not answer",
+                                  "the host holds the run id"])
+def test_test_3_publishes_nothing_on_a_run_id_that_is_not_fresh(bench: Bench, case: str) -> None:
+    """Review of 2026-09-30 (34-1): the first line found the run id used on the guest (F3 'used') and still started
+    the simulator, publishing a 120 s run that can never be judged into the earlier execution's event log on the
+    guest. Section 7, rule 1: a failed precondition publishes nothing. The line now starts nothing unless F3 is
+    'fresh': no guest clock read, no 'before' snapshot, no simulator, and one STOP."""
+    t3_guest_log(bench)
+    if case == "the guest holds a log of the run id":
+        (bench.state / "guest_events" / T3).mkdir(parents=True)
+    elif case == "the guest does not answer":
+        bench.set("guest_check_fails")
+    else:
+        (bench.p / T3).mkdir(parents=True)
+    first = _one(_host_commands("### Test 3"), "R=itest-invalid-01")
+    r = bench.run(bench.with_helpers("\n".join((first, 'echo "RT=$RT"', 'echo "F3=$F3"'))))
+    assert r.value("F3") == "used" and r.value("RT") != "0", r.out
+    assert bench.simulator_calls() == 0, r.out
+    assert not (bench.p / f"{T3}.metrics.before.json").exists() and not (bench.p / f"{T3}.stderr.txt").exists()
+    assert not any(ln.endswith("[date +%s]") for ln in bench.ssh_log()), bench.ssh_log()
+    stop = r.starting("STOP: test 3: ")
+    assert len(stop) == 1 and "the simulator was NOT started" in stop[0] and "nothing was published" in stop[0], r.out
+
+
 #: scp that fails part-way, leaving the bytes it had written (OpenSSH scp and sftp leave a partial destination): here
 #: the first line of the guest's log, cut on a line boundary so that it still parses
 PARTIAL_SCP = r"""#!/usr/bin/env bash
@@ -2546,7 +2610,11 @@ def test_test_5_a_log_not_read_or_without_the_client_is_a_stop(bench: Bench, cas
 # --------------------------------------------------------------------------
 #: The start of the optional, read-only re-run of delta with the N1 report (decision 2 of 2026-09-30) that closes the
 #: test 7 block and its Ditto repeat, after the evaluation line.
-T7_N1_LINE = '[ "$LC" = 0 ] && [ -s $P/$R.sut/controller.log ] && [ -s $P/$R.twins.after.json ] && { $REC delta '
+T7_N1_LINE = ('[ "$T7" != stop ] && [ "$LC" = 0 ] && [ -s $P/$R.sut/controller.log ] && [ -s $P/$R.twins.after.json ] '
+              '&& { $REC delta ')
+#: An assignment of T7 in a command, in any of the forms bash takes it (a declaration keyword with its options before
+#: it, a subshell, a loop body); the stop message only quotes T7's value
+T7_ASSIGNMENT = re.compile(r"(^|[;&|{(]|then|else|do)\s*((export|declare|local|readonly|typeset)\s+(-\w+\s+)*)?T7=")
 
 
 def _t7_body(prefix: str = "", n1: bool = False) -> tuple[str, str, str]:
@@ -2902,8 +2970,19 @@ def test_test_7_the_optional_n1_report_reruns_delta_with_the_sub_checks_controll
     for line in _host_commands("### Test 7")[-1:] + _host_commands("### Repeat of test 7 for Ditto")[-1:]:
         command = line.split("     #", 1)[0]
         # read-only: no assignment of T7 (its value is only quoted in the stop message), and no redirection
-        assert line.startswith(T7_N1_LINE) and not re.search(r"(^|[;&|{]|then|else)\s*T7=", command), line
+        assert line.startswith(T7_N1_LINE) and not T7_ASSIGNMENT.search(command), line
         assert ">" not in command, line
+
+
+def test_test_7_read_only_check_catches_every_form_of_an_assignment_of_t7() -> None:
+    """Review of 2026-09-30 (H3): the check that replaced '"T7=" not in the line' missed 'export T7=ok', 'declare
+    T7=ok', 'local', 'readonly', 'typeset' and '(T7=ok)', which the old check caught."""
+    for form in ("a || export T7=ok", "a || declare T7=ok", "a || declare -g T7=ok", "a || local T7=ok",
+                 "a || readonly T7=ok", "a || typeset T7=ok", "a || (T7=ok)", "a && T7=ok", "a; T7=ok",
+                 "{ export T7=ok; $REC delta x; }", "if a; then T7=ok; fi", "for x in 1; do T7=ok; done", "T7=ok"):
+        assert T7_ASSIGNMENT.search(form), form
+    for quoted in ("stop \"test 7: ... - it is read-only: finish's delta and T7='$T7' stand\"", '[ "$T7" != stop ]'):
+        assert not T7_ASSIGNMENT.search(quoted), quoted
 
 
 @pytest.mark.parametrize("sub", SUB_CHECKS)
@@ -2928,6 +3007,43 @@ def test_test_7_the_n1_report_not_produced_is_a_stop_of_its_own(bench: Bench, su
     assert r.value("N1_RC") != "0", r.out
     assert len(r.starting("STOP: test 7: the optional N1 report was NOT produced")) == 1, r.out
     assert len(_n1_reruns(bench)) == (0 if case == "controller log not read" else 1)
+
+
+@pytest.mark.parametrize("again", ["the Ditto repeat", "test 7 pasted again"])
+def test_test_7_n1_report_after_a_refused_precondition_in_the_same_shell_runs_no_delta(bench: Bench, again: str) -> None:
+    """Review of 2026-09-30 (RB-1): the optional N1 line tested LC only, which the test line never resets. Pasted in
+    the same shell after a completed sub-check (LC 0), on a run id already used - 'pre' refuses it, nothing is
+    injected or published - it ran delta on an earlier execution's files and printed an N1 report for a run that never
+    started, with no STOP. Each N1 line now first tests T7, which stays 'stop' exactly when the test line's
+    precondition failed or the line was interrupted: no delta runs, and the line prints its STOP."""
+    body, mongo_rid, _svc = _t7_body(n1=True)
+    t7, ditto = _host_commands("### Test 7"), _host_commands("### Repeat of test 7 for Ditto")
+    lines = ditto if again == "the Ditto repeat" else [_one(t7, "R="), _one(t7, "T7=stop; if pre $R"), *t7[-2:]]
+    rid = run_id_of(lines[0], "R")
+    if again == "the Ditto repeat":
+        # an earlier execution of the Ditto repeat left its files: its run directory, its log and its 'after' twins
+        (bench.p / f"{rid}.sut").mkdir(parents=True)
+        (bench.p / rid).mkdir()
+        (bench.p / f"{rid}.sut" / "controller.log").write_text("an earlier execution's controller log\n", encoding="utf-8")
+        (bench.p / f"{rid}.twins.after.json").write_text('{"stub": true}\n', encoding="utf-8")
+    full_run(bench, mongo_rid)
+    bench.set("svc_state", "running")
+    _t7_guest_logs(bench)
+    bench.install("pgrep", STUB_PGREP)
+    bench.set("pgrep_rc", 0)
+    body += "\n" + "\n".join((lines[0], lines[1], 'echo "AGAIN_T7=$T7"', lines[2].split("\n")[0], 'echo "AGAIN_EVAL=$?"',
+                              lines[3].split("     #", 1)[0], 'echo "AGAIN_N1=$?"'))
+    r = bench.run(bench.with_helpers(body))
+    # the MongoDB sub-check completed and produced its N1 report (LC 0 is left in the shell)
+    assert r.value("T7_VALUE") == "0" and r.value("N1_RC") == "0", r.out
+    assert r.value("AGAIN_T7") == "stop" and r.value("AGAIN_EVAL") != "0", r.out
+    assert r.starting(f"STOP: pre {rid}: "), r.out
+    assert r.starting("STOP: test 7: precondition failed - NO fault was injected and nothing was published"), r.out
+    assert r.value("AGAIN_N1") != "0", r.out
+    assert len(r.starting("STOP: test 7: the optional N1 report was NOT produced")) == 1, r.out
+    assert _n1_reruns(bench) == [f"python -m egw_experiments.itest_reconcile delta {bench.p}/{mongo_rid} "
+                                 f"--controller-log {bench.p}/{mongo_rid}.sut/controller.log"], r.out
+    assert bench.simulator_calls() == 1
 
 
 @pytest.mark.skipif(REAL_PGREP is None, reason="pgrep (procps) is not installed")
