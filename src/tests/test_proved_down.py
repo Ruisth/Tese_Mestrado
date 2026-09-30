@@ -564,3 +564,72 @@ def test_a_restart_that_did_not_execute_with_0_gives_no_interval(tmp_path, resta
 
 def test_another_condition_gives_no_interval(tmp_path) -> None:
     _no_interval(tmp_path, "controller_restart", condition_id="nominal")
+
+
+# --------------------------------------------------------------------------
+# The derivation's bounds, each pinned (review of 2026-09-30, round 0: a
+# one-sided or wider StartedAt tolerance, several dies with one start, a
+# start at the die's instant, a read stamped in S's own second and a window
+# one second wider than R7's all passed the cases above)
+# --------------------------------------------------------------------------
+
+
+def test_a_started_at_of_the_old_instance_long_before_the_start_gives_no_interval(tmp_path) -> None:
+    """|S - StartedAt| <= 1 s holds on both sides: a compose restart keeps the container id, so the StartedAt of
+    the instance that died - long before S - must not pass."""
+    _no_interval(tmp_path, "1 s", started_at=_started_at(started_at="2026-10-01T09:00:00.000000000Z"))
+
+
+@pytest.mark.parametrize("started, granted", [
+    ("2026-10-01T10:01:07.300000001Z", False),
+    ("2026-10-01T10:01:05.299999999Z", False),
+    ("2026-10-01T10:01:07.300000000Z", True),
+    ("2026-10-01T10:01:05.300000000Z", True),
+])
+def test_started_at_exactly_1_s_from_the_start_on_either_side_is_the_bound(tmp_path, started, granted) -> None:
+    run_dir, manifest = _run_dir(tmp_path, started_at=_started_at(started_at=started))
+    interval, why_not, _ = _pd().derive_proved_down(run_dir, manifest)
+    assert (interval is not None) is granted, why_not
+
+
+def test_two_dies_and_one_start_give_no_interval(tmp_path) -> None:
+    events = _restart_events() + [_event("die", C, CID, _ns("10:00:40.0"), exitCode="137")]
+    events.sort(key=lambda e: e["timeNano"])
+    facts = _no_interval(tmp_path, "exactly one", events=events)
+    assert facts["die_events_in_window"] == 2 and facts["start_events_in_window"] == 1
+
+
+def test_a_start_at_the_instant_of_the_die_gives_no_interval(tmp_path) -> None:
+    _no_interval(tmp_path, "not after the die", events=_restart_events(die="10:01:00.4", start="10:01:00.4"),
+                 started_at=_started_at(started_at="2026-10-01T10:01:00.4Z"))
+
+
+def test_a_started_at_read_stamped_in_the_starts_own_second_gives_no_interval(tmp_path) -> None:
+    """guest_epoch is whole seconds: 10:01:06 may be before S = 10:01:06.3, so it is not a read at or after S."""
+    _no_interval(tmp_path, "before the start", started_at=_started_at(guest_epoch=str(_epoch("10:01:06"))))
+
+
+def test_a_start_at_t1_plus_1_is_outside_the_capture_window(tmp_path) -> None:
+    """The window is R7's [t0, t1 + 1): a start at exactly t1 + 1 s is outside it."""
+    facts = _no_interval(tmp_path, "exactly one", events=_restart_events(start="10:01:06.0"),
+                         coverage=_coverage(until=str(_epoch("10:01:05"))),
+                         started_at=_started_at(started_at="2026-10-01T10:01:06.0Z"))
+    assert facts["die_events_in_window"] == 1 and facts["start_events_in_window"] == 0
+
+
+def test_a_die_1_ns_before_t0_is_in_the_replay_not_the_capture_window(tmp_path) -> None:
+    facts = _no_interval(tmp_path, "exactly one", events=_restart_events(die="10:01:00.999999999"),
+                         coverage=_coverage(since=str(_epoch("10:01:01"))))
+    assert facts["die_events_in_window"] == 0 and facts["start_events_in_window"] == 1
+
+
+def test_a_die_at_t0_and_a_start_1_ns_before_t1_plus_1_are_inside_the_capture_window(tmp_path) -> None:
+    run_dir, manifest = _run_dir(
+        tmp_path,
+        events=_restart_events(die="10:01:01.0", start="10:01:06.999999999"),
+        coverage=_coverage(since=str(_epoch("10:01:01")), until=str(_epoch("10:01:06"))),
+        started_at=_started_at(started_at="2026-10-01T10:01:06.999999999Z"),
+    )
+    interval, why_not, facts = _pd().derive_proved_down(run_dir, manifest)
+    assert interval is not None, why_not
+    assert facts["die_events_in_window"] == 1 and facts["start_events_in_window"] == 1
