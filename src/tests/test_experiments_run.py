@@ -5747,9 +5747,12 @@ def _gap_resources_file(
     return path
 
 
-def _pd_guest_files(tmp_path: Path, *, started_at: str = PD_STARTED_AT) -> dict[str, Path]:
+def _pd_guest_files(
+    tmp_path: Path, *, started_at: str = PD_STARTED_AT, coverage: str = "complete"
+) -> dict[str, Path]:
     """What the guest-side fetches deliver: the complete capture of the run
-    (docker-events.log and its coverage verdict) and the StartedAt record."""
+    (docker-events.log and its coverage verdict, ``coverage=`` as given) and
+    the StartedAt record."""
     guest = tmp_path / "guest-reads"
     guest.mkdir(exist_ok=True)
     die, start = _pd_ns(PD_DIE), _pd_ns(PD_START)
@@ -5766,7 +5769,7 @@ def _pd_guest_files(tmp_path: Path, *, started_at: str = PD_STARTED_AT) -> dict[
     )
     t1 = _pd_epoch("10:01:00")
     (guest / "docker-events.coverage.txt").write_text(
-        "coverage=complete\n"
+        f"coverage={coverage}\n"
         f"requested_since_guest_epoch={_pd_epoch('09:59:20')}\n"
         f"requested_until_guest_epoch={t1}\n"
         "clock=guest\nexpected=die,start\ncontainer=egw-controller-1\n",
@@ -5798,13 +5801,15 @@ def _proved_down_run(
     started_at: str = PD_STARTED_AT,
     kept: tuple[str, ...] = (),
     resources_from: Path | None = None,
+    coverage: str = "complete",
 ) -> tuple[int, Path, Path, Path, str | None]:
     """A controller_restart run whose collector file has the controller's 8 s
-    gap (but the rows ``kept``), with the complete capture of its restart;
-    ``started_at_rc`` None runs it without --fetch-started-at-cmd, and
-    ``resources_from`` gives the run another --resources-from path."""
+    gap (but the rows ``kept``), with the complete capture of its restart
+    (``coverage`` names another verdict); ``started_at_rc`` None runs it
+    without --fetch-started-at-cmd, and ``resources_from`` gives the run
+    another --resources-from path."""
     src = _gap_resources_file(tmp_path, kept=kept)
-    files = _pd_guest_files(tmp_path, started_at=started_at)
+    files = _pd_guest_files(tmp_path, started_at=started_at, coverage=coverage)
     script = _write_script(tmp_path, "copy_step.py", COPY_STEP_SCRIPT)
     record = tmp_path / "sut-steps.txt"
     overrides: dict[str, Any] = {
@@ -6028,27 +6033,162 @@ def test_collect_keeps_the_run_time_judgement_of_a_file_judged_under_the_interva
     assert "not re-judged by the ordinary rule" in added[0]
 
 
-def test_collect_that_ingests_a_file_no_interval_judged_records_it_ingested(
+#: Every second of the controller's hole in :func:`_gap_resources_file`: kept,
+#: the file has a controller row at each second from 09:59:30 to 10:00:40.
+PD_HOLE_SECONDS = ("09:59:58", "09:59:59", "10:00:00", "10:00:01", "10:00:02", "10:00:03", "10:00:04")
+
+
+def _run_files(run_dir: Path) -> list[str]:
+    return sorted(p.relative_to(run_dir).as_posix() for p in run_dir.rglob("*") if p.is_file())
+
+
+def test_collect_does_not_qualify_a_late_file_for_a_run_whose_restart_lifecycle_is_recorded(
     tmp_path, plan_path, fast_run, monkeypatch
 ) -> None:
-    """Review of 2026-09-30: the collector's file was missing at run time, so
-    the interval, derived, was not applied; 'collect' judges the file given
-    later by the ordinary rule, as before, and once it has ingested it the
-    record's resources_ingested agrees with the manifest."""
+    """Review of 2026-10-01 (F3): the collector's file was missing at run
+    time, so the interval, derived (the controller's die at 09:59:57.4 and
+    start at 10:00:04.3), was not applied. The file given later holds the
+    controller's rows 09:59:58 to 10:00:04, while it was proved down: the
+    run-time ingest rejects them, the ordinary rule alone would accept them.
+    'collect' neither judges nor ingests a file for a run whose restart
+    lifecycle is recorded: the run stays invalid and unsealed, nothing is
+    copied, the record and the collector's accounting are unchanged and one
+    warning names decision 1a."""
     late = tmp_path / "late" / "resources.csv"
     rc, run_dir, _record, _src, _ = _proved_down_run(
         tmp_path, plan_path, fast_run, monkeypatch, resources_from=late
     )
     base = run_dir.parent.parent
     assert rc == 1
-    pd = _manifest(base, "controller_restart-r01")["resources_proved_down"]
+    manifest = _manifest(base, "controller_restart-r01")
+    pd = manifest["resources_proved_down"]
     assert pd["applies"] is False and pd["resources_ingested"] is False
+    assert pd["die_ns"] == _pd_ns(PD_DIE) and pd["start_ns"] == _pd_ns(PD_START)
     late.parent.mkdir()
-    full = _gap_resources_file(
-        late.parent,
-        kept=("09:59:58", "09:59:59", "10:00:00", "10:00:01", "10:00:02", "10:00:03", "10:00:04"),
-        filename=late.name,
+    full = _gap_resources_file(late.parent, kept=PD_HOLE_SECONDS, filename=late.name)
+    files_before = _run_files(run_dir)
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=full
+        )
+        == 1
     )
+    after = _manifest(base, "controller_restart-r01")
+    assert after["validity"] == "invalid" and after["resource_source"] == "none"
+    assert after["validity_reasons"] == manifest["validity_reasons"]
+    assert after["missing_mandatory_artifacts"] == ["resources.csv"]
+    assert not (run_dir / "resources.csv").exists()
+    assert not (run_dir / checksums.SUMS_FILENAME).exists()
+    assert _run_files(run_dir) == files_before
+    assert after["resources_proved_down"] == pd
+    assert after["collector"] == manifest["collector"]
+    added = after["warnings"][len(manifest["warnings"]):]
+    assert len(added) == 1 and "decision 1a" in added[0] and str(full) in added[0], added
+    assert "the run's restart lifecycle is recorded; a late file is not qualified" in added[0]
+    assert "no gap exemption" in added[0]
+    actions = after["collect_history"][-1]["actions"]
+    assert [a for a in actions if str(full) in a] == [
+        f"--resources-from {full} not judged (decision 1a: the run's restart "
+        "lifecycle is recorded; a late file is not qualified)"
+    ], actions
+
+
+def test_collect_keeps_the_valid_run_time_judgement_of_a_run_whose_restart_lifecycle_is_recorded(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-10-01 (F3), a guard: the run-time ingest under the
+    interval made the run valid and sealed; 'collect' given the same file
+    keeps that judgement - valid, sealed and verifying, the file byte for
+    byte, the record unchanged - with one warning naming decision 1a."""
+    rc, run_dir, _record, src, _ = _proved_down_run(tmp_path, plan_path, fast_run, monkeypatch)
+    base = run_dir.parent.parent
+    assert rc == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    pd = manifest["resources_proved_down"]
+    assert pd["applies"] is True and pd["resources_ingested"] is True
+    files_before = _run_files(run_dir)
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=src
+        )
+        == 0
+    )
+    after = _manifest(base, "controller_restart-r01")
+    assert after["validity"] == "valid" and after["validity_reasons"] == []
+    assert after["resource_source"] == "sut-collector"
+    assert (run_dir / "resources.csv").read_bytes() == src.read_bytes()
+    assert _run_files(run_dir) == files_before
+    assert checksums.verify_sha256sums(run_dir) == []
+    assert after["resources_proved_down"] == pd
+    added = after["warnings"][len(manifest["warnings"]):]
+    assert len(added) == 1 and "decision 1a" in added[0] and str(src) in added[0], added
+
+
+def test_collect_still_refuses_to_overwrite_the_file_of_a_run_whose_restart_lifecycle_is_recorded(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    """Review of 2026-10-01 (F3), a guard: the die and the start were
+    captured but the StartedAt read was 1.5 s from the start, so no interval;
+    the ordinary rule ingested the run's file (no controller hole) and the run
+    is valid and sealed. A different file given to 'collect' is refused as
+    before (exit 2), and nothing in the run directory changes."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path,
+        plan_path,
+        fast_run,
+        monkeypatch,
+        started_at="2026-09-07T10:00:05.800000000Z",
+        kept=PD_HOLE_SECONDS,
+    )
+    base = run_dir.parent.parent
+    assert rc == 0
+    pd = _manifest(base, "controller_restart-r01")["resources_proved_down"]
+    assert pd["applies"] is False and pd["resources_ingested"] is True
+    assert pd["die_ns"] == _pd_ns(PD_DIE) and pd["start_ns"] == _pd_ns(PD_START)
+    different = _gap_resources_file(tmp_path, filename="different-resources.csv")
+    files_before = {name: (run_dir / name).read_bytes() for name in _run_files(run_dir)}
+    capsys.readouterr()
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=different
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "refusing to overwrite resources.csv" in err and "NEW run identity" in err
+    assert {name: (run_dir / name).read_bytes() for name in _run_files(run_dir)} == files_before
+    assert (run_dir / "resources.csv").read_bytes() == src.read_bytes()
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+@pytest.mark.parametrize("record", ["absent", "no die/start pair"])
+def test_collect_judges_a_late_file_as_before_without_a_recorded_restart_lifecycle(
+    record, tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Review of 2026-10-01 (F3), a guard: without the StartedAt read the run
+    records no resources_proved_down; with it, a capture not shown complete
+    establishes no die/start pair. Either way the collector's file was missing
+    at run time, and 'collect' judges the file given later by the ordinary
+    rule, as before: ingested, valid and sealed, and the record's
+    resources_ingested, when there is a record, agrees with the manifest."""
+    late = tmp_path / "late" / "resources.csv"
+    options: dict[str, Any] = (
+        {"started_at_rc": None} if record == "absent" else {"coverage": "partial"}
+    )
+    rc, run_dir, _record, _src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, resources_from=late, **options
+    )
+    base = run_dir.parent.parent
+    assert rc == 1
+    pd = _manifest(base, "controller_restart-r01").get("resources_proved_down")
+    if record == "absent":
+        assert pd is None
+    else:
+        assert pd["applies"] is False and pd["resources_ingested"] is False
+        assert pd["why_not"].startswith("the capture is not shown complete")
+        assert pd["die_ns"] is None and pd["start_ns"] is None
+    late.parent.mkdir()
+    full = _gap_resources_file(late.parent, kept=PD_HOLE_SECONDS, filename=late.name)
     assert (
         run_mod.collect_run(
             "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=full
@@ -6058,7 +6198,12 @@ def test_collect_that_ingests_a_file_no_interval_judged_records_it_ingested(
     after = _manifest(base, "controller_restart-r01")
     assert after["validity"] == "valid" and after["resource_source"] == "sut-collector"
     assert (run_dir / "resources.csv").read_bytes() == full.read_bytes()
-    assert after["resources_proved_down"] == {**pd, "resources_ingested": True}
+    assert checksums.verify_sha256sums(run_dir) == []
+    assert not any("decision 1a" in w for w in after["warnings"])
+    if record == "absent":
+        assert "resources_proved_down" not in after
+    else:
+        assert after["resources_proved_down"] == {**pd, "resources_ingested": True}
 
 
 EXTERNAL_EVIDENCE_CLI = [
