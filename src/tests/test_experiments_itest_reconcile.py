@@ -2037,7 +2037,7 @@ PRE = [event(0, "accepted", T0 - 5, received_ns=T0 - 4 * NS),
 #: read ('finish' takes it after the window closed; the replay is published later still).
 AFTER = metrics(accepted=100, rejected=5, duplicate=5, failed=5, dropped=5, processing_errors=5,
                 received=125, in_progress=0, mqtt_connection=1, uptime_s=50.0, unacked=0,
-                monotonic_ns=DEADLINE + 10 * NS)
+                mqtt_subscribed=True, monotonic_ns=DEADLINE + 10 * NS)
 #: when the replay's lines are received: after the 'after' reading
 REPLAY_NS = DEADLINE + 100 * NS
 #: replay-check's exit when the replay's own duplicate line is not demonstrated for every replayed identity
@@ -2434,6 +2434,64 @@ def test_replay_check_two_lines_with_one_reconnection_demonstrate_the_replays_li
     out = capsys.readouterr().out
     assert "per identity: 0 replayed identity(ies) with 1 to k=1 added duplicate lines" in out, out
     assert "NOT DEMONSTRATED" not in out
+
+
+@pytest.mark.parametrize("unquiet", ["mqtt_subscribed false", "unacked 1", "in_progress 1", "queue_depth 1",
+                                     "mqtt_subscribed absent", "identity fails"])
+def test_replay_check_a_reconnection_counted_by_a_reading_that_is_not_quiet_is_not_a_pass(
+        tmp_path, capsys, unquiet) -> None:
+    """The bounded review of the F1 correction (2026-10-01): a reconnection the 'after' reading already counts
+    (mqtt_connection 2 in both readings, so k = 0), whose redelivery of m0 is received just after that reading, while
+    the replay's own copy of m0 is never processed; m1 and m2 are the replay's. The reading is taken between the
+    CONNACK and the redelivery, so it is not quiet (CONTRACTS 5): the line at 101 cannot be told from the replay's,
+    and the check must not pass. Before the correction: duplicate_replayed=3 of 3, exit 0."""
+    changes = {"mqtt_subscribed false": {"mqtt_subscribed": False}, "unacked 1": {"unacked": 1},
+               "in_progress 1": {"in_progress": 1, "received": AFTER["received"] + 1},
+               "queue_depth 1": {"queue_depth": 1, "received": AFTER["received"] + 1},
+               "mqtt_subscribed absent": {}, "identity fails": {"received": AFTER["received"] - 1}}[unquiet]
+    after = dict(AFTER, mqtt_connection=2, monotonic_ns=100, **changes)
+    if unquiet == "mqtt_subscribed absent":
+        del after["mqtt_subscribed"]
+    added = [event(0, "duplicate", received_ns=101), event(1, "duplicate", received_ns=150),
+             event(2, "duplicate", received_ns=151)]
+    replay = dict(AFTER, mqtt_connection=2, duplicate=AFTER["duplicate"] + 3, received=AFTER["received"] + 3,
+                  uptime_s=AFTER["uptime_s"] + 60.0, monotonic_ns=200)
+    run_dir, replay_dir = make_replay(tmp_path, added, after=after, replay=replay)
+    before = tree(tmp_path)
+    assert replay_check(run_dir, replay_dir) == NOT_DEMONSTRATED
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "FAIL" not in out
+    assert [ln for ln in lines if ln.startswith("per identity: the 'after' reading is not quiet")], out
+    assert lines[-1].startswith("-> NOT DEMONSTRATED: "), out
+    assert not [ln for ln in lines if ln.startswith("-> OK")], out
+    assert tree(tmp_path) == before
+
+
+def test_replay_check_the_same_lines_after_a_quiet_reading_still_pass(tmp_path, capsys) -> None:
+    """The control of the case above: the 'after' reading is quiet, so the reconnection it counts was over, with its
+    redelivery, before it (a line received earlier is refused as the first run's); k = 0 and every added line is the
+    replay's."""
+    after = dict(AFTER, mqtt_connection=2, monotonic_ns=100)
+    added = [event(seq, "duplicate", received_ns=150 + seq) for seq in range(3)]
+    replay = dict(after, duplicate=after["duplicate"] + 3, received=after["received"] + 3,
+                  uptime_s=after["uptime_s"] + 60.0, monotonic_ns=200)
+    run_dir, replay_dir = make_replay(tmp_path, added, after=after, replay=replay)
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_OK
+    out = capsys.readouterr().out
+    assert "per identity: the 'after' reading is quiet" in out, out
+    assert out.splitlines()[-1].startswith("-> OK: ")
+
+
+def test_replay_check_a_failure_still_takes_precedence_over_a_reading_that_is_not_quiet(tmp_path, capsys) -> None:
+    """An accepted line from the replay fails outright whatever the 'after' reading shows: exit 4, '-> FAIL'."""
+    after = dict(AFTER, mqtt_subscribed=False)
+    added = [dup(0), dup(1), event(2, "accepted", received_ns=REPLAY_NS)]
+    replay = dict(replay_reading(2), accepted=AFTER["accepted"] + 1, received=AFTER["received"] + 3)
+    run_dir, replay_dir = make_replay(tmp_path, added, after=after, replay=replay)
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_MISMATCH
+    out = capsys.readouterr().out
+    assert out.splitlines()[-1].startswith("-> FAIL: "), out
 
 
 @pytest.mark.parametrize("case", ["no duplicate", "accepted from the replay", "beyond the budget",
