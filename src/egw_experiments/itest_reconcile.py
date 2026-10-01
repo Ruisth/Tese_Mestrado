@@ -106,11 +106,15 @@ Exit codes (the runbook's shell helpers test them):
      it follows a lost connection, at most one per lost connection (ADR 0011,
      N2), and k, the delta of ``mqtt_connection`` between the two readings of
      one process, counts the reconnections of the replay interval. With k = 0
-     every duplicate line added is the replay's; with k >= 1 at most k of
+     (after a quiet 'after' reading, below) every duplicate line added is the
+     replay's; with k >= 1 at most k of
      them, of any identities, can be redeliveries, so an identity's line from
      the replay is shown only when it has more than k; one with 1 to k is
-     NOT DEMONSTRATED (named, with its lines and k), never passed. Nothing
-     failed outright: a failure (4) takes precedence.
+     NOT DEMONSTRATED (named, with its lines and k), never passed. k holds
+     only after a quiet 'after' reading (CONTRACTS 5): a reconnection that
+     reading already counts may be followed by an uncounted redelivery, so
+     when it is not quiet every replayed identity with a line is NOT
+     DEMONSTRATED. Nothing failed outright: a failure (4) takes precedence.
 """
 
 from __future__ import annotations
@@ -1128,6 +1132,7 @@ def cmd_replay_check(args) -> int:
     # process only: across two processes nothing is differenced)
     not_shown: list[str] = []
     budget = 0
+    unquiet: str | None = None
     if reasons:
         judge(False, f"/metrics {labels}: NOT one controller process "
               f"({'; '.join(reasons)}): the readings are of different "
@@ -1151,16 +1156,38 @@ def cmd_replay_check(args) -> int:
         # at most k = budget of the added duplicate lines, of any identities,
         # are redeliveries: an identity's line from the replay is shown only
         # when it has more than k; with 1 to k its lines may all be the first
-        # run's (the replay's copy never processed). k = 0: every line is the
-        # replay's. An identity without a line fails above.
+        # run's (the replay's copy never processed). k = 0, after a quiet
+        # 'from' reading: every line is the replay's. An identity without a
+        # line fails above.
         not_shown = [m for m in ids if 1 <= added_dup[m] <= budget]
-        print(f"per identity: {len(not_shown)} replayed identity(ies) with 1 "
-              f"to k={budget} added duplicate lines (k = mqtt_connection "
-              f"{ma['mqtt_connection']} -> {mr['mqtt_connection']}, the "
-              "reconnections of the replay interval: at most k added duplicate "
-              "lines, of any identities, can be redeliveries of the first run, "
-              "so the replay's own line is demonstrated only beyond k; must be "
-              f"0): {'NOT DEMONSTRATED' if not_shown else 'OK'}")
+        # k counts the reconnections that complete between the readings; one
+        # that completed just before the 'from' reading, whose redelivery is
+        # received after it, is not in k. The controller is subscribed again
+        # only after the SUBACK, which follows any resend on that connection,
+        # so a 'from' reading taken in between is not quiet (CONTRACTS 5).
+        # Only a quiet 'from' reading leaves no such redelivery to come:
+        # otherwise no added line is shown to be the replay's (review of the
+        # F1 correction, 2026-10-01).
+        unquiet = quiet_reading_problem(ma)
+        if unquiet is None:
+            print(f"per identity: the '{args.frm}' reading is quiet (CONTRACTS "
+                  "5: queue_depth, in_progress and unacked 0, mqtt_subscribed "
+                  "true, the accounting identity holding): OK")
+            print(f"per identity: {len(not_shown)} replayed identity(ies) with "
+                  f"1 to k={budget} added duplicate lines (k = mqtt_connection "
+                  f"{ma['mqtt_connection']} -> {mr['mqtt_connection']}, the "
+                  "reconnections of the replay interval: at most k added "
+                  "duplicate lines, of any identities, can be redeliveries of "
+                  "the first run, so the replay's own line is demonstrated "
+                  "only beyond k; must be 0): "
+                  f"{'NOT DEMONSTRATED' if not_shown else 'OK'}")
+        else:
+            not_shown = [m for m in ids if added_dup[m] >= 1]
+            print(f"per identity: the '{args.frm}' reading is not quiet "
+                  f"({unquiet}): a reconnection it already counts may be "
+                  "followed by a redelivery of the first run received after "
+                  "it, so no added duplicate line is shown to be the "
+                  "replay's: NOT DEMONSTRATED")
         text = (f"duplicate_redelivery={duplicate_redelivery} (further "
                 "duplicate lines added during the replay interval); "
                 f"mqtt_connection {ma['mqtt_connection']} -> "
@@ -1203,10 +1230,13 @@ def cmd_replay_check(args) -> int:
         print(f"-> FAIL: {'; '.join(failed)}")
         return EXIT_MISMATCH
     if not_shown:
-        print(f"-> NOT DEMONSTRATED: {len(not_shown)} replayed identity(ies) "
-              f"have no more added duplicate lines than the {budget} "
-              f"reconnection(s) between the '{args.frm}' and '{args.to}' "
-              "readings, so their lines may all be redeliveries of the first "
+        why = (f"the '{args.frm}' reading is not quiet, so a redelivery may "
+               "follow it uncounted" if unquiet is not None else
+               f"they have no more added duplicate lines than the {budget} "
+               f"reconnection(s) between the '{args.frm}' and '{args.to}' "
+               "readings")
+        print(f"-> NOT DEMONSTRATED: {len(not_shown)} replayed identity(ies): "
+              f"{why}, so their lines may all be redeliveries of the first "
               "run: the replay's own duplicate is not demonstrated for every "
               "replayed identity, and test 4 is not passed (no condition "
               "failed)")
