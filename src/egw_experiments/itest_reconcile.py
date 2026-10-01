@@ -28,7 +28,9 @@ GET /metrics) and ``snap`` (Ditto GET thing) open a connection.
 (egw_experiments.n1_report), opt-in: ``--n1-report`` prints it,
 ``--controller-log FILE`` gives it the A3 source (the controller log of the
 run) and ``--restart-evidence RUN_DIR`` the death source (a harness run
-directory: its ``restart`` record and its Docker events capture) together
+directory: its ``restart`` record and its Docker events capture, the death
+placed by its ``controller_metrics.csv``, without which it serves no
+identity) together
 with the evidence that the 'after' snapshot follows a quiet drain (its
 recovery qualification, its verified snapshots and post-drain copy, which
 must be the ones compared); either source option implies ``--n1-report``.
@@ -1225,8 +1227,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--restart-evidence", default=None, metavar="RUN_DIR",
                    help="a harness run directory: its restart record and "
                         "Docker events capture are the death source of the N1 "
-                        "report, its drain and verified snapshots the "
-                        "evidence for condition 3 (implies --n1-report)")
+                        "report, placed by its controller_metrics.csv, its "
+                        "drain and verified snapshots the evidence for "
+                        "condition 3 (implies --n1-report)")
     s = sub.add_parser("same")
     s.add_argument("--prefix", required=True)
     s.add_argument("label_a")

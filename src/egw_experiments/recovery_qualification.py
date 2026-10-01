@@ -71,11 +71,13 @@ when that copy is not present and verified, and then only to list the
 identities as unexplained), the two twin snapshots, ``logs/sut/controller.log``
 (the A3 source) and ``logs/sut/docker-events.log`` with its coverage record
 (the death source, with the manifest's ``restart`` record), each only when
-its fetch record shows it written. Condition 3 is evaluable only on a run
-whose qualification is ``recovery_observed`` and whose before snapshot is
-verified. The death carries no order check (attribution by count only, a
-stated limit of the module). A named identity stays lost: no count, no
-criterion and no qualification changes.
+its fetch record shows it written, and ``controller_metrics.csv``, whose
+readings place the death: it serves an identity only when they show one
+process change whose new process's first reading precedes the identity's
+first redelivery (review of PR #53, F2); without them it serves none.
+Condition 3 is evaluable only on a run whose qualification is
+``recovery_observed`` and whose before snapshot is verified. A named
+identity stays lost: no count, no criterion and no qualification changes.
 """
 
 from __future__ import annotations
@@ -150,6 +152,11 @@ CSV_COLUMNS = [
 #: The coverage record the Docker events fetch (proof_fetch_sut_log.sh)
 #: keeps beside the capture, under logs/sut/.
 DOCKER_EVENTS_COVERAGE = "docker-events.coverage.txt"
+
+#: The controller's /metrics readings of a harness run
+#: (egw_experiments.controller_metrics), which place the death on the
+#: controller clock for the N1 report.
+CONTROLLER_METRICS_FILENAME = "controller_metrics.csv"
 
 #: The timed copy of the events, read for the N1 identities only when the
 #: post-drain copy is not present and verified.
@@ -345,7 +352,9 @@ def n1_death_source(
 ) -> tuple[list[dict[str, Any]] | None, str | None]:
     """The death source of a harness run directory, from the manifest's
     ``restart`` record and the Docker events capture with its coverage
-    record: (deaths, note), deaths None when the capture cannot be read."""
+    record, placed by the run's ``controller_metrics.csv`` (without it the
+    death serves no identity): (deaths, note), deaths None when the capture
+    cannot be read."""
     why = _fetch_problem(manifest, "docker_events")
     if why is not None:
         return None, why
@@ -354,8 +363,10 @@ def n1_death_source(
     if lines is None:
         return None, f"the Docker events capture was not read ({why})"
     coverage, _why = n1_report.read_text_lines(sut / DOCKER_EVENTS_COVERAGE)
+    readings, readings_note = n1_report.read_controller_readings(Path(run_dir) / CONTROLLER_METRICS_FILENAME)
     return n1_report.controller_deaths(
-        manifest.get("restart"), lines, "\n".join(coverage) if coverage is not None else None
+        manifest.get("restart"), lines, "\n".join(coverage) if coverage is not None else None,
+        readings=readings, readings_note=readings_note,
     )
 
 

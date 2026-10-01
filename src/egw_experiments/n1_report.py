@@ -67,12 +67,30 @@ the identity is unexplained, never N1. The readings taken here:
   record must show ``executed``,
   ``started_utc``, ``finished_utc``, ``returncode`` 0 and no ``error``
   (analyze's ``restart_hook_ok``);
+- condition 2, the death's order (review of PR #53, F2): the death serves
+  an identity only when the controller's /metrics readings
+  (``controller_metrics.csv``) place it before that identity's first
+  redelivery. Their ``monotonic_ns`` and the lines'
+  ``received_monotonic_ns`` are one clock (the guest's monotonic clock,
+  which a controller restart does not reset, CONTRACTS 5), so no
+  epoch/monotonic conversion is made: the captured ``die`` shows the death
+  in the window, the readings place it. Every reading names its process
+  (``started_at``), the process changes exactly once in file order, the
+  last reading of the old process and the first of the new one carry
+  integer ``monotonic_ns`` in that order (the death lies between them, the
+  finite proof's placement, E-4), and the new process's first reading
+  precedes the identity's first redelivery strictly
+  (:func:`process_change`). Without readings, with no or several process
+  changes, an unreadable stamp, or a redelivery at or before that first
+  reading, the death serves no identity;
 - condition 2, the sources: a device is served when a maximum matching of
   its duplicate-only identities to its own A3 ends (one source per
   controller log line) covers them all, or all but one and the one death is
-  left to it. The death is left to a device only when no other device has
-  a duplicate-only identity its own ends leave uncovered, and when no
-  device has a duplicate-only identity to which no ends are matched at all
+  left to it and serves that one (it is matched as one more end, placed at
+  the new process's first reading). The death is left to a device only
+  when no other device has a duplicate-only identity its own ends leave
+  uncovered, and when no device has a duplicate-only identity to which no
+  ends are matched at all
   (one whose lines name several devices, one of another run id, a duplicate
   line without a readable identity): that identity may have been the
   death's one delivery (not applied), so which device the death explained
@@ -88,13 +106,13 @@ the identity is unexplained, never N1. The readings taken here:
   a quiet drain, and whether the snapshots are the verified ones, is the
   caller's to establish and to pass as ``twin_evidence_problem``.
 
-Stated limits: the death carries no order check - no condition places the
-``die`` before the identity's redelivery, so a death is attributed by count
-alone (condition 3's arithmetic and the one-death rule), the literal reading
-of the adopted wording. ``after.last_run_id`` is not compared (as in the
-finite proof's N1 naming). Which of several possible sources served which
-identity is inference: each named identity lists its possible sources, and
-none of that decides anything.
+Stated limits: the death's order is read from the readings alone and
+conservatively - a redelivery the new process received before its first
+reading is not shown to follow the death and stays unexplained.
+``after.last_run_id`` is not compared (as in the finite proof's N1 naming).
+Which of several possible sources served which identity is inference: each
+named identity lists its possible sources, and none of that decides
+anything.
 
 What does not change: a named identity stays in ``lost`` and in every
 zero-lost criterion, the ``delta`` line of its device stays a mismatch,
@@ -112,6 +130,8 @@ what the proof's A5 parser reads, and a drift test holds the two together.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import re
 from pathlib import Path
@@ -330,16 +350,106 @@ def capture_window(coverage_text: str | None) -> tuple[tuple[int, int] | None, s
     return window, None
 
 
+def read_controller_readings(path: str | Path) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """The rows of a ``controller_metrics.csv`` (the controller's /metrics
+    readings, egw_experiments.controller_metrics) as csv.DictReader gives
+    them, in file order, or (None, why). Read as the log files are
+    (undecodable bytes replaced); a file the csv module refuses (a field
+    beyond its limit) is unreadable, never raised."""
+    path = Path(path)
+    lines, why = read_text_lines(path, newlines_only=True)
+    if lines is None:
+        return None, why
+    try:
+        return list(csv.DictReader(io.StringIO("\n".join(lines)))), None
+    except csv.Error as exc:
+        return None, f"{path.name} unreadable ({type(exc).__name__})"
+
+
+def _ns_cell(value: Any) -> int | None:
+    """A ``monotonic_ns`` cell as an integer: ASCII digits only (the sampler
+    writes the integer the controller sent), else None - an empty cell is
+    an absent field, never zero, and a fractional or exponent form is not
+    read."""
+    if _is_int(value):
+        return value if value >= 0 else None
+    text = value.strip() if isinstance(value, str) else ""
+    if not re.fullmatch(r"[0-9]+", text):
+        return None
+    try:
+        return int(text)
+    except ValueError:  # beyond int()'s digit limit
+        return None
+
+
+def process_change(
+    readings: list[dict[str, Any]] | None, note: str | None = None
+) -> tuple[dict[str, Any] | None, str | None]:
+    """The one controller process change the readings show, placed on the
+    controller's clock (review of PR #53, F2): ``(change, None)``, or
+    ``(None, why)`` when the order cannot be shown.
+
+    ``started_at`` names the process (CONTRACTS 5); every reading must
+    carry one, and, in file order, it must change exactly once. The death
+    lies between the last reading of the old process and the first reading
+    of the new one (the finite proof's placement, E-4); both must carry an
+    integer ``monotonic_ns``, the old one below the new one. Readings are
+    numbered from 1 (the header excluded). ``note`` says why ``readings``
+    is None."""
+    if readings is None:
+        return None, f"the controller readings were not read ({note or 'not given'})"
+    if not readings:
+        return None, "the controller readings hold no reading"
+    processes: list[str] = []
+    unread: list[int] = []
+    for number, row in enumerate(readings, 1):
+        started_at = row.get("started_at") if isinstance(row, dict) else None
+        started_at = started_at.strip() if isinstance(started_at, str) else ""
+        if not started_at:
+            unread.append(number)
+        processes.append(started_at)
+    if unread:
+        shown = ", ".join(str(n) for n in unread[:5]) + (f" and {len(unread) - 5} more" if len(unread) > 5 else "")
+        return None, (f"{len(unread)} controller reading(s) (reading(s) {shown}) carry no readable started_at, so "
+                      "the process changes cannot be counted")
+    changes = [index for index in range(1, len(processes)) if processes[index] != processes[index - 1]]
+    if len(changes) != 1:
+        return None, (f"the controller readings show {len(changes)} process changes, not one" if changes
+                      else "the controller readings show no process change")
+    first_new = changes[0]
+    last_ns, first_ns = (_ns_cell(readings[index].get("monotonic_ns")) for index in (first_new - 1, first_new))
+    if last_ns is None or first_ns is None:
+        return None, (f"the readings bounding the process change (readings {first_new} and {first_new + 1}) do "
+                      "not both carry an integer monotonic_ns")
+    if last_ns >= first_ns:
+        return None, (f"the readings bounding the process change (readings {first_new} and {first_new + 1}) are "
+                      f"not in order on the controller clock (monotonic_ns {last_ns}, then {first_ns})")
+    return {
+        "old_process_last_reading": first_new,
+        "old_process_last_monotonic_ns": last_ns,
+        "new_process_first_reading": first_new + 1,
+        "new_process_first_monotonic_ns": first_ns,
+    }, None
+
+
 def controller_deaths(
     restart_record: Any,
     docker_event_lines: list[str] | None,
     coverage_text: str | None,
     container: str = CONTROLLER_CONTAINER,
+    *,
+    readings: list[dict[str, Any]] | None = None,
+    readings_note: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """The death source of a run: ``([death], None)`` when the restart record
     shows the restart executed with exit 0 and the complete capture holds a
     ``die`` of ``container`` inside its window; ``([], why)`` otherwise. One
-    death at most, however many ``die`` events the window holds."""
+    death at most, however many ``die`` events the window holds.
+
+    The death is placed on the controller's clock by the controller's
+    ``readings`` (:func:`process_change`; ``readings_note`` says why they
+    are None): the record's ``process_change``, or None with the reason in
+    ``order_note``. An unplaced death serves no identity."""
     why = _restart_problem(restart_record)
     if why is not None:
         return [], why
@@ -373,6 +483,7 @@ def controller_deaths(
             "(guest epochs; the replay before it excluded)"
         )
     line, stamp = dies[0]
+    change, order_note = process_change(readings, readings_note)
     return [
         {
             "source": SOURCE_DEATH,
@@ -381,6 +492,8 @@ def controller_deaths(
             "die_time_nano": stamp,
             "dies_in_window": len(dies),
             "restart_started_utc": restart_record.get("started_utc"),
+            "process_change": change,
+            "order_note": order_note,
         }
     ], None
 
@@ -624,6 +737,15 @@ def n1_applied_unconfirmed(
     # Condition 2: the sources, each explaining one identity at most.
     ends = [end for end in (a3_ends or []) if isinstance(end, dict)]
     death = deaths[0] if deaths else None
+    # The death serves only an identity whose first redelivery the new
+    # process's first reading precedes (the controller readings' placement,
+    # on the clock of received_monotonic_ns): an unplaced death serves none.
+    change = death.get("process_change") if isinstance(death, dict) else None
+    death_stamp = change.get("new_process_first_monotonic_ns") if isinstance(change, dict) else None
+    if not _is_int(death_stamp):
+        death_stamp = None
+    order_note = death.get("order_note") if isinstance(death, dict) else None
+    order_note = order_note or "it is not placed on the controller clock"
     # Each candidate's options: the ends of its device received before its
     # first redelivery. A source is one controller log line (a line read
     # twice keeps its later stamp, which serves fewer identities).
@@ -684,6 +806,17 @@ def n1_applied_unconfirmed(
                    "A3 connection end is matched (its outcome lines name several devices, it is of another run id, "
                    f"or its line has no readable identity), on {', '.join(contending)}: which one it explained "
                    "cannot be told")
+        elif death_stamp is None:
+            why = f"the one controller death is not shown to precede the redelivery: {order_note}"
+        elif _served([facts[mid]["first_duplicate_received_monotonic_ns"] for mid in mids],
+                     list(end_stamps.get(device, {}).values()) + [death_stamp]) < len(mids):
+            # The death is matched as one more end, placed at the new
+            # process's first reading: it serves the identity left without
+            # an own end only if that reading precedes its first redelivery.
+            why = ("the one controller death is not shown to precede the redelivery: the new controller "
+                   f"process's first reading (monotonic_ns {death_stamp}) does not precede the first duplicate "
+                   "line (received_monotonic_ns) of the identity its device's own A3 connection ends leave "
+                   "without a source")
         else:
             continue
         for mid in mids:
@@ -702,15 +835,17 @@ def n1_applied_unconfirmed(
                         f"{other} fails condition(s) {', '.join(sorted(reasons[other]))}" for other in failing
                     ) + ", so the twin cannot tell which identity it applied")
             continue
-        death_possible = death is not None and not contending and wanting in ([], [device])
+        death_possible = death_stamp is not None and not contending and wanting in ([], [device])
         for mid in mids:
             sources = [
                 {"source": SOURCE_A3, "controller_log_line": end.get("line"),
                  "received_monotonic_ns": end.get("received_monotonic_ns")}
                 for end in options[mid]
             ]
-            if death_possible:
-                sources.append({key: death[key] for key in ("source", "die_time_nano") if key in death})
+            first = facts[mid]["first_duplicate_received_monotonic_ns"]
+            if death_possible and _is_int(first) and death_stamp < first:
+                sources.append({**{key: death[key] for key in ("source", "die_time_nano") if key in death},
+                                "new_process_first_monotonic_ns": death_stamp})
             named.append({**facts[mid], "possible_sources": sources})
         devices_out[device]["reported"] = len(mids)
     for mid in candidates:
