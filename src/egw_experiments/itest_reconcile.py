@@ -72,7 +72,9 @@ Exit codes (the runbook's shell helpers test them):
      ``replay-check`` (test 4, decision of 2026-09-30): the two /metrics
      readings are of one process and every per-identity condition, the
      reconnection budget, /metrics accepted unchanged and an empty queue in
-     the 'to' reading held. Neither writes anything.
+     the 'to' reading held, and the replay's own duplicate line is
+     demonstrated for every replayed identity (see 5). Neither writes
+     anything.
 - 1  the step was NOT carried out: marker unavailable, a write-once file
      already exists, an input file is missing or malformed, the controller
      clock went backwards, ``wait`` gave up, Ditto unreachable. For
@@ -96,6 +98,17 @@ Exit codes (the runbook's shell helpers test them):
      replay, with an accepted line from it or with more than one accepted
      line, more further duplicates than reconnections, /metrics accepted
      moved or a non-empty queue.
+- 5  ``replay-check`` only: the replay's duplicate is not demonstrated for
+     every replayed identity. An event line carries no redelivery flag and no
+     connection number, so a redelivery of the first run is bounded by count:
+     it follows a lost connection, at most one per lost connection (ADR 0011,
+     N2), and k, the delta of ``mqtt_connection`` between the two readings of
+     one process, counts the reconnections of the replay interval. With k = 0
+     every duplicate line added is the replay's; with k >= 1 at most k of
+     them, of any identities, can be redeliveries, so an identity's line from
+     the replay is shown only when it has more than k; one with 1 to k is
+     NOT DEMONSTRATED (named, with its lines and k), never passed. Nothing
+     failed outright: a failure (4) takes precedence.
 """
 
 from __future__ import annotations
@@ -131,6 +144,7 @@ EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_NOT_PROTOCOL = 3
 EXIT_MISMATCH = 4
+EXIT_NOT_DEMONSTRATED = 5
 
 NS = 1_000_000_000
 PREAUTH = {"x-ditto-pre-authenticated": "pre:egw-controller"}
@@ -1099,7 +1113,8 @@ def cmd_replay_check(args) -> int:
 
     judge(not no_dup, f"per identity: duplicate_replayed={duplicate_replayed} "
           f"of {len(ids)} (replayed identities that gained a duplicate line "
-          "from the replay)", "a replayed identity without a duplicate line")
+          "in the replay interval)", "a replayed identity without a duplicate "
+          "line")
     judge(not acc_from_replay, f"per identity: {len(acc_from_replay)} "
           "replayed identity(ies) gained an accepted line from the replay "
           "(must be 0)", "an accepted line from the replay")
@@ -1107,6 +1122,10 @@ def cmd_replay_check(args) -> int:
           "identity(ies) with more than one accepted line in the log (raw "
           "lines; double_accepted must be 0)", "more than one accepted line")
     labels = f"'{args.frm}' -> '{args.to}'"
+    # identities whose duplicate lines may all be redeliveries, and k (one
+    # process only: across two processes nothing is differenced)
+    not_shown: list[str] = []
+    budget = 0
     if reasons:
         judge(False, f"/metrics {labels}: NOT one controller process "
               f"({'; '.join(reasons)}): the readings are of different "
@@ -1123,6 +1142,23 @@ def cmd_replay_check(args) -> int:
               f"started_at; uptime_s and {', '.join(SAME_PROCESS_COUNTERS)} "
               "non-decreasing)")
         budget = mr["mqtt_connection"] - ma["mqtt_connection"]
+        # A line carries no redelivery flag and no connection number, so a
+        # redelivery of the first run (the same run id and message_id) cannot
+        # be told from the replay's line by the line. A redelivery follows a
+        # lost connection, at most one per lost connection (ADR 0011, N2), so
+        # at most k = budget of the added duplicate lines, of any identities,
+        # are redeliveries: an identity's line from the replay is shown only
+        # when it has more than k; with 1 to k its lines may all be the first
+        # run's (the replay's copy never processed). k = 0: every line is the
+        # replay's. An identity without a line fails above.
+        not_shown = [m for m in ids if 1 <= added_dup[m] <= budget]
+        print(f"per identity: {len(not_shown)} replayed identity(ies) with 1 "
+              f"to k={budget} added duplicate lines (k = mqtt_connection "
+              f"{ma['mqtt_connection']} -> {mr['mqtt_connection']}, the "
+              "reconnections of the replay interval: at most k added duplicate "
+              "lines, of any identities, can be redeliveries of the first run, "
+              "so the replay's own line is demonstrated only beyond k; must be "
+              f"0): {'NOT DEMONSTRATED' if not_shown else 'OK'}")
         text = (f"duplicate_redelivery={duplicate_redelivery} (further "
                 "duplicate lines added during the replay interval); "
                 f"mqtt_connection {ma['mqtt_connection']} -> "
@@ -1159,9 +1195,20 @@ def cmd_replay_check(args) -> int:
     named("ACCEPTED FROM THE REPLAY", acc_from_replay)
     named("MORE THAN ONE ACCEPTED LINE", multi_acc,
           lambda m: f" ({total_acc[m]} accepted lines)")
-    if failed:
+    named("NOT DEMONSTRATED", not_shown,
+          lambda m: f" ({added_dup[m]} added duplicate line(s), k={budget})")
+    if failed:  # a demonstrated failure takes precedence
         print(f"-> FAIL: {'; '.join(failed)}")
         return EXIT_MISMATCH
+    if not_shown:
+        print(f"-> NOT DEMONSTRATED: {len(not_shown)} replayed identity(ies) "
+              f"have no more added duplicate lines than the {budget} "
+              f"reconnection(s) between the '{args.frm}' and '{args.to}' "
+              "readings, so their lines may all be redeliveries of the first "
+              "run: the replay's own duplicate is not demonstrated for every "
+              "replayed identity, and test 4 is not passed (no condition "
+              "failed)")
+        return EXIT_NOT_DEMONSTRATED
     print("-> OK: every replayed identity gained a duplicate line and no "
           "accepted line from the replay, none has more than one accepted "
           "line, the further duplicates are within the reconnection budget, "
@@ -1183,7 +1230,8 @@ def build_parser() -> argparse.ArgumentParser:
                "1 step not carried out; 2 usage; 3 check: not a protocol "
                "check; 4 delta: MISMATCH or queue not empty, same: DIFFERENT, "
                "acceptance: a valid message never accepted, replay-check: "
-               "a condition of test 4 failed",
+               "a condition of test 4 failed; 5 replay-check: the replay's "
+               "duplicate is not demonstrated for every replayed identity",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("mark", "wait", "check"):
