@@ -2426,11 +2426,15 @@ def test_test_4_metrics_difference_line_differences_only_two_readings_of_one_pro
 
 
 def t4_check_line() -> str:
-    return _one(_host_commands("### Test 4"), '[ "$REPLAYED" = captured ] && $REC replay-check')
+    hits = [c for c in _host_commands("### Test 4") if "$REC replay-check" in c]
+    assert len(hits) == 1, hits
+    return hits[0]
 
 
+# exit 5 (2026-10-01): the replay's own duplicate line not demonstrated - not passed, its own STOP, not a failure
 @pytest.mark.parametrize("replayed, rc, passes", [("stop", 0, False), ("ok", 0, False), ("captured", 4, False),
-                                                  ("captured", 1, False), ("captured", 0, True)])
+                                                  ("captured", 1, False), ("captured", 5, False),
+                                                  ("captured", 0, True)])
 def test_test_4_replay_check_line_runs_only_on_a_captured_replay_and_passes_only_on_0(bench: Bench, replayed: str,
                                                                                      rc: int, passes: bool) -> None:
     bench.set("rec_replay-check_rc", rc)
@@ -2445,9 +2449,14 @@ def test_test_4_replay_check_line_runs_only_on_a_captured_replay_and_passes_only
         assert calls == [], bench.calls()
     if passes:
         assert r.value("RC4") == "0" and not r.starting("STOP"), r.out
+    elif rc == 5 and replayed == "captured":
+        assert r.value("RC4") != "0", r.out
+        assert len(r.starting("STOP: test 4: NOT DEMONSTRATED")) == 1, r.out
+        assert not r.starting("STOP: test 4: the per-identity replay check"), r.out  # not a failure
     else:
         assert r.value("RC4") != "0", r.out
-        assert r.starting("STOP: test 4: the per-identity replay check"), r.out
+        assert len(r.starting("STOP: test 4: the per-identity replay check")) == 1, r.out
+        assert not r.starting("STOP: test 4: NOT DEMONSTRATED"), r.out
 
 
 def t1_harness_lines() -> tuple[str, str]:
@@ -2547,11 +2556,16 @@ def test_test_4_expected_list_judges_the_replay_per_identity_and_includes_the_se
                    "never been run", "`lost = 0`, `late_confirmations = 0`", "a failure of test 4",
                    # the replay's lines: beyond the copy AND received after the 'after' reading
                    "`received_monotonic_ns`", "at or before the `after` reading", "exit 1",
-                   "A stated limit, not conservative",
+                   # 2026-10-01: a redelivery of the first run is bounded by k, the reconnections of the interval
+                   "k = 0", "ADR 0011, N2", "more than k added `duplicate` lines", "**not demonstrated**",
+                   "exits 5", "**not passed**", "distinct from a failure", "takes precedence",
                    # the difference line: no difference of two processes
                    "takes no difference of two readings that are not of one process"):
         assert needle in expected, needle
     assert "caused by" not in expected
+    # the limit stated until 2026-10-01 is removed: such a line can no longer stand for the replay's
+    assert "A stated limit, not conservative" not in expected
+    assert "so it could stand for a replayed identity's own `duplicate` line" not in expected
     # a line appended after the pre-replay fetch can stand for a replay line: it does NOT only make test 4 fail
     assert "it can only make test 4 fail" not in expected
 
