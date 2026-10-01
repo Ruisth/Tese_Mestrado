@@ -405,14 +405,37 @@ def test_recovery_subcommand_runs_the_layer_alone(
 
 NS = 1_000_000_000
 RUN_T0 = 1_790_000_000  # the capture's requested_since, guest clock
+OLD_PROCESS = "2026-09-30T09:00:00.000000Z"
+NEW_PROCESS = "2026-09-30T10:05:03.000000Z"
+
+#: The controller's readings of the restart (started_at, monotonic_ns) on
+#: the clock of the lines' received_monotonic_ns: the old process's last
+#: reading at 2000, the new one's first at 2500, before m2's redelivery (3000).
+PLACED = ((OLD_PROCESS, 1500), (OLD_PROCESS, 2000), (NEW_PROCESS, 2500), (NEW_PROCESS, 3500))
 
 
-def _n1_evidence(base: Path, plan_path: Path, run_id: str = R01, *, die: bool = True) -> str:
+def _controller_readings(run_dir: Path, readings) -> None:
+    """Write ``controller_metrics.csv`` as the sampler does (its header; a
+    field not given is an empty cell), one row per (started_at,
+    monotonic_ns); ``None`` writes no file."""
+    if readings is None:
+        return
+    from egw_experiments.controller_metrics import CSV_HEADER
+
+    with (run_dir / "controller_metrics.csv").open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=CSV_HEADER, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows({"started_at": started_at, "monotonic_ns": ns} for started_at, ns in readings)
+
+
+def _n1_evidence(base: Path, plan_path: Path, run_id: str = R01, *, die: bool = True, readings=PLACED) -> str:
     """Rewrite a sealed restart run so that m2, published on the run's
     smartwatch, has only a duplicate line in the post-drain copy while the
     twin grew by one more than the device's accepted lines and ended on its
     seq; the controller's die is inside the capture's window (unless
-    ``die`` is false) and the restart record is the harness's own (exit 0).
+    ``die`` is false), the restart record is the harness's own (exit 0) and
+    the controller's readings place the restart before m2's redelivery
+    (``readings``, see :func:`_controller_readings`).
     The directory is sealed again, as a harness run leaves it. Returns the
     smartwatch's uuid."""
     run_dir = base / "raw" / run_id
@@ -440,6 +463,7 @@ def _n1_evidence(base: Path, plan_path: Path, run_id: str = R01, *, die: bool = 
     (sut / "docker-events.coverage.txt").write_text(
         f"coverage=complete\nrequested_since_guest_epoch={RUN_T0}\nrequested_until_guest_epoch={RUN_T0 + 900}\n"
         "expected=die,start\ncontainer=egw-controller-1\n", encoding="utf-8")
+    _controller_readings(run_dir, readings)
     write_sha256sums(run_dir)
     return watch
 
@@ -679,6 +703,42 @@ def test_a_raw_line_separator_in_a_failed_line_keeps_the_identity_off_both_n1_co
     row = _row(rq.qualify_recovery(base, plan_path), R01)
     assert row["qualification"] == "recovery_observed"
     assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 0
+
+
+# review of PR #53, F2 ----------------------------------------------------------
+
+
+@pytest.mark.parametrize("readings", ["a restart after the duplicate", "no controller_metrics.csv",
+                                      "no process change"])
+def test_f2_a_death_the_run_directorys_readings_do_not_place_before_the_duplicate_names_nothing(
+    tmp_path, plan_path, fast_run, monkeypatch, readings
+) -> None:
+    """The PM's counterexample on a harness run: m2's redelivery (3000)
+    precedes the restart the run's controller readings show (the new
+    process's first reading at 4000), or no reading places the restart at
+    all; the die is captured and the surplus is 1, yet the death cannot be
+    shown to explain m2: it is unexplained (condition 2), never named."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path, readings={
+        "a restart after the duplicate": ((OLD_PROCESS, 2800), (OLD_PROCESS, 3500), (NEW_PROCESS, 4000)),
+        "no controller_metrics.csv": None,
+        "no process change": ((OLD_PROCESS, 1500), (OLD_PROCESS, 2000)),
+    }[readings])
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["qualification"] == "recovery_observed"
+    assert row["n1_applied_unconfirmed"] == 0 and row["duplicate_only_unexplained"] == 1
+    (case,) = row["n1"]["duplicate_only_unexplained"]
+    assert case["message_id"] == "m2" and case["failed"] == ["2"]
+    assert "not shown to precede" in case["reason"]
+
+
+def test_f2_the_run_directorys_readings_place_the_death(tmp_path, plan_path, fast_run, monkeypatch) -> None:
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    _n1_evidence(base, plan_path)
+    row = _row(rq.qualify_recovery(base, plan_path), R01)
+    assert row["n1_applied_unconfirmed"] == 1 and row["duplicate_only_unexplained"] == 0
+    (death,) = row["n1"]["sources"]["deaths"]
+    assert death["process_change"]["new_process_first_monotonic_ns"] == 2500 and death["order_note"] is None
 
 
 def test_the_statement_names_the_n1_columns_and_scopes_the_analysers_figures() -> None:

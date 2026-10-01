@@ -343,9 +343,35 @@ DIE_IN_WINDOW = docker_event((T0_EPOCH + 300) * NS + 17)
 DOCKER_LINES = [docker_event((T0_EPOCH + 1) * NS, "exec_start"), docker_event((T0_EPOCH + 299) * NS, "kill"),
                 DIE_IN_WINDOW, docker_event((T0_EPOCH + 302) * NS, "start")]
 
+OLD_PROCESS = "2026-09-30T09:00:00.000000Z"
+NEW_PROCESS = "2026-09-30T10:05:03.000000Z"
+THIRD_PROCESS = "2026-09-30T10:07:41.000000Z"
+
+
+def reading(started_at: str | None, monotonic_ns) -> dict:
+    """A row of controller_metrics.csv as csv.DictReader gives it: strings,
+    an empty cell for a field the controller did not send."""
+    return {"ts_utc": "2026-09-30T10:05:00Z", "started_at": started_at or "",
+            "monotonic_ns": "" if monotonic_ns is None else str(monotonic_ns)}
+
+
+#: The controller's readings of the restart, on the clock of the events'
+#: received_monotonic_ns: the old process's last reading at 4000, the new
+#: one's first at 4500, before m2's redelivery (5000).
+READINGS = [reading(OLD_PROCESS, 3000), reading(OLD_PROCESS, 4000), reading(NEW_PROCESS, 4500),
+            reading(NEW_PROCESS, 5500)]
+
+
+def placed_deaths(readings: list[dict] | None = None) -> list[dict]:
+    """The run's one death, placed by ``readings`` (READINGS by default)."""
+    deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage(),
+                                       readings=READINGS if readings is None else readings)
+    assert why is None and len(deaths) == 1
+    return deaths
+
 
 def test_case_11_a_death_with_its_captured_die_names_the_identity() -> None:
-    deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage())
+    deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage(), readings=READINGS)
     assert why is None
     assert len(deaths) == 1 and deaths[0]["source"] == n1.SOURCE_DEATH
     assert deaths[0]["die_time_nano"] == (T0_EPOCH + 300) * NS + 17
@@ -418,7 +444,7 @@ def test_case_13_a_die_without_a_good_restart_record_is_no_source(record) -> Non
 def _two_devices(ends: list[dict]) -> dict:
     sent_records = SENT + [sent("n0", 0, device=E), sent("n5", 5, device=E)]
     events = EVENTS + [line("n0", 0, "accepted", 3000, device=E), line("n5", 5, "duplicate", 6000, device=E)]
-    deaths, _why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage())
+    deaths = placed_deaths()
     return report(sent_records=sent_records, events=events,
                   twins_before={D: twin(10, "old", 9), E: twin(20, "old", 9)},
                   twins_after={D: twin(13, R, 2), E: twin(22, R, 5)}, a3_ends=ends, deaths=deaths)
@@ -451,7 +477,7 @@ def test_a_death_contended_by_a_device_that_fails_elsewhere_is_still_contended()
 
 
 def test_one_death_serves_one_identity_of_a_device_whose_ends_serve_the_rest() -> None:
-    deaths, _why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage())
+    deaths = placed_deaths()
     doc = _two_candidates({D: twin(14, R, 3)}, [end(D, 4000, 7)], deaths=deaths)
     assert named(doc) == ["m2", "m3"]
     doc = _two_candidates({D: twin(14, R, 3)}, [], deaths=deaths)
@@ -784,7 +810,7 @@ def test_the_death_is_contended_by_a_duplicate_only_identity_no_a3_end_is_matche
     run id - may have been the death's one delivery (not applied): which one
     the death explained cannot be told, so m2 is not named. An own A3 end
     still frees m2, and the death is then no possible source of it."""
-    deaths, _why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage())
+    deaths = placed_deaths()
     assert named(report(a3_ends=[], deaths=deaths)) == ["m2"]
     sent_records = SENT
     if variant == "lines naming two other devices":
@@ -816,3 +842,132 @@ def test_a_capture_window_key_given_twice_is_ambiguous_and_gives_no_death(key, o
     assert window is None and "ambiguous" in why
     deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, cov)
     assert deaths == [] and "ambiguous" in why
+
+
+# ---------------------------------------------------------------------------
+# review of PR #53, F2: the death serves an identity only when the controller
+# readings place it before that identity's first redelivery (one clock: the
+# readings' monotonic_ns and the lines' received_monotonic_ns, CONTRACTS 5)
+# ---------------------------------------------------------------------------
+
+
+def test_f2_without_controller_readings_the_death_serves_no_identity() -> None:
+    """The finding: a captured die and a surplus of one named m2 by count
+    alone. Without the readings nothing places the death before m2's
+    redelivery: m2 is unexplained (condition 2), its facts still reported."""
+    deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage())
+    assert why is None and len(deaths) == 1  # the death is still recorded
+    doc = report(a3_ends=[], deaths=deaths)
+    assert doc["devices"][D]["excess"] == 1
+    assert named(doc) == [] and failed(doc, "m2") == ["2"]
+    case = unexplained(doc)["m2"]
+    assert "not shown to precede" in case["reason"] and "not read" in case["reason"]
+    assert case["first_duplicate_received_monotonic_ns"] == 5000 and case["seq"] == 2
+
+
+def test_f2_a_duplicate_before_an_unrelated_later_death_is_unexplained() -> None:
+    """The PM's counterexample: m2's redelivery (5000) was received before
+    the restart the readings show (the old process read until 6000, the new
+    one from 7000), with the device's surplus 1: the later death cannot
+    explain the earlier duplicate."""
+    later = [reading(OLD_PROCESS, 4000), reading(OLD_PROCESS, 6000), reading(NEW_PROCESS, 7000)]
+    doc = report(a3_ends=[], deaths=placed_deaths(later))
+    assert doc["devices"][D]["excess"] == 1
+    assert named(doc) == [] and failed(doc, "m2") == ["2"]
+    assert "not shown to precede" in unexplained(doc)["m2"]["reason"]
+
+
+#: Readings that do not show the death before m2's redelivery (5000).
+ORDER_NOT_SHOWN = {
+    "no reading": [],
+    "no process change": [reading(OLD_PROCESS, 3000), reading(OLD_PROCESS, 4000)],
+    "two process changes": [reading(OLD_PROCESS, 3000), reading(NEW_PROCESS, 3500), reading(THIRD_PROCESS, 4500)],
+    "back to the first process": [reading(OLD_PROCESS, 3000), reading(NEW_PROCESS, 3500),
+                                  reading(OLD_PROCESS, 4500)],
+    "a reading without started_at": [reading(OLD_PROCESS, 3000), reading(None, 3500), reading(NEW_PROCESS, 4500)],
+    "the old process's last monotonic_ns empty": [reading(OLD_PROCESS, 3000), reading(OLD_PROCESS, None),
+                                                  reading(NEW_PROCESS, 4500)],
+    "the new process's first monotonic_ns not an integer": [reading(OLD_PROCESS, 4000),
+                                                            reading(NEW_PROCESS, "4.5e3"),
+                                                            reading(NEW_PROCESS, 4600)],
+    "a fractional monotonic_ns": [reading(OLD_PROCESS, 4000), reading(NEW_PROCESS, "4500.5")],
+    "the bounding readings out of order": [reading(OLD_PROCESS, 4600), reading(NEW_PROCESS, 4500)],
+    "the duplicate between the bounding readings": [reading(OLD_PROCESS, 4000), reading(NEW_PROCESS, 6000)],
+    "the duplicate at the new process's first reading": [reading(OLD_PROCESS, 4000), reading(NEW_PROCESS, 5000)],
+}
+
+
+@pytest.mark.parametrize("case", sorted(ORDER_NOT_SHOWN))
+def test_f2_readings_that_do_not_place_the_death_before_the_redelivery_leave_it_unexplained(case: str) -> None:
+    doc = report(a3_ends=[], deaths=placed_deaths(ORDER_NOT_SHOWN[case]))
+    assert named(doc) == [] and failed(doc, "m2") == ["2"]
+    assert "not shown to precede" in unexplained(doc)["m2"]["reason"]
+
+
+def test_f2_readings_not_read_leave_the_death_unplaced_and_say_why() -> None:
+    deaths, why = n1.controller_deaths(RESTART, DOCKER_LINES, coverage(), readings=None,
+                                       readings_note="controller_metrics.csv missing")
+    assert why is None and deaths[0]["process_change"] is None
+    doc = report(a3_ends=[], deaths=deaths)
+    assert named(doc) == [] and "controller_metrics.csv missing" in unexplained(doc)["m2"]["reason"]
+
+
+def test_f2_a_death_the_readings_place_before_the_redelivery_names_the_identity() -> None:
+    """The demonstrated case: one process change, bounded by readings with
+    integer monotonic_ns, the new process's first reading (4500) before
+    m2's first redelivery (5000), the device's surplus 1."""
+    (death,) = placed_deaths()
+    assert death["process_change"] == {"old_process_last_reading": 2, "old_process_last_monotonic_ns": 4000,
+                                       "new_process_first_reading": 3, "new_process_first_monotonic_ns": 4500}
+    assert death["order_note"] is None
+    doc = report(a3_ends=[], deaths=[death])
+    assert named(doc) == ["m2"]
+    (source,) = doc["n1_applied_unconfirmed"][0]["possible_sources"]
+    assert source["source"] == n1.SOURCE_DEATH and source["new_process_first_monotonic_ns"] == 4500
+
+
+def test_f2_the_death_is_matched_with_the_ends_as_one_more_source_at_its_reading() -> None:
+    """m2 (5000) and m3 (5500) on D, one A3 end of D at 5200, which precedes
+    m3's redelivery only. A death placed at 4500 serves m2: both named.
+    Placed at 5300 it too precedes m3's redelivery only: m2 has no source,
+    so neither is named (all or nothing), where the count alone named both."""
+    ends = [end(D, 5200, 8)]
+    assert named(_two_candidates({D: twin(14, R, 3)}, ends, deaths=placed_deaths())) == ["m2", "m3"]
+    late = placed_deaths([reading(OLD_PROCESS, 4000), reading(NEW_PROCESS, 5300)])
+    doc = _two_candidates({D: twin(14, R, 3)}, ends, deaths=late)
+    assert named(doc) == [] and failed(doc, "m2") == ["2"] and failed(doc, "m3") == ["2"]
+    assert "not shown to precede" in unexplained(doc)["m2"]["reason"]
+
+
+def test_f2_the_death_is_listed_only_for_an_identity_whose_redelivery_it_precedes() -> None:
+    """m2 is served by its own A3 end (4000): a death placed after m2's
+    redelivery is no possible source of it; one placed before it is."""
+    later = placed_deaths([reading(OLD_PROCESS, 6000), reading(NEW_PROCESS, 7000)])
+    doc = report(deaths=later)
+    assert named(doc) == ["m2"]
+    assert [s["source"] for s in doc["n1_applied_unconfirmed"][0]["possible_sources"]] == [n1.SOURCE_A3]
+    doc = report(deaths=placed_deaths())
+    assert [s["source"] for s in doc["n1_applied_unconfirmed"][0]["possible_sources"]] == [
+        n1.SOURCE_A3, n1.SOURCE_DEATH]
+
+
+def test_f2_the_readings_are_read_from_the_samplers_csv_and_never_raise(tmp_path) -> None:
+    import csv
+
+    from egw_experiments.controller_metrics import CSV_HEADER
+
+    path = tmp_path / "controller_metrics.csv"
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=CSV_HEADER, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows({"ts_utc": "2026-09-30T10:05:00Z", "started_at": row["started_at"],
+                          "monotonic_ns": row["monotonic_ns"]} for row in READINGS)
+    readings, why = n1.read_controller_readings(path)
+    assert why is None and len(readings) == 4
+    change, why = n1.process_change(readings)
+    assert why is None and change["new_process_first_monotonic_ns"] == 4500
+    assert n1.read_controller_readings(tmp_path / "absent.csv") == (None, "absent.csv missing")
+    # A field beyond the csv module's limit raises csv.Error: not read, never raised.
+    path.write_text(",".join(CSV_HEADER) + "\n" + "x" * 200_000 + "\n", encoding="utf-8")
+    readings, why = n1.read_controller_readings(path)
+    assert readings is None and "unreadable" in why

@@ -552,12 +552,19 @@ its device's twin excess equals exactly the identities named there (all or
 nothing per device; a duplicate-only identity of another run id on the
 device, as an `--also` file holds, leaves none named, and one whose lines
 name no device, or an accepted line without a device, leaves none named on
-any device); every other one is unexplained, with its failed conditions. A
-stated limit: the death has no order check, it is attributed by count
-only. The identity stays in `lost` and in every zero-lost criterion; no
-count, criterion or exit code changes. `itest_reconcile delta` prints the
-same report only with `--n1-report`, `--controller-log FILE` or
-`--restart-evidence RUN_DIR` (test 6 names the last two); without the last,
+any device); every other one is unexplained, with its failed conditions.
+The death serves an identity only when the run's `controller_metrics.csv`
+places it before that identity's first redelivery, on the one controller
+clock of both (no epoch conversion): exactly one process change
+(`started_at`), the bounding readings with integer `monotonic_ns` in
+order, and the new process's first reading strictly before the
+redelivery; without readings, or with any of that not shown, it serves
+none (review of PR #53, F2). The identity stays in `lost` and in every
+zero-lost criterion; no count, criterion or exit code changes.
+`itest_reconcile delta` prints the same report only with `--n1-report`,
+`--controller-log FILE` or `--restart-evidence RUN_DIR` (test 6 names the
+last two, the run directory's `controller_metrics.csv` placing the death);
+without the last,
 its evidence of a quiet drain is the 'to' `/metrics` reading, quiet as
 CONTRACTS §5 defines one reading (one reading, not `drained`'s window).
 Nothing in the files read makes the layer or `delta` stop or change an
