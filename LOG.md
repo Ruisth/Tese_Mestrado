@@ -4328,8 +4328,8 @@ is unchanged.
   `af2fd7b` (`HIST_2026-09-30-g3-methodology-integrated-attempt01`) and, after
   the review corrections, 2,027 passed on `2fa5ac5`, the code before the
   bounded corrections F1-F3 (`HIST_2026-09-30-g3-methodology-integrated-attempt02`);
-  after them, @@A@@ on `@@H@@`, the final code, with the source identity
-  recorded first (`HIST_2026-10-01-pr53-f1-f3-integrated-@@N@@`); the commit
+  after them, 2,077 passed on `67516d5`, the final code, with the source identity
+  recorded first (`HIST_2026-10-01-pr53-f1-f3-integrated-attempt02`); the commit
   after it changes this entry only.
 - **Review.** Two adversarial rounds per stream while it was
   built, then one consolidated review of the integrated head `af2fd7b` in six
