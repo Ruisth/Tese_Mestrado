@@ -4295,8 +4295,10 @@ is unchanged.
     and to hold at most one `accepted` line, `duplicate_replayed` equal to the
     replayed count, and `duplicate_redelivery` within Δ`mqtt_connection`
     ("consistent with the reconnection budget", a tolerance and not a proven
-    cause); beyond it T4 fails. With k reconnections between the two readings,
-    a replayed identity counts only with more than k added `duplicate` lines,
+    cause); beyond it T4 fails. The `after` reading must be quiet (CONTRACTS
+    §5), or every replayed identity with a line is NOT DEMONSTRATED; then,
+    with k reconnections between the two readings, a replayed identity counts
+    only with more than k added `duplicate` lines,
     since up to k of them may be redeliveries of the first run; otherwise the
     result is NOT DEMONSTRATED (exit 5), never a pass. `itest-dup-02` is part
     of T4 and timed.
@@ -4324,9 +4326,11 @@ is unchanged.
   change: the integrated selection of 17
   modules, with the source identity recorded before it, gave 2,002 passed on
   `af2fd7b` (`HIST_2026-09-30-g3-methodology-integrated-attempt01`) and, after
-  the review corrections, 2,027 passed on `2fa5ac5`, the final code; the commit
-  that fills this entry changes this entry only
-  (`HIST_2026-09-30-g3-methodology-integrated-attempt02`).
+  the review corrections, 2,027 passed on `2fa5ac5`, the code before the
+  bounded corrections F1-F3 (`HIST_2026-09-30-g3-methodology-integrated-attempt02`);
+  after them, @@A@@ on `@@H@@`, the final code, with the source identity
+  recorded first (`HIST_2026-10-01-pr53-f1-f3-integrated-@@N@@`); the commit
+  after it changes this entry only.
 - **Review.** Two adversarial rounds per stream while it was
   built, then one consolidated review of the integrated head `af2fd7b` in six
   areas, each finding checked by a second reviewer who tried to refute it: 21
@@ -4348,7 +4352,14 @@ is unchanged.
   first-run redelivery received after the `after` reading; the N1 report
   could name an identity through a death that came after its duplicate; and
   a late `collect` could qualify a file of a run whose restart lifecycle was
-  recorded. @@F123@@
+  recorded. Red first: F1 14 failed at `412fd76` (the PM's trace exiting 0),
+  F2 32 at `bacbd3b`, F3 1 at `9663629`
+  (`output_test/runs/2026-10-01/HIST_2026-10-01-pr53-f1-f3-red-first`). One
+  bounded review of the integrated correction then found that `replay-check`
+  still took k after an `after` reading that was not quiet (a reconnection
+  counted just before it, its redelivery received after it); corrected the
+  same way, 7 failed at `2308577` (the race exiting 0 in all six variants),
+  fixed in `3e2bce0` (`HIST_2026-10-01-pr53-f1-f3-review`).
 - **Limits.** Everything is verified on the host with stubs and fixtures
   only; nothing ran on the guest (the runbook's Appendix B, item 24, lists
   what these decisions added). 1a: the `StartedAt` read, T6's `die` and
@@ -4362,7 +4373,8 @@ is unchanged.
   (`nominal-r01` confirmed 3,794 of 6,720 in time; T5 had 326 of 2,016 late;
   T2 was in time by 3.1 s). 4: with more than one replayed identity, any
   reconnection during the replay leaves T4 unpassed (not demonstrated, or
-  extras beyond the budget); the tolerance can still pass an extra duplicate
+  extras beyond the budget), and so does an `after` reading that is not
+  quiet; the tolerance can still pass an extra duplicate
   that coincides with an unrelated reconnection. `itest-dup-02` and `itest-ditto-fault-01`
   have never run.
 - **Decisions and next steps.** The student's decisions are recorded on the

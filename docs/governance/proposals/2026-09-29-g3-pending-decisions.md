@@ -192,7 +192,9 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
 - *The sequence reset.* T4 also includes `itest-dup-02` (`run_test itest-dup-02 42 --scenario smoke --duration
   60`), never run so far. It must give `lost = 0`, `late_confirmations = 0` (timed, decision 3) and every `delta`
   line `OK`. A failure of either part is a failure of T4.
-- Checked by `itest_reconcile replay-check`. With k reconnections between the `after` and `replay` readings, up to
+- Checked by `itest_reconcile replay-check`. The `after` reading must be quiet (CONTRACTS §5), or the result is not
+  demonstrated: a reconnection that reading already counts may be followed by an uncounted redelivery. Then, with k
+  reconnections between the `after` and `replay` readings, up to
   k of the added `duplicate` lines may be redeliveries of the first run, so a replayed identity counts only with
   more than k of them; otherwise the result is not demonstrated (exit 5), never a pass. With more than one replayed
   identity, any reconnection during the replay therefore leaves T4 unpassed.
