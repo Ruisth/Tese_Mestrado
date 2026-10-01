@@ -1990,6 +1990,9 @@ AFTER = metrics(accepted=100, rejected=5, duplicate=5, failed=5, dropped=5, proc
                 monotonic_ns=DEADLINE + 10 * NS)
 #: when the replay's lines are received: after the 'after' reading
 REPLAY_NS = DEADLINE + 100 * NS
+#: replay-check's exit when the replay's own duplicate line is not demonstrated for every replayed identity
+#: (2026-10-01); a literal, so that a check without the rule fails on the exit, not on a missing name
+NOT_DEMONSTRATED = 5
 
 
 def dup(seq: int) -> dict:
@@ -2050,15 +2053,37 @@ def test_replay_check_the_pre_replay_copy_can_be_named(tmp_path, capsys) -> None
 
 
 def test_replay_check_a_redelivery_within_the_reconnection_budget_is_tolerated_not_explained(tmp_path, capsys) -> None:
-    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(1), dup(2)],
-                                      replay=replay_reading(4, mqtt_connection=2))
+    """One replayed identity with two duplicate lines and one reconnection (k=1): at most one of them is a redelivery,
+    so the other is the replay's (demonstrated), and the extra line is tolerated within the budget. Until 2026-10-01
+    this case had three identities, two of them with one line each, and passed: with k=1 such an identity is not
+    demonstrated (the case below)."""
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(0)], replay=replay_reading(2, mqtt_connection=2),
+                                      replay_sent=[sent(0)])
     assert replay_check(run_dir, replay_dir) == rec.EXIT_OK
     out = capsys.readouterr().out
-    assert "duplicate_replayed=3 of 3" in out and "duplicate_redelivery=1" in out
+    assert "duplicate_replayed=1 of 1" in out and "duplicate_redelivery=1" in out
     assert "mqtt_connection 1 -> 2 (delta 1)" in out
     assert "consistent with the reconnection budget" in out
     assert "caused" not in out and "because" not in out  # a tolerance, never a cause
-    assert "= 3 + 1 = 4: equal" in out
+    assert "= 1 + 1 = 2: equal" in out
+    assert "NOT DEMONSTRATED" not in out and out.splitlines()[-1].startswith("-> OK: ")
+
+
+def test_replay_check_with_one_reconnection_an_identity_with_one_line_is_not_demonstrated(tmp_path, capsys) -> None:
+    """The case the test above held until 2026-10-01: m1 has two lines (one at most is a redelivery: the replay's is
+    shown), m0 and m2 one each, which the one reconnection may have redelivered from the first run. The budget is
+    still met, nothing failed outright, and the result is not demonstrated (exit 5), never a pass."""
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(1), dup(2)],
+                                      replay=replay_reading(4, mqtt_connection=2))
+    assert replay_check(run_dir, replay_dir) == NOT_DEMONSTRATED
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "duplicate_redelivery=1" in out and "consistent with the reconnection budget" in out
+    assert "FAIL" not in out
+    assert "  NOT DEMONSTRATED: m0 (1 added duplicate line(s), k=1)" in lines, out
+    assert "  NOT DEMONSTRATED: m2 (1 added duplicate line(s), k=1)" in lines, out
+    assert not [ln for ln in lines if ln.startswith("  NOT DEMONSTRATED: m1")], out  # two lines, k=1: shown
+    assert lines[-1].startswith("-> NOT DEMONSTRATED: "), out
 
 
 def test_replay_check_a_redelivery_beyond_the_reconnection_budget_fails(tmp_path, capsys) -> None:
@@ -2070,7 +2095,8 @@ def test_replay_check_a_redelivery_beyond_the_reconnection_budget_fails(tmp_path
     assert out.splitlines()[-1].startswith("-> FAIL: ")
 
 
-@pytest.mark.parametrize("connections, expected", [(1, rec.EXIT_MISMATCH), (2, rec.EXIT_OK)])
+# k=2 (until 2026-10-01: EXIT_OK): each replayed identity has one line, which the two reconnections may have redelivered
+@pytest.mark.parametrize("connections, expected", [(1, rec.EXIT_MISMATCH), (2, NOT_DEMONSTRATED)])
 def test_replay_check_a_duplicate_of_an_identity_not_replayed_is_redelivery(tmp_path, capsys, connections,
                                                                            expected) -> None:
     run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(2), dup(9)],
@@ -2292,6 +2318,119 @@ def test_replay_check_two_processes_still_fail_whatever_the_stamps(tmp_path, cap
                                                                              monotonic_ns=NS))
     assert replay_check(run_dir, replay_dir) == rec.EXIT_MISMATCH
     assert "NOT one controller process" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# replay-check (2026-10-01): the replay's own duplicate line is demonstrated
+# only beyond the reconnections of the interval. An event line carries no
+# redelivery flag and no connection number; a redelivery follows a lost
+# connection, at most one per lost connection (ADR 0011, N2), and k, the
+# delta of mqtt_connection between the 'after' and 'replay' readings, counts
+# the reconnections of the interval.
+# ---------------------------------------------------------------------------
+def test_replay_check_the_trace_of_2026_10_01_a_redelivery_before_an_unprocessed_replay_is_not_a_pass(
+        tmp_path, capsys) -> None:
+    """The counter-example as given: m0 accepted in the first run; the 'after' reading at monotonic_ns 100; a
+    reconnection redelivers m0, logged as a duplicate at 101, before the intentional replay; the replay publishes m0
+    but it is never processed. One process, accepted unchanged, an empty queue, one reconnection. Before the
+    correction: one replay duplicate counted, zero extras, exit 0."""
+    pre = [event(0, "accepted", 60, received_ns=50)]
+    after = dict(AFTER, monotonic_ns=100)
+    redelivery = event(0, "duplicate", received_ns=101)
+    replay = dict(after, duplicate=after["duplicate"] + 1, received=after["received"] + 1,
+                  mqtt_connection=after["mqtt_connection"] + 1, uptime_s=after["uptime_s"] + 60.0, monotonic_ns=200)
+    run_dir, replay_dir = make_replay(tmp_path, [redelivery], pre=pre, after=after, replay=replay,
+                                      replay_sent=[sent(0)])
+    before = tree(tmp_path)
+    assert replay_check(run_dir, replay_dir) == NOT_DEMONSTRATED
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "FAIL" not in out  # nothing failed outright: not demonstrated, which is not a failure either
+    assert "  NOT DEMONSTRATED: m0 (1 added duplicate line(s), k=1)" in lines, out
+    assert lines[-1].startswith("-> NOT DEMONSTRATED: "), out
+    assert not [ln for ln in lines if ln.startswith("-> OK")], out
+    assert tree(tmp_path) == before  # writes nothing
+
+
+def test_replay_check_with_no_reconnection_every_added_duplicate_line_is_the_replays(tmp_path, capsys) -> None:
+    """k=0: no redelivery is possible in the interval, so the per-identity condition is judged as before."""
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(2)])
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_OK
+    out = capsys.readouterr().out
+    assert "per identity: 0 replayed identity(ies) with 1 to k=0 added duplicate lines" in out, out
+    assert "NOT DEMONSTRATED" not in out and out.splitlines()[-1].startswith("-> OK: ")
+
+
+def test_replay_check_a_clean_replay_with_one_reconnection_and_one_line_each_is_not_demonstrated(
+        tmp_path, capsys) -> None:
+    """Every identity has its one duplicate line, but the one reconnection of the interval may have redelivered any
+    one of them from the first run: no identity's line from the replay is shown, so none is named demonstrated."""
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(1), dup(2)], replay=replay_reading(3, mqtt_connection=2))
+    assert replay_check(run_dir, replay_dir) == NOT_DEMONSTRATED
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "FAIL" not in out
+    assert "per identity: 3 replayed identity(ies) with 1 to k=1 added duplicate lines" in out, out
+    assert [ln for ln in lines if ln.startswith("  NOT DEMONSTRATED: ")] == [
+        f"  NOT DEMONSTRATED: m{seq} (1 added duplicate line(s), k=1)" for seq in range(3)], out
+    assert lines[-1].startswith("-> NOT DEMONSTRATED: "), out
+
+
+def test_replay_check_two_lines_with_one_reconnection_demonstrate_the_replays_line(tmp_path, capsys) -> None:
+    """d_m=2 > k=1: at most one of m0's two lines is a redelivery, so one is the replay's."""
+    run_dir, replay_dir = make_replay(tmp_path, [dup(0), dup(0)], replay=replay_reading(2, mqtt_connection=2),
+                                      replay_sent=[sent(0)])
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_OK
+    out = capsys.readouterr().out
+    assert "per identity: 0 replayed identity(ies) with 1 to k=1 added duplicate lines" in out, out
+    assert "NOT DEMONSTRATED" not in out
+
+
+@pytest.mark.parametrize("case", ["no duplicate", "accepted from the replay", "beyond the budget",
+                                  "two accepted lines"])
+def test_replay_check_a_failure_takes_precedence_and_the_identities_not_demonstrated_are_still_named(
+        tmp_path, capsys, case) -> None:
+    """k=1 in every case, and some identity has one line only (not demonstrated); a condition that failed outright
+    still exits 4 and ends with '-> FAIL', and the identities not demonstrated are named beside it."""
+    pre, added, replay = PRE, [dup(0), dup(1), dup(2)], replay_reading(3, mqtt_connection=2)
+    if case == "no duplicate":
+        added, replay, failing, shown = [dup(0), dup(1)], replay_reading(2, mqtt_connection=2), \
+            "  NO DUPLICATE FROM THE REPLAY: m2", ["m0", "m1"]
+    elif case == "accepted from the replay":
+        added = [dup(0), dup(1), event(2, "accepted", REPLAY_NS + NS, received_ns=REPLAY_NS)]
+        replay = replay_reading(2, accepted=101, received=128, mqtt_connection=2)
+        failing, shown = "  ACCEPTED FROM THE REPLAY: m2", ["m0", "m1"]
+    elif case == "beyond the budget":
+        added, replay = [dup(0), dup(0), dup(0), dup(1), dup(2)], replay_reading(5, mqtt_connection=2)
+        failing, shown = "beyond the reconnection budget", ["m1", "m2"]
+    else:
+        pre = [*PRE, event(0, "accepted", DEADLINE + 1, received_ns=DEADLINE)]
+        failing, shown = "  MORE THAN ONE ACCEPTED LINE: m0 (2 accepted lines)", ["m0", "m1", "m2"]
+    run_dir, replay_dir = make_replay(tmp_path, added, pre=pre, replay=replay)
+    assert replay_check(run_dir, replay_dir) == rec.EXIT_MISMATCH
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert failing in out, out
+    assert [ln[len("  NOT DEMONSTRATED: "):].split(" ")[0] for ln in lines
+            if ln.startswith("  NOT DEMONSTRATED: ")] == shown, out
+    assert lines[-1].startswith("-> FAIL: "), out
+
+
+def test_replay_check_names_at_most_twenty_identities_not_demonstrated(tmp_path, capsys) -> None:
+    replay_sent = [sent(seq) for seq in range(25)]
+    run_dir, replay_dir = make_replay(tmp_path, [dup(seq) for seq in range(25)],
+                                      replay=replay_reading(25, mqtt_connection=2), replay_sent=replay_sent)
+    assert replay_check(run_dir, replay_dir) == NOT_DEMONSTRATED
+    lines = capsys.readouterr().out.splitlines()
+    assert len([ln for ln in lines if ln.startswith("  NOT DEMONSTRATED: m")]) == 20
+    assert "  NOT DEMONSTRATED: ... and 5 more" in lines
+
+
+def test_exit_5_is_documented_as_replay_checks_not_demonstrated() -> None:
+    assert getattr(rec, "EXIT_NOT_DEMONSTRATED", None) == NOT_DEMONSTRATED
+    text = "replay-check: the replay's duplicate is not demonstrated for every replayed identity"
+    assert f"5 {text}" in " ".join(rec.build_parser().epilog.split())
+    assert f"- 5 ``replay-check`` only: {text[len('replay-check: '):]}" in " ".join(rec.__doc__.split())
 
 
 # ---------------------------------------------------------------------------
