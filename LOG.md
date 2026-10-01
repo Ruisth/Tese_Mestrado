@@ -4249,9 +4249,10 @@ is unchanged.
     under `resources_proved_down`. Runbook test 6 passes the option, on
     `controller_restart-r03` (the first `controller_restart` entry unused on
     the evidence held; a used one is refused before anything starts);
-    `collect` and the finite proof do not (nor does `collect` re-judge a file
-    judged at run time under the interval), and without the option every
-    result is byte-identical. No row is added, removed, zero-filled or
+    `collect` and the finite proof do not (nor does `collect` qualify a late
+    resources file for a run whose restart lifecycle, the `die` and the
+    `start`, is recorded), and without the option every result is
+    byte-identical. No row is added, removed, zero-filled or
     interpolated, and no delivery, recovery or C12 figure changes.
   - *1b, T1's harness run.* Runbook test 1 names `nominal-r02`, a `nominal`
     entry never used on the guest, under its own run identity, with its
@@ -4269,7 +4270,11 @@ is unchanged.
     identity is `duplicate_only_unexplained`. The columns are in
     `processed/recovery_qualification.{csv,json}`; `itest_reconcile delta`
     gains `--n1-report`, `--controller-log FILE` and `--restart-evidence
-    RUN_DIR`. The identity stays `lost`, the `delta` line stays `MISMATCH`,
+    RUN_DIR`. A death explains an identity only when the run's `/metrics`
+    readings (`controller_metrics.csv`) place it first: the new process's
+    first reading earlier than the identity's first `duplicate` line, on the
+    one controller clock. The identity stays `lost`, the `delta` line stays
+    `MISMATCH`,
     exit codes are unchanged, and without the options `delta`'s output is
     byte-identical.
   - *3, the timed families.* T1's three runs, T2, `itest-dup-02`, T5, T6 and
@@ -4290,7 +4295,11 @@ is unchanged.
     and to hold at most one `accepted` line, `duplicate_replayed` equal to the
     replayed count, and `duplicate_redelivery` within Δ`mqtt_connection`
     ("consistent with the reconnection budget", a tolerance and not a proven
-    cause); beyond it T4 fails. `itest-dup-02` is part of T4 and timed.
+    cause); beyond it T4 fails. With k reconnections between the two readings,
+    a replayed identity counts only with more than k added `duplicate` lines,
+    since up to k of them may be redeliveries of the first run; otherwise the
+    result is NOT DEMONSTRATED (exit 5), never a pass. `itest-dup-02` is part
+    of T4 and timed.
     Runbook test 4 says so.
   - *Unchanged.* No past run, verdict, sealed package or historical figure:
     the proof runs r01–r03, `controller_restart-r01`/`-r02`,
@@ -4334,21 +4343,27 @@ is unchanged.
   newlines only, and contested). Two refuted points were applied all the same
   for the runbook's own rules (Appendix B item 24; no publication on a used
   run id). Record: `HIST_2026-09-30-g3-methodology-consolidated-review`.
+  The Project Manager's bounded review of 2026-10-01 found three more
+  defects, corrected red first here (F1-F3): `replay-check` could pass on a
+  first-run redelivery received after the `after` reading; the N1 report
+  could name an identity through a death that came after its duplicate; and
+  a late `collect` could qualify a file of a run whose restart lifecycle was
+  recorded. @@F123@@
 - **Limits.** Everything is verified on the host with stubs and fixtures
   only; nothing ran on the guest (the runbook's Appendix B, item 24, lists
   what these decisions added). 1a: the `StartedAt` read, T6's `die` and
   `start` events and the edge gaps under TCG are unverified; the guest
   clock's 1–3 s backward steps are not absorbed; a restart whose S − D
   exceeds about 124 s leaves the file rejected; adoption guarantees no valid
-  or passing T6. 2: a controller death is attributed by count, with no order
-  check; any N1 identity still fails T6. 3: the timed families remain at risk
+  or passing T6. 2: a death serves only when the per-second readings place
+  the new process's first reading before the redelivery, which they may often
+  fail to show, leaving the identity unexplained; any N1 identity still fails
+  T6. 3: the timed families remain at risk
   (`nominal-r01` confirmed 3,794 of 6,720 in time; T5 had 326 of 2,016 late;
-  T2 was in time by 3.1 s). 4: the tolerance can pass an extra duplicate that
-  coincides with an unrelated reconnection; and, a limit that is not
-  conservative (runbook test 4 states it), a first-run line received after
-  the `after` reading and before the replay (a redelivery after a
-  reconnection) cannot be told from the replay's line and can stand for a
-  replayed identity's `duplicate`. `itest-dup-02` and `itest-ditto-fault-01`
+  T2 was in time by 3.1 s). 4: with more than one replayed identity, any
+  reconnection during the replay leaves T4 unpassed (not demonstrated, or
+  extras beyond the budget); the tolerance can still pass an extra duplicate
+  that coincides with an unrelated reconnection. `itest-dup-02` and `itest-ditto-fault-01`
   have never run.
 - **Decisions and next steps.** The student's decisions are recorded on the
   pending-decisions page; nothing here accepts a gate or admits a claim, and

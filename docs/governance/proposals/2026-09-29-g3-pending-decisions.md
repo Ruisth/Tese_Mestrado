@@ -60,7 +60,7 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
 - *Where it applies.* Only at the harness's run-time ingest of the collector file (`run.ingest_resources`), only in
   a `controller_restart` run, and only when the `StartedAt` record was fetched: the option `--fetch-started-at-cmd`
   was given, and its fetch ended 0 with a non-empty `logs/sut/controller-started-at.txt`. `collect` does not apply
-  it, and does not re-judge a run whose file was judged at run time under the interval.
+  it, and does not qualify a late file for a run whose restart lifecycle (`die` and `start`) is recorded.
 - *Without the option* there is no interval, and every result is byte-identical to the rule before. With the
   option but no usable record there is no interval, and a failed fetch is a validity reason (below). The finite
   proof never passes the option, so it is unchanged.
@@ -120,7 +120,9 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
      invalid).
   2. The run records a source for it. Either a controller death: a restart record whose restart ran with exit 0
      and whose complete capture holds a `die` of `egw-controller-1` inside the capture window (the 120 s replayed
-     before RUN_T0 excluded), at most one death per run. Or a connection end that the controller logged under A3
+     before RUN_T0 excluded), at most one death per run; it serves an identity only when the run's `/metrics`
+     readings (`controller_metrics.csv`) place it first: the new controller process's first reading earlier, on the
+     one controller clock, than the identity's first `duplicate` line. Or a connection end that the controller logged under A3
      (the ERROR line "MQTT connection ended by the controller"; an INFO line is a graceful stop, not A3) on the
      identity's own device, whose delivery in progress was received (`received_monotonic_ns`) before the
      identity's first `duplicate` line. Each source explains at most one identity.
@@ -190,9 +192,10 @@ Sections 1 to 4 further down are the proposal as written on 2026-09-29.
 - *The sequence reset.* T4 also includes `itest-dup-02` (`run_test itest-dup-02 42 --scenario smoke --duration
   60`), never run so far. It must give `lost = 0`, `late_confirmations = 0` (timed, decision 3) and every `delta`
   line `OK`. A failure of either part is a failure of T4.
-- Checked by `itest_reconcile replay-check`. A limit that is not conservative (runbook test 4 states it): a
-  first-run line received after the `after` reading and before the replay (a redelivery after a reconnection)
-  cannot be told from the replay's line, and can stand for a replayed identity's `duplicate`.
+- Checked by `itest_reconcile replay-check`. With k reconnections between the `after` and `replay` readings, up to
+  k of the added `duplicate` lines may be redeliveries of the first run, so a replayed identity counts only with
+  more than k of them; otherwise the result is not demonstrated (exit 5), never a pass. With more than one replayed
+  identity, any reconnection during the replay therefore leaves T4 unpassed.
 
 ### The conventions pinned for 1a
 
