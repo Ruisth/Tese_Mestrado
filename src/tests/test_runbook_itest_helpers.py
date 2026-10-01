@@ -179,6 +179,8 @@ if [ "$1" = -m ] && [ "$2" = egw_simulator ]; then
   out=; rid=; prev=
   for a in "$@"; do case $prev in --output) out=$a;; --run-id) rid=$a;; esac; prev=$a; done
   if [ -s "$S/sent_events.jsonl" ]; then mkdir -p "$out/$rid" && cp "$S/sent_events.jsonl" "$out/$rid/sent_events.jsonl"; fi
+  # the simulator manifest, only for the cases that give one (a real itest_reconcile reads its totals)
+  if [ -s "$S/sim_manifest.json" ]; then mkdir -p "$out/$rid" && cp "$S/sim_manifest.json" "$out/$rid/manifest.json"; fi
   [ -e "$S/sim_silent" ] || echo "egw_simulator stub: done run_id=$rid" >&2
   [ ! -s "$S/sim_sleep" ] || "$EGW_REAL_SLEEP" "$(cat "$S/sim_sleep")"
   exit "$(cat "$S/sim_rc" 2>/dev/null || echo 0)"
@@ -259,6 +261,13 @@ case $cmd in
     [ "$rc" != 0 ] || echo running > "$S/svc_state"
     exit "$rc";;
   *" logs "*) cat "$S/broker_log" 2>/dev/null; exit "$(cat "$S/ssh_logs_rc" 2>/dev/null || echo 0)";;
+  "[ ! -e /opt/egw/deployment/data/events/"*" ]") # test 3's first line: does the guest hold an event log of the run id?
+    [ ! -e "$S/guest_check_fails" ] || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    rid=${cmd#"[ ! -e /opt/egw/deployment/data/events/"}; rid=${rid%" ]"}
+    [ ! -e "$S/guest_events/$rid" ]; exit;;
+  "cat /opt/egw/deployment/data/events/"*"/events.jsonl") # test 3's keep line: the guest's event log as it is now
+    [ ! -e "$S/guest_log_read_fails" ] || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    cat "$S/remote_events.jsonl"; exit;;
 esac
 echo "ssh stub: unexpected command: $cmd" >&2; exit 98
 """
@@ -1099,36 +1108,73 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     argv = harness_argv(bench)
     opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
-    dest = "/raw/controller_restart-r01/logs/sut/docker-events.log"
-    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r01", dest)
-    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r01", "die,start"], events
+    dest = "/raw/controller_restart-r03/logs/sut/docker-events.log"
+    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r03", dest)
+    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r03", "die,start"], events
     assert "kill" not in events[-1]
     assert opts["--restart-cmd"].endswith("restart controller'") and opts["--restart-at-s"] == "300"
-    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r01]"
+    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r03]"
     # The finite proof's restart-evidence hooks of the checkout, rendered and split as the harness runs them (review
     # of PR #51, B1): the twin snapshots with the plan's seed, the drain, the post-drain copy of this run's events.
     session = bench.clone / "tools" / "session"
-    run_dir = "/raw/controller_restart-r01"
+    run_dir = "/raw/controller_restart-r03"
 
     def hook(flag: str, dest: str) -> list[str]:
-        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r01", duration_s=600,
+        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r03", duration_s=600,
                                                              dest=dest, expect_services=SIX_SERVICES.split(",")))
 
     assert hook("--twin-snapshot-cmd", f"{run_dir}/twins.before.json") == \
-        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r01", f"{run_dir}/twins.before.json", "7"]
+        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r03", f"{run_dir}/twins.before.json", "7"]
     assert hook("--drain-cmd", f"{run_dir}/logs/sut/drain.txt") == \
-        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r01"]
+        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r03"]
     assert hook("--post-drain-fetch-cmd", f"{run_dir}/events.post-drain.jsonl") == \
-        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r01/events.jsonl",
+        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r03/events.jsonl",
          f"{run_dir}/events.post-drain.jsonl"]
+    # Decision 1a (adopted 2026-09-30): the StartedAt read the harness runs after its docker-events fetch and before
+    # it ingests the resources, through the checkout's script, into the run's logs/sut/.
+    assert hook("--fetch-started-at-cmd", f"{run_dir}/logs/sut/controller-started-at.txt") == \
+        ["bash", str(session / "fetch_started_at.sh"), f"{run_dir}/logs/sut/controller-started-at.txt"]
+    # After the harness, one read-only line on the manifest's resources_proved_down (the stub harness wrote none).
+    assert r.starting("test 6: resources_proved_down: "), r.out
     # The stub harness seals nothing, so the line stops: its run directory was not sealed.
     assert r.starting("STOP: test 6: the harness run was not sealed"), r.out
+    assert r.value("T6") == "stop", r.out
+
+
+def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(bench: Bench) -> None:
+    """Review of decision 1a (2026-09-30, round 0): harness_cmd answers 2, the harness NOT started, when the run
+    directory already exists - another execution's - so that test 6's line never reads another run's directory; its
+    resources_proved_down summary must then print nothing of that directory's manifest. (The directory appears after
+    the run id's own guard found the entry unused, as another execution in between would leave it: the guard itself
+    refuses an existing one first.)"""
+    cmds = _host_commands("### Test 6")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    other = bench.tmp / "another-execution"
+    other.mkdir(parents=True)
+    (other / "manifest.json").write_text(json.dumps({"validity": "valid", "resources_proved_down": {
+        "applies": True, "why_not": None, "die_utc": "2026-10-01T10:05:00.400000000Z",
+        "start_utc": "2026-10-01T10:05:06.300000000Z", "effective_end_utc": "2026-10-01T10:05:06.300000000Z",
+        "capped": False, "edge_gap_before_s": 0.0, "edge_gap_after_s": 2.0, "rejected_rows": [],
+        "resources_ingested": True}}), encoding="utf-8")
+    appears = f'mkdir -p ~/egw-tcg/pilot/results/raw && mv {shlex.quote(str(other))} ~/egw-tcg/pilot/results/raw/$RID'
+    body = [_one(cmds, "RID="), appears, _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="),
+            _one(cmds, "T6=stop; if")]
+    r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
+    assert not (bench.state / "harness_argv").exists(), "the harness was started over another execution's directory"
+    assert r.starting("STOP: harness_cmd controller_restart-r03: "), r.out
+    summary = r.starting("test 6: resources_proved_down: ")
+    assert len(summary) == 1, r.out
+    assert "applies=" not in summary[0] and "2026-10-01T10:05" not in summary[0], summary
+    assert "harness_cmd answered 2" in summary[0], summary
     assert r.value("T6") == "stop", r.out
 
 
@@ -1198,7 +1244,7 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r01", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     bench.set("events_start_rc", 3)
     bench.set("events_cleanup_rc", 1)
@@ -1206,12 +1252,48 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert r.value("T6") == "stop", r.out
     assert not (bench.state / "harness_argv").exists(), "the harness was started without a ready recorder"
-    start = r.starting("STOP: events_start controller_restart-r01: ")
-    assert len(start) == 1 and "egw-events-controller_restart-r01 may still run" in start[0], r.out
-    hc = r.starting("STOP: harness_cmd controller_restart-r01: the harness was NOT started")
+    start = r.starting("STOP: events_start controller_restart-r03: ")
+    assert len(start) == 1 and "egw-events-controller_restart-r03 may still run" in start[0], r.out
+    hc = r.starting("STOP: harness_cmd controller_restart-r03: the harness was NOT started")
     assert len(hc) == 1 and "events_start's STOP above" in hc[0], r.out
     t6 = r.starting("STOP: test 6: ")
     assert len(t6) == 1 and "exited 2" in t6[0] and "may then still run" in t6[0], r.out
+
+
+def test_test_6_takes_controller_restart_r03_the_first_entry_never_used_on_the_guest() -> None:
+    """Review of 2026-09-30 (RB-3): test 6 named controller_restart-r01, which the pilot tree already holds (r01 ran on
+    2026-09-18 and r02 on 2026-09-19), so harness_cmd refused it and the documented line could only stop."""
+    assert run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID") == "controller_restart-r03"
+
+
+@pytest.mark.parametrize("used", ["raw directory", "start record"])
+def test_test_6_entry_already_used_is_refused_and_nothing_starts(bench: Bench, used: str) -> None:
+    """Review of 2026-09-30 (RB-3): like test 1's, test 6's entry is refused when it was already used - its raw
+    directory in the pilot tree, or its record beside the itest artefacts - before anything starts: no readiness
+    check, no drain, no configuration identity, no recorder, no harness; and the delta line after it refuses too."""
+    cmds = _host_commands("### Test 6")
+    first = _one(cmds, "RID=")
+    rid = run_id_of(first, "RID")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({"runs": [{"run_id": f"controller_restart-r0{i}", "seed": 6 + i} for i in (1, 2, 3)]}),
+                    encoding="utf-8")
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    trace = (bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid if used == "raw directory"
+             else bench.p / f"{rid}.sut")
+    trace.mkdir(parents=True)
+    body = [first, 'echo "F6=$F6"', _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="),
+            _one(cmds, "T6=stop; if"), 'echo "T6=$T6"', _one(cmds, '[ "$T6" = ok ] && $REC delta'), 'echo "RD=$?"']
+    r = bench.run(bench.with_helpers("\n".join(body)))
+    assert r.value("F6") == "used" and r.value("T6") == "stop" and r.value("RD") != "0", r.out
+    refused = r.starting(f"STOP: test 6: {rid} was already used")
+    assert len(refused) == 1 and "record the choice" in refused[0], r.out
+    assert any("the harness run was NOT started" in ln and "F6='used'" in ln for ln in r.starting("STOP: test 6: ")), r.out
+    assert not (bench.state / "harness_argv").exists() and bench.capture_calls() == []
+    assert "/ready" not in bench.calls() and "/metrics" not in bench.calls(), bench.calls()
+    assert not (bench.p / f"{rid}.config_identity.json").exists()
+    assert "itest_reconcile delta" not in bench.calls()
+    assert list(trace.iterdir()) == [], "the earlier execution's trace was changed"
 
 
 # --------------------------------------------------------------------------
@@ -1450,6 +1532,30 @@ def test_test_6_harness_line_captures_the_identity_and_hands_it_to_the_harness()
            "EVENTS_EXPECTED=die,start harness_cmd $RID" in command
 
 
+def test_test_6_hands_the_harness_the_started_at_read_and_summarises_the_proved_down_record() -> None:
+    """Decision 1a (adopted 2026-09-30): the StartedAt read is one more argument of harness_cmd (the 6.1 heredoc is
+    unchanged), and once the harness returns the line prints one read-only summary of resources_proved_down."""
+    line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    command = line.split("     #", 1)[0]
+    after = command.split("harness_cmd $RID", 1)[1]
+    assert '--fetch-started-at-cmd "bash \\"$EGW_CLONE/tools/session/fetch_started_at.sh\\" \\"{dest}\\""' in after
+    assert after.index("--fetch-started-at-cmd") < after.index("HR=$?")
+    summary = after.split("HR=$?;", 1)[1].split('if [ "$HR" = 3 ]', 1)[0]
+    assert "resources_proved_down" in summary and "$RAW6/manifest.json" in summary
+    assert "HR=" not in summary, "the summary must not change the harness's status"
+    helpers = helpers_heredoc()
+    assert "fetch-started-at" not in helpers and "fetch_started_at" not in helpers
+
+
+def test_test_6_note_records_the_prospective_adoption_of_the_proved_down_interval() -> None:
+    text = " ".join("\n".join(_section("### Test 6")).split())
+    note = text.split("*Note (2026-09-19):*", 1)[1]
+    assert "**proposed, not adopted**" in note
+    assert "on 2026-09-30 the student adopted the proved-down interval (decision 1a) prospectively" in note
+    assert "`fetch_started_at.sh`" in note
+    assert "stay invalid under the rules they were run with" in note
+
+
 def test_test_6_takes_no_drain_post_drain_copy_or_after_snapshot_outside_the_harness() -> None:
     """Review of PR #51, B1: the drain, the post-drain copy and the 'after' snapshot ran after harness_cmd had
     stopped the recorder, outside the run's capture; the harness now takes them, and nothing ingests them later."""
@@ -1467,6 +1573,11 @@ def test_test_6_delta_line_names_the_post_drain_copy() -> None:
     assert "--events $RAW6/events.post-drain.jsonl" in command
     assert "--prefix $P/$RID" in command
     assert "--also" not in command
+    # Decision 2 of 2026-09-30: the N1 report's two sources, the run's sealed controller log and the run directory
+    # (its restart record, its Docker events capture and its drain); the line's guard and stop are unchanged.
+    assert "--controller-log $RAW6/logs/sut/controller.log --restart-evidence $RAW6 ||" in command
+    assert command.startswith('[ "$T6" = ok ] && $REC delta ')
+    assert command.endswith(''' || stop "test 6: delta NOT run (T6='$T6') or it exited non-zero (4 = MISMATCH)"''')
 
 
 def test_test_6_names_the_limit_the_harness_puts_on_its_drain_hook() -> None:
@@ -2039,6 +2150,440 @@ def test_test_3_run_test_not_complete_reads_no_log(bench: Bench) -> None:
     assert bench.capture_calls() == []
 
 
+# --------------------------------------------------------------------------
+# Decisions of 2026-09-30 (prospective): test 3's post-drain copy and its per-identity acceptance check (3), test
+# 4's replay judged per identity (4), test 1's harness run on a nominal entry never used (1b), the timed families (3)
+# --------------------------------------------------------------------------
+T3 = "itest-invalid-01"
+#: v-1 and v-2 valid, i-1 intended invalid, as the simulator writes them (one run id, one message_id each)
+T3_SENT = [{"run_id": T3, "message_id": m, "device_type": "smartwatch", "device_uuid": "uuid-0001", "seq": i,
+            "intended_invalid": m.startswith("i-")} for i, m in enumerate(("v-1", "v-2", "i-1"))]
+
+
+def t3_guest_log(bench: Bench, v2: str | None = "accepted") -> None:
+    """v2=None: v-2 has no outcome line at all in the guest's log."""
+    bench.jsonl("sent_events.jsonl", T3_SENT)
+    (bench.state / "sim_manifest.json").write_text(json.dumps(
+        {"run_id": T3, "completed": True, "totals": {"sent": len(T3_SENT), "intended_invalid": 1}}), encoding="utf-8")
+    bench.jsonl("remote_events.jsonl", [event(T3, "v-1", "accepted"), *([event(T3, "v-2", v2)] if v2 else []),
+                                        event(T3, "i-1", "rejected")])
+
+
+def call_test3_acceptance(bench: Bench, real_rec: bool = False) -> Result:
+    """Test 3's run, the line that keeps the copy fetched after the drain and the acceptance line, as pasted. With
+    real_rec the acceptance line runs this checkout's itest_reconcile on the kept copy (the capture before it keeps
+    the stub: the real mark, wait and check would need a controller)."""
+    cmds = _host_commands("### Test 3")
+    first, keep_line = _one(cmds, "R=itest-invalid-01"), _one(cmds, "C3=stop;")
+    check = _one(cmds, '[ "$C3" = ok ] && $REC acceptance')
+    real = ('REC="python3 -m egw_experiments.itest_reconcile"',) if real_rec else ()
+    body = "\n".join((first, 'echo "RT=$RT"', keep_line, 'echo "C3=$C3"', *real, check, 'echo "RA=$?"'))
+    return bench.run(bench.with_helpers(body), PYTHONPATH=str(ROOT / "src"))
+
+
+def acceptance_calls(bench: Bench) -> list[str]:
+    return [ln for ln in bench.calls().splitlines() if "itest_reconcile acceptance" in ln]
+
+
+def test_test_3_keeps_the_copy_fetched_after_the_drain_and_checks_every_valid_message_on_it(bench: Bench) -> None:
+    t3_guest_log(bench)
+    r = call_test3_acceptance(bench)
+    assert (r.value("RT"), r.value("C3"), r.value("RA")) == ("0", "ok", "0"), r.out
+    assert not r.starting("STOP"), r.out
+    kept = bench.p / f"{T3}.events.post-drain.jsonl"
+    # the file 'finish' fetched after its 'drained' (wait && drained && fetch), kept as it was
+    assert kept.read_bytes() == (bench.p / T3 / "events.jsonl").read_bytes()
+    assert acceptance_calls(bench) == [
+        f"python -m egw_experiments.itest_reconcile acceptance {bench.p}/{T3} --events {kept}"]
+
+
+@pytest.mark.parametrize("rc", [4, 1], ids=["never-accepted", "not-evaluable"])
+def test_test_3_an_acceptance_check_that_does_not_end_0_is_a_stop(bench: Bench, rc: int) -> None:
+    t3_guest_log(bench)
+    bench.set("rec_acceptance_rc", rc)
+    r = call_test3_acceptance(bench)
+    assert r.value("C3") == "ok" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: the per-identity acceptance check"), r.out
+
+
+@pytest.mark.parametrize("v2, ok", [("accepted", True), ("failed", False), ("duplicate", False)])
+def test_test_3_acceptance_line_runs_the_real_check_on_the_kept_copy(bench: Bench, v2: str, ok: bool) -> None:
+    t3_guest_log(bench, v2)
+    r = call_test3_acceptance(bench, real_rec=True)
+    assert r.value("RT") == "0" and r.value("C3") == "ok", r.out
+    if ok:
+        assert r.value("RA") == "0", r.out
+        assert any("valid=2 accepted by the end of the drain=2 never accepted=0" in ln for ln in r.lines), r.out
+    else:
+        assert r.value("RA") != "0", r.out
+        assert f"  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: {v2} x1" in r.lines, r.out
+        assert r.starting("STOP: test 3: the per-identity acceptance check"), r.out
+
+
+@pytest.mark.parametrize("case", ["precondition fails", "fetch fails"])
+def test_test_3_without_a_post_drain_copy_is_not_evaluated(bench: Bench, case: str) -> None:
+    """No copy after the drain (the run stopped before its fetch: a drain that gave up does the same): the copy is
+    not kept, nothing is judged and test 3 is not passed."""
+    t3_guest_log(bench)
+    if case == "precondition fails":
+        bench.set("ready_code", 503)
+    else:
+        (bench.state / "remote_events.jsonl").unlink()
+    r = call_test3_acceptance(bench)
+    assert r.value("RT") != "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run"), r.out
+    assert r.starting("STOP: test 3: the per-identity acceptance check was not run (C3='stop')"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert acceptance_calls(bench) == []
+
+
+def test_test_3_a_valid_message_without_any_outcome_line_fails_test_3_not_left_unevaluated(bench: Bench) -> None:
+    """Decision 3: a valid message with no outcome line in the copy fetched after the drain fails test 3. 'accounted'
+    names it and stops 'finish' AFTER its fetch (run_test ends non-zero), so the copy exists: it is kept and judged
+    (exit 4: test 3 FAILS), not reported as 'not evaluated'."""
+    t3_guest_log(bench, v2=None)
+    r = call_test3_acceptance(bench, real_rec=True)
+    assert r.value("RT") != "0", r.out
+    assert r.starting(f"STOP: accounted {T3}: published records of this run are named above"), r.out
+    assert r.value("C3") == "ok" and r.value("RA") != "0", r.out
+    kept = bench.p / f"{T3}.events.post-drain.jsonl"
+    assert kept.read_bytes() == (bench.p / T3 / "events.jsonl").read_bytes()
+    assert "  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: none" in r.lines, r.out
+    assert r.starting("STOP: test 3: the per-identity acceptance check"), r.out
+    assert any("(exit 4: test 3 FAILS)" in ln for ln in r.lines if ln.startswith("STOP: test 3")), r.out
+    assert not r.starting("STOP: test 3: no copy"), r.out
+
+
+def test_test_3_a_used_run_id_never_judges_the_copy_an_earlier_execution_left(bench: Bench) -> None:
+    """The run id was already used: 'pre' refuses it and nothing is published, but the earlier execution's fetched
+    copy is still there (every message accepted). It is not this run's post-drain copy: not kept, not judged."""
+    t3_guest_log(bench)
+    old = bench.p / T3
+    old.mkdir(parents=True)
+    (old / "events.jsonl").write_bytes((bench.state / "remote_events.jsonl").read_bytes())
+    r = call_test3_acceptance(bench)
+    assert r.value("RT") != "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert acceptance_calls(bench) == []
+
+
+def test_test_3_an_existing_post_drain_copy_is_never_overwritten_and_nothing_is_judged(bench: Bench) -> None:
+    t3_guest_log(bench)
+    bench.p.mkdir(parents=True, exist_ok=True)
+    kept = bench.p / f"{T3}.events.post-drain.jsonl"
+    kept.write_text("old\n", encoding="utf-8")
+    r = call_test3_acceptance(bench)
+    assert r.value("RT") == "0" and r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting(f"STOP: keep: {kept} exists - NOT overwritten"), r.out
+    assert kept.read_text(encoding="utf-8") == "old\n"
+    assert acceptance_calls(bench) == []
+
+
+@pytest.mark.parametrize("case", ["the guest holds a log of the run id", "the guest does not answer"])
+def test_test_3_a_run_id_the_guest_already_holds_is_never_judged(bench: Bench, case: str) -> None:
+    """The guest's event log of a run id persists and is appended to (test 8: the old data/events/* directories are
+    intact), and the host's $P/$R cannot show it. An earlier execution of the same run id (the same seed, so the same
+    message_ids) left its accepted lines there and this execution only adds duplicates: the fetched copy would show
+    every valid message accepted. The run id is fresh only when neither the host nor the guest holds it, and a guest
+    that does not answer leaves it used: not kept, not judged, test 3 not evaluated."""
+    t3_guest_log(bench)
+    bench.jsonl("remote_events.jsonl", [event(T3, "v-1", "accepted"), event(T3, "v-2", "accepted"),
+                                        event(T3, "i-1", "rejected"), event(T3, "v-1", "duplicate"),
+                                        event(T3, "v-2", "duplicate"), event(T3, "i-1", "rejected")])
+    if case == "the guest holds a log of the run id":
+        (bench.state / "guest_events" / T3).mkdir(parents=True)
+    else:
+        bench.set("guest_check_fails")
+    r = call_test3_acceptance(bench)
+    assert r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run (F3='used'"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert acceptance_calls(bench) == []
+    assert any(f"[[ ! -e /opt/egw/deployment/data/events/{T3} ]]" in ln for ln in bench.ssh_log()), bench.ssh_log()
+
+
+def test_test_3_a_run_id_neither_the_host_nor_the_guest_holds_is_fresh(bench: Bench) -> None:
+    t3_guest_log(bench)
+    (bench.state / "guest_events" / "itest-invalid-02").mkdir(parents=True)  # another run id's log on the guest
+    r = call_test3_acceptance(bench)
+    assert (r.value("RT"), r.value("C3"), r.value("RA")) == ("0", "ok", "0"), r.out
+
+
+@pytest.mark.parametrize("case", ["the guest holds a log of the run id", "the guest does not answer",
+                                  "the host holds the run id"])
+def test_test_3_publishes_nothing_on_a_run_id_that_is_not_fresh(bench: Bench, case: str) -> None:
+    """Review of 2026-09-30 (34-1): the first line found the run id used on the guest (F3 'used') and still started
+    the simulator, publishing a 120 s run that can never be judged into the earlier execution's event log on the
+    guest. Section 7, rule 1: a failed precondition publishes nothing. The line now starts nothing unless F3 is
+    'fresh': no guest clock read, no 'before' snapshot, no simulator, and one STOP."""
+    t3_guest_log(bench)
+    if case == "the guest holds a log of the run id":
+        (bench.state / "guest_events" / T3).mkdir(parents=True)
+    elif case == "the guest does not answer":
+        bench.set("guest_check_fails")
+    else:
+        (bench.p / T3).mkdir(parents=True)
+    first = _one(_host_commands("### Test 3"), "R=itest-invalid-01")
+    r = bench.run(bench.with_helpers("\n".join((first, 'echo "RT=$RT"', 'echo "F3=$F3"'))))
+    assert r.value("F3") == "used" and r.value("RT") != "0", r.out
+    assert bench.simulator_calls() == 0, r.out
+    assert not (bench.p / f"{T3}.metrics.before.json").exists() and not (bench.p / f"{T3}.stderr.txt").exists()
+    assert not any(ln.endswith("[date +%s]") for ln in bench.ssh_log()), bench.ssh_log()
+    stop = r.starting("STOP: test 3: ")
+    assert len(stop) == 1 and "the simulator was NOT started" in stop[0] and "nothing was published" in stop[0], r.out
+
+
+#: scp that fails part-way, leaving the bytes it had written (OpenSSH scp and sftp leave a partial destination): here
+#: the first line of the guest's log, cut on a line boundary so that it still parses
+PARTIAL_SCP = r"""#!/usr/bin/env bash
+S=$EGW_STUB_STATE
+echo "scp $*" >> "$S/calls.log"
+head -n 1 "$S/remote_events.jsonl" > "${@: -1}"
+echo "scp: stub: connection lost part-way" >&2
+exit 1
+"""
+
+#: scp that copies the guest's log whole; the controller then appends one more line to it (after the fetch)
+SCP_THEN_APPEND = r"""#!/usr/bin/env bash
+S=$EGW_STUB_STATE
+echo "scp $*" >> "$S/calls.log"
+cp "$S/remote_events.jsonl" "${@: -1}"
+cat "$S/appended_after_fetch.jsonl" >> "$S/remote_events.jsonl"
+"""
+
+
+@pytest.mark.parametrize("case", ["the fetch failed part-way", "a line was appended after the fetch",
+                                  "the guest does not answer"])
+def test_test_3_keeps_only_a_copy_that_is_the_guests_whole_log(bench: Bench, case: str) -> None:
+    """Decision 3: test 3 is judged on the copy of the events fetched after the drain; without it, it is not evaluated
+    (a STOP), never passed. A fetch that failed part-way leaves a partial file (the missing lines judged 'never
+    accepted': a verdict on a copy that was never fetched), and a log that grew after the fetch cannot be told from
+    one: the second line keeps the file only when it is the guest's log as a whole, else nothing is judged."""
+    t3_guest_log(bench)
+    if case == "the fetch failed part-way":
+        bench.install("scp", PARTIAL_SCP)
+    elif case == "a line was appended after the fetch":
+        bench.install("scp", SCP_THEN_APPEND)
+        bench.jsonl("appended_after_fetch.jsonl", [event(T3, "v-2", "duplicate")])
+    else:
+        bench.set("guest_log_read_fails")
+    r = call_test3_acceptance(bench, real_rec=True)
+    if case == "the fetch failed part-way":
+        assert r.starting(f"STOP: fetch {T3}: scp of events.jsonl failed") and r.value("RT") != "0", r.out
+    else:
+        assert r.value("RT") == "0", r.out
+    assert r.value("C3") == "stop" and r.value("RA") != "0", r.out
+    assert not any("NEVER ACCEPTED" in ln or ln.startswith("ACCEPTANCE BY THE END") for ln in r.lines), r.out
+    assert r.starting("STOP: test 3: no copy of the events fetched after the drain of this run (F3='fresh'"), r.out
+    assert not (bench.p / f"{T3}.events.post-drain.jsonl").exists()
+    assert any("[cat /opt/egw/deployment/data/events/" + T3 + "/events.jsonl]" in ln for ln in bench.ssh_log()), \
+        bench.ssh_log()
+
+
+def t4_metrics_difference_line() -> str:
+    hits = [c for c in _host_commands("### Test 4")
+            if "'$P/$R.metrics.after.json'" in c and "'$P/$R.metrics.replay.json'" in c]
+    assert len(hits) == 1, hits
+    return hits[0]
+
+
+T4_AFTER = {"started_at": STARTED, "uptime_s": 500.0, "monotonic_ns": 2_000, "queue_depth": 0, "received": 125,
+            "accepted": 100, "rejected": 5, "duplicate": 5, "failed": 5, "dropped": 5, "processing_errors": 5,
+            "in_progress": 0, "unacked": 0, "mqtt_subscribed": True, "mqtt_connection": 1}
+T4_REPLAY = dict(T4_AFTER, uptime_s=560.0, monotonic_ns=62_000, received=128, duplicate=8)
+T4_REPLAYS = {
+    "one process": T4_REPLAY,
+    "started_at differs": dict(T4_REPLAY, started_at="2026-09-18T10:30:00Z", uptime_s=40.0, received=3, accepted=0,
+                               rejected=0, duplicate=3, failed=0, dropped=0, processing_errors=0),
+    "uptime_s decreased": dict(T4_REPLAY, uptime_s=499.0),
+    "accepted decreased": dict(T4_REPLAY, accepted=99, received=127),
+    "processing_errors decreased": dict(T4_REPLAY, processing_errors=4, received=127),
+    "mqtt_connection decreased": dict(T4_REPLAY, mqtt_connection=0),
+}
+
+
+@pytest.mark.parametrize("case", list(T4_REPLAYS))
+def test_test_4_metrics_difference_line_differences_only_two_readings_of_one_process(bench: Bench, case: str) -> None:
+    """Decision 4: before any difference of the 'after' and 'replay' /metrics readings, the same-process checks of
+    CONTRACTS 5 must hold (the same started_at; uptime_s, the cumulative counters and mqtt_connection non-decreasing).
+    The line printed the differences of two processes too, beside 'same controller process: False', and ended 0."""
+    rid = "itest-dup-01"
+    bench.p.mkdir(parents=True, exist_ok=True)
+    (bench.p / f"{rid}.metrics.after.json").write_text(json.dumps(T4_AFTER), encoding="utf-8")
+    (bench.p / f"{rid}.metrics.replay.json").write_text(json.dumps(T4_REPLAYS[case]), encoding="utf-8")
+    r = bench.run(bench.with_helpers("\n".join((f"R={rid}; REPLAYED=captured", t4_metrics_difference_line(),
+                                                'echo "RCD=$?"'))))
+    differences = [ln for ln in r.lines if ln.startswith("{'accepted': ")]
+    if case == "one process":
+        assert differences == ["{'accepted': 0, 'rejected': 0, 'duplicate': 3, 'failed': 0, 'dropped': 0} "
+                               "same controller process: True"], r.out
+        assert r.value("RCD") == "0" and not r.starting("STOP"), r.out
+    else:
+        assert differences == [], r.out
+        assert r.value("RCD") != "0", r.out
+        assert r.starting("STOP: test 4: "), r.out
+
+
+def t4_check_line() -> str:
+    hits = [c for c in _host_commands("### Test 4") if "$REC replay-check" in c]
+    assert len(hits) == 1, hits
+    return hits[0]
+
+
+# exit 5 (2026-10-01): the replay's own duplicate line not demonstrated - not passed, its own STOP, not a failure
+@pytest.mark.parametrize("replayed, rc, passes", [("stop", 0, False), ("ok", 0, False), ("captured", 4, False),
+                                                  ("captured", 1, False), ("captured", 5, False),
+                                                  ("captured", 0, True)])
+def test_test_4_replay_check_line_runs_only_on_a_captured_replay_and_passes_only_on_0(bench: Bench, replayed: str,
+                                                                                     rc: int, passes: bool) -> None:
+    bench.set("rec_replay-check_rc", rc)
+    r = bench.run(bench.with_helpers("\n".join((f"R=itest-dup-01; REPLAYED={replayed}", t4_check_line(),
+                                                'echo "RC4=$?"'))))
+    calls = [ln for ln in bench.calls().splitlines() if "itest_reconcile replay-check" in ln]
+    if replayed == "captured":
+        assert calls == [f"python -m egw_experiments.itest_reconcile replay-check {bench.p}/itest-dup-01 --replay-dir "
+                         f"{bench.home}/egw-tcg/itest-replay/itest-dup-01 --events-before "
+                         f"{bench.p}/itest-dup-01.events.pre-replay.jsonl"], bench.calls()
+    else:
+        assert calls == [], bench.calls()
+    if passes:
+        assert r.value("RC4") == "0" and not r.starting("STOP"), r.out
+    elif rc == 5 and replayed == "captured":
+        assert r.value("RC4") != "0", r.out
+        assert len(r.starting("STOP: test 4: NOT DEMONSTRATED")) == 1, r.out
+        assert not r.starting("STOP: test 4: the per-identity replay check"), r.out  # not a failure
+    else:
+        assert r.value("RC4") != "0", r.out
+        assert len(r.starting("STOP: test 4: the per-identity replay check")) == 1, r.out
+        assert not r.starting("STOP: test 4: NOT DEMONSTRATED"), r.out
+
+
+def t1_harness_lines() -> tuple[str, str]:
+    cmds = _host_commands("### Test 1")
+    return _one(cmds, "RID=nominal-r02"), _one(cmds, '[ "$T1H" = ok ] && wait_ready')
+
+
+def test_test_1_harness_run_takes_nominal_r02_when_it_was_never_used(bench: Bench) -> None:
+    check, run = t1_harness_lines()
+    r = bench.run(bench.with_helpers("\n".join((check, 'echo "T1H=$T1H"', run, 'echo "RC1=$?"'))))
+    assert r.value("T1H") == "ok" and r.value("RC1") == "0", r.out
+    argv = harness_argv(bench)
+    assert argv[argv.index("--run-id") + 1] == "nominal-r02"
+    assert "--duration" not in argv and "--warmup" not in " ".join(argv)  # the plan's 600 s and 120 s, unchanged
+
+
+@pytest.mark.parametrize("used", ["raw directory", "start record"])
+def test_test_1_harness_entry_already_used_is_refused_and_nothing_starts(bench: Bench, used: str) -> None:
+    trace = (bench.home / "egw-tcg" / "pilot" / "results" / "raw" / "nominal-r02" if used == "raw directory"
+             else bench.p / "nominal-r02.sut")
+    trace.mkdir(parents=True)
+    check, run = t1_harness_lines()
+    r = bench.run(bench.with_helpers("\n".join((check, 'echo "T1H=$T1H"', run, 'echo "RC1=$?"'))))
+    assert r.value("T1H") == "stop" and r.value("RC1") != "0", r.out
+    assert r.starting("STOP: test 1 (harness): nominal-r02 was already used"), r.out
+    assert not (bench.state / "harness_argv").exists()
+    assert bench.capture_calls() == []  # no recorder was started either
+
+
+def test_test_1_plan_listing_shows_the_nominal_entries(bench: Bench) -> None:
+    from egw_experiments import plan_gen
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps(plan_gen.generate_campaign_plan(42)), encoding="utf-8")
+    listing = _one(_host_commands("### Test 1"), 'python3 -c "import json;p=json.load(')
+    assert "expected ['nominal-r01', 'nominal-r02', 'nominal-r03']" in listing
+    r = bench.run(listing)
+    assert "['nominal-r01', 'nominal-r02', 'nominal-r03']" in r.lines, r.out
+
+
+def _paragraph(heading: str, start: str) -> str:
+    # strip: the first paragraph of a section follows the blank line after its heading
+    hits = [p.strip("\n") for p in "\n".join(_section(heading)).split("\n\n") if p.strip("\n").startswith(start)]
+    assert len(hits) == 1, f"{heading}: {len(hits)} paragraph(s) starting with {start!r}"
+    return hits[0]
+
+
+def test_section_7_states_the_timed_families() -> None:
+    text = _paragraph("## 7.", "**Timed families (decision of 2026-09-30")
+    for needle in ("test 1 (each of its three runs)", "test 2", "`itest-dup-02`", "test 5", "test 6",
+                   "test 8's post-reboot smoke", "`lost = 0` and `late_confirmations = 0`", "marker plus 60 s",
+                   "recorded as failed", "sizing finding", "does not turn the failure into a pass",
+                   "throughput choice T1", "not test 1", "`delivery_across_restart_zero_lost`",
+                   "`RESTART_RECOVERY_MAX_S`", "Test 3 is not timed", "`$P/$R.events.post-drain.jsonl`",
+                   "decide nothing else for test 3", "No deadline, rate, duration or load changes"):
+        assert needle in text, needle
+
+
+def test_test_1_names_what_its_harness_run_is_and_is_not() -> None:
+    cmds = _host_commands("### Test 1")
+    assert not [c for c in cmds if c.startswith("RID=smoke_sequence")]
+    text = "\n".join(_section("### Test 1"))
+    assert "if the run is marked invalid for coverage, repeat with `--run-id` of a nominal entry" not in text
+    expected = _paragraph("### Test 1", "Expected per run:")
+    assert "`late_confirmations > 0` fails test 1" in expected and "sizing finding" in expected
+    for needle in ("30 distinct instants, 90 % coverage, 5 s gaps", "reported as measured",
+                   "**not** a passed 30 s smoke", "**not** a performance approval or a successful nominal delivery",
+                   "distinct from the three wearable functional runs", "ten `smoke_sequence` repetitions of C14"):
+        assert needle in text, needle
+
+
+def test_test_3_expected_list_requires_every_valid_message_accepted_by_the_end_of_the_drain() -> None:
+    expected = _paragraph("### Test 3", "Expected:")
+    for needle in ("`$P/$R.events.post-drain.jsonl`", "accepted late", "fails test 3", "gives up",
+                   "not evaluated", "never passed", "Test 3 is not timed", "decide nothing else for test 3",
+                   "`valid rejected = 0`", "every `delta` line `OK`",
+                   # a STOP of 'finish' after its fetch leaves the copy: judged, never 'not evaluated'
+                   "stops after its fetch", "without any outcome line fails test 3", "`F3`",
+                   # fresh on the host AND on the guest, whose log of a run id persists and is appended to
+                   "neither the host (`$P/$R`) nor the guest holds it", "a guest that does not answer leaves `F3`",
+                   # a partial fetch is no copy: not kept, not judged
+                   "the guest's whole log", "failed part-way", "appended to the guest's log after the fetch",
+                   # judged as fetched: a line between the drain's last reading and the fetch counts
+                   "after the last reading of the drain and before the fetch", "cannot make a message accepted"):
+        assert needle in expected, needle
+    # an accepted line that reached the controller after the drain and before the fetch is in the copy and counts
+    assert "is beyond the planned collection and can only make test 3 fail" not in expected
+
+
+def test_test_4_expected_list_judges_the_replay_per_identity_and_includes_the_sequence_reset() -> None:
+    expected = _paragraph("### Test 4", "Expected")
+    assert "`duplicate` equals the number of replayed messages" not in expected
+    assert "`duplicate` = number of replayed messages" not in expected
+    for needle in ("`started_at`", "`uptime_s`", "`processing_errors`", "`mqtt_connection`", "non-decreasing",
+                   "`duplicate_replayed`", "`duplicate_redelivery`", "consistent with the reconnection budget",
+                   "decides nothing", "`accepted 0`", "`queue_depth 0`", "UNCHANGED", "`itest-dup-02`",
+                   "never been run", "`lost = 0`, `late_confirmations = 0`", "a failure of test 4",
+                   # the replay's lines: beyond the copy AND received after the 'after' reading
+                   "`received_monotonic_ns`", "at or before the `after` reading", "exit 1",
+                   # 2026-10-01: a redelivery of the first run is bounded by k, the reconnections of the interval
+                   "k = 0", "ADR 0011, N2", "more than k added `duplicate` lines", "**not demonstrated**",
+                   "exits 5", "**not passed**", "distinct from a failure", "takes precedence",
+                   # the difference line: no difference of two processes
+                   "takes no difference of two readings that are not of one process"):
+        assert needle in expected, needle
+    assert "caused by" not in expected
+    # the limit stated until 2026-10-01 is removed: such a line can no longer stand for the replay's
+    assert "A stated limit, not conservative" not in expected
+    assert "so it could stand for a replayed identity's own `duplicate` line" not in expected
+    # a line appended after the pre-replay fetch can stand for a replay line: it does NOT only make test 4 fail
+    assert "it can only make test 4 fail" not in expected
+
+
+def test_tests_5_6_and_8_are_timed_and_section_8_names_the_spent_entry() -> None:
+    t5 = _paragraph("### Test 5", "Expected:")
+    assert "test 5 fails" in t5 and "sizing finding" in t5
+    assert "a guest-speed finding under TCG, reported as measured;" not in t5
+    t6 = "\n".join(_section("### Test 6"))
+    assert "is reported as measured, never suppressed" not in t6
+    for needle in ("`delivery_across_restart_zero_lost`", "own row of `per_run.csv`",
+                   "`lost = 0` and `late_confirmations = 0`", "beside that criterion"):
+        assert needle in t6, needle
+    assert "a timed family" in _paragraph("### Test 8", "Expected:")
+    order = _paragraph("## 8.", "1. **Order.**")
+    assert "`nominal-r02`" in order and "test 1" in order.lower()
+
+
 def call_test5(bench: Bench, rid: str = "itest-dropout-01") -> Result:
     cmds = _host_commands("### Test 5")
     full_run(bench, rid)
@@ -2077,27 +2622,44 @@ def test_test_5_a_log_not_read_or_without_the_client_is_a_stop(bench: Bench, cas
 # --------------------------------------------------------------------------
 # defect 2 - test 7: interruption AND recovery must both be shown
 # --------------------------------------------------------------------------
-def _t7_body(prefix: str = "") -> tuple[str, str, str]:
-    """All host$ lines of the test 7 block in their order; returns (body, run id, service)."""
+#: The start of the optional, read-only re-run of delta with the N1 report (decision 2 of 2026-09-30) that closes the
+#: test 7 block and its Ditto repeat, after the evaluation line.
+T7_N1_LINE = ('[ "$T7" != stop ] && [ "$LC" = 0 ] && [ -s $P/$R.sut/controller.log ] && [ -s $P/$R.twins.after.json ] '
+              '&& { $REC delta ')
+#: An assignment of T7 in a command, in any of the forms bash takes it (a declaration keyword with its options before
+#: it, a subshell, a loop body); the stop message only quotes T7's value
+T7_ASSIGNMENT = re.compile(r"(^|[;&|{(]|then|else|do)\s*((export|declare|local|readonly|typeset)\s+(-\w+\s+)*)?T7=")
+
+
+def _t7_body(prefix: str = "", n1: bool = False) -> tuple[str, str, str]:
+    """All host$ lines of the test 7 block in their order, the optional N1 re-run of delta left out unless ``n1``;
+    returns (body, run id, service)."""
     cmds = _host_commands("### Test 7")
     first = _one(cmds, "R=")
     rid = run_id_of(first, "R")
     svc = re.search(r"SVC=([A-Za-z0-9_-]+)", first)
     assert svc, first
     test_line = _one(cmds, "T7=stop; if pre $R")
-    assert cmds.index(test_line) == len(cmds) - 2, "the evaluation line is expected right after the test line"
-    body = [prefix, *cmds[:-1], 'echo "T7_VALUE=$T7"', cmds[-1].split("\n")[0], 'echo "EVAL_RC=$?"']
+    n1_line = _one(cmds, T7_N1_LINE)
+    assert cmds.index(test_line) == len(cmds) - 3, "the evaluation line is expected right after the test line"
+    assert cmds[-1] == n1_line, "the optional N1 re-run of delta is expected last, after the evaluation line"
+    body = [prefix, *cmds[:-2], 'echo "T7_VALUE=$T7"', cmds[-2].split("\n")[0], 'echo "EVAL_RC=$?"']
+    if n1:
+        body += [n1_line.split("     #", 1)[0], 'echo "N1_RC=$?"']
     return "\n".join(body), rid, svc.group(1)
 
 
-def _ditto_body() -> tuple[str, str, str]:
+def _ditto_body(n1: bool = False) -> tuple[str, str, str]:
     """The Ditto repeat as the runbook has it pasted: test 7's helpers (DC, svc_state, fault_recover, fault, readyp),
-    then the repeat's own three lines; returns (body, run id, service)."""
+    then the repeat's own lines (the optional N1 re-run of delta only with ``n1``); returns (body, run id, service)."""
     t7, ditto = _host_commands("### Test 7"), _host_commands("### Repeat of test 7 for Ditto")
     first = _one(ditto, "R=")
     rid, svc = run_id_of(first, "R"), re.search(r"SVC=([A-Za-z0-9_-]+)", first).group(1)
-    body = [ln for ln in t7[:-2] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"',
+    assert len(ditto) == 4 and ditto[3] == _one(ditto, T7_N1_LINE)
+    body = [ln for ln in t7[:-3] if not ln.startswith("R=")] + [first, ditto[1], 'echo "T7_VALUE=$T7"',
                                                                  ditto[2].split("\n")[0], 'echo "EVAL_RC=$?"']
+    if n1:
+        body += [ditto[3].split("     #", 1)[0], 'echo "N1_RC=$?"']
     return "\n".join(body), rid, svc
 
 
@@ -2108,8 +2670,8 @@ def _t7_guest_logs(bench: Bench) -> None:
 
 
 def call_test7(bench: Bench, stub_pgrep_rc: int | None = 0, prefix: str = "", sub: str = "mongodb",
-               **env: str) -> tuple[Result, str, str]:
-    body, rid, svc = _t7_body(prefix) if sub == "mongodb" else _ditto_body()
+               n1: bool = False, **env: str) -> tuple[Result, str, str]:
+    body, rid, svc = _t7_body(prefix, n1=n1) if sub == "mongodb" else _ditto_body(n1=n1)
     full_run(bench, rid)
     bench.set("svc_state", "running")
     _t7_guest_logs(bench)
@@ -2401,6 +2963,101 @@ def test_test_7_an_observation_that_failed_keeps_the_instrumentations_statuses_b
     assert "sim_post exit=0, fault job exit=1, kill of the /ready poller exit=0" in stop[0], stop[0]
     assert f"events_stop exit={ev}, controller log read exit=0, broker log read exit=0" in stop[0], stop[0]
     assert not r.starting("STOP: test 7: the interruption and the recovery are shown"), r.out
+
+
+# --------------------------------------------------------------------------
+# Test 7, both sub-checks: the optional N1 report of delta (decision 2 of 2026-09-30)
+# --------------------------------------------------------------------------
+def _n1_reruns(bench: Bench) -> list[str]:
+    """The delta calls that name a controller log: the optional re-run only ('finish' names none)."""
+    return [ln for ln in bench.calls().splitlines()
+            if ln.startswith("python -m egw_experiments.itest_reconcile delta ") and "--controller-log" in ln]
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+def test_test_7_the_optional_n1_report_reruns_delta_with_the_sub_checks_controller_log(bench: Bench, sub: str) -> None:
+    r, rid, _svc = call_test7(bench, sub=sub, n1=True)
+    assert r.value("T7_VALUE") == "0", r.out
+    assert r.value("N1_RC") == "0" and not r.starting("STOP"), r.out
+    assert _n1_reruns(bench) == [f"python -m egw_experiments.itest_reconcile delta {bench.p}/{rid} "
+                                 f"--controller-log {bench.p}/{rid}.sut/controller.log"]
+    for line in _host_commands("### Test 7")[-1:] + _host_commands("### Repeat of test 7 for Ditto")[-1:]:
+        command = line.split("     #", 1)[0]
+        # read-only: no assignment of T7 (its value is only quoted in the stop message), and no redirection
+        assert line.startswith(T7_N1_LINE) and not T7_ASSIGNMENT.search(command), line
+        assert ">" not in command, line
+
+
+def test_test_7_read_only_check_catches_every_form_of_an_assignment_of_t7() -> None:
+    """Review of 2026-09-30 (H3): the check that replaced '"T7=" not in the line' missed 'export T7=ok', 'declare
+    T7=ok', 'local', 'readonly', 'typeset' and '(T7=ok)', which the old check caught."""
+    for form in ("a || export T7=ok", "a || declare T7=ok", "a || declare -g T7=ok", "a || local T7=ok",
+                 "a || readonly T7=ok", "a || typeset T7=ok", "a || (T7=ok)", "a && T7=ok", "a; T7=ok",
+                 "{ export T7=ok; $REC delta x; }", "if a; then T7=ok; fi", "for x in 1; do T7=ok; done", "T7=ok"):
+        assert T7_ASSIGNMENT.search(form), form
+    for quoted in ("stop \"test 7: ... - it is read-only: finish's delta and T7='$T7' stand\"", '[ "$T7" != stop ]'):
+        assert not T7_ASSIGNMENT.search(quoted), quoted
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+def test_test_7_the_n1_report_runs_beside_a_delta_mismatch_and_changes_no_status(bench: Bench, sub: str) -> None:
+    """An N1 identity makes the device line a MISMATCH, so 'finish' stops and T7 is 'failed:'; the re-run still
+    reports (exit 4 is a result), with no STOP of its own, and the failed T7 stands."""
+    bench.set("rec_delta_rc", 4)
+    r, rid, _svc = call_test7(bench, sub=sub, n1=True)
+    assert r.value("T7_VALUE").startswith("failed:sim_post="), r.out
+    assert r.value("N1_RC") == "0" and not r.starting("STOP: test 7: the optional N1 report"), r.out
+    assert len(_n1_reruns(bench)) == 1
+
+
+@pytest.mark.parametrize("sub", SUB_CHECKS)
+@pytest.mark.parametrize("case", ["controller log not read", "delta not carried out"])
+def test_test_7_the_n1_report_not_produced_is_a_stop_of_its_own(bench: Bench, sub: str, case: str) -> None:
+    if case == "controller log not read":
+        bench.set("fetch_controller_rc", 1)
+    else:
+        bench.set("rec_delta_rc", 1)
+    r, _rid, _svc = call_test7(bench, sub=sub, n1=True)
+    assert r.value("N1_RC") != "0", r.out
+    assert len(r.starting("STOP: test 7: the optional N1 report was NOT produced")) == 1, r.out
+    assert len(_n1_reruns(bench)) == (0 if case == "controller log not read" else 1)
+
+
+@pytest.mark.parametrize("again", ["the Ditto repeat", "test 7 pasted again"])
+def test_test_7_n1_report_after_a_refused_precondition_in_the_same_shell_runs_no_delta(bench: Bench, again: str) -> None:
+    """Review of 2026-09-30 (RB-1): the optional N1 line tested LC only, which the test line never resets. Pasted in
+    the same shell after a completed sub-check (LC 0), on a run id already used - 'pre' refuses it, nothing is
+    injected or published - it ran delta on an earlier execution's files and printed an N1 report for a run that never
+    started, with no STOP. Each N1 line now first tests T7, which stays 'stop' exactly when the test line's
+    precondition failed or the line was interrupted: no delta runs, and the line prints its STOP."""
+    body, mongo_rid, _svc = _t7_body(n1=True)
+    t7, ditto = _host_commands("### Test 7"), _host_commands("### Repeat of test 7 for Ditto")
+    lines = ditto if again == "the Ditto repeat" else [_one(t7, "R="), _one(t7, "T7=stop; if pre $R"), *t7[-2:]]
+    rid = run_id_of(lines[0], "R")
+    if again == "the Ditto repeat":
+        # an earlier execution of the Ditto repeat left its files: its run directory, its log and its 'after' twins
+        (bench.p / f"{rid}.sut").mkdir(parents=True)
+        (bench.p / rid).mkdir()
+        (bench.p / f"{rid}.sut" / "controller.log").write_text("an earlier execution's controller log\n", encoding="utf-8")
+        (bench.p / f"{rid}.twins.after.json").write_text('{"stub": true}\n', encoding="utf-8")
+    full_run(bench, mongo_rid)
+    bench.set("svc_state", "running")
+    _t7_guest_logs(bench)
+    bench.install("pgrep", STUB_PGREP)
+    bench.set("pgrep_rc", 0)
+    body += "\n" + "\n".join((lines[0], lines[1], 'echo "AGAIN_T7=$T7"', lines[2].split("\n")[0], 'echo "AGAIN_EVAL=$?"',
+                              lines[3].split("     #", 1)[0], 'echo "AGAIN_N1=$?"'))
+    r = bench.run(bench.with_helpers(body))
+    # the MongoDB sub-check completed and produced its N1 report (LC 0 is left in the shell)
+    assert r.value("T7_VALUE") == "0" and r.value("N1_RC") == "0", r.out
+    assert r.value("AGAIN_T7") == "stop" and r.value("AGAIN_EVAL") != "0", r.out
+    assert r.starting(f"STOP: pre {rid}: "), r.out
+    assert r.starting("STOP: test 7: precondition failed - NO fault was injected and nothing was published"), r.out
+    assert r.value("AGAIN_N1") != "0", r.out
+    assert len(r.starting("STOP: test 7: the optional N1 report was NOT produced")) == 1, r.out
+    assert _n1_reruns(bench) == [f"python -m egw_experiments.itest_reconcile delta {bench.p}/{mongo_rid} "
+                                 f"--controller-log {bench.p}/{mongo_rid}.sut/controller.log"], r.out
+    assert bench.simulator_calls() == 1
 
 
 @pytest.mark.skipif(REAL_PGREP is None, reason="pgrep (procps) is not installed")

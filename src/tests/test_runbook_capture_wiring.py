@@ -181,6 +181,13 @@ for name, flag in run_mod.SUT_LOG_FETCH_FLAGS.items():
     record = hook(name, template, dest)
     record["dest_file"] = dest.relative_to(run_dir).as_posix()
     fetches.append(record)
+# The StartedAt read of decision 1a (run.py: --fetch-started-at-cmd into logs/sut/controller-started-at.txt), after
+# the docker-events fetch, recorded among the SUT fetches so that a failed read is a reason like theirs.
+if opt("--fetch-started-at-cmd"):
+    dest = sut / "controller-started-at.txt"
+    record = hook("started_at", opt("--fetch-started-at-cmd"), dest)
+    record["dest_file"] = dest.relative_to(run_dir).as_posix()
+    fetches.append(record)
 with open(log + ".fetches-done", "w", encoding="utf-8") as fh:
     fh.write(run_id)
 time.sleep(float(os.environ.get("EGW_WIRING_HOLD_AFTER_FETCHES_S", "0")))
@@ -227,16 +234,24 @@ drained() {
 '''
 
 # $REC of the bench: 'delta' checks that what test 6's delta line names is there - the two twin snapshots beside the
-# prefix and the events file - and records its argv; anything else goes to the proof hooks' recording 'snap' stub.
+# prefix, the events file and, for the N1 report (decision 2 of 2026-09-30), the controller log and the restart
+# evidence's run directory with its manifest - and records its argv; anything else goes to the proof hooks'
+# recording 'snap' stub.
 REC_WITH_DELTA = r'''#!/usr/bin/env bash
 if [ "${1:-}" = delta ]; then
   printf '%s\n' "$*" >> "$EGW_STUB_LOG.rec-delta"
-  prefix=; events=; prev=
-  for a in "$@"; do case $prev in --prefix) prefix=$a;; --events) events=$a;; esac; prev=$a; done
+  prefix=; events=; clog=; restart=; prev=
+  for a in "$@"; do
+    case $prev in --prefix) prefix=$a;; --events) events=$a;; --controller-log) clog=$a;; --restart-evidence) restart=$a;; esac
+    prev=$a
+  done
   for f in "$prefix.twins.before.json" "$prefix.twins.after.json" "$events"; do
     [ -s "$f" ] || { echo "stub delta: $f is missing or empty" >&2; exit 2; }
   done
-  echo "stub delta: read $prefix.twins.before.json, $prefix.twins.after.json and $events"
+  [ -z "$clog" ] || [ -s "$clog" ] || { echo "stub delta: the controller log $clog is missing or empty" >&2; exit 2; }
+  [ -z "$restart" ] || { [ -d "$restart" ] && [ -s "$restart/manifest.json" ]; } \
+    || { echo "stub delta: $restart is not a run directory with its manifest" >&2; exit 2; }
+  echo "stub delta: read $prefix.twins.before.json, $prefix.twins.after.json and $events${clog:+; the controller log $clog}${restart:+; the restart evidence of $restart}"
   exit 0
 fi
 exec "$EGW_STUB_BIN/rec-snap" "$@"
@@ -316,7 +331,7 @@ def events_of(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-T6_RID = "controller_restart-r01"
+T6_RID = "controller_restart-r03"
 # The configuration identity of test 6 (config_identity of 6.1 reads the guest): a write-once stand-in, which the stub
 # harness does not read.
 CONFIG_IDENTITY_STUB = ('config_identity() { [ ! -e "$1" ] || return 1; '
@@ -603,6 +618,35 @@ def test_the_test_6_restart_is_judged_by_its_own_events_and_never_by_the_proofs_
     assert "rule_R7=broken: the expected event(s) kill (signal 9) of egw-controller-1" in proof_r7.stdout
 
 
+def test_test_6_reads_the_restarted_controllers_started_at_after_its_capture_and_seals_it(wiring):
+    """Decision 1a (adopted 2026-09-30): the harness's StartedAt read runs the checkout's fetch_started_at.sh on the
+    guest after the docker-events fetch, and its record - the controller the compose restart started again - is
+    sealed in the run's logs/sut/; the line then prints one read-only summary of resources_proved_down."""
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring, until_harness=True))
+    assert _t6_value(result) == "ok", report(result)
+    run_dir = wiring.raw(T6_RID)
+    record = (run_dir / "logs" / "sut" / "controller-started-at.txt").read_text(encoding="utf-8").splitlines()
+    assert record[:3] == ["container=egw-controller-1", "container_id=" + "0f" * 32,
+                          "started_at=2026-09-25T10:05:01.200000000Z"], record
+    assert re.fullmatch(r"guest_epoch=\d+", record[3]) and len(record) == 4, record
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    fetches = manifest["sut_log_fetches"]
+    assert [f["hook"] for f in fetches][-2:] == ["docker_events", "started_at"]
+    assert fetches[-1]["returncode"] == 0 and fetches[-1]["dest_exists"] is True
+    assert "logs/sut/controller-started-at.txt" in (run_dir / "SHA256SUMS").read_text(encoding="utf-8")
+    assert re.search(r"^test 6: resources_proved_down: ", result.stdout, re.M), report(result)
+
+
+def test_test_6_whose_started_at_read_failed_is_invalid_and_never_ok(wiring):
+    wiring.old_logs()
+    result = wiring.run(_t6_lines(wiring, until_harness=True), EGW_STUB_FAIL="inspect-fails")
+    assert _t6_value(result) == "stop", report(result)
+    assert not (wiring.raw(T6_RID) / "logs" / "sut" / "controller-started-at.txt").exists()
+    assert "[harness] INVALID: SUT fetch --fetch-started-at-cmd failed" in result.stderr, report(result)
+    assert "STOP: test 6: the harness run was not sealed, or it exited 1" in result.stderr, report(result)
+
+
 def test_a_capture_whose_closing_marker_never_arrives_leaves_the_run_invalid_and_no_docker_events_log(wiring):
     rid = "smoke_sequence-r02"
     wiring.old_logs()
@@ -819,8 +863,13 @@ def test_test_6_its_drain_and_post_drain_copy_are_inside_the_runs_capture_and_th
     assert (run_dir / "SHA256SUMS").is_file()
     assert _t6_value(result) == "ok", report(result)
     delta = Path(f"{wiring.hooks.bench.log}.rec-delta").read_text(encoding="utf-8").splitlines()
-    assert delta == [f"delta {run_dir} --prefix {wiring.p}/{T6_RID} --events {run_dir}/events.post-drain.jsonl"]
+    # Decision 2 of 2026-09-30: the line also names the run's sealed controller log and the run directory itself,
+    # the N1 report's two sources (the report changes no status and no exit code).
+    assert delta == [f"delta {run_dir} --prefix {wiring.p}/{T6_RID} --events {run_dir}/events.post-drain.jsonl "
+                     f"--controller-log {run_dir}/logs/sut/controller.log --restart-evidence {run_dir}"]
     assert "stub delta: read " in result.stdout and "STOP: test 6" not in result.stderr, report(result)
+    assert f"; the controller log {run_dir}/logs/sut/controller.log; the restart evidence of {run_dir}" \
+        in result.stdout, report(result)
 
 
 def test_test_6_a_drain_that_gives_up_is_captured_the_post_drain_copy_still_runs_and_the_run_records_gave_up(wiring):

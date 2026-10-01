@@ -515,7 +515,17 @@ acceptance.*
   the guest in a short window, without load or faults - one authorised session,
   `compat-capture-r01` (LOG #C048). It is not G3 readiness: the four decisions
   of that page, and any changes they require, come next; then the candidate
-  lock and the battery's authorisation; G3 stays paused.)*
+  lock and the battery's authorisation; G3 stays paused.)* *(Marker added
+  2026-09-30, later: Rui adopted, prospectively and with conditions, the four
+  decisions of the
+  [pending-decisions page](docs/governance/proposals/2026-09-29-g3-pending-decisions.md)
+  — the proved-down interval at a controller restart, T1's harness run on an
+  unused `nominal` entry, N1 identities reported only, the timed families with
+  T3 accepted on its post-drain copy, and T4 judged per identity. They are
+  implemented offline, with regression tests on the host with stubs, and have
+  not run on the guest (LOG #C049). No past run or verdict changes and no
+  threshold moves. The candidate lock and the battery's authorisation remain;
+  G3 stays paused.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;

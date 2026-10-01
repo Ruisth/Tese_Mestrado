@@ -114,6 +114,20 @@ copy. ``--config-identity-from <file>`` is copied to
 fetch or snapshot is a validity reason, as a failed collector hook is, and
 a ``controller_restart`` run without its configuration identity is invalid.
 
+The proved-down interval (decision 1a, adopted 2026-09-30, prospective):
+``--fetch-started-at-cmd``, opt-in, reads the restarted controller's id and
+``State.StartedAt`` on the guest (``tools/session/fetch_started_at.sh``) right
+after the docker-events fetch, into ``logs/sut/controller-started-at.txt``,
+recorded like the SUT fetches. On a ``controller_restart`` run given it, the
+interval from the controller's Docker ``die`` to its ``start`` is derived from
+the run directory (``egw_experiments.proved_down``: the complete capture, one
+die and one start of one container id, StartedAt within 1 s of the start)
+and handed to the resources ingest, which then judges the controller's gap
+across the restart by the interval's two edges
+(``resources.validate_resources_csv``, ``proved_down``); the manifest records
+``resources_proved_down``. Without the option - the finite proof never gives
+it - nothing of this runs or is recorded, and ``collect`` never applies it.
+
 The drain's OUTCOME is classified from the helper's exit code and output
 (``drain.outcome``): ``quiet`` (exit 0 with the helper's quiet line),
 ``gave-up`` (a non-zero exit with its give-up line: the controller stayed
@@ -305,7 +319,13 @@ from .protocol import (
     PROTOCOL_VERSION,
     TIMED_CONDITION_IDS,
 )
-from .resources import ResourceSampler, parse_csv_timestamp, validate_resources_csv
+from .proved_down import STARTED_AT_FILENAME, STARTED_AT_HOOK, derive_proved_down
+from .resources import (
+    ProvedDownInterval,
+    ResourceSampler,
+    parse_csv_timestamp,
+    validate_resources_csv,
+)
 
 # Repository root: <repo>/src/egw_experiments/run.py -> parents[2] == <repo>
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -335,6 +355,13 @@ HOOK_KILL_GRACE_S = 5.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.4 (decision 1a, adopted 2026-09-30; additive and opt-in within the
+# version, no reader change needed): with --fetch-started-at-cmd,
+# 'sut_log_fetches' holds a 'started_at' record (shaped like the others),
+# 'config.cli' gains 'fetch_started_at_cmd' and a controller_restart run gains
+# 'resources_proved_down' (whether the proved-down interval applied at the
+# resources ingest or why not, and its outcomes); without the option none of
+# the three exists, so every other manifest is as before.
 # 1.4 (work order of 2026-09-29, A2; additive within the version, no reader
 # change needed): 'controller_metrics' gains 'write_error' (the first file of
 # the sampler that could not be opened, written, flushed or closed, or its
@@ -482,6 +509,16 @@ SUT_LOG_FILES: dict[str, str] = {
     "docker_events": "docker-events.log",
 }
 
+#: The StartedAt read of decision 1a (adopted 2026-09-30, prospective), with
+#: its flag: an opt-in SUT fetch through the same machinery, run right after
+#: the docker-events fetch and before the resources are ingested, writing
+#: {dest} = logs/sut/controller-started-at.txt
+#: (egw_experiments.proved_down.STARTED_AT_FILENAME); its record joins
+#: 'sut_log_fetches' and its failure is a reason like theirs. Kept apart from
+#: SUT_LOG_FETCH_FLAGS, the three fetches the finite proof's evaluator demands
+#: of its run: a run not given the option has no record of it at all.
+STARTED_AT_FETCH_FLAGS: dict[str, str] = {STARTED_AT_HOOK: "--fetch-started-at-cmd"}
+
 #: Restart-evidence hooks of the controller_restart condition (ADR 0011 item
 #: 18): the twin snapshot taken before the measured run and again after the
 #: drain (both through --twin-snapshot-cmd, writing {dest}), and the
@@ -498,6 +535,7 @@ RESTART_EVIDENCE_FLAGS: dict[str, str] = {
 HOOK_FLAGS: dict[str, str] = {
     **COLLECTOR_HOOK_FLAGS,
     **SUT_LOG_FETCH_FLAGS,
+    **STARTED_AT_FETCH_FLAGS,
     **RESTART_EVIDENCE_FLAGS,
 }
 
@@ -1317,9 +1355,33 @@ def sut_log_fetch_failures(
     fetch that failed, or that exited 0 without producing its file, left
     that record on the guest, so the run's connection history cannot be read
     from the run directory.
+
+    The StartedAt read of decision 1a (``--fetch-started-at-cmd``, hook
+    ``started_at``), when the run was given it, is judged the same way and
+    named for what it is: without its file the restarted controller's
+    StartedAt is not in the run directory and no proved-down interval is
+    granted.
     """
     reasons: list[str] = []
     for record in sut_log_fetches or []:
+        if record.get("hook") == STARTED_AT_HOOK:
+            flag = record.get("flag") or STARTED_AT_FETCH_FLAGS[STARTED_AT_HOOK]
+            dest = record.get("dest_file") or "its file"
+            what = (
+                "so the restarted controller's StartedAt cannot be read from "
+                "the run directory and no proved-down interval is granted "
+                "(decision 1a)"
+            )
+            if record.get("returncode") != 0:
+                reasons.append(
+                    f"SUT fetch {flag} failed with {_hook_outcome(record)}: "
+                    f"{dest} was not fetched, {what}"
+                )
+            elif not record.get("dest_exists"):
+                reasons.append(
+                    f"SUT fetch {flag} exited 0 but wrote no file at {dest}, {what}"
+                )
+            continue
         flag = record.get("flag") or SUT_LOG_FETCH_FLAGS.get(
             str(record.get("hook")), "SUT log fetch"
         )
@@ -3444,6 +3506,78 @@ def ingest_configuration_identity(
     return doc
 
 
+#: The facts of the derivation (egw_experiments.proved_down) and the outcomes
+#: of the validator (resources.proved_down_outcomes) the manifest's
+#: 'resources_proved_down' record carries, each present and null when it was
+#: not established: the container and its id; D, S and E in integer
+#: nanoseconds and as UTC text; 'capped'; StartedAt and S - StartedAt; the
+#: interval (S - D) and exempt (E - D) lengths in seconds; the capture's
+#: window and its die and start counts; the last row before D, the first row
+#: after S, both edge gaps and the rows the interval rejected.
+PROVED_DOWN_RECORD_KEYS: tuple[str, ...] = (
+    "container",
+    "container_id",
+    "die_ns",
+    "die_utc",
+    "die_exit_code",
+    "start_ns",
+    "start_utc",
+    "effective_end_ns",
+    "effective_end_utc",
+    "capped",
+    "interval_s",
+    "exempt_s",
+    "started_at",
+    "started_at_ns",
+    "start_minus_started_at_s",
+    "started_at_read_guest_epoch",
+    "capture_since_guest_epoch",
+    "capture_until_guest_epoch",
+    "die_events_in_window",
+    "start_events_in_window",
+    "last_row_before_die",
+    "first_row_after_start",
+    "edge_gap_before_s",
+    "edge_gap_after_s",
+    "rows_between",
+    "rows_in_start_second",
+    "rejected_rows",
+)
+
+
+def proved_down_record(
+    interval: ProvedDownInterval | None,
+    why_not: str | None,
+    facts: dict[str, Any],
+    *,
+    outcome: dict[str, Any],
+    resources_ingested: bool,
+) -> dict[str, Any]:
+    """The manifest's ``resources_proved_down`` record (decision 1a, adopted
+    2026-09-30): ``applies`` and ``why_not``, the derivation's ``facts``, the
+    validator's ``outcome`` for the restarted container (empty when the
+    collector's file was missing or refused before its rows were read) and
+    whether the file was then ingested. The interval applies only when it
+    was derived AND the container has a row on both sides of it; it is
+    reported, and no delivery, recovery or C12 figure reads it."""
+    record: dict[str, Any] = {key: None for key in PROVED_DOWN_RECORD_KEYS}
+    record.update({k: v for k, v in facts.items() if k in record})
+    if interval is None:
+        applies, reason = False, why_not
+    elif not outcome:
+        applies, reason = False, (
+            "the collector's file was missing or was refused before its rows "
+            "were read, so the interval was not applied"
+        )
+    else:
+        applies, reason = bool(outcome.get("applies")), outcome.get("why_not")
+        record.update({k: v for k, v in outcome.items() if k in record and k != "container"})
+    record.update(
+        {"applies": applies, "why_not": reason, "resources_ingested": resources_ingested}
+    )
+    return record
+
+
 def ingest_resources(
     run_dir: Path,
     resources_from: str | Path | None,
@@ -3453,6 +3587,8 @@ def ingest_resources(
     expected_window_start_utc: str | None = None,
     expected_window_end_utc: str | None = None,
     source_label: str = "--resources-from",
+    proved_down: ProvedDownInterval | None = None,
+    proved_down_outcome: dict[str, Any] | None = None,
 ) -> bool:
     """Validate and copy the fetched SUT resources.csv into the run dir.
 
@@ -3475,6 +3611,13 @@ def ingest_resources(
     no-op (work order P1 item 11). ``source_label`` names where the file
     came from in the warnings (``--resources-from`` or the output of the
     ``--collector-fetch-cmd`` hook).
+
+    ``proved_down`` (decision 1a, adopted 2026-09-30): the proved-down
+    interval :func:`execute_run` derived for a ``controller_restart`` run
+    given the StartedAt read, handed to the validator with the dict
+    ``proved_down_outcome`` it fills; the file ingested is still the
+    collector's, byte for byte. Only then is either passed on: without an
+    interval the validator is called exactly as it always was.
     """
     if resources_from is None:
         return False
@@ -3483,12 +3626,18 @@ def ingest_resources(
         warnings.append(f"{source_label} file not found: {src}")
         return False
     expected_host = sut_env_node(read_sut_environment(run_dir))
+    interval_kwargs: dict[str, Any] = (
+        {"proved_down": proved_down, "proved_down_outcome": proved_down_outcome}
+        if proved_down is not None
+        else {}
+    )
     problems = validate_resources_csv(
         src,
         expected_host=expected_host,
         expected_window_s=expected_window_s,
         expected_window_start_utc=expected_window_start_utc,
         expected_window_end_utc=expected_window_end_utc,
+        **interval_kwargs,
     )
     if problems:
         warnings.append(
@@ -4214,6 +4363,7 @@ def execute_run(
     fetch_broker_log_cmd: str | None = None,
     fetch_controller_log_cmd: str | None = None,
     fetch_docker_events_cmd: str | None = None,
+    fetch_started_at_cmd: str | None = None,
     twin_snapshot_cmd: str | None = None,
     drain_cmd: str | None = None,
     post_drain_fetch_cmd: str | None = None,
@@ -4275,6 +4425,18 @@ def execute_run(
     ``drain_transcript_from``; one source per artefact, a hook AND a file
     for the same one is a usage error, exit 2), each verified against this
     run before it counts and recorded with its provenance.
+
+    ``fetch_started_at_cmd`` (decision 1a, adopted 2026-09-30, prospective;
+    opt-in): the StartedAt read (``tools/session/fetch_started_at.sh``), run
+    like ``fetch_docker_events_cmd`` right after it and before the resources
+    are ingested, writing ``{dest}`` = ``logs/sut/controller-started-at.txt``;
+    its record joins ``sut_log_fetches`` and a failure is a validity reason.
+    For a ``controller_restart`` run given it, the proved-down interval is
+    derived from the run directory (``egw_experiments.proved_down``) and, when
+    it exists, handed to the ingest of the collector's file; the manifest
+    records ``resources_proved_down`` (whether it applied or why not, and its
+    outcomes). Without the option nothing of this runs or is recorded.
+    ``collect`` never applies the interval.
     """
     plan_path = Path(plan_path)
     try:
@@ -4669,6 +4831,7 @@ def execute_run(
             fetch_broker_log_cmd,
             fetch_controller_log_cmd,
             fetch_docker_events_cmd,
+            fetch_started_at_cmd,
             snapshot_template,
             drain_template,
         )
@@ -5094,6 +5257,44 @@ def execute_run(
         record["dest_file"] = dest.relative_to(run_dir).as_posix()
         sut_log_fetches.append(record)
 
+    # The StartedAt read of decision 1a (adopted 2026-09-30; opt-in), right
+    # after the docker-events fetch, which stopped and judged the run's
+    # capture, and before the resources are ingested, where the rule applies.
+    # Its record joins the SUT fetches: a failure is a reason like theirs.
+    if fetch_started_at_cmd:
+        dest = sut_log_dir / STARTED_AT_FILENAME
+        record = _run_sut_hook(STARTED_AT_HOOK, fetch_started_at_cmd, dest)
+        record["dest_file"] = dest.relative_to(run_dir).as_posix()
+        sut_log_fetches.append(record)
+
+    # The proved-down interval (decision 1a): for a controller_restart run
+    # given the StartedAt read only, derived from what the run directory now
+    # holds (the restart record, the capture, its verdict and the StartedAt
+    # record) and, when it exists, handed to the ingest below. Nothing of it
+    # runs, or is recorded, on any other run.
+    proved_down_interval: ProvedDownInterval | None = None
+    proved_down_derivation: tuple[str | None, dict[str, Any]] | None = None
+    proved_down_outcome: dict[str, Any] = {}
+    if fetch_started_at_cmd and restart_required:
+        proved_down_interval, why_not, facts = derive_proved_down(
+            run_dir,
+            {
+                "condition_id": condition_id,
+                "restart": restart_record,
+                "sut_log_fetches": sut_log_fetches,
+            },
+        )
+        proved_down_derivation = (why_not, facts)
+        print(
+            "[harness] proved-down interval (decision 1a): "
+            + (
+                f"{facts['die_utc']} to {facts['start_utc']}"
+                if proved_down_interval is not None
+                else f"none ({why_not})"
+            ),
+            flush=True,
+        )
+
     # SUT resources ingestion (audit 9.1), content- AND semantically
     # validated against this run's measured window (sprint P5, report 5.4).
     measured_window_s = max(
@@ -5107,12 +5308,24 @@ def execute_run(
         expected_window_start_utc=measured_start_utc,
         expected_window_end_utc=measured_end_utc,
         source_label=resources_source_label,
+        proved_down=proved_down_interval,
+        proved_down_outcome=proved_down_outcome,
     ):
         resource_source = "sut-collector"
     elif local_resources:
         resource_source = "local-dev"
     else:
         resource_source = "none"
+    resources_proved_down = (
+        proved_down_record(
+            proved_down_interval,
+            *proved_down_derivation,
+            outcome=proved_down_outcome,
+            resources_ingested=resource_source == "sut-collector",
+        )
+        if proved_down_derivation is not None
+        else None
+    )
 
     restart_ok = (
         restart_record is not None and restart_record.get("returncode") == 0
@@ -5389,6 +5602,13 @@ def execute_run(
                 "config_identity_from": (
                     str(config_identity_from) if config_identity_from else None
                 ),
+                # Decision 1a's StartedAt read, echoed only when given, so
+                # that every other manifest is as before.
+                **(
+                    {"fetch_started_at_cmd": fetch_started_at_cmd}
+                    if fetch_started_at_cmd is not None
+                    else {}
+                ),
             },
         },
         "started_utc": started_utc,
@@ -5460,6 +5680,13 @@ def execute_run(
         "exclusion": None,
         "warnings": warnings,
     }
+    if resources_proved_down is not None:
+        # Decision 1a (adopted 2026-09-30): whether the proved-down interval
+        # applied at the resources ingest or why not, and its outcomes;
+        # reported only (no delivery, recovery or C12 figure reads it). The
+        # key exists on a controller_restart run given the StartedAt read
+        # and on no other run.
+        manifest["resources_proved_down"] = resources_proved_down
     try:
         (run_dir / MANIFEST_FILENAME).write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -5587,6 +5814,21 @@ def collect_run(
     right one can follow it, and stays a validity reason until it does. An
     artefact a hook took at run time is never replaced by a file (exit 2).
     On any other condition the four are ignored with a warning.
+
+    Decision 1a (adopted 2026-09-30; reviews of 2026-09-30 and 2026-10-01):
+    ``collect`` never applies the proved-down interval. A run whose restart
+    lifecycle is recorded - a ``resources_proved_down`` record naming the
+    controller's die and start (integer ``die_ns`` and ``start_ns``),
+    whatever ``applies`` says, or one saying the interval applied - keeps
+    its run-time judgement: ``resources_from`` is neither judged nor
+    ingested (a warning and an action name decision 1a), the run stays as
+    it is, invalid while its resources are missing, and no gap exemption is
+    granted retrospectively; a file that differs from what the run already
+    holds is still refused (exit 2). A file given late can hold rows of the
+    controller from while it was proved down, which the run-time ingest
+    rejects and the ordinary rule alone would accept. Without a record, or
+    with one naming no die/start pair, the file is judged as before, and
+    once it is ingested the record's ``resources_ingested`` is set.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -5928,7 +6170,51 @@ def collect_run(
         measured_window.get("end") if isinstance(measured_window, dict) else None
     )
     previous_collector: dict[str, Any] | None = None
-    if resources_from is not None:
+    # Decision 1a (adopted 2026-09-30): 'collect' never applies the
+    # proved-down interval. Nor does it judge a file for a run whose restart
+    # lifecycle is recorded (review of 2026-10-01, F3): a
+    # 'resources_proved_down' record naming the controller's die and start
+    # (integer die_ns and start_ns), whatever 'applies' says, or one saying
+    # the interval applied. A file given late could hold rows of the
+    # controller while it was proved down, which the ordinary rule alone
+    # would accept, so the run is kept as it is and no gap exemption is
+    # granted retrospectively; a file that differs from what the run already
+    # holds is still refused, as on the path that ingests.
+    recorded_proved_down = manifest.get("resources_proved_down")
+    if not isinstance(recorded_proved_down, dict):
+        recorded_proved_down = None
+    lifecycle_recorded = recorded_proved_down is not None and (
+        recorded_proved_down.get("applies") is True
+        or all(
+            isinstance(recorded_proved_down.get(key), int)
+            and not isinstance(recorded_proved_down.get(key), bool)
+            for key in ("die_ns", "start_ns")
+        )
+    )
+    if resources_from is not None and lifecycle_recorded:
+        src = Path(resources_from)
+        _dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
+        conflicts = resources_from_copy_conflicts(
+            ([(src, run_dir / "resources.csv")] if src.is_file() else []) + copy_pairs
+        )
+        if conflicts:
+            refusal = overwrite_refusal(conflicts[0][1], conflicts[0][0], run_dir)
+            print(f"error: {refusal}", file=sys.stderr)
+            return 2
+        warnings.append(
+            f"--resources-from {resources_from} ignored: the run's restart "
+            "lifecycle is recorded; a late file is not qualified (decision 1a, "
+            "manifest 'resources_proved_down'): 'collect' does not apply the "
+            "proved-down interval and grants no gap exemption retrospectively, "
+            "and a file is not re-judged by the ordinary rule, which alone "
+            "could accept rows of the controller while it was proved down; the "
+            "run-time judgement stands"
+        )
+        actions.append(
+            f"--resources-from {resources_from} not judged (decision 1a: the "
+            "run's restart lifecycle is recorded; a late file is not qualified)"
+        )
+    elif resources_from is not None:
         src = Path(resources_from)
         dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
         try:
@@ -5955,6 +6241,11 @@ def collect_run(
             ):
                 manifest["resource_source"] = "sut-collector"
                 actions.append("ingested resources.csv (sut-collector)")
+                if recorded_proved_down is not None:
+                    # No restart lifecycle is recorded (no die/start pair,
+                    # no interval applied): the record follows the manifest
+                    # now that the file is ingested.
+                    recorded_proved_down["resources_ingested"] = True
             copy_resources_from_outputs(copy_pairs, run_dir)
         except SealedRunError as exc:
             print(f"error: {exc}", file=sys.stderr)

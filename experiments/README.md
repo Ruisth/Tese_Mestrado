@@ -387,6 +387,32 @@ measured run, and is recorded in the manifest with timestamps and exit
 code. A `controller_restart` run without a successfully executed restart is
 invalid.
 
+Decision 1a (adopted 2026-09-30, prospective): `run` takes
+`--fetch-started-at-cmd` (the runbook's test 6 passes
+`bash "$EGW_CLONE/tools/session/fetch_started_at.sh" "{dest}"`), the
+restarted controller's id and `State.StartedAt` read on the guest right after
+the docker-events fetch into `logs/sut/controller-started-at.txt`, recorded
+among `sut_log_fetches` (a failed read is a validity reason). On a
+`controller_restart` run the harness then derives the proved-down interval
+(`egw_experiments.proved_down`: a complete capture with exactly one `die` and
+one `start` of `egw-controller-1`, one container id, StartedAt within 1 s of
+the start) and applies it at the resources ingest (see the validity rules);
+the manifest records `resources_proved_down` (whether it applied or why not,
+D, S, E, both edge gaps, the rows rejected). It is reported only: no
+delivery, recovery or C12 figure reads it. Without the option nothing of this
+runs or is recorded, and `collect` never applies it. Nor does `collect` judge
+a file for a run whose restart lifecycle is recorded (review of 2026-10-01):
+when `resources_proved_down` names the controller's die and start (integer
+`die_ns` and `start_ns`), whatever `applies` says, or says the interval
+applied, `collect` ignores `--resources-from` with a warning naming decision
+1a ("a late file is not qualified"), keeps the run as it is (invalid while its
+resources are missing) and grants no gap exemption retrospectively, since a
+late file can hold rows of the controller from while it was proved down,
+which the ordinary rule alone would accept; a file that differs from what the
+run already holds is still refused. Without a record, or with one naming no
+die/start pair, it judges the file as before and, once it has ingested it,
+sets the record's `resources_ingested`.
+
 ### 2b. Recovery: the `collect` subcommand (audit 9.3)
 
 If post-run collection failed (VM unreachable, missing fetch template,
@@ -519,6 +545,37 @@ after the run's measured window), or it is refused naming the reason. For the
 persistence comparison of the runbook's test 6, `itest_reconcile delta
 --events <file>` selects the post-drain copy of the events explicitly (F6c);
 the timed `events.jsonl` and its deadline accounting are never touched.
+
+**N1 identities (decision 2 of 2026-09-30, reporting only).** The same
+files carry two more columns per run with a directory,
+`n1_applied_unconfirmed` and `duplicate_only_unexplained`, and the JSON
+record names the identities (`egw_experiments.n1_report`). A duplicate-only
+identity is named only when it is a valid published identity of the run,
+the run records a source for it (the controller's `die` captured in the
+window of a restart that exited 0, one per run, or an A3 connection end of
+its own device received before its earliest received redelivery; each
+source explains one identity), and, on a run qualified `recovery_observed`,
+its device's twin excess equals exactly the identities named there (all or
+nothing per device; a duplicate-only identity of another run id on the
+device, as an `--also` file holds, leaves none named, and one whose lines
+name no device, or an accepted line without a device, leaves none named on
+any device); every other one is unexplained, with its failed conditions.
+The death serves an identity only when the run's `controller_metrics.csv`
+places it before that identity's first redelivery, on the one controller
+clock of both (no epoch conversion): exactly one process change
+(`started_at`), the bounding readings with integer `monotonic_ns` in
+order, and the new process's first reading strictly before the
+redelivery; without readings, or with any of that not shown, it serves
+none (review of PR #53, F2). The identity stays in `lost` and in every
+zero-lost criterion; no count, criterion or exit code changes.
+`itest_reconcile delta` prints the same report only with `--n1-report`,
+`--controller-log FILE` or `--restart-evidence RUN_DIR` (test 6 names the
+last two, the run directory's `controller_metrics.csv` placing the death);
+without the last,
+its evidence of a quiet drain is the 'to' `/metrics` reading, quiet as
+CONTRACTS §5 defines one reading (one reading, not `drained`'s window).
+Nothing in the files read makes the layer or `delta` stop or change an
+exit code: a report that cannot be made says so.
 
 **The finite proof's evaluator (ADR 0011, "The finite proof").** A layer
 beside `recovery_qualification`, for one proof session rather than a
@@ -819,6 +876,24 @@ Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
   the specific defect. The analysis reader still tolerates the legacy
   5-column header for pre-P1 raw runs and fixtures — but run-time
   ingestion never does;
+
+  the proved-down interval (decision 1a, adopted 2026-09-30, prospective)
+  changes two things, both on the restarted controller alone: at the
+  run-time ingest of a `controller_restart` run given
+  `--fetch-started-at-cmd`, when the interval is established, the
+  controller's gap across its restart is judged as two gaps against
+  `MAX_SAMPLE_GAP_S` (5 s) — from its last row at or before the die's whole
+  second to that second, and from the whole second of
+  E = min(S, D + `RESTART_RECOVERY_MAX_S`) to its first row at least one
+  sampling interval after the start's second — and its rows between the die
+  and the start, or in the start's own second, are rejected, so a file the
+  ordinary rule accepts (a short restart with no gap above 5 s) can be
+  rejected with the interval (`resources.validate_resources_csv`, keyword
+  `proved_down`). Every other
+  gap, container, coverage, instant, host, numeric and order check is
+  unchanged; no row is added, removed or filled, and the file ingested is the
+  collector's, byte for byte. Without the interval every result and message
+  is the one the file always had;
 - a clean simulator exit: a non-zero measured-run exit code marks the run
   invalid with the code in the reason, and there is NO override;
 - a clean warm-up exit: non-zero marks the run invalid unless

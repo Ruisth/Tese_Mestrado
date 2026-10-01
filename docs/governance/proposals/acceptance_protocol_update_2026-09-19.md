@@ -54,6 +54,14 @@ host ([adopted plan, section 3.5](../INTEGRATED_DEVELOPMENT_PLAN_2026.md)).
 
 ## 1. Short-run selection
 
+*(Status note added 2026-09-30: answered by decision 1b of 2026-09-30 in the
+[pending-decisions page](2026-09-29-g3-pending-decisions.md), as a procedure
+choice. T1's harness run uses a `nominal` entry never used on the guest, under
+its own run identity, with its declared duration and warm-up unchanged; it is
+not a passed smoke and does not count towards C14. No rule moved: the
+30-instant minimum, the 90 % coverage and the 5 s gap cap are unchanged, and
+the open questions below stay open. The text below is kept as proposed.)*
+
 ### Verified facts
 
 - **The count is taken over the whole resource file, not the measured window.**
@@ -152,6 +160,18 @@ asks the supervisors to confirm before `exp-v1`
 ([decision log](../supervisor_decision_log.csv)); D007 is unsent.
 
 ## 2. Lifecycle-aware rule for a deliberate restart
+
+*(Status note added 2026-09-30: superseded by decision 1a of 2026-09-30 in the
+[pending-decisions page](2026-09-29-g3-pending-decisions.md), which adopted,
+prospectively, a narrower rule: the proved-down interval from the restarted
+container's captured `die` (D) to its next `start` (S), ending at
+E = min(S, D + 120 s), with the 5 s rule on both edges and no interval when the
+evidence is ambiguous. The designated outage window proposed here, from the
+restart command to the first `/ready`, is not adopted. `PROTOCOL_VERSION` was
+not bumped: `protocol.py` requires a bump only after G4, so the "new protocol
+version" of "Who decides" below did not happen, and the numerical values stay
+with D007. The old runs stay invalid under their original rules. The text
+below is kept as proposed.)*
 
 ### Verified facts
 

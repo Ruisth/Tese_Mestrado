@@ -4189,3 +4189,197 @@ is unchanged.
   pending-decisions page and any changes they require, then the candidate
   lock and the battery's authorisation; G3 stays paused. The shared helpers
   only were checked: no family's own procedure ran on the guest.
+
+## Entry #C049 — The student's G3 methodology decisions (proved-down interval, T1's harness run, N1 reporting, timed families, T4 per identity), adopted prospectively and implemented offline
+
+- **Date:** 2026-09-30. **Scope:** Rui's decision of 2026-09-30 on the four
+  items of the pending-decisions page
+  (`docs/governance/proposals/2026-09-29-g3-pending-decisions.md`): "As minhas
+  respostas são as mesmas dadas pelo Senior Project Manager" ("My answers are
+  the same as those given by the Senior Project Manager"), adopting, with
+  their conditions, the Project Manager's recommendations of the register
+  entry "2026-09-30 17:01 WEST — PR52 favourable; G3 recommendations remain
+  prospective" (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`, held
+  outside the repository); for the end of T3's collection he chose "Cópia
+  pós-drenagem" ("post-drain copy"). Prospective only. Offline only: the
+  harness, the reconcile helper, the runbook's test text and regression tests
+  on the host with stubs; no guest session, image build, load, candidate lock
+  or G3 run. The controller, the broker, the image (`489bc9e`), CONTRACTS
+  v1.2, `PROTOCOL_VERSION` and the finite proof (its evaluator and drivers,
+  E-12 and the N1 naming) are unchanged. Branch
+  `feat/g3-methodology-decisions`, started from `94a5741` (the head of
+  PR #52); commits `c737712` (the records); 1a `740e73d` (tests) to `2344d1a`; 2 `3f2b71c` (tests)
+  to `1e12e42`; 3, 4 and 1b `3566a00` (tests) to `fd67fd4`; integrated at `af2fd7b`;
+  the review corrections `37b357a` to `a2ebd71`, `1a49490` to `bc84b51` and
+  `44ba9fa`, merged at `2fa5ac5`.
+- **Why.** The four decisions stood before any qualifying G3 run (the
+  readiness map's decisions 1, 2, 3 and 5). Under the rules as they were,
+  every restart recorded so far left a 6–9 s resource gap that made T6's
+  harness run invalid; T1's 30 s smoke had no margin for the 30-instant rule;
+  an N1 identity read as an unexplained loss; whether T3 was timed was open,
+  and T6's Expected list and C12 disagreed; and one reconnection during T4's
+  replay could fail T4 with nothing applied twice.
+- **What.**
+  - *The record.* The pending-decisions page gains "The decision of
+    2026-09-30": the authority, the adopted rule of each decision, the
+    conventions pinned for 1a, where the adopted rule differs from the
+    proposal, what it does not change and what it authorises. Its status line
+    says adopted; its proposal text is kept as written, and its "Merging this
+    page adopts nothing" bullets are marked as the state before 2026-09-30.
+    The proposals index, the readiness map (T1, T3, T4 and T6, issues 2 to 4,
+    the decisions list; T6 moves from *Blocked* to "Pending, high risk of
+    failure"), PROGRESS, ADR 0011 (dated later notes only), the 2026-09-19
+    acceptance proposal (§1 answered, §2 superseded), its rows in the docs
+    and proposals indexes, R31 and C12 carry dated notes.
+  - *1a, the proved-down interval.* At a controller restart, the rows of
+    `egw-controller-1` missing between its captured `die` (D) and its next
+    `start` (S) are not a gap, up to the effective end E = min(S, D + 120 s).
+    The interval exists only when the restart ran with exit 0, the Docker
+    events capture is `complete`, the capture window holds exactly one `die`
+    and one `start` of that container with one container id, and the
+    `StartedAt` read (at or after S, its guest epoch taken before the
+    inspect) agrees with S to 1 s; anything else grants none. In whole
+    seconds: a row after sec(D) and before sec(S), or in sec(S) itself, is
+    rejected; the edge before (sec(D) minus the last row before it) and the
+    edge after (the first row after sec(S) minus sec(E)) keep the 5 s rule.
+    It applies only at the harness's run-time ingest, only
+    in a `controller_restart` run given the new option `--fetch-started-at-cmd`
+    (the guest read `tools/session/fetch_started_at.sh`, written to
+    `logs/sut/controller-started-at.txt`); the manifest records the outcomes
+    under `resources_proved_down`. Runbook test 6 passes the option, on
+    `controller_restart-r03` (the first `controller_restart` entry unused on
+    the evidence held; a used one is refused before anything starts);
+    `collect` and the finite proof do not (nor does `collect` qualify a late
+    resources file for a run whose restart lifecycle, the `die` and the
+    `start`, is recorded), and without the option every result is
+    byte-identical. No row is added, removed, zero-filled or
+    interpolated, and no delivery, recovery or C12 figure changes.
+  - *1b, T1's harness run.* Runbook test 1 names `nominal-r02`, a `nominal`
+    entry never used on the guest, under its own run identity, with its
+    duration and warm-up unchanged, instead of `smoke_sequence-r01`; an entry
+    already used is refused. It is judged by its artefact chain under the
+    unchanged ingest rule; it is not a passed smoke, a performance approval or
+    a successful nominal delivery, and it does not count towards C14.
+  - *2, N1 reported only.* `src/egw_experiments/n1_report.py` names an
+    identity `n1_applied_unconfirmed` only when its outcome lines are
+    `duplicate` only, the run records a source for it (the restart's captured
+    `die` or an A3 connection end on its device, one identity each), and its
+    device's Δ`accepted_count` surplus between the `before` and post-drain
+    `after` snapshots equals the identities named, with `last_seq` not below
+    their `seq`; per device, all or nothing; every other duplicate-only
+    identity is `duplicate_only_unexplained`. The columns are in
+    `processed/recovery_qualification.{csv,json}`; `itest_reconcile delta`
+    gains `--n1-report`, `--controller-log FILE` and `--restart-evidence
+    RUN_DIR`. A death explains an identity only when the run's `/metrics`
+    readings (`controller_metrics.csv`) place it first: the new process's
+    first reading earlier than the identity's first `duplicate` line, on the
+    one controller clock. The identity stays `lost`, the `delta` line stays
+    `MISMATCH`,
+    exit codes are unchanged, and without the options `delta`'s output is
+    byte-identical.
+  - *3, the timed families.* T1's three runs, T2, `itest-dup-02`, T5, T6 and
+    T8's post-reboot smoke must meet `lost = 0` and `late_confirmations = 0`
+    against the marker plus 60 s; a miss is a failure and a sizing finding.
+    T6's zero lost is C12's, read on its own `per_run.csv` row, beside its
+    recovery bound. T3 is not timed, but every valid identity of its run must
+    be `accepted` in the events copy fetched after its final drain, kept
+    write-once as `$P/$R.events.post-drain.jsonl` and checked by
+    `itest_reconcile acceptance`; a drain that gives up leaves T3 not
+    evaluated, and on a run id already used on the guest test 3 publishes
+    nothing (a STOP). The Expected lists of runbook tests 1, 3, 5, 6 and 8
+    say so.
+  - *4, T4 per identity.* `itest_reconcile replay-check` applies the
+    contract's same-process checks (the same `started_at`, `uptime_s`, the
+    cumulative counters and `mqtt_connection` not decreasing), then requires
+    every replayed identity to gain a `duplicate` line and no `accepted` line
+    and to hold at most one `accepted` line, `duplicate_replayed` equal to the
+    replayed count, and `duplicate_redelivery` within Δ`mqtt_connection`
+    ("consistent with the reconnection budget", a tolerance and not a proven
+    cause); beyond it T4 fails. The `after` reading must be quiet (CONTRACTS
+    §5), or every replayed identity with a line is NOT DEMONSTRATED; then,
+    with k reconnections between the two readings, a replayed identity counts
+    only with more than k added `duplicate` lines,
+    since up to k of them may be redeliveries of the first run; otherwise the
+    result is NOT DEMONSTRATED (exit 5), never a pass. `itest-dup-02` is part
+    of T4 and timed.
+    Runbook test 4 says so.
+  - *Unchanged.* No past run, verdict, sealed package or historical figure:
+    the proof runs r01–r03, `controller_restart-r01`/`-r02`,
+    `smoke_sequence-r01`/`-r02`, `nominal-r01` and the battery of 2026-09-18
+    keep their records, and the past restart runs stay invalid. No threshold,
+    deadline, rate, duration, load, coverage or minimum-count rule. CONTRACTS
+    v1.2 (§5's "until a separate decision" still holds: counting an N1
+    identity as delivered, which ADR 0011 reserves, is not taken).
+    `PROTOCOL_VERSION` is not bumped: `protocol.py` requires a bump only
+    after G4.
+- **Tests.** Regressions first, red on the unchanged code: each stream's tests-only
+  commit failed for the absent behaviour (1a: 90 failed at `740e73d`, the 7
+  passing being guards; 2: 69 failed and one module not importable at
+  `3f2b71c`; 3, 4 and 1b: 102 failed at `3566a00`), and so did the
+  corrections' (17 at `37b357a`; 63 at `1a49490`, the eight behaviour cases
+  and the pins of the changed lines). Two implementation commits (`b00cee1`,
+  `00ae268`) also edited a test their tests-only commit had added, as their
+  messages say; the edited tests fail on the tests-only trees for the same
+  absent-behaviour reason. Records:
+  `output_test/runs/2026-09-30/HIST_2026-09-30-g3-methodology-red-first` and
+  `HIST_2026-09-30-g3-methodology-review-corrections`. With the
+  change: the integrated selection of 17
+  modules, with the source identity recorded before it, gave 2,002 passed on
+  `af2fd7b` (`HIST_2026-09-30-g3-methodology-integrated-attempt01`) and, after
+  the review corrections, 2,027 passed on `2fa5ac5`, the code before the
+  bounded corrections F1-F3 (`HIST_2026-09-30-g3-methodology-integrated-attempt02`);
+  after them, 2,077 passed on `67516d5`, the final code, with the source identity
+  recorded first (`HIST_2026-10-01-pr53-f1-f3-integrated-attempt02`); the commit
+  after it changes this entry only.
+- **Review.** Two adversarial rounds per stream while it was
+  built, then one consolidated review of the integrated head `af2fd7b` in six
+  areas, each finding checked by a second reviewer who tried to refute it: 21
+  findings stood (10 minor and 11 wording; the two first rated material were
+  rated minor on reproduction) and 3 were refuted. All 21 were corrected, red
+  first where behaviour changed, and one bounded check per correction bundle
+  left nothing open. Among them: `collect` could re-judge, under the ordinary
+  rule, a file the run-time ingest had rejected under the interval (it now
+  keeps the run-time judgement); the `StartedAt` read took its guest epoch
+  after the inspect (now before it); test 6 named `controller_restart-r01`,
+  already used (now `-r03`, with a refusal guard); test 3 published on a run
+  id already used on the guest (now a STOP); the N1 report split lines at
+  Unicode separators and could leave a contested death to one device (now
+  newlines only, and contested). Two refuted points were applied all the same
+  for the runbook's own rules (Appendix B item 24; no publication on a used
+  run id). Record: `HIST_2026-09-30-g3-methodology-consolidated-review`.
+  The Project Manager's bounded review of 2026-10-01 found three more
+  defects, corrected red first here (F1-F3): `replay-check` could pass on a
+  first-run redelivery received after the `after` reading; the N1 report
+  could name an identity through a death that came after its duplicate; and
+  a late `collect` could qualify a file of a run whose restart lifecycle was
+  recorded. Red first: F1 14 failed at `412fd76` (the PM's trace exiting 0),
+  F2 32 at `bacbd3b`, F3 1 at `9663629`
+  (`output_test/runs/2026-10-01/HIST_2026-10-01-pr53-f1-f3-red-first`). One
+  bounded review of the integrated correction then found that `replay-check`
+  still took k after an `after` reading that was not quiet (a reconnection
+  counted just before it, its redelivery received after it); corrected the
+  same way, 7 failed at `2308577` (the race exiting 0 in all six variants),
+  fixed in `3e2bce0` (`HIST_2026-10-01-pr53-f1-f3-review`).
+- **Limits.** Everything is verified on the host with stubs and fixtures
+  only; nothing ran on the guest (the runbook's Appendix B, item 24, lists
+  what these decisions added). 1a: the `StartedAt` read, T6's `die` and
+  `start` events and the edge gaps under TCG are unverified; the guest
+  clock's 1–3 s backward steps are not absorbed; a restart whose S − D
+  exceeds about 124 s leaves the file rejected; adoption guarantees no valid
+  or passing T6. 2: a death serves only when the per-second readings place
+  the new process's first reading before the redelivery, which they may often
+  fail to show, leaving the identity unexplained; any N1 identity still fails
+  T6. 3: the timed families remain at risk
+  (`nominal-r01` confirmed 3,794 of 6,720 in time; T5 had 326 of 2,016 late;
+  T2 was in time by 3.1 s). 4: with more than one replayed identity, any
+  reconnection during the replay leaves T4 unpassed (not demonstrated, or
+  extras beyond the budget), and so does an `after` reading that is not
+  quiet; the tolerance can still pass an extra duplicate
+  that coincides with an unrelated reconnection. `itest-dup-02` and `itest-ditto-fault-01`
+  have never run.
+- **Decisions and next steps.** The student's decisions are recorded on the
+  pending-decisions page; nothing here accepts a gate or admits a claim, and
+  G3 stays paused and `Not decided`. No supervisor decision is recorded; D007
+  stays unsent, with its numbers unchanged. Next: the map's decision 4, the
+  candidate lock and the authorisation of the battery, each guest session
+  under its own authorisation.
