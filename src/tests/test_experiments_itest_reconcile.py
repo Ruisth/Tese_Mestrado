@@ -1377,17 +1377,34 @@ RESTART_RECORD = {"template": "ssh ... restart controller", "requested_at_s": 30
                   "finished_utc": "2026-09-30T10:05:02.000Z"}
 
 
+OLD_PROCESS = "2026-09-30T09:00:00.000000Z"
+NEW_PROCESS = "2026-09-30T10:05:03.000000Z"
+
+#: The controller's readings of the restart (started_at, monotonic_ns) on
+#: the clock of the lines' received_monotonic_ns: the old process read
+#: until T0 - 9 s, the new one from T0 + 1 s, before m5's redelivery
+#: (DEADLINE).
+PLACED = ((OLD_PROCESS, T0 - 10 * NS), (OLD_PROCESS, T0 - 9 * NS), (NEW_PROCESS, T0 + NS),
+          (NEW_PROCESS, T0 + 2 * NS))
+
+
 def make_restart_evidence(tmp_path: Path, *, drain: str = "quiet", die: bool = True,
-                          controller_log: str = "2026-09-30T10:00:00.000000000Z {\"message\": \"started\"}\n"
-                          ) -> tuple[Path, str]:
+                          controller_log: str = "2026-09-30T10:00:00.000000000Z {\"message\": \"started\"}\n",
+                          readings=PLACED) -> tuple[Path, str]:
     """A sealed harness run directory of a controller_restart run as test 6
     leaves it (raw/<run_id>: the manifest's restart evidence records, the
-    two verified snapshots, the post-drain copy, logs/sut/ with the
-    controller log and the complete Docker events capture), plus the twin
-    hook's write-once siblings under --prefix. m5 is duplicate-only with a
-    twin excess of one; the capture holds the controller's die inside its
-    window unless ``die`` is false. Returns (run directory, prefix)."""
+    two verified snapshots, the post-drain copy, controller_metrics.csv,
+    logs/sut/ with the controller log and the complete Docker events
+    capture), plus the twin hook's write-once siblings under --prefix. m5 is
+    duplicate-only with a twin excess of one; the capture holds the
+    controller's die inside its window unless ``die`` is false, and the
+    controller's readings (``readings``: (started_at, monotonic_ns) rows,
+    None for no file) place the restart before m5's redelivery by default.
+    Returns (run directory, prefix)."""
+    import csv
+
     from egw_experiments.checksums import write_sha256sums
+    from egw_experiments.controller_metrics import CSV_HEADER
 
     run_dir = tmp_path / "raw" / RUN_ID
     (run_dir / "logs" / "sut").mkdir(parents=True)
@@ -1421,6 +1438,11 @@ def make_restart_evidence(tmp_path: Path, *, drain: str = "quiet", die: bool = T
             {"hook": "docker_events", "returncode": 0, "dest_exists": True,
              "dest_file": "logs/sut/docker-events.log"}],
     })
+    if readings is not None:
+        with (run_dir / "controller_metrics.csv").open("w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=CSV_HEADER, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows({"started_at": started_at, "monotonic_ns": ns} for started_at, ns in readings)
     write_sha256sums(run_dir)
     return run_dir, prefix
 
@@ -1441,6 +1463,34 @@ def test_delta_restart_evidence_supplies_the_death_source(tmp_path, capsys) -> N
     out = capsys.readouterr().out
     assert f"  n1_applied_unconfirmed on {DEV}: m5 seq 5" in out and "controller-death" in out
     assert "n1_applied_unconfirmed=1 duplicate_only_unexplained=0" in out
+    assert all("OK" not in ln and "MISMATCH" not in ln for ln in n1_added_lines(out, plain))
+
+
+@pytest.mark.parametrize("case", ["a restart after the duplicate", "no controller_metrics.csv",
+                                  "no process change", "the duplicate between the bounding readings"])
+def test_delta_restart_evidence_whose_readings_do_not_place_the_death_before_the_duplicate_names_nothing(
+    tmp_path, capsys, case
+) -> None:
+    """Review of PR #53, F2 (the PM's counterexample): the death serves m5
+    only when RUN_DIR's controller readings place the restart before m5's
+    redelivery (DEADLINE); otherwise m5 is unexplained (condition 2), and
+    delta's lines and exit are as without the options."""
+    readings = {
+        "a restart after the duplicate": ((OLD_PROCESS, T0), (OLD_PROCESS, DEADLINE + NS),
+                                          (NEW_PROCESS, DEADLINE + 2 * NS)),
+        "no controller_metrics.csv": None,
+        "no process change": ((OLD_PROCESS, T0), (OLD_PROCESS, T0 + NS)),
+        "the duplicate between the bounding readings": ((OLD_PROCESS, DEADLINE - NS), (NEW_PROCESS, DEADLINE + NS)),
+    }[case]
+    run_dir, prefix = make_restart_evidence(tmp_path, readings=readings)
+    argv = t6_delta(run_dir, prefix)
+    assert rec.main(argv[:6]) == 4
+    plain = capsys.readouterr().out
+    assert rec.main(argv) == 4
+    out = capsys.readouterr().out
+    assert "n1_applied_unconfirmed=0 duplicate_only_unexplained=1" in out
+    (line,) = [ln for ln in out.splitlines() if ln.startswith("  duplicate_only_unexplained m5 ")]
+    assert "failed condition(s) 2:" in line and "not shown to precede" in line, line
     assert all("OK" not in ln and "MISMATCH" not in ln for ln in n1_added_lines(out, plain))
 
 
