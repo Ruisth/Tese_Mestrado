@@ -381,8 +381,10 @@ is recorded as a failure.
 
 The [readiness map](../g3-readiness-map-2026-09-29.md) keeps the full list. In short:
 - these four decisions, and the map's fourth (lock the candidate and authorise the battery to resume);
-- a guest check of the new capture, which so far is tested only on the host with stubs (see the attached execution
-  request);
+- the families' own procedures on the guest: the shared capture helpers (recorder, bounded controller and broker
+  reads, closing marker) were verified compatible in one short window, without load or faults (2026-09-30,
+  `compat-capture-r01`), but no family's own procedure ran there, and the T6 and T7 event sets, delivery and log
+  volume under load, the harness path end to end and an interactive Ctrl-C remain unverified on the guest;
 - T6's remaining blockers, including zero lost at 11.2 msg/s;
 - the sub-checks never run: `itest-dup-02` and `itest-ditto-fault-01`;
 - the open risks listed above;

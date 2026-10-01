@@ -39,7 +39,7 @@ rules it cannot give a valid pass without a separate decision.
 | **T6** controller restart | **Blocked** | `controller_restart-r01/-r02` invalid; the finite proof r03 supported recovery for that run only, with its harness run invalid and a twin `delta` `MISMATCH` | Three blockers, below: the restart resource gap, N1 under the ordinary rules, and zero-lost at 11.2 msg/s never shown. The log and event capture is wired into its harness command (expected `die`, `start` of the controller, not the proof's SIGKILL) and, with the restart-evidence hooks the harness now runs, covers the drain and the post-drain copy (a drain that gives up included); guest-unverified. The normal-sampler, marker-poll and write-failure defects are repaired (LOG #C046, #C047) | A sealed **valid** run directory; C12 columns of `per_run.csv`; every `delta` `OK`; restart record; run-scoped logs and events |
 | **T7** MongoDB **and Ditto** fault | Pending | MongoDB half only (old candidate): 62 failed, 1,012 of 3,298 late. **`itest-ditto-fault-01` has never run** | Run both halves. The MongoDB result is not reusable: contract v1.2 changed the meaning of `failed`. Watch `ditto-things` at its 768 MiB limit. Each fault's Docker events are recorded and judged on the container it stops (`die`, `stop`, `start` of `egw-mongodb-1`, then `egw-ditto-things-1`; runbook test 7, `events_start`/`events_stop`), guest-unverified. Each sub-check also reads the controller and broker logs bounded to its own run; a capture not shown complete or a failed read keeps T7 from 0, with the observed fault facts kept apart | `fault.txt`, `ready.txt`, outcome counts, `delta`, stop/start events |
 | **T8** guest reboot | Pending | Shown on the old candidate: 336 events, 0 lost, 0 late | Not yet assessed: a reboot while the broker holds the controller's persistent session (60 s autosave; ADR 0011 open item). Bound the `ditto-things` power-off incident | Boot IDs, container state, previous-boot journal (OOM check), twins `same`, post-reboot smoke with `lost=0`, `late=0` |
-| **T9** TLS and authorisation | Pending (guest check of the capture) | Tested checks passed on the old candidate, anonymous refusal included; negative cases remain G3 work | Run again: the broker configuration changed (C1), the ACL did not (C2 declined). T9(b) and (c) now take their evidence from the broker log bounded to each sub-check (runbook test 9, `sut_log broker`, the bound taken 3 s back for the guest clock's steps), no longer `--tail 20`; guest-unverified | `verdict.txt` = `PASS` (an inconclusive result is never a pass), subscriber outputs, run-scoped broker excerpt for (b) and (c), `/metrics` unchanged |
+| **T9** TLS and authorisation | Pending (T9's own sub-checks not run on the guest) | Tested checks passed on the old candidate, anonymous refusal included; negative cases remain G3 work | Run again: the broker configuration changed (C1), the ACL did not (C2 declined). T9(b) and (c) now take their evidence from the broker log bounded to each sub-check (runbook test 9, `sut_log broker`, the bound taken 3 s back for the guest clock's steps), no longer `--tail 20`; guest-unverified | `verdict.txt` = `PASS` (an inconclusive result is never a pass), subscriber outputs, run-scoped broker excerpt for (b) and (c), `/metrics` unchanged |
 
 ## The issues the work order names
 
@@ -104,8 +104,18 @@ covering its drain), the bounded logs of T3, T5, T7 and T9(b)/(c), and each T7
 fault's events on its own container; a failed capture, read or cleanup
 reaches the procedure's result, and a capture shown complete stays complete
 when only the cleanup after it failed (PR #51 bounded review). Every
-path is exercised with stubs only; its first use on a guest is still to come
-(a compatibility session is requested, not authorised). T8 is not wired.
+family path is exercised with stubs only. On 2026-09-30 one authorised session
+(`compat-capture-r01`, LOG #C048) verified the shared capture helpers
+compatible on the guest in a short window, without load or faults: the
+recorder under the guest's systemd and BusyBox, the controller and broker
+logs bounded from one T0 (Docker 25.0.9 and Compose v2.26.0 accept
+`--since`/`--until` as epoch seconds), the closing marker, and the capture
+judged complete under R1–R6 (R7 not exercised). No family's own procedure ran
+on the guest: the test lines of T1, T3, T5, T6, T7 and T9(b)/(c) (their own
+bounds, STOPs and judgements, T9's bound taken 3 s back among them), the T6
+and T7 event sets, delivery and log volume under load, the harness path end
+to end and an interactive Ctrl-C remain unverified there. It is not G3
+readiness. T8 is not wired.
 
 **6. Other G3 conditions.** The candidate lock record is pending. The contracts
 are at v1.2 while the backlog's cut rule still names v1.1: a freeze record is

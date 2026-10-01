@@ -4141,3 +4141,51 @@ is unchanged.
 - **Decisions and next steps.** None made here. Rui's decisions on the page's
   four items, the candidate lock, and the compatibility session's
   authorisation come before any qualifying run; G3 stays paused.
+
+## Entry #C048 — Capture compatibility verified on the guest in a short window, without load or faults
+
+- **Date:** 2026-09-30. **Scope:** one engineering compatibility session,
+  `compat-capture-r01`, authorised by the student and registered by the
+  Project Manager on 2026-09-30, under revision 2 of the local request
+  (`output_test/decisions/2026-09-30_g3-capture-compatibility-session-request.md`).
+  No workload, fault, configuration change, image build or load; the tools a
+  clean clone of `676d4bd` (tree `d2ecde9`, the merge of PR #51), the
+  controller image the one built from `489bc9e`. G3 stays paused.
+- **Why.** The run-scoped capture of #C046 and #C047 had been exercised with
+  stubs only; whether the guest's Docker, Compose, systemd and BusyBox accept
+  its commands was open.
+- **What.** Host preparation (the helper regenerated and checked, the capture
+  tools against the request's hashes); session open; preflight (`pass`); one
+  engineering attempt; controlled close. In the attempt the recorder started
+  under the guest's systemd and BusyBox and was ready at the guest's T0; the
+  controller and broker logs were read bounded from that T0 (2 and 6 lines,
+  none outside the window or unstamped; the 11,888 and 1,524 lines before T0,
+  earlier sessions' and this session's own pre-window lines, excluded and
+  witnessed by count and hash); `events_stop` ran once and its
+  no-op exec, the only closing marker, is in the capture; the daemon and boot
+  facts agreed from start to stop; the capture was judged complete (R1–R6
+  held, R7 not required: no fault). The attempt finished `valid`, `pass`. The
+  close began 8 min 50 s after the open began (the 45-minute ceiling runs from
+  the open's start to the close's start) and exited 0, the session closed at
+  15:09:18Z (no OOM, G1 artefacts OK, no QEMU left).
+- **Evidence.** Local, under `output_test/runs/2026-09-30/`: the host
+  preparation, the session (`20260930T145950Z_guest-session_attempt07`), the
+  preflight (`20260930T150044Z_live-preflight_attempt08`), the engineering
+  attempt (`20260930T150647Z_capture-compatibility_attempt01`) and the
+  operator records; every seal verifies. The hand-off is
+  `output_test/decisions/2026-09-30_compat-capture-r01-handoff.md`.
+- **Incidents, host side.** The engineering driver's first launch was
+  mangled by Git Bash's path conversion and exited 127 before anything ran;
+  it was then launched once more with the conversion off, and that is the
+  only execution of the steps. Its first export was refused because the driver
+  had replaced the attempt's package identity; after the close the identity
+  was restored with a recorded note and the attempt exported. Neither touched
+  the guest or the result, and both are in the operator records.
+- **Limits.** One short window on one boot, without load or faults: nothing
+  about the T6 and T7 event sets (R7 not exercised), delivery or deadlines,
+  log volume under load, the harness path end to end, or T8. Not G3
+  readiness.
+- **Decisions and next steps.** None made here. The four decisions of the
+  pending-decisions page and any changes they require, then the candidate
+  lock and the battery's authorisation; G3 stays paused. The shared helpers
+  only were checked: no family's own procedure ran on the guest.
