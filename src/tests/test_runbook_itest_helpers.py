@@ -253,13 +253,18 @@ case $cmd in
     t8_guest_answers || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
     [ ! -e "$S/boot_id_unreadable" ] || { echo "cat: /proc/sys/kernel/random/boot_id: No such file or directory" >&2; exit 1; }
     if [ -e "$S/rebooted_at" ]; then cat "$S/boot_id.post"; else cat "$S/boot_id"; fi; exit 0;;
-  "docker ps -q --no-trunc | sort") # test 8: the running container ids - containers.pre before the reboot; after it, nothing
-    # for docker_ps_empty_calls reads (dockerd starting; default 1), then containers.post when the case gives one, else the same set
+  "docker ps -q --no-trunc | sort"|"docker ps -q --no-trunc --filter status=running | sort") # test 8: the container ids -
+    # containers.pre before the reboot; after it, nothing for docker_ps_empty_calls reads (dockerd starting; default 1), then
+    # containers.post when the case gives one, else the same set. A container the case lists in containers.restarting is
+    # crash-looping under its restart policy after the reboot: the unfiltered form lists it (Docker marks a restarting
+    # container as running), the status=running filter leaves it out (its state string is 'restarting')
     t8_guest_answers || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
     if [ -e "$S/rebooted_at" ]; then
       n=$(( $(cat "$S/docker_ps.calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/docker_ps.calls"
       [ "$n" -gt "$(cat "$S/docker_ps_empty_calls" 2>/dev/null || echo 1)" ] || exit 0
-      if [ -e "$S/containers.post" ]; then cat "$S/containers.post"; else cat "$S/containers.pre"; fi; exit 0
+      if [ -e "$S/containers.post" ]; then listed="$S/containers.post"; else listed="$S/containers.pre"; fi
+      if [ "${cmd#*--filter status=running}" != "$cmd" ] && [ -s "$S/containers.restarting" ]; then grep -vxF -f "$S/containers.restarting" "$listed"; else cat "$listed"; fi
+      exit 0
     fi
     cat "$S/containers.pre"; exit 0;;
   *"sudo systemctl reboot"*) # test 8, line a: the reboot command; the connection drops with it (255); the controller that
@@ -3118,7 +3123,10 @@ def test_test_7_real_pgrep_simulator_already_gone_at_injection_time_nothing_is_s
 T8_PRE_ID = "aaaaaaaa-0000-4000-8000-00000000000a"
 T8_POST_ID = "bbbbbbbb-0000-4000-8000-00000000000b"
 T8_POST_STARTED = "2026-10-03T14:26:40Z"
-#: six running container objects, as 'docker ps -q --no-trunc | sort' lists them (one full id per line, sorted)
+#: the read of the running container set on both sides of the reboot (lines a and c): filtered to status=running, so
+#: that a container Docker lists as 'Restarting' - marked running, state string 'restarting' - is not in the set
+T8_DOCKER_PS = "docker ps -q --no-trunc --filter status=running | sort"
+#: six running container objects, as T8_DOCKER_PS lists them (one full id per line, sorted)
 T8_CONTAINERS = sorted("%064x" % (0x1000 + i) for i in range(6))
 T8_SMOKE = "itest-post-reboot-01"
 #: the start of each of the six lines of the block, in the order they are pasted (a to f)
@@ -3178,7 +3186,7 @@ def t8_boot_id_polls(bench: Bench) -> list[str]:
 
 
 def t8_container_reads(bench: Bench) -> list[str]:
-    return t8_ssh_after_reboot(bench, "docker ps -q --no-trunc | sort")
+    return t8_ssh_after_reboot(bench, T8_DOCKER_PS)
 
 
 #: a compose command that starts something: 'docker compose [options] up|start|restart' or the $DC of test 7 (the STOP
@@ -3232,20 +3240,21 @@ def test_test_8_success_path_different_boot_id_after_a_few_polls_same_container_
     log = bench.ssh_log()
     reboot_at = next(i for i, ln in enumerate(log) if "sudo systemctl reboot" in ln)
     assert t8_index(bench, "/proc/sys/kernel/random/boot_id") < reboot_at, log
-    assert t8_index(bench, "docker ps -q --no-trunc | sort") < reboot_at, log
+    assert t8_index(bench, T8_DOCKER_PS) < reboot_at, log
     polls = t8_boot_id_polls(bench)
     assert len(polls) == 3 and all("[-o] [BatchMode=yes] [-o] [ConnectTimeout=10]" in ln for ln in polls), polls
     # the containers were read only once the reboot was shown (the first read after the reboot follows the last poll),
-    # and nothing started them
+    # in the status=running form on both sides of the reboot, and nothing started them
     reads = t8_container_reads(bench)
     assert len(reads) == 2 and all("[-o] [BatchMode=yes] [-o] [ConnectTimeout=10]" in ln for ln in reads), reads
-    first_read_after = min(i for i, ln in enumerate(log) if i > reboot_at and ln.endswith("[docker ps -q --no-trunc | sort]"))
+    assert [ln for ln in log if "[docker ps -q" in ln] == [ln for ln in log if ln.endswith(f"[{T8_DOCKER_PS}]")], log
+    first_read_after = min(i for i, ln in enumerate(log) if i > reboot_at and ln.endswith(f"[{T8_DOCKER_PS}]"))
     assert first_read_after > t8_index(bench, "/proc/sys/kernel/random/boot_id", last=True), log
     assert_t8_nothing_started_anything(bench)
     # the read-only observations came after the return, before the tunnel and the snapshot
     observed = t8_ssh_after_reboot(bench, "findmnt -no SOURCE /var/lib/docker")
     assert len(observed) == 1, observed
-    assert t8_index(bench, "findmnt -no SOURCE /var/lib/docker") > t8_index(bench, "docker ps -q --no-trunc | sort", last=True), log
+    assert t8_index(bench, "findmnt -no SOURCE /var/lib/docker") > t8_index(bench, T8_DOCKER_PS, last=True), log
     assert t8_index(bench, "findmnt -no SOURCE /var/lib/docker") < next(i for i, ln in enumerate(log) if "[-M]" in ln), log
     assert "--label post-reboot" in bench.calls() and "same" in bench.calls()
 
@@ -3290,7 +3299,28 @@ def test_test_8_unchanged_boot_id_is_reboot_not_shown_and_no_later_line_runs(ben
     assert_t8_no_smoke(bench, r)
 
 
-@pytest.mark.parametrize("case", ["one container missing", "one container recreated", "nothing listed"])
+@pytest.mark.parametrize("answer", [T8_POST_ID[:8], "Welcome to the gateway (a banner line, not the kernel file)"])
+def test_test_8_an_answer_that_is_not_a_boot_id_after_the_reboot_is_not_reboot_shown(bench: Bench, answer: str) -> None:
+    """Review of 2026-10-03 (T8-3): line b took any non-empty answer that differed from the saved id as the new boot
+    id. The kernel file holds a UUID - 36 characters of 0-9, a-f and '-' - and only an answer of that form counts;
+    one of another form, every read, is a STOP of its own, with nothing saved and no later line run."""
+    t8_prepare(bench)
+    bench.set("boot_id.post", answer)
+    bench.set("guest_down_calls", 0)
+    r = call_test8(bench)
+    assert r.value("T8_B") == "rebooting", r.out
+    assert not r.starting("REBOOT SHOWN"), r.out
+    stops = r.starting("STOP: test 8: reboot NOT shown")
+    assert len(stops) == 1 and "not a boot id" in stops[0] and "kept answering the OLD" not in stops[0], r.out
+    assert len(t8_boot_id_polls(bench)) == 90
+    assert not (bench.p / "itest-reboot.boot_id.post").exists()
+    assert t8_container_reads(bench) == [] and not [ln for ln in bench.ssh_log() if "[-M]" in ln]
+    assert r.value("T8_E") == "rebooting", r.out
+    assert_t8_no_smoke(bench, r)
+
+
+@pytest.mark.parametrize("case", ["one container missing", "one container recreated", "nothing listed",
+                                  "one container restarting"])
 def test_test_8_a_container_set_that_differs_is_not_an_unaided_return_nothing_is_started_and_no_smoke_runs(
         bench: Bench, case: str) -> None:
     t8_prepare(bench)
@@ -3298,6 +3328,11 @@ def test_test_8_a_container_set_that_differs_is_not_an_unaided_return_nothing_is
         bench.set("containers.post", "\n".join(T8_CONTAINERS[:-1]))
     elif case == "one container recreated":
         bench.set("containers.post", "\n".join(sorted(T8_CONTAINERS[:-1] + ["%064x" % 0x2000])))
+    elif case == "one container restarting":
+        # review of 2026-10-03 (T8-4): the same object came back and is crash-looping under its restart policy -
+        # an unfiltered 'docker ps -q' lists it (Docker marks a restarting container as running), so the saved set
+        # would be complete; the status=running filter of both reads leaves it out, and the set is not complete
+        bench.set("containers.restarting", T8_CONTAINERS[-1])
     else:
         bench.set("docker_ps_empty_calls", 1000)
     r = call_test8(bench)
@@ -3313,14 +3348,18 @@ def test_test_8_a_container_set_that_differs_is_not_an_unaided_return_nothing_is
     assert_t8_no_smoke(bench, r)
 
 
-@pytest.mark.parametrize("case", ["five containers before the reboot", "boot id unreadable", "metrics unreachable",
-                                  "twin snapshot refused"])
+@pytest.mark.parametrize("case", ["five containers before the reboot", "boot id unreadable", "boot id a bare newline",
+                                  "metrics unreachable", "twin snapshot refused"])
 def test_test_8_a_failed_precondition_of_line_a_reboots_nothing_and_no_later_line_runs(bench: Bench, case: str) -> None:
     t8_prepare(bench)
     if case.startswith("five"):
         bench.set("containers.pre", "\n".join(T8_CONTAINERS[:-1]))
     elif case == "boot id unreadable":
         bench.set("boot_id_unreadable")
+    elif case == "boot id a bare newline":
+        # review of 2026-10-03 (T8-3): an answer of one empty line is a one-byte file, which '-s' took as a saved id;
+        # the saved id must have the kernel file's form (36 characters of 0-9, a-f and '-') or line a stops
+        bench.set("boot_id", "")
     elif case == "metrics unreachable":
         (bench.state / "metrics.json").unlink()
     else:
@@ -3381,6 +3420,13 @@ def test_test_8_text_states_the_in_process_reboot_the_unaided_return_and_the_hal
     assert "Re-launch exactly as in 3.3" not in section
     expected = _paragraph("### Test 8", "Expected:")
     assert "a timed family" in expected and "`UNVERIFIED:`" in expected
+    # review of 2026-10-03 (T8-3, T8-4): the boot id's form is stated, and so is what the status=running filter of
+    # the container reads leaves out
+    assert "36 characters" in expected and "Restarting" in expected, expected
+    assert f"`{T8_DOCKER_PS}`" in expected, expected
+    lines = t8_lines()
+    assert lines[0].count(T8_DOCKER_PS) == 1 and lines[2].count(T8_DOCKER_PS) == 1, (lines[0], lines[2])
+    assert "docker ps -q --no-trunc | sort" not in "\n".join(lines)
     appendix = "\n".join(_section("## Appendix B"))
     assert "in-process reboot" in appendix and "guest-unverified" in appendix.split("in-process reboot", 1)[1]
     # the lines run nothing by pattern and start nothing on the guest
