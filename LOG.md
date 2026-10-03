@@ -4516,8 +4516,9 @@ is unchanged.
     Expected paragraph; not the 6.1 heredoc, which is unchanged): the
     pre-reboot line also saves the running container ids and a pre-reboot
     `/metrics` reading (whose `started_at` line e compares); a bounded wait (at
-    most 90 reads 10 s apart, each read bounded by `ConnectTimeout=10`, so up to
-    about 30 min) for the guest to answer with a **different**
+    most 90 reads 10 s apart, each read bounded by `ConnectTimeout=10` and, after
+    the review of the pull request, by the host's `timeout 20`, so up to
+    about 45 min) for the guest to answer with a **different**
     boot id of the kernel's form (36 characters of `[0-9a-f-]`), `REBOOT
     SHOWN` only then, and on timeout a STOP that says whether the guest never
     answered, kept answering the old id, answered and then fell silent, or
@@ -4530,7 +4531,12 @@ is unchanged.
     again by `docker ps --filter status=running` (a Restarting container is
     left out; these lines start nothing, and a hand start from another shell
     is not something the line can tell apart), `CONTAINERS RETURNED UNAIDED`,
-    else STOP — then the existing read-only observations,
+    else STOP — then, since the review of the pull request, line c judges the
+    `data/events` directory names and the mount source of `/var/lib/docker`
+    against what line a saved before the reboot (`PERSISTENCE SHOWN`, else a
+    STOP naming the one that did not hold), the remaining read-only
+    observations being a separate command whose status is printed, not
+    judged, and every read after the reboot bounded by `timeout 20` — then
     the tunnel, readiness, the post-reboot snapshot and `same`, the
     controller's new process shown by its `started_at`, and only then the
     fresh timed smoke; test 9 is not started unless test 8 reached its smoke
