@@ -4574,7 +4574,10 @@ is unchanged.
   affected selection of five modules, with the source identity recorded
   first, gave 1,035 passed on the integrated `fc194a7`
   (`HIST_2026-10-03-post-battery-integrated-attempt01`) and 1,040 passed on
-  `0a48e4a`, the final head (`…-attempt02`); the records of the block are in
+  `0a48e4a` (`…-attempt02`) and, after the pull request's review points
+  (line c judges the directories and the mount source; every read after the
+  reboot bounded), 1,049 passed on `190ad8f`, the final head (`…-attempt03`);
+  the records of the block are in
   `HIST_2026-10-03-post-battery-records`. No guest ran.
 - **Review.** The Project Manager's read-only review of the records of both
   sessions (the register entry above): 1,120 matching entries in 20 local
