@@ -2,8 +2,8 @@
 
 Text under test: docs/setup/qemu_integrated_gateway.md - the tunnel file of 5.7, the
 helper file that 6.1 writes through a quoted heredoc, the evidence-capturing lines of
-6.2-6.4 and of test 9, the lines of test 7 and the tunnel line of test 8 (project
-review of 2026-09-18, four residual defects).
+6.2-6.4 and of test 9, the lines of test 7 (project review of 2026-09-18, four
+residual defects) and the six lines of test 8 (the in-process reboot, 2026-10-03).
 
 Every line is read from the runbook WHEN THE TEST RUNS and handed to bash as it stands
 (only the "host$ " prompt is removed), so a later edit of the runbook is tested as it
@@ -237,7 +237,41 @@ d, n = os.path.split(sys.argv[1]); os.chdir(d); socket.socket(socket.AF_UNIX).bi
   printf '%s' "$sock" > "$S/master_alive"; exit 0
 fi
 cmd="${@: -1}"
+# test 8: once the reboot command was given, the guest answers no command for guest_down_calls calls (255, the guest
+# down or booting; default 2), never again after guest_dies_after_calls calls when the case sets it, and never at all
+# with guest_never_answers. The tunnel's control-socket operations above do not count.
+t8_guest_answers() {
+  local n
+  [ -e "$S/rebooted_at" ] || return 0
+  [ ! -e "$S/guest_never_answers" ] || return 1
+  n=$(( $(cat "$S/after_reboot.calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/after_reboot.calls"
+  [ "$n" -gt "$(cat "$S/guest_down_calls" 2>/dev/null || echo 2)" ] || return 1
+  [ ! -s "$S/guest_dies_after_calls" ] || [ "$n" -le "$(cat "$S/guest_dies_after_calls")" ]
+}
 case $cmd in
+  */proc/sys/kernel/random/boot_id) # test 8: the kernel boot id - boot_id before the reboot command, boot_id.post after it
+    t8_guest_answers || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    [ ! -e "$S/boot_id_unreadable" ] || { echo "cat: /proc/sys/kernel/random/boot_id: No such file or directory" >&2; exit 1; }
+    if [ -e "$S/rebooted_at" ]; then cat "$S/boot_id.post"; else cat "$S/boot_id"; fi; exit 0;;
+  "docker ps -q --no-trunc | sort") # test 8: the running container ids - containers.pre before the reboot; after it, nothing
+    # for docker_ps_empty_calls reads (dockerd starting; default 1), then containers.post when the case gives one, else the same set
+    t8_guest_answers || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    if [ -e "$S/rebooted_at" ]; then
+      n=$(( $(cat "$S/docker_ps.calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$S/docker_ps.calls"
+      [ "$n" -gt "$(cat "$S/docker_ps_empty_calls" 2>/dev/null || echo 1)" ] || exit 0
+      if [ -e "$S/containers.post" ]; then cat "$S/containers.post"; else cat "$S/containers.pre"; fi; exit 0
+    fi
+    cat "$S/containers.pre"; exit 0;;
+  *"sudo systemctl reboot"*) # test 8, line a: the reboot command; the connection drops with it (255); the controller that
+    # comes back is a new process when the case gives metrics.post.json
+    echo "stub: -1 previous boot"; echo "stub:  0 this boot"; echo "itest-ev-01"
+    date -u +%FT%TZ > "$S/rebooted_at"
+    [ ! -s "$S/metrics.post.json" ] || cp "$S/metrics.post.json" "$S/metrics.json"
+    exit 255;;
+  *"findmnt -no SOURCE /var/lib/docker") # test 8, line c: the read-only observations after the unaided return
+    t8_guest_answers || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
+    echo "running"; echo "stub: -1 previous boot"; echo "egw-controller-1 Up 2 minutes (healthy)"; echo "/dev/vdb"
+    exit "$(cat "$S/observations_rc" 2>/dev/null || echo 0)";;
   "date +%s") # guest_epoch (6.1): the guest's clock, or no answer at all
     [ ! -e "$S/guest_clock_fails" ] || { echo "ssh: connect to host 127.0.0.1 port 2222: Connection refused" >&2; exit 255; }
     cat "$S/guest_epoch" 2>/dev/null || echo 1790000000; exit 0;;
@@ -3078,6 +3112,279 @@ def test_test_7_real_pgrep_simulator_already_gone_at_injection_time_nothing_is_s
 
 
 # --------------------------------------------------------------------------
+# test 8 - the guest reboots inside the same QEMU process (2026-10-03): a different boot id within a bounded wait,
+# the containers back UNAIDED before anything starts them, then readiness, state and the fresh smoke
+# --------------------------------------------------------------------------
+T8_PRE_ID = "aaaaaaaa-0000-4000-8000-00000000000a"
+T8_POST_ID = "bbbbbbbb-0000-4000-8000-00000000000b"
+T8_POST_STARTED = "2026-10-03T14:26:40Z"
+#: six running container objects, as 'docker ps -q --no-trunc | sort' lists them (one full id per line, sorted)
+T8_CONTAINERS = sorted("%064x" % (0x1000 + i) for i in range(6))
+T8_SMOKE = "itest-post-reboot-01"
+#: the start of each of the six lines of the block, in the order they are pasted (a to f)
+T8_STARTS = ("T8=stop; if wait_ready && drained && metrics itest-reboot pre-reboot",
+             'if [ "$T8" = rebooting ]',
+             'if [ "$T8" = rebooted ]',
+             '[ "$T8" = returned ] && tunnel_down && tunnel_up',
+             '[ "$T8" = reconnected ] && wait_ready 3600',
+             'if [ "$T8" = ok ]; then R=itest-post-reboot-01')
+
+
+def t8_lines() -> list[str]:
+    """The six host$ lines of the test 8 block, a to f, each without its continuation (comment) lines."""
+    cmds = _host_commands("### Test 8")
+    lines = [_one(cmds, start) for start in T8_STARTS]
+    assert cmds == lines, "the test 8 block is expected to hold exactly these six lines, in this order"
+    return [ln.split("\n")[0] for ln in lines]
+
+
+def _t8_body(from_line: str = "a") -> str:
+    """Lines a to f pasted in one shell, each followed by an echo of the carrier T8 it left (RC_F after the smoke
+    line); ``from_line`` 'b' leaves line a out (the lines after it in a shell in which it never ran)."""
+    body = []
+    for letter, line in zip("abcdef", t8_lines()):
+        if letter < from_line:
+            continue
+        body.append(line)
+        body.append('echo "RC_F=$?"' if letter == "f" else f'echo "T8_{letter.upper()}=$T8"')
+    return "\n".join(body)
+
+
+def t8_prepare(bench: Bench, post_started_at: str | None = T8_POST_STARTED) -> None:
+    """The guest and controller a success needs: the boot id before and after, the six container ids, a controller
+    that is a new process after the reboot (``post_started_at``; None leaves the same process), the smoke's files."""
+    bench.set("boot_id", T8_PRE_ID)
+    bench.set("boot_id.post", T8_POST_ID)
+    bench.set("containers.pre", "\n".join(T8_CONTAINERS))
+    if post_started_at is not None:
+        (bench.state / "metrics.post.json").write_text(json.dumps(bench.reading(started_at=post_started_at)), encoding="utf-8")
+    full_run(bench, T8_SMOKE)
+
+
+def call_test8(bench: Bench, from_line: str = "a", **env: str) -> Result:
+    return bench.run(bench.with_helpers(_t8_body(from_line)), timeout=240, **env)
+
+
+def t8_ssh_after_reboot(bench: Bench, tail: str) -> list[str]:
+    """The ssh invocations after the reboot command whose last argument ends with ``tail``."""
+    log = bench.ssh_log()
+    rebooted = [i for i, ln in enumerate(log) if "sudo systemctl reboot" in ln]
+    assert len(rebooted) == 1, log
+    return [ln for ln in log[rebooted[0] + 1:] if ln.endswith(f"{tail}]")]
+
+
+def t8_boot_id_polls(bench: Bench) -> list[str]:
+    return t8_ssh_after_reboot(bench, "/proc/sys/kernel/random/boot_id")
+
+
+def t8_container_reads(bench: Bench) -> list[str]:
+    return t8_ssh_after_reboot(bench, "docker ps -q --no-trunc | sort")
+
+
+def assert_t8_nothing_started_anything(bench: Bench) -> None:
+    """No 'compose up', 'start' or 'restart' went to the guest: a return is only unaided when nothing started it."""
+    for ln in bench.ssh_log():
+        assert not re.search(r"compose\b.*\b(up|start|restart)\b", ln), ln
+    assert "PATTERN-KILL" not in bench.calls(), bench.calls()
+
+
+def assert_t8_no_smoke(bench: Bench, r: Result) -> None:
+    assert bench.simulator_calls() == 0, bench.calls()
+    assert r.value("RC_F") != "0", r.out
+    assert r.starting("STOP: test 8: the post-reboot smoke is NOT started"), r.out
+
+
+def t8_index(bench: Bench, tail: str, last: bool = False) -> int:
+    """The index in the ssh log of the first (or last) invocation whose last argument ends with ``tail``."""
+    hits = [i for i, ln in enumerate(bench.ssh_log()) if ln.endswith(f"{tail}]")]
+    assert hits, (tail, bench.ssh_log())
+    return hits[-1] if last else hits[0]
+
+
+def test_test_8_success_path_different_boot_id_after_a_few_polls_same_container_set_same_twins_new_process_and_the_smoke(
+        bench: Bench) -> None:
+    t8_prepare(bench)
+    r = call_test8(bench)
+    assert (r.value("T8_A"), r.value("T8_B"), r.value("T8_C"), r.value("T8_D"), r.value("T8_E")) == \
+        ("rebooting", "rebooted", "returned", "reconnected", "ok"), r.out
+    assert not r.starting("STOP"), r.out
+    assert r.starting(f"REBOOT SHOWN: boot id {T8_PRE_ID} -> {T8_POST_ID}"), r.out
+    assert r.starting("CONTAINERS RETURNED UNAIDED"), r.out
+    assert r.starting(f"CONTROLLER PROCESS NEW: started_at {STARTED} -> {T8_POST_STARTED}"), r.out
+    assert "TUNNEL UP" in r.lines, r.out
+    assert r.value("RC_F") == "0", r.out
+    assert r.starting(f"TEST STATUS {T8_SMOKE}: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE"), r.out
+    assert bench.simulator_calls() == 1
+    # what line a saved before the reboot, and what the lines after it read back
+    assert (bench.p / "itest-reboot.boot_id.pre").read_text(encoding="utf-8").strip() == T8_PRE_ID
+    assert (bench.p / "itest-reboot.boot_id.post").read_text(encoding="utf-8").strip() == T8_POST_ID
+    assert (bench.p / "itest-reboot.containers.pre").read_text(encoding="utf-8").split() == T8_CONTAINERS
+    assert (bench.p / "itest-reboot.containers.post").read_text(encoding="utf-8").split() == T8_CONTAINERS
+    assert json.loads((bench.p / "itest-reboot.metrics.pre-reboot.json").read_text(encoding="utf-8"))["started_at"] == STARTED
+    assert json.loads((bench.p / "itest-reboot.metrics.post-reboot.json").read_text(encoding="utf-8"))["started_at"] == T8_POST_STARTED
+    assert (bench.p / "itest-reboot.twins.pre-reboot.json").exists() and (bench.p / "itest-reboot.twins.post-reboot.json").exists()
+    # the saves came before the reboot command; the polls after it are bounded per read and found the new id at the third
+    log = bench.ssh_log()
+    reboot_at = next(i for i, ln in enumerate(log) if "sudo systemctl reboot" in ln)
+    assert t8_index(bench, "/proc/sys/kernel/random/boot_id") < reboot_at, log
+    assert t8_index(bench, "docker ps -q --no-trunc | sort") < reboot_at, log
+    polls = t8_boot_id_polls(bench)
+    assert len(polls) == 3 and all("[-o] [BatchMode=yes] [-o] [ConnectTimeout=10]" in ln for ln in polls), polls
+    # the containers were read only once the reboot was shown (the first read after the reboot follows the last poll),
+    # and nothing started them
+    reads = t8_container_reads(bench)
+    assert len(reads) == 2 and all("[-o] [BatchMode=yes] [-o] [ConnectTimeout=10]" in ln for ln in reads), reads
+    first_read_after = min(i for i, ln in enumerate(log) if i > reboot_at and ln.endswith("[docker ps -q --no-trunc | sort]"))
+    assert first_read_after > t8_index(bench, "/proc/sys/kernel/random/boot_id", last=True), log
+    assert_t8_nothing_started_anything(bench)
+    # the read-only observations came after the return, before the tunnel and the snapshot
+    observed = t8_ssh_after_reboot(bench, "findmnt -no SOURCE /var/lib/docker")
+    assert len(observed) == 1, observed
+    assert t8_index(bench, "findmnt -no SOURCE /var/lib/docker") > t8_index(bench, "docker ps -q --no-trunc | sort", last=True), log
+    assert t8_index(bench, "findmnt -no SOURCE /var/lib/docker") < next(i for i, ln in enumerate(log) if "[-M]" in ln), log
+    assert "--label post-reboot" in bench.calls() and "same" in bench.calls()
+
+
+def test_test_8_guest_never_answers_is_a_stop_after_90_bounded_reads_and_no_later_line_runs(bench: Bench) -> None:
+    t8_prepare(bench)
+    bench.set("guest_never_answers")
+    r = call_test8(bench)
+    assert r.value("T8_A") == "rebooting" and r.value("T8_B") == "rebooting", r.out
+    assert any("the guest never answered" in ln for ln in r.starting("STOP: test 8: reboot NOT shown")), r.out
+    assert not r.starting("REBOOT SHOWN"), r.out
+    polls = t8_boot_id_polls(bench)
+    assert len(polls) == 90 and all("[-o] [BatchMode=yes] [-o] [ConnectTimeout=10]" in ln for ln in polls), len(polls)
+    assert t8_container_reads(bench) == [] and not r.starting("CONTAINERS RETURNED UNAIDED"), r.out
+    assert not [ln for ln in bench.ssh_log() if "[-M]" in ln], bench.ssh_log()
+    assert "--label post-reboot" not in bench.calls() and "same" not in bench.calls(), bench.calls()
+    assert r.value("T8_C") == "rebooting" and r.value("T8_D") == "rebooting" and r.value("T8_E") == "rebooting", r.out
+    assert_t8_no_smoke(bench, r)
+    assert_t8_nothing_started_anything(bench)
+
+
+@pytest.mark.parametrize("case, says", [
+    ("kept answering the old id", "kept answering the OLD boot id"),
+    ("answered the old id, then went down for good", "then stopped answering"),
+])
+def test_test_8_unchanged_boot_id_is_reboot_not_shown_and_no_later_line_runs(bench: Bench, case: str, says: str) -> None:
+    t8_prepare(bench)
+    bench.set("boot_id.post", T8_PRE_ID)
+    if case.startswith("kept"):
+        bench.set("guest_down_calls", 0)
+    else:
+        bench.set("guest_dies_after_calls", 3)                           # calls 1-2 down, call 3 the old id, then nothing
+    r = call_test8(bench)
+    assert r.value("T8_B") == "rebooting", r.out
+    stops = r.starting("STOP: test 8: reboot NOT shown")
+    assert len(stops) == 1 and says in stops[0], r.out
+    assert not r.starting("REBOOT SHOWN"), r.out
+    assert len(t8_boot_id_polls(bench)) == 90
+    assert not (bench.p / "itest-reboot.boot_id.post").exists()
+    assert t8_container_reads(bench) == [] and not [ln for ln in bench.ssh_log() if "[-M]" in ln]
+    assert r.value("T8_E") == "rebooting", r.out
+    assert_t8_no_smoke(bench, r)
+
+
+@pytest.mark.parametrize("case", ["one container missing", "one container recreated", "nothing listed"])
+def test_test_8_a_container_set_that_differs_is_not_an_unaided_return_nothing_is_started_and_no_smoke_runs(
+        bench: Bench, case: str) -> None:
+    t8_prepare(bench)
+    if case == "one container missing":
+        bench.set("containers.post", "\n".join(T8_CONTAINERS[:-1]))
+    elif case == "one container recreated":
+        bench.set("containers.post", "\n".join(sorted(T8_CONTAINERS[:-1] + ["%064x" % 0x2000])))
+    else:
+        bench.set("docker_ps_empty_calls", 1000)
+    r = call_test8(bench)
+    assert r.value("T8_B") == "rebooted" and r.value("T8_C") == "rebooted", r.out
+    assert r.starting("REBOOT SHOWN"), r.out
+    assert not r.starting("CONTAINERS RETURNED UNAIDED"), r.out
+    assert any("did NOT return unaided" in ln for ln in r.starting("STOP: test 8:")), r.out
+    assert len(t8_container_reads(bench)) == 90
+    assert_t8_nothing_started_anything(bench)
+    assert t8_ssh_after_reboot(bench, "findmnt -no SOURCE /var/lib/docker") == []
+    assert not [ln for ln in bench.ssh_log() if "[-M]" in ln]
+    assert r.value("T8_D") == "rebooted" and r.value("T8_E") == "rebooted", r.out
+    assert_t8_no_smoke(bench, r)
+
+
+@pytest.mark.parametrize("case", ["five containers before the reboot", "boot id unreadable", "metrics unreachable",
+                                  "twin snapshot refused"])
+def test_test_8_a_failed_precondition_of_line_a_reboots_nothing_and_no_later_line_runs(bench: Bench, case: str) -> None:
+    t8_prepare(bench)
+    if case.startswith("five"):
+        bench.set("containers.pre", "\n".join(T8_CONTAINERS[:-1]))
+    elif case == "boot id unreadable":
+        bench.set("boot_id_unreadable")
+    elif case == "metrics unreachable":
+        (bench.state / "metrics.json").unlink()
+    else:
+        bench.set("rec_snap_rc", 1)
+    r = call_test8(bench)
+    assert r.value("T8_A") == "stop", r.out
+    assert r.starting("STOP: test 8:") and any("the guest was NOT rebooted" in ln for ln in r.starting("STOP: test 8:")), r.out
+    assert not [ln for ln in bench.ssh_log() if "sudo systemctl reboot" in ln], bench.ssh_log()
+    assert not r.starting("REBOOT ISSUED") and not r.starting("REBOOT SHOWN"), r.out
+    assert all(r.value(f"T8_{x}") == "stop" for x in "BCDE"), r.out
+    assert not [ln for ln in bench.ssh_log() if "[-M]" in ln]
+    assert_t8_no_smoke(bench, r)
+
+
+@pytest.mark.parametrize("case, says", [
+    ("same reports DIFFERENT", "'same' reported DIFFERENT"),
+    ("started_at unchanged", "started_at unchanged"),
+])
+def test_test_8_state_not_verified_on_line_e_leaves_the_smoke_unstarted(bench: Bench, case: str, says: str) -> None:
+    t8_prepare(bench, post_started_at=None if case == "started_at unchanged" else T8_POST_STARTED)
+    if case == "same reports DIFFERENT":
+        bench.set("rec_same_rc", 4)
+    r = call_test8(bench)
+    assert r.value("T8_D") == "reconnected" and r.value("T8_E") == "reconnected", r.out
+    assert r.starting("REBOOT SHOWN") and r.starting("CONTAINERS RETURNED UNAIDED"), r.out
+    assert not r.starting("CONTROLLER PROCESS NEW"), r.out
+    stops = r.starting("STOP: test 8: persistence across the reboot NOT verified")
+    assert len(stops) == 1 and says in stops[0], r.out
+    assert_t8_no_smoke(bench, r)
+
+
+def test_test_8_observations_not_read_after_the_return_is_a_stop_that_keeps_the_return_shown(bench: Bench) -> None:
+    t8_prepare(bench)
+    bench.set("observations_rc", 1)
+    r = call_test8(bench)
+    assert r.value("T8_B") == "rebooted" and r.value("T8_C") == "rebooted", r.out
+    assert r.starting("CONTAINERS RETURNED UNAIDED"), r.out
+    assert any("observations were NOT all read" in ln for ln in r.starting("STOP: test 8:")), r.out
+    assert not [ln for ln in bench.ssh_log() if "[-M]" in ln]
+    assert_t8_no_smoke(bench, r)
+
+
+def test_test_8_lines_after_a_refuse_in_a_shell_in_which_a_never_ran(bench: Bench) -> None:
+    t8_prepare(bench)
+    r = call_test8(bench, from_line="b")
+    assert all(r.value(f"T8_{x}") == "" for x in "BCDE"), r.out
+    assert len(r.starting("STOP: test 8:")) == 5, r.out
+    assert bench.ssh_log() == [] and bench.simulator_calls() == 0
+
+
+def test_test_8_text_states_the_in_process_reboot_the_unaided_return_and_the_halt_before_test_9() -> None:
+    section = "\n".join(_section("### Test 8"))
+    for needle in ("without `-no-reboot`", "same QEMU process", "operator decision", "never automatic",
+                   "REBOOT SHOWN", "CONTAINERS RETURNED UNAIDED", "CONTROLLER PROCESS NEW", "`restart: unless-stopped`",
+                   "BatchMode=yes", "ConnectTimeout=10", "at most 90 reads", "Test 9 is not started"):
+        assert needle in section, needle
+    assert "QEMU exits (-no-reboot)" not in section
+    assert "Re-launch exactly as in 3.3" not in section
+    expected = _paragraph("### Test 8", "Expected:")
+    assert "a timed family" in expected and "`UNVERIFIED:`" in expected
+    appendix = "\n".join(_section("## Appendix B"))
+    assert "in-process reboot" in appendix and "guest-unverified" in appendix.split("in-process reboot", 1)[1]
+    # the lines run nothing by pattern and start nothing on the guest
+    for ln in t8_lines():
+        assert not re.search(r"\bkill\b|\bpgrep\b|\bpkill\b", ln), ln
+        assert not re.search(r"compose\b.*\b(up|start|restart)\b", ln), ln
+
+
+# --------------------------------------------------------------------------
 # defect 4 - tunnels: this project's control socket only
 # --------------------------------------------------------------------------
 def make_stale_socket(path: Path) -> None:
@@ -3092,7 +3399,8 @@ def make_stale_socket(path: Path) -> None:
 
 
 def reopen_line() -> str:
-    return _one(_host_commands("### Test 8"), "tunnel_down && tunnel_up")
+    """Test 8's tunnel line (d), pasted after a line that set its carrier: the line reopens nothing otherwise."""
+    return "T8=returned\n" + _one(_host_commands("### Test 8"), '[ "$T8" = returned ] && tunnel_down && tunnel_up')
 
 
 def test_tunnel_open_line_of_5_7_no_master_ports_free_opens_a_master_on_the_project_socket_and_prints_tunnel_up(bench: Bench) -> None:
@@ -3136,7 +3444,7 @@ def test_tunnel_reopen_line_of_test_8_closes_only_the_project_socket_and_an_unre
         if REAL_PGREP:                                                   # the decoy IS what the withdrawn pattern matched
             seen = subprocess.run([REAL_PGREP, "-f", "ssh -f -N"], capture_output=True, text=True).stdout.split()
             assert str(decoy.pid) in seen
-        r = bench.run(bench.with_helpers("\n".join(("tunnel_up",'echo "RCUP=$?"', reopen_line().split("\n")[0], 'echo "RC=$?"'))))
+        r = bench.run(bench.with_helpers("\n".join(("tunnel_up",'echo "RCUP=$?"', reopen_line(), 'echo "RC=$?"'))))
         assert r.value("RCUP") == "0" and r.value("RC") == "0", r.out
         assert "TUNNEL CLOSED" in r.lines and r.lines.count("TUNNEL UP") == 2, r.out
         closing = [ln for ln in bench.ssh_log() if "[-O] [exit]" in ln]
@@ -3153,7 +3461,7 @@ def test_tunnel_close_exit_request_fails_prints_stop_and_the_reopen_line_opens_n
     (bench.state / "master_alive").write_text(str(bench.sock), encoding="utf-8")
     make_stale_socket(bench.sock)
     bench.set("exit_fails")
-    r = bench.run(bench.with_helpers("\n".join((reopen_line().split("\n")[0], 'echo "RC=$?"'))))
+    r = bench.run(bench.with_helpers("\n".join((reopen_line(), 'echo "RC=$?"'))))
     assert r.value("RC") != "0", r.out
     assert r.starting("STOP: 'ssh -O exit' failed on "), r.out
     assert r.starting("STOP: test 8: tunnel NOT reopened"), r.out
