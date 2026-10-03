@@ -4559,11 +4559,16 @@ is unchanged.
   identical, the smoke runs), the timeout path (ssh never answers: STOP, no
   later line, no smoke), the unchanged-boot-id path (the old id throughout:
   STOP "reboot not shown"), a recreated or missing container (STOP, no
-  smoke) and failed prerequisites never reaching the smoke; they are
-  committed red first on the test 8 branch, and their red and green
-  outcomes and the integrated head's verification record belong to that
-  branch's commits and the pull request's consolidated review, not to this
-  stream. No guest, WSL, Docker or project test ran for the records.
+  smoke) and failed prerequisites never reaching the smoke, and, after the
+  review, the boot id's form, a non-id answer and a Restarting container;
+  they were committed red first (`6517c8a`: 18 failed on the runbook of
+  `80e833f`; `f45be9f`: 9 failed on the first rewrite) and green after each
+  change (`f1832a4`, `b56f5e1`: 340 passed in the two runbook modules). The
+  affected selection of five modules, with the source identity recorded
+  first, gave 1,035 passed on the integrated `fc194a7`
+  (`HIST_2026-10-03-post-battery-integrated-attempt01`) and 1,040 passed on
+  `0a48e4a`, the final head (`…-attempt02`); the records of the block are in
+  `HIST_2026-10-03-post-battery-records`. No guest ran.
 - **Review.** The Project Manager's read-only review of the records of both
   sessions (the register entry above): 1,120 matching entries in 20 local
   packages; all 11 attempted qualifying rows name the official purpose,
