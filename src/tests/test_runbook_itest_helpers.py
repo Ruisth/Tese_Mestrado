@@ -3181,10 +3181,15 @@ def t8_container_reads(bench: Bench) -> list[str]:
     return t8_ssh_after_reboot(bench, "docker ps -q --no-trunc | sort")
 
 
+#: a compose command that starts something: 'docker compose [options] up|start|restart' or the $DC of test 7 (the STOP
+#: text of line c names the verbs to the operator, which is not a command)
+T8_STARTS_SOMETHING = re.compile(r"(docker compose|\$DC)\b[^\"';]*\b(up|start|restart)\b")
+
+
 def assert_t8_nothing_started_anything(bench: Bench) -> None:
     """No 'compose up', 'start' or 'restart' went to the guest: a return is only unaided when nothing started it."""
     for ln in bench.ssh_log():
-        assert not re.search(r"compose\b.*\b(up|start|restart)\b", ln), ln
+        assert not T8_STARTS_SOMETHING.search(ln), ln
     assert "PATTERN-KILL" not in bench.calls(), bench.calls()
 
 
@@ -3381,7 +3386,9 @@ def test_test_8_text_states_the_in_process_reboot_the_unaided_return_and_the_hal
     # the lines run nothing by pattern and start nothing on the guest
     for ln in t8_lines():
         assert not re.search(r"\bkill\b|\bpgrep\b|\bpkill\b", ln), ln
-        assert not re.search(r"compose\b.*\b(up|start|restart)\b", ln), ln
+        assert not T8_STARTS_SOMETHING.search(ln), ln
+    # the verbs an aided return would use stand in line c's STOP text only, as what NOT to do
+    assert "do NOT compose up/start/restart anything" in t8_lines()[2]
 
 
 # --------------------------------------------------------------------------
