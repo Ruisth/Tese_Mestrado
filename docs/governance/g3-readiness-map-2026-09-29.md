@@ -164,6 +164,7 @@ its deadlines on valid runs, all emulated and informational.)*
 | T1 smokes `itest-smoke-01/02/03-q1` (30 s, timed) | in time, 336 of 336 each; the first smoke's p95 about 50 s and maximum about 51 s against the 60 s deadline, the later runs far lower |
 | T1 harness `nominal-r02` (valid; delivery reported only) | 4,584 of 6,720 in time, `lost` 2,136 (111 late): not successful nominal delivery |
 | T2 `itest-3dev-01-q1` (timed) | in time, 672 of 672 |
+| T3 `itest-invalid-01-q1` (120 s; not timed, reported only) | `lost` 0, `late` 0 for the 1,277 valid identities |
 | T4 reset `itest-dup-02-q1` (timed) | in time, 672 of 672 |
 | T5 `itest-dropout-01-q1` (timed) | in time, 2,016 of 2,016 (on 2026-09-18, 326 late) |
 | T6 `controller_restart-r03` (invalid; reported only) | 4,718 of 6,720 by the deadline in the initial copy (`lost` 2,002, 82 late); post-drain copy: all 6,720 accepted, 2,002 beyond the deadline, none absent — a deadline metric, not permanent loss; recovery 4.75 s functional, 11.9 s endpoint, within the 120 s bound on an invalid run |

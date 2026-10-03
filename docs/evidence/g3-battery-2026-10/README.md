@@ -63,8 +63,8 @@ a seal of this directory: `tools/ci/verify_evidence.py` reads files named
 - **The seventeen exported packages** (the two sessions, the two preflights,
   the two gate records and the eleven rows) each carry an `export_manifest.json`
   whose `secret_scan` records that the values of the named password variables
-  and PEM private-key blocks were searched in every file, with `excluded: []`:
-  nothing was withheld from any of them.
+  and PEM private-key blocks were searched in every file, and whose `excluded`
+  list is empty: nothing was withheld from any of them.
 - **The two operator-records packages** record, in their READMEs, that the
   sealing script stopped before sealing because its private-key sweep matched
   its own pattern text in the copy of itself (`operator/seal_ops.sh`, line
