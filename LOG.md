@@ -4518,20 +4518,29 @@ is unchanged.
     `/metrics` reading (whose `started_at` line e compares); a bounded wait (at
     most 90 reads 10 s apart, each read bounded by `ConnectTimeout=10`, so up to
     about 30 min) for the guest to answer with a **different**
-    boot id, `REBOOT SHOWN` only then, and on timeout a STOP that says
-    whether the guest never answered or kept answering the old id; the
+    boot id of the kernel's form (36 characters of `[0-9a-f-]`), `REBOOT
+    SHOWN` only then, and on timeout a STOP that says whether the guest never
+    answered, kept answering the old id, answered and then fell silent, or
+    answered something that is not a boot id; the
     comment now says that the launcher runs QEMU without `-no-reboot`, so
     the guest reboots inside the same process, and that a QEMU exit is a
     STOP here, the re-launch of 3.3 being a recorded operator decision,
     never automatic; the unaided return judged before any `compose up` or
-    `start` — the same six container objects running again, `CONTAINERS
-    RETURNED UNAIDED`, else STOP — then the existing read-only observations,
+    `start` — the six container ids saved before the reboot listed running
+    again by `docker ps --filter status=running` (a Restarting container is
+    left out; these lines start nothing, and a hand start from another shell
+    is not something the line can tell apart), `CONTAINERS RETURNED UNAIDED`,
+    else STOP — then the existing read-only observations,
     the tunnel, readiness, the post-reboot snapshot and `same`, the
     controller's new process shown by its `started_at`, and only then the
     fresh timed smoke; test 9 is not started unless test 8 reached its smoke
-    line. The step files are `t8-a-reboot.sh` to `t8-f-smoke.sh`; the
-    battery's row files are re-extracted from this text at the next
-    preparation, not here.
+    line. The consolidated review of the integrated branch then tightened
+    the lines (the boot id's form, the status filter, the records worded as
+    what each line observes) with their regression cases red first. The step
+    files are `t8-a-reboot.sh` to `t8-f-smoke.sh`; the battery's row files
+    are re-extracted from this text at the next preparation, not here. The
+    T6 page runs to about 1,100 words, above its nominal 1,000, because its
+    quoted rows, the two rule texts and the regression cases are kept whole.
   - *The T6 page* `docs/governance/proposals/2026-10-03-t6-sampling-versus-restart-events.md`,
     PROPOSED and adopting nothing: from the exported bytes of
     `controller_restart-r03` and the collector at `80e833f`, how a row is

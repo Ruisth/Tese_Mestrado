@@ -24,7 +24,7 @@ first found gives `appeared` in `.lifecycle.csv` (priming, no row), one no longe
 | **13:37:18.762** | **`start`** (`StartedAt` 18.699) = **S**; sec(S) = 13:37:18 |
 | 13:37:18Z | row `16.06,3588096,1.34` (3.42 MiB): **rejected** "in the second of the start" |
 | 13:37:19Z | row `83.63,9887744,3.68`: first after sec(S) + 1 s |
-| 13:37:28.984 | `/metrics` `started_at`: the new process's own start stamp (first `/metrics` answer 13:37:30.213Z) |
+| 13:37:28.984 | `/metrics` `started_at`: the new process's own start stamp (first `/metrics` answer 13:37:30.090Z on the guest clock; 13:37:30.213Z as the harness host stamped it) |
 
 **The mismatch.** Both edges pass (3.0 s, 1.0 s); only the two rows fail (`rejected_rows`). The cgroup was gone
 by the 13:37:12Z sample, before `die`, and back by 13:37:16Z, 1.7–2.7 s before `StartedAt`; the 13:37:17Z row
