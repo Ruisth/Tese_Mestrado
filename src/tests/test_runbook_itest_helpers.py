@@ -3221,8 +3221,11 @@ def test_test_8_success_path_different_boot_id_after_a_few_polls_same_container_
     assert (r.value("T8_A"), r.value("T8_B"), r.value("T8_C"), r.value("T8_D"), r.value("T8_E")) == \
         ("rebooting", "rebooted", "returned", "reconnected", "ok"), r.out
     assert not r.starting("STOP"), r.out
+    # line a records the command sent, not a finding (its ssh status is not tested): the reboot is line b's finding
+    assert r.starting("reboot command sent (status not tested)") and not r.starting("REBOOT ISSUED"), r.out
     assert r.starting(f"REBOOT SHOWN: boot id {T8_PRE_ID} -> {T8_POST_ID}"), r.out
     assert r.starting("CONTAINERS RETURNED UNAIDED"), r.out
+    assert not any("by hand" in ln for ln in r.starting("CONTAINERS RETURNED UNAIDED")), r.out
     assert r.starting(f"CONTROLLER PROCESS NEW: started_at {STARTED} -> {T8_POST_STARTED}"), r.out
     assert "TUNNEL UP" in r.lines, r.out
     assert r.value("RC_F") == "0", r.out
@@ -3349,7 +3352,8 @@ def test_test_8_a_container_set_that_differs_is_not_an_unaided_return_nothing_is
 
 
 @pytest.mark.parametrize("case", ["five containers before the reboot", "boot id unreadable", "boot id a bare newline",
-                                  "metrics unreachable", "twin snapshot refused"])
+                                  "/metrics unreachable: drained stops", "pre-reboot /metrics reading exists already",
+                                  "twin snapshot refused"])
 def test_test_8_a_failed_precondition_of_line_a_reboots_nothing_and_no_later_line_runs(bench: Bench, case: str) -> None:
     t8_prepare(bench)
     if case.startswith("five"):
@@ -3360,15 +3364,28 @@ def test_test_8_a_failed_precondition_of_line_a_reboots_nothing_and_no_later_lin
         # review of 2026-10-03 (T8-3): an answer of one empty line is a one-byte file, which '-s' took as a saved id;
         # the saved id must have the kernel file's form (36 characters of 0-9, a-f and '-') or line a stops
         bench.set("boot_id", "")
-    elif case == "metrics unreachable":
+    elif case.startswith("/metrics unreachable"):
+        # 'drained' reads /metrics before the 'metrics' helper does, so it is the one that stops line a here
         (bench.state / "metrics.json").unlink()
+    elif case.startswith("pre-reboot /metrics reading exists"):
+        # the write-once refusal of the 'metrics' helper (wait_ready and drained pass): an earlier execution's file
+        bench.p.mkdir(parents=True, exist_ok=True)
+        (bench.p / "itest-reboot.metrics.pre-reboot.json").write_text('{"earlier": "execution"}', encoding="utf-8")
     else:
         bench.set("rec_snap_rc", 1)
     r = call_test8(bench)
     assert r.value("T8_A") == "stop", r.out
     assert r.starting("STOP: test 8:") and any("the guest was NOT rebooted" in ln for ln in r.starting("STOP: test 8:")), r.out
+    if case.startswith("/metrics unreachable"):
+        assert r.starting("STOP: drained: GET") and not r.starting("STOP: metrics itest-reboot pre-reboot:"), r.out
+        assert not (bench.p / "itest-reboot.metrics.pre-reboot.json").exists()
+    elif case.startswith("pre-reboot /metrics reading exists"):
+        stops = r.starting("STOP: metrics itest-reboot pre-reboot:")
+        assert len(stops) == 1 and "exists" in stops[0] and "nothing was overwritten" in stops[0], r.out
+        assert (bench.p / "itest-reboot.metrics.pre-reboot.json").read_text(encoding="utf-8") == '{"earlier": "execution"}'
+    assert not (bench.p / "itest-reboot.metrics.pre-reboot.json.tmp").exists()
     assert not [ln for ln in bench.ssh_log() if "sudo systemctl reboot" in ln], bench.ssh_log()
-    assert not r.starting("REBOOT ISSUED") and not r.starting("REBOOT SHOWN"), r.out
+    assert not r.starting("reboot command sent") and not r.starting("REBOOT SHOWN"), r.out
     assert all(r.value(f"T8_{x}") == "stop" for x in "BCDE"), r.out
     assert not [ln for ln in bench.ssh_log() if "[-M]" in ln]
     assert_t8_no_smoke(bench, r)
