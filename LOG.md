@@ -4534,9 +4534,10 @@ is unchanged.
     PROPOSED and adopting nothing: from the exported bytes of
     `controller_restart-r03` and the collector at `80e833f`, how a row is
     stamped and what the cgroup of a restarting container shows between
-    Docker's `die` and `start`, the actual rows quoted; two or three
-    prospective options, with exact wording, consequences and bounded
-    regression cases, and a recommendation; the timely-delivery problem in
+    Docker's `die` and `start`, the actual rows quoted; three prospective
+    options (two validator-only rules and a collection correction), with
+    exact wording, consequences and bounded regression cases, and a
+    recommendation (the first); the timely-delivery problem in
     its own section, with what any runtime change would imply, and without
     a load reduction, a deadline extension or a pilot-only reading of C12.
 - **Tests.** This records stream ran `python tools/ci/check_markdown_links.py`
