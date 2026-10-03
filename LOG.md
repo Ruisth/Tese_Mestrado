@@ -4536,7 +4536,8 @@ is unchanged.
     against what line a saved before the reboot (`PERSISTENCE SHOWN`, else a
     STOP naming the one that did not hold), the remaining read-only
     observations being a separate command whose status is printed, not
-    judged, and every read after the reboot bounded by `timeout 20` — then
+    judged and bounded by a 60 s `timeout`, and every read after the reboot
+    bounded by `timeout 20` — then
     the tunnel, readiness, the post-reboot snapshot and `same`, the
     controller's new process shown by its `started_at`, and only then the
     fresh timed smoke; test 9 is not started unless test 8 reached its smoke
