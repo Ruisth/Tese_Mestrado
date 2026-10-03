@@ -3544,11 +3544,11 @@ def test_test_8_a_read_that_connects_and_then_stalls_is_ended_by_the_timeout_and
     read. The stub stalls for 600 s of real time on the first two reads, so a text without that bound is failed by
     the bench's own 20 s wait instead of hanging the suite."""
     t8_prepare(bench)
-    bench.set("guest_down_calls", 0)
+    bench.set("guest_down_calls", 0)                                  # the guest answers from the first read on
+    bench.set("docker_ps_empty_calls", 0)                             # and lists the containers from the first read on
     if read == "boot id":
         bench.set("boot_id_stall_calls", 2)
     else:
-        bench.set("docker_ps_empty_calls", 0)
         bench.set("docker_ps_stall_calls", 2)
     r = call_test8(bench, timeout=20)
     assert (r.value("T8_B"), r.value("T8_C"), r.value("T8_E")) == ("rebooted", "returned", "ok"), r.out
