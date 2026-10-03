@@ -97,7 +97,7 @@ the host preparation, are listed with the rows in the
 - **T9** did not run after the halt, which the packet's halt rules required.
 - **Throughput.** Every long row at 11.2 msg/s (the T1 harness run and T6
   for 600 s, each T7 fault for 300 s) left a large late backlog under TCG;
-  the 30 s, 60 s and 180 s rows, at the same rate, were in time. A sizing
+  the 30 s, 60 s, 120 s and 180 s rows, at the same rate, were in time. A sizing
   finding, recorded; it turns no row into a pass and no pass into a capacity
   claim.
 

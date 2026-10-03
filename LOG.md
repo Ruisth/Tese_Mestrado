@@ -4514,8 +4514,10 @@ is unchanged.
     `2026-10-03_g3-battery-s2-results.md`.
   - *Test 8's procedure, corrected* (runbook section 7, test 8 and its
     Expected paragraph; not the 6.1 heredoc, which is unchanged): the
-    pre-reboot line also saves the running container ids; a bounded wait
-    (every 10 s, at most 15 min) for the guest to answer with a **different**
+    pre-reboot line also saves the running container ids and a pre-reboot
+    `/metrics` reading (whose `started_at` line e compares); a bounded wait (at
+    most 90 reads 10 s apart, each read bounded by `ConnectTimeout=10`, so up to
+    about 30 min) for the guest to answer with a **different**
     boot id, `REBOOT SHOWN` only then, and on timeout a STOP that says
     whether the guest never answered or kept answering the old id; the
     comment now says that the launcher runs QEMU without `-no-reboot`, so

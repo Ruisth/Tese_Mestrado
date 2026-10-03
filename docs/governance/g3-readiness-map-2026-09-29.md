@@ -170,7 +170,7 @@ its deadlines on valid runs, all emulated and informational.)*
 | T7 MongoDB / Ditto (not timed; reported only) | `lost` 1,209 (1,165 late) / `lost` 1,895 (1,890 late) |
 
 Every long row at 11.2 msg/s (the harness run and T6 for 600 s, each T7
-fault for 300 s) left a large late backlog under TCG; the 30 s, 60 s and
+fault for 300 s) left a large late backlog under TCG; the 30 s, 60 s, 120 s and
 180 s rows, at the same rate, were in time. For T6, which is timed, this
 is a second question beside its admissibility, and no resource-validity change
 answers it; any runtime change makes a new candidate.
