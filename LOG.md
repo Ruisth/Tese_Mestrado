@@ -4383,3 +4383,220 @@ is unchanged.
   stays unsent, with its numbers unchanged. Next: the map's decision 4, the
   candidate lock and the authorisation of the battery, each guest session
   under its own authorisation.
+
+## Entry #C050 — The G3 qualifying battery, sessions S1 and S2: the records, the T8 procedure corrected, the T6 question set out; G3 not closed
+
+- **Date:** 2026-10-03. **Scope:** the two sessions of the G3 qualifying
+  battery on the frozen candidate — S1 on 2026-10-02 (rows T1–T5) and S2 on
+  2026-10-03 (T6, T7, T8; T9 not run) — under Rui's authorisation of
+  2026-10-02 and the decision packet of 2026-10-01, revision 2 (both held
+  locally under `output_test/decisions/`), and the offline block the
+  Project Manager's register entry "2026-10-03 15:50 WEST — S1/S2 results,
+  bounded remaining work; G3 not closed"
+  (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`, held outside the
+  repository) recommended and Rui relayed: consolidate the results, correct
+  only test 8's procedure, one page on T6, one focused pull request. Offline
+  only: no guest session, no QEMU, no build, no load. The candidate is
+  unchanged: tools `80e833f` (tree `dad725d`), the section 6.1 helpers
+  `e5eba37e…`, the controller image `9a293fe1…` from `489bc9e`, the guest
+  image of 2026-09-18 under QEMU 8.2.7 TCG, the launcher at `489bc9e`.
+  Nothing here changes a rule, a threshold, a deadline, the load, the
+  controller, the launcher, the image or the frozen helpers. Branches from
+  `80e833f`: the records (this entry, PROGRESS, the readiness map, the
+  results addendum and the evidence index), the test 8 procedure with its
+  regression tests, and the T6 page, integrated into one pull request.
+- **Why.** The battery is the first qualifying run of the nine families on
+  one unchanged candidate. Its records had to be consolidated with three
+  things kept apart per family — the validity of the evidence chain, the
+  functional outcome and timed delivery — before any decision is asked of
+  Rui; S2 ended on a halt whose cause was the procedure's own assumption,
+  not the SUT; and T6's invalidity raised a question about the adopted rule
+  that only a prospective decision can answer.
+- **What.**
+  - *S1, 2026-10-02* (15:01:30Z to 16:34:13Z, 1 h 33 min; no halt
+    condition; the recorded `compose stop -t 130` and the close driver each
+    ended 0; root file system `f59a60ff…` after it). T1's three smokes
+    `itest-smoke-01/02/03-q1`: 336 of 336 each, in time, every `delta` OK —
+    Pass. T1's harness run `nominal-r02`: valid and sealed (682 instants per
+    service, capture complete), its delivery reported only, 4,584 of 6,720 in
+    time (`lost` 2,136, 111 late) — Pass as an artefact chain, **not**
+    successful nominal delivery. T2 `itest-3dev-01-q1`: 672 of 672 in time,
+    three twins correct — Pass. T3 `itest-invalid-01-q1`: 67 of 67 invalid
+    rejected, none accepted; all 1,277 valid identities `accepted` in the
+    post-drain copy; not timed — Pass. T4 replay `itest-dup-01-q1`:
+    `replay-check` 0, 672 of 672 with a `duplicate` line, none accepted
+    again, the `after` reading quiet, k = 0 — Pass; T4 reset
+    `itest-dup-02-q1`, its first run ever: 672 of 672 in time, no duplicate
+    — Pass. T5 `itest-dropout-01-q1`: 2,016 of 2,016 in time, 3 deliberate
+    dropouts, 165 buffered, `double_accepted` 0, `delta` OK — Pass as sealed,
+    with two points: the bounded broker log holds 4 connections and **4**
+    disconnection lines (the three dropout cycles plus the simulator's
+    terminal `DISCONNECT`, which a bounded read taken after the run always
+    includes), where the Expected list, marked `UNVERIFIED`, says "N+1
+    connections and N disconnections" and the packet's §5 assigns such a
+    count to *inconclusive*; and one `check` warning on C10, a documented
+    layout mismatch (the reconciliation directory lacks the campaign-style
+    simulator manifest; the run's own manifest and stderr hold the 3/165
+    totals), preserved, with no campaign C10 acceptance claimed and the
+    frozen helper not changed.
+  - *S2, 2026-10-03* (13:22:49Z to 14:39:43Z, 1 h 17 min; opened on S1's
+    post-close root file system; **halt 5 of the packet's §4 at T8**, then
+    the controlled close, each stop ending 0, no OOM in either boot, root
+    file system `22e9da85…` after it). T6 `controller_restart-r03`:
+    **invalid instrumentation** under rule 1a, the inner run unsealed. The
+    rule's preconditions held on the guest for the first time (exit 0; a
+    complete capture with one `die` at `13:37:14.06Z` and one `start` at
+    `13:37:18.76Z` of `egw-controller-1`; `StartedAt` 0.06 s before the
+    start; edge gaps 3.0 s and 1.0 s), but the collector wrote two rows of
+    the controller stamped `13:37:17Z` and `13:37:18Z`, inside the interval
+    and in the start's own second, which the rule as written rejects
+    whatever their values. No row deleted, no validator relaxed, no attempt
+    relabelled. Recovery 4.75 s functional, 11.9 s endpoint. Delivery
+    reported only: 4,718 of 6,720 by the deadline in the initial events copy
+    (`lost` 2,002, 82 late); the post-drain copy holds all 6,720 uniquely
+    accepted, 2,002 beyond the deadline, none absent, none duplicate-only
+    (the Project Manager's independent accounting). T7 MongoDB
+    `itest-mongo-fault-01-q1` and T7 Ditto `itest-ditto-fault-01-q1` (its
+    first run ever): interruption and recovery shown, captures complete, 44
+    and 5 `failed` after 3 attempts, acceptance resumed, `delta` OK, N1 0/0,
+    no OOM at 768 MiB; not timed (reported `lost` 1,209 with 1,165 late, and
+    1,895 with 1,890 late) — Pass, both. T8 `itest-reboot-q1`:
+    **inconclusive, not demonstrated**. The guest rebooted inside the same
+    QEMU process (boot id `d22195a1…` → `76471e31…`; the previous boot
+    ended cleanly at `14:25:44Z`, the new one began at `14:26:15Z`; the
+    containers' start times reach `14:26:46Z`, health read later); runbook
+    line 1487 assumed a QEMU exit (`-no-reboot`) that `run-qemu-integrated.sh`
+    never produces, so the procedure waited 600 s for the exit and halted
+    without signalling QEMU; `REBOOT SHOWN`, twins `same`, the controller's
+    state and the fresh timed smoke were never evaluated. A procedure
+    defect, not proof that the Yocto reboot or the persistence failed;
+    nothing completes T8 retrospectively. T9: not run after the halt.
+  - *The records.* `docs/governance/g3-battery-2026-10-results.md`: the
+    candidate, both sessions, the twelve rows with validity, functional
+    outcome, timed delivery, class and package, the boundaries the Project
+    Manager states and the three outstanding decisions. The readiness map's
+    rows T1–T9 and its issues 2, 4, 5 and 6 carry dated "after the battery"
+    notes, its statuses unchanged, and its decisions list gains 6, 7 and 8.
+    `docs/evidence/g3-battery-2026-10/README.md` and `PACKAGES.sha256`
+    prepare the publication: the twenty packages with their file counts and
+    the SHA-256 of each `SHA256SUMS`, computed read-only from the local
+    originals, the secret review as recorded at export (seventeen export
+    manifests with `excluded: []`; the two operator-records packages' own
+    sweeps and sealing notes; the host-preparation package with no sweep of
+    its own), and the publication proposed as a separate step for Rui's
+    decision — the byte copies, about 49 MB, are not committed here. The
+    gate decision log is unchanged: G3 `Not decided`.
+  - *The twenty packages* (local, `output_test/runs/`; files = entries of
+    the package's `SHA256SUMS`). 2026-10-02:
+    `HIST_2026-10-02-g3-battery-host-preparation` 85,
+    `20261002T150133Z_guest-session_attempt08` 87,
+    `20261002T150214Z_live-preflight_attempt09` 42,
+    `20261002T150720Z_g2-gate-preconditions_attempt05` 26,
+    `20261002T150829Z_g3-qualification-t1-smokes_attempt01` 66,
+    `20261002T152710Z_g3-qualification-t1-harness_attempt01` 88,
+    `20261002T154427Z_g3-qualification-t2_attempt01` 41,
+    `20261002T155313Z_g3-qualification-t3_attempt01` 41,
+    `20261002T160154Z_g3-qualification-t4-replay_attempt01` 45,
+    `20261002T161432Z_g3-qualification-t4-reset_attempt01` 38,
+    `20261002T162159Z_g3-qualification-t5_attempt01` 41,
+    `HIST_2026-10-02-g3-battery-s1-operator-records` 51. 2026-10-03:
+    `20261003T132249Z_guest-session_attempt09` 89 (holds the read-only
+    post-reboot step), `20261003T132332Z_live-preflight_attempt10` 42,
+    `20261003T132836Z_g2-gate-preconditions_attempt06` 26,
+    `20261003T132936Z_g3-qualification-t6_attempt01` 95 (the unsealed
+    harness run inside), `20261003T135147Z_g3-qualification-t7-mongo_attempt01`
+    52, `20261003T140639Z_g3-qualification-t7-ditto_attempt01` 52,
+    `20261003T142310Z_g3-qualification-t8_attempt01` 32 (incomplete),
+    `HIST_2026-10-03-g3-battery-s2-operator-records` 81. 1,120 entries; every
+    seal verified read-only on 2026-10-03, by this block and, independently,
+    by the Project Manager. The two result notes:
+    `output_test/decisions/2026-10-02_g3-battery-s1-results.md` and
+    `2026-10-03_g3-battery-s2-results.md`.
+  - *Test 8's procedure, corrected* (runbook section 7, test 8 and its
+    Expected paragraph; not the 6.1 heredoc, which is unchanged): the
+    pre-reboot line also saves the running container ids and a pre-reboot
+    `/metrics` reading (whose `started_at` line e compares); a bounded wait (at
+    most 90 reads 10 s apart, each read bounded by `ConnectTimeout=10`, so up to
+    about 30 min) for the guest to answer with a **different**
+    boot id of the kernel's form (36 characters of `[0-9a-f-]`), `REBOOT
+    SHOWN` only then, and on timeout a STOP that says whether the guest never
+    answered, kept answering the old id, answered and then fell silent, or
+    answered something that is not a boot id; the
+    comment now says that the launcher runs QEMU without `-no-reboot`, so
+    the guest reboots inside the same process, and that a QEMU exit is a
+    STOP here, the re-launch of 3.3 being a recorded operator decision,
+    never automatic; the unaided return judged before any `compose up` or
+    `start` — the six container ids saved before the reboot listed running
+    again by `docker ps --filter status=running` (a Restarting container is
+    left out; these lines start nothing, and a hand start from another shell
+    is not something the line can tell apart), `CONTAINERS RETURNED UNAIDED`,
+    else STOP — then the existing read-only observations,
+    the tunnel, readiness, the post-reboot snapshot and `same`, the
+    controller's new process shown by its `started_at`, and only then the
+    fresh timed smoke; test 9 is not started unless test 8 reached its smoke
+    line. The consolidated review of the integrated branch then tightened
+    the lines (the boot id's form, the status filter, the records worded as
+    what each line observes) with their regression cases red first. The step
+    files are `t8-a-reboot.sh` to `t8-f-smoke.sh`; the battery's row files
+    are re-extracted from this text at the next preparation, not here. The
+    T6 page runs to about 1,100 words, above its nominal 1,000, because its
+    quoted rows, the two rule texts and the regression cases are kept whole.
+  - *The T6 page* `docs/governance/proposals/2026-10-03-t6-sampling-versus-restart-events.md`,
+    PROPOSED and adopting nothing: from the exported bytes of
+    `controller_restart-r03` and the collector at `80e833f`, how a row is
+    stamped and what the cgroup of a restarting container shows between
+    Docker's `die` and `start`, the actual rows quoted; three prospective
+    options (two validator-only rules and a collection correction), with
+    exact wording, consequences and bounded regression cases, and a
+    recommendation (the first); the timely-delivery problem in
+    its own section, with what any runtime change would imply, and without
+    a load reduction, a deadline extension or a pilot-only reading of C12.
+- **Tests.** This records stream ran `python tools/ci/check_markdown_links.py`
+  (exit 0) and verified the twenty seals read-only (`sha256sum -c` in each
+  package: 20 of 20, 1,120 entries). The test 8 procedure's regression
+  tests, in `src/tests/test_runbook_itest_helpers.py`, cover the success
+  path (ids differ after a few polls, the same container set, `same`
+  identical, the smoke runs), the timeout path (ssh never answers: STOP, no
+  later line, no smoke), the unchanged-boot-id path (the old id throughout:
+  STOP "reboot not shown"), a recreated or missing container (STOP, no
+  smoke) and failed prerequisites never reaching the smoke, and, after the
+  review, the boot id's form, a non-id answer and a Restarting container;
+  they were committed red first (`6517c8a`: 18 failed on the runbook of
+  `80e833f`; `f45be9f`: 9 failed on the first rewrite) and green after each
+  change (`f1832a4`, `b56f5e1`: 340 passed in the two runbook modules). The
+  affected selection of five modules, with the source identity recorded
+  first, gave 1,035 passed on the integrated `fc194a7`
+  (`HIST_2026-10-03-post-battery-integrated-attempt01`) and 1,040 passed on
+  `0a48e4a`, the final head (`…-attempt02`); the records of the block are in
+  `HIST_2026-10-03-post-battery-records`. No guest ran.
+- **Review.** The Project Manager's read-only review of the records of both
+  sessions (the register entry above): 1,120 matching entries in 20 local
+  packages; all 11 attempted qualifying rows name the official purpose,
+  `80e833f` and zero dirty lines; the assessment per family reproduced in
+  the results addendum; not a complete independent rerun of every
+  evaluator. The one consolidated review of the pull request is recorded
+  with it.
+- **Limits.** Everything observed is of an emulated guest on a shared host;
+  no timing is a native figure. The passes are each family's own criteria
+  on one run, not reproducibility, capacity or stability; the throughput
+  finding (every 300 s and 600 s row at 11.2 msg/s left a late backlog; the
+  30 s, 60 s, 120 s and 180 s rows were in time) is recorded, not explained.
+  The T6 accounting is observation on an invalid run, not a qualifying failure
+  verdict. The T8 observations after the reboot (directory counts, health
+  read later) do not complete T8. The corrected T8 procedure is verified
+  with stubs only: nothing ran on the guest, and a changed test procedure is
+  not an unchanged tool hash — the next session's preparation must show the
+  SUT image, containers and configuration unchanged. The evidence index
+  lists seals it does not copy; publication, with its byte-for-byte
+  comparison and secret sweep, is a separate step.
+- **Decisions and next steps.** None taken here: no family, gate or claim
+  is accepted, G3 stays `Not decided`, G4 and the campaign are not released,
+  no criterion is weakened for time and the 2026-10-20 target is not moved.
+  Rui's three decisions, set out in the results addendum and the readiness
+  map (6, 7, 8): T5's interpretation; T6's admissibility and its timed
+  criterion, two separate questions (the T6 page for the first; T6 not
+  automatically appended to the next session); and T8/T9's completion in a
+  separately authorised bounded session with fresh identities and the
+  procedural revision recorded. The evidence publication is proposed as its
+  own pull request on Rui's decision. No runtime is authorised by this
+  entry.

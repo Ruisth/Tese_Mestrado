@@ -525,7 +525,29 @@ acceptance.*
   implemented offline, with regression tests on the host with stubs, and have
   not run on the guest (LOG #C049). No past run or verdict changes and no
   threshold moves. The candidate lock and the battery's authorisation remain;
-  G3 stays paused.)*
+  G3 stays paused.)* *(Marker added 2026-10-03: the candidate was frozen by
+  the decision packet of 2026-10-01, revision 2, the battery authorised by
+  Rui on 2026-10-02, and the qualifying battery ran on `80e833f` in two
+  sessions — S1 on 2026-10-02 (T1–T5) and S2 on 2026-10-03 (T6, T7, T8;
+  halted at T8, T9 not run). In their own criteria T1, T2, T3, T4 (replay
+  and sequence reset) and T7 (both faults) passed, T1's harness run being an
+  artefact chain only with 4,584 of 6,720 in time, and T5 passed as sealed
+  with the interpretation of its disconnection count pending Rui's explicit
+  ruling; T6 is invalid under the adopted resource rule (two collector rows
+  inside the proved-down interval), with its delivery reported only — 2,002
+  of 6,720 beyond the deadline in the post-drain copy, none absent — so two
+  separate questions stand, its admissibility and its timed criterion; T8 is
+  not demonstrated, the procedure having waited for a QEMU exit the launcher
+  never produces while the guest rebooted inside the same process, and its
+  procedure is corrected offline (LOG #C050). The consolidated rows are in
+  the [results addendum](docs/governance/g3-battery-2026-10-results.md), the
+  dated family notes in the
+  [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md), and the
+  twenty packages are indexed, not copied, in
+  [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md).
+  No family, gate or claim is accepted; the pause stays; the next runtime is
+  a separately authorised bounded T8/T9 completion session, with T6 and T5
+  each needing Rui's own decision.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;
