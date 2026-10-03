@@ -4566,8 +4566,8 @@ is unchanged.
   no timing is a native figure. The passes are each family's own criteria
   on one run, not reproducibility, capacity or stability; the throughput
   finding (every 300 s and 600 s row at 11.2 msg/s left a late backlog; the
-  30 s, 60 s and 180 s rows were in time) is recorded, not explained. The
-  T6 accounting is observation on an invalid run, not a qualifying failure
+  30 s, 60 s, 120 s and 180 s rows were in time) is recorded, not explained.
+  The T6 accounting is observation on an invalid run, not a qualifying failure
   verdict. The T8 observations after the reboot (directory counts, health
   read later) do not complete T8. The corrected T8 procedure is verified
   with stubs only: nothing ran on the guest, and a changed test procedure is
