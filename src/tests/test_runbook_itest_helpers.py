@@ -3183,7 +3183,7 @@ def t8_container_reads(bench: Bench) -> list[str]:
 
 #: a compose command that starts something: 'docker compose [options] up|start|restart' or the $DC of test 7 (the STOP
 #: text of line c names the verbs to the operator, which is not a command)
-T8_STARTS_SOMETHING = re.compile(r"(docker compose|\$DC)\b[^\"';]*\b(up|start|restart)\b")
+T8_STARTS_SOMETHING = re.compile(r"(docker( compose)?|\$DC|systemctl)\b[^\"';]*\b(up|start|restart)\b")
 
 
 def assert_t8_nothing_started_anything(bench: Bench) -> None:
