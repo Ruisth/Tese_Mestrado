@@ -4537,7 +4537,11 @@ is unchanged.
     STOP naming the one that did not hold), the remaining read-only
     observations being a separate command whose status is printed, not
     judged and bounded by a 60 s `timeout`, and every read after the reboot
-    bounded by `timeout 20` — then
+    bounded by `timeout 20`, its output counting only when the read ended
+    with exit status 0 (the Project Manager's follow-up on the same review
+    point: the status had been discarded, so an answer printed ahead of a
+    timeout or a failure could still satisfy a witness; such a read is now
+    no answer, and in line c a STOP naming both statuses) — then
     the tunnel, readiness, the post-reboot snapshot and `same`, the
     controller's new process shown by its `started_at`, and only then the
     fresh timed smoke; test 9 is not started unless test 8 reached its smoke
@@ -4576,7 +4580,13 @@ is unchanged.
   (`HIST_2026-10-03-post-battery-integrated-attempt01`) and 1,040 passed on
   `0a48e4a` (`…-attempt02`) and, after the pull request's review points
   (line c judges the directories and the mount source; every read after the
-  reboot bounded), 1,049 passed on `190ad8f`, the final head (`…-attempt03`);
+  reboot bounded), 1,049 passed on `190ad8f` (`…-attempt03`); the
+  completion of the second point (a judged read counts only at exit status
+  0: twelve cases over the boot id, the container set, the event
+  directories and the mount source, each printing its answer and then ended
+  by the timeout, failing, or ending with 0 as the control; red first at
+  `72ed89f`, 10 failed; fix `cba4808`) gave 1,061 passed on `cba4808`, the
+  verified code head (`…-attempt04`);
   the records of the block are in
   `HIST_2026-10-03-post-battery-records`. No guest ran.
 - **Review.** The Project Manager's read-only review of the records of both
