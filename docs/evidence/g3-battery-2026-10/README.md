@@ -1,4 +1,4 @@
-# G3 qualifying battery of 2026-10-02 and 2026-10-03 — evidence index (publication prepared, not made)
+# G3 qualifying battery of 2026-10-02 and 2026-10-03, and its T8/T9 completion of 2026-10-05 — evidence index (publication prepared, not made)
 
 **An index, not a capsule; not a gate, not a claim.** This directory prepares
 the publication of the twenty packages recorded by the two sessions of the G3
@@ -51,7 +51,37 @@ official rows name their purpose, `80e833f` and `repo_dirty_lines: 0`.
 | `2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01` | row 11, official, **incomplete**: T8 `itest-reboot-q1` up to the reboot; the post-reboot artefacts were never written, as the procedure halted waiting for a QEMU exit that does not occur | 32 | `6da5dc8163c7f69f5a2dbd397d6097d1889db8d9d4de5df0fb769c967cbd3d56` |
 | `2026-10-03/HIST_2026-10-03-g3-battery-s2-operator-records` | S2: the steps script's state directory as sealed, consoles, the operator's helpers and sealing scripts, the classification notes, the halt record | 81 | `a4e9350c3f92b6363308f32bd9ef61f7707c9ba0c71639b764f7450666432ea3` |
 
-`PACKAGES.sha256` beside this README holds the same twenty digests in
+## The T8/T9 completion of 2026-10-05
+
+Eleven packages, 838 sealed entries, 9,021,983 bytes on disk, all under
+`output_test/runs/2026-10-05/`, from the two openings of session S3 (tests 8
+and 9) on the same candidate with the procedure and tools of `8e49261`. Every
+seal verified read-only on 2026-10-05 before this index was extended
+(`sha256sum -c` in each package: 11 of 11, 838 entries, no failure); the
+Project Manager's read-only check of the same day found the 409 entries of
+the seven packages of the preparation of the second opening and of the
+second opening matching. The failed first opening is kept as it was sealed.
+
+| Package | What it holds | Files | `SHA256SUMS` of the package |
+|---|---|---|---|
+| `2026-10-05/HIST_2026-10-05-g3-t8t9-host-preparation` | the preparation of S3: the clone moved to `8e49261`, identities and freshness, the operator script for S3, the step files re-extracted from the `8e49261` runbook with `-q2`, the bounded check and the stub benches | 288 | `1dc610d18751dcccc17111ca94b6b465fd7819cb2b2b6298f5c85f5b6c23a72f` |
+| `2026-10-05/20261005T105614Z_guest-session_attempt10` | first opening: boot, the halt at open, the recorded `compose stop -t 130` and the close | 85 | `ef820eb906261e20dccc3618b6f30cb85ba150a8e3edc45cca90597be10a6cea` |
+| `2026-10-05/20261005T105656Z_live-preflight_attempt11` | first opening: the preflight that ended exit 3 on `collector-duration` alone — **failed, instrumentation invalid**, kept so | 42 | `c4bc5475774416fe500d5d412fa946e8ea32e8861b6eb956f9fac0e723d24042` |
+| `2026-10-05/HIST_2026-10-05-g3-t8t9-s3-operator-records` | first opening: the operator script's state, consoles and the halt note | 14 | `e5711eb754badea82fd91ff7baaf13fcbfe3b8a218ec2ec9744cab798a880175` |
+| `2026-10-05/HIST_2026-10-05-g3-t8t9-host-preparation-attempt02` | the minimal preparation of the second opening: the operator copy with the post-close root file system value, a fresh state directory and the authorised exception's read-only checker, the host recheck and the focused benches | 74 | `cdcd92841279d0a15fa66e4de13124d69e2c1bb153edf14407ee8e9e4dd764b2` |
+| `2026-10-05/20261005T114428Z_guest-session_attempt11` | second opening: boot, open and close, the recorded `compose stop -t 130` | 87 | `b7ad5f80d66bc6c7ce2421c821dcc732b2069a1f62c48bcda2feea8327d2acc9` |
+| `2026-10-05/20261005T114511Z_live-preflight_attempt12` | second opening: the preflight, passed (the exception not used) | 42 | `eece4bd2e93b8ac2fd7eb655dc5f848b44dd0374b78c6582010785cd5d2f8c60` |
+| `2026-10-05/20261005T115022Z_g2-gate-preconditions_attempt07` | second opening: the health record the rows started from | 26 | `74bbae18a29c5c7613361aa9ee99249b8876e048cf3596367573af5bd6ce096e` |
+| `2026-10-05/20261005T115131Z_g3-qualification-t8_attempt02` | row 13, official: T8 `itest-reboot-q2` with the smoke `itest-post-reboot-01-q2` — pass | 85 | `dfd2da2173f040d8b93367d508781a44631704417c8bbb87707bb9d9632432cf` |
+| `2026-10-05/20261005T120537Z_g3-qualification-t9_attempt01` | row 14, official: T9's five sub-checks and the exposure observations — pass | 71 | `9043c4203484d5dc9199fb0889bbd88d885c1a62e642963f3e70ffc9d699dd8c` |
+| `2026-10-05/HIST_2026-10-05-g3-t8t9-s3-operator-records-attempt02` | second opening: the operator script's state, consoles and the classification notes | 24 | `21b2ad827ebd99d4140bc751f6a64c1eacba64066ee6ec38a5dec855fb8202e6` |
+
+Each of the seven exported packages records its secret scan with an empty
+`excluded` list; the four `HIST_` packages were swept before sealing (0 files
+with a secret value, 0 with a private-key header). The publication step below
+applies to these packages too.
+
+`PACKAGES.sha256` beside this README holds the thirty-one digests (the twenty above and the eleven of 2026-10-05) in
 `sha256sum` form, one line per package, with the path of each `SHA256SUMS`
 relative to `output_test/runs/`; from that directory `sha256sum -c
 <this file>` checks that the local seals are the ones indexed here. It is not
@@ -82,22 +112,23 @@ a seal of this directory: `tools/ci/verify_evidence.py` reads files named
 
 ## The publication, proposed as a separate step
 
-The byte copies are **not** committed with this index: about 49 MB, in
-twenty directories whose paths exceed what the Windows worktrees used for this
+The byte copies are **not** committed with this index: about 58 MB
+(58,004,578 bytes: the twenty packages of 2026-10-02/03 and the eleven of
+2026-10-05), in thirty-one directories whose paths exceed what the Windows worktrees used for this
 block can hold (the existing capsules already show as modified or deleted
 there, which is why no file under `docs/evidence/` is staged from them). The
 proposed step, for Rui's decision and under the convention of the
-[r03 capsule](../finite-proof-r03/README.md): copy the twenty packages
-byte for byte from a checkout that holds long paths (WSL, or
+[r03 capsule](../finite-proof-r03/README.md): copy the thirty-one
+packages byte for byte from a checkout that holds long paths (WSL, or
 `core.longpaths=true` on a short path), keeping every export name and every
 inner seal exactly as sealed; compare every file by SHA-256 with the originals
 and check the inner seals against `PACKAGES.sha256`; run the secret sweep over
-all 1,120 files and keep its script and output locally with the block's
+all 1,958 files (1,120 and 838) and keep its script and output locally with the block's
 evidence; write the directory's own `SHA256SUMS` (every file, the inner seals
 and this README, not itself) and the `.gitattributes` line that stores the
 directory without text conversion; then publish it in its own pull request.
 Nothing in the copies is to be rewritten: not an inner seal, not an export
 `SUMMARY.md` ("a package here is a local copy; it is not published or
 admitted evidence" was true when sealed), not a classification. Publishing
-the copies would record the battery; it would not accept a family, a gate or
+the copies would record the battery and its T8/T9 completion; it would not accept a family, a gate or
 a claim, and the decisions the results addendum lists stay Rui's.

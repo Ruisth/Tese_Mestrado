@@ -1,4 +1,4 @@
-# G3 qualifying battery of 2026-10-02 and 2026-10-03 — results addendum
+# G3 qualifying battery of 2026-10-02 and 2026-10-03, and its T8/T9 completion of 2026-10-05 — results addendum
 
 **A record, not a decision.** This page consolidates what the two sessions of
 the G3 qualifying battery recorded, row by row, keeping three things apart
@@ -58,6 +58,50 @@ The session, preflight, gate and operator-records packages of each day, and
 the host preparation, are listed with the rows in the
 [evidence index](../evidence/g3-battery-2026-10/README.md).
 
+## The T8/T9 completion of 2026-10-05
+
+Authority: Rui's authorisation of one session S3 (tests 8 and 9 only) under
+the request of 2026-10-04 and its decision summary, and of a second opening
+under a prospective exception for `collector-duration` authorised the same day
+(the records are held locally under `output_test/decisions/`, dated
+2026-10-04 and 2026-10-05); the Project Manager's register entries of
+2026-10-05, 12:09 and 13:42 WEST. The candidate is the battery's, unchanged:
+controller image `9a293fe1…` from `489bc9e`, the pinned images, the deployment
+tree, the guest image under QEMU 8.2.7 TCG. The procedure and tools are the
+merge of PR #54, `8e49261` (runbook `4acf8de6…`, helpers `e5eba37e…`): test 8
+in its corrected form (lines a to f), every identifier with the suffix `-q2`.
+Narrative: LOG #C051.
+
+| Opening | Time (UTC) | What happened |
+|---|---|---|
+| First | 10:56–11:03 | **Halted at open, before any row.** The frozen preflight ended exit 3 (instrumentation invalid, outcome inconclusive) on its `collector-duration` step alone: the check measured 43 s between the collector's UTC `start:` and `stop:` stamps against the 45 s the collector runs on `/proc/uptime`, and the collector's calibration lines record 38 s of UTC against 40.69 s of uptime in the same interval — a clock-basis mismatch, not a measured early stop. No row ran, no `-q2` identifier was used; controlled close; root file system `b48b010d…` after it. |
+| Second | 11:44–12:13 | The preflight passed normally (44 s of 45 s, within its tolerance): the authorised exception was **not** used. T8 and T9 ran; controlled close (recorded stop and close driver exit 0, no QEMU left); root file system `6fce1688…` after it. |
+
+| # | Row | Run id | Validity | Functional outcome | Timed delivery | Class | Package (`output_test/runs/`) |
+|---|---|---|---|---|---|---|---|
+| 13 | T8 | `itest-reboot-q2`; smoke `itest-post-reboot-01-q2` | valid | reboot inside the same QEMU process on the same disks (no `-no-reboot` on its command line; boot id `fc85c700…` → `0a780c6e…`); the same six container objects listed running again with nothing started by hand; the 35 event-directory names and `/var/lib/docker` on `/dev/vdb` persisted; the three existing seed-42 twins identical; the controller's `started_at` changed | **met**: 336 sent, 336 accepted, `lost` 0, `late` 0, every `delta` OK; the latest acknowledgement 1.338 s before the controller-marker deadline | Pass | `2026-10-05/20261005T115131Z_g3-qualification-t8_attempt02` |
+| 14 | T9 | `itest-tls-wrongca-q2`, `itest-auth-wrongpw-q2`, `itest-notls-q2`, `itest-acl-20261005T120642Z` | valid | (a) wrong CA rejected; (b) wrong password refused, the named client "not authorised" in the broker log bounded to (b); (c) plaintext on the TLS listener rejected; (d) ACL probe PASS, no delivery to the unauthorised subscriber, controller counters and process unchanged; (e) anonymous client refused; the exposure observations recorded | not timed | Pass | `2026-10-05/20261005T120537Z_g3-qualification-t9_attempt01` |
+
+Boundaries the Project Manager states for these rows:
+
+- **T8.** The persistence shown is of the event-directory names, not a
+  verification of every file's bytes. Zero restart counters and no reported
+  OOM do not mean that the prescribed reboot did not occur. The smoke's
+  latency percentiles (p95 57.6 s, maximum 58.8 s) are descriptive; the
+  timeliness criterion is `lost` and `late` against the marker plus 60 s.
+- **T9** demonstrates the tested controls, not a security audit. The ssh
+  observation is the refusal of one root login with one key, not proof of a
+  root-login policy; the exposure evidence concerns the WSL/QEMU loopback
+  forwarding and the guest's publication as observed, not Windows or LAN
+  reachability, nor a firewall.
+- **The first opening's preflight stays invalid.** The second opening's pass
+  validates it in no way and does not settle the measurement debt of
+  `collector-duration` (UTC stamps judged against a duration run on uptime),
+  which is recorded for correction before any resource-dependent run relies
+  on that check.
+- Seven families now have favourable technical evidence on this candidate
+  (T1–T4 and T7–T9). That is not a G3 decision.
+
 ## Boundaries the Project Manager states
 
 - **T1–T4** are technically favourable in their own criteria, every required
@@ -112,7 +156,9 @@ the host preparation, are listed with the rows in the
    disconnects followed by reconnect, plus terminal teardown reported
    separately"; until then the row is a sealed Pass with that question open,
    never an unqualified pass. No repeat is technically indicated by this
-   count alone.
+   count alone. *(2026-10-05: the Project Manager recommends admitting that
+   reading in a dated decision that keeps the 2,016 timely messages and
+   admits no C10 claim; the decision is Rui's.)*
 2. **T6, its admissibility and its timed criterion** — two separate
    questions. (a) Whether collector rows that fall inside the proved-down
    interval invalidate the run as rule 1a is written, or whether a
@@ -121,14 +167,19 @@ the host preparation, are listed with the rows in the
    for this decision and adopts nothing. (b) The timed shortfall at
    11.2 msg/s, which no resource-validity change addresses; any runtime
    change makes a new candidate and needs an explicit requalification plan.
-   T6 is **not** automatically appended to the next session.
-3. **T8 and T9, completion.** T8's procedure is corrected offline (LOG
-   #C050) to the in-process reboot the launcher actually produces; its
-   completion with T9 needs a separately authorised bounded session, with
-   fresh run identities and the procedural revision recorded. A changed test
-   procedure is not an unchanged tool hash: that session's preparation must
-   show the SUT image, containers and configuration unchanged, and the prior
-   results stay preserved for assessment.
+   T6 is **not** automatically appended to the next session. *(2026-10-05:
+   a one-page choice for T6 — satisfy the current criterion with valid new
+   evidence, or seek a prospective, explicit, scoped amendment before any
+   implementation or run — is prepared for Rui separately; nothing is
+   decided here.)*
+3. **T8 and T9, completion — fulfilled on 2026-10-05; nothing outstanding.**
+   Both rows pass (section above), and the Project Manager sees no reason to
+   repeat them on this configuration. The conditions set after S2, all met by
+   that session: T8's procedure corrected offline (LOG #C050) to the
+   in-process reboot the launcher actually produces; a separately authorised
+   bounded session with fresh run identities (`-q2`) and the procedural
+   revision recorded (`8e49261`); its preparation showing the SUT image,
+   containers and configuration unchanged; the prior results preserved.
 
 G3 remains `Not decided`; G4 and the campaign are not released. No promise
 that another run closes G3, no automatic move of the 2026-10-20 target, and no
