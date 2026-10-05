@@ -311,6 +311,33 @@ def test_run_passes_the_started_at_read_through_and_campaign_does_not_take_it(mo
     assert "--fetch-started-at-cmd" in capsys.readouterr().err
 
 
+def test_run_passes_the_restart_transition_rule_through_and_names_only_the_adopted_one(
+    monkeypatch, capsys
+) -> None:
+    """The restart transition rule (option A, qualified; adopted 2026-10-05): an
+    explicit option of 'run' naming the rule; absent, execute_run gets None and
+    every run is as before. Another name, or the campaign, is refused."""
+    seen: list[object] = []
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen.append(kwargs.get("restart_transition_rule", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    rule = "1a-option-a-2026-10-05"
+    assert cli.main(["run", "--run-id", "controller_restart-r01", "--restart-transition-rule", rule]) == 0
+    assert cli.main(["run", "--run-id", "controller_restart-r01"]) == 0
+    assert seen == [rule, None]
+    for argv in (
+        ["run", "--run-id", "controller_restart-r01", "--restart-transition-rule", "1a-option-b"],
+        ["campaign", "--restart-transition-rule", rule],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            cli.build_parser().parse_args(argv)
+        assert exc.value.code == 2
+        assert "--restart-transition-rule" in capsys.readouterr().err
+
+
 def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:
     # A wide terminal keeps argparse from wrapping inside hyphenated paths;
     # no colour codes (argparse >= 3.14 may colour its help).

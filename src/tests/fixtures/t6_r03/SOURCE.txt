@@ -1,0 +1,24 @@
+Real bytes of controller_restart-r03 (2026-10-03, INVALID under decision 1a; its verdict and package are unchanged),
+copied byte for byte on 2026-10-05 from the raw run of the package
+output_test/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01/raw/controller_restart-r03/
+(read-only), whose SHA256SUMS lists every source below. Used offline only, by src/tests/test_proved_down.py, to
+exercise the restart transition rule adopted on 2026-10-05 (option A of
+docs/governance/proposals/2026-10-03-t6-sampling-versus-restart-events.md, with the Project Manager's conditions).
+
+resources-controller_restart-r03.csv
+    excerpt: the header and lines 1676 to 1916 of logs/collector/resources-controller_restart-r03.csv (every row
+    stamped 2026-10-03T13:36:55Z to 13:37:35Z, one contiguous block, 241 rows of six containers);
+    source sha256 4becf31aa1e5bc61c2e05445c7724ec8117313eca7a8cc26c7a39e85c63b9e4a,
+    excerpt sha256 4ddd162c7df9cd1de424cfb227af69eff7bc30422dd0fc9c0774a52b1479134d
+resources-controller_restart-r03.csv.lifecycle.csv
+    whole file, logs/collector/; sha256 2df607851737d162813146843851f191409cb1d17be0f42eb91b9930566a1ea0
+docker-events.coverage.txt
+    whole file, logs/sut/; sha256 c61b71470844fa548cd721486466aee4a26d854dc85e3b446aaa5c60803ad247
+controller-started-at.txt
+    whole file, logs/sut/; sha256 fec6a235c23a23d30c020d04de566e597ae9fec1a0b81395555100f9f1745fcc
+docker-events.jsonl
+    excerpt: lines 244, 247, 248, 249 and 250 of logs/sut/docker-events.log (egw-controller-1's kill, stop, die,
+    start and restart; its exec lines, its later health_status line and every other container's lines left out;
+    named .jsonl because the repository ignores *.log, and copied to logs/sut/docker-events.log by the tests);
+    source sha256 e632e9c04899f939d687ad1e727531cd3b6bcf5780fb36c5703c5dfaab349e30,
+    excerpt sha256 974299292e2dd42ac3bf68a7f44389b8d1c8d99603044704946dcc4e8639a9c0

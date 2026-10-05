@@ -1634,6 +1634,18 @@ def test_test_6_hands_the_harness_the_started_at_read_and_summarises_the_proved_
     assert "fetch-started-at" not in helpers and "fetch_started_at" not in helpers
 
 
+def test_test_6_activates_the_restart_transition_rule_adopted_on_2026_10_05() -> None:
+    """Option A of the T6 page, qualified (adopted 2026-10-05, prospective): test 6's harness line names the rule,
+    so the new run is judged by it and its manifest says so; the 6.1 helpers stay unchanged."""
+    line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    command = line.split("     #", 1)[0]
+    after = command.split("harness_cmd $RID", 1)[1]
+    assert "--restart-transition-rule 1a-option-a-2026-10-05" in after
+    assert after.index("--fetch-started-at-cmd") < after.index("--restart-transition-rule") < after.index("HR=$?")
+    assert "restart-transition-rule" not in helpers_heredoc()
+    assert "resources_transition_rows" in line.split("     #", 1)[1]
+
+
 def test_test_6_note_records_the_prospective_adoption_of_the_proved_down_interval() -> None:
     text = " ".join("\n".join(_section("### Test 6")).split())
     note = text.split("*Note (2026-09-19):*", 1)[1]
