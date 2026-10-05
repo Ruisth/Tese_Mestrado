@@ -6316,6 +6316,7 @@ def test_the_transition_rule_admits_the_controllers_transition_rows_on_its_lifec
         "container_id": PD_CID,
         "admitted": True,
         "why_not": None,
+        "resources_ingested": True,
         "after_second_utc": "2026-09-07T09:59:57+00:00",
         "through_second_utc": "2026-09-07T10:00:04+00:00",
         "count": 3,
@@ -6333,6 +6334,21 @@ def test_the_transition_rule_admits_the_controllers_transition_rows_on_its_lifec
     }
     assert "not evidence that the application was ready" in run_mod.TRANSITION_NOTE
     assert "same instrument" in run_mod.TRANSITION_NOTE
+
+
+def test_the_transition_line_says_when_admitted_rows_were_not_ingested() -> None:
+    """Review of 2026-10-05: rows the rule admitted in a file another check rejected were never counted or
+    aggregated; the console line and the record say so instead of reading as an ingest."""
+    rule = "1a-option-a-2026-10-05"
+    record = {"count": 2, "admitted": True, "why_not": None, "resources_ingested": False}
+    line = run_mod.transition_console_line(rule, record)
+    assert line == (f"[harness] restart transition rule {rule}: 2 transition row(s) admitted by the rule, but the "
+                    "file was rejected for other reasons: nothing was ingested")
+    record["resources_ingested"] = True
+    assert run_mod.transition_console_line(rule, record) == f"[harness] restart transition rule {rule}: 2 transition row(s) admitted"
+    record.update(admitted=False, why_not="no pair", count=0)
+    assert run_mod.transition_console_line(rule, record) == f"[harness] restart transition rule {rule}: nothing admitted (no pair)"
+    assert "resources_ingested" in run_mod.TRANSITION_RECORD_KEYS
 
 
 def test_without_the_transition_rule_the_same_rows_are_rejected_exactly_as_before(
@@ -6377,6 +6393,7 @@ def test_the_transition_rule_without_a_good_lifecycle_pair_grants_nothing(
     manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
     record = manifest["resources_transition_rows"]
     assert record["admitted"] is False and words in record["why_not"], record["why_not"]
+    assert record["resources_ingested"] is False
     assert record["count"] == 3 and record["instants"] == PD_TRANSITION_INSTANTS
     assert [w for w in manifest["warnings"] if "REJECTED" in w] == [
         f"--resources-from {src} REJECTED (SUT resources treated as missing): "
