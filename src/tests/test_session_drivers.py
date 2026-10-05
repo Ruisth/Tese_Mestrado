@@ -252,7 +252,12 @@ COLLECTOR_CHECK_STUB = '''"""Stub of collector_check.py: writes its report and r
 
 Like the real one it validates the collection against the COLLECTOR'S OWN
 window, so a collection that ended early is clean here and only the published
-shortfall says so: EGW_STUB_COLLECTOR_WINDOW_S is the window it found.
+shortfall says so: EGW_STUB_COLLECTOR_WINDOW_S is the UTC window it found.
+Like the real one it also publishes, as written, the uptime bounds the
+collector's 'start:' and 'stop:' lines carry from one boot: by default they
+span the same seconds as the UTC window, EGW_STUB_COLLECTOR_SPAN_S sets their
+span apart from it, and 'absent' is an output written before the collector
+recorded them.
 """
 import json
 import os
@@ -267,10 +272,17 @@ for suffix in ("", ".diagnostics.log", ".lifecycle.csv"):
         problems.append(f"resources-{run}.csv{suffix} is missing")
 declared = 45.0
 window = float(os.environ.get("EGW_STUB_COLLECTOR_WINDOW_S", declared))
+span = os.environ.get("EGW_STUB_COLLECTOR_SPAN_S", "")
+boot = "0a1b2c3d-0000-4000-8000-000000000011"
+bounds = None if span == "absent" else {
+    "start_uptime_s": "268.20",
+    "stop_uptime_s": f"{268.20 + (float(span) if span else window):.2f}",
+    "start_boot_id": boot, "stop_boot_id": boot}
 report = {"run": run, "expected_services": expected, "wanted_sha256": wanted,
           "sut_environment": sut, "declared_duration_s": declared, "declared_interval_s": 1.0,
           "window_seconds": window,
           "declared_duration_shortfall_s": (declared - window) if window < declared else None,
+          "monotonic_bounds": bounds,
           "problems": problems}
 with open(os.path.join(directory, "collector-check.json"), "w", encoding="utf-8") as fh:
     json.dump(report, fh, indent=2)
@@ -1971,11 +1983,28 @@ def _shortfall(tmp_path: Path, report_json) -> subprocess.CompletedProcess:
                           capture_output=True, text=True)
 
 
-# The report collector_check.py writes for a 45 s collection asked of the guest.
-def _check_report(window=45.0, duration=45.0, interval=1.0):
+#: The guest boot the fixtures' uptime bounds come from (a synthetic boot id).
+BOOT = "0a1b2c3d-0000-4000-8000-000000000011"
+
+
+# The report collector_check.py writes for a 45 s collection asked of the guest:
+# its UTC window and, apart from it, the uptime bounds the collector's 'start:'
+# and 'stop:' lines carry, as written (by default from one boot, spanning the
+# same seconds as the UTC window). ``span`` sets the bounds' span apart from
+# the UTC window, ``tokens`` replaces single bounds and ``drop_bounds`` is a
+# report written before the bounds existed.
+def _check_report(window=45.0, duration=45.0, interval=1.0, span=None, drop_bounds=False,
+                  **tokens):
     shortfall = duration - window if duration is not None and window < duration else None
-    return {"declared_duration_s": duration, "declared_interval_s": interval,
-            "window_seconds": window, "declared_duration_shortfall_s": shortfall}
+    bounds = {"start_uptime_s": "268.20",
+              "stop_uptime_s": f"{268.20 + (window if span is None else span):.2f}",
+              "start_boot_id": BOOT, "stop_boot_id": BOOT}
+    bounds.update(tokens)
+    built = {"declared_duration_s": duration, "declared_interval_s": interval,
+             "window_seconds": window, "declared_duration_shortfall_s": shortfall}
+    if not drop_bounds:
+        built["monotonic_bounds"] = bounds
+    return built
 
 
 @pytest.mark.parametrize("report_json, expected, says", [
@@ -1996,12 +2025,63 @@ def _check_report(window=45.0, duration=45.0, interval=1.0):
     (_check_report(duration=None), 1, "names no duration"),
     ({"problems": []}, 1, "does not carry 'declared_duration_shortfall_s'"),
     ("not json at all", 1, "could not be read"),
+    # 2026-10-05: the duration is judged on the collector's own uptime bounds,
+    # the clock its --duration loop runs on, and the UTC window is kept for the
+    # coverage and for diagnosis only. A wall clock set back inside a whole
+    # collection: the UTC window reads 43 s of the 45 s (the live preflight
+    # attempt11 of 2026-10-05), the bounds 45.32 s.
+    (_check_report(window=43.0, span=45.32), 0,
+     "held its whole window: 45.32 s on the guest's monotonic clock"),
+    # A wall clock set forward must not hide a real shortfall: the UTC window
+    # reads the whole 45 s, the bounds show the collector stopped at 31 s.
+    (_check_report(window=45.0, span=31.0), 1,
+     "stopped 14 s before the duration=45s its 'start:' line declares"),
+    # The existing tolerance, on the bounds: half a round short.
+    (_check_report(window=43.0, span=44.5), 0,
+     "0.5 s short: within the 1 s tolerated for the interval=1s round"),
+    # A real shortfall on the bounds just beyond that tolerance.
+    (_check_report(window=45.0, span=43.99), 1, "stopped 1.01 s before"),
 ])
 def test_collector_shortfall_judges_the_duration_the_collector_declares(tmp_path, report_json,
                                                                         expected, says):
     result = _shortfall(tmp_path, report_json)
     assert result.returncode == expected, report(result)
     assert says in result.stdout
+
+
+@pytest.mark.parametrize("report_json, says", [
+    # Missing: a report from before the bounds, or a line that lost one.
+    (_check_report(drop_bounds=True), "carries no 'monotonic_bounds'"),
+    ({**_check_report(), "monotonic_bounds": None}, "carries no 'monotonic_bounds'"),
+    (_check_report(start_uptime_s=None), "no start_uptime_s"),
+    (_check_report(stop_uptime_s=None), "no stop_uptime_s"),
+    (_check_report(start_boot_id=None), "no start_boot_id"),
+    (_check_report(stop_boot_id=None), "no stop_boot_id"),
+    # Malformed: the collector writes /proc/uptime with two decimals and the
+    # kernel's boot id, and 'unknown'/'unavailable' when it could not read them.
+    (_check_report(stop_uptime_s="unknown"), "malformed"),
+    (_check_report(start_uptime_s="268.2"), "malformed"),
+    (_check_report(start_uptime_s="-1.00"), "malformed"),
+    (_check_report(stop_uptime_s=313.52), "malformed"),
+    (_check_report(start_boot_id="unavailable"), "malformed"),
+    (_check_report(stop_boot_id="0A1B2C3D-0000-4000-8000-000000000011"), "malformed"),
+    # Reversed or empty.
+    (_check_report(stop_uptime_s="260.00"), "reversed or empty"),
+    (_check_report(stop_uptime_s="268.20"), "reversed or empty"),
+    # Across boots: two readings of /proc/uptime from different boots measure
+    # nothing between them.
+    (_check_report(stop_boot_id="0a1b2c3d-0000-4000-8000-000000000012"), "different boots"),
+])
+def test_collector_shortfall_never_falls_back_to_utc(tmp_path, report_json, says):
+    # Every one of these reports carries a UTC window of the whole 45 s, which
+    # passed before 2026-10-05: unusable bounds leave the duration UNKNOWN,
+    # and the UTC window is given for diagnosis, never as the verdict.
+    result = _shortfall(tmp_path, report_json)
+    assert result.returncode == 1, report(result)
+    assert says in result.stdout
+    assert "UNKNOWN" in result.stdout
+    assert "never on its UTC stamps" in result.stdout
+    assert "held" not in result.stdout
 
 
 def test_readme_says_the_shortfall_is_judged_against_the_declared_duration():
@@ -2013,6 +2093,11 @@ def test_readme_says_the_shortfall_is_judged_against_the_declared_duration():
     assert "the collector's own window against the `duration=` its own `start:` line declares" in readme
     assert "the collector's own window against the `--duration` it was started with" not in readme
     assert "the `--duration 45` the driver passed is not compared with the declaration" in readme
+    # Since 2026-10-05 that window is measured on the collector's own uptime
+    # bounds from one boot, never on its UTC stamps.
+    assert ("measured on the guest's monotonic clock between the `uptime_s=`/`boot_id=` "
+            "bounds of its `start:` and `stop:` lines and never on their UTC stamps") in readme
+    assert "missing, malformed, reversed or cross-boot bounds fail the step" in readme
 
 
 def test_collector_shortfall_fails_closed_on_a_missing_report(tmp_path):
@@ -2742,6 +2827,47 @@ def test_preflight_collector_that_stopped_early_is_invalid(bench):
     assert ("stopped 14 s before the duration=45s its 'start:' line declares"
             in _console(bench, "live-preflight", "collector-duration"))
     assert bench.package("live-preflight") is not None
+
+
+def test_preflight_wall_clock_set_back_inside_a_whole_collection_passes(bench):
+    # The live preflight attempt11 of 2026-10-05: the UTC window read 43 s of
+    # the 45 s declared while the collector ran its whole duration on
+    # /proc/uptime (its calibration lines: 38 s of UTC against 40.69 s of
+    # uptime). The duration is judged on the uptime bounds; the UTC window is
+    # kept beside the verdict for diagnosis.
+    result = bench.run("preflight.sh", EGW_STUB_COLLECTOR_WINDOW_S="43",
+                       EGW_STUB_COLLECTOR_SPAN_S="45.32")
+    assert result.returncode == 0, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert (verdicts["instrumentation_validity"], verdicts["system_outcome"]) == ("valid", "pass")
+    console = _console(bench, "live-preflight", "collector-duration")
+    assert "45.32 s on the guest's monotonic clock" in console
+    assert "43 s" in console
+
+
+def test_preflight_wall_clock_set_forward_does_not_hide_a_real_shortfall(bench):
+    # The UTC window reads the whole 45 s; the uptime bounds show the collector
+    # stopped at 31 s. The bounds decide.
+    result = bench.run("preflight.sh", EGW_STUB_COLLECTOR_SPAN_S="31")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert "the collector did not hold the duration it declares" in verdicts["reason"]
+    assert ("stopped 14 s before the duration=45s its 'start:' line declares"
+            in _console(bench, "live-preflight", "collector-duration"))
+
+
+def test_preflight_collector_output_without_uptime_bounds_is_invalid(bench):
+    # An output written before the collector recorded its uptime bounds: the
+    # UTC window of the whole 45 s is not a fallback, and the duration is
+    # UNKNOWN, which is not "it held the duration it declares".
+    result = bench.run("preflight.sh", EGW_STUB_COLLECTOR_SPAN_S="absent")
+    assert result.returncode == 3, report(result)
+    verdicts = bench.verdicts("live-preflight")
+    assert verdicts["instrumentation_validity"] == "invalid"
+    assert verdicts["system_outcome"] == "inconclusive"
+    assert "the shortfall could not be judged" in verdicts["reason"]
+    assert "UNKNOWN" in _console(bench, "live-preflight", "collector-duration")
 
 
 def test_preflight_collector_check_without_the_shortfall_is_invalid(bench):

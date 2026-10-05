@@ -988,6 +988,72 @@ def test_diagnostics_are_timestamped_and_survive_exit(tree: Tree, shell: str) ->
     assert sum("unreadable cpu.stat or memory.current" in line for line in lines) == 1
 
 
+#: The collector's own bounds on the guest's monotonic clock (2026-10-05):
+#: /proc/uptime with two decimals and the kernel's boot id, on the start record
+#: after duration= (before its pacing and its expected services, which both
+#: parsers read last) and at the end of the closing summary.
+START_BOUNDS = re.compile(r" duration=\d+s uptime_s=(\d+\.\d\d) boot_id=(\S+) pacing: ")
+STOP_BOUNDS = re.compile(r" calibrations=\d+ pacing=\S+ uptime_s=(\d+\.\d\d) boot_id=(\S+)$")
+BOOT_ID_FILE = Path("/proc/sys/kernel/random/boot_id")
+
+
+def centiseconds(token: str) -> int:
+    return int(token.replace(".", ""))
+
+
+def record_bounds(lines: list[str]) -> tuple[tuple[str, str], tuple[str, str]]:
+    """The (uptime, boot id) of the start record and of the closing record."""
+    start = [line for line in lines if " start: " in line]
+    stop = [line for line in lines if " stop: " in line]
+    assert len(start) == len(stop) == 1, lines
+    at_start = START_BOUNDS.search(start[0])
+    at_stop = STOP_BOUNDS.search(stop[0])
+    assert at_start, start[0]
+    assert at_stop, stop[0]
+    return at_start.groups(), at_stop.groups()
+
+
+@NEEDS_PROC
+@pytest.mark.parametrize("shell", SHELLS)
+def test_the_start_and_stop_records_carry_paired_monotonic_bounds(tree: Tree, shell: str) -> None:
+    """Each record carries the uptime read just before it is written and the boot
+    id, so its window can be measured on the clock the --duration loop runs on,
+    from one boot, apart from the UTC stamps of the same two records."""
+    tree.set_container(SCOPE_ID, usage_usec=0)
+    assert tree.sample(shell).returncode == 0
+
+    lines = tree.diagnostics()
+    (up_start, boot_start), (up_stop, boot_stop) = record_bounds(lines)
+    assert centiseconds(up_start) <= centiseconds(up_stop)
+    assert boot_start == boot_stop
+    if BOOT_ID_FILE.is_file():
+        assert boot_start == BOOT_ID_FILE.read_text(encoding="ascii").strip()
+    else:
+        assert boot_start == "unavailable"
+    # The expected services stay last on the start record, and samples= first
+    # on the closing summary, where both halves read them.
+    start = next(line for line in lines if " start: " in line)
+    stop = next(line for line in lines if " stop: " in line)
+    assert start.endswith(" expected services: none declared"), start
+    assert stop.split(" stop: ", 1)[1].startswith("samples=1 utc_gap_seconds="), stop
+
+
+@NEEDS_PROC
+@pytest.mark.parametrize("shell", SHELLS)
+def test_a_run_that_reaches_its_duration_spans_it_on_its_bounds(tree: Tree, shell: str) -> None:
+    """--duration is counted on /proc/uptime, so the bounds of a run that ended on
+    it span at least that duration, whatever the wall clock did meanwhile."""
+    tree.uptime = Path("/proc/uptime")
+    tree.set_container(SCOPE_ID, usage_usec=0)
+
+    result = tree.run(shell, "--source", "cgroup", "--interval", "1", "--duration", "3")
+
+    assert result.returncode == 0, result.stderr
+    (up_start, boot_start), (up_stop, boot_stop) = record_bounds(tree.diagnostics())
+    assert centiseconds(up_stop) - centiseconds(up_start) >= 300, (up_start, up_stop)
+    assert boot_start == boot_stop
+
+
 @pytest.mark.parametrize("shell", HOST_SHELLS)
 def test_a_second_collector_on_the_same_output_is_refused(tree: Tree, shell: str) -> None:
     """Two collectors appending to one CSV would duplicate rows that look valid."""

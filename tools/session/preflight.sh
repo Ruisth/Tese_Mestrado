@@ -272,7 +272,9 @@ exit 0"
     # 'start:' line declares reconciles with itself and reads clean there. This
     # driver is the one that starts the collector, so it is the one that judges
     # the shortfall the check publishes (against that declaration: the 45 s
-    # asked for above is not compared with it). Like every other step it goes through 'ex', so the
+    # asked for above is not compared with it), on the uptime bounds of the
+    # collector's own start and stop records from one boot, never on their UTC
+    # stamps (2026-10-05). Like every other step it goes through 'ex', so the
     # judgement's own stdout, stderr and exit code reach console/ and
     # commands.jsonl even when the helper could not run at all, and the cause
     # recorded for a failure is a sentence, never the helper's empty stdout.

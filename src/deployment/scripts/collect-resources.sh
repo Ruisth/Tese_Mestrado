@@ -1061,7 +1061,7 @@ fi
 STAMPS="awk systime()"
 [ "$USE_SYSTIME" -eq 1 ] || STAMPS="date +%s per sample (awk has no usable systime)"
 [ -n "$STAMP_EPOCH" ] && STAMPS="substituted (--stamp-epoch, self-test)"
-diag "start: collector_sha256=$SELF_HASH host=$HOST source=$SOURCE interval=${INTERVAL}s duration=${DURATION}s pacing: $PACING; timestamps: $STAMPS; expected services: ${EXPECT_SERVICES:-none declared}"
+diag "start: collector_sha256=$SELF_HASH host=$HOST source=$SOURCE interval=${INTERVAL}s duration=${DURATION}s uptime_s=$({ read -r _u _r < /proc/uptime && echo "$_u"; } 2> /dev/null || echo unknown) boot_id=$({ read -r _b < /proc/sys/kernel/random/boot_id && echo "$_b"; } 2> /dev/null || echo unavailable) pacing: $PACING; timestamps: $STAMPS; expected services: ${EXPECT_SERVICES:-none declared}"
 echo "collecting container resources into $OUT (source: $SOURCE, one sample every ${INTERVAL}s, duration: ${DURATION}s, 0 = until SIGTERM)" >&2
 echo "pacing: $PACING; diagnostics: $DIAG_FILE; lifecycle: $LIFE_FILE" >&2
 
@@ -1339,6 +1339,14 @@ if awk -v STATE="$STATE_FILE" -v UPTIME="$UPTIME_FILE" "$AWK_SUMMARY" > "$ERR_FI
         diag "$_line"
     done
 fi
-diag "stop: samples=$samples utc_gap_seconds=$gaps withheld_samples=$withheld withheld_elapsed_s=$withheld_s withheld_runs_unmeasured=$unmeasured withheld_open_at_stop=$open_run calibrations=$calibrations pacing=$([ "$FRAC_SLEEP" -eq 1 ] && echo wall-clock || echo whole-seconds)"
+diag "stop: samples=$samples utc_gap_seconds=$gaps withheld_samples=$withheld withheld_elapsed_s=$withheld_s withheld_runs_unmeasured=$unmeasured withheld_open_at_stop=$open_run calibrations=$calibrations pacing=$([ "$FRAC_SLEEP" -eq 1 ] && echo wall-clock || echo whole-seconds) uptime_s=$({ read -r _u _r < /proc/uptime && echo "$_u"; } 2> /dev/null || echo unknown) boot_id=$({ read -r _b < /proc/sys/kernel/random/boot_id && echo "$_b"; } 2> /dev/null || echo unavailable)"
+# The start record and this closing summary carry the collector's own bounds
+# on the guest's monotonic clock (added 2026-10-05, on the two record lines
+# themselves, so no line cited elsewhere moves): uptime_s=, the first field of
+# /proc/uptime as the kernel writes it (two decimals), read as the record is
+# written, and boot_id=, the kernel's boot id; 'unknown' and 'unavailable'
+# when they cannot be read. The window between the two records can thus be
+# measured on the clock the --duration loop runs on, from one boot, apart
+# from their UTC stamps, which a stepped or slewed wall clock moves.
 lines_total=$(grep -c . "$DIAG_FILE" 2> /dev/null || echo 0)
 echo "collector stopped after $samples samples (forward UTC gaps: $gaps s; withheld: $withheld sample(s), with $withheld_s s of elapsed time without an accepted sample beyond one interval and the UTC gaps, $unmeasured run(s) of them unmeasured and $open_run still withheld at stop; $lines_total diagnostic line(s) in $DIAG_FILE); output: $OUT" >&2
