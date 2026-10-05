@@ -4711,3 +4711,53 @@ is unchanged.
   criterion, or a prospective, explicit, scoped amendment before any
   implementation or run — and no session, repeat or controller change
   follows from this entry. G3 stays `Not decided`.
+
+## Entry #C052 — T5's interpretation admitted; test 6's criterion amended prospectively (option 2); G3 not closed
+
+- **Date:** 2026-10-05. **Scope:** the student's decisions of 2026-10-05
+  («Para o T5 seguimos a recomendação do Senior Project Manager, para o T6
+  seguimos com a opção 2») on the Project Manager's register entry of
+  2026-10-05, 13:42 WEST, and the one-page T6 choice of the same date (both
+  held locally, outside the repository). Documentation only: no code, data,
+  package, seal or earlier verdict changes; no session.
+- **Why.** After the T8/T9 completion (#C051) two of the nine families stood
+  on decisions: T5 on the reading of its disconnection count, and T6 on its
+  criterion. The records show T6's deadline shortfall at 11.2 msg/s under
+  TCG with or without a restart (`nominal-r02`: 2,136 beyond the deadline;
+  `controller_restart-r03`: 2,002), with the controller's serial consumer
+  serving about 6–9 msg/s; meeting the current criterion would need a new
+  candidate and a full requalification with an uncertain outcome.
+- **What.**
+  - *T5:* the reading "three deliberate fault disconnects, each followed by
+    a reconnect, plus the simulator's normal terminal teardown, reported
+    separately" is admitted; row 7 is a Pass as sealed, the 2,016 timely
+    messages kept, the `check` warning about C10 kept, no C10 claim
+    admitted.
+  - *T6, option 2:* for runs made after 2026-10-05, test 6 passes when the
+    controller is restarted once mid-run with recovery within 120 s, every
+    valid message is accepted exactly once in the post-drain copy (none
+    absent, none duplicate-only, `double_accepted` 0) and every `delta` line
+    reads OK; `lost` and `late_confirmations` against the marker plus 60 s
+    are reported as a sizing finding, not a pass condition. Written as dated
+    amendments in the runbook's "Timed families" paragraph and test 6's
+    Expected paragraph (the earlier text kept for earlier runs) and in plan
+    section 4.3's G3 paragraph; the
+    [decision record](docs/governance/g3-t5-t6-decisions-2026-10-05.md)
+    holds both decisions; notes in the results addendum, the readiness map,
+    the claim matrix's C12 row and PROGRESS.
+- **Tests.** One regression test pins the amended text
+  (`test_test_6_criterion_is_amended_prospectively_on_2026_10_05`), red
+  first on the earlier runbook; the two runbook modules pass after the
+  amendment; `python tools/ci/check_markdown_links.py` exit 0.
+- **Limits.** Every other timed family keeps `lost = 0` and
+  `late_confirmations = 0`. C12 cannot claim timely delivery at the nominal
+  rate under TCG; the campaign's C12 condition and its gate in `analyze.py`
+  are unchanged. `controller_restart-r03` stays invalid. Not decided: a
+  lower load, a longer deadline, C12 as pilot-only.
+- **Decisions and next steps.** Test 6 still needs, each as its own step: a
+  collection-validity rule (the T6 page's option A with the Project
+  Manager's F2 qualifications, after the student's explicit choice on
+  whether transition rows count for the 30-instant and coverage checks and
+  the aggregates); `collector-duration` judged on paired monotonic bounds;
+  a new `controller_restart` plan entry; then one separately authorised
+  session on the unchanged candidate. G3 stays `Not decided`.

@@ -637,7 +637,7 @@ outcome is never reported as a pass. In addition: the public contracts frozen;
 either resolved or its scope explicitly bounded and recorded before stability is
 declared; every failed run retained; and **no threshold moved** — a result worse
 than expected at the nominal rate is recorded as a sizing finding for the pilot,
-never absorbed by changing the protocol. G3 establishes no performance, capacity
+never absorbed by changing the protocol. *(Amended 2026-10-05, prospectively, by the student's decision (LOG #C052; [decision record](g3-t5-t6-decisions-2026-10-05.md)): for the controller-restart family only, the delivery deadline is reported and recorded as a sizing finding rather than required — that family passes on recovery inside the bounded window, every valid message accepted exactly once after the drain and no record accepted twice; every other family keeps its thresholds, and no earlier run is re-judged.)* G3 establishes no performance, capacity
 or efficiency property, no stability over time and no native behaviour.
 
 **G4 — experimental freeze (`exp-v1`).** The bounded pilot complete, in order,

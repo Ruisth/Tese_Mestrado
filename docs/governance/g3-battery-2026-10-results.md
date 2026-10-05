@@ -158,7 +158,10 @@ Boundaries the Project Manager states for these rows:
    never an unqualified pass. No repeat is technically indicated by this
    count alone. *(2026-10-05: the Project Manager recommends admitting that
    reading in a dated decision that keeps the 2,016 timely messages and
-   admits no C10 claim; the decision is Rui's.)*
+   admits no C10 claim; the decision is Rui's.)* **Decided 2026-10-05:** the
+   reading is admitted; row 7 is a Pass as sealed, the 2,016 timely messages
+   kept, no C10 claim admitted
+   ([decision record](g3-t5-t6-decisions-2026-10-05.md); LOG #C052).
 2. **T6, its admissibility and its timed criterion** — two separate
    questions. (a) Whether collector rows that fall inside the proved-down
    interval invalidate the run as rule 1a is written, or whether a
@@ -171,7 +174,13 @@ Boundaries the Project Manager states for these rows:
    a one-page choice for T6 — satisfy the current criterion with valid new
    evidence, or seek a prospective, explicit, scoped amendment before any
    implementation or run — is prepared for Rui separately; nothing is
-   decided here.)*
+   decided here.)* **Decided 2026-10-05 (option 2):** for runs made after
+   that date, test 6 passes on recovery within 120 s, every valid message
+   accepted exactly once in the post-drain copy and every `delta` OK; `lost`
+   and `late_confirmations` are reported as a sizing finding. Row 8 stays
+   invalid; a valid new run still needs a collection-validity rule, the
+   `collector-duration` correction and a new plan entry
+   ([decision record](g3-t5-t6-decisions-2026-10-05.md); LOG #C052).
 3. **T8 and T9, completion — fulfilled on 2026-10-05; nothing outstanding.**
    Both rows pass (section above), and the Project Manager sees no reason to
    repeat them on this configuration. The conditions set after S2, all met by
