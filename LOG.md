@@ -4831,8 +4831,18 @@ is unchanged.
   `analyze.py` still judges the controller's own coverage on its
   per-sample gaps, so an r03-like gap can leave that container's coverage
   insufficient while the ingest accepts the file. The next preparation must
-  record the new tooling identity (the merged commit, the collector's hash,
-  `drivers_sha256`) apart from the unchanged system under test, install the
-  new collector through the preflight and add r04 to the host's pilot plan.
+  record the new tooling identity apart from the unchanged system under test:
+  the merged commit, the runbook's new sha256 (test 6's step files are
+  re-extracted from it; the section 6.1 helpers stay `e5eba37e…`, 545
+  lines), the collector's hash, `drivers_sha256`; the deployed tree differs
+  from the candidate's recorded one only by the collector (instrumentation);
+  the candidate stays the retained controller image `9a293fe1…` from
+  `489bc9e`, not a build of this head (`src/Dockerfile` copies
+  `egw_experiments/`, so a rebuild would differ). It must install the new
+  collector through the preflight and add r04 to the host's pilot plan. After
+  the consolidated review: an `appeared` in the second of the first
+  transition row is refused as inconsistent; `resources_transition_rows`
+  carries `resources_ingested`, and the console and the runbook's read-out
+  report it.
 - **Decisions and next steps.** One separately authorised bounded session
   for test 6 on the unchanged candidate. G3 stays `Not decided`.

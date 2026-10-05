@@ -64,6 +64,8 @@ made valid.
 > its values, as now. The first row after the interval is the first stamped at or after sec(S) + one sampling
 > interval, as now.
 
+*(2026-10-05: the clause "the cgroup exists before the daemon stamps `start`" is the proposal's rationale, not established for a row in sec(S) — see section 1; the rows are reported under `resources_transition_rows`.)*
+
 **Adopted 2026-10-05, with the Project Manager's conditions** (the status line); implemented as the opt-in
 `run --restart-transition-rule 1a-option-a-2026-10-05`, which reports the rows under the manifest key
 `resources_transition_rows`, beside `resources_proved_down` rather than inside it. *(2026-10-05)* **The counting

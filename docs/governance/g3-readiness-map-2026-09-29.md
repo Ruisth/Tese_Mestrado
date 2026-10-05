@@ -272,7 +272,7 @@ figures:)*
    separately" for a bounded broker log with N+1 connections and N+1
    disconnection lines; until then the row is a sealed Pass with that
    question open, never an unqualified pass.
-7. *T6's admissibility and its timed criterion* — *the timed criterion decided 2026-10-05 (option 2, LOG #C052); the collection-validity rule still to choose.* Two separate questions:
+7. *T6's admissibility and its timed criterion* — *the timed criterion decided 2026-10-05 (option 2, LOG #C052); the collection-validity rule still to choose.* *(Later on 2026-10-05: option A adopted with the Project Manager's conditions and implemented offline; LOG #C053.)* Two separate questions:
    whether collector rows inside the proved-down interval invalidate a run as
    rule 1a is written, or a prospective validity rule or collection
    correction with raw-row retention applies to future runs (a separate
