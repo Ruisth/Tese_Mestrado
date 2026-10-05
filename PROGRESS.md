@@ -571,7 +571,13 @@ acceptance.*
   still needs a collection-validity rule, `collector-duration` on monotonic
   bounds and a new plan entry, then one authorised session. G3 stays
   `Not decided` ([decision record](docs/governance/g3-t5-t6-decisions-2026-10-05.md);
-  LOG #C052).)*
+  LOG #C052).)* *(Marker added 2026-10-05, later still: the student adopted
+  the T6 page's option A with the Project Manager's conditions, and T6's
+  offline prerequisites are implemented with regressions — the transition
+  rule, `collector-duration` on paired uptime bounds, the plan entry
+  `controller_restart-r04` and the per-identity exactly-once check. Nothing
+  ran on the guest; the system under test is unchanged, the collector's hash
+  is not; the next step is one separately authorised session; LOG #C053.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;

@@ -44,13 +44,28 @@ earlier runs), and the G3 paragraph of plan section 4.3
 
 **Not decided:** a lower load, a longer deadline, C12 as pilot-only.
 
-## What test 6 still needs (each a separate step; no session is authorised here)
+## What test 6 still needs
 
-0. "Accepted exactly once" is judged per identity — every valid message of the run with exactly one `accepted` line in the post-drain copy. The existing checks do not establish it on their own (`acceptance` finds absent identities only, and `delta` compares the twins with the accepted lines, not with the sent identities), so a per-identity check of the post-drain copy is wired into test 6's block before the next run.
-1. A collection-validity rule adopted prospectively: the T6 page's option A with the Project Manager's F2
-   qualifications, which first needs the student's explicit choice of whether transition rows, zero-valued ones
-   included, count for the 30-instant and coverage checks and for the aggregates
-   ([T6 page](proposals/2026-10-03-t6-sampling-versus-restart-events.md)).
-2. `collector-duration` judged on paired monotonic bounds instead of UTC stamps.
-3. A new `controller_restart` plan entry (r01–r03 are used).
-4. Then one bounded session on the unchanged candidate.
+*(Updated 2026-10-05, later: the student adopted option A of the T6 page with the Project Manager's conditions —
+admissible transition rows count for the distinct instants, the existing coverage calculations and the existing
+aggregates — and authorised one offline tooling pull request; LOG #C053. Items 0 to 3 are implemented there, offline,
+with regressions; nothing has run on the guest.)*
+
+0. "Accepted exactly once", judged per identity: `itest_reconcile acceptance --exactly-once` on the post-drain copy,
+   a guarded line of test 6's block after `delta` (exit 1: not evaluated; exit 4: test 6 fails). The plain
+   `acceptance` finds absent identities only, and `delta` compares the twins with the accepted lines, not with the sent
+   identities.
+1. The collection-validity rule: option A, qualified, as `run --restart-transition-rule 1a-option-a-2026-10-05`
+   (explicit; without it every run behaves as before). Transition rows of the restarted controller in
+   sec(D) < t ≤ min(sec(S), sec(E)) are admitted only on the same container's unambiguous disappeared → appeared pair in
+   the run's lifecycle record; they are reported separately in the manifest (`resources_transition_rows`); every other
+   check, D/S/E, the 120 s cap, both 5 s edges and the other services are unchanged; `analyze.py` is unchanged. Options
+   B and C are not implemented; the four F2 qualifications are fixed in the
+   [T6 page](proposals/2026-10-03-t6-sampling-versus-restart-events.md).
+2. `collector-duration` judged on the collector's paired uptime bounds from one boot (`uptime_s=` and `boot_id=` on
+   its `start:` and `stop:` records), UTC kept for coverage and diagnosis, the tolerance unchanged; missing, malformed,
+   reversed or cross-boot bounds fail closed. The collector's sha256 changes (instrumentation, not the system under
+   test).
+3. A fresh plan entry, `controller_restart-r04` (the frozen load: 11.2 msg/s for 600 s, restart at 300 s), added to the
+   pilot plan by `python -m egw_experiments plan-supplement --plan <pilot plan> --entry g3-t6`; r01–r03 untouched.
+4. Then one separately authorised bounded session on the unchanged candidate.
