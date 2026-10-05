@@ -112,22 +112,23 @@ a seal of this directory: `tools/ci/verify_evidence.py` reads files named
 
 ## The publication, proposed as a separate step
 
-The byte copies are **not** committed with this index: about 49 MB, in
-twenty directories whose paths exceed what the Windows worktrees used for this
+The byte copies are **not** committed with this index: about 58 MB
+(58,004,578 bytes: the twenty packages of 2026-10-02/03 and the eleven of
+2026-10-05), in thirty-one directories whose paths exceed what the Windows worktrees used for this
 block can hold (the existing capsules already show as modified or deleted
 there, which is why no file under `docs/evidence/` is staged from them). The
 proposed step, for Rui's decision and under the convention of the
-[r03 capsule](../finite-proof-r03/README.md): copy the twenty packages
-byte for byte from a checkout that holds long paths (WSL, or
+[r03 capsule](../finite-proof-r03/README.md): copy the thirty-one
+packages byte for byte from a checkout that holds long paths (WSL, or
 `core.longpaths=true` on a short path), keeping every export name and every
 inner seal exactly as sealed; compare every file by SHA-256 with the originals
 and check the inner seals against `PACKAGES.sha256`; run the secret sweep over
-all 1,120 files and keep its script and output locally with the block's
+all 1,958 files (1,120 and 838) and keep its script and output locally with the block's
 evidence; write the directory's own `SHA256SUMS` (every file, the inner seals
 and this README, not itself) and the `.gitattributes` line that stores the
 directory without text conversion; then publish it in its own pull request.
 Nothing in the copies is to be rewritten: not an inner seal, not an export
 `SUMMARY.md` ("a package here is a local copy; it is not published or
 admitted evidence" was true when sealed), not a classification. Publishing
-the copies would record the battery; it would not accept a family, a gate or
+the copies would record the battery and its T8/T9 completion; it would not accept a family, a gate or
 a claim, and the decisions the results addendum lists stay Rui's.

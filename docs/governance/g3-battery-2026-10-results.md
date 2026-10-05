@@ -172,15 +172,14 @@ Boundaries the Project Manager states for these rows:
    evidence, or seek a prospective, explicit, scoped amendment before any
    implementation or run — is prepared for Rui separately; nothing is
    decided here.)*
-3. **T8 and T9, completion** — *done on 2026-10-05: both rows pass (section
-   above); the Project Manager sees no reason to repeat them on this
-   configuration.* T8's procedure is corrected offline (LOG
-   #C050) to the in-process reboot the launcher actually produces; its
-   completion with T9 needs a separately authorised bounded session, with
-   fresh run identities and the procedural revision recorded. A changed test
-   procedure is not an unchanged tool hash: that session's preparation must
-   show the SUT image, containers and configuration unchanged, and the prior
-   results stay preserved for assessment.
+3. **T8 and T9, completion — fulfilled on 2026-10-05; nothing outstanding.**
+   Both rows pass (section above), and the Project Manager sees no reason to
+   repeat them on this configuration. The conditions set after S2, all met by
+   that session: T8's procedure corrected offline (LOG #C050) to the
+   in-process reboot the launcher actually produces; a separately authorised
+   bounded session with fresh run identities (`-q2`) and the procedural
+   revision recorded (`8e49261`); its preparation showing the SUT image,
+   containers and configuration unchanged; the prior results preserved.
 
 G3 remains `Not decided`; G4 and the campaign are not released. No promise
 that another run closes G3, no automatic move of the 2026-10-20 target, and no
