@@ -561,6 +561,17 @@ acceptance.*
   scoped amendment. Rows 13 and 14 of the
   [results addendum](docs/governance/g3-battery-2026-10-results.md); LOG
   #C051. No family, gate or claim is accepted; G3 stays `Not decided`.)*
+  *(Marker added 2026-10-05, later: the student decided T5's interpretation
+  as the Project Manager recommended — three deliberate fault disconnects plus
+  the terminal teardown, the row a Pass as sealed, no C10 claim — and chose,
+  for T6, a prospective criterion for test 6 only: recovery within 120 s,
+  every valid message accepted exactly once after the drain and every `delta`
+  OK, the deadline reported as a sizing finding; the runbook and plan section
+  4.3 carry dated amendments. T6's run r03 stays invalid; a valid new run
+  still needs a collection-validity rule, `collector-duration` on monotonic
+  bounds and a new plan entry, then one authorised session. G3 stays
+  `Not decided` ([decision record](docs/governance/g3-t5-t6-decisions-2026-10-05.md);
+  LOG #C052).)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;
