@@ -3622,6 +3622,7 @@ TRANSITION_RECORD_KEYS: tuple[str, ...] = (
     "container_id",
     "admitted",
     "why_not",
+    "resources_ingested",
     "after_second_utc",
     "through_second_utc",
     "count",
@@ -3657,6 +3658,7 @@ def transition_record(
     outcome: dict[str, Any],
     lifecycle_path: Path | None,
     run_dir: Path,
+    resources_ingested: bool = False,
 ) -> dict[str, Any]:
     """The manifest's ``resources_transition_rows`` record: ``rule`` names
     the rule that judged the run; without a proved-down interval, or when
@@ -3672,6 +3674,9 @@ def transition_record(
             "container": facts.get("container"),
             "container_id": facts.get("container_id"),
             "admitted": False,
+            # whether the collector's file was ingested at all: rows the rule
+            # admitted in a file another check rejected were never counted
+            "resources_ingested": resources_ingested,
             "count": 0,
             "instants": [],
             "rows": [],
@@ -3695,6 +3700,20 @@ def transition_record(
     else:
         record.update({k: v for k, v in outcome.items() if k in record})
     return record
+
+
+def transition_console_line(rule: str, record: dict[str, Any]) -> str:
+    """The harness's console line for the ``resources_transition_rows``
+    record: how many rows the rule admitted, and whether they were ingested
+    (an admitted row in a file another check rejected counts for nothing)."""
+    head = f"[harness] restart transition rule {rule}: "
+    if not record["admitted"]:
+        return head + f"nothing admitted ({record['why_not']})"
+    line = head + f"{record['count']} transition row(s) admitted"
+    if not record.get("resources_ingested"):
+        line += (" by the rule, but the file was rejected for other reasons: "
+                 "nothing was ingested")
+    return line
 
 
 def ingest_resources(
@@ -5514,18 +5533,14 @@ def execute_run(
             outcome=transition_outcome,
             lifecycle_path=lifecycle_path,
             run_dir=run_dir,
+            resources_ingested=resource_source == "sut-collector",
         )
         if restart_transition_rule and proved_down_derivation is not None
         else None
     )
     if resources_transition_rows is not None:
         print(
-            f"[harness] restart transition rule {restart_transition_rule}: "
-            + (
-                f"{resources_transition_rows['count']} transition row(s) admitted"
-                if resources_transition_rows["admitted"]
-                else f"nothing admitted ({resources_transition_rows['why_not']})"
-            ),
+            transition_console_line(restart_transition_rule, resources_transition_rows),
             flush=True,
         )
 

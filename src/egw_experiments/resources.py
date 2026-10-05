@@ -549,11 +549,16 @@ def transition_outcomes(
             f"and appear in one second ({gone.stamp.isoformat()}): inconsistent, "
             "so it grants nothing"
         )
-    if back.stamp > first_row:
+    # Review of 2026-10-05: an 'appeared' in the second of the first
+    # transition row is refused too. The collector writes no row of a
+    # container in the sample that first finds its cgroup (it writes
+    # 'appeared' and primes the CPU delta), and accepted samples never share
+    # a second, so that equality is not something the instrument writes.
+    if back.stamp >= first_row:
         return no(
             f"the collector's lifecycle record has container id {cid} appear at "
-            f"{back.stamp.isoformat()}, after the first transition row "
-            f"{first_row.isoformat()}: late, so it grants nothing"
+            f"{back.stamp.isoformat()}, at or after the first transition row "
+            f"{first_row.isoformat()}: late or inconsistent, so it grants nothing"
         )
     outcome["admitted"] = True
     return outcome
