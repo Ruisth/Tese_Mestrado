@@ -106,6 +106,25 @@ seed, and the load-sweep block in randomized order
 (`random.Random(master_seed)`). The same master seed always produces an
 identical plan; the file also tracks per-run `status`.
 
+An existing plan file is never regenerated to add a run. One supplementary
+entry defined in `plan_gen.SUPPLEMENTS` is appended to it in place:
+
+```bash
+python -m egw_experiments plan-supplement --plan PATH --entry g3-t6
+```
+
+`g3-t6` adds `controller_restart-r04` for G3's test 6 (2026-10-05; the pilot
+plan's r01–r03 are used) after the plan's last entry, with the frozen
+condition's load and durations, a seed derived from the master seed by the
+plan's own rule and `"supplement": "g3-t6"`. Every byte of the entries the
+file holds is kept; a file that is not the canonical serialisation or not the
+frozen generation of its master seed, or that holds a colliding id, is
+refused and left as it was (exit 2); applied again, nothing changes. `--plan`
+has no default and `plan` never adds a supplement, so the campaign plan of a
+master seed and `PROTOCOL_VERSION` are unchanged. Analysed against a
+supplemented plan, the condition's completeness row says the plan lists one
+run more than the frozen protocol plans.
+
 ### 2. Execute the frozen plan: `campaign` (the OFFICIAL way)
 
 The `campaign` subcommand is the official way to run the frozen plan
@@ -412,6 +431,29 @@ which the ordinary rule alone would accept; a file that differs from what the
 run already holds is still refused. Without a record, or with one naming no
 die/start pair, it judges the file as before and, once it has ingested it,
 sets the record's `resources_ingested`.
+
+The restart transition rule (option A of the T6 page with the Project
+Manager's conditions, adopted on 2026-10-05, prospective, for the new G3 T6
+run): `run` takes `--restart-transition-rule 1a-option-a-2026-10-05`, only
+beside `--fetch-started-at-cmd` (exit 2 otherwise; the runbook's test 6
+passes both). When the proved-down interval is established, the harness reads
+the collector's own lifecycle record of the run
+(`logs/collector/resources-<run_id>.csv.lifecycle.csv`,
+`proved_down.read_lifecycle_witness`) and the controller's rows stamped after
+the die's second and at or before the start's (never past E, and only when
+the two seconds differ) are admitted instead of rejected when that record
+holds exactly the container id's `disappeared` then `appeared` between the
+last row at or before the die's second and the first row after the start,
+the `appeared` at or before the first such row. A missing, wrong, late,
+inconsistent or unreadable record admits nothing, whatever the rows' values.
+Admitted rows stay in the file byte for byte and count, are covered and are
+aggregated like every other row; the edges, D, S, E, the 120 s cap and every
+other check are unchanged. The manifest records `resources_transition_rows`
+(the rule's name, whether it admitted the rows or why not, their instants and
+raw values, the pair and the record's sha256) beside `resources_proved_down`,
+whose `rejected_rows` then lists only what is still rejected; the rows are
+not evidence that the controller was ready. Without the option nothing of
+this runs or is recorded, and `collect` never applies it.
 
 ### 2b. Recovery: the `collect` subcommand (audit 9.3)
 
@@ -893,7 +935,11 @@ Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
   gap, container, coverage, instant, host, numeric and order check is
   unchanged; no row is added, removed or filled, and the file ingested is the
   collector's, byte for byte. Without the interval every result and message
-  is the one the file always had;
+  is the one the file always had; with `--restart-transition-rule` as well
+  (adopted 2026-10-05), the controller's rows after the die's second and at
+  or before the start's are admitted on the collector's own lifecycle pair
+  instead of rejected (`resources.validate_resources_csv`, keyword
+  `transition_witness`);
 - a clean simulator exit: a non-zero measured-run exit code marks the run
   invalid with the code in the reason, and there is NO override;
 - a clean warm-up exit: non-zero marks the run invalid unless

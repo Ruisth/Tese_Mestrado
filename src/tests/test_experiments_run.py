@@ -5329,6 +5329,32 @@ def test_controller_restart_evidence_steps_run_in_order_and_are_sealed(
     assert "allow_missing_restart_evidence" not in manifest
 
 
+def test_the_g3_t6_supplementary_entry_runs_as_a_controller_restart_run(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """G3's test 6 (offline block of 2026-10-05): the supplementary entry
+    controller_restart-r04, added to the plan by plan_gen, is run by the
+    harness as the planned restart entries are - the restart and its evidence
+    steps, its own seed and repetition in the manifest - and only its own
+    status in the plan changes; r01-r03 stay as they were."""
+    plan_gen.apply_plan_supplement(plan_path, "g3-t6")
+    before = json.loads(plan_path.read_text(encoding="utf-8"))["runs"]
+    rc, run_dir, record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, run_id="controller_restart-r04"
+    )
+    assert rc == 0
+    assert _step_lines(record)[:2] == ["snapshot twins.before.json", "simulator -"]
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r04")
+    assert manifest["validity"] == "valid" and manifest["restart"]["executed"] is True
+    assert manifest["condition_id"] == "controller_restart"
+    assert manifest["repetition"] == 4
+    assert manifest["seed"] == plan_gen.derive_run_seed(42, "controller_restart-r04")
+    assert manifest["drain"]["outcome"] == "quiet"
+    after = json.loads(plan_path.read_text(encoding="utf-8"))["runs"]
+    assert after[:-1] == before[:-1]
+    assert after[-1]["run_id"] == "controller_restart-r04" and after[-1]["status"] == "completed"
+
+
 def test_controller_restart_drain_failure_is_a_validity_reason(
     tmp_path, plan_path, fast_run, monkeypatch
 ) -> None:
@@ -5802,13 +5828,19 @@ def _proved_down_run(
     kept: tuple[str, ...] = (),
     resources_from: Path | None = None,
     coverage: str = "complete",
+    lifecycle: str | None = None,
+    transition_rule: str | None = None,
 ) -> tuple[int, Path, Path, Path, str | None]:
     """A controller_restart run whose collector file has the controller's 8 s
     gap (but the rows ``kept``), with the complete capture of its restart
     (``coverage`` names another verdict); ``started_at_rc`` None runs it
     without --fetch-started-at-cmd, and ``resources_from`` gives the run
-    another --resources-from path."""
+    another --resources-from path. ``lifecycle`` replaces the collector's
+    lifecycle record beside the file; ``transition_rule`` activates the
+    restart transition rule (--restart-transition-rule)."""
     src = _gap_resources_file(tmp_path, kept=kept)
+    if lifecycle is not None:
+        Path(f"{src}.lifecycle.csv").write_text(lifecycle, "utf-8")
     files = _pd_guest_files(tmp_path, started_at=started_at, coverage=coverage)
     script = _write_script(tmp_path, "copy_step.py", COPY_STEP_SCRIPT)
     record = tmp_path / "sut-steps.txt"
@@ -5826,6 +5858,8 @@ def _proved_down_run(
             script, record, "started_at", started_at_rc, files["controller-started-at.txt"]
         )
         overrides["fetch_started_at_cmd"] = started_tpl
+    if transition_rule is not None:
+        overrides["restart_transition_rule"] = transition_rule
     rc, run_dir, record = _item18_run(tmp_path, plan_path, fast_run, monkeypatch, **overrides)
     return rc, run_dir, record, src, started_tpl
 
@@ -6204,6 +6238,269 @@ def test_collect_judges_a_late_file_as_before_without_a_recorded_restart_lifecyc
         assert "resources_proved_down" not in after
     else:
         assert after["resources_proved_down"] == {**pd, "resources_ingested": True}
+
+
+# ---------------------------------------------------------------------------
+# The restart transition rule (option A of the T6 page, qualified; adopted on
+# 2026-10-05, prospective, for the new G3 T6 run), activated only by
+# --restart-transition-rule on a run given the StartedAt read
+# ---------------------------------------------------------------------------
+
+#: The controller's rows kept in the hole of :func:`_gap_resources_file`: in
+#: (sec(D), sec(S)] = (09:59:57, 10:00:04], the transition rows of the restart.
+PD_KEPT = ("10:00:02", "10:00:03", "10:00:04")
+PD_TRANSITION_INSTANTS = [
+    "2026-09-07T10:00:02+00:00",
+    "2026-09-07T10:00:03+00:00",
+    "2026-09-07T10:00:04+00:00",
+]
+#: The collector's lifecycle pair of the controller across the restart.
+PD_PAIR = (("09:59:58", "disappeared"), ("10:00:01", "appeared"))
+#: What decision 1a alone says of those rows (the run-time ingest's words).
+PD_TRANSITION_PROBLEMS = [
+    "2 row(s) of container 'egw-controller-1' stamped between the die at "
+    "2026-09-07T09:59:57.400000000Z and the start at 2026-09-07T10:00:04.300000000Z, "
+    "when no instance of it was running to measure (the proved-down interval, "
+    "decision 1a): rejected whatever their values: 2026-09-07T10:00:02+00:00; "
+    "2026-09-07T10:00:03+00:00",
+    "1 row(s) of container 'egw-controller-1' stamped in the second of the start "
+    "at 2026-09-07T10:00:04.300000000Z, less than one sampling interval "
+    "(RESOURCE_SAMPLE_INTERVAL_S, 1 s) after it: the first row after the "
+    "proved-down interval (decision 1a) must be at least one sampling interval "
+    "after the start's second: 2026-09-07T10:00:04+00:00",
+]
+PD_LIFECYCLE_REL = (
+    "logs/collector/resources-from/resources-controller_restart-r01.csv.lifecycle.csv"
+)
+
+
+def _pd_lifecycle(*rows: tuple[str, str]) -> str:
+    """The collector's lifecycle record: both services appeared at 09:59:30,
+    then the controller's (HH:MM:SS, event) ``rows``, under its id."""
+    lines = [
+        f"2026-09-07T09:59:30Z,appeared,{'ab' * 32},egw-mosquitto-1",
+        f"2026-09-07T09:59:30Z,appeared,{PD_CID},egw-controller-1",
+    ] + [f"2026-09-07T{clock}Z,{event},{PD_CID},egw-controller-1" for clock, event in rows]
+    return "ts_utc,event,container_id,name\n" + "".join(f"{line}\n" for line in lines)
+
+
+def test_the_transition_rule_admits_the_controllers_transition_rows_on_its_lifecycle_pair(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Activated, with the controller's id disappeared at 09:59:58 and
+    appeared at 10:00:01 in the collector's own record: its rows 10:00:02 to
+    10:00:04 are transition rows, so the file is ingested byte for byte, the
+    run is valid and sealed, 1a's figures but the rejection are unchanged, and
+    the rows are reported apart, with their values, under the rule's name."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, kept=PD_KEPT,
+        lifecycle=_pd_lifecycle(*PD_PAIR), transition_rule="1a-option-a-2026-10-05",
+    )
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert rc == 0, manifest["validity_reasons"]
+    assert manifest["validity"] == "valid" and manifest["resource_source"] == "sut-collector"
+    assert (run_dir / "resources.csv").read_bytes() == src.read_bytes()
+    assert not any("REJECTED" in w for w in manifest["warnings"])
+    assert checksums.verify_sha256sums(run_dir) == []
+    assert PD_LIFECYCLE_REL in _sealed_names(run_dir)
+    assert manifest["config"]["cli"]["restart_transition_rule"] == "1a-option-a-2026-10-05"
+    pd = manifest["resources_proved_down"]
+    assert pd["applies"] is True and pd["resources_ingested"] is True and pd["rejected_rows"] == []
+    assert pd["rows_between"] == PD_TRANSITION_INSTANTS[:2]
+    assert pd["rows_in_start_second"] == PD_TRANSITION_INSTANTS[2:]
+    assert (pd["edge_gap_before_s"], pd["edge_gap_after_s"]) == (0.0, 1.0)
+    life = Path(f"{src}.lifecycle.csv")
+    assert manifest["resources_transition_rows"] == {
+        "rule": "1a-option-a-2026-10-05",
+        "container": "egw-controller-1",
+        "container_id": PD_CID,
+        "admitted": True,
+        "why_not": None,
+        "resources_ingested": True,
+        "after_second_utc": "2026-09-07T09:59:57+00:00",
+        "through_second_utc": "2026-09-07T10:00:04+00:00",
+        "count": 3,
+        "instants": PD_TRANSITION_INSTANTS,
+        "rows": [
+            {"line": line, "ts_utc": f"2026-09-07T{clock}Z", "cpu_pct": "10.0",
+             "mem_bytes": "1024", "mem_pct": "1.0"}
+            for line, clock in ((63, "10:00:02"), (65, "10:00:03"), (67, "10:00:04"))
+        ],
+        "disappeared_utc": "2026-09-07T09:59:58+00:00",
+        "appeared_utc": "2026-09-07T10:00:01+00:00",
+        "lifecycle_file": PD_LIFECYCLE_REL,
+        "lifecycle_sha256": checksums.sha256_file(life),
+        "note": run_mod.TRANSITION_NOTE,
+    }
+    assert "not evidence that the application was ready" in run_mod.TRANSITION_NOTE
+    assert "same instrument" in run_mod.TRANSITION_NOTE
+
+
+def test_the_transition_line_says_when_admitted_rows_were_not_ingested() -> None:
+    """Review of 2026-10-05: rows the rule admitted in a file another check rejected were never counted or
+    aggregated; the console line and the record say so instead of reading as an ingest."""
+    rule = "1a-option-a-2026-10-05"
+    record = {"count": 2, "admitted": True, "why_not": None, "resources_ingested": False}
+    line = run_mod.transition_console_line(rule, record)
+    assert line == (f"[harness] restart transition rule {rule}: 2 transition row(s) admitted by the rule, but the "
+                    "file was rejected for other reasons: nothing was ingested")
+    record["resources_ingested"] = True
+    assert run_mod.transition_console_line(rule, record) == f"[harness] restart transition rule {rule}: 2 transition row(s) admitted"
+    record.update(admitted=False, why_not="no pair", count=0)
+    assert run_mod.transition_console_line(rule, record) == f"[harness] restart transition rule {rule}: nothing admitted (no pair)"
+    assert "resources_ingested" in run_mod.TRANSITION_RECORD_KEYS
+
+
+def test_without_the_transition_rule_the_same_rows_are_rejected_exactly_as_before(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Not activated, the same file and the same lifecycle pair: decision 1a
+    rejects the three rows in its own words, and no rule, record or config
+    echo of the transition rule appears."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, kept=PD_KEPT, lifecycle=_pd_lifecycle(*PD_PAIR)
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    assert "resources_transition_rows" not in manifest
+    assert "restart_transition_rule" not in manifest["config"]["cli"]
+    assert [w for w in manifest["warnings"] if "REJECTED" in w] == [
+        f"--resources-from {src} REJECTED (SUT resources treated as missing): "
+        + "; ".join(PD_TRANSITION_PROBLEMS)
+    ]
+    assert manifest["resources_proved_down"]["rejected_rows"] == PD_TRANSITION_INSTANTS
+    assert manifest["resource_source"] == "none"
+    assert not (run_dir / checksums.SUMS_FILENAME).exists()
+
+
+@pytest.mark.parametrize(
+    "lifecycle, words",
+    [
+        (None, "under another container id"),
+        (_pd_lifecycle(("09:59:58", "disappeared")), "not exactly one 'disappeared' then one 'appeared'"),
+        (_pd_lifecycle(("09:59:58", "disappeared"), ("10:00:03", "appeared")), "late"),
+    ],
+    ids=["fixture-names-only", "no-appeared", "appeared-after-the-first-row"],
+)
+def test_the_transition_rule_without_a_good_lifecycle_pair_grants_nothing(
+    lifecycle, words, tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, kept=PD_KEPT, lifecycle=lifecycle,
+        transition_rule="1a-option-a-2026-10-05",
+    )
+    assert rc == 1
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    record = manifest["resources_transition_rows"]
+    assert record["admitted"] is False and words in record["why_not"], record["why_not"]
+    assert record["resources_ingested"] is False
+    assert record["count"] == 3 and record["instants"] == PD_TRANSITION_INSTANTS
+    assert [w for w in manifest["warnings"] if "REJECTED" in w] == [
+        f"--resources-from {src} REJECTED (SUT resources treated as missing): "
+        + "; ".join(PD_TRANSITION_PROBLEMS)
+    ]
+    assert manifest["resource_source"] == "none"
+
+
+def test_the_transition_rule_without_an_interval_or_a_file_records_why(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """Activated, but the StartedAt read 1.5 s from the start (no interval:
+    the ordinary rule decides, and its 5.0 s gap from 09:59:57 to 10:00:02
+    passes, as it always did), or the collector's file missing: the record
+    says why, nothing is admitted."""
+    (tmp_path / "a").mkdir()
+    rc, run_dir, _record, _src, _ = _proved_down_run(
+        tmp_path / "a", plan_path, fast_run, monkeypatch, kept=PD_KEPT,
+        lifecycle=_pd_lifecycle(*PD_PAIR), transition_rule="1a-option-a-2026-10-05",
+        started_at="2026-09-07T10:00:05.800000000Z",
+    )
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r01")
+    record = manifest["resources_transition_rows"]
+    assert rc == 0 and manifest["resources_proved_down"]["applies"] is False
+    assert record["admitted"] is False
+    assert record["why_not"].startswith("no proved-down interval (decision 1a): ") and "1 s" in record["why_not"]
+    assert record["count"] == 0 and record["rows"] == []
+    late = tmp_path / "b" / "late" / "resources.csv"
+    (tmp_path / "b").mkdir()
+    rc, run_dir, _record, _src, _ = _proved_down_run(
+        tmp_path / "b", plan_path, fast_run, monkeypatch, resources_from=late,
+        transition_rule="1a-option-a-2026-10-05",
+    )
+    record = _manifest(run_dir.parent.parent, "controller_restart-r01")["resources_transition_rows"]
+    assert rc == 1 and record["admitted"] is False
+    assert "missing or was refused before its rows were read" in record["why_not"]
+
+
+def test_the_transition_rule_needs_the_started_at_read_and_names_the_adopted_rule(
+    tmp_path, plan_path, capsys
+) -> None:
+    """A usage error (exit 2) before anything is written: the rule without
+    the StartedAt read, which establishes the interval it works inside, or
+    with any other rule name."""
+    base = tmp_path / "results"
+    for kwargs, words in (
+        ({"restart_transition_rule": "1a-option-a-2026-10-05"}, "--fetch-started-at-cmd"),
+        (
+            {"restart_transition_rule": "1a-option-b", "fetch_started_at_cmd": "true {dest}"},
+            "'1a-option-a-2026-10-05'",
+        ),
+    ):
+        assert run_mod.execute_run(plan_path, "controller_restart-r01", base_dir=base, **kwargs) == 2
+        assert words in capsys.readouterr().err
+        assert not (base / "raw" / "controller_restart-r01").exists()
+
+
+def test_collect_keeps_the_transition_record_and_the_run_time_judgement(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """'collect' never applies the rule: given the same file it keeps the
+    run as the run-time ingest judged it, the record unchanged."""
+    rc, run_dir, _record, src, _ = _proved_down_run(
+        tmp_path, plan_path, fast_run, monkeypatch, kept=PD_KEPT,
+        lifecycle=_pd_lifecycle(*PD_PAIR), transition_rule="1a-option-a-2026-10-05",
+    )
+    base = run_dir.parent.parent
+    assert rc == 0
+    manifest = _manifest(base, "controller_restart-r01")
+    assert (
+        run_mod.collect_run(
+            "controller_restart-r01", base_dir=base, plan_path=plan_path, resources_from=src
+        )
+        == 0
+    )
+    after = _manifest(base, "controller_restart-r01")
+    assert after["validity"] == "valid" and checksums.verify_sha256sums(run_dir) == []
+    assert after["resources_transition_rows"] == manifest["resources_transition_rows"]
+    assert after["resources_proved_down"] == manifest["resources_proved_down"]
+
+
+def test_the_transition_rule_on_another_condition_records_nothing(tmp_path, plan_path, fast_run) -> None:
+    """Only the restarted controller of a controller_restart run can receive
+    the treatment: elsewhere the option is echoed and nothing is applied."""
+    files = _pd_guest_files(tmp_path)
+    script = _write_script(tmp_path, "copy_step.py", COPY_STEP_SCRIPT)
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        resources_from=_resources_file(tmp_path),
+        expect_services=FIXTURE_SERVICES,
+        fetch_started_at_cmd=_copy_tpl(
+            script, tmp_path / "sut-steps.txt", "started_at", 0, files["controller-started-at.txt"]
+        ),
+        restart_transition_rule="1a-option-a-2026-10-05",
+        allow_missing_controller_marker=True,
+    )
+    assert rc == 0
+    manifest = _manifest(base, "smoke_sequence-r01")
+    assert manifest["config"]["cli"]["restart_transition_rule"] == "1a-option-a-2026-10-05"
+    assert "resources_proved_down" not in manifest and "resources_transition_rows" not in manifest
 
 
 EXTERNAL_EVIDENCE_CLI = [

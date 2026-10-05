@@ -41,6 +41,15 @@ The last condition of the rule - the container has a row at or before
 Every instant is on the guest clock (the daemon's ``timeNano``, StartedAt, the
 guest's ``date +%s`` and the collector's rows); the host-clock restart record
 is read for its outcome only. Pure: files are read, nothing is written.
+
+The restart transition rule (``resources.TRANSITION_RULE``; option A of the T6
+page, qualified, adopted by the student on 2026-10-05, prospective, for the new
+G3 T6 run) rests on one more file: :func:`read_lifecycle_witness` reads the
+collector's own lifecycle record of this run (``<the run's collector
+CSV>.lifecycle.csv``, collect-resources.sh) as the collector writes it and
+keeps its rows of the pair's container id or of the container's name. A record
+missing, not UTF-8, without its header, with any row not of the collector's
+form, or going back in time is unreadable as a whole: it grants nothing.
 """
 
 from __future__ import annotations
@@ -49,12 +58,18 @@ import calendar
 import json
 import re
 from collections.abc import Mapping
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from .protocol import RESOURCE_SAMPLE_INTERVAL_S
-from .resources import ProvedDownInterval, ns_utc_text, whole_second
+from .resources import (
+    LifecycleRecord,
+    LifecycleWitness,
+    ProvedDownInterval,
+    ns_utc_text,
+    whole_second,
+)
 
 #: The restarted container: the one test 6's restart names, the one its
 #: capture's coverage verdict and its StartedAt record must both name.
@@ -85,6 +100,19 @@ _RFC3339_Z = re.compile(
     r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?Z"
 )
 _STARTED_AT_KEYS = ("container", "container_id", "started_at", "guest_epoch")
+
+#: The collector's lifecycle record beside its CSV (collect-resources.sh,
+#: "Files written beside <output.csv>"; run.py COLLECTOR_OUTPUT_FILES), its
+#: header and the four events it writes.
+LIFECYCLE_SUFFIX = ".lifecycle.csv"
+LIFECYCLE_HEADER = "ts_utc,event,container_id,name"
+LIFECYCLE_EVENTS = frozenset({"appeared", "disappeared", "counter_reset", "named"})
+#: The collector's stamp: a whole UTC second, ASCII digits, ``Z``.
+_LIFECYCLE_STAMP = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})Z")
+#: A cgroup's id (the directory name without docker-/.scope) and a container
+#: name as the collector writes them; a name is empty until it resolves.
+_LIFECYCLE_ID = re.compile(r"[0-9A-Za-z_.-]+")
+_LIFECYCLE_NAME = re.compile(r"[0-9A-Za-z_.-]*")
 
 
 def parse_rfc3339_ns(text: str) -> int | None:
@@ -390,3 +418,88 @@ def derive_proved_down(
             "differ by more than 1 s"
         )
     return interval, None, facts
+
+
+def _lifecycle_stamp(text: str) -> datetime | None:
+    match = _LIFECYCLE_STAMP.fullmatch(text)
+    if match is None:
+        return None
+    try:
+        return datetime(*(int(g) for g in match.groups()), tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def read_lifecycle_witness(
+    path: str | Path | None, container_id: str | None
+) -> LifecycleWitness:
+    """The collector's lifecycle record of this run (``path``, the run's
+    ``<collector CSV>.lifecycle.csv``) as the witness of the restart
+    transition rule for ``container_id``, the die/start pair's id.
+
+    Every line after the header ``ts_utc,event,container_id,name`` must be a
+    row of the collector's form (a whole-second ``...Z`` stamp, one of
+    :data:`LIFECYCLE_EVENTS`, an id and a name, four fields), in
+    non-decreasing time; the rows of ``container_id`` or of :data:`CONTAINER`
+    are kept, in file order. Anything short of that - no id of the pair, no
+    file, a file that cannot be read or is not UTF-8, another header, one row
+    not of the form, a row going back in time - gives a witness with its
+    ``problem`` named and no rows, which grants nothing. Reads the file only."""
+
+    def no(why: str) -> LifecycleWitness:
+        return LifecycleWitness(container=CONTAINER, container_id=container_id, problem=why)
+
+    if not isinstance(container_id, str) or not _CONTAINER_ID.fullmatch(container_id):
+        return no(
+            "the container id of the die/start pair is not established (64 "
+            "lower-case hex), so no row of the collector's lifecycle record "
+            "can be matched to it"
+        )
+    if path is None:
+        return no("no collector lifecycle record (.lifecycle.csv) belongs to this run")
+    path = Path(path)
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return no(f"the collector's lifecycle record {path.name} could not be read")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return no(f"the collector's lifecycle record {path.name} is not UTF-8 text")
+    lines = text.split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    if not lines or lines[0] != LIFECYCLE_HEADER:
+        return no(
+            f"the collector's lifecycle record {path.name} does not start with "
+            f"the header {LIFECYCLE_HEADER!r}"
+        )
+    records: list[LifecycleRecord] = []
+    previous: datetime | None = None
+    for number, line in enumerate(lines[1:], 2):
+        fields = line.split(",")
+        stamp = _lifecycle_stamp(fields[0]) if len(fields) == 4 else None
+        if (
+            stamp is None
+            or fields[1] not in LIFECYCLE_EVENTS
+            or not _LIFECYCLE_ID.fullmatch(fields[2])
+            or not _LIFECYCLE_NAME.fullmatch(fields[3])
+        ):
+            return no(
+                f"line {number} of the collector's lifecycle record {path.name} "
+                "is not a lifecycle row of the collector (a whole-second UTC "
+                "stamp ending Z, one of appeared/disappeared/counter_reset/named, "
+                "a container id and a name, comma-separated)"
+            )
+        if previous is not None and stamp < previous:
+            return no(
+                f"line {number} of the collector's lifecycle record {path.name} "
+                f"goes back in time ({fields[0]} after {previous.isoformat()}): "
+                "out of order"
+            )
+        previous = stamp
+        if fields[2] == container_id or fields[3] == CONTAINER:
+            records.append(LifecycleRecord(stamp, fields[1], fields[2], fields[3]))
+    return LifecycleWitness(
+        container=CONTAINER, container_id=container_id, records=tuple(records)
+    )

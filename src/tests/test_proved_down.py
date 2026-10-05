@@ -715,3 +715,468 @@ def test_a_die_at_t0_and_a_start_1_ns_before_t1_plus_1_are_inside_the_capture_wi
     interval, why_not, facts = _pd().derive_proved_down(run_dir, manifest)
     assert interval is not None, why_not
     assert facts["die_events_in_window"] == 1 and facts["start_events_in_window"] == 1
+
+
+# --------------------------------------------------------------------------
+# The restart transition rule (option A of the T6 page, qualified; adopted by
+# the student on 2026-10-05, prospective, for the new G3 T6 run): rows of the
+# restarted controller stamped in (sec(D), sec(S)], sec(S) > sec(D), never
+# past sec(E), admitted only on the same container's unambiguous
+# disappeared -> appeared pair in the collector's own lifecycle record, at the
+# positions option A names. Fixture: the real bytes of controller_restart-r03
+# (fixtures/t6_r03/SOURCE.txt), whose verdict and package stay as they are.
+# --------------------------------------------------------------------------
+
+R03 = Path(__file__).resolve().parent / "fixtures" / "t6_r03"
+R03_CSV = "resources-controller_restart-r03.csv"
+R03_LIFECYCLE = R03_CSV + ".lifecycle.csv"
+R03_CID = "a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787"
+R03_MONGODB_ID = "946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c"
+R03_HOST = "egw-qemu-integrated"
+R03_DIE_NS = 1791034634060050589
+R03_START_NS = 1791034638761573789
+R03_WINDOW = ("2026-10-03T13:36:56Z", "2026-10-03T13:37:34Z")
+R03_SHA256 = {
+    R03_CSV: "4ddd162c7df9cd1de424cfb227af69eff7bc30422dd0fc9c0774a52b1479134d",
+    R03_LIFECYCLE: "2df607851737d162813146843851f191409cb1d17be0f42eb91b9930566a1ea0",
+    "docker-events.coverage.txt": "c61b71470844fa548cd721486466aee4a26d854dc85e3b446aaa5c60803ad247",
+    "controller-started-at.txt": "fec6a235c23a23d30c020d04de566e597ae9fec1a0b81395555100f9f1745fcc",
+    "docker-events.jsonl": "974299292e2dd42ac3bf68a7f44389b8d1c8d99603044704946dcc4e8639a9c0",
+}
+#: What the run-time ingest said of the collector's file on 2026-10-03 (the manifest's warning, after its prefix).
+R03_REJECTIONS = [
+    "1 row(s) of container 'egw-controller-1' stamped between the die at 2026-10-03T13:37:14.060050589Z and the "
+    "start at 2026-10-03T13:37:18.761573789Z, when no instance of it was running to measure (the proved-down "
+    "interval, decision 1a): rejected whatever their values: 2026-10-03T13:37:17+00:00",
+    "1 row(s) of container 'egw-controller-1' stamped in the second of the start at 2026-10-03T13:37:18.761573789Z, "
+    "less than one sampling interval (RESOURCE_SAMPLE_INTERVAL_S, 1 s) after it: the first row after the "
+    "proved-down interval (decision 1a) must be at least one sampling interval after the start's second: "
+    "2026-10-03T13:37:18+00:00",
+]
+R03_ROW_17 = "2026-10-03T13:37:17Z,egw-controller-1,0.00,2703360,1.01,egw-qemu-integrated"
+R03_ROWS = [
+    {"line": 134, "ts_utc": "2026-10-03T13:37:17Z", "cpu_pct": "0.00", "mem_bytes": "2703360", "mem_pct": "1.01"},
+    {"line": 140, "ts_utc": "2026-10-03T13:37:18Z", "cpu_pct": "16.06", "mem_bytes": "3588096", "mem_pct": "1.34"},
+]
+R03_INSTANTS = ["2026-10-03T13:37:17+00:00", "2026-10-03T13:37:18+00:00"]
+R03_PAIR = ("2026-10-03T13:37:12Z,disappeared,", "2026-10-03T13:37:16Z,appeared,")
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _r03(tmp_path: Path, *, csv=None, lifecycle=None) -> Path:
+    """The fixture's collector CSV and lifecycle record, copied into ``tmp_path``; ``csv`` and ``lifecycle`` map
+    the original text to the text written (``lifecycle`` "absent" writes none)."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    text = (R03 / R03_CSV).read_text(encoding="utf-8")
+    (tmp_path / R03_CSV).write_text(csv(text) if csv else text, encoding="utf-8", newline="\n")
+    life = (R03 / R03_LIFECYCLE).read_text(encoding="utf-8")
+    if lifecycle != "absent":
+        (tmp_path / R03_LIFECYCLE).write_text(lifecycle(life) if lifecycle else life, encoding="utf-8", newline="\n")
+    return tmp_path / R03_CSV
+
+
+def _r03_interval() -> resources.ProvedDownInterval:
+    return resources.ProvedDownInterval(container=C, die_ns=R03_DIE_NS, start_ns=R03_START_NS)
+
+
+def _r03_witness(csv_path: Path, container_id: str = R03_CID):
+    return _pd().read_lifecycle_witness(Path(f"{csv_path}.lifecycle.csv"), container_id)
+
+
+def _r03_validate(csv_path: Path, **kwargs) -> list[str]:
+    start, end = R03_WINDOW
+    return resources.validate_resources_csv(
+        csv_path,
+        expected_host=R03_HOST,
+        expected_window_s=38.0,
+        expected_window_start_utc=start,
+        expected_window_end_utc=end,
+        proved_down=_r03_interval(),
+        **kwargs,
+    )
+
+
+def _without(*seconds_and_names: tuple[str, str]):
+    """A csv edit dropping the rows of (HH:MM:SS, container)."""
+    def edit(text: str) -> str:
+        drop = {f"2026-10-03T{second}Z,{name}," for second, name in seconds_and_names}
+        return "".join(line for line in text.splitlines(keepends=True) if not any(line.startswith(d) for d in drop))
+    return edit
+
+
+def test_the_r03_fixture_is_the_sealed_runs_bytes() -> None:
+    assert {name: _sha256(R03 / name) for name in R03_SHA256} == R03_SHA256
+    assert _pd().LIFECYCLE_SUFFIX == ".lifecycle.csv" and _pd().LIFECYCLE_HEADER == "ts_utc,event,container_id,name"
+    assert resources.TRANSITION_RULE == "1a-option-a-2026-10-05"
+
+
+def test_the_r03_capture_and_started_at_give_the_interval_the_run_recorded(tmp_path) -> None:
+    run_dir = tmp_path / "raw" / "controller_restart-r03"
+    (run_dir / "logs" / "sut").mkdir(parents=True)
+    for name, source in (("docker-events.log", "docker-events.jsonl"),
+                         ("docker-events.coverage.txt", "docker-events.coverage.txt"),
+                         ("controller-started-at.txt", "controller-started-at.txt")):
+        (run_dir / "logs" / "sut" / name).write_bytes((R03 / source).read_bytes())
+    manifest = {
+        "condition_id": "controller_restart",
+        "restart": {"executed": True, "returncode": 0},
+        "sut_log_fetches": [_fetch("docker_events", "logs/sut/docker-events.log"),
+                            _fetch("started_at", "logs/sut/controller-started-at.txt")],
+    }
+    interval, why_not, facts = _pd().derive_proved_down(run_dir, manifest)
+    assert why_not is None and interval == _r03_interval()
+    assert facts["container_id"] == R03_CID and facts["started_at"] == "2026-10-03T13:37:18.698631325Z"
+    assert facts["die_utc"] == "2026-10-03T13:37:14.060050589Z" and facts["start_utc"] == "2026-10-03T13:37:18.761573789Z"
+    assert facts["start_minus_started_at_s"] == pytest.approx(0.062942464) and facts["capped"] is False
+
+
+def test_r03_without_the_transition_rule_is_rejected_exactly_as_on_2026_10_03(tmp_path) -> None:
+    """Behaviour without activation: no witness, the two rows rejected in the words of the run's warning; without
+    the interval, the ordinary 5 s rule (13:37:11 to 13:37:17)."""
+    path = _r03(tmp_path)
+    outcome: dict = {}
+    assert _r03_validate(path, proved_down_outcome=outcome) == R03_REJECTIONS
+    assert _r03_validate(path, transition_witness=None) == R03_REJECTIONS
+    assert outcome["rejected_rows"] == R03_INSTANTS
+    assert (outcome["edge_gap_before_s"], outcome["edge_gap_after_s"]) == (3.0, 1.0)
+    assert "transition" not in " ".join(outcome)
+    start, end = R03_WINDOW
+    assert resources.validate_resources_csv(
+        path, expected_host=R03_HOST, expected_window_s=38.0, expected_window_start_utc=start,
+        expected_window_end_utc=end,
+    ) == [
+        "1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': "
+        "2026-10-03T13:37:11+00:00 to 2026-10-03T13:37:17+00:00 (6.0 s)"
+    ]
+
+
+def test_r03_transition_rows_are_admitted_on_the_lifecycle_pair_and_reported_separately(tmp_path) -> None:
+    """A1: the real lifecycle record holds egw-controller-1's id disappeared at 13:37:12Z and appeared at 13:37:16Z,
+    after the last row at or before sec(D) (13:37:11) and at or before the first transition row (13:37:17): both
+    rows are transition rows, the file passes, and every 1a figure but the rejection is unchanged."""
+    path = _r03(tmp_path)
+    witness = _r03_witness(path)
+    assert witness.problem is None and witness.container_id == R03_CID
+    assert [(r.stamp.isoformat(), r.event) for r in witness.records] == [
+        ("2026-10-03T13:32:11+00:00", "appeared"),
+        ("2026-10-03T13:37:12+00:00", "disappeared"),
+        ("2026-10-03T13:37:16+00:00", "appeared"),
+    ]
+    pd_outcome: dict = {}
+    t_outcome: dict = {}
+    assert _r03_validate(path, proved_down_outcome=pd_outcome, transition_witness=witness,
+                         transition_outcome=t_outcome) == []
+    assert t_outcome == {
+        "rule": "1a-option-a-2026-10-05",
+        "container": C,
+        "container_id": R03_CID,
+        "admitted": True,
+        "why_not": None,
+        "after_second_utc": "2026-10-03T13:37:14+00:00",
+        "through_second_utc": "2026-10-03T13:37:18+00:00",
+        "instants": R03_INSTANTS,
+        "count": 2,
+        "rows": R03_ROWS,
+        "disappeared_utc": "2026-10-03T13:37:12+00:00",
+        "appeared_utc": "2026-10-03T13:37:16+00:00",
+    }
+    assert pd_outcome["applies"] is True and pd_outcome["rejected_rows"] == []
+    assert pd_outcome["rows_between"] == R03_INSTANTS[:1] and pd_outcome["rows_in_start_second"] == R03_INSTANTS[1:]
+    assert (pd_outcome["edge_gap_before_s"], pd_outcome["edge_gap_after_s"]) == (3.0, 1.0)
+    assert pd_outcome["last_row_before_die"] == "2026-10-03T13:37:11+00:00"
+    assert pd_outcome["first_row_after_start"] == "2026-10-03T13:37:19+00:00"
+    assert (R03 / R03_CSV).read_bytes() == path.read_bytes(), "the file is read, never changed"
+
+
+def test_r03_observed_zero_variant_is_admitted_and_its_zeros_are_reported(tmp_path) -> None:
+    """A zero actually measured is kept and counts like any reading: the 13:37:17 row as 0.00,0,0.00."""
+    path = _r03(tmp_path, csv=lambda t: t.replace(R03_ROW_17, R03_ROW_17.replace("0.00,2703360,1.01", "0.00,0,0.00")))
+    t_outcome: dict = {}
+    assert _r03_validate(path, transition_witness=_r03_witness(path), transition_outcome=t_outcome) == []
+    assert t_outcome["admitted"] is True
+    assert t_outcome["rows"][0] == {"line": 134, "ts_utc": "2026-10-03T13:37:17Z", "cpu_pct": "0.00",
+                                    "mem_bytes": "0", "mem_pct": "0.00"}
+
+
+def test_zero_valued_transition_rows_without_the_pair_are_rejected_whatever_their_values(tmp_path) -> None:
+    """A4/U7 kept: a zero alone proves nothing; without the lifecycle pair the rows are rejected as before."""
+    path = _r03(
+        tmp_path,
+        csv=lambda t: t.replace(R03_ROW_17, R03_ROW_17.replace("0.00,2703360,1.01", "0.00,0,0.00")),
+        lifecycle=lambda t: "".join(line for line in t.splitlines(keepends=True) if not line.startswith(R03_PAIR)),
+    )
+    t_outcome: dict = {}
+    assert _r03_validate(path, transition_witness=_r03_witness(path), transition_outcome=t_outcome) == R03_REJECTIONS
+    assert t_outcome["admitted"] is False and "not exactly one 'disappeared' then one 'appeared'" in t_outcome["why_not"]
+    assert t_outcome["instants"] == R03_INSTANTS and t_outcome["count"] == 2
+
+
+def _swap_pair_ids(text: str, cid: str, name: str | None = None) -> str:
+    out = []
+    for line in text.splitlines(keepends=True):
+        if line.startswith(R03_PAIR):
+            line = line.replace(R03_CID, cid)
+            if name is not None:
+                line = line.replace("egw-controller-1", name)
+        out.append(line)
+    return "".join(out)
+
+
+@pytest.mark.parametrize("lifecycle, words", [
+    pytest.param("absent", "could not be read", id="absent"),
+    pytest.param(lambda t: "".join(x for x in t.splitlines(keepends=True) if not x.startswith(R03_PAIR[1])),
+                 "is ['disappeared']", id="no-appeared"),
+    pytest.param(lambda t: _swap_pair_ids(t, R03_MONGODB_ID, "egw-mongodb-1"), "is empty", id="wrong-container"),
+    pytest.param(lambda t: _swap_pair_ids(t, "4e" * 32), "under another container id", id="name-of-another-id"),
+    pytest.param(lambda t: _swap_pair_ids(t, R03_CID, "egw-mongodb-1"), "names it", id="id-of-another-name"),
+    pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:17Z,appeared,"), "late or inconsistent",
+                 id="appeared-in-the-first-transition-rows-second"),
+    pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:19Z,appeared,"), "late", id="tardy-in-sec-S+1"),
+    pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:20Z,appeared,"), "is ['disappeared']",
+                 id="tardy-after-the-first-row-after"),
+    pytest.param(lambda t: t.replace(R03_PAIR[0], "2026-10-03T13:37:11Z,disappeared,"), "is ['appeared']",
+                 id="disappeared-with-the-last-row-before"),
+    pytest.param(lambda t: t.replace(R03_PAIR[0], "2026-10-03T13:37:12Z,appeared,")
+                 .replace(R03_PAIR[1], "2026-10-03T13:37:16Z,disappeared,"), "is ['appeared', 'disappeared']",
+                 id="reversed"),
+    pytest.param(lambda t: t + f"2026-10-03T13:37:18Z,counter_reset,{R03_CID},egw-controller-1\n",
+                 "is ['disappeared', 'appeared', 'counter_reset']", id="extra-event"),
+    pytest.param(lambda t: t + f"2026-10-03T13:37:17Z,disappeared,{R03_CID},egw-controller-1\n"
+                 f"2026-10-03T13:37:18Z,appeared,{R03_CID},egw-controller-1\n",
+                 "is ['disappeared', 'appeared', 'disappeared', 'appeared']", id="two-pairs"),
+    pytest.param(lambda t: t.replace("ts_utc,event,container_id,name", "ts_utc,event,id,name"), "header",
+                 id="unreadable-header"),
+    pytest.param(lambda t: t + "2026-10-03T13:40:00Z,appeared,ab\n", "not a lifecycle row", id="unreadable-row"),
+    pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:16.5Z,appeared,"), "not a lifecycle row",
+                 id="unreadable-stamp"),
+    pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:16Z,started,"), "not a lifecycle row",
+                 id="unreadable-event"),
+    pytest.param(lambda t: t.replace(R03_PAIR[0], "2026-10-03T13:37:17Z,disappeared,"), "goes back in time",
+                 id="out-of-order"),
+    pytest.param(lambda t: t.replace("\n2026-10-03T13:37:12Z", "\n\n2026-10-03T13:37:12Z"), "not a lifecycle row",
+                 id="empty-line"),
+])
+def test_a_missing_wrong_late_inconsistent_or_unreadable_witness_grants_nothing(tmp_path, lifecycle, words) -> None:
+    path = _r03(tmp_path, lifecycle=lifecycle)
+    t_outcome: dict = {}
+    pd_outcome: dict = {}
+    assert _r03_validate(path, proved_down_outcome=pd_outcome, transition_witness=_r03_witness(path),
+                         transition_outcome=t_outcome) == R03_REJECTIONS
+    assert t_outcome["admitted"] is False and words in t_outcome["why_not"], t_outcome["why_not"]
+    assert t_outcome["instants"] == R03_INSTANTS and t_outcome["rows"] == R03_ROWS
+    assert pd_outcome["rejected_rows"] == R03_INSTANTS
+
+
+def test_a_lifecycle_record_that_is_not_utf_8_grants_nothing(tmp_path) -> None:
+    path = _r03(tmp_path)
+    life = Path(f"{path}.lifecycle.csv")
+    life.write_bytes(life.read_bytes().replace(b"egw-mongodb-1", b"egw-mongodb-\xff"))
+    witness = _r03_witness(path)
+    assert witness.problem and "UTF-8" in witness.problem and witness.records == ()
+    assert _r03_validate(path, transition_witness=witness) == R03_REJECTIONS
+
+
+def test_a_witness_without_the_pairs_container_id_grants_nothing(tmp_path) -> None:
+    path = _r03(tmp_path)
+    for cid in (None, "", "A7" + R03_CID[2:]):
+        witness = _r03_witness(path, cid)
+        assert witness.problem and "container id" in witness.problem
+        assert _r03_validate(path, transition_witness=witness) == R03_REJECTIONS
+
+
+def _witness(*records: tuple[str, str], cid: str = CID, name: str = C):
+    """A lifecycle witness of fixture F's container: (HH:MM:SS of DAY, event) rows."""
+    return resources.LifecycleWitness(
+        container=C,
+        container_id=cid,
+        records=tuple(resources.LifecycleRecord(_second(at), event, cid, name) for at, event in records),
+    )
+
+
+def test_a_die_and_a_start_in_one_second_keep_that_seconds_row_rejected_whatever_the_witness(tmp_path) -> None:
+    """A8: sec(D) = sec(S) - no row is a transition row (sec(S) > sec(D) is required); the conservative case."""
+    path = _csv(tmp_path / "f.csv", absent={})
+    t_outcome: dict = {}
+    problems = _validate(path, proved_down=_interval("10:01:00.2", "10:01:00.7"),
+                         transition_witness=_witness(("10:00:59", "disappeared"), ("10:01:00", "appeared")),
+                         transition_outcome=t_outcome)
+    assert problems and any("less than one sampling interval" in p for p in problems)
+    assert t_outcome["admitted"] is False and t_outcome["instants"] == []
+    assert "one whole second" in t_outcome["why_not"]
+
+
+def test_a_capped_restart_admits_transition_rows_up_to_sec_e_and_never_beyond(tmp_path) -> None:
+    """A7: capped, D = 10:01:00.4, S = 10:03:02.4, E = D + 120 s = 10:03:00.4. The row at 10:01:30 lies in
+    (sec(D), sec(E)] and is admitted on the pair; the row at 10:03:01, after sec(E) and before sec(S), is still
+    rejected (the pinned 10:03:01 case), and so is a row in sec(S)."""
+    witness = _witness(("10:01:01", "disappeared"), ("10:01:29", "appeared"))
+    interval = _interval("10:01:00.4", "10:03:02.4")
+    holes = [("10:01:01", "10:01:29"), ("10:01:31", "10:03:00"), ("10:03:02", "10:03:02")]
+    path = _csv(tmp_path / "f.csv", end="10:05:00", absent={C: holes})
+    t_outcome: dict = {}
+    pd_outcome: dict = {}
+    problems = _validate(path, end="10:05:00", proved_down=interval, proved_down_outcome=pd_outcome,
+                         transition_witness=witness, transition_outcome=t_outcome)
+    assert t_outcome["admitted"] is True and t_outcome["instants"] == ["2026-10-01T10:01:30+00:00"]
+    assert t_outcome["through_second_utc"] == "2026-10-01T10:03:00+00:00"
+    assert pd_outcome["rejected_rows"] == ["2026-10-01T10:03:01+00:00"] and pd_outcome["edge_gap_after_s"] == 3.0
+    assert len(problems) == 1 and "stamped between the die" in problems[0], problems
+    assert problems[0].endswith(": 2026-10-01T10:03:01+00:00"), problems
+    path = _csv(tmp_path / "g.csv", end="10:05:00", absent={C: [("10:01:01", "10:01:29"), ("10:01:31", "10:03:01")]})
+    problems = _validate(path, end="10:05:00", proved_down=interval, transition_witness=witness)
+    assert len(problems) == 1 and "in the second of the start" in problems[0], problems
+    path = _csv(tmp_path / "h.csv", end="10:05:00", absent={C: [("10:01:01", "10:01:29"), ("10:01:31", "10:03:02")]})
+    assert _validate(path, end="10:05:00", proved_down=interval, transition_witness=witness) == []
+
+
+def test_a_transition_row_neither_opens_nor_closes_an_edge(tmp_path) -> None:
+    """The r03 rows with the controller's 13:37:19 to 13:37:24 rows removed: the transition rows (13:37:17,
+    13:37:18) are admitted, but the edge after runs from sec(E) to the first row after sec(S) + 1 s (13:37:25):
+    7.0 s, rejected. Likewise the edge before, from the last row at or before sec(D)."""
+    after = [(f"13:37:{s}", C) for s in range(19, 25)]
+    path = _r03(tmp_path / "after", csv=_without(*after))
+    t_outcome: dict = {}
+    problems = _r03_validate(path, transition_witness=_r03_witness(path), transition_outcome=t_outcome)
+    assert t_outcome["admitted"] is True
+    assert problems == [
+        "1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': "
+        "the effective end's second 2026-10-03T13:37:18+00:00 to 2026-10-03T13:37:25+00:00 (edge after the "
+        "proved-down interval, decision 1a) (7.0 s)"
+    ]
+    before = [(f"13:37:{s:02d}", C) for s in range(7, 12)]
+    path = _r03(tmp_path / "before", csv=_without(*before))
+    problems = _r03_validate(path, transition_witness=_r03_witness(path))
+    assert problems == [
+        "1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': "
+        "2026-10-03T13:37:06+00:00 to the die's second 2026-10-03T13:37:14+00:00 (edge before the proved-down "
+        "interval, decision 1a) (8.0 s)"
+    ]
+
+
+def test_another_services_check_still_fails_with_the_transition_rows_admitted(tmp_path) -> None:
+    path = _r03(tmp_path, csv=_without(*[(f"13:37:{s}", "egw-mosquitto-1") for s in range(10, 17)]))
+    t_outcome: dict = {}
+    problems = _r03_validate(path, transition_witness=_r03_witness(path), transition_outcome=t_outcome)
+    assert t_outcome["admitted"] is True
+    assert problems == [
+        "1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-mosquitto-1': "
+        "2026-10-03T13:37:09+00:00 to 2026-10-03T13:37:17+00:00 (8.0 s)"
+    ]
+
+
+def test_another_numeric_check_still_fails_on_an_admitted_transition_row(tmp_path) -> None:
+    path = _r03(tmp_path, csv=lambda t: t.replace(R03_ROW_17, R03_ROW_17.replace("0.00,2703360", "0.00,nan")))
+    t_outcome: dict = {}
+    problems = _r03_validate(path, transition_witness=_r03_witness(path), transition_outcome=t_outcome)
+    assert t_outcome["admitted"] is True
+    assert problems == ["1 row(s) with a non-finite mem_bytes value (nan/inf are not measurements): line 134: 'nan'"]
+
+
+@pytest.mark.parametrize("last, expected", [
+    ("10:00:33", []),
+    ("10:00:32", ["container 'egw-controller-1' has only 29 distinct sample instant(s); at least 30 are required "
+                  "per container"]),
+])
+def test_admitted_transition_rows_count_for_the_per_container_distinct_instants(tmp_path, last, expected) -> None:
+    """Distinct instants, not rows: the controller has 15 rows before its die (10:00:00-14), two transition rows
+    (10:00:18, 10:00:19) and 13 or 12 after its start (10:00:21-33 or -32): 30 counts the minimum met, 29 not."""
+    absent = {C: [("10:00:15", "10:00:17"), ("10:00:20", "10:00:20")]}
+    if last != "10:00:33":
+        absent[C].append(("10:00:33", "10:00:33"))
+    path = _csv(tmp_path / "f.csv", end="10:00:33", absent=absent)
+    t_outcome: dict = {}
+    problems = _validate(path, end="10:00:33", proved_down=_interval("10:00:15.5", "10:00:19.6"),
+                         transition_witness=_witness(("10:00:15", "disappeared"), ("10:00:17", "appeared")),
+                         transition_outcome=t_outcome)
+    assert t_outcome["admitted"] is True
+    assert t_outcome["instants"] == ["2026-10-01T10:00:18+00:00", "2026-10-01T10:00:19+00:00"]
+    assert problems == expected
+
+
+@pytest.mark.parametrize("absent", [
+    {C: ("10:01:01", "10:01:07")},
+    {C: ("10:01:01", "10:01:05")},
+    {C: ("10:00:55", "10:01:07"), "egw-mosquitto-1": ("10:01:01", "10:01:09")},
+    {},
+])
+def test_without_a_witness_an_explicit_none_gives_exactly_what_the_default_gives(tmp_path, absent) -> None:
+    path = _csv(tmp_path / "f.csv", absent=absent, extra=(("10:01:03", C, "0.0,0,0.0"),))
+    plain: dict = {}
+    given: dict = {}
+    assert _validate(path, proved_down=_interval(), proved_down_outcome=plain) == _validate(
+        path, proved_down=_interval(), proved_down_outcome=given, transition_witness=None
+    )
+    assert plain == given
+
+
+def test_a_witness_without_the_interval_changes_nothing(tmp_path) -> None:
+    path = _csv(tmp_path / "f.csv")
+    t_outcome: dict = {}
+    assert _validate(path, transition_witness=_witness(("10:01:01", "disappeared"), ("10:01:05", "appeared")),
+                     transition_outcome=t_outcome) == [U0_PROBLEM]
+    assert t_outcome == {}
+
+
+def _r03_analysis(tmp_path: Path, csv_path: Path) -> dict:
+    """analyze.py, unchanged, on a sealed run directory holding the file as its resources.csv and the fixture's
+    measured window."""
+    from egw_experiments import analyze
+    from egw_experiments.checksums import write_sha256sums
+
+    run_dir = tmp_path / "raw" / "controller_restart-r03"
+    run_dir.mkdir(parents=True)
+    start, end = R03_WINDOW
+    (run_dir / "manifest.json").write_text(json.dumps({
+        "run_id": "controller_restart-r03", "condition_id": "controller_restart", "scenario": "nominal",
+        "measured_window_utc": {"start": start, "end": end}, "exclusion": None,
+    }) + "\n", encoding="utf-8")
+    (run_dir / "sent_events.jsonl").write_text("", encoding="utf-8")
+    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+    (run_dir / "resources.csv").write_bytes(csv_path.read_bytes())
+    write_sha256sums(run_dir)
+    return analyze.compute_run_metrics(run_dir)
+
+
+def _controller(row: dict) -> dict:
+    return next(r for r in row["_resources"] if r["container"] == C)
+
+
+def test_admitted_transition_rows_enter_the_existing_coverage_and_aggregates_unchanged_in_form(tmp_path) -> None:
+    """The file the rule admits is ingested byte for byte, so analyze.py's existing calculations read it as they
+    read any file. Over the window 13:36:56-13:37:34 (38 s) the controller has 34 rows, 13:37:17 and 13:37:18
+    among them: CPU mean 1999.43/34 %, memory mean 1,468,608,512/34 = 43,194,368 B; the capped per-sample coverage
+    covers 15 + min(6, 5) + 1 + 1 + 15 = 37 s of 38. The denominators and formulas are analyze.py's own: the
+    distinct instants of the whole file stay 39 (every other container sampled each second), and the 6.0 s from
+    13:37:11 to the first transition row is still an interior gap above MAX_SAMPLE_GAP_S, so analyze.py's own
+    per-container sufficiency stays False for the controller (as it would at 8.0 s without the transition rows)."""
+    path = _r03(tmp_path / "in")
+    assert _r03_validate(path, transition_witness=_r03_witness(path)) == []
+    row = _r03_analysis(tmp_path / "a", path)
+    ctl = _controller(row)
+    assert ctl["samples"] == 34
+    assert ctl["cpu_pct_mean"] == pytest.approx(1999.43 / 34)
+    assert ctl["mem_bytes_mean"] == pytest.approx(43194368.0)
+    assert ctl["cpu_pct_max"] == pytest.approx(103.12) and ctl["mem_bytes_max"] == 69947392
+    assert ctl["coverage_pct"] == pytest.approx(100.0 * 37 / 38)
+    assert ctl["max_gap_s"] == 6.0 and ctl["coverage_sufficient"] is False
+    assert row["resources_distinct_instants"] == 39
+    # The same file without the two rows, for contrast only (it is not what the rule ingests).
+    bare = _r03(tmp_path / "bare", csv=_without(("13:37:17", C), ("13:37:18", C)))
+    other = _controller(_r03_analysis(tmp_path / "b", bare))
+    assert other["samples"] == 32 and other["mem_bytes_mean"] == pytest.approx(45697408.0)
+    assert other["coverage_pct"] == pytest.approx(100.0 * 35 / 38) and other["max_gap_s"] == 8.0
+
+
+def test_the_observed_zero_variant_enters_the_aggregates_with_its_zeros(tmp_path) -> None:
+    path = _r03(tmp_path / "in", csv=lambda t: t.replace(R03_ROW_17, R03_ROW_17.replace("0.00,2703360,1.01",
+                                                                                         "0.00,0,0.00")))
+    assert _r03_validate(path, transition_witness=_r03_witness(path)) == []
+    ctl = _controller(_r03_analysis(tmp_path / "a", path))
+    assert ctl["samples"] == 34
+    assert ctl["mem_bytes_mean"] == pytest.approx((1468608512 - 2703360) / 34)
+    assert ctl["cpu_pct_mean"] == pytest.approx(1999.43 / 34)

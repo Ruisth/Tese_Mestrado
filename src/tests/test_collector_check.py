@@ -16,6 +16,7 @@ whole difference between the run that was accepted and the one that must not be.
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import itertools
 import json
@@ -841,6 +842,262 @@ def test_a_collection_that_ended_early_reports_how_early(tmp_path) -> None:
     assert (
         "the collector's window is 31 s, 14 s shorter than the duration=45s"
     ) in " | ".join(report["observations"])
+
+
+# ---------------------------------------------------------------------------
+# The collector's own uptime bounds (2026-10-05)
+# ---------------------------------------------------------------------------
+#: collector_shortfall.py, the preflight's judgement of the duration, run on
+#: the report this check writes.
+SHORTFALL = REPO_ROOT / "tools" / "session" / "collector_shortfall.py"
+#: A synthetic boot id: the guest's own is not part of a preflight package.
+BOOT_ID = "0a1b2c3d-0000-4000-8000-000000000011"
+#: The four bounds the report publishes, as the collector wrote them.
+BOUND_NAMES = ("start_uptime_s", "stop_uptime_s", "start_boot_id", "stop_boot_id")
+
+
+def _bounded(start_line: str, stop_line: str, start: str, stop: str,
+             start_boot: str = BOOT_ID, stop_boot: str = BOOT_ID) -> tuple[str, str]:
+    """The start and closing records as collect-resources.sh writes them since
+    2026-10-05: ``uptime_s=`` (/proc/uptime, two decimals) and ``boot_id=``
+    after ``duration=`` on the start record, before its ``pacing:`` and its
+    expected services, and at the end of the closing summary."""
+    assert start_line.count(" duration=45s ") == 1, start_line
+    return (
+        start_line.replace(" duration=45s ",
+                           f" duration=45s uptime_s={start} boot_id={start_boot} "),
+        f"{stop_line} uptime_s={stop} boot_id={stop_boot}",
+    )
+
+
+def _judge(report_path: Path) -> subprocess.CompletedProcess:
+    """collector_shortfall.py on a written report, as preflight.sh runs it."""
+    return subprocess.run(
+        [sys.executable, str(SHORTFALL), str(report_path)],
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+
+
+def test_the_uptime_bounds_are_recorded_as_the_collector_wrote_them(tmp_path) -> None:
+    """The check publishes the bounds for the driver's judgement and judges
+    nothing on them itself; every other figure, the UTC window included, is
+    what it was without them, and the harness half reads the same output as
+    it did."""
+    directory = tmp_path / "analysis" / "collector"
+    start, stop = _bounded(RECORDS["start"], _stop(), "1000.00", "1045.30")
+    sut = _capsule(directory, records=[start, "inventory", stop])
+    code, report = _check(directory, sut)
+    assert report["problems"] == []
+    assert code == 0
+    assert report["monotonic_bounds"] == {
+        "start_uptime_s": "1000.00", "stop_uptime_s": "1045.30",
+        "start_boot_id": BOOT_ID, "stop_boot_id": BOOT_ID,
+    }
+    assert report["window"] == [WINDOW_START, WINDOW_END]
+    assert report["window_seconds"] == 45
+    assert report["declared_duration_shortfall_s"] is None
+    assert report["declared_expected_services"] == ",".join(SERVICES)
+    assert report["declared_duration_s"] == 45.0
+    assert report["closing_counters"] == CLEAN_COUNTERS
+    assert report["resource_validation"] == "run"
+    harness = run_mod.inspect_collector_outputs(
+        directory / f"resources-{RUN}.csv", list(SERVICES)
+    )
+    assert harness["problems"] == []
+    assert harness["stop_counters"] == report["closing_counters"]
+    assert harness["samples"] == report["samples"]
+
+
+def test_an_output_without_uptime_bounds_records_none_of_them(tmp_path) -> None:
+    """An output of the collector before 2026-10-05: the check reads it as it
+    always did, and publishes no bound, which the driver's judgement refuses
+    (fail closed) rather than falling back to the UTC window."""
+    directory = tmp_path / "analysis" / "collector"
+    sut = _capsule(directory)
+    code, report = _check(directory, sut)
+    assert report["problems"] == []
+    assert code == 0
+    assert report["monotonic_bounds"] == dict.fromkeys(BOUND_NAMES)
+    result = _judge(directory / "collector-check.json")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "UNKNOWN" in result.stdout
+
+
+#: The live preflight of 2026-10-05 (attempt11, run
+#: preflight-20261005T105656Z), from output_test/runs/2026-10-05/
+#: 20261005T105656Z_live-preflight_attempt11/analysis/collector/: its
+#: diagnostics and lifecycle files byte for byte (their sha256 below), and the
+#: 43 distinct instants of its CSV (11:00:40Z to 11:01:22Z, six services each;
+#: the CPU and memory figures are not part of this judgement and are fixed
+#: here). Its UTC window read 43 s of the duration=45s it declares, and the
+#: preflight failed on it, while its calibration lines put 38 s of UTC against
+#: 40.69 s of uptime (11:00:40Z at 268.54 s, 11:01:18Z at 309.23 s): the
+#: guest's wall clock fell about 2.7 s behind the clock the --duration loop
+#: runs on.
+ATTEMPT11_RUN = "preflight-20261005T105656Z"
+ATTEMPT11_NODE = "egw-qemu-integrated"
+ATTEMPT11_SHA = "11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6"
+ATTEMPT11_SERVICES = ("egw-mosquitto-1", "egw-mongodb-1", "egw-ditto-policies-1",
+                      "egw-ditto-things-1", "egw-ditto-gateway-1", "egw-controller-1")
+ATTEMPT11_DIAGNOSTICS = (
+    "2026-10-05T11:00:39Z start: collector_sha256="
+    "11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 "
+    "host=egw-qemu-integrated source=auto interval=1s duration=45s pacing: wall-clock "
+    "seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a "
+    "fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,"
+    "egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,"
+    "egw-controller-1\n"
+    "2026-10-05T11:00:39Z sample 1: sampling source: cgroup v2 under /sys/fs/cgroup\n"
+    "2026-10-05T11:00:40Z calibrated: wall second 1791198040 began at uptime 268.54 s "
+    "(calibration 1)\n"
+    "2026-10-05T11:00:46Z sample withheld at uptime 276.10 s: it fell in second "
+    "2026-10-05T11:00:46Z, not after the last stamped second 2026-10-05T11:00:46Z (a "
+    "clock stepped back, or two samples in one second); no rows\n"
+    "2026-10-05T11:00:47Z stamps resumed after 1 withheld sample(s): 1.00 s of elapsed "
+    "time without an accepted sample (uptime 275.10 s to 277.10 s, less one interval); "
+    "not in the forward UTC-gap count\n"
+    "2026-10-05T11:00:47Z clock phase: aimed at second 2026-10-05T11:00:48Z and sampled "
+    "in 2026-10-05T11:00:47Z; recalibrating\n"
+    "2026-10-05T11:00:48Z clock phase: aimed at second 2026-10-05T11:00:49Z and sampled "
+    "in 2026-10-05T11:00:48Z; recalibrating\n"
+    "2026-10-05T11:00:49Z clock phase: aimed at second 2026-10-05T11:00:50Z and sampled "
+    "in 2026-10-05T11:00:49Z; recalibrating\n"
+    "2026-10-05T11:00:50Z calibrated: wall second 1791198050 began at uptime 279.91 s "
+    "(calibration 2)\n"
+    "2026-10-05T11:01:17Z sample withheld at uptime 308.47 s: it fell in second "
+    "2026-10-05T11:01:17Z, not after the last stamped second 2026-10-05T11:01:17Z (a "
+    "clock stepped back, or two samples in one second); no rows\n"
+    "2026-10-05T11:01:18Z calibrated: wall second 1791198078 began at uptime 309.23 s "
+    "(calibration 3)\n"
+    "2026-10-05T11:01:18Z stamps resumed after 1 withheld sample(s): 1.29 s of elapsed "
+    "time without an accepted sample (uptime 307.50 s to 309.79 s, less one interval); "
+    "not in the forward UTC-gap count\n"
+    "2026-10-05T11:01:22Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,"
+    "egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 "
+    "expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,"
+    "egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0\n"
+    "2026-10-05T11:01:22Z stop: samples=46 utc_gap_seconds=0 withheld_samples=2 "
+    "withheld_elapsed_s=2.29 withheld_runs_unmeasured=0 withheld_open_at_stop=0 "
+    "calibrations=3 pacing=wall-clock\n"
+)
+ATTEMPT11_DIAGNOSTICS_SHA256 = "63450ebfe856522c190e52526e296c263ec1004d38630ef1a642d32ba5d59adc"
+ATTEMPT11_LIFECYCLE = (
+    "ts_utc,event,container_id,name\n"
+    "2026-10-05T11:00:39Z,appeared,"
+    "5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461,egw-mosquitto-1\n"
+    "2026-10-05T11:00:39Z,appeared,"
+    "69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f,egw-ditto-things-1\n"
+    "2026-10-05T11:00:39Z,appeared,"
+    "8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849,egw-ditto-policies-1\n"
+    "2026-10-05T11:00:39Z,appeared,"
+    "946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c,egw-mongodb-1\n"
+    "2026-10-05T11:00:39Z,appeared,"
+    "9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8,egw-ditto-gateway-1\n"
+    "2026-10-05T11:00:39Z,appeared,"
+    "a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787,egw-controller-1\n"
+)
+ATTEMPT11_LIFECYCLE_SHA256 = "a3d87b81175f910e091947e4467367db0e1c926439c4b5ea3a84ba9fd1731a8d"
+
+
+def _attempt11(directory: Path, diagnostics: str) -> list[str]:
+    """The attempt11 collector output in ``directory`` with ``diagnostics``;
+    returns the five arguments preflight.sh gave the check."""
+    directory.mkdir(parents=True, exist_ok=True)
+    base = directory / f"resources-{ATTEMPT11_RUN}.csv"
+    rows = ["ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"]
+    for stamp in _timeline("2026-10-05T11:00:40Z", 43):
+        for name in ATTEMPT11_SERVICES:
+            rows.append(f"{stamp},{name},10.0,1048576,1.0,{ATTEMPT11_NODE}")
+    base.write_text("\n".join(rows) + "\n", encoding="utf-8", newline="\n")
+    Path(f"{base}.diagnostics.log").write_text(diagnostics, encoding="utf-8", newline="\n")
+    Path(f"{base}.lifecycle.csv").write_text(ATTEMPT11_LIFECYCLE, encoding="utf-8",
+                                             newline="\n")
+    sut = directory.parent / "sut_environment.json"
+    sut.write_text(json.dumps({"node": ATTEMPT11_NODE}), encoding="utf-8")
+    return [str(directory), ATTEMPT11_RUN, ",".join(ATTEMPT11_SERVICES), ATTEMPT11_SHA,
+            str(sut)]
+
+
+def _attempt11_bounded(start: str, stop: str, stop_boot: str = BOOT_ID) -> str:
+    """The attempt11 diagnostics with the bounds the collector now writes.
+
+    Attempt11's own lines carry none, so these are the equivalent: the start
+    record was written in second 11:00:39Z, before calibration 1 found
+    11:00:40Z beginning at uptime 268.54 s, so its uptime lies in 267.54 to
+    268.54 s; the --duration loop ends no earlier than 45 s of uptime after
+    it, and the closing record was written in second 11:01:22Z, which the
+    phase of calibration 3 (11:01:18Z at 309.23 s) puts at 313.23 to
+    314.23 s. 268.20 and 313.52 lie in both.
+    """
+    lines = ATTEMPT11_DIAGNOSTICS.splitlines()
+    lines[0], lines[-1] = _bounded(lines[0], lines[-1], start, stop, stop_boot=stop_boot)
+    return "\n".join(lines) + "\n"
+
+
+def test_the_attempt11_fixture_is_the_real_record() -> None:
+    assert hashlib.sha256(ATTEMPT11_DIAGNOSTICS.encode("utf-8")).hexdigest() == (
+        ATTEMPT11_DIAGNOSTICS_SHA256)
+    assert hashlib.sha256(ATTEMPT11_LIFECYCLE.encode("utf-8")).hexdigest() == (
+        ATTEMPT11_LIFECYCLE_SHA256)
+
+
+def test_the_live_preflight_of_2026_10_05_as_recorded_is_not_rejudged(tmp_path) -> None:
+    """Its lines carry no uptime bound (the collector did not write them
+    before 2026-10-05), so its duration stays UNKNOWN and fails closed: an
+    older package is not judged again, and its UTC window is never the
+    fallback. The check itself reads it exactly as it did that day."""
+    directory = tmp_path / "analysis" / "collector"
+    args = _attempt11(directory, ATTEMPT11_DIAGNOSTICS)
+    code, report = _check(directory, Path(args[4]), args=args)
+    assert report["problems"] == []
+    assert code == 0
+    assert report["window_seconds"] == 43
+    assert report["declared_duration_shortfall_s"] == 2.0
+    assert report["distinct_instants_in_window"] == 43
+    assert report["monotonic_bounds"] == dict.fromkeys(BOUND_NAMES)
+    result = _judge(directory / "collector-check.json")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "UNKNOWN" in result.stdout
+    assert "its UTC window, kept for coverage and diagnosis, reads 43 s" in result.stdout
+
+
+@pytest.mark.parametrize("stop, expected, says", [
+    # The equivalent of attempt11 with the bounds the collector now writes:
+    # 45.32 s of uptime against 43 s of UTC. It held its duration.
+    ("313.52", 0, "held its whole window: 45.32 s on the guest's monotonic clock"),
+    # The same output had the collector really stopped when its UTC window
+    # did: the bounds show 43 s, and it fails as it failed that day.
+    ("311.20", 1, "stopped 2 s before the duration=45s its 'start:' line declares"),
+])
+def test_the_live_preflight_of_2026_10_05_with_uptime_bounds(tmp_path, stop: str,
+                                                              expected: int, says: str) -> None:
+    directory = tmp_path / "analysis" / "collector"
+    args = _attempt11(directory, _attempt11_bounded("268.20", stop))
+    code, report = _check(directory, Path(args[4]), args=args)
+    assert report["problems"] == []
+    assert code == 0
+    assert report["window_seconds"] == 43
+    assert report["monotonic_bounds"] == {
+        "start_uptime_s": "268.20", "stop_uptime_s": stop,
+        "start_boot_id": BOOT_ID, "stop_boot_id": BOOT_ID,
+    }
+    result = _judge(directory / "collector-check.json")
+    assert result.returncode == expected, result.stdout + result.stderr
+    assert says in result.stdout
+    assert "its UTC window, kept for coverage and diagnosis, reads 43 s" in result.stdout
+
+
+def test_the_live_preflight_of_2026_10_05_across_two_boots_fails_closed(tmp_path) -> None:
+    directory = tmp_path / "analysis" / "collector"
+    other = "0a1b2c3d-0000-4000-8000-000000000012"
+    args = _attempt11(directory, _attempt11_bounded("268.20", "313.52", stop_boot=other))
+    code, report = _check(directory, Path(args[4]), args=args)
+    assert code == 0
+    assert report["monotonic_bounds"]["stop_boot_id"] == other
+    result = _judge(directory / "collector-check.json")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "different boots" in result.stdout
+    assert "UNKNOWN" in result.stdout
 
 
 # ---------------------------------------------------------------------------

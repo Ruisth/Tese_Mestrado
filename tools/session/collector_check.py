@@ -51,7 +51,12 @@ for is validated against itself. The shortfall is therefore reported as
 ``<dir>/collector-check.json`` (null when the collector's window reached the
 declared duration, or when there is no window or no declared duration to
 compare), for the driver -- which does know what it asked the collector for --
-to judge (2026-09-20).
+to judge (2026-09-20). Since 2026-10-05 the driver judges that duration on the
+collector's own bounds on the guest's monotonic clock, not on this UTC window:
+the ``uptime_s=`` and ``boot_id=`` the ``start:`` and ``stop:`` records carry
+are published as written, under ``monotonic_bounds`` (each None when its record
+does not carry it, as in every output of the collector before that date), and
+nothing is judged on them here.
 
 <dir>/collector-check.json is always written, even when the check itself raises,
 and any problem gives exit 1.
@@ -385,6 +390,18 @@ def check(d, rid, expect, want_sha, sut, report):
             window_s = measured
             report["window_seconds"] = window_s
 
+    # The same two records' bounds on the guest's monotonic clock, in the
+    # collector's own words (2026-10-05). The duration is judged on them by
+    # collector_shortfall.py, which refuses missing, malformed, reversed or
+    # cross-boot bounds; the UTC window above stays for the coverage and for
+    # diagnosis.
+    report["monotonic_bounds"] = {
+        "start_uptime_s": field(start, "uptime_s") if start else None,
+        "stop_uptime_s": field(stop, "uptime_s") if stop else None,
+        "start_boot_id": field(start, "boot_id") if start else None,
+        "stop_boot_id": field(stop, "boot_id") if stop else None,
+    }
+
     if not (d / f"resources-{rid}.csv.lifecycle.csv").is_file():
         problems.append("no lifecycle companion")
     markers = sorted(p.name for p in d.glob("*.self-test"))
@@ -532,7 +549,7 @@ def main(argv):
               "window_seconds": None, "start_line": None, "stop_line": None,
               "inventory": None, "declared_expected_services": None,
               "declared_interval_s": None, "declared_duration_s": None,
-              "declared_duration_shortfall_s": None,
+              "declared_duration_shortfall_s": None, "monotonic_bounds": None,
               "rounds_the_declared_interval_implies": None,
               "samples": None, "closing_counters": {},
               "closing_record_reconciliation": "not run",

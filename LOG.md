@@ -4768,3 +4768,81 @@ is unchanged.
   the aggregates); `collector-duration` judged on paired monotonic bounds;
   a new `controller_restart` plan entry; then one separately authorised
   session on the unchanged candidate. G3 stays `Not decided`.
+
+## Entry #C053 — Test 6's offline prerequisites: option A adopted and implemented, `collector-duration` on uptime bounds, a fresh plan entry, the exactly-once check
+
+- **Date:** 2026-10-05. **Scope:** the student's adoption of the T6 page's
+  option A with the Project Manager's conditions, and his authorisation of
+  one offline tooling pull request («Segue a opção A do Senior Project
+  Manager», on the register entry of 2026-10-05, 15:14 WEST; the record is
+  held locally under `output_test/decisions/`). Offline only: no guest, no
+  session, no build, no change to the system under test (controller,
+  simulator, schemas, contracts, compose, locks, image), no change of load,
+  rate, duration, deadline or threshold; `analyze.py` unchanged.
+- **Why.** Test 6 needs a valid new run under the criterion of #C052. Its
+  run r03 was invalid under rule 1a; its preflight check of the collector's
+  duration compared UTC stamps with a duration run on uptime (#C051); the
+  plan's three restart entries are used; and "accepted exactly once" had no
+  executable check.
+- **What.** Four streams, each red first, integrated by merge:
+  - *Option A, qualified* (`proved_down.py`, `resources.py`, `run.py`,
+    `cli.py`): with `run --restart-transition-rule 1a-option-a-2026-10-05`
+    (which requires `--fetch-started-at-cmd`), rows of the restarted
+    controller stamped in sec(D) < t ≤ min(sec(S), sec(E)), sec(S) > sec(D),
+    are admitted only on the same container's unambiguous disappeared →
+    appeared pair in the run's own lifecycle record; anything missing, wrong,
+    late, ambiguous or unreadable admits nothing; values never decide.
+    Admitted rows count, are covered and aggregated like any other row; they
+    are reported separately under `resources_transition_rows` with the rule's
+    name, the pair, the lifecycle file's sha256 and a note that they prove no
+    readiness and that the witness is the same instrument. Without the
+    option every run behaves as before. Test 6's harness line passes it. The
+    T6 page records option A as adopted with conditions, B and C not
+    adopted, and its four F2 qualifications fixed. Fixture: the real r03
+    rows, copied byte for byte (`src/tests/fixtures/t6_r03/`).
+  - *`collector-duration`* (`collect-resources.sh`, `collector_check.py`,
+    `collector_shortfall.py`): the collector writes `uptime_s=` and
+    `boot_id=` on its `start:` and `stop:` records; the duration is judged on
+    the uptime span between bounds of one boot, the tolerance unchanged, UTC
+    printed beside for diagnosis; missing, malformed, reversed or cross-boot
+    bounds fail closed. The collector's sha256 changes from `11444c0a…` to
+    `9e678b02…` (instrumentation); a guest still holding the old collector
+    fails the check closed until the preflight installs the new one.
+  - *A fresh plan entry* (`plan_gen.py`, `cli.py`): `controller_restart-r04`,
+    the frozen load (11.2 msg/s, 600 s, restart at 300 s), seed by the
+    plan's own rule; `python -m egw_experiments plan-supplement --plan <pilot
+    plan> --entry g3-t6` adds it in place, refusing a plan that is not
+    exactly the generated one or that holds a colliding id; r01–r03 and every
+    other entry byte-identical; `PROTOCOL_VERSION` and the 95 runs
+    unchanged. The runbook's test 6 names r04.
+  - *Exactly once* (`itest_reconcile.py`): `acceptance --exactly-once` also
+    fails an identity with more than one `accepted` line; test 6's block
+    runs it on the post-drain copy after `delta` (exit 1 not evaluated, exit
+    4 fails); the default mode and test 3's line are unchanged.
+- **Tests.** Red first in each stream (A 46 failed, B 37, C 41, D 35 on the
+  tests alone) and green after; the integrated affected selection, with the
+  source identity recorded first, is in `output_test` (named in the pull
+  request).
+- **Limits.** Nothing ran on the guest: the collector's new records, the
+  transition rule on a live restart and the exactly-once line on a real
+  post-drain copy are exercised on fixtures and stubs only (the
+  exactly-once check was also read-only over r03's real files: 6,720
+  accepted exactly once — not a test 6 result; r03 stays invalid).
+  `analyze.py` still judges the controller's own coverage on its
+  per-sample gaps, so an r03-like gap can leave that container's coverage
+  insufficient while the ingest accepts the file. The next preparation must
+  record the new tooling identity apart from the unchanged system under test:
+  the merged commit, the runbook's new sha256 (test 6's step files are
+  re-extracted from it; the section 6.1 helpers stay `e5eba37e…`, 545
+  lines), the collector's hash, `drivers_sha256`; the deployed tree differs
+  from the candidate's recorded one only by the collector (instrumentation);
+  the candidate stays the retained controller image `9a293fe1…` from
+  `489bc9e`, not a build of this head (`src/Dockerfile` copies
+  `egw_experiments/`, so a rebuild would differ). It must install the new
+  collector through the preflight and add r04 to the host's pilot plan. After
+  the consolidated review: an `appeared` in the second of the first
+  transition row is refused as inconsistent; `resources_transition_rows`
+  carries `resources_ingested`, and the console and the runbook's read-out
+  report it.
+- **Decisions and next steps.** One separately authorised bounded session
+  for test 6 on the unchanged candidate. G3 stays `Not decided`.

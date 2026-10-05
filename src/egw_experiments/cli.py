@@ -3,6 +3,7 @@
 Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
 
     python -m egw_experiments plan --master-seed 42 [--output PATH] [--force]
+    python -m egw_experiments plan-supplement --plan PATH --entry g3-t6
     python -m egw_experiments campaign [--plan PATH] [--results-dir DIR] ...
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
     python -m egw_experiments collect --run-id nominal-r01 [...]
@@ -11,6 +12,10 @@ Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan;
+``plan-supplement`` appends one supplementary entry defined in
+``plan_gen.SUPPLEMENTS`` to an existing plan file, keeping every byte of the
+entries it holds (``g3-t6``: ``controller_restart-r04`` for G3's test 6,
+2026-10-05; ``--plan`` has no default, and ``plan`` never adds one);
 ``campaign`` (work order P1 item 12) is the OFFICIAL way to execute the
 frozen plan end-to-end: it iterates the plan in its frozen order, runs
 every simulator condition through the same code path as ``run``, skips
@@ -84,6 +89,13 @@ fetch into ``logs/sut/controller-started-at.txt``; on a ``controller_restart``
 run the proved-down interval is then applied to the resources ingest and
 recorded as ``resources_proved_down``. Absent, every run is as before.
 
+The restart transition rule (option A of the T6 page, qualified; adopted
+2026-10-05, prospective): ``run`` alone accepts ``--restart-transition-rule
+1a-option-a-2026-10-05``, beside ``--fetch-started-at-cmd``; the restarted
+controller's transition rows are then admitted on the collector's own
+lifecycle pair and recorded as ``resources_transition_rows``. Absent, every
+run is as before.
+
 Recovery qualification (review finding F2): the analyser never reads
 ``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
 after the analysis, which writes ``processed/recovery_qualification.json``
@@ -106,8 +118,15 @@ from pathlib import Path
 from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
-from .plan_gen import generate_campaign_plan, write_campaign_plan
+from .plan_gen import (
+    SUPPLEMENTS,
+    PlanSupplementError,
+    apply_plan_supplement,
+    generate_campaign_plan,
+    write_campaign_plan,
+)
 from .recovery_qualification import write_recovery_qualification
+from .resources import TRANSITION_RULE
 from .run import (
     DEFAULT_PLAN_PATH,
     DEFAULT_RESULTS_BASE,
@@ -520,6 +539,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="overwrite an existing plan (statuses in it are lost)",
     )
 
+    # plan-supplement (G3's test 6, offline block of 2026-10-05) --------------
+    p_sup = sub.add_parser(
+        "plan-supplement",
+        help="append one supplementary entry (plan_gen.SUPPLEMENTS) to an "
+        "EXISTING plan file, every entry it holds unchanged; refused, the file "
+        "left as it was, when it is not the canonical frozen generation of its "
+        "master seed or holds a colliding id; applied again, nothing changes",
+    )
+    p_sup.add_argument(
+        "--plan",
+        type=Path,
+        required=True,
+        help="the plan file to extend in place (no default: the frozen campaign "
+        "plan is never supplemented by omission)",
+    )
+    p_sup.add_argument(
+        "--entry",
+        required=True,
+        choices=sorted(SUPPLEMENTS),
+        help="the supplementary entry (g3-t6: controller_restart-r04, G3's test 6)",
+    )
+
     # run -------------------------------------------------------------------
     p_run = sub.add_parser(
         "run",
@@ -572,6 +613,20 @@ def build_parser() -> argparse.ArgumentParser:
         "events capture and this read) is then applied to the resources "
         "ingest and recorded as resources_proved_down; without the option "
         "nothing of this runs",
+    )
+    p_run.add_argument(
+        "--restart-transition-rule",
+        default=None,
+        choices=[TRANSITION_RULE],
+        help="the restart transition rule adopted on 2026-10-05 (option A of "
+        "the T6 page, with the Project Manager's conditions), named "
+        "explicitly; needs --fetch-started-at-cmd. On a controller_restart "
+        "run whose proved-down interval is established, the restarted "
+        "controller's rows stamped after the die's second and at or before "
+        "the start's (never past E) are admitted when the collector's own "
+        "lifecycle record shows its id disappear and then appear at the "
+        "rule's positions, and recorded as resources_transition_rows; "
+        "without the option nothing of this runs",
     )
     p_run.add_argument(
         "--local-resources",
@@ -772,6 +827,24 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_plan_supplement(args: argparse.Namespace) -> int:
+    try:
+        entry, added = apply_plan_supplement(args.plan, args.entry)
+    except (PlanSupplementError, OSError) as exc:
+        print(f"error: {args.plan}: {exc}; the plan was not changed", file=sys.stderr)
+        return 2
+    what = (
+        f"{entry['run_id']} (supplement {args.entry}: condition "
+        f"{entry['condition_id']}, repetition {entry['repetition']}, seed "
+        f"{entry['seed']}, order {entry['order']})"
+    )
+    if added:
+        print(f"added {what} to {args.plan}; every entry it held is unchanged")
+    else:
+        print(f"{args.plan} already holds {what}; unchanged")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     if args.metrics_fast_retry and not args.controller_url:
         print("error: --metrics-fast-retry needs --controller-url (there is no poll to retry)", file=sys.stderr)
@@ -812,6 +885,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         fetch_controller_log_cmd=args.fetch_controller_log_cmd,
         fetch_docker_events_cmd=args.fetch_docker_events_cmd,
         fetch_started_at_cmd=args.fetch_started_at_cmd,
+        restart_transition_rule=args.restart_transition_rule,
         twin_snapshot_cmd=args.twin_snapshot_cmd,
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
@@ -1005,6 +1079,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "plan":
         return _cmd_plan(args)
+    if args.command == "plan-supplement":
+        return _cmd_plan_supplement(args)
     if args.command == "run":
         return _cmd_run(args)
     if args.command == "campaign":

@@ -37,6 +37,60 @@ def test_plan_twice_without_force_exits_2(tmp_path, capsys) -> None:
 
 
 # ---------------------------------------------------------------------------
+# plan-supplement (G3's test 6, offline block authorised 2026-10-05)
+# ---------------------------------------------------------------------------
+
+
+def test_plan_supplement_adds_the_g3_t6_entry_once_to_the_named_plan(tmp_path, capsys) -> None:
+    """The command the next preparation runs on the pilot plan: one entry
+    appended, every byte before it kept; run again, nothing changes."""
+    plan = tmp_path / "pilot" / "campaign_plan.json"
+    assert cli.main(["plan", "--master-seed", "42", "--output", str(plan)]) == 0
+    before = plan.read_bytes()
+    capsys.readouterr()
+    argv = ["plan-supplement", "--plan", str(plan), "--entry", "g3-t6"]
+    assert cli.main(argv) == 0
+    out = capsys.readouterr().out
+    seed = plan_gen.derive_run_seed(42, "controller_restart-r04")
+    assert "added controller_restart-r04" in out and f"seed {seed}" in out and "order 96" in out
+    after = plan.read_bytes()
+    assert after.startswith(before[: -len(b"\n  ]\n}\n")] + b",\n    {\n")
+    assert plan_gen.load_campaign_plan(plan)["runs"][-1] == plan_gen.supplementary_entry(42, "g3-t6", 96)
+    assert cli.main(argv) == 0
+    assert "already holds controller_restart-r04" in capsys.readouterr().out
+    assert plan.read_bytes() == after
+
+
+def test_plan_supplement_names_its_plan_and_a_known_entry(tmp_path) -> None:
+    """--plan has no default, so the frozen campaign plan is never supplemented
+    by omission; an entry the code does not define is a usage error."""
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["plan-supplement", "--entry", "g3-t6"])
+    assert exc.value.code == 2
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["plan-supplement", "--plan", str(tmp_path / "p.json"), "--entry", "g3-t7"])
+    assert exc.value.code == 2
+
+
+def test_plan_supplement_refusal_exits_2_and_leaves_the_plan_as_it_was(tmp_path, capsys) -> None:
+    plan = tmp_path / "campaign_plan.json"
+    generated = plan_gen.generate_campaign_plan(42)
+    next(e for e in generated["runs"] if e["run_id"] == "controller_restart-r03")["seed"] += 1
+    plan_gen.write_campaign_plan(generated, plan)
+    kept = plan.read_bytes()
+    assert cli.main(["plan-supplement", "--plan", str(plan), "--entry", "g3-t6"]) == 2
+    err = capsys.readouterr().err
+    assert "controller_restart-r03" in err and "not changed" in err
+    assert plan.read_bytes() == kept
+    assert cli.main(["plan-supplement", "--plan", str(tmp_path / "missing.json"), "--entry", "g3-t6"]) == 2
+    assert not (tmp_path / "missing.json").exists()
+
+
+def test_plan_supplement_is_in_the_usage() -> None:
+    assert "plan-supplement --plan PATH --entry g3-t6" in (cli.__doc__ or "")
+
+
+# ---------------------------------------------------------------------------
 # verify-checksums
 # ---------------------------------------------------------------------------
 
@@ -309,6 +363,33 @@ def test_run_passes_the_started_at_read_through_and_campaign_does_not_take_it(mo
         cli.build_parser().parse_args(["campaign", "--fetch-started-at-cmd", template])
     assert exc.value.code == 2
     assert "--fetch-started-at-cmd" in capsys.readouterr().err
+
+
+def test_run_passes_the_restart_transition_rule_through_and_names_only_the_adopted_one(
+    monkeypatch, capsys
+) -> None:
+    """The restart transition rule (option A, qualified; adopted 2026-10-05): an
+    explicit option of 'run' naming the rule; absent, execute_run gets None and
+    every run is as before. Another name, or the campaign, is refused."""
+    seen: list[object] = []
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen.append(kwargs.get("restart_transition_rule", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    rule = "1a-option-a-2026-10-05"
+    assert cli.main(["run", "--run-id", "controller_restart-r01", "--restart-transition-rule", rule]) == 0
+    assert cli.main(["run", "--run-id", "controller_restart-r01"]) == 0
+    assert seen == [rule, None]
+    for argv in (
+        ["run", "--run-id", "controller_restart-r01", "--restart-transition-rule", "1a-option-b"],
+        ["campaign", "--restart-transition-rule", rule],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            cli.build_parser().parse_args(argv)
+        assert exc.value.code == 2
+        assert "--restart-transition-rule" in capsys.readouterr().err
 
 
 def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:

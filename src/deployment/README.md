@@ -466,6 +466,8 @@ nothing else:
 **Two counts that never hold the same seconds**, each with a diagnostic line per
 event and a total in the closing `stop:` line:
 
+Since 2026-10-05 the `start:` and `stop:` records also carry `uptime_s=` (the first field of `/proc/uptime`, two decimals) and `boot_id=` (written `unknown`/`unavailable` when unreadable): `tools/session/collector_shortfall.py` judges the declared duration on these bounds of one boot's monotonic clock, and bounds that are missing, malformed, reversed or of two boots fail the preflight's `collector-duration` step closed.
+
 - `utc_gap_seconds` — the forward gaps between consecutive stamped seconds:
   seconds of UTC, beyond one interval, in which no sample was stamped. A wall
   clock stepped forward adds to it although no time passed unsampled.

@@ -1195,40 +1195,42 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r04", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     argv = harness_argv(bench)
     opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
-    dest = "/raw/controller_restart-r03/logs/sut/docker-events.log"
-    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r03", dest)
-    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r03", "die,start"], events
+    dest = "/raw/controller_restart-r04/logs/sut/docker-events.log"
+    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r04", dest)
+    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r04", "die,start"], events
     assert "kill" not in events[-1]
     assert opts["--restart-cmd"].endswith("restart controller'") and opts["--restart-at-s"] == "300"
-    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r03]"
+    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r04]"
     # The finite proof's restart-evidence hooks of the checkout, rendered and split as the harness runs them (review
     # of PR #51, B1): the twin snapshots with the plan's seed, the drain, the post-drain copy of this run's events.
     session = bench.clone / "tools" / "session"
-    run_dir = "/raw/controller_restart-r03"
+    run_dir = "/raw/controller_restart-r04"
 
     def hook(flag: str, dest: str) -> list[str]:
-        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r03", duration_s=600,
+        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r04", duration_s=600,
                                                              dest=dest, expect_services=SIX_SERVICES.split(",")))
 
     assert hook("--twin-snapshot-cmd", f"{run_dir}/twins.before.json") == \
-        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r03", f"{run_dir}/twins.before.json", "7"]
+        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r04", f"{run_dir}/twins.before.json", "7"]
     assert hook("--drain-cmd", f"{run_dir}/logs/sut/drain.txt") == \
-        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r03"]
+        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r04"]
     assert hook("--post-drain-fetch-cmd", f"{run_dir}/events.post-drain.jsonl") == \
-        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r03/events.jsonl",
+        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r04/events.jsonl",
          f"{run_dir}/events.post-drain.jsonl"]
     # Decision 1a (adopted 2026-09-30): the StartedAt read the harness runs after its docker-events fetch and before
     # it ingests the resources, through the checkout's script, into the run's logs/sut/.
     assert hook("--fetch-started-at-cmd", f"{run_dir}/logs/sut/controller-started-at.txt") == \
         ["bash", str(session / "fetch_started_at.sh"), f"{run_dir}/logs/sut/controller-started-at.txt"]
-    # After the harness, one read-only line on the manifest's resources_proved_down (the stub harness wrote none).
+    # After the harness, one read-only line on the manifest's resources_proved_down (the stub harness wrote none),
+    # and, since the review of 2026-10-05, one on its resources_transition_rows (the transition rule's own report).
     assert r.starting("test 6: resources_proved_down: "), r.out
+    assert r.starting("test 6: resources_transition_rows: "), r.out
     # The stub harness seals nothing, so the line stops: its run directory was not sealed.
     assert r.starting("STOP: test 6: the harness run was not sealed"), r.out
     assert r.value("T6") == "stop", r.out
@@ -1243,7 +1245,7 @@ def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(be
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r04", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     other = bench.tmp / "another-execution"
     other.mkdir(parents=True)
@@ -1257,7 +1259,7 @@ def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(be
             _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert not (bench.state / "harness_argv").exists(), "the harness was started over another execution's directory"
-    assert r.starting("STOP: harness_cmd controller_restart-r03: "), r.out
+    assert r.starting("STOP: harness_cmd controller_restart-r04: "), r.out
     summary = r.starting("test 6: resources_proved_down: ")
     assert len(summary) == 1, r.out
     assert "applies=" not in summary[0] and "2026-10-01T10:05" not in summary[0], summary
@@ -1331,7 +1333,7 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r04", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     bench.set("events_start_rc", 3)
     bench.set("events_cleanup_rc", 1)
@@ -1339,18 +1341,67 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert r.value("T6") == "stop", r.out
     assert not (bench.state / "harness_argv").exists(), "the harness was started without a ready recorder"
-    start = r.starting("STOP: events_start controller_restart-r03: ")
-    assert len(start) == 1 and "egw-events-controller_restart-r03 may still run" in start[0], r.out
-    hc = r.starting("STOP: harness_cmd controller_restart-r03: the harness was NOT started")
+    start = r.starting("STOP: events_start controller_restart-r04: ")
+    assert len(start) == 1 and "egw-events-controller_restart-r04 may still run" in start[0], r.out
+    hc = r.starting("STOP: harness_cmd controller_restart-r04: the harness was NOT started")
     assert len(hc) == 1 and "events_start's STOP above" in hc[0], r.out
     t6 = r.starting("STOP: test 6: ")
     assert len(t6) == 1 and "exited 2" in t6[0] and "may then still run" in t6[0], r.out
 
 
-def test_test_6_takes_controller_restart_r03_the_first_entry_never_used_on_the_guest() -> None:
-    """Review of 2026-09-30 (RB-3): test 6 named controller_restart-r01, which the pilot tree already holds (r01 ran on
-    2026-09-18 and r02 on 2026-09-19), so harness_cmd refused it and the documented line could only stop."""
-    assert run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID") == "controller_restart-r03"
+#: The command that adds test 6's entry to the pilot plan, run once at the preparation (offline block of 2026-10-05).
+T6_SUPPLEMENT_CMD = "python -m egw_experiments plan-supplement --plan ~/egw-tcg/pilot/campaign_plan.json --entry g3-t6"
+
+
+def test_test_6_takes_controller_restart_r04_the_supplementary_entry_never_used_on_the_guest() -> None:
+    """Review of 2026-09-30 (RB-3): test 6 named controller_restart-r01, which the pilot tree already holds, so
+    harness_cmd refused it and the documented line could only stop. Since 2026-10-05 r01-r03 are all used (r03 ran on
+    2026-10-03), so test 6 takes the pilot plan's supplementary entry, which plan_gen defines and the named command
+    adds."""
+    from egw_experiments import plan_gen
+    first = _one(_host_commands("### Test 6"), "RID=")
+    assert run_id_of(first, "RID") == "controller_restart-r04"
+    assert run_id_of(first, "RID") == plan_gen.supplementary_entry(42, "g3-t6", 96)["run_id"]
+    assert T6_SUPPLEMENT_CMD in first
+
+
+def test_test_6_with_a_pilot_plan_that_lacks_its_entry_starts_nothing(bench: Bench) -> None:
+    """The preparation did not add the entry: the pilot plan holds r01-r03 only, so the plan gives no seed and the
+    line stops before anything starts - no readiness check, no recorder, no harness."""
+    from egw_experiments import plan_gen
+    cmds = _host_commands("### Test 6")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan)
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    body = [_one(cmds, "RID="), 'echo "F6=$F6"', _one(cmds, "SEED="), 'echo "SEED=$SEED"', _one(cmds, "RESTART="),
+            _one(cmds, "RAW6="), _one(cmds, "T6=stop; if"), 'echo "T6=$T6"']
+    r = bench.run(bench.with_helpers("\n".join(body)))
+    assert r.value("F6") == "fresh" and r.value("SEED") == "" and r.value("T6") == "stop", r.out
+    stop = r.starting("STOP: test 6: controller_restart-r04 refused")
+    assert len(stop) == 1 and "no seed" in stop[0] and "the harness run was NOT started" in stop[0], r.out
+    assert not (bench.state / "harness_argv").exists() and bench.capture_calls() == []
+    assert "/metrics" not in bench.calls()
+
+
+def test_test_6_supplement_command_adds_the_entry_whose_seed_the_seed_line_reads(bench: Bench) -> None:
+    """The command the runbook names, run on the pilot plan test 1's line generates (master seed 42), adds the entry
+    RID names; the SEED line then reads its derived seed, and r01-r03 keep their bytes."""
+    from egw_experiments import cli, plan_gen
+    plan_line = _one(_host_commands("### Test 1"), "python -m egw_experiments plan ")
+    assert plan_line == "python -m egw_experiments plan --master-seed 42 --output ~/egw-tcg/pilot/campaign_plan.json"
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    assert cli.main(["plan", "--master-seed", "42", "--output", str(plan)]) == 0
+    before = plan.read_bytes()
+    argv = shlex.split(T6_SUPPLEMENT_CMD)[3:]
+    assert argv[:2] == ["plan-supplement", "--plan"] and argv[2] == "~/egw-tcg/pilot/campaign_plan.json"
+    assert cli.main([argv[0], argv[1], str(plan), *argv[3:]]) == 0
+    assert plan.read_bytes().startswith(before[: -len(b"\n  ]\n}\n")])
+    cmds = _host_commands("### Test 6")
+    r = bench.run(bench.with_helpers("\n".join((_one(cmds, "RID="), 'echo "F6=$F6"', _one(cmds, "SEED="),
+                                                 'echo "SEED=$SEED"'))))
+    assert r.value("F6") == "fresh", r.out
+    assert r.value("SEED") == str(plan_gen.derive_run_seed(42, "controller_restart-r04")), r.out
 
 
 @pytest.mark.parametrize("used", ["raw directory", "start record"])
@@ -1363,7 +1414,7 @@ def test_test_6_entry_already_used_is_refused_and_nothing_starts(bench: Bench, u
     rid = run_id_of(first, "RID")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": f"controller_restart-r0{i}", "seed": 6 + i} for i in (1, 2, 3)]}),
+    plan.write_text(json.dumps({"runs": [{"run_id": f"controller_restart-r0{i}", "seed": 6 + i} for i in range(1, 5)]}),
                     encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     trace = (bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid if used == "raw directory"
@@ -1634,6 +1685,18 @@ def test_test_6_hands_the_harness_the_started_at_read_and_summarises_the_proved_
     assert "fetch-started-at" not in helpers and "fetch_started_at" not in helpers
 
 
+def test_test_6_activates_the_restart_transition_rule_adopted_on_2026_10_05() -> None:
+    """Option A of the T6 page, qualified (adopted 2026-10-05, prospective): test 6's harness line names the rule,
+    so the new run is judged by it and its manifest says so; the 6.1 helpers stay unchanged."""
+    line = _one(_host_commands("### Test 6"), "T6=stop; if")
+    command = line.split("     #", 1)[0]
+    after = command.split("harness_cmd $RID", 1)[1]
+    assert "--restart-transition-rule 1a-option-a-2026-10-05" in after
+    assert after.index("--fetch-started-at-cmd") < after.index("--restart-transition-rule") < after.index("HR=$?")
+    assert "restart-transition-rule" not in helpers_heredoc()
+    assert "resources_transition_rows" in line.split("     #", 1)[1]
+
+
 def test_test_6_note_records_the_prospective_adoption_of_the_proved_down_interval() -> None:
     text = " ".join("\n".join(_section("### Test 6")).split())
     note = text.split("*Note (2026-09-19):*", 1)[1]
@@ -1680,14 +1743,149 @@ def test_test_6_names_the_limit_the_harness_puts_on_its_drain_hook() -> None:
 def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_post_drain_copy() -> None:
     """Review of 2026-09-25, D3: the example of the warm-up variant named the preceding restart run's post-drain
     copy through $RAW6; it is withdrawn with a statement of what the variant needs. Test 6's commands hold no
-    --also, and the main delta line is the only command that names --events."""
+    --also; the main delta line and, since the decision of 2026-10-05, the exactly-once acceptance line after it are
+    the only commands that name --events, and both name this run's own post-drain copy."""
     cmds = _host_commands("### Test 6")
     assert [c for c in cmds if "--also" in c.split("     #", 1)[0]] == []  # the command part, not its comment
     with_events = [c for c in cmds if "--events" in c.split("     #", 1)[0]]
-    assert with_events == [_one(cmds, '[ "$T6" = ok ] && $REC delta')]
+    assert with_events == [_one(cmds, '[ "$T6" = ok ] && $REC delta'), _one(cmds, T6_EXACTLY_ONCE)]
+    assert all("--events $RAW6/events.post-drain.jsonl " in c.split("     #", 1)[0] for c in with_events)
     text = "\n".join(_section("### Test 6"))
     assert "No executable procedure for that variant is given here" in text
     assert "warm-up" in text and "--also" in text  # the option and the reason for it are still explained
+
+
+# --------------------------------------------------------------------------
+# Test 6 - every valid message accepted exactly once in the post-drain copy (decision of 2026-10-05, prospective)
+# --------------------------------------------------------------------------
+T6_EXACTLY_ONCE = '[ "$T6" = ok ] && $REC acceptance'
+
+
+def test_test_6_exactly_once_line_follows_delta_with_test_3s_guard_and_stop() -> None:
+    """The adopted criterion judges each valid identity on the post-drain copy: one guarded line after delta, in the
+    style of test 3's acceptance line (exit 1: not evaluated; exit 4: test 6 fails), before the closing analyze."""
+    cmds = _host_commands("### Test 6")
+    line = _one(cmds, T6_EXACTLY_ONCE)
+    command = line.split("     #", 1)[0]
+    assert command.startswith('[ "$T6" = ok ] && $REC acceptance $RAW6/logs/simulator/$RID --events '
+                              '$RAW6/events.post-drain.jsonl --exactly-once || stop "test 6: ')
+    stop_text = command.split(' || stop "', 1)[1]
+    for needle in ("(T6='$T6')", "(exit 1: test 6 NOT evaluated)", "(exit 4: test 6 FAILS)",
+                   "never accepted or accepted more than once in the post-drain copy"):
+        assert needle in stop_text, needle
+    delta = cmds.index(_one(cmds, '[ "$T6" = ok ] && $REC delta'))
+    assert cmds.index(line) == delta + 1
+    assert cmds[delta + 2].startswith("python -m egw_experiments analyze")
+    # test 3 keeps the default mode
+    assert "--exactly-once" not in _one(_host_commands("### Test 3"), '[ "$C3" = ok ] && $REC acceptance')
+
+
+def call_test6_exactly_once(bench: Bench, t6: str = "ok", real_rec: bool = False) -> tuple[Result, str, Path]:
+    """Test 6's run id (as the runbook's first line names it), its RAW6 line, T6 as the harness line leaves it and the
+    exactly-once line, as pasted. With real_rec the line runs this checkout's itest_reconcile."""
+    cmds = _host_commands("### Test 6")
+    rid = run_id_of(_one(cmds, "RID="), "RID")
+    real = ('REC="python3 -m egw_experiments.itest_reconcile"',) if real_rec else ()
+    body = "\n".join((f"RID={rid}", _one(cmds, "RAW6="), f"T6={t6}", *real, _one(cmds, T6_EXACTLY_ONCE),
+                      'echo "RX=$?"'))
+    raw = bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid
+    return bench.run(bench.with_helpers(body), PYTHONPATH=str(ROOT / "src")), rid, raw
+
+
+def t6_run_directory(bench: Bench, copy: list[tuple[str, str]], ids: tuple[str, ...] = ("v-1", "v-2")) -> Path:
+    """The harness's run directory as run.py leaves it for these files: the simulator's own directory
+    logs/simulator/<run id>/ with its sent records and its manifest (totals.sent), the copy of the sent records at
+    the root, the harness's own manifest.json (no totals) and the post-drain copy of the events."""
+    rid = run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID")
+    raw = bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid
+    sim = raw / "logs" / "simulator" / rid
+    sim.mkdir(parents=True)
+    rows = [{"run_id": rid, "message_id": m, "device_type": "smartwatch", "device_uuid": "uuid-0001", "seq": i,
+             "intended_invalid": False} for i, m in enumerate(ids)]
+    for d in (sim, raw):
+        (d / "sent_events.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    (sim / "manifest.json").write_text(json.dumps(
+        {"run_id": rid, "completed": True, "totals": {"sent": len(rows), "intended_invalid": 0}}), encoding="utf-8")
+    (raw / "manifest.json").write_text(json.dumps({"run_id": rid, "validity": "valid"}), encoding="utf-8")
+    (raw / "events.post-drain.jsonl").write_text(
+        "".join(json.dumps(event(rid, m, outcome)) + "\n" for m, outcome in copy), encoding="utf-8")
+    return raw
+
+
+def test_test_6_exactly_once_line_runs_on_this_runs_simulator_directory_and_post_drain_copy(bench: Bench) -> None:
+    r, rid, raw = call_test6_exactly_once(bench)
+    assert r.value("RX") == "0" and not r.starting("STOP"), r.out
+    assert acceptance_calls(bench) == [
+        f"python -m egw_experiments.itest_reconcile acceptance {raw}/logs/simulator/{rid} --events "
+        f"{raw}/events.post-drain.jsonl --exactly-once"]
+
+
+@pytest.mark.parametrize("rc", [4, 1], ids=["fails", "not-evaluated"])
+def test_test_6_an_exactly_once_check_that_does_not_end_0_is_a_stop(bench: Bench, rc: int) -> None:
+    bench.set("rec_acceptance_rc", rc)
+    r, _rid, _raw = call_test6_exactly_once(bench)
+    assert r.value("RX") != "0", r.out
+    stop = r.starting("STOP: test 6: the per-identity exactly-once check")
+    assert len(stop) == 1 and "(T6='ok')" in stop[0], r.out
+
+
+@pytest.mark.parametrize("t6", ["stop", "gaveup", "incomplete", ""])
+def test_test_6_exactly_once_check_runs_only_when_the_harness_line_left_t6_ok(bench: Bench, t6: str) -> None:
+    """A drain that gave up (a failed recovery, no delta), an incomplete procedure or a harness line that stopped
+    leaves nothing to judge: the line runs nothing and stops, so test 6 is not passed."""
+    r, _rid, _raw = call_test6_exactly_once(bench, t6=t6)
+    assert r.value("RX") != "0", r.out
+    assert r.starting(f"STOP: test 6: the per-identity exactly-once check was not run (T6='{t6}')"), r.out
+    assert acceptance_calls(bench) == []
+
+
+@pytest.mark.parametrize("copy, ok, named", [
+    ([("v-1", "accepted"), ("v-1", "duplicate"), ("v-2", "accepted")], True, None),
+    ([("v-1", "accepted"), ("v-1", "accepted"), ("v-2", "accepted")], False,
+     "  ACCEPTED MORE THAN ONCE: v-1 (smartwatch seq=0) accepted lines in the copy: 2; other outcome lines: none"),
+    ([("v-1", "accepted")], False, "  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: none"),
+    ([("v-1", "accepted"), ("v-2", "duplicate")], False,
+     "  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: duplicate x1"),
+], ids=["exactly-once", "accepted-twice", "absent", "duplicate-only"])
+def test_test_6_exactly_once_line_runs_the_real_check_on_the_runs_files(bench: Bench, copy, ok: bool,
+                                                                        named: str | None) -> None:
+    t6_run_directory(bench, copy)
+    r, rid, _raw = call_test6_exactly_once(bench, real_rec=True)
+    if ok:
+        assert r.value("RX") == "0" and not r.starting("STOP"), r.out
+        assert f"-> OK: every valid message of {rid} has exactly one accepted line in events.post-drain.jsonl " \
+               "(a late acceptance counts: no deadline is applied)" in r.lines, r.out
+    else:
+        assert r.value("RX") != "0", r.out
+        assert named in r.lines, r.out
+        assert r.starting("STOP: test 6: the per-identity exactly-once check"), r.out
+
+
+def test_test_6_exactly_once_check_needs_the_simulators_directory_not_the_harness_run_directory(bench: Bench) -> None:
+    """Why the line names $RAW6/logs/simulator/$RID: acceptance shows the sent records whole against the simulator
+    manifest beside them (totals.sent), and the harness's manifest.json at the run directory's root holds no
+    totals, so the same check on $RAW6 itself judges nothing (exit 1) whatever the copy holds."""
+    t6_run_directory(bench, [("v-1", "accepted"), ("v-2", "accepted")])
+    rid = run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID")
+    body = "\n".join((f"RID={rid}", _one(_host_commands("### Test 6"), "RAW6="),
+                      'REC="python3 -m egw_experiments.itest_reconcile"',
+                      '$REC acceptance $RAW6 --events $RAW6/events.post-drain.jsonl --exactly-once; echo "RR=$?"'))
+    r = bench.run(bench.with_helpers(body), PYTHONPATH=str(ROOT / "src"))
+    assert r.value("RR") == "1", r.out
+    assert any("totals.sent=None" in ln for ln in r.lines), r.out
+
+
+def test_test_6_amendment_names_its_exactly_once_line() -> None:
+    """The amendment of 2026-10-05 said the per-identity check would be wired into test 6's block before the next
+    run; it now names the line and what its exits mean."""
+    t6 = " ".join("\n".join(_section("### Test 6")).split())
+    assert "is wired into test 6's block before the next run" not in t6
+    assert "until it is, test 6 cannot be judged under this criterion" not in t6
+    amendment = t6.split("*(Amended 2026-10-05, prospectively", 1)[1].split(")*", 1)[0]
+    for needle in ("`$REC acceptance $RAW6/logs/simulator/$RID --events $RAW6/events.post-drain.jsonl "
+                   "--exactly-once`", "after `delta`", "exit 4", "test 6 fails", "exit 1", "not evaluated",
+                   "more than one `accepted` line"):
+        assert needle in amendment, needle
 
 
 def test_helper_table_names_config_identity() -> None:

@@ -235,9 +235,19 @@ drained() {
 
 # $REC of the bench: 'delta' checks that what test 6's delta line names is there - the two twin snapshots beside the
 # prefix, the events file and, for the N1 report (decision 2 of 2026-09-30), the controller log and the restart
-# evidence's run directory with its manifest - and records its argv; anything else goes to the proof hooks'
+# evidence's run directory with its manifest - and records its argv; 'acceptance' (test 6's exactly-once line, the
+# decision of 2026-10-05) checks that the events file it names is there and records its argv (the stub harness runs
+# no simulator, so the simulator's directory it names is not read here); anything else goes to the proof hooks'
 # recording 'snap' stub.
 REC_WITH_DELTA = r'''#!/usr/bin/env bash
+if [ "${1:-}" = acceptance ]; then
+  printf '%s\n' "$*" >> "$EGW_STUB_LOG.rec-acceptance"
+  events=; prev=
+  for a in "$@"; do [ "$prev" != --events ] || events=$a; prev=$a; done
+  [ -s "$events" ] || { echo "stub acceptance: $events is missing or empty" >&2; exit 1; }
+  echo "stub acceptance: read $events"
+  exit 0
+fi
 if [ "${1:-}" = delta ]; then
   printf '%s\n' "$*" >> "$EGW_STUB_LOG.rec-delta"
   prefix=; events=; clog=; restart=; prev=
@@ -331,7 +341,7 @@ def events_of(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-T6_RID = "controller_restart-r03"
+T6_RID = "controller_restart-r04"  # the pilot plan's supplementary entry for test 6 (2026-10-05)
 # The configuration identity of test 6 (config_identity of 6.1 reads the guest): a write-once stand-in, which the stub
 # harness does not read.
 CONFIG_IDENTITY_STUB = ('config_identity() { [ ! -e "$1" ] || return 1; '
@@ -870,6 +880,12 @@ def test_test_6_its_drain_and_post_drain_copy_are_inside_the_runs_capture_and_th
     assert "stub delta: read " in result.stdout and "STOP: test 6" not in result.stderr, report(result)
     assert f"; the controller log {run_dir}/logs/sut/controller.log; the restart evidence of {run_dir}" \
         in result.stdout, report(result)
+    # The decision of 2026-10-05: after delta, every valid identity judged exactly once on the run's post-drain copy,
+    # with the simulator's own directory of the run directory.
+    acceptance = Path(f"{wiring.hooks.bench.log}.rec-acceptance").read_text(encoding="utf-8").splitlines()
+    assert acceptance == [f"acceptance {run_dir}/logs/simulator/{T6_RID} --events {run_dir}/events.post-drain.jsonl "
+                          "--exactly-once"]
+    assert f"stub acceptance: read {run_dir}/events.post-drain.jsonl" in result.stdout, report(result)
 
 
 def test_test_6_a_drain_that_gives_up_is_captured_the_post_drain_copy_still_runs_and_the_run_records_gave_up(wiring):
@@ -883,6 +899,7 @@ def test_test_6_a_drain_that_gives_up_is_captured_the_post_drain_copy_still_runs
     assert _t6_value(result) == "gaveup", report(result)
     assert "STOP: test 6: the drain gave up" in result.stderr, report(result)
     assert not Path(f"{wiring.hooks.bench.log}.rec-delta").exists(), "delta ran on a drain that gave up"
+    assert not Path(f"{wiring.hooks.bench.log}.rec-acceptance").exists(), "acceptance ran on a drain that gave up"
 
 
 def test_test_6_a_harness_that_fails_before_its_drain_stops_the_unit_and_keeps_the_partial_capture(wiring):
