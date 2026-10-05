@@ -2671,6 +2671,26 @@ def test_tests_5_6_and_8_are_timed_and_section_8_names_the_spent_entry() -> None
     assert "`nominal-r02`" in order and "test 1" in order.lower()
 
 
+def test_test_6_criterion_is_amended_prospectively_on_2026_10_05() -> None:
+    """Rui's decision of 2026-10-05 (LOG #C052): test 6 is no longer a timed family. For runs made after that date it
+    passes on its recovery bound, every valid message accepted exactly once in the post-drain copy and every `delta`
+    line OK; its `lost` and `late_confirmations` are reported as a sizing finding. The earlier text stays, dated, for
+    the runs made before; every other timed family is unchanged."""
+    timed = _paragraph("## 7.", "**Timed families (decision of 2026-09-30")
+    for needle in ("Amended 2026-10-05, prospectively", "test 6 is no longer a timed family",
+                   "accepted exactly once in the post-drain copy", "none duplicate-only", "`double_accepted` 0",
+                   "recorded as a sizing finding, not a pass condition", "every other timed family is unchanged",
+                   "no earlier run, verdict or package is re-judged", "LOG #C052"):
+        assert needle in timed, needle
+    t6 = "\n".join(_section("### Test 6"))
+    for needle in ("Amended 2026-10-05, prospectively", "accepted exactly once in the post-drain copy",
+                   "decide nothing for test 6", "`RESTART_RECOVERY_MAX_S`"):
+        assert needle in t6, needle
+    # test 8's smoke, test 5 and the others stay timed
+    assert "a timed family" in _paragraph("### Test 8", "Expected:")
+    assert "test 5 fails" in _paragraph("### Test 5", "Expected:")
+
+
 def call_test5(bench: Bench, rid: str = "itest-dropout-01") -> Result:
     cmds = _host_commands("### Test 5")
     full_run(bench, rid)
