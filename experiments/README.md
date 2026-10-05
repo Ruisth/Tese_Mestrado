@@ -106,6 +106,25 @@ seed, and the load-sweep block in randomized order
 (`random.Random(master_seed)`). The same master seed always produces an
 identical plan; the file also tracks per-run `status`.
 
+An existing plan file is never regenerated to add a run. One supplementary
+entry defined in `plan_gen.SUPPLEMENTS` is appended to it in place:
+
+```bash
+python -m egw_experiments plan-supplement --plan PATH --entry g3-t6
+```
+
+`g3-t6` adds `controller_restart-r04` for G3's test 6 (2026-10-05; the pilot
+plan's r01–r03 are used) after the plan's last entry, with the frozen
+condition's load and durations, a seed derived from the master seed by the
+plan's own rule and `"supplement": "g3-t6"`. Every byte of the entries the
+file holds is kept; a file that is not the canonical serialisation or not the
+frozen generation of its master seed, or that holds a colliding id, is
+refused and left as it was (exit 2); applied again, nothing changes. `--plan`
+has no default and `plan` never adds a supplement, so the campaign plan of a
+master seed and `PROTOCOL_VERSION` are unchanged. Analysed against a
+supplemented plan, the condition's completeness row says the plan lists one
+run more than the frozen protocol plans.
+
 ### 2. Execute the frozen plan: `campaign` (the OFFICIAL way)
 
 The `campaign` subcommand is the official way to run the frozen plan

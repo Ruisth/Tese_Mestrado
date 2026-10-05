@@ -11,17 +11,26 @@ frozen protocol (protocol.py) into an ordered list with:
 
 Determinism: the same master seed always produces byte-identical plan JSON.
 The plan contains no timestamps for exactly this reason.
+
+``supplement_plan`` / ``apply_plan_supplement`` add ONE supplementary entry
+(``SUPPLEMENTS``) to an existing plan file without regenerating it: the
+entries it holds keep their bytes, statuses included, and the new entry is
+built by the same ``_run_entry`` and seed rule. ``generate_campaign_plan``
+never adds one, so the plan of a master seed is unchanged.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
-from .protocol import CONDITIONS, PROTOCOL_VERSION
+from .protocol import CONDITIONS, CONDITIONS_BY_ID, PROTOCOL_VERSION
 
 PLAN_VERSION = "1.0"
 
@@ -133,3 +142,158 @@ def write_campaign_plan(plan: dict[str, Any], path: str | Path) -> Path:
 def load_campaign_plan(path: str | Path) -> dict[str, Any]:
     """Load a previously generated campaign plan."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+#: Supplementary entries: one fresh run identity each, added to an EXISTING
+#: plan file by :func:`supplement_plan` and never by
+#: :func:`generate_campaign_plan`, so the plan of a master seed and
+#: PROTOCOL_VERSION are unchanged. A key names its frozen condition and a
+#: repetition number beyond the condition's planned ones, so its run_id is
+#: one no generated plan holds. The entry is :func:`_run_entry` of that
+#: condition (its runner, scenario, rate, duration, warm-up and cool-down),
+#: seeded by :func:`derive_run_seed` from the plan's master seed and the new
+#: run_id, numbered after the plan's last entry and marked ``supplement``.
+#:
+#: ``g3-t6`` (offline block authorised 2026-10-05): G3's test 6 takes its run
+#: id from the pilot plan's controller_restart entries, and r01-r03 are all
+#: used on the guest (2026-09-18, 2026-09-19, 2026-10-03); its next run takes
+#: controller_restart-r04.
+SUPPLEMENTS: dict[str, tuple[str, int]] = {"g3-t6": ("controller_restart", 4)}
+
+#: The fields an entry is written with that never change afterwards; the
+#: status and what the harness writes beside it (``result_dir``,
+#: ``finished_utc``, ``validity``) change as runs execute and are not compared.
+FROZEN_ENTRY_FIELDS = (
+    "run_id", "condition_id", "runner", "scenario", "repetition", "rate_msg_s",
+    "duration_s", "warmup_s", "cooldown_s", "seed", "order", "supplement",
+)
+
+
+class PlanSupplementError(ValueError):
+    """Why a supplementary entry is not added; the plan is left as it was."""
+
+
+def supplementary_entry(master_seed: int, key: str, order: int) -> dict[str, Any]:
+    """The supplementary entry ``key`` of a plan of ``master_seed``, numbered ``order``."""
+    condition_id, repetition = SUPPLEMENTS[key]
+    condition = CONDITIONS_BY_ID[condition_id]
+    run_id = f"{condition_id}-r{repetition:02d}"
+    entry = _run_entry(condition, run_id, repetition, master_seed, condition.rate_msg_s)
+    entry["order"] = order
+    entry["supplement"] = key
+    return entry
+
+
+def _frozen(entry: dict[str, Any]) -> dict[str, Any]:
+    return {field: entry.get(field) for field in FROZEN_ENTRY_FIELDS}
+
+
+def supplement_plan(text: str, key: str) -> tuple[str, dict[str, Any], bool]:
+    """``text`` (a plan file's content) with the supplementary entry ``key``
+    appended: (the new text, the entry, whether it was added).
+
+    The text must be the canonical serialisation the harness writes
+    (:func:`plan_to_json`, as ``plan`` and the run statuses write it), so
+    that the new text is the old one up to its last entry, byte for byte,
+    then the new entry. Its entries must be the frozen generation of its
+    master seed (every field but the run statuses), followed only by
+    supplementary entries as :func:`supplementary_entry` builds them. An
+    entry ``key`` already holds is never added again: the text comes back
+    unchanged, whatever status its run reached. Anything else raises
+    :class:`PlanSupplementError` naming the reason.
+    """
+    if key not in SUPPLEMENTS:
+        raise PlanSupplementError(
+            f"unknown supplement {key!r} (defined: {', '.join(sorted(SUPPLEMENTS))})"
+        )
+    try:
+        plan = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise PlanSupplementError(f"not a JSON plan ({exc})") from None
+    runs = plan.get("runs") if isinstance(plan, dict) else None
+    if not isinstance(runs, list) or not all(isinstance(e, dict) for e in runs):
+        raise PlanSupplementError("no 'runs' list of entries")
+    if plan_to_json(plan) != text:
+        raise PlanSupplementError(
+            "not the canonical serialisation the harness writes (plan_to_json): "
+            "rewriting it would change bytes of the entries it holds"
+        )
+    master_seed = plan.get("master_seed")
+    if type(master_seed) is not int:
+        raise PlanSupplementError(f"master_seed {master_seed!r} is not a whole number")
+    frozen = generate_campaign_plan(master_seed)
+    for field in ("plan_version", "protocol_version", "conditions"):
+        if plan.get(field) != frozen[field]:
+            raise PlanSupplementError(
+                f"its {field} is not the one generated for master seed {master_seed}"
+            )
+    base = frozen["runs"]
+    if len(runs) < len(base):
+        raise PlanSupplementError(
+            f"it holds {len(runs)} entries, fewer than the {len(base)} generated "
+            f"for master seed {master_seed}"
+        )
+    for position, want in enumerate(base):
+        if _frozen(runs[position]) != _frozen(want):
+            raise PlanSupplementError(
+                f"entry {position + 1} ({runs[position].get('run_id')}) is not "
+                f"{want['run_id']} as generated for master seed {master_seed} "
+                "(only its status may change)"
+            )
+    held: dict[str, Any] | None = None
+    seen: set[str] = set()
+    for position in range(len(base), len(runs)):
+        got = runs[position]
+        other = got.get("supplement")
+        if (
+            not isinstance(other, str)
+            or other not in SUPPLEMENTS
+            or other in seen
+            or _frozen(got) != _frozen(supplementary_entry(master_seed, other, position + 1))
+        ):
+            raise PlanSupplementError(
+                f"entry {position + 1} ({got.get('run_id')}) is neither generated for "
+                f"master seed {master_seed} nor a supplementary entry as defined"
+            )
+        seen.add(other)
+        if other == key:
+            held = got
+    if held is not None:
+        return text, held, False
+    entry = supplementary_entry(master_seed, key, len(runs) + 1)
+    if entry["run_id"] in {e.get("run_id") for e in runs} or not RUN_ID_RE.match(entry["run_id"]):
+        raise PlanSupplementError(f"{entry['run_id']} collides with an entry the plan holds")
+    runs.append(entry)
+    return plan_to_json(plan), entry, True
+
+
+def apply_plan_supplement(path: str | Path, key: str) -> tuple[dict[str, Any], bool]:
+    """Add the supplementary entry ``key`` to the plan file at ``path`` in
+    place (:func:`supplement_plan`): (the entry, whether it was added).
+
+    The new content is written beside the file (LF bytes, the file's mode)
+    and moved over it in one step, only while the file still holds what was
+    read; a refusal or a file changed meanwhile raises
+    :class:`PlanSupplementError` and leaves it as it was.
+    """
+    path = Path(path)
+    try:
+        raw = path.read_bytes()
+        text = raw.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise PlanSupplementError(f"cannot be read ({exc})") from None
+    new_text, entry, added = supplement_plan(text, key)
+    if not added:
+        return entry, False
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".supplement", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(new_text)
+        shutil.copymode(path, tmp)
+        if path.read_bytes() != raw:
+            raise PlanSupplementError("it changed while the supplement was prepared")
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return entry, True
