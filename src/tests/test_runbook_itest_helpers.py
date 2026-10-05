@@ -1195,33 +1195,33 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r04", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     body = [_one(cmds, "RID="), _one(cmds, "SEED="), _one(cmds, "RESTART="), _one(cmds, "RAW6="), _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     argv = harness_argv(bench)
     opts = {argv[i]: argv[i + 1] for i in range(len(argv) - 1) if argv[i].startswith("--")}
-    dest = "/raw/controller_restart-r03/logs/sut/docker-events.log"
-    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r03", dest)
-    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r03", "die,start"], events
+    dest = "/raw/controller_restart-r04/logs/sut/docker-events.log"
+    events = sut_fetch_argv(opts, "docker_events", "controller_restart-r04", dest)
+    assert events[2:] == ["docker-events", dest, "1790000000", "controller_restart-r04", "die,start"], events
     assert "kill" not in events[-1]
     assert opts["--restart-cmd"].endswith("restart controller'") and opts["--restart-at-s"] == "300"
-    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r03]"
+    assert bench.capture_calls()[0] == "capture [start] [controller_restart-r04]"
     # The finite proof's restart-evidence hooks of the checkout, rendered and split as the harness runs them (review
     # of PR #51, B1): the twin snapshots with the plan's seed, the drain, the post-drain copy of this run's events.
     session = bench.clone / "tools" / "session"
-    run_dir = "/raw/controller_restart-r03"
+    run_dir = "/raw/controller_restart-r04"
 
     def hook(flag: str, dest: str) -> list[str]:
-        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r03", duration_s=600,
+        return shlex.split(run_mod.format_collector_template(opts[flag], "controller_restart-r04", duration_s=600,
                                                              dest=dest, expect_services=SIX_SERVICES.split(",")))
 
     assert hook("--twin-snapshot-cmd", f"{run_dir}/twins.before.json") == \
-        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r03", f"{run_dir}/twins.before.json", "7"]
+        ["bash", str(session / "proof_hook_twins.sh"), "controller_restart-r04", f"{run_dir}/twins.before.json", "7"]
     assert hook("--drain-cmd", f"{run_dir}/logs/sut/drain.txt") == \
-        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r03"]
+        ["bash", str(session / "proof_hook_drained.sh"), "controller_restart-r04"]
     assert hook("--post-drain-fetch-cmd", f"{run_dir}/events.post-drain.jsonl") == \
-        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r03/events.jsonl",
+        ["scp", "-q", "egw-tcg:/opt/egw/deployment/data/events/controller_restart-r04/events.jsonl",
          f"{run_dir}/events.post-drain.jsonl"]
     # Decision 1a (adopted 2026-09-30): the StartedAt read the harness runs after its docker-events fetch and before
     # it ingests the resources, through the checkout's script, into the run's logs/sut/.
@@ -1243,7 +1243,7 @@ def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(be
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r04", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     other = bench.tmp / "another-execution"
     other.mkdir(parents=True)
@@ -1257,7 +1257,7 @@ def test_test_6_line_reads_no_manifest_of_a_run_directory_harness_cmd_refused(be
             _one(cmds, "T6=stop; if")]
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert not (bench.state / "harness_argv").exists(), "the harness was started over another execution's directory"
-    assert r.starting("STOP: harness_cmd controller_restart-r03: "), r.out
+    assert r.starting("STOP: harness_cmd controller_restart-r04: "), r.out
     summary = r.starting("test 6: resources_proved_down: ")
     assert len(summary) == 1, r.out
     assert "applies=" not in summary[0] and "2026-10-01T10:05" not in summary[0], summary
@@ -1331,7 +1331,7 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     cmds = _host_commands("### Test 6")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r03", "seed": 7}]}), encoding="utf-8")
+    plan.write_text(json.dumps({"runs": [{"run_id": "controller_restart-r04", "seed": 7}]}), encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     bench.set("events_start_rc", 3)
     bench.set("events_cleanup_rc", 1)
@@ -1339,18 +1339,67 @@ def test_test_6_whose_recorder_is_not_ready_and_whose_cleanup_failed_says_the_un
     r = bench.run(bench.with_helpers("\n".join(body + ['echo "T6=$T6"'])))
     assert r.value("T6") == "stop", r.out
     assert not (bench.state / "harness_argv").exists(), "the harness was started without a ready recorder"
-    start = r.starting("STOP: events_start controller_restart-r03: ")
-    assert len(start) == 1 and "egw-events-controller_restart-r03 may still run" in start[0], r.out
-    hc = r.starting("STOP: harness_cmd controller_restart-r03: the harness was NOT started")
+    start = r.starting("STOP: events_start controller_restart-r04: ")
+    assert len(start) == 1 and "egw-events-controller_restart-r04 may still run" in start[0], r.out
+    hc = r.starting("STOP: harness_cmd controller_restart-r04: the harness was NOT started")
     assert len(hc) == 1 and "events_start's STOP above" in hc[0], r.out
     t6 = r.starting("STOP: test 6: ")
     assert len(t6) == 1 and "exited 2" in t6[0] and "may then still run" in t6[0], r.out
 
 
-def test_test_6_takes_controller_restart_r03_the_first_entry_never_used_on_the_guest() -> None:
-    """Review of 2026-09-30 (RB-3): test 6 named controller_restart-r01, which the pilot tree already holds (r01 ran on
-    2026-09-18 and r02 on 2026-09-19), so harness_cmd refused it and the documented line could only stop."""
-    assert run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID") == "controller_restart-r03"
+#: The command that adds test 6's entry to the pilot plan, run once at the preparation (offline block of 2026-10-05).
+T6_SUPPLEMENT_CMD = "python -m egw_experiments plan-supplement --plan ~/egw-tcg/pilot/campaign_plan.json --entry g3-t6"
+
+
+def test_test_6_takes_controller_restart_r04_the_supplementary_entry_never_used_on_the_guest() -> None:
+    """Review of 2026-09-30 (RB-3): test 6 named controller_restart-r01, which the pilot tree already holds, so
+    harness_cmd refused it and the documented line could only stop. Since 2026-10-05 r01-r03 are all used (r03 ran on
+    2026-10-03), so test 6 takes the pilot plan's supplementary entry, which plan_gen defines and the named command
+    adds."""
+    from egw_experiments import plan_gen
+    first = _one(_host_commands("### Test 6"), "RID=")
+    assert run_id_of(first, "RID") == "controller_restart-r04"
+    assert run_id_of(first, "RID") == plan_gen.supplementary_entry(42, "g3-t6", 96)["run_id"]
+    assert T6_SUPPLEMENT_CMD in first
+
+
+def test_test_6_with_a_pilot_plan_that_lacks_its_entry_starts_nothing(bench: Bench) -> None:
+    """The preparation did not add the entry: the pilot plan holds r01-r03 only, so the plan gives no seed and the
+    line stops before anything starts - no readiness check, no recorder, no harness."""
+    from egw_experiments import plan_gen
+    cmds = _host_commands("### Test 6")
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan)
+    (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
+    body = [_one(cmds, "RID="), 'echo "F6=$F6"', _one(cmds, "SEED="), 'echo "SEED=$SEED"', _one(cmds, "RESTART="),
+            _one(cmds, "RAW6="), _one(cmds, "T6=stop; if"), 'echo "T6=$T6"']
+    r = bench.run(bench.with_helpers("\n".join(body)))
+    assert r.value("F6") == "fresh" and r.value("SEED") == "" and r.value("T6") == "stop", r.out
+    stop = r.starting("STOP: test 6: controller_restart-r04 refused")
+    assert len(stop) == 1 and "no seed" in stop[0] and "the harness run was NOT started" in stop[0], r.out
+    assert not (bench.state / "harness_argv").exists() and bench.capture_calls() == []
+    assert "/metrics" not in bench.calls()
+
+
+def test_test_6_supplement_command_adds_the_entry_whose_seed_the_seed_line_reads(bench: Bench) -> None:
+    """The command the runbook names, run on the pilot plan test 1's line generates (master seed 42), adds the entry
+    RID names; the SEED line then reads its derived seed, and r01-r03 keep their bytes."""
+    from egw_experiments import cli, plan_gen
+    plan_line = _one(_host_commands("### Test 1"), "python -m egw_experiments plan ")
+    assert plan_line == "python -m egw_experiments plan --master-seed 42 --output ~/egw-tcg/pilot/campaign_plan.json"
+    plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
+    assert cli.main(["plan", "--master-seed", "42", "--output", str(plan)]) == 0
+    before = plan.read_bytes()
+    argv = shlex.split(T6_SUPPLEMENT_CMD)[3:]
+    assert argv[:2] == ["plan-supplement", "--plan"] and argv[2] == "~/egw-tcg/pilot/campaign_plan.json"
+    assert cli.main([argv[0], argv[1], str(plan), *argv[3:]]) == 0
+    assert plan.read_bytes().startswith(before[: -len(b"\n  ]\n}\n")])
+    cmds = _host_commands("### Test 6")
+    r = bench.run(bench.with_helpers("\n".join((_one(cmds, "RID="), 'echo "F6=$F6"', _one(cmds, "SEED="),
+                                                 'echo "SEED=$SEED"'))))
+    assert r.value("F6") == "fresh", r.out
+    assert r.value("SEED") == str(plan_gen.derive_run_seed(42, "controller_restart-r04")), r.out
 
 
 @pytest.mark.parametrize("used", ["raw directory", "start record"])
@@ -1363,7 +1412,7 @@ def test_test_6_entry_already_used_is_refused_and_nothing_starts(bench: Bench, u
     rid = run_id_of(first, "RID")
     plan = bench.home / "egw-tcg" / "pilot" / "campaign_plan.json"
     plan.parent.mkdir(parents=True)
-    plan.write_text(json.dumps({"runs": [{"run_id": f"controller_restart-r0{i}", "seed": 6 + i} for i in (1, 2, 3)]}),
+    plan.write_text(json.dumps({"runs": [{"run_id": f"controller_restart-r0{i}", "seed": 6 + i} for i in range(1, 5)]}),
                     encoding="utf-8")
     (bench.state / "identity_capture").write_text(capture_text(), encoding="utf-8")
     trace = (bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid if used == "raw directory"

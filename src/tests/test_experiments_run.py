@@ -5329,6 +5329,32 @@ def test_controller_restart_evidence_steps_run_in_order_and_are_sealed(
     assert "allow_missing_restart_evidence" not in manifest
 
 
+def test_the_g3_t6_supplementary_entry_runs_as_a_controller_restart_run(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """G3's test 6 (offline block of 2026-10-05): the supplementary entry
+    controller_restart-r04, added to the plan by plan_gen, is run by the
+    harness as the planned restart entries are - the restart and its evidence
+    steps, its own seed and repetition in the manifest - and only its own
+    status in the plan changes; r01-r03 stay as they were."""
+    plan_gen.apply_plan_supplement(plan_path, "g3-t6")
+    before = json.loads(plan_path.read_text(encoding="utf-8"))["runs"]
+    rc, run_dir, record = _item18_run(
+        tmp_path, plan_path, fast_run, monkeypatch, run_id="controller_restart-r04"
+    )
+    assert rc == 0
+    assert _step_lines(record)[:2] == ["snapshot twins.before.json", "simulator -"]
+    manifest = _manifest(run_dir.parent.parent, "controller_restart-r04")
+    assert manifest["validity"] == "valid" and manifest["restart"]["executed"] is True
+    assert manifest["condition_id"] == "controller_restart"
+    assert manifest["repetition"] == 4
+    assert manifest["seed"] == plan_gen.derive_run_seed(42, "controller_restart-r04")
+    assert manifest["drain"]["outcome"] == "quiet"
+    after = json.loads(plan_path.read_text(encoding="utf-8"))["runs"]
+    assert after[:-1] == before[:-1]
+    assert after[-1]["run_id"] == "controller_restart-r04" and after[-1]["status"] == "completed"
+
+
 def test_controller_restart_drain_failure_is_a_validity_reason(
     tmp_path, plan_path, fast_run, monkeypatch
 ) -> None:

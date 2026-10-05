@@ -3,6 +3,7 @@
 Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
 
     python -m egw_experiments plan --master-seed 42 [--output PATH] [--force]
+    python -m egw_experiments plan-supplement --plan PATH --entry g3-t6
     python -m egw_experiments campaign [--plan PATH] [--results-dir DIR] ...
     python -m egw_experiments run --run-id nominal-r01 [--plan PATH] ...
     python -m egw_experiments collect --run-id nominal-r01 [...]
@@ -11,6 +12,10 @@ Subcommands (plan 5.8/9.1 'Reprodutibilidade'; audit 2026-08-08 section 9)::
     python -m egw_experiments verify-checksums [--base-dir PATH] [--run-id ID]
 
 ``plan`` writes the fully enumerated deterministic campaign plan;
+``plan-supplement`` appends one supplementary entry defined in
+``plan_gen.SUPPLEMENTS`` to an existing plan file, keeping every byte of the
+entries it holds (``g3-t6``: ``controller_restart-r04`` for G3's test 6,
+2026-10-05; ``--plan`` has no default, and ``plan`` never adds one);
 ``campaign`` (work order P1 item 12) is the OFFICIAL way to execute the
 frozen plan end-to-end: it iterates the plan in its frozen order, runs
 every simulator condition through the same code path as ``run``, skips
@@ -113,7 +118,13 @@ from pathlib import Path
 from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
-from .plan_gen import generate_campaign_plan, write_campaign_plan
+from .plan_gen import (
+    SUPPLEMENTS,
+    PlanSupplementError,
+    apply_plan_supplement,
+    generate_campaign_plan,
+    write_campaign_plan,
+)
 from .recovery_qualification import write_recovery_qualification
 from .resources import TRANSITION_RULE
 from .run import (
@@ -528,6 +539,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="overwrite an existing plan (statuses in it are lost)",
     )
 
+    # plan-supplement (G3's test 6, offline block of 2026-10-05) --------------
+    p_sup = sub.add_parser(
+        "plan-supplement",
+        help="append one supplementary entry (plan_gen.SUPPLEMENTS) to an "
+        "EXISTING plan file, every entry it holds unchanged; refused, the file "
+        "left as it was, when it is not the canonical frozen generation of its "
+        "master seed or holds a colliding id; applied again, nothing changes",
+    )
+    p_sup.add_argument(
+        "--plan",
+        type=Path,
+        required=True,
+        help="the plan file to extend in place (no default: the frozen campaign "
+        "plan is never supplemented by omission)",
+    )
+    p_sup.add_argument(
+        "--entry",
+        required=True,
+        choices=sorted(SUPPLEMENTS),
+        help="the supplementary entry (g3-t6: controller_restart-r04, G3's test 6)",
+    )
+
     # run -------------------------------------------------------------------
     p_run = sub.add_parser(
         "run",
@@ -794,6 +827,24 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_plan_supplement(args: argparse.Namespace) -> int:
+    try:
+        entry, added = apply_plan_supplement(args.plan, args.entry)
+    except (PlanSupplementError, OSError) as exc:
+        print(f"error: {args.plan}: {exc}; the plan was not changed", file=sys.stderr)
+        return 2
+    what = (
+        f"{entry['run_id']} (supplement {args.entry}: condition "
+        f"{entry['condition_id']}, repetition {entry['repetition']}, seed "
+        f"{entry['seed']}, order {entry['order']})"
+    )
+    if added:
+        print(f"added {what} to {args.plan}; every entry it held is unchanged")
+    else:
+        print(f"{args.plan} already holds {what}; unchanged")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     if args.metrics_fast_retry and not args.controller_url:
         print("error: --metrics-fast-retry needs --controller-url (there is no poll to retry)", file=sys.stderr)
@@ -1028,6 +1079,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "plan":
         return _cmd_plan(args)
+    if args.command == "plan-supplement":
+        return _cmd_plan_supplement(args)
     if args.command == "run":
         return _cmd_run(args)
     if args.command == "campaign":
