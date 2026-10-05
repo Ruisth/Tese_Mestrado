@@ -1227,8 +1227,10 @@ def test_test_6_line_demands_the_events_of_its_own_restart_and_not_the_proofs_si
     # it ingests the resources, through the checkout's script, into the run's logs/sut/.
     assert hook("--fetch-started-at-cmd", f"{run_dir}/logs/sut/controller-started-at.txt") == \
         ["bash", str(session / "fetch_started_at.sh"), f"{run_dir}/logs/sut/controller-started-at.txt"]
-    # After the harness, one read-only line on the manifest's resources_proved_down (the stub harness wrote none).
+    # After the harness, one read-only line on the manifest's resources_proved_down (the stub harness wrote none),
+    # and, since the review of 2026-10-05, one on its resources_transition_rows (the transition rule's own report).
     assert r.starting("test 6: resources_proved_down: "), r.out
+    assert r.starting("test 6: resources_transition_rows: "), r.out
     # The stub harness seals nothing, so the line stops: its run directory was not sealed.
     assert r.starting("STOP: test 6: the harness run was not sealed"), r.out
     assert r.value("T6") == "stop", r.out
