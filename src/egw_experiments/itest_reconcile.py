@@ -14,9 +14,10 @@ Runs on the HOST, in the venv where the repository is installed
 - delivered / lost / late / duplicate accounting is done by
   egw_experiments.analyze.compute_run_metrics, unchanged;
 - ``acceptance`` and ``replay-check`` apply items of the Expected lists of
-  the runbook's tests 3 and 4 as the decisions of 2026-09-30 word them, per
-  identity and on raw lines; they apply no deadline and change no figure of
-  that accounting.
+  the runbook's tests 3 and 4 as the decisions of 2026-09-30 word them, and
+  ``acceptance --exactly-once`` the "accepted exactly once" of test 6 as the
+  decision of 2026-10-05 words it, per identity and on raw lines; they apply
+  no deadline and change no figure of that accounting.
 
 Every file it writes is a SIBLING of the simulator run directory
 (<prefix>.marker.json, <prefix>.twins.<label>.json, ...); the simulator's
@@ -70,7 +71,11 @@ Exit codes (the runbook's shell helpers test them):
      (test 3, decision of 2026-09-30): every valid message of the run's
      ``sent_events.jsonl`` has an ``accepted`` line of that run in the copy
      of the events ``--events`` names (the copy fetched after the run's final
-     drain); no timestamp is read, so a late acceptance counts. For
+     drain); no timestamp is read, so a late acceptance counts. With
+     ``--exactly-once`` (test 6, decision of 2026-10-05) also: no valid
+     message has more than one ``accepted`` line of that run in the copy
+     (raw lines, a late repeat included, which the deadline accounting files
+     under late_confirmations, never double_accepted). For
      ``replay-check`` (test 4, decision of 2026-09-30): the two /metrics
      readings are of one process and every per-identity condition, the
      reconnection budget, /metrics accepted unchanged and an empty queue in
@@ -95,7 +100,8 @@ Exit codes (the runbook's shell helpers test them):
 - 4  ``delta``: a per-device or /metrics MISMATCH, accepted records of a device
      that the 'from' snapshot does not hold, or a non-empty queue in the 'to'
      snapshot; ``same``: the two snapshots are DIFFERENT; ``acceptance``: a
-     valid message never accepted in the copy; ``replay-check``: readings of
+     valid message never accepted in the copy or, with ``--exactly-once``,
+     accepted more than once (each one named); ``replay-check``: readings of
      two processes, a replayed identity without a duplicate line from the
      replay, with an accepted line from it or with more than one accepted
      line, more further duplicates than reconnections, /metrics accepted
@@ -970,11 +976,40 @@ def cmd_acceptance(args) -> int:
     print(f"ACCEPTANCE BY THE END OF THE DRAIN {run_id} ({events_path.name}): "
           f"valid={len(valid)} accepted by the end of the drain="
           f"{len(valid) - len(never)} never accepted={len(never)}")
+    # --exactly-once (test 6, decision of 2026-10-05): exactly one accepted
+    # line per valid identity. Raw lines of this run id, a late one included:
+    # compute_run_metrics files a late repeat under late_confirmations, never
+    # double_accepted. Without the option nothing below changes a line.
+    more = ([m for m in valid if lines[m].count("accepted") > 1]
+            if args.exactly_once else [])
+    if args.exactly_once:
+        print(f"EXACTLY ONCE {run_id} ({events_path.name}): accepted exactly "
+              f"once={len(valid) - len(never) - len(more)} accepted more than "
+              f"once={len(more)} never accepted={len(never)} (raw accepted "
+              "lines of this run id, a late one included)")
     for message_id in never:  # each one: the list is the evidence
         record = published[message_id]
         print(f"  NEVER ACCEPTED: {message_id} ({record.get('device_type')} "
               f"seq={record.get('seq')}) outcome lines in the copy: "
               f"{outcome_lines(lines[message_id])}")
+    for message_id in more:  # each one too
+        record = published[message_id]
+        print(f"  ACCEPTED MORE THAN ONCE: {message_id} "
+              f"({record.get('device_type')} seq={record.get('seq')}) accepted "
+              f"lines in the copy: {lines[message_id].count('accepted')}; "
+              "other outcome lines: " + outcome_lines(
+                  [o for o in lines[message_id] if o != "accepted"]))
+    if args.exactly_once:
+        if never or more:
+            print(f"-> FAIL: {run_id}: {len(never)} valid message(s) never "
+                  f"accepted and {len(more)} accepted more than once in "
+                  f"{events_path.name}: not every valid message has exactly "
+                  "one accepted line")
+            return EXIT_MISMATCH
+        print(f"-> OK: every valid message of {run_id} has exactly one "
+              f"accepted line in {events_path.name} (a late acceptance "
+              "counts: no deadline is applied)")
+        return EXIT_OK
     if never:
         print(f"-> FAIL: {len(never)} valid message(s) of {run_id} have no "
               f"accepted line in {events_path.name}")
@@ -1261,7 +1296,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="exit codes: 0 step carried out (check: not a verdict); "
                "1 step not carried out; 2 usage; 3 check: not a protocol "
                "check; 4 delta: MISMATCH or queue not empty, same: DIFFERENT, "
-               "acceptance: a valid message never accepted, replay-check: "
+               "acceptance: a valid message never accepted (with "
+               "--exactly-once: or accepted more than once), replay-check: "
                "a condition of test 4 failed; 5 replay-check: the replay's "
                "duplicate is not demonstrated for every replayed identity",
     )
@@ -1318,6 +1354,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the copy of the event log fetched after the run's "
                         "final drain (the runbook's test 3 keeps it as "
                         "<run>.events.post-drain.jsonl)")
+    s.add_argument("--exactly-once", action="store_true",
+                   help="also fail (exit 4) a valid message with more than "
+                        "one accepted line of the run in the copy, each one "
+                        "named (the runbook's test 6, decision of "
+                        "2026-10-05); without it, as test 3 uses it, one "
+                        "accepted line or more passes")
     s = sub.add_parser("replay-check")
     s.add_argument("run_dir")
     s.add_argument("--replay-dir", required=True,
