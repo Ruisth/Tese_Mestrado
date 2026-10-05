@@ -66,6 +66,8 @@ with regressions; nothing has run on the guest.)*
    its `start:` and `stop:` records), UTC kept for coverage and diagnosis, the tolerance unchanged; missing, malformed,
    reversed or cross-boot bounds fail closed. The collector's sha256 changes (instrumentation, not the system under
    test).
-3. A fresh plan entry, `controller_restart-r04` (the frozen load: 11.2 msg/s for 600 s, restart at 300 s), added to the
-   pilot plan by `python -m egw_experiments plan-supplement --plan <pilot plan> --entry g3-t6`; r01–r03 untouched.
-4. Then one separately authorised bounded session on the unchanged candidate.
+3. A fresh plan entry, `controller_restart-r04` (the frozen load: 11.2 msg/s for 600 s, restart at 300 s), to be
+   added to the host's pilot plan at the next preparation by `python -m egw_experiments plan-supplement --plan <pilot
+   plan> --entry g3-t6`; r01–r03 untouched.
+4. Then, after a preparation that records the new tooling identity, installs the new collector through the preflight
+   and adds r04, one separately authorised bounded session on the unchanged candidate.

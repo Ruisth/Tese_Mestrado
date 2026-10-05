@@ -934,6 +934,8 @@ def _swap_pair_ids(text: str, cid: str, name: str | None = None) -> str:
     pytest.param(lambda t: _swap_pair_ids(t, R03_MONGODB_ID, "egw-mongodb-1"), "is empty", id="wrong-container"),
     pytest.param(lambda t: _swap_pair_ids(t, "4e" * 32), "under another container id", id="name-of-another-id"),
     pytest.param(lambda t: _swap_pair_ids(t, R03_CID, "egw-mongodb-1"), "names it", id="id-of-another-name"),
+    pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:17Z,appeared,"), "late or inconsistent",
+                 id="appeared-in-the-first-transition-rows-second"),
     pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:19Z,appeared,"), "late", id="tardy-in-sec-S+1"),
     pytest.param(lambda t: t.replace(R03_PAIR[1], "2026-10-03T13:37:20Z,appeared,"), "is ['disappeared']",
                  id="tardy-after-the-first-row-after"),
@@ -1102,7 +1104,7 @@ def test_admitted_transition_rows_count_for_the_per_container_distinct_instants(
     {C: ("10:00:55", "10:01:07"), "egw-mosquitto-1": ("10:01:01", "10:01:09")},
     {},
 ])
-def test_without_a_witness_every_problem_and_outcome_is_the_one_1a_always_gave(tmp_path, absent) -> None:
+def test_without_a_witness_an_explicit_none_gives_exactly_what_the_default_gives(tmp_path, absent) -> None:
     path = _csv(tmp_path / "f.csv", absent=absent, extra=(("10:01:03", C, "0.0,0,0.0"),))
     plain: dict = {}
     given: dict = {}

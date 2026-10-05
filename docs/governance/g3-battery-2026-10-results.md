@@ -181,6 +181,9 @@ Boundaries the Project Manager states for these rows:
    invalid; a valid new run still needs a collection-validity rule, the
    `collector-duration` correction and a new plan entry
    ([decision record](g3-t5-t6-decisions-2026-10-05.md); LOG #C052).
+   *(Later on 2026-10-05: option A adopted with the Project Manager's
+   conditions; the three prerequisites and the exactly-once check implemented
+   offline; LOG #C053.)*
 3. **T8 and T9, completion — fulfilled on 2026-10-05; nothing outstanding.**
    Both rows pass (section above), and the Project Manager sees no reason to
    repeat them on this configuration. The conditions set after S2, all met by
