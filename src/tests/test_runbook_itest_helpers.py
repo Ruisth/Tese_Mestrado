@@ -1741,14 +1741,149 @@ def test_test_6_names_the_limit_the_harness_puts_on_its_drain_hook() -> None:
 def test_test_6_warm_up_variant_is_deferred_and_no_command_reads_another_runs_post_drain_copy() -> None:
     """Review of 2026-09-25, D3: the example of the warm-up variant named the preceding restart run's post-drain
     copy through $RAW6; it is withdrawn with a statement of what the variant needs. Test 6's commands hold no
-    --also, and the main delta line is the only command that names --events."""
+    --also; the main delta line and, since the decision of 2026-10-05, the exactly-once acceptance line after it are
+    the only commands that name --events, and both name this run's own post-drain copy."""
     cmds = _host_commands("### Test 6")
     assert [c for c in cmds if "--also" in c.split("     #", 1)[0]] == []  # the command part, not its comment
     with_events = [c for c in cmds if "--events" in c.split("     #", 1)[0]]
-    assert with_events == [_one(cmds, '[ "$T6" = ok ] && $REC delta')]
+    assert with_events == [_one(cmds, '[ "$T6" = ok ] && $REC delta'), _one(cmds, T6_EXACTLY_ONCE)]
+    assert all("--events $RAW6/events.post-drain.jsonl " in c.split("     #", 1)[0] for c in with_events)
     text = "\n".join(_section("### Test 6"))
     assert "No executable procedure for that variant is given here" in text
     assert "warm-up" in text and "--also" in text  # the option and the reason for it are still explained
+
+
+# --------------------------------------------------------------------------
+# Test 6 - every valid message accepted exactly once in the post-drain copy (decision of 2026-10-05, prospective)
+# --------------------------------------------------------------------------
+T6_EXACTLY_ONCE = '[ "$T6" = ok ] && $REC acceptance'
+
+
+def test_test_6_exactly_once_line_follows_delta_with_test_3s_guard_and_stop() -> None:
+    """The adopted criterion judges each valid identity on the post-drain copy: one guarded line after delta, in the
+    style of test 3's acceptance line (exit 1: not evaluated; exit 4: test 6 fails), before the closing analyze."""
+    cmds = _host_commands("### Test 6")
+    line = _one(cmds, T6_EXACTLY_ONCE)
+    command = line.split("     #", 1)[0]
+    assert command.startswith('[ "$T6" = ok ] && $REC acceptance $RAW6/logs/simulator/$RID --events '
+                              '$RAW6/events.post-drain.jsonl --exactly-once || stop "test 6: ')
+    stop_text = command.split(' || stop "', 1)[1]
+    for needle in ("(T6='$T6')", "(exit 1: test 6 NOT evaluated)", "(exit 4: test 6 FAILS)",
+                   "never accepted or accepted more than once in the post-drain copy"):
+        assert needle in stop_text, needle
+    delta = cmds.index(_one(cmds, '[ "$T6" = ok ] && $REC delta'))
+    assert cmds.index(line) == delta + 1
+    assert cmds[delta + 2].startswith("python -m egw_experiments analyze")
+    # test 3 keeps the default mode
+    assert "--exactly-once" not in _one(_host_commands("### Test 3"), '[ "$C3" = ok ] && $REC acceptance')
+
+
+def call_test6_exactly_once(bench: Bench, t6: str = "ok", real_rec: bool = False) -> tuple[Result, str, Path]:
+    """Test 6's run id (as the runbook's first line names it), its RAW6 line, T6 as the harness line leaves it and the
+    exactly-once line, as pasted. With real_rec the line runs this checkout's itest_reconcile."""
+    cmds = _host_commands("### Test 6")
+    rid = run_id_of(_one(cmds, "RID="), "RID")
+    real = ('REC="python3 -m egw_experiments.itest_reconcile"',) if real_rec else ()
+    body = "\n".join((f"RID={rid}", _one(cmds, "RAW6="), f"T6={t6}", *real, _one(cmds, T6_EXACTLY_ONCE),
+                      'echo "RX=$?"'))
+    raw = bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid
+    return bench.run(bench.with_helpers(body), PYTHONPATH=str(ROOT / "src")), rid, raw
+
+
+def t6_run_directory(bench: Bench, copy: list[tuple[str, str]], ids: tuple[str, ...] = ("v-1", "v-2")) -> Path:
+    """The harness's run directory as run.py leaves it for these files: the simulator's own directory
+    logs/simulator/<run id>/ with its sent records and its manifest (totals.sent), the copy of the sent records at
+    the root, the harness's own manifest.json (no totals) and the post-drain copy of the events."""
+    rid = run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID")
+    raw = bench.home / "egw-tcg" / "pilot" / "results" / "raw" / rid
+    sim = raw / "logs" / "simulator" / rid
+    sim.mkdir(parents=True)
+    rows = [{"run_id": rid, "message_id": m, "device_type": "smartwatch", "device_uuid": "uuid-0001", "seq": i,
+             "intended_invalid": False} for i, m in enumerate(ids)]
+    for d in (sim, raw):
+        (d / "sent_events.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    (sim / "manifest.json").write_text(json.dumps(
+        {"run_id": rid, "completed": True, "totals": {"sent": len(rows), "intended_invalid": 0}}), encoding="utf-8")
+    (raw / "manifest.json").write_text(json.dumps({"run_id": rid, "validity": "valid"}), encoding="utf-8")
+    (raw / "events.post-drain.jsonl").write_text(
+        "".join(json.dumps(event(rid, m, outcome)) + "\n" for m, outcome in copy), encoding="utf-8")
+    return raw
+
+
+def test_test_6_exactly_once_line_runs_on_this_runs_simulator_directory_and_post_drain_copy(bench: Bench) -> None:
+    r, rid, raw = call_test6_exactly_once(bench)
+    assert r.value("RX") == "0" and not r.starting("STOP"), r.out
+    assert acceptance_calls(bench) == [
+        f"python -m egw_experiments.itest_reconcile acceptance {raw}/logs/simulator/{rid} --events "
+        f"{raw}/events.post-drain.jsonl --exactly-once"]
+
+
+@pytest.mark.parametrize("rc", [4, 1], ids=["fails", "not-evaluated"])
+def test_test_6_an_exactly_once_check_that_does_not_end_0_is_a_stop(bench: Bench, rc: int) -> None:
+    bench.set("rec_acceptance_rc", rc)
+    r, _rid, _raw = call_test6_exactly_once(bench)
+    assert r.value("RX") != "0", r.out
+    stop = r.starting("STOP: test 6: the per-identity exactly-once check")
+    assert len(stop) == 1 and "(T6='ok')" in stop[0], r.out
+
+
+@pytest.mark.parametrize("t6", ["stop", "gaveup", "incomplete", ""])
+def test_test_6_exactly_once_check_runs_only_when_the_harness_line_left_t6_ok(bench: Bench, t6: str) -> None:
+    """A drain that gave up (a failed recovery, no delta), an incomplete procedure or a harness line that stopped
+    leaves nothing to judge: the line runs nothing and stops, so test 6 is not passed."""
+    r, _rid, _raw = call_test6_exactly_once(bench, t6=t6)
+    assert r.value("RX") != "0", r.out
+    assert r.starting(f"STOP: test 6: the per-identity exactly-once check was not run (T6='{t6}')"), r.out
+    assert acceptance_calls(bench) == []
+
+
+@pytest.mark.parametrize("copy, ok, named", [
+    ([("v-1", "accepted"), ("v-1", "duplicate"), ("v-2", "accepted")], True, None),
+    ([("v-1", "accepted"), ("v-1", "accepted"), ("v-2", "accepted")], False,
+     "  ACCEPTED MORE THAN ONCE: v-1 (smartwatch seq=0) accepted lines in the copy: 2; other outcome lines: none"),
+    ([("v-1", "accepted")], False, "  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: none"),
+    ([("v-1", "accepted"), ("v-2", "duplicate")], False,
+     "  NEVER ACCEPTED: v-2 (smartwatch seq=1) outcome lines in the copy: duplicate x1"),
+], ids=["exactly-once", "accepted-twice", "absent", "duplicate-only"])
+def test_test_6_exactly_once_line_runs_the_real_check_on_the_runs_files(bench: Bench, copy, ok: bool,
+                                                                        named: str | None) -> None:
+    t6_run_directory(bench, copy)
+    r, rid, _raw = call_test6_exactly_once(bench, real_rec=True)
+    if ok:
+        assert r.value("RX") == "0" and not r.starting("STOP"), r.out
+        assert f"-> OK: every valid message of {rid} has exactly one accepted line in events.post-drain.jsonl " \
+               "(a late acceptance counts: no deadline is applied)" in r.lines, r.out
+    else:
+        assert r.value("RX") != "0", r.out
+        assert named in r.lines, r.out
+        assert r.starting("STOP: test 6: the per-identity exactly-once check"), r.out
+
+
+def test_test_6_exactly_once_check_needs_the_simulators_directory_not_the_harness_run_directory(bench: Bench) -> None:
+    """Why the line names $RAW6/logs/simulator/$RID: acceptance shows the sent records whole against the simulator
+    manifest beside them (totals.sent), and the harness's manifest.json at the run directory's root holds no
+    totals, so the same check on $RAW6 itself judges nothing (exit 1) whatever the copy holds."""
+    t6_run_directory(bench, [("v-1", "accepted"), ("v-2", "accepted")])
+    rid = run_id_of(_one(_host_commands("### Test 6"), "RID="), "RID")
+    body = "\n".join((f"RID={rid}", _one(_host_commands("### Test 6"), "RAW6="),
+                      'REC="python3 -m egw_experiments.itest_reconcile"',
+                      '$REC acceptance $RAW6 --events $RAW6/events.post-drain.jsonl --exactly-once; echo "RR=$?"'))
+    r = bench.run(bench.with_helpers(body), PYTHONPATH=str(ROOT / "src"))
+    assert r.value("RR") == "1", r.out
+    assert any("totals.sent=None" in ln for ln in r.lines), r.out
+
+
+def test_test_6_amendment_names_its_exactly_once_line() -> None:
+    """The amendment of 2026-10-05 said the per-identity check would be wired into test 6's block before the next
+    run; it now names the line and what its exits mean."""
+    t6 = " ".join("\n".join(_section("### Test 6")).split())
+    assert "is wired into test 6's block before the next run" not in t6
+    assert "until it is, test 6 cannot be judged under this criterion" not in t6
+    amendment = t6.split("*(Amended 2026-10-05, prospectively", 1)[1].split(")*", 1)[0]
+    for needle in ("`$REC acceptance $RAW6/logs/simulator/$RID --events $RAW6/events.post-drain.jsonl "
+                   "--exactly-once`", "after `delta`", "exit 4", "test 6 fails", "exit 1", "not evaluated",
+                   "more than one `accepted` line"):
+        assert needle in amendment, needle
 
 
 def test_helper_table_names_config_identity() -> None:

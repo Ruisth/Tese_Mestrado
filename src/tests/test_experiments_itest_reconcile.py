@@ -356,10 +356,14 @@ def test_every_rec_command_line_of_the_runbook_parses() -> None:
 
 def test_runbook_judges_test_3_and_test_4_per_identity_with_their_own_copies() -> None:
     """Decisions 3 and 4 of 2026-09-30: test 3's acceptance line reads the copy kept after the drain, test 4's replay
-    check the replay's own sent records and the pre-replay copy (shell variables read as 1, '~' kept literal)."""
+    check the replay's own sent records and the pre-replay copy (shell variables read as 1, '~' kept literal). The
+    decision of 2026-10-05: test 6's acceptance line reads the simulator's own directory in the harness's run
+    directory (its sent records and the simulator manifest whose totals.sent they must match; the harness's
+    manifest.json holds no totals) and the run's post-drain copy, with --exactly-once; test 3's keeps the default."""
     fragments = runbook_rec_fragments()
     assert [argv for argv in fragments if argv[0] == "acceptance"] == [
-        ["acceptance", "1/1", "--events", "1/1.events.post-drain.jsonl"]]
+        ["acceptance", "1/1", "--events", "1/1.events.post-drain.jsonl"],
+        ["acceptance", "1/logs/simulator/1", "--events", "1/events.post-drain.jsonl", "--exactly-once"]]
     assert [argv for argv in fragments if argv[0] == "replay-check"] == [
         ["replay-check", "1/1", "--replay-dir", "~/egw-tcg/itest-replay/1",
          "--events-before", "1/1.events.pre-replay.jsonl"]]
@@ -2023,6 +2027,156 @@ def test_acceptance_exits_1_on_bad_input(tmp_path, capsys, case) -> None:
     assert captured.err.startswith("error: ") and captured.out == ""  # nothing judged, nothing printed
     assert reason in captured.err, captured.err
     assert tree(tmp_path) == before
+
+
+# ---------------------------------------------------------------------------
+# acceptance --exactly-once (test 6, decision of 2026-10-05): every valid
+# message with exactly one accepted line of the run in the post-drain copy;
+# the default (test 3) is unchanged
+# ---------------------------------------------------------------------------
+def exactly_once(run_dir: Path, copy: Path) -> int:
+    return rec.main(["acceptance", str(run_dir), "--events", str(copy), "--exactly-once"])
+
+
+#: The default's whole output for a copy in which every valid message is accepted, m1 twice: byte for byte what it
+#: printed before --exactly-once existed (a duplicate accepted line does not fail test 3).
+DEFAULT_OK_OUTPUT = (
+    f"ACCEPTANCE BY THE END OF THE DRAIN {RUN_ID} ({RUN_ID}.events.post-drain.jsonl): valid=2 accepted by the end "
+    "of the drain=2 never accepted=0\n"
+    f"-> OK: every valid message of {RUN_ID} has an accepted line in {RUN_ID}.events.post-drain.jsonl (a late "
+    "acceptance counts: no deadline is applied)\n"
+)
+
+
+def test_acceptance_option_exactly_once_parses_and_defaults_off() -> None:
+    parse = rec.build_parser().parse_args
+    assert parse(["acceptance", "p/r", "--events", "e"]).exactly_once is False
+    assert parse(["acceptance", "p/r", "--events", "e", "--exactly-once"]).exactly_once is True
+
+
+def test_acceptance_default_does_not_fail_a_valid_message_accepted_twice(tmp_path, capsys) -> None:
+    """Test 3 keeps the default: an identity accepted more than once is accepted, and the output is unchanged."""
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), event(1, "accepted", T0),
+                                               event(1, "accepted", DEADLINE + NS), event(2, "rejected")])
+    assert acceptance(run_dir, copy) == rec.EXIT_OK
+    assert capsys.readouterr().out == DEFAULT_OK_OUTPUT
+
+
+def test_acceptance_exactly_once_passes_when_every_valid_message_has_one_accepted_line(tmp_path, capsys) -> None:
+    """m0 accepted once in the window, m1 accepted once after the deadline (a late acceptance counts) with the
+    broker's redeliveries classified duplicate around it; m2 intended invalid: exempt."""
+    run_dir, copy = make_acceptance(tmp_path, [
+        event(0, "accepted", T0), event(1, "duplicate"), event(1, "accepted", DEADLINE + 3_600 * NS),
+        event(1, "duplicate"), event(2, "rejected"),
+    ])
+    before = tree(tmp_path)
+    assert exactly_once(run_dir, copy) == rec.EXIT_OK
+    lines = capsys.readouterr().out.splitlines()
+    assert lines == [
+        DEFAULT_OK_OUTPUT.splitlines()[0],  # the default's count line, unchanged
+        f"EXACTLY ONCE {RUN_ID} ({RUN_ID}.events.post-drain.jsonl): accepted exactly once=2 accepted more than "
+        "once=0 never accepted=0 (raw accepted lines of this run id, a late one included)",
+        f"-> OK: every valid message of {RUN_ID} has exactly one accepted line in {RUN_ID}.events.post-drain.jsonl "
+        "(a late acceptance counts: no deadline is applied)",
+    ], lines
+    assert tree(tmp_path) == before  # writes nothing
+
+
+@pytest.mark.parametrize("m1_lines, shown", [
+    ([event(1, "accepted", T0), event(1, "accepted", T0 + NS)],
+     "accepted lines in the copy: 2; other outcome lines: none"),
+    # the second acceptance after the deadline: late_confirmations in the timed accounting, never double_accepted
+    ([event(1, "accepted", T0), event(1, "duplicate"), event(1, "accepted", DEADLINE + NS)],
+     "accepted lines in the copy: 2; other outcome lines: duplicate x1"),
+    ([event(1, "accepted", T0)] * 3, "accepted lines in the copy: 3; other outcome lines: none"),
+], ids=["twice-in-window", "once-late", "three-times"])
+def test_acceptance_exactly_once_fails_a_valid_message_accepted_more_than_once(tmp_path, capsys, m1_lines,
+                                                                              shown) -> None:
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), *m1_lines, event(2, "rejected")])
+    assert exactly_once(run_dir, copy) == rec.EXIT_MISMATCH
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "valid=2 accepted by the end of the drain=2 never accepted=0" in lines[0]
+    assert "accepted exactly once=1 accepted more than once=1 never accepted=0" in lines[1]
+    assert f"  ACCEPTED MORE THAN ONCE: m1 (smartwatch seq=1) {shown}" in lines, out
+    assert "  ACCEPTED MORE THAN ONCE: m0" not in out and "NEVER ACCEPTED:" not in out
+    assert lines[-1] == (f"-> FAIL: {RUN_ID}: 0 valid message(s) never accepted and 1 accepted more than once in "
+                         f"{RUN_ID}.events.post-drain.jsonl: not every valid message has exactly one accepted line")
+
+
+@pytest.mark.parametrize("m1_lines, shown", [
+    ([], "outcome lines in the copy: none"),
+    ([event(1, "duplicate"), event(1, "duplicate")], "outcome lines in the copy: duplicate x2"),
+    ([event(1, "failed")], "outcome lines in the copy: failed x1"),
+    # accepted, but under another run id: not this run's identity
+    ([event(1, "accepted", T0, run_id="itest-other")], "outcome lines in the copy: none"),
+], ids=["absent", "duplicate-only", "failed", "other-run-id"])
+def test_acceptance_exactly_once_fails_a_valid_message_never_accepted(tmp_path, capsys, m1_lines, shown) -> None:
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), *m1_lines, event(2, "rejected")])
+    assert exactly_once(run_dir, copy) == rec.EXIT_MISMATCH
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "accepted exactly once=1 accepted more than once=0 never accepted=1" in lines[1]
+    assert f"  NEVER ACCEPTED: m1 (smartwatch seq=1) {shown}" in lines, out
+    assert "ACCEPTED MORE THAN ONCE" not in out
+    assert lines[-1].startswith(f"-> FAIL: {RUN_ID}: 1 valid message(s) never accepted and 0 accepted more than "
+                                "once"), out
+
+
+def test_acceptance_exactly_once_names_both_kinds_and_every_identity(tmp_path, capsys) -> None:
+    """No cap: each identity is the evidence. m0..m24 accepted twice, m25..m29 never accepted."""
+    records = [sent(seq) for seq in range(30)]
+    copy_records = [e for seq in range(25) for e in (event(seq, "accepted", T0), event(seq, "accepted", T0))]
+    run_dir, copy = make_acceptance(tmp_path, copy_records, sent_records=records)
+    assert exactly_once(run_dir, copy) == rec.EXIT_MISMATCH
+    lines = capsys.readouterr().out.splitlines()
+    assert "accepted exactly once=0 accepted more than once=25 never accepted=5" in lines[1]
+    assert len([ln for ln in lines if ln.startswith("  ACCEPTED MORE THAN ONCE: m")]) == 25
+    assert len([ln for ln in lines if ln.startswith("  NEVER ACCEPTED: m")]) == 5
+    assert "... and" not in "\n".join(lines)
+    assert lines[-1].startswith(f"-> FAIL: {RUN_ID}: 5 valid message(s) never accepted and 25 accepted more than once")
+
+
+@pytest.mark.parametrize("m2_lines", [[], [event(2, "accepted", T0), event(2, "accepted", T0)],
+                                      [event(2, "rejected"), event(2, "rejected")]],
+                         ids=["no-line", "accepted-twice", "rejected-twice"])
+def test_acceptance_exactly_once_exempts_an_intended_invalid_message(tmp_path, capsys, m2_lines) -> None:
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), event(1, "accepted", T0), *m2_lines])
+    assert exactly_once(run_dir, copy) == rec.EXIT_OK
+    assert "accepted exactly once=2 accepted more than once=0 never accepted=0" in capsys.readouterr().out
+
+
+def test_acceptance_exactly_once_ignores_the_lines_of_another_run_id(tmp_path, capsys) -> None:
+    """An accepted line of m1's message_id under another run id (the warm-up's, a replay's) is not this run's
+    identity: it neither makes m1 accepted twice nor accepted at all."""
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), event(1, "accepted", T0),
+                                               event(1, "accepted", T0, run_id="itest-other"),
+                                               event(0, "accepted", T0, run_id="itest-x.warmup")])
+    assert exactly_once(run_dir, copy) == rec.EXIT_OK
+    assert "accepted exactly once=2 accepted more than once=0 never accepted=0" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("case", ["copy missing", "totals do not match", "two run ids"])
+def test_acceptance_exactly_once_exits_1_on_bad_input_and_judges_nothing(tmp_path, capsys, case) -> None:
+    run_dir, copy = make_acceptance(tmp_path, [event(0, "accepted", T0), event(1, "accepted", T0),
+                                               event(1, "accepted", T0)])
+    if case == "copy missing":
+        copy.unlink()
+    elif case == "totals do not match":
+        write_json(run_dir / "manifest.json", sim_manifest(totals={"sent": 4, "intended_invalid": 1}))
+    else:
+        write_jsonl(run_dir / "sent_events.jsonl", [sent(0), dict(sent(1), run_id="itest-other"), sent(2, True)])
+    assert exactly_once(run_dir, copy) == rec.EXIT_FAILED
+    captured = capsys.readouterr()
+    assert captured.err.startswith("error: ") and captured.out == "", captured
+
+
+def test_acceptance_exactly_once_is_documented_with_its_exit_codes() -> None:
+    doc = " ".join(rec.__doc__.split())
+    epilog = " ".join(rec.build_parser().epilog.split())
+    assert "``--exactly-once``" in doc and "decision of 2026-10-05" in doc
+    assert "more than one ``accepted`` line" in doc
+    assert "acceptance: a valid message never accepted (with --exactly-once: or accepted more than once)" in epilog
 
 
 # ---------------------------------------------------------------------------
