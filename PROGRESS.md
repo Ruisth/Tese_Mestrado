@@ -547,7 +547,20 @@ acceptance.*
   [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md).
   No family, gate or claim is accepted; the pause stays; the next runtime is
   a separately authorised bounded T8/T9 completion session, with T6 and T5
-  each needing Rui's own decision.)*
+  each needing Rui's own decision.)* *(Marker added 2026-10-05: T8 and T9
+  were completed in one bounded session on the unchanged candidate with the
+  procedure of `8e49261`, and both pass: the reboot inside the same QEMU
+  process, the containers back unaided, the event directories and the data
+  disk persisted, the twins identical, the post-reboot smoke 336 of 336 in
+  time; the tested TLS, authentication and ACL controls refused as expected.
+  The session's first opening halted at the preflight's `collector-duration`
+  step (a clock-basis mismatch; that preflight stays invalid); the second ran
+  the two rows. Seven families now have favourable technical evidence
+  (T1–T4, T7–T9); T5 waits on Rui's interpretation and T6 on his choice
+  between new valid evidence under the current criterion and a prospective,
+  scoped amendment. Rows 13 and 14 of the
+  [results addendum](docs/governance/g3-battery-2026-10-results.md); LOG
+  #C051. No family, gate or claim is accepted; G3 stays `Not decided`.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;

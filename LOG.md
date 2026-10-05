@@ -4620,3 +4620,94 @@ is unchanged.
   procedural revision recorded. The evidence publication is proposed as its
   own pull request on Rui's decision. No runtime is authorised by this
   entry.
+
+## Entry #C051 — T8 and T9 completed on the unchanged candidate: both pass; the first opening halted at its preflight; G3 not closed
+
+- **Date:** 2026-10-05. **Scope:** session S3 of the G3 qualifying battery
+  (tests 8 and 9 only), its preparation and its two openings, under the
+  request of 2026-10-04 and its decision summary, Rui's authorisation of the
+  session, and, for the second opening, his authorisation of a prospective
+  exception for the preflight's `collector-duration` step (the records are
+  held locally under `output_test/decisions/`, dated 2026-10-04 and
+  2026-10-05), on the Project Manager's register entries of 2026-10-04,
+  21:49, and 2026-10-05, 12:09 and 13:42 WEST
+  (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`, held outside the
+  repository). The candidate is the battery's, unchanged (controller image
+  `9a293fe1…` from `489bc9e`, the pinned images, the deployment tree, the
+  guest image under QEMU 8.2.7 TCG); the procedure and tools are `8e49261`,
+  the merge of PR #54, with test 8 in its corrected form and every
+  identifier suffixed `-q2`. This entry records; it changes no file of the
+  candidate, no rule, threshold, deadline or load, and accepts no family,
+  gate or claim.
+- **Why.** T8 halted in S2 on a procedure that assumed a QEMU exit, and T9
+  was not run after that halt (#C050). The corrected procedure needed one
+  bounded session on the same candidate, with fresh identities and the
+  procedural revision recorded.
+- **What.**
+  - *Preparation* (sealed, `HIST_2026-10-05-g3-t8t9-host-preparation`):
+    the execution clone moved from `80e833f` to `8e49261`, clean; every
+    identity of the candidate compared with its recorded value, the
+    kernel, `qemuboot.conf`, the QEMU binary and the Yocto checkout added;
+    the step files of tests 8 and 9 re-extracted verbatim from the
+    `8e49261` runbook; the operator script for S3, checked once by two
+    readers before it touched the host (two material defects corrected: a
+    variable that could start a row after a recorded halt, and a tunnel
+    silently reopened after line d) and benched against stubs on the real
+    step files (38 scenarios).
+  - *First opening* (10:56–11:03Z): every identity matched and the guest
+    booted; the frozen preflight ended exit 3 on `collector-duration` alone
+    — its window is measured between the collector's UTC stamps (43 s)
+    against a 45 s duration the collector runs on `/proc/uptime`, and the
+    calibration lines record 38 s of UTC against 40.69 s of uptime: a
+    clock-basis mismatch, not a measured early stop. The session halted
+    before any row; nothing was repeated; controlled close. That preflight
+    stays failed and invalid; a dated note held locally corrects the first
+    explanation given for it.
+  - *Second opening* (11:44–12:13Z), after a minimal preparation (sealed,
+    `HIST_2026-10-05-g3-t8t9-host-preparation-attempt02`: the operator
+    copy with the post-close root file system value, a fresh state
+    directory and a read-only checker for the exception, with focused
+    benches): the preflight passed normally (44 s of 45 s), so the
+    exception was **not** used. **T8 pass**: the reboot inside the same
+    QEMU process and disks, the same six container objects running again
+    with nothing started by hand, the 35 event-directory names and
+    `/var/lib/docker` on `/dev/vdb` persisted, the three existing twins
+    identical, a new controller process; the post-reboot smoke 336 of 336,
+    `lost` 0, `late` 0, the latest acknowledgement 1.338 s before the
+    deadline. **T9 pass**: wrong CA, wrong password and plaintext refused,
+    the ACL probe `PASS` with the controller unchanged, the anonymous
+    client refused, the exposure observations recorded. Controlled close;
+    root file system `6fce1688…` after it.
+  - *Records:* rows 13 and 14 and the opening table in the
+    [results addendum](docs/governance/g3-battery-2026-10-results.md),
+    with the Project Manager's boundaries; dated notes on T8 and T9 in the
+    [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md);
+    the eleven packages of 2026-10-05 indexed with their seals in
+    [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md)
+    (`PACKAGES.sha256` now 31 lines); a PROGRESS marker.
+- **Tests.** No code changed. Every seal of the eleven packages verified
+  read-only on 2026-10-05 (`sha256sum -c` in each: 11 of 11, 838 entries);
+  `PACKAGES.sha256` checked against them; `python
+  tools/ci/check_markdown_links.py` exit 0.
+- **Review.** The Project Manager's read-only review (register entry of
+  2026-10-05, 13:42 WEST): the 409 entries of the seven packages of the
+  second opening and its preparation verify; T8 and T9 favourable within
+  their tested scope; no reason to repeat them on this configuration.
+- **Limits.** Persistence was shown on event-directory names, not on every
+  file's bytes; the smoke's percentiles (p95 57.6 s, maximum 58.8 s) are
+  descriptive. T9 demonstrates the tested controls, not a security audit;
+  the root-login observation is one refused attempt, and the exposure is
+  the WSL/QEMU loopback as observed, not LAN reachability or a firewall.
+  The second opening's pass validates nothing of the first; the clock basis
+  of `collector-duration` stays to be corrected before any
+  resource-dependent run relies on it.
+- **Decisions and next steps.** None taken here. Seven families have
+  favourable technical evidence (T1–T4, T7–T9). T5 waits on Rui's
+  interpretation (the Project Manager recommends admitting three deliberate
+  outages plus the normal terminal teardown, keeping the 2,016 timely
+  messages and admitting no C10 claim). T6 stays an invalid qualifying run
+  with 2,002 confirmations beyond the deadline after the drain: a one-page
+  choice is prepared for Rui — valid new evidence under the current
+  criterion, or a prospective, explicit, scoped amendment before any
+  implementation or run — and no session, repeat or controller change
+  follows from this entry. G3 stays `Not decided`.
