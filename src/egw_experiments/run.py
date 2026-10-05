@@ -128,6 +128,20 @@ across the restart by the interval's two edges
 ``resources_proved_down``. Without the option - the finite proof never gives
 it - nothing of this runs or is recorded, and ``collect`` never applies it.
 
+The restart transition rule (``resources.TRANSITION_RULE``, option A of the T6
+page with the Project Manager's conditions, adopted by the student on
+2026-10-05, prospective, for the new G3 T6 run): ``--restart-transition-rule
+1a-option-a-2026-10-05``, explicit and only beside ``--fetch-started-at-cmd``
+(exit 2 otherwise), hands the ingest the collector's own lifecycle record of
+the run (``egw_experiments.proved_down.read_lifecycle_witness``). The
+restarted controller's rows stamped after the die's second and at or before
+the start's (never past E) are then admitted when that record shows its id
+disappear and then appear at the rule's positions, instead of being rejected;
+they count, are covered and are aggregated like every other row, and the
+manifest reports them apart under ``resources_transition_rows`` with the
+rule's name. Without the option, nothing of this runs or is recorded and
+every run is as before; ``collect`` never applies it.
+
 The drain's OUTCOME is classified from the helper's exit code and output
 (``drain.outcome``): ``quiet`` (exit 0 with the helper's quiet line),
 ``gave-up`` (a non-zero exit with its give-up line: the controller stayed
@@ -319,8 +333,16 @@ from .protocol import (
     PROTOCOL_VERSION,
     TIMED_CONDITION_IDS,
 )
-from .proved_down import STARTED_AT_FILENAME, STARTED_AT_HOOK, derive_proved_down
+from .proved_down import (
+    LIFECYCLE_SUFFIX,
+    STARTED_AT_FILENAME,
+    STARTED_AT_HOOK,
+    derive_proved_down,
+    read_lifecycle_witness,
+)
 from .resources import (
+    TRANSITION_RULE,
+    LifecycleWitness,
     ProvedDownInterval,
     ResourceSampler,
     parse_csv_timestamp,
@@ -355,6 +377,14 @@ HOOK_KILL_GRACE_S = 5.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.4 (the restart transition rule, adopted 2026-10-05; additive and opt-in
+# within the version, no reader change needed): with
+# --restart-transition-rule, 'config.cli' gains 'restart_transition_rule' and
+# a controller_restart run given the StartedAt read gains
+# 'resources_transition_rows' (the rule's name, whether it admitted the
+# restarted controller's transition rows or why not, their instants and raw
+# values, the lifecycle pair and the record's file and sha256); without the
+# option neither exists, so every other manifest is as before.
 # 1.4 (decision 1a, adopted 2026-09-30; additive and opt-in within the
 # version, no reader change needed): with --fetch-started-at-cmd,
 # 'sut_log_fetches' holds a 'started_at' record (shaped like the others),
@@ -3578,6 +3608,95 @@ def proved_down_record(
     return record
 
 
+#: The keys of the manifest's 'resources_transition_rows' record (the restart
+#: transition rule, adopted 2026-10-05), each present and null when it was not
+#: established: the rule's name; the restarted container and its id; whether
+#: the rule admitted its transition rows or why not; the bounds sec(D)
+#: (excluded) and min(sec(S), sec(E)) (included); the candidate rows - their
+#: count, instants and raw cells, admitted or not; the lifecycle pair's two
+#: stamps; the collector's lifecycle record read (path in the run directory
+#: and sha256); and the fixed note on what the rows are.
+TRANSITION_RECORD_KEYS: tuple[str, ...] = (
+    "rule",
+    "container",
+    "container_id",
+    "admitted",
+    "why_not",
+    "after_second_utc",
+    "through_second_utc",
+    "count",
+    "instants",
+    "rows",
+    "disappeared_utc",
+    "appeared_utc",
+    "lifecycle_file",
+    "lifecycle_sha256",
+    "note",
+)
+
+#: What every 'resources_transition_rows' record says of the rows it reports
+#: (the Project Manager's conditions of 2026-10-05).
+TRANSITION_NOTE = (
+    "cgroup readings of the restarted container during its restart "
+    "transition, kept byte for byte: once admitted they count for the "
+    "distinct sample instants, take part in the existing coverage "
+    "calculations and enter the existing CPU/RAM aggregates, like every other "
+    "row; they are not evidence that the application was ready, the outage "
+    "is not declared measured, no row is added, filled or removed, and the "
+    "lifecycle witness is the collector's own record (the same instrument), "
+    "not independent proof"
+)
+
+
+def transition_record(
+    rule: str,
+    interval: ProvedDownInterval | None,
+    why_not: str | None,
+    facts: dict[str, Any],
+    *,
+    outcome: dict[str, Any],
+    lifecycle_path: Path | None,
+    run_dir: Path,
+) -> dict[str, Any]:
+    """The manifest's ``resources_transition_rows`` record: ``rule`` names
+    the rule that judged the run; without a proved-down interval, or when
+    the collector's file was missing or refused before its rows were read
+    (``outcome`` empty), nothing is admitted and ``why_not`` says so;
+    otherwise the validator's ``outcome``
+    (``resources.transition_outcomes``). Reported only: no delivery,
+    recovery or C12 figure reads it."""
+    record: dict[str, Any] = {key: None for key in TRANSITION_RECORD_KEYS}
+    record.update(
+        {
+            "rule": rule,
+            "container": facts.get("container"),
+            "container_id": facts.get("container_id"),
+            "admitted": False,
+            "count": 0,
+            "instants": [],
+            "rows": [],
+            "note": TRANSITION_NOTE,
+        }
+    )
+    if lifecycle_path is not None and lifecycle_path.is_file():
+        record["lifecycle_file"] = (
+            lifecycle_path.relative_to(run_dir).as_posix()
+            if lifecycle_path.is_relative_to(run_dir)
+            else lifecycle_path.name
+        )
+        record["lifecycle_sha256"] = sha256_file(lifecycle_path)
+    if interval is None:
+        record["why_not"] = f"no proved-down interval (decision 1a): {why_not}"
+    elif not outcome:
+        record["why_not"] = (
+            "the collector's file was missing or was refused before its rows "
+            "were read, so the rule was not applied"
+        )
+    else:
+        record.update({k: v for k, v in outcome.items() if k in record})
+    return record
+
+
 def ingest_resources(
     run_dir: Path,
     resources_from: str | Path | None,
@@ -3589,6 +3708,8 @@ def ingest_resources(
     source_label: str = "--resources-from",
     proved_down: ProvedDownInterval | None = None,
     proved_down_outcome: dict[str, Any] | None = None,
+    transition_witness: LifecycleWitness | None = None,
+    transition_outcome: dict[str, Any] | None = None,
 ) -> bool:
     """Validate and copy the fetched SUT resources.csv into the run dir.
 
@@ -3618,6 +3739,11 @@ def ingest_resources(
     ``proved_down_outcome`` it fills; the file ingested is still the
     collector's, byte for byte. Only then is either passed on: without an
     interval the validator is called exactly as it always was.
+
+    ``transition_witness`` (the restart transition rule, adopted
+    2026-10-05): the collector's lifecycle record of the run, handed on with
+    the dict ``transition_outcome`` only beside an interval and only when
+    given (``run --restart-transition-rule``).
     """
     if resources_from is None:
         return False
@@ -3631,6 +3757,10 @@ def ingest_resources(
         if proved_down is not None
         else {}
     )
+    if proved_down is not None and transition_witness is not None:
+        interval_kwargs.update(
+            {"transition_witness": transition_witness, "transition_outcome": transition_outcome}
+        )
     problems = validate_resources_csv(
         src,
         expected_host=expected_host,
@@ -4364,6 +4494,7 @@ def execute_run(
     fetch_controller_log_cmd: str | None = None,
     fetch_docker_events_cmd: str | None = None,
     fetch_started_at_cmd: str | None = None,
+    restart_transition_rule: str | None = None,
     twin_snapshot_cmd: str | None = None,
     drain_cmd: str | None = None,
     post_drain_fetch_cmd: str | None = None,
@@ -4437,6 +4568,18 @@ def execute_run(
     records ``resources_proved_down`` (whether it applied or why not, and its
     outcomes). Without the option nothing of this runs or is recorded.
     ``collect`` never applies the interval.
+
+    ``restart_transition_rule`` (the restart transition rule, adopted
+    2026-10-05, prospective; opt-in): the rule's name,
+    ``resources.TRANSITION_RULE`` and nothing else, and only with
+    ``fetch_started_at_cmd`` (exit 2 before anything is written otherwise).
+    On a ``controller_restart`` run whose interval is established, the
+    collector's lifecycle record beside the CSV the run holds
+    (``<...>/resources-<run_id>.csv.lifecycle.csv``) is read
+    (``egw_experiments.proved_down.read_lifecycle_witness``) and handed to the
+    ingest with the interval; the manifest records ``resources_transition_rows``
+    (the rule's name, whether it admitted the controller's transition rows or
+    why not, and the rows). Without it nothing of this runs or is recorded.
     """
     plan_path = Path(plan_path)
     try:
@@ -4524,6 +4667,23 @@ def execute_run(
                 file=sys.stderr,
             )
             return 2
+    # The restart transition rule (adopted 2026-10-05) is named explicitly and
+    # works inside decision 1a's interval, which the StartedAt read establishes.
+    if restart_transition_rule is not None and restart_transition_rule != TRANSITION_RULE:
+        print(
+            f"error: --restart-transition-rule {restart_transition_rule!r} is not a "
+            f"rule of this harness; the one adopted (2026-10-05) is {TRANSITION_RULE!r}.",
+            file=sys.stderr,
+        )
+        return 2
+    if restart_transition_rule is not None and not fetch_started_at_cmd:
+        print(
+            "error: --restart-transition-rule needs --fetch-started-at-cmd: the "
+            "rule applies inside the proved-down interval of decision 1a, which "
+            "the StartedAt read establishes.",
+            file=sys.stderr,
+        )
+        return 2
     collector_hooks_in_use = any(
         (collector_start_cmd, collector_stop_cmd, collector_fetch_cmd)
     )
@@ -5295,6 +5455,24 @@ def execute_run(
             flush=True,
         )
 
+    # The restart transition rule (adopted 2026-10-05; opt-in, beside the
+    # StartedAt read): with an established interval, the collector's own
+    # lifecycle record of this run - the companion of the CSV the run holds,
+    # in logs/collector/ - is read as the rule's witness and handed to the
+    # ingest below. Nothing of it runs, or is recorded, without the option.
+    transition_witness: LifecycleWitness | None = None
+    transition_outcome: dict[str, Any] = {}
+    lifecycle_path: Path | None = None
+    if restart_transition_rule and proved_down_interval is not None:
+        lifecycle_path = (
+            inspect_target.with_name(inspect_target.name + LIFECYCLE_SUFFIX)
+            if inspect_target is not None
+            else None
+        )
+        transition_witness = read_lifecycle_witness(
+            lifecycle_path, proved_down_derivation[1].get("container_id")
+        )
+
     # SUT resources ingestion (audit 9.1), content- AND semantically
     # validated against this run's measured window (sprint P5, report 5.4).
     measured_window_s = max(
@@ -5310,6 +5488,8 @@ def execute_run(
         source_label=resources_source_label,
         proved_down=proved_down_interval,
         proved_down_outcome=proved_down_outcome,
+        transition_witness=transition_witness,
+        transition_outcome=transition_outcome,
     ):
         resource_source = "sut-collector"
     elif local_resources:
@@ -5326,6 +5506,28 @@ def execute_run(
         if proved_down_derivation is not None
         else None
     )
+    resources_transition_rows = (
+        transition_record(
+            restart_transition_rule,
+            proved_down_interval,
+            *proved_down_derivation,
+            outcome=transition_outcome,
+            lifecycle_path=lifecycle_path,
+            run_dir=run_dir,
+        )
+        if restart_transition_rule and proved_down_derivation is not None
+        else None
+    )
+    if resources_transition_rows is not None:
+        print(
+            f"[harness] restart transition rule {restart_transition_rule}: "
+            + (
+                f"{resources_transition_rows['count']} transition row(s) admitted"
+                if resources_transition_rows["admitted"]
+                else f"nothing admitted ({resources_transition_rows['why_not']})"
+            ),
+            flush=True,
+        )
 
     restart_ok = (
         restart_record is not None and restart_record.get("returncode") == 0
@@ -5609,6 +5811,13 @@ def execute_run(
                     if fetch_started_at_cmd is not None
                     else {}
                 ),
+                # The restart transition rule (2026-10-05), echoed only when
+                # given, likewise.
+                **(
+                    {"restart_transition_rule": restart_transition_rule}
+                    if restart_transition_rule is not None
+                    else {}
+                ),
             },
         },
         "started_utc": started_utc,
@@ -5687,6 +5896,13 @@ def execute_run(
         # key exists on a controller_restart run given the StartedAt read
         # and on no other run.
         manifest["resources_proved_down"] = resources_proved_down
+    if resources_transition_rows is not None:
+        # The restart transition rule (adopted 2026-10-05): its name, whether
+        # it admitted the restarted controller's transition rows or why not,
+        # and those rows, apart from resources_proved_down; reported only. The
+        # key exists on a controller_restart run given the StartedAt read and
+        # the rule, and on no other run.
+        manifest["resources_transition_rows"] = resources_transition_rows
     try:
         (run_dir / MANIFEST_FILENAME).write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"

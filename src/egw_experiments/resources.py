@@ -49,6 +49,15 @@ Notes:
   harness's run-time ingest of a ``controller_restart`` run given the
   StartedAt read passes one (``egw_experiments.proved_down``); without it
   every result and every problem text is the one the file always had.
+- The restart transition rule (:data:`TRANSITION_RULE`; option A of the T6
+  page, qualified, adopted by the student on 2026-10-05, prospective): given
+  a :class:`LifecycleWitness` as well (``transition_witness=``), the
+  restarted container's rows stamped after ``sec(D)`` and at or before
+  ``sec(S)`` (never past ``sec(E)``) are admitted, not rejected, when the
+  collector's own lifecycle record shows that container's id disappear and
+  then appear at the positions the rule names (:func:`transition_outcomes`);
+  they are reported apart. Only the harness's run-time ingest passes one, and
+  only when ``run --restart-transition-rule`` asks for it.
 """
 
 from __future__ import annotations
@@ -389,6 +398,167 @@ def proved_down_outcomes(
     return outcome
 
 
+#: The identity of the restart transition rule: option A of the T6 page
+#: (docs/governance/proposals/2026-10-03-t6-sampling-versus-restart-events.md),
+#: with the Project Manager's conditions, adopted by the student on
+#: 2026-10-05 for the new G3 T6 run, prospective. A run that applies it names
+#: it (``run --restart-transition-rule``, the manifest's
+#: ``resources_transition_rows.rule``); no other rule has a name here.
+TRANSITION_RULE = "1a-option-a-2026-10-05"
+
+
+@dataclass(frozen=True)
+class LifecycleRecord:
+    """One row of the collector's ``.lifecycle.csv`` (collect-resources.sh):
+    the whole UTC second of the sample that noticed it, the event
+    (``appeared``, ``disappeared``, ``counter_reset`` or ``named``), the
+    container id and the name, as written."""
+
+    stamp: datetime
+    event: str
+    container_id: str
+    name: str
+
+
+@dataclass(frozen=True)
+class LifecycleWitness:
+    """What the collector's own lifecycle record of a run says of the
+    restarted ``container``: its rows naming ``container_id`` (the id of the
+    die/start pair) or the container's name, in file order. ``problem`` says
+    why the record could not be read as the collector writes it (missing,
+    unreadable, malformed, out of order, or no id to match); a witness with a
+    problem grants nothing. ``egw_experiments.proved_down`` reads it.
+
+    The record is the same instrument's, not independent proof: it shows
+    when the collector stopped and started finding the container's cgroup."""
+
+    container: str
+    container_id: str | None
+    records: tuple[LifecycleRecord, ...] = ()
+    problem: str | None = None
+
+
+def transition_outcomes(
+    instants: Iterable[datetime],
+    interval: ProvedDownInterval,
+    witness: LifecycleWitness,
+) -> dict[str, Any]:
+    """What the restart transition rule (:data:`TRANSITION_RULE`) makes of
+    one container's sample instants, in whole seconds.
+
+    The candidate *transition rows* are the instants ``t`` with
+    ``sec(D) < t <= min(sec(S), sec(E))``, and only when ``sec(S) > sec(D)``:
+    a die and a start in one second leave that second's row rejected, as
+    decision 1a always did. They are admitted only when the proved-down
+    interval applies (a row at or before ``sec(D)`` and one at least a
+    sampling interval after ``sec(S)``) and the witness, read without a
+    problem, holds between the last row at or before ``sec(D)`` (excluded)
+    and the first row after the start (included) exactly two rows of the
+    container: its id ``disappeared``, then the same id ``appeared``, both
+    under the container's name, the ``appeared`` at or before the first
+    candidate; and no row naming the container under another id. Anything
+    else - missing, wrong, late, inconsistent or unreadable - admits
+    nothing. The values of a row play no part: a zero alone proves nothing.
+
+    Admitted rows neither open nor close an edge, the edges, D, S, E and the
+    120 s cap stay decision 1a's, and nothing is added, removed or filled.
+    Returns ``rule``, ``container``, ``container_id``, ``admitted``,
+    ``why_not``, ``after_second_utc`` (``sec(D)``), ``through_second_utc``,
+    the candidates' ``instants`` and the pair's ``disappeared_utc`` and
+    ``appeared_utc`` (None until found). Pure."""
+    ordered = sorted(set(instants))
+    sec_d = whole_second(interval.die_ns)
+    sec_s = whole_second(interval.start_ns)
+    through = min(sec_s, whole_second(interval.effective_end_ns))
+    one_interval = timedelta(seconds=RESOURCE_SAMPLE_INTERVAL_S)
+    name, cid = interval.container, witness.container_id
+    outcome: dict[str, Any] = {
+        "rule": TRANSITION_RULE,
+        "container": name,
+        "container_id": cid,
+        "admitted": False,
+        "why_not": None,
+        "after_second_utc": sec_d.isoformat(),
+        "through_second_utc": through.isoformat(),
+        "instants": [],
+        "disappeared_utc": None,
+        "appeared_utc": None,
+    }
+
+    def no(why: str) -> dict[str, Any]:
+        outcome["why_not"] = why
+        return outcome
+
+    if sec_s <= sec_d:
+        return no(
+            f"the die and the start of {name!r} fall in one whole second "
+            f"({sec_d.isoformat()}): no row is a transition row (sec(S) > "
+            "sec(D) is required), and that second's row stays rejected, as "
+            "decision 1a's conservative case"
+        )
+    candidates = [t for t in ordered if sec_d < t <= through]
+    outcome["instants"] = [t.isoformat() for t in candidates]
+    before = [t for t in ordered if t <= sec_d]
+    after = [t for t in ordered if t >= sec_s + one_interval]
+    if not before or not after:
+        return no(
+            f"the proved-down interval does not apply to {name!r} (no row at "
+            "or before the die's second, or none after the start's), so no row "
+            "is a transition row"
+        )
+    if not candidates:
+        return no(
+            f"no row of {name!r} is stamped after the die's second "
+            f"{sec_d.isoformat()} and at or before {through.isoformat()}"
+        )
+    if witness.problem is not None:
+        return no(witness.problem)
+    last_before, first_after, first_row = before[-1], after[0], candidates[0]
+    span = [r for r in witness.records if last_before < r.stamp <= first_after]
+    between = (
+        f"between its last row before the die ({last_before.isoformat()}) and "
+        f"its first row after the start ({first_after.isoformat()})"
+    )
+    foreign = [r for r in span if r.container_id != cid]
+    if foreign:
+        return no(
+            f"the collector's lifecycle record names {name!r} under another "
+            f"container id ({foreign[0].container_id}) {between}: inconsistent, "
+            "so it grants nothing"
+        )
+    events = [r.event for r in span]
+    if events != ["disappeared", "appeared"]:
+        return no(
+            f"the collector's lifecycle record of container id {cid} {between} "
+            f"is {events or 'empty'}, not exactly one 'disappeared' then one "
+            "'appeared': no unambiguous pair, so it grants nothing"
+        )
+    gone, back = span
+    outcome["disappeared_utc"] = gone.stamp.isoformat()
+    outcome["appeared_utc"] = back.stamp.isoformat()
+    misnamed = [r.name for r in span if r.name != name]
+    if misnamed:
+        return no(
+            f"the collector's lifecycle record of container id {cid} names it "
+            f"{misnamed[0]!r}, not {name!r}, {between}: inconsistent, so it "
+            "grants nothing"
+        )
+    if not gone.stamp < back.stamp:
+        return no(
+            f"the collector's lifecycle record has container id {cid} disappear "
+            f"and appear in one second ({gone.stamp.isoformat()}): inconsistent, "
+            "so it grants nothing"
+        )
+    if back.stamp > first_row:
+        return no(
+            f"the collector's lifecycle record has container id {cid} appear at "
+            f"{back.stamp.isoformat()}, after the first transition row "
+            f"{first_row.isoformat()}: late, so it grants nothing"
+        )
+    outcome["admitted"] = True
+    return outcome
+
+
 def _series_pairs(
     ordered: list[datetime],
     span: tuple[datetime, datetime] | None = None,
@@ -426,6 +596,8 @@ def validate_resources_csv(
     max_sample_gap_s: float = MAX_SAMPLE_GAP_S,
     proved_down: ProvedDownInterval | None = None,
     proved_down_outcome: dict[str, Any] | None = None,
+    transition_witness: LifecycleWitness | None = None,
+    transition_outcome: dict[str, Any] | None = None,
 ) -> list[str]:
     """Validate a resources.csv before RUN-TIME ingestion (work order P1,
     hardened semantically in sprint P5 — report 5.4).
@@ -484,6 +656,20 @@ def validate_resources_csv(
     ``proved_down_outcome`` (a dict) the outcomes are written into it. With
     ``proved_down`` None (the default) the code path and every problem text
     are the ones the validator always had.
+
+    ``transition_witness`` (keyword-only; the restart transition rule,
+    :data:`TRANSITION_RULE`, adopted 2026-10-05): with ``proved_down``, the
+    collector's lifecycle record of the restarted container. The rows
+    :func:`transition_outcomes` admits are no longer problems of the
+    proved-down interval; every other check stands, and the rows count, as
+    every row always did, for the distinct instants, the coverage and the
+    gaps (inside the interval's span, where the two edges replace the pairs).
+    With ``transition_outcome`` (a dict) the rule's outcomes are written into
+    it, with the candidate rows' raw cells (``rows``: line, ``ts_utc``,
+    ``cpu_pct``, ``mem_bytes``, ``mem_pct``) and their ``count``, and
+    ``proved_down_outcome``'s ``rejected_rows`` lists only the rows still
+    rejected. Without ``proved_down`` it is ignored; None (the default) is the
+    validator of decision 1a, problem for problem.
     """
     path = Path(path)
     if not path.is_file():
@@ -502,6 +688,11 @@ def validate_resources_csv(
     first_instant: datetime | None = None
     last_instant: datetime | None = None
     previous: datetime | None = None
+    # The restarted container's rows as written (stamp, line, raw cells), kept
+    # only for the transition rule's report.
+    restarted_rows: list[tuple[datetime, int, str, str, str, str]] | None = (
+        [] if proved_down is not None and transition_witness is not None else None
+    )
     try:
         with open(path, "r", encoding="utf-8", newline="") as fh:
             reader = csv.reader(fh)
@@ -550,6 +741,13 @@ def validate_resources_csv(
                 instants.add(stamp)
                 if container_name:
                     container_instants.setdefault(container_name, set()).add(stamp)
+                if (
+                    restarted_rows is not None
+                    and container_name == proved_down.container
+                ):
+                    restarted_rows.append(
+                        (stamp, lineno, ts_raw, cpu_pct, mem_bytes, mem_pct)
+                    )
                 if first_instant is None or stamp < first_instant:
                     first_instant = stamp
                 if last_instant is None or stamp > last_instant:
@@ -765,31 +963,64 @@ def validate_resources_csv(
         pd_outcome = proved_down_outcomes(
             container_instants.get(proved_down.container, ()), proved_down
         )
+        # The restart transition rule (adopted 2026-10-05): the rows it
+        # admits leave decision 1a's rejections; nothing else changes.
+        admitted: set[str] = set()
+        if transition_witness is not None:
+            t_outcome = transition_outcomes(
+                container_instants.get(proved_down.container, ()),
+                proved_down,
+                transition_witness,
+            )
+            candidates = set(t_outcome["instants"])
+            t_outcome["rows"] = [
+                {
+                    "line": lineno,
+                    "ts_utc": ts_raw,
+                    "cpu_pct": cpu,
+                    "mem_bytes": mem,
+                    "mem_pct": pct,
+                }
+                for stamp, lineno, ts_raw, cpu, mem, pct in restarted_rows or ()
+                if stamp.isoformat() in candidates
+            ]
+            t_outcome["count"] = len(t_outcome["rows"])
+            if t_outcome["admitted"]:
+                admitted = candidates
+                pd_outcome["rejected_rows"] = [
+                    t for t in pd_outcome["rejected_rows"] if t not in admitted
+                ]
+            if transition_outcome is not None:
+                transition_outcome.update(t_outcome)
         if proved_down_outcome is not None:
             proved_down_outcome.update(pd_outcome)
         if pd_outcome["applies"]:
             pd_name = proved_down.container
             die_text = ns_utc_text(proved_down.die_ns)
             start_text = ns_utc_text(proved_down.start_ns)
-            if pd_outcome["rows_between"]:
+            rows_between = [t for t in pd_outcome["rows_between"] if t not in admitted]
+            rows_in_start_second = [
+                t for t in pd_outcome["rows_in_start_second"] if t not in admitted
+            ]
+            if rows_between:
                 problems.append(
-                    f"{len(pd_outcome['rows_between'])} row(s) of container "
+                    f"{len(rows_between)} row(s) of container "
                     f"{pd_name!r} stamped between the die at {die_text} and "
                     f"the start at {start_text}, when no instance of it was "
                     "running to measure (the proved-down interval, decision "
                     "1a): rejected whatever their values: "
-                    + _head(pd_outcome["rows_between"])
+                    + _head(rows_between)
                 )
-            if pd_outcome["rows_in_start_second"]:
+            if rows_in_start_second:
                 problems.append(
-                    f"{len(pd_outcome['rows_in_start_second'])} row(s) of "
+                    f"{len(rows_in_start_second)} row(s) of "
                     f"container {pd_name!r} stamped in the second of the start "
                     f"at {start_text}, less than one sampling interval "
                     f"(RESOURCE_SAMPLE_INTERVAL_S, {RESOURCE_SAMPLE_INTERVAL_S:g} "
                     "s) after it: the first row after the proved-down interval "
                     "(decision 1a) must be at least one sampling interval "
                     "after the start's second: "
-                    + _head(pd_outcome["rows_in_start_second"])
+                    + _head(rows_in_start_second)
                 )
             last_before = parse_csv_timestamp(pd_outcome["last_row_before_die"])
             first_after = parse_csv_timestamp(pd_outcome["first_row_after_start"])

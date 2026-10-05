@@ -84,6 +84,13 @@ fetch into ``logs/sut/controller-started-at.txt``; on a ``controller_restart``
 run the proved-down interval is then applied to the resources ingest and
 recorded as ``resources_proved_down``. Absent, every run is as before.
 
+The restart transition rule (option A of the T6 page, qualified; adopted
+2026-10-05, prospective): ``run`` alone accepts ``--restart-transition-rule
+1a-option-a-2026-10-05``, beside ``--fetch-started-at-cmd``; the restarted
+controller's transition rows are then admitted on the collector's own
+lifecycle pair and recorded as ``resources_transition_rows``. Absent, every
+run is as before.
+
 Recovery qualification (review finding F2): the analyser never reads
 ``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
 after the analysis, which writes ``processed/recovery_qualification.json``
@@ -108,6 +115,7 @@ from .campaign import run_campaign
 from .checksums import verify_sha256sums
 from .plan_gen import generate_campaign_plan, write_campaign_plan
 from .recovery_qualification import write_recovery_qualification
+from .resources import TRANSITION_RULE
 from .run import (
     DEFAULT_PLAN_PATH,
     DEFAULT_RESULTS_BASE,
@@ -574,6 +582,20 @@ def build_parser() -> argparse.ArgumentParser:
         "nothing of this runs",
     )
     p_run.add_argument(
+        "--restart-transition-rule",
+        default=None,
+        choices=[TRANSITION_RULE],
+        help="the restart transition rule adopted on 2026-10-05 (option A of "
+        "the T6 page, with the Project Manager's conditions), named "
+        "explicitly; needs --fetch-started-at-cmd. On a controller_restart "
+        "run whose proved-down interval is established, the restarted "
+        "controller's rows stamped after the die's second and at or before "
+        "the start's (never past E) are admitted when the collector's own "
+        "lifecycle record shows its id disappear and then appear at the "
+        "rule's positions, and recorded as resources_transition_rows; "
+        "without the option nothing of this runs",
+    )
+    p_run.add_argument(
         "--local-resources",
         action="store_true",
         help="DEV ONLY: sample docker stats on THIS host (the load "
@@ -812,6 +834,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         fetch_controller_log_cmd=args.fetch_controller_log_cmd,
         fetch_docker_events_cmd=args.fetch_docker_events_cmd,
         fetch_started_at_cmd=args.fetch_started_at_cmd,
+        restart_transition_rule=args.restart_transition_rule,
         twin_snapshot_cmd=args.twin_snapshot_cmd,
         drain_cmd=args.drain_cmd,
         post_drain_fetch_cmd=args.post_drain_fetch_cmd,
