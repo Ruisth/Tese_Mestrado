@@ -4722,11 +4722,13 @@ is unchanged.
   package, seal or earlier verdict changes; no session.
 - **Why.** After the T8/T9 completion (#C051) two of the nine families stood
   on decisions: T5 on the reading of its disconnection count, and T6 on its
-  criterion. The records show T6's deadline shortfall at 11.2 msg/s under
-  TCG with or without a restart (`nominal-r02`: 2,136 beyond the deadline;
-  `controller_restart-r03`: 2,002), with the controller's serial consumer
-  serving about 6–9 msg/s; meeting the current criterion would need a new
-  candidate and a full requalification with an uncertain outcome.
+  criterion. At 11.2 msg/s under TCG the lateness also occurred without a
+  restart (`nominal-r02`: 2,136 beyond the deadline;
+  `controller_restart-r03`: 2,002); these records do not isolate the
+  restart's own contribution. The controller's serial consumer served about
+  6–9 msg/s under ingress; no remedy within the current candidate is shown,
+  and any runtime change would make a new candidate needing a full
+  requalification.
 - **What.**
   - *T5:* the reading "three deliberate fault disconnects, each followed by
     a reconnect, plus the simulator's normal terminal teardown, reported
@@ -4748,7 +4750,12 @@ is unchanged.
 - **Tests.** One regression test pins the amended text
   (`test_test_6_criterion_is_amended_prospectively_on_2026_10_05`), red
   first on the earlier runbook; the two runbook modules pass after the
-  amendment; `python tools/ci/check_markdown_links.py` exit 0.
+  amendment; `python tools/ci/check_markdown_links.py` exit 0. After the
+  pull request's review: "accepted exactly once" is stated as judged per
+  identity, with that check named as a prerequisite before the next run
+  (`acceptance` finds absent identities only; `delta` compares twins with
+  accepted lines), and the readiness map's evidence column for T6 states
+  the amended criterion, the earlier one kept as dated history.
 - **Limits.** Every other timed family keeps `lost = 0` and
   `late_confirmations = 0`. C12 cannot claim timely delivery at the nominal
   rate under TCG; the campaign's C12 condition and its gate in `analyze.py`

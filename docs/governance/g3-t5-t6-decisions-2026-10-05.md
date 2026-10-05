@@ -46,6 +46,7 @@ earlier runs), and the G3 paragraph of plan section 4.3
 
 ## What test 6 still needs (each a separate step; no session is authorised here)
 
+0. "Accepted exactly once" is judged per identity — every valid message of the run with exactly one `accepted` line in the post-drain copy. The existing checks do not establish it on their own (`acceptance` finds absent identities only, and `delta` compares the twins with the accepted lines, not with the sent identities), so a per-identity check of the post-drain copy is wired into test 6's block before the next run.
 1. A collection-validity rule adopted prospectively: the T6 page's option A with the Project Manager's F2
    qualifications, which first needs the student's explicit choice of whether transition rows, zero-valued ones
    included, count for the 30-instant and coverage checks and for the aggregates
