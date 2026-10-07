@@ -753,6 +753,10 @@ FAILURES = [
     ("H3", "kvm requested", _set("hypervisor_env.start.qemu.parsed.kvm_requested", True)),
     ("H4", "co-location not recorded", _set("hypervisor_env.start.colocated_with_loadgen", None)),
     ("H4", "co-location against the boot ids", _set("hypervisor_env.start.colocated_with_loadgen", False)),
+    # Review of PR #60: a record that says the load generator was NOT
+    # co-located fails, even when the boot ids bear the flag out.
+    ("H4", "not co-located, as the boot ids say", _apply_all(
+        _set("hypervisor_env.start.colocated_with_loadgen", False), _set("loadgen_env.boot_id", "other"))),
     ("H4", "another load-generator boot", _set("loadgen_env.boot_id", "other")),
     ("H4", "no load-generator boot id", _set("loadgen_env.boot_id", None)),
     ("H5", "a remote broker", _set("broker", "10.0.0.5")),

@@ -548,8 +548,9 @@ python -m egw_experiments run --run-id <run_id> ... \
 - **The checks** (`environment.provenance_checks`, on the run's own files).
   P0: the mode is set and known. For `tcg-emulated`: H1 one QEMU process at
   the start; H2 the same pid, start time, boot id and command line at the
-  end; H3 the accelerator is TCG and KVM is not requested; H4 the
-  co-location is a boolean the two boot ids bear out; H5 the generator's
+  end; H3 the accelerator is TCG and KVM is not requested; H4 the load
+  generator is co-located (the flag is true and the two boot ids are
+  equal; a record saying it was not co-located fails); H5 the generator's
   target enters that QEMU (a loopback broker, and a forward of the port on a
   loopback, empty or `0.0.0.0` host address); G1 the guest record's role is
   `sut`; G2 its `uname_a` states aarch64; G3 its `nproc` equals `-smp`; G4

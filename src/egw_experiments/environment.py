@@ -1161,23 +1161,27 @@ def _emulated_checks(
             "the run is not shown to be TCG-emulated",
         )
 
-    # H4: co-location recorded as a boolean that the boot ids bear out.
+    # H4: the load generator is co-located with the hypervisor (plan 660-661:
+    # the record states that fact): the flag is true and the boot ids are
+    # equal. A record that says it was not co-located fails, even when the
+    # boot ids bear that out.
     colocated = start.get("colocated_with_loadgen")
     hv_boot, lg_boot = _text(shost.get("boot_id")), _text(lg.get("boot_id"))
     if not isinstance(colocated, bool):
         add("H4", False, f"colocated_with_loadgen is {colocated!r}, not a boolean")
     elif not (hv_boot and lg_boot):
         add("H4", False, "a boot id is missing: co-location cannot be confirmed")
-    elif colocated != (hv_boot == lg_boot):
+    elif colocated is not True or hv_boot != lg_boot:
         relation = "equal" if hv_boot == lg_boot else "differ"
         add(
             "H4",
             False,
-            f"colocated_with_loadgen is {colocated} but the boot ids {relation} "
-            f"(hypervisor {hv_boot}, load generator {lg_boot})",
+            f"colocated_with_loadgen is {colocated} and the boot ids {relation} "
+            f"(hypervisor {hv_boot}, load generator {lg_boot}): the load "
+            "generator is not shown to be co-located",
         )
     else:
-        add("H4", True, f"colocated_with_loadgen is {colocated}, as the boot ids say")
+        add("H4", True, "colocated_with_loadgen is true, and the boot ids are equal")
 
     # H5: the generator's traffic enters this QEMU.
     flag = start.get("generator_target_is_this_guest")
@@ -1357,8 +1361,8 @@ def provenance_checks(
     - ``tcg-emulated``: H1 the hypervisor record holds exactly one QEMU at
       the start; H2 the same process (pid, start time, boot id, command
       line) at the end; H3 the accelerator is TCG and KVM is not requested;
-      H4 co-location is recorded as a boolean consistent with the two boot
-      ids; H5 the generator's target is a loopback address forwarded into
+      H4 the load generator is co-located (the flag is true and the two
+      boot ids are equal); H5 the generator's target is a loopback address forwarded into
       this QEMU (a forward on a loopback, empty or ``0.0.0.0`` host
       address); G1 the guest record's role is ``sut``; G2 its uname states
       aarch64; G3 its nproc equals ``-smp``; G4 a guest label states
