@@ -43,8 +43,10 @@ canonical serialisation and prints one line per entry and the file's sha256.
 ``check`` writes nothing. ``run`` rewrites the plan it is given and never
 reads an entry's status, so the pilot is run through a working copy of the
 sealed plan, and ``check`` is run before each run. It refuses (exit 2)
-unless: both copies are the canonical serialisation; the sealed copy is this
-tool's plan for its master seed with every entry still ``planned``; its
+unless: both copies are the canonical serialisation; the sealed copy is,
+byte for byte, this tool's plan for its master seed
+(``plan_to_json(build_pilot_plan(master_seed))``, so every entry is still
+``planned`` and no free text, label, basis or source was changed); its
 sha256 is the one named, when one is; the working copy holds every frozen
 field of the sealed one and nothing the harness does not write; the run id
 is ``planned`` and every entry before it has run; ``<base>/raw/<run id>`` is
@@ -618,6 +620,22 @@ def plan_problems(plan: Any) -> list[str]:
     return problems
 
 
+def built_problems(raw: bytes, plan: dict[str, Any]) -> list[str]:
+    """Why ``raw`` (the bytes of ``plan``) is not, byte for byte, this
+    tool's plan for the master seed ``plan`` names,
+    ``plan_to_json(build_pilot_plan(master_seed))``: so a changed free
+    text, label, basis or source, or a key added anywhere, is found as
+    surely as a changed figure. A master seed that is not a whole number is
+    ``plan_problems``' to report."""
+    master_seed = plan.get("master_seed")
+    if type(master_seed) is not int or master_seed < 0:
+        return []
+    if raw != plan_to_json(build_pilot_plan(master_seed)).encode("utf-8"):
+        return [f"the sealed plan is not, byte for byte, this tool's plan for its master seed {master_seed} "
+                f"(plan_to_json(build_pilot_plan({master_seed})))"]
+    return []
+
+
 def sealed_problems(sealed: dict[str, Any]) -> list[str]:
     """Why ``sealed`` is not a copy the harness was never given: an entry
     with another status than ``planned``, or a field the harness writes."""
@@ -856,6 +874,7 @@ def _check(args: argparse.Namespace, forbid: Path) -> int:
             reasons.append(f"the sealed plan's sha256 is {actual}, not {args.sealed_sha256}")
     if isinstance(sealed, dict):
         reasons += [f"the sealed plan: {problem}" for problem in plan_problems(sealed)]
+        reasons += built_problems(sealed_raw, sealed)
         reasons += sealed_problems(sealed)
         if working is not None:
             reasons += working_problems(working, sealed)

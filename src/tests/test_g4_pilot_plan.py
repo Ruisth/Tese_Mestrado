@@ -735,6 +735,43 @@ def test_check_refuses_a_sealed_plan_that_is_not_the_tools_plan(tmp_path, tool):
     _refused(refused, f"the sealed plan: entry 4 ({IDS[3]}): rate_msg_s is 100.0, the pilot's is 50.0")
 
 
+@pytest.mark.parametrize("change", ["label", "purpose", "source", "basis", "note", "extra-key"])
+def test_check_refuses_a_sealed_plan_whose_free_text_labels_or_sources_were_changed(tmp_path, tool, change):
+    # The sealed copy must be the tool's plan for its own master seed byte
+    # for byte, so what the figure checks do not judge is refused as well:
+    # the free text, the top-level label, the sources and a key added to
+    # the pilot block (an execution mode the plan must never supply).
+    working, sealed, base = _pair(tmp_path, tool)
+    plan = plan_gen.load_campaign_plan(sealed)
+    pilot = plan["pilot"]
+    if change == "label":
+        pilot["label"] = "CITABLE"
+    elif change == "purpose":
+        pilot["purpose"] += " Edited by hand."
+    elif change == "source":
+        pilot["sources"]["runs"][IDS[0]]["seed"] = "made up"
+    elif change == "basis":
+        plan["runs"][0]["pilot"]["deviations"][0]["basis"] = "made up basis"
+    elif change == "note":
+        pilot["deviations_from_protocol"][4]["note"] = "edited by hand"
+    else:
+        pilot["execution_mode"] = "native-kvm"
+    _canonical(plan, sealed)
+    working.write_bytes(sealed.read_bytes())
+    refused = _check(working, sealed, base, IDS[0], forbid_under=tmp_path / "pilot")
+    _refused(refused, f"the sealed plan is not, byte for byte, this tool's plan for its master seed {WORKING_SEED}")
+
+
+def test_check_accepts_the_tools_plan_for_the_master_seed_the_sealed_copy_names(tmp_path, tool):
+    # The comparison is with the plan of the sealed copy's own master seed;
+    # which sealed copy is meant is what --sealed-sha256 pins.
+    sealed = _canonical(tool.build_pilot_plan(TEST_SEED), tmp_path / "g4-pilot" / "plan" / "sealed.json")
+    working = sealed.with_name("working.json")
+    working.write_bytes(sealed.read_bytes())
+    ready = _check(working, sealed, tmp_path / "g4-pilot" / "results", IDS[0], forbid_under=tmp_path / "pilot")
+    assert ready.returncode == 0, ready.stderr
+
+
 def test_check_refuses_a_plan_or_base_under_g3s_tree_as_given_through_dotdot_or_a_link(tmp_path, tool):
     working, sealed, base = _pair(tmp_path, tool)
     forbid = tmp_path / "pilot"

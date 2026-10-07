@@ -186,8 +186,10 @@ Ditto and MongoDB over the pilot are storage growth the pilot measures anyway.
 3. **Before each run**, `check --plan <working> --sealed <sealed>
    --sealed-sha256 <recorded> --base-dir <pilot>/results --run-id <run id>`:
    it writes nothing and refuses unless both copies are canonical, the sealed
-   one is this tool's plan with every entry still `planned`, the working one
-   holds every frozen field of it, the run id is `planned` with every entry
+   one is, byte for byte, this tool's plan for its master seed
+   (`plan_to_json(build_pilot_plan(master_seed))`: every entry still
+   `planned`, and no free text, label, basis or source changed), the working
+   one holds every frozen field of it, the run id is `planned` with every entry
    before it run, `raw/<run id>` is absent, nothing lies under G3's tree and
    the entry is one the harness can run as planned (the harness itself reads
    the figures only after it has created the run directory and marked the
