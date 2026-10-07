@@ -398,11 +398,12 @@ Execution modes are never pooled into one statistic or aggregate (plan
 429-432). Each run is classified from its OWN files, never from a label
 and never with a default:
 
-- ``unrecorded``   : the manifest has no ``provenance`` record — it
-  predates the field (manifest 1.4 and older, external runs, a missing or
-  unreadable manifest). Nothing is read into such a run and nothing is
-  written for it: ``raw/`` is never touched, and the word ``unrecorded``
-  exists only in ``processed/`` as a status and a group;
+- ``unrecorded``   : the manifest has no ``provenance`` record — a run
+  older than the field (manifest 1.4 and older), an external run (``run
+  --external-timings`` writes no record, whatever its manifest version), or
+  a missing or unreadable manifest. Nothing is read into such a run and
+  nothing is written for it: ``raw/`` is never touched, and the word
+  ``unrecorded`` exists only in ``processed/`` as a status and a group;
 - ``recorded``     : a provenance record, a declared ``execution_mode`` in
   ``environment.EXECUTION_MODES``, and no failed check when
   :func:`environment.provenance_checks` is applied AGAIN to the run's
@@ -419,15 +420,19 @@ and never with a default:
   notice, never aggregated, whatever the manifest's ``validity`` says.
 
 The aggregation groups are the recorded modes and ``unrecorded`` (its own
-group, labelled "execution mode NOT RECORDED (manifests predate the
-field)", so a legacy tree yields the numbers it always did). Every
-aggregator — summaries, external durations, acceptance, saturation and
-figures — is run once per group and refuses mixed input itself
+group, labelled "execution mode NOT RECORDED (no provenance record: a run
+older than the field, or an external run)", so a legacy tree yields the
+numbers it always did). Every aggregator — summaries, external durations,
+acceptance, saturation and figures, and the recovery qualification
+(``egw_experiments.recovery_qualification``, with this classification) —
+is run once per group and refuses mixed input itself
 (:class:`MixedExecutionModeError`); with no included run, acceptance and
-saturation are evaluated once with no group, as before. The group stamps
-every output: the leading ``execution_mode`` column of each table, one
-saturation document per group, and each figure (file name, title, footer
-and PNG text). No mode is ever set, overridden or filtered from the
+saturation are evaluated once with no group (its notices name it
+``none``), as before. The group stamps every output: the leading
+``execution_mode`` column of each table, one saturation document per
+group, and each figure (file name, title, footer and PNG text; the
+footer counts the runs of each QEMU version line and the runs that
+recorded none). No mode is ever set, overridden or filtered from the
 command line, and no rule of validity changes: the provenance gate is
 added, for the runs that carry the record.
 
@@ -1143,7 +1148,8 @@ def sampling_stats(
 # Execution mode (G4 core provenance, plan 655-661)
 # ---------------------------------------------------------------------------
 
-#: The group of the runs whose manifest predates the provenance record.
+#: The group of the runs whose manifest carries no provenance record (a
+#: run older than the field, or an external run).
 EXECUTION_MODE_UNRECORDED = "unrecorded"
 
 #: Values of the per-run ``execution_mode_status`` column (per_run.csv).
@@ -1160,9 +1166,19 @@ PROVENANCE_BLOCKING_STATUSES = frozenset(
 )
 
 #: The label of the ``unrecorded`` group, and of an evaluation that holds
-#: no run at all (a tree with no included run).
-UNRECORDED_LABEL = "execution mode NOT RECORDED (manifests predate the field)"
+#: no run at all (a tree with no included run). An external run is
+#: ``unrecorded`` with a current manifest (``run --external-timings``
+#: writes no provenance record), so the label names both cases and never
+#: says that every such run predates the field.
+UNRECORDED_LABEL = (
+    "execution mode NOT RECORDED (no provenance record: a run older than the "
+    "field, or an external run)"
+)
 NO_GROUP_LABEL = "no execution mode (no run in this evaluation)"
+
+#: How the notices name the group of an evaluation that holds no run (the
+#: summary line's ``execution-mode group(s): none``).
+NO_GROUP_NAME = "none"
 
 #: The environment records a run directory may hold, in the order the
 #: ``environment_records`` column names them.
@@ -1266,8 +1282,9 @@ def classify_execution_mode(
 
     ``records`` are the run's environment records
     (:func:`read_environment_records`). The gate is the manifest's
-    ``provenance`` record, the one ``collect`` uses: without it the run
-    predates the field and is ``unrecorded``, and nothing is read into it.
+    ``provenance`` record, the one ``collect`` uses: without it (a run
+    older than the field, or an external run) the run is ``unrecorded``,
+    and nothing is read into it.
     With it, :func:`environment.provenance_checks` is applied again to the
     sealed records, with the generator's broker and port echoed in the
     manifest's ``config.cli`` (the hypervisor is never captured again):
@@ -3727,9 +3744,39 @@ FIGURES_INDEX_COLUMNS = [
     "run_ids",
 ]
 
-#: The file-name token of a figure drawn from rows that carry no group
-#: (a direct call with unclassified rows; never the case in analyze()).
+#: The file-name and title token of a figure drawn from rows that carry no
+#: group. Only a direct call with such rows draws one: analyze() passes the
+#: group None solely for the evaluation that holds no run (an empty tree,
+#: or one whose every run is left out), which draws nothing and whose
+#: notice names the group NO_GROUP_NAME.
 UNCLASSIFIED_FIGURE_TOKEN = "unclassified"
+
+
+def _runs_count(n: int) -> str:
+    """``1 run`` / ``<n> runs``."""
+    return f"{n} run" if n == 1 else f"{n} runs"
+
+
+def qemu_footer(drawn: Iterable[dict[str, Any]]) -> str:
+    """The QEMU part of a figure footer: each version line the drawn runs'
+    manifests record with how many runs recorded it, then how many runs
+    recorded none, so that no version is presented as a run's when that
+    run recorded none. Counted per run (``run_id``)."""
+    by_run: dict[str, str | None] = {}
+    for row in drawn:
+        version = row.get("_qemu_version_line")
+        by_run[str(row.get("run_id"))] = str(version) if version else None
+    counts: dict[str, int] = {}
+    for version in by_run.values():
+        if version is not None:
+            counts[version] = counts.get(version, 0) + 1
+    missing = sum(1 for version in by_run.values() if version is None)
+    if not counts:
+        return f"QEMU version not recorded ({_runs_count(missing)})"
+    parts = [f"{version} ({_runs_count(counts[version])})" for version in sorted(counts)]
+    if missing:
+        parts.append(f"version not recorded ({_runs_count(missing)})")
+    return "QEMU: " + "; ".join(parts)
 
 
 def _ascii(text: str) -> str:
@@ -3751,8 +3798,10 @@ def generate_figures(
     before anything is drawn. Every figure is stamped with its group (G4,
     plan 655-661): the file is ``<stem>.<group>.png``, the title's second
     line reads ``Execution mode: <group> - <label>``, a footer gives the
-    number of runs drawn and the QEMU version line(s) their manifests
-    record, and the PNG carries ``Title`` and ``Description`` text (ASCII).
+    number of runs drawn and, for each QEMU version line their manifests
+    record, how many runs recorded it, plus how many recorded none
+    (:func:`qemu_footer`), and the PNG carries ``Title`` and
+    ``Description`` text (ASCII).
 
     Returns one ``figures_index.csv`` record per written figure
     (FIGURES_INDEX_COLUMNS). Prints a clear notice and returns an empty
@@ -3780,8 +3829,9 @@ def generate_figures(
         and isinstance(r.get("rate_msg_s"), (int, float))
     ]
     if not sweep:
+        named = group if group is not None else NO_GROUP_NAME
         print(
-            f"notice: no load_sweep runs in execution-mode group {token} in "
+            f"notice: no load_sweep runs in execution-mode group {named} in "
             "results/raw yet; its figures skipped"
         )
         return []
@@ -3805,11 +3855,7 @@ def generate_figures(
     ) -> None:
         """Title, footer and PNG text of one figure; save it and index it."""
         run_ids = sorted({str(r.get("run_id")) for r in drawn})
-        versions = sorted(
-            {str(r["_qemu_version_line"]) for r in drawn if r.get("_qemu_version_line")}
-        )
-        qemu = f"QEMU: {'; '.join(versions)}" if versions else "QEMU version not recorded"
-        footer = _ascii(f"{len(run_ids)} run(s); {qemu}")
+        footer = _ascii(f"{len(run_ids)} run(s); {qemu_footer(drawn)}")
         ax.set_title(f"{title}\n{mode_line}")
         fig.text(0.01, -0.02, footer, ha="left", va="top", fontsize="small")
         path = figures_dir / f"{stem}.{token}.png"
@@ -4024,7 +4070,8 @@ def analyze(
     # run whose provenance record declares no mode, an unknown one, or one
     # its own sealed records do not bear out belongs to no group and never
     # aggregates, whatever its manifest's validity says. A run without the
-    # record (it predates the field) is 'unrecorded': its own group.
+    # record (older than the field, or an external run) is 'unrecorded':
+    # its own group.
     def _provenance_blocks(row: dict[str, Any]) -> bool:
         return row.get("execution_mode_status") in PROVENANCE_BLOCKING_STATUSES
 
@@ -4098,10 +4145,9 @@ def analyze(
     if unrecorded_runs:
         unrecorded_ids = ", ".join(str(r.get("run_id")) for r in unrecorded_runs)
         print(
-            f"[analyze] {len(unrecorded_runs)} run(s) with the execution mode "
-            "NOT RECORDED (manifests predate the field): analysed in their own "
-            f"'{EXECUTION_MODE_UNRECORDED}' group, never pooled with a recorded "
-            f"mode: {unrecorded_ids}"
+            f"[analyze] {len(unrecorded_runs)} run(s) with the {UNRECORDED_LABEL}: "
+            f"analysed in their own '{EXECUTION_MODE_UNRECORDED}' group, never "
+            f"pooled with a recorded mode: {unrecorded_ids}"
         )
 
     _write_csv(processed_dir / "per_run.csv", PER_RUN_COLUMNS, rows)
@@ -4186,7 +4232,7 @@ def analyze(
         f"{len(invalid_rows)} invalid, {len(tampered_rows)} integrity "
         f"failure(s), {len(unsealed_rows)} unsealed timed run(s), "
         f"{len(provenance_failed)} execution-mode provenance failure(s)); "
-        f"execution-mode group(s): {group_counts or 'none'}; "
+        f"execution-mode group(s): {group_counts or NO_GROUP_NAME}; "
         f"{len(external_rows)} external run(s); "
         f"{len(figures)} figure(s) written to {figures_dir}"
     )

@@ -826,7 +826,23 @@ true only when every controller_restart run of the plan is
 summary line is printed; the exit code stays the analyser's. `python -m
 egw_experiments recovery [--base-dir DIR] [--plan PATH]` runs the layer
 alone. It changes no count of lost, late or N1 and adds no row to the
-acceptance table. Two related rules of the ingestion (finding F6a): a twin
+acceptance table. The layer never pools execution modes (see "Execution
+mode in the analysis" below): each run carries its execution-mode group,
+classified exactly as `analyze` classifies it (the leading
+`execution_mode` column of the CSV and the `execution_mode`,
+`execution_mode_status` and `execution_mode_problems` keys of its JSON
+record; blank or null for a planned run without a directory and for a
+provenance failure, which is never `recovery_observed`), and the criterion
+is evaluated once per group against the whole plan
+(`criteria_by_execution_mode` in the JSON, each with its `execution_mode`
+and `execution_mode_label`): a planned run of another group is
+`not_evidenced` for the group, naming its own group, and a run in no group
+keeps its own qualification. A tree of one group keeps the values it
+always had, with the group named beside them (the JSON's `criterion` is
+that group's evaluation, and the summary line names the group, `none`
+when no run has one); for runs of several groups the JSON's `criterion`
+never passes and names the groups, and one more `[recovery]` line is
+printed per group. Two related rules of the ingestion (finding F6a): a twin
 snapshot handed to `--twins-before-from` must name exactly the devices the
 plan entry's seed determines, with the entries `snap` writes (an absent
 twin, `exists` false, is legitimate), the after snapshot exactly the verified
@@ -1285,9 +1301,10 @@ from a label and never with a default (`execution_mode_status` in
 
 - `unrecorded` — the manifest carries no `provenance` record: it predates
   the field (manifest 1.4 and older), or it is an external run
-  (`run --external-timings` writes no provenance record). Such a run is
-  analysed in its own group, labelled "execution mode NOT RECORDED
-  (manifests predate the field)", so a legacy tree yields the numbers it
+  (`run --external-timings` writes no provenance record, whatever its
+  manifest version). Such a run is analysed in its own group, labelled
+  "execution mode NOT RECORDED (no provenance record: a run older than the
+  field, or an external run)", so a legacy tree yields the numbers it
   always did. Nothing is fabricated for it: `raw/` is never touched, its
   `execution_mode` cell stays blank, and its bytes and seal are unchanged;
 - `recorded` — a provenance record, a declared mode in
@@ -1309,10 +1326,13 @@ from a label and never with a default (`execution_mode_status` in
   is always `inconsistent` here: this harness has no native provenance
   capture (check N0).
 
-Every aggregate — summaries, external durations, acceptance, saturation
-and figures — is evaluated once per group (a recorded mode, or
-`unrecorded`) and refuses mixed input itself (`MixedExecutionModeError`).
-A tree with no included run is evaluated once with no group, as before.
+Every aggregate — summaries, external durations, acceptance, saturation,
+figures and the recovery qualification's criterion
+(`processed/recovery_qualification.json`, see "4. Analyze" above) — is
+evaluated once per group (a recorded mode, or `unrecorded`) and refuses
+mixed input itself (`MixedExecutionModeError`). A tree with no included
+run is evaluated once with no group, as before; its notices name that
+group `none`.
 There is no option to set, override or filter the mode, no
 `processed/<mode>/` directory, and no change to any validity rule: the
 provenance gate is added, for the runs that carry the record.
@@ -1400,15 +1420,19 @@ everything from `results/raw/` alone:
   `latency_percentiles_vs_load.tcg-emulated.png`) — one set per
   execution-mode group, each stamped with a second title line
   `Execution mode: <group> - <label>`, a footer with the number of runs
-  drawn and their QEMU version line(s), and PNG `Title`/`Description`
+  drawn and, for each QEMU version line their manifests record, how many
+  runs recorded it, plus how many recorded none (for example
+  `2 run(s); QEMU: QEMU emulator version 8.2.7 (1 run); version not
+  recorded (1 run)`), and PNG `Title`/`Description`
   text; generated only when `matplotlib` is importable
   (install with `pip install -e src[analysis]`); without it the command
   prints a notice, still regenerates all tables, and exits 0.
 
-`resources_by_run.csv`, `summary_by_condition.csv`, `external_runs.csv`
-and `acceptance_by_condition.csv` lead with an `execution_mode` column:
-the group of the row (blank for a provenance failure, and for the
-evaluation of a tree with no included run). The label of
+`resources_by_run.csv`, `summary_by_condition.csv`, `external_runs.csv`,
+`acceptance_by_condition.csv` and `recovery_qualification.csv` lead with an
+`execution_mode` column: the group of the row (blank for a provenance
+failure, for the evaluation of a tree with no included run, and for a
+planned restart run without a directory). The label of
 `tcg-emulated` is the plan's wording, "ARM64 emulated by QEMU/TCG on an
 x86-64 host" (plan 590-591).
 
