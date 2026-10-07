@@ -175,7 +175,9 @@ Ditto and MongoDB over the pilot are storage growth the pilot measures anyway.
    given, with `..` folded or through a symbolic link (`--forbid-under`,
    default `~/egw-tcg/pilot`).
 2. **A sealed copy and a working copy.** `write` writes the sealed copy once
-   (`plan/g4_pilot_plan.sealed.json`; write-once) and it should be byte-equal
+   (`plan/g4_pilot_plan.sealed.json`; write-once, published whole by a hard
+   link from a temporary file, so a write that fails part-way leaves no part
+   of it and is simply repeated) and it should be byte-equal
    to this file (same master seed, same sha256); its sha256 goes into the
    host-preparation package and the file is made read-only. The working copy
    `plan/g4_pilot_plan.json` is a byte copy of it. `run` rewrites the plan it

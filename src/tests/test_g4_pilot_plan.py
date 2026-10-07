@@ -527,6 +527,54 @@ def test_refuses_an_output_under_g3s_tree_as_given_or_by_default(tmp_path):
     assert not out.parent.exists()
 
 
+def _limit_file_size() -> None:
+    """A stand-in for a full disk in the child: no file may grow past 100
+    bytes, and a write past it fails (EFBIG) instead of killing the process."""
+    import resource
+    import signal
+
+    signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+    resource.setrlimit(resource.RLIMIT_FSIZE, (100, 100))
+
+
+def test_a_write_that_fails_part_way_leaves_nothing_and_a_retry_writes_the_plan(tmp_path):
+    pytest.importorskip("resource")
+    out = tmp_path / "g4-pilot" / "plan" / "g4_pilot_plan.sealed.json"
+    env = {**os.environ, "PYTHONPATH": str(SRC_DIR), "PYTHONDONTWRITEBYTECODE": "1"}
+    failed = subprocess.run(
+        [sys.executable, str(TOOL), "write", "--master-seed", str(WORKING_SEED), "--out", str(out)],
+        env=env, capture_output=True, text=True, preexec_fn=_limit_file_size)
+    _refused(failed, f"{out} was not written")
+    # No part of the plan is left under its name or under another, and the
+    # directories this write created are gone: "nothing was written" holds.
+    assert not out.exists()
+    assert list(tmp_path.iterdir()) == []
+
+    # So the retry is not refused as an existing output, and it writes the plan.
+    written, _ = _write(tmp_path, out=out)
+    assert written.returncode == 0, written.stderr
+    assert out.read_bytes() == COMMITTED.read_bytes()
+    assert [p.name for p in out.parent.iterdir()] == [out.name]
+
+
+def test_write_plan_never_replaces_an_output_that_appeared_meanwhile(tmp_path, tool, monkeypatch):
+    out = tmp_path / "plan" / "g4_pilot_plan.sealed.json"
+    real = tool.plan_to_json
+
+    def and_meanwhile(plan):
+        # Another writer creates the output after the tool's own check.
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("another writer's plan\n", encoding="utf-8")
+        return real(plan)
+
+    monkeypatch.setattr(tool, "plan_to_json", and_meanwhile)
+    with pytest.raises(tool.PlanNotWritten) as refused:
+        tool.write_plan(tool.build_pilot_plan(WORKING_SEED), out)
+    assert refused.value.left == []
+    assert out.read_text(encoding="utf-8") == "another writer's plan\n"
+    assert [p.name for p in out.parent.iterdir()] == [out.name]
+
+
 def test_a_usage_error_writes_nothing(tmp_path):
     out = tmp_path / "plan.json"
     for argv in (

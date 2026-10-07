@@ -39,6 +39,10 @@ that G3's plan (the campaign plan of master seed 42 with its supplement),
 the finite proof r03, the run_test seeds 42 and 7, an ``--against`` plan or
 an ``--against-seed`` already spends. It writes the campaign plan's
 canonical serialisation and prints one line per entry and the file's sha256.
+The text goes to a temporary file beside the output and is published under
+the output's name by a hard link, which never replaces a file: a write that
+fails part-way leaves no part of the plan and removes the directories it
+created, and the message names anything it could not remove.
 
 ``check`` writes nothing. ``run`` rewrites the plan it is given and never
 reads an entry's status, so the pilot is run through a working copy of the
@@ -63,6 +67,7 @@ import json
 import math
 import os
 import re
+import secrets
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -780,14 +785,74 @@ def read_plan(path: Path) -> dict[str, Any]:
     return plan
 
 
-def write_plan(plan: dict[str, Any], out: Path) -> str:
-    """Write ``plan`` to ``out`` once, canonically; the sha256 of what was
-    written. An ``out`` that came to exist meanwhile raises FileExistsError."""
+class PlanNotWritten(Exception):
+    """``write_plan`` did not publish the plan under ``out``: ``cause`` is
+    the error, and ``left`` names what this write created and could not
+    remove again (normally nothing)."""
+
+    def __init__(self, out: Path, cause: OSError, left: list[Path]) -> None:
+        super().__init__(f"{out} was not written ({cause})")
+        self.out, self.cause, self.left = out, cause, left
+
+
+def _missing_directories(directory: Path) -> list[Path]:
+    """``directory`` and its ancestors that do not exist yet, deepest first:
+    the ones a ``mkdir(parents=True)`` of it would create."""
+    missing = []
+    for candidate in (directory, *directory.parents):
+        if candidate.exists() or candidate.is_symlink():
+            break
+        missing.append(candidate)
+    return missing
+
+
+def _remove(temporary: Path | None, directories: list[Path]) -> list[Path]:
+    """Remove ``temporary`` and then the (empty) ``directories``, deepest
+    first; what could not be removed."""
+    left = []
+    if temporary is not None:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            left.append(temporary)
+    for directory in directories:
+        try:
+            directory.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            left.append(directory)
+    return left
+
+
+def write_plan(plan: dict[str, Any], out: Path) -> tuple[str, list[Path]]:
+    """Write ``plan`` to ``out`` once, canonically, and never leave a part of
+    it under ``out``: the text goes to a new temporary file in ``out``'s
+    directory, is synced, and is then published under ``out`` by a hard
+    link, which refuses a target that exists, so an ``out`` that came to
+    exist meanwhile is never replaced. Returns the sha256 of what was
+    written and what could not be removed afterwards (the temporary name of
+    the same file; normally nothing). On any failure before the link the
+    temporary file and the directories this write created are removed, and
+    PlanNotWritten names what, if anything, is left."""
     text = plan_to_json(plan)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("x", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    created = _missing_directories(out.parent)
+    temporary: Path | None = None
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        candidate = out.parent / f".{out.name}.{os.getpid()}.{secrets.token_hex(6)}.partial"
+        descriptor = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
+        temporary = candidate
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.link(temporary, out)
+    except OSError as exc:
+        raise PlanNotWritten(out, exc, _remove(temporary, created)) from exc
+    return hashlib.sha256(text.encode("utf-8")).hexdigest(), _remove(temporary, [])
 
 
 # ---------------------------------------------------------------------------
@@ -827,15 +892,21 @@ def _write(args: argparse.Namespace, forbid: Path) -> int:
     if reasons:
         return _stop(reasons, "nothing was written")
     try:
-        digest = write_plan(plan, args.out)
-    except OSError as exc:
-        return _stop([f"{args.out} was not written ({exc})"], "nothing was written")
+        digest, left = write_plan(plan, args.out)
+    except PlanNotWritten as exc:
+        if exc.left:
+            return _stop([str(exc)], "nothing else was written, but these are left behind and are to be "
+                                     f"removed by hand: {', '.join(map(str, exc.left))}")
+        return _stop([str(exc)], "nothing was written")
     for order, entry in enumerate(plan["runs"], start=1):
         print(f"entry {order}: run_id={entry['run_id']} stage={entry['pilot']['stage']} "
               f"condition_id={entry['condition_id']} scenario={entry['scenario']} "
               f"duration_s={entry['duration_s']} warmup_s={entry['warmup_s']} "
               f"cooldown_s={entry['cooldown_s']} rate_msg_s={entry['rate_msg_s']} seed={entry['seed']}")
     print(f"wrote {args.out}: entries={len(plan['runs'])} master_seed={plan['master_seed']} sha256={digest}")
+    for path in left:
+        print(f"g4_pilot_plan: the temporary name {path} of the plan just written could not be removed: "
+              "remove it by hand", file=sys.stderr)
     return 0
 
 
