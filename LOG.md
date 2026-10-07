@@ -5166,7 +5166,11 @@ is unchanged.
   Eleven of the skips are Windows-only tests; the twelfth is the citation
   test, which needs the git history that CI checks out. The evidence is
   `output_test/runs/2026-10-07/HIST_2026-10-07-g4-tooling-integrated-attempt01/`.
-  The only commit after that head changes LOG and PROGRESS.
+  After that head come LOG and PROGRESS, and one review point on the pull
+  request: H4 passed a record that said the load generator was not
+  co-located. It now requires the flag to be true and the boot ids equal.
+  That fix was made red first, the four affected modules were re-run
+  (663 passed), and CI runs the whole suite on the final head.
 - **Next.** The student decides the tolerance profile, the budgets and
   floors, the master seed and the stage 1 warm-up. The step files are then
   sealed, and a one-page session request follows. Each session needs its
