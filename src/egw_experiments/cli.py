@@ -96,6 +96,13 @@ controller's transition rows are then admitted on the collector's own
 lifecycle pair and recorded as ``resources_transition_rows``. Absent, every
 run is as before.
 
+G4 core provenance (plan 655-661): ``run`` and ``campaign`` take
+``--execution-mode {tcg-emulated,native-kvm,native-metal}``, with no default
+and no environment fallback. The harness checks the declaration against the
+run's three environment records (guest, load generator, hypervisor); omitted,
+the run is recorded and sealed as invalid. ``collect`` takes no such option:
+it re-checks a run that recorded one and leaves every other run as it was.
+
 Recovery qualification (review finding F2): the analyser never reads
 ``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
 after the analysis, which writes ``processed/recovery_qualification.json``
@@ -118,6 +125,7 @@ from pathlib import Path
 from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
+from .environment import EXECUTION_MODES
 from .plan_gen import (
     SUPPLEMENTS,
     PlanSupplementError,
@@ -410,6 +418,18 @@ def _add_sut_log_fetch_arguments(parser: argparse.ArgumentParser) -> None:
 
 def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
     """Run-level flags shared by ``run`` and ``campaign`` (same wiring)."""
+    parser.add_argument(
+        "--execution-mode",
+        default=None,
+        choices=list(EXECUTION_MODES),
+        help="G4 core provenance (plan 655-661): the execution mode the "
+        "operator declares for the run, checked against its three environment "
+        "records (guest, load generator, hypervisor). There is no default and "
+        "no environment fallback: omitted, the run is still executed, recorded "
+        "and sealed with execution_mode null, and marked validity 'invalid'. "
+        "This harness can evidence only tcg-emulated (the QEMU/TCG guest on "
+        "this host); a native declaration is always invalid here",
+    )
     parser.add_argument(
         "--broker",
         default="localhost",
@@ -897,6 +917,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         external_timings=args.external_timings,
         external_logs=args.external_logs,
         metrics_fast_retry=args.metrics_fast_retry,
+        execution_mode=args.execution_mode,
     )
 
 
@@ -956,6 +977,7 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         allow_warmup_failure=args.allow_warmup_failure,
         allow_protocol_deviation=args.allow_protocol_deviation,
         allow_missing_controller_marker=args.allow_missing_controller_marker,
+        execution_mode=args.execution_mode,
     )
 
 

@@ -32,7 +32,8 @@ Evidence collection topology (audit 9.1-9.3):
   ``src/deployment/scripts/capture-sut-environment.sh`` and ingested with
   ``--sut-env-from`` (or env ``EGW_SUT_ENV_FILE``); the harness host's own
   capture is written as ``loadgen_environment.json`` (audit 9.2). The
-  manifest references BOTH files.
+  manifest references BOTH files, and the hypervisor's record as well (G4
+  core provenance, below).
 - The controller's ``GET /metrics`` (CONTRACTS v1.1: includes ``dropped``
   and ``queue_depth``) is sampled at 1 Hz into ``controller_metrics.csv``
   when ``--controller-url`` is given (port 8000 is loopback-only on the
@@ -184,6 +185,26 @@ classifies it. A transcript without the envelope, of another run, or
 captured before the run ended is refused naming the reason — an old file
 that merely holds a quiet line never becomes this run's drain.
 
+G4 core provenance (plan 655-661, manifest 1.5): ``--execution-mode``
+declares the run's execution mode (``tcg-emulated``, ``native-kvm`` or
+``native-metal``), with no default and no environment fallback. Every
+simulator run records three environment records: the guest's
+(``sut_environment.json``, ingested), the load generator's
+(``loadgen_environment.json``, with the host's boot id and size and the two
+simulator invocations, the password redacted) and the hypervisor's
+(``hypervisor_environment.json``: this host's single ``qemu-system-aarch64``
+process, read from ``/proc`` before the collector start hook and again after
+the collector stop hook, never between the run-end stamp and the controller
+marker). The declaration is checked against them
+(:func:`egw_experiments.environment.provenance_checks`, on the run's own
+files); an unset mode and every failed check is a validity reason of the run,
+timed or not, with no override, and the run is still sealed. The manifest
+records ``execution_mode``, ``image_identity`` and ``provenance``. ``collect``
+re-checks a run that carries the ``provenance`` record, on its sealed files
+(the hypervisor is never captured after the fact), and leaves every other run
+(every manifest before 1.5) as it was, adding no key and no file. External
+runs carry none of this: no mode, no checks, no hypervisor record.
+
 Produces the plan 5.8 raw structure::
 
     results/raw/<run_id>/
@@ -201,6 +222,7 @@ Produces the plan 5.8 raw structure::
                                # exclusion
       sut_environment.json     # captured ON the VM (ingested)
       loadgen_environment.json # captured here (harness host)
+      hypervisor_environment.json  # captured here: the QEMU process (G4)
       logs/                    # simulator stdout/stderr, warmup artifacts
       logs/sut/                # fetched broker log, controller log, docker
                                # events, the item-18 hooks' full output and
@@ -318,12 +340,21 @@ from .checksums import (
 )
 from .controller_metrics import FAST_RETRY_CAP_S, FAST_RETRY_S, ControllerMetricsSampler
 from .environment import (
+    EXECUTION_MODES,
+    HYPERVISOR_ENVIRONMENT_FILENAME,
     LOADGEN_ENVIRONMENT_FILENAME,
+    PROVENANCE_RULE,
     SUT_ENVIRONMENT_FILENAME,
+    capture_hypervisor_snapshot,
+    image_identity_record,
+    provenance_checks,
+    provenance_problems,
+    read_environment_record,
     read_sut_environment,
     sut_env_node,
     utc_now_iso,
     validate_sut_environment,
+    write_hypervisor_environment,
     write_loadgen_environment,
 )
 from .plan_gen import load_campaign_plan, plan_to_json
@@ -377,6 +408,23 @@ HOOK_KILL_GRACE_S = 5.0
 FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
 SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 
+# 1.5 (G4 core provenance, plan 655-661; a new validity rule, so a new
+# version): every simulator run gains 'execution_mode' (the --execution-mode
+# token, or null when unset), 'environment_refs.hypervisor'
+# ('hypervisor_environment.json', or null when it could not be written),
+# 'image_identity' (the QEMU executable's sha256 and version line, the
+# kernel's sha256, the rootfs drive and its image name, all from the
+# hypervisor record's start snapshot, a reference to 'image_digests' and the
+# controller image id of the configuration identity, each null when not
+# read), 'provenance' ({rule, declared_by, execution_mode, checks: [{check,
+# ok, detail}], problems}) and 'config.cli.execution_mode';
+# loadgen_environment.json gains the boot id, the CPU affinity, MemTotal, the
+# CPU model, the Python executable and both simulator invocations (password
+# redacted). Every 'provenance.problems' entry is a validity reason of the
+# run, timed or not, with no override. The rule is gated by the record, not
+# by this string: a manifest without 'provenance' (every earlier one, and
+# every external run, which gains none of the keys under 1.5 either) is
+# judged as before, and 'collect' never adds the keys or the file to it.
 # 1.4 (the restart transition rule, adopted 2026-10-05; additive and opt-in
 # within the version, no reader change needed): with
 # --restart-transition-rule, 'config.cli' gains 'restart_transition_rule' and
@@ -442,7 +490,7 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 # moves to the CONTROLLER clock domain (or null when unavailable).
 # 1.2 (work order P1): adds 'deviations', 'sut_environment_missing_fields',
 # 'allow_warmup_failure', 'allow_protocol_deviation'; hardens validity.
-MANIFEST_VERSION = "1.4"
+MANIFEST_VERSION = "1.5"
 
 MANIFEST_FILENAME = "manifest.json"
 
@@ -3799,6 +3847,38 @@ def ingest_resources(
 
 
 # ---------------------------------------------------------------------------
+# G4 core provenance (plan 655-661)
+# ---------------------------------------------------------------------------
+
+
+def run_provenance_record(
+    run_dir: Path, execution_mode: str | None, broker: Any, port: Any
+) -> dict[str, Any]:
+    """The manifest's ``provenance`` record of a run: the declared execution
+    mode checked against the run's OWN files (``sut_environment.json``,
+    ``loadgen_environment.json``, ``hypervisor_environment.json``) and the
+    generator's target (``broker``, ``port``), so that ``run`` and ``collect``
+    judge the same sealed evidence; a file absent or unreadable is passed as
+    None and fails the checks that read it. ``problems`` holds one validity
+    reason per failed check."""
+    checks = provenance_checks(
+        execution_mode=execution_mode,
+        sut_env=read_sut_environment(run_dir),
+        loadgen_env=read_environment_record(run_dir, LOADGEN_ENVIRONMENT_FILENAME),
+        hypervisor_env=read_environment_record(run_dir, HYPERVISOR_ENVIRONMENT_FILENAME),
+        broker=broker if isinstance(broker, str) else None,
+        port=port if _is_int(port) else None,
+    )
+    return {
+        "rule": PROVENANCE_RULE,
+        "declared_by": "--execution-mode",
+        "execution_mode": execution_mode,
+        "checks": checks,
+        "problems": provenance_problems(checks),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Validity (audit: warning-only is not acceptable)
 # ---------------------------------------------------------------------------
 
@@ -3830,6 +3910,7 @@ def compute_validity(
     events_post_drain_fetch: dict[str, Any] | None = None,
     config_identity_ok: bool = True,
     metrics_write_error: str | None = None,
+    provenance_problems: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Evaluate the run-validity rules; returns (validity, reasons).
 
@@ -3917,6 +3998,15 @@ def compute_validity(
     the instrumentation failed, so its evidence stops at the last row
     written. Failed polls (the controller not answering) are an observation
     and stay warnings.
+
+    G4 core provenance (plan 655-661): ``provenance_problems`` is what
+    :func:`egw_experiments.environment.provenance_problems` gives for the
+    run's checks. None means the rule does not apply: the manifest carries no
+    ``provenance`` record (every run sealed before manifest 1.5, and every
+    external run). A list adds one reason per entry, on every run, timed or
+    not (an unset execution mode is one of them). No allow flag suppresses
+    them and no deviation is recorded; like the collector problems they do
+    not withhold SHA256SUMS, so the invalid run stays sealed evidence.
 
     The explicit allow flags suppress the corresponding reason but are
     recorded in the manifest (``deviations``) as a deliberate decision.
@@ -4038,6 +4128,8 @@ def compute_validity(
             "failed poll, which poll_errors counts instead; there is no "
             "override: repeat the run under a new run identity"
         )
+    if provenance_problems is not None:
+        reasons.extend(provenance_problems)
     return ("valid" if not reasons else "invalid"), reasons
 
 
@@ -4526,6 +4618,7 @@ def execute_run(
     external_logs: str | Path | None = None,
     extra_deviations: list[dict[str, Any]] | None = None,
     metrics_fast_retry: bool = False,
+    execution_mode: str | None = None,
 ) -> int:
     """Execute one planned run end-to-end. Returns a process exit code.
 
@@ -4599,6 +4692,20 @@ def execute_run(
     ingest with the interval; the manifest records ``resources_transition_rows``
     (the rule's name, whether it admitted the controller's transition rows or
     why not, and the rows). Without it nothing of this runs or is recorded.
+
+    ``execution_mode`` (G4 core provenance, plan 655-661): the operator's
+    declaration, one of ``environment.EXECUTION_MODES``, with no default and
+    no environment fallback. Any other value is refused with exit 2 before
+    anything is written; None is accepted and recorded, and the run is then
+    invalid (check P0). A simulator run records the load generator's
+    invocations (password redacted) in ``loadgen_environment.json``, takes a
+    snapshot of this host's QEMU process before the collector start hook and
+    another after the collector stop hook (never between the run-end stamp
+    and the controller marker), writes both once to
+    ``hypervisor_environment.json``, and checks the declaration against its
+    three records (:func:`run_provenance_record`); every failed check is a
+    validity reason with no override, and the run is still sealed. An
+    external run records none of this.
     """
     plan_path = Path(plan_path)
     try:
@@ -4612,6 +4719,16 @@ def execute_run(
     )
     if entry is None:
         print(f"error: run_id {run_id!r} not found in {plan_path}", file=sys.stderr)
+        return 2
+    # The declared execution mode (G4 core provenance): a documented token,
+    # or None (recorded, and the run is invalid); anything else is a usage
+    # error, refused before anything is written.
+    if execution_mode is not None and execution_mode not in EXECUTION_MODES:
+        print(
+            f"error: execution mode {execution_mode!r} is not one of "
+            f"{', '.join(EXECUTION_MODES)} (--execution-mode has no default).",
+            file=sys.stderr,
+        )
         return 2
 
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
@@ -4630,6 +4747,13 @@ def execute_run(
                 file=sys.stderr,
             )
             return 2
+        if execution_mode is not None:
+            print(
+                f"[harness] note: --execution-mode {execution_mode} is not recorded "
+                "for an external run: external runs carry no provenance record "
+                "(the analysis reads them as unrecorded)",
+                flush=True,
+            )
         return execute_external_run(
             plan_path,
             entry,
@@ -4756,9 +4880,9 @@ def execute_run(
     print(f"[harness] run {run_id}: created {run_dir}", flush=True)
     update_plan_status(plan_path, run_id, "running")
 
-    # Two environments (audit 9.2): the harness host capture is the LOAD
-    # GENERATOR; the SUT capture comes from the VM via --sut-env-from.
-    write_loadgen_environment(run_dir / LOADGEN_ENVIRONMENT_FILENAME)
+    # Environments (audit 9.2): the SUT capture comes from the VM via
+    # --sut-env-from; the harness host capture, the LOAD GENERATOR's, is
+    # written below with the simulator invocations it records.
     sut_env_present = ingest_sut_environment(run_dir, sut_env_from, warnings)
     # SUT environment QUALITY (work order P1 fix 4): presence alone is not
     # enough; a manifest without the REQUIRED_SUT_FIELDS is unusable.
@@ -4795,6 +4919,46 @@ def execute_run(
     timed = condition_id in TIMED_CONDITION_IDS or entry.get("runner") == "simulator"
     restart_required = condition_id == "controller_restart"
 
+    # The simulator invocations, built once (CONTRACTS 7): the measured run's
+    # and the warm-up's (None without one), run below exactly as built and
+    # recorded, the password redacted, in the LOAD GENERATOR's environment
+    # record (audit 9.2; G4 core provenance, plan 655-661).
+    sim_output_dir = logs_dir / "simulator"
+    simulator_options: dict[str, Any] = dict(
+        scenario=scenario,
+        seed=seed,
+        rate_msg_s=rate_msg_s,
+        broker=broker,
+        port=port,
+        egw_id=egw_id,
+        qos=qos,
+        username=username,
+        password=password,
+        ca_cert=ca_cert,
+        no_tls=no_tls,
+    )
+    simulator_argv = _simulator_cmd(
+        duration_s=duration_s,
+        output_dir=sim_output_dir,
+        run_id=run_id,
+        **simulator_options,
+    )
+    warmup_argv = (
+        _simulator_cmd(
+            duration_s=warmup_s,
+            output_dir=logs_dir / "warmup",
+            run_id=f"{run_id}.warmup",
+            **simulator_options,
+        )
+        if warmup_s > 0 and not skip_warmup
+        else None
+    )
+    write_loadgen_environment(
+        run_dir / LOADGEN_ENVIRONMENT_FILENAME,
+        simulator_argv=simulator_argv,
+        warmup_argv=warmup_argv,
+    )
+
     # Restart evidence (ADR 0011 item 18) belongs to the controller_restart
     # condition: on any other run the three templates are ignored, so a
     # campaign-wide flag never drains or snapshots a nominal run. The flags
@@ -4828,7 +4992,6 @@ def execute_run(
     post_drain_source = post_drain_events_from if restart_required else None
 
     started_utc = utc_now_iso()
-    sim_output_dir = logs_dir / "simulator"
     sim_returncode: int | None = None
     warmup_returncode: int | None = None
 
@@ -5021,6 +5184,13 @@ def execute_run(
 
     if collector_hooks_in_use:
         collector_dest.parent.mkdir(parents=True, exist_ok=True)
+    # The hypervisor's start snapshot (G4 core provenance): this host's QEMU
+    # process, read from /proc BEFORE the collector starts, beside the load
+    # generator's record (co-location) and the generator's target.
+    loadgen_env = read_environment_record(run_dir, LOADGEN_ENVIRONMENT_FILENAME)
+    hypervisor_start = capture_hypervisor_snapshot(
+        loadgen_env=loadgen_env, broker=broker, port=port
+    )
     # Started BEFORE the warm-up so the collector covers the whole run.
     _run_collector_hook("start", collector_start_cmd)
 
@@ -5030,25 +5200,10 @@ def execute_run(
         if metrics_sampler is not None:
             metrics_sampler.__enter__()
 
-        if warmup_s > 0 and not skip_warmup:
+        if warmup_argv is not None:
             print(f"[harness] warm-up: {warmup_s} s", flush=True)
             warmup_returncode = _run_subprocess(
-                _simulator_cmd(
-                    scenario=scenario,
-                    seed=seed,
-                    duration_s=warmup_s,
-                    rate_msg_s=rate_msg_s,
-                    output_dir=logs_dir / "warmup",
-                    run_id=f"{run_id}.warmup",
-                    broker=broker,
-                    port=port,
-                    egw_id=egw_id,
-                    qos=qos,
-                    username=username,
-                    password=password,
-                    ca_cert=ca_cert,
-                    no_tls=no_tls,
-                ),
+                warmup_argv,
                 logs_dir / "warmup.log",
                 timeout_s=warmup_s + SUBPROCESS_GRACE_S,
             )
@@ -5074,22 +5229,7 @@ def execute_run(
             restart_timer.daemon = True
             restart_timer.start()
         sim_returncode = _run_subprocess(
-            _simulator_cmd(
-                scenario=scenario,
-                seed=seed,
-                duration_s=duration_s,
-                rate_msg_s=rate_msg_s,
-                output_dir=sim_output_dir,
-                run_id=run_id,
-                broker=broker,
-                port=port,
-                egw_id=egw_id,
-                qos=qos,
-                username=username,
-                password=password,
-                ca_cert=ca_cert,
-                no_tls=no_tls,
-            ),
+            simulator_argv,
             logs_dir / "simulator.log",
             timeout_s=duration_s + SUBPROCESS_GRACE_S,
         )
@@ -5209,6 +5349,32 @@ def execute_run(
     # Collector stop hook: AFTER the measured run, BEFORE the confirmation
     # window (the collector must not keep sampling the idle system).
     _run_collector_hook("stop", collector_stop_cmd)
+
+    # The hypervisor's end snapshot (G4 core provenance), after the collector
+    # stop hook: never between the run-end stamp and the controller marker
+    # (P5.4 defect 5). The record holds both snapshots, is written once and is
+    # sealed with the run; a record that cannot be written leaves the run
+    # without it (environment_refs.hypervisor null), which the checks name.
+    hypervisor_end = capture_hypervisor_snapshot(
+        loadgen_env=loadgen_env, broker=broker, port=port
+    )
+    hypervisor_ref: str | None = HYPERVISOR_ENVIRONMENT_FILENAME
+    try:
+        write_hypervisor_environment(
+            run_dir / HYPERVISOR_ENVIRONMENT_FILENAME, hypervisor_start, hypervisor_end
+        )
+    except OSError as exc:
+        hypervisor_ref = None
+        warnings.append(
+            f"{HYPERVISOR_ENVIRONMENT_FILENAME} could not be written ({exc}): the "
+            "run has no hypervisor record"
+        )
+        print(
+            f"[harness] error: {HYPERVISOR_ENVIRONMENT_FILENAME} could not be "
+            f"written: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     # Confirmation window (plan 7.3): confirmations arriving up to 60 s after
     # the end of the run still count; wait before collecting the event log.
@@ -5650,6 +5816,15 @@ def execute_run(
         allow_missing_resources=allow_missing_resources,
     )
 
+    # G4 core provenance (plan 655-661): the declaration checked against the
+    # run's three records as they are sealed (the files 'collect' re-checks),
+    # and the image identity read from the hypervisor record.
+    provenance = run_provenance_record(run_dir, execution_mode, broker, port)
+    image_identity = image_identity_record(
+        read_environment_record(run_dir, HYPERVISOR_ENVIRONMENT_FILENAME),
+        configuration_identity,
+    )
+
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -5676,6 +5851,7 @@ def execute_run(
         events_post_drain_fetch=events_post_drain_fetch,
         config_identity_ok=configuration_identity is not None,
         metrics_write_error=metrics_write_error,
+        provenance_problems=provenance["problems"],
     )
     if validity == "invalid":
         for reason in validity_reasons:
@@ -5690,6 +5866,9 @@ def execute_run(
         "run_id": run_id,
         "condition_id": condition_id,
         "runner": "simulator",
+        # G4 core provenance (manifest 1.5): the declared token, or null when
+        # unset (the run is then invalid); never inferred.
+        "execution_mode": execution_mode,
         "scenario": scenario,
         "repetition": entry.get("repetition"),
         "seed": seed,
@@ -5699,11 +5878,16 @@ def execute_run(
         "cooldown_s": cooldown_s,
         "commit": commit,
         "image_digests": image_digests,
-        # Two environments (audit 9.2): sut = the system under test (ARM
-        # VM), loadgen = the harness/simulator host.
+        # What the guest booted and the emulator ran (manifest 1.5), from the
+        # hypervisor record's start snapshot; null where not read.
+        "image_identity": image_identity,
+        # Three environments (audit 9.2; manifest 1.5): sut = the system
+        # under test (ARM VM), loadgen = the harness/simulator host,
+        # hypervisor = the QEMU process on that host.
         "environment_refs": {
             "loadgen": LOADGEN_ENVIRONMENT_FILENAME,
             "sut": SUT_ENVIRONMENT_FILENAME if sut_env_present else None,
+            "hypervisor": hypervisor_ref,
         },
         "sut_environment_present": sut_env_present,
         "sut_environment_missing_fields": sut_env_missing_fields,
@@ -5768,6 +5952,7 @@ def execute_run(
         "config": {
             "plan_entry": entry,
             "cli": {
+                "execution_mode": execution_mode,
                 "broker": broker,
                 "port": port,
                 "no_tls": no_tls,
@@ -5896,6 +6081,10 @@ def execute_run(
         "resource_sampling_error": (
             local_sampler.error if local_sampler is not None else None
         ),
+        # G4 core provenance (plan 655-661, manifest 1.5): the rule, the
+        # declaration and each check on the run's three records; every entry
+        # of 'problems' is one of the validity reasons below.
+        "provenance": provenance,
         "validity": validity,
         "validity_reasons": validity_reasons,
         # Exclusion criteria (plan 5.8/7.3): filled in manually, with a
@@ -6060,6 +6249,16 @@ def collect_run(
     rejects and the ordinary rule alone would accept. Without a record, or
     with one naming no die/start pair, the file is judged as before, and
     once it is ingested the record's ``resources_ingested`` is set.
+
+    G4 core provenance (plan 655-661): a run whose manifest carries the
+    ``provenance`` record is checked again on its own sealed files (a guest
+    record ingested here included; the hypervisor is a run-time measurement
+    and is never captured after the fact), and the record, its
+    ``image_identity`` and the reasons follow. A run without the record -
+    every manifest before 1.5, every external run - is judged as before:
+    ``collect`` never adds ``execution_mode``, ``provenance``,
+    ``image_identity`` or ``hypervisor_environment.json`` to it, and takes no
+    ``--execution-mode``.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
@@ -6580,6 +6779,24 @@ def collect_run(
         if isinstance(recorded_metrics, dict)
         else None
     )
+    # G4 core provenance (plan 655-661), gated by the record and never by the
+    # version string: a run that carries it is checked again on its sealed
+    # files with the declaration and the generator's target it recorded; any
+    # other run is judged as before and gains no key.
+    run_provenance_problems: list[str] | None = None
+    if isinstance(manifest.get("provenance"), dict):
+        manifest["provenance"] = run_provenance_record(
+            run_dir,
+            manifest.get("execution_mode"),
+            cli_echo.get("broker"),
+            cli_echo.get("port"),
+        )
+        run_provenance_problems = manifest["provenance"]["problems"]
+        if isinstance(manifest.get("image_identity"), dict):
+            manifest["image_identity"] = image_identity_record(
+                read_environment_record(run_dir, HYPERVISOR_ENVIRONMENT_FILENAME),
+                configuration_identity,
+            )
     validity, validity_reasons = compute_validity(
         timed=timed,
         sut_env_present=sut_env_present,
@@ -6609,6 +6826,7 @@ def collect_run(
         metrics_write_error=(
             None if recorded_write_error is None else str(recorded_write_error)
         ),
+        provenance_problems=run_provenance_problems,
     )
     manifest["validity"] = validity
     manifest["validity_reasons"] = validity_reasons

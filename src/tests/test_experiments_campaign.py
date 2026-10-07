@@ -16,6 +16,7 @@ import pytest
 
 from egw_experiments import campaign as campaign_mod
 from egw_experiments import cli
+from egw_experiments import environment as env_mod
 from egw_experiments import run as run_mod
 
 SUT_NODE = "sut-vm"
@@ -26,6 +27,52 @@ SIM_RUN_IDS = ["smoke-r01", "smoke-r02", "smoke-r03"]
 FIXTURE_SERVICES = ["egw-controller"]
 EXTERNAL_RUN_ID = "cold-r01"
 PLAN_ORDER = ["smoke-r01", EXTERNAL_RUN_ID, "smoke-r02", "smoke-r03"]
+
+#: The boot of the harness host, named by the load-generator record and by
+#: the hypervisor snapshots (G4 core provenance: co-location).
+BOOT_ID = "6f1b8d0e-2c55-4c43-9a0e-3f4a5b6c7d8e"
+ROOTFS_NAME = "egw-gateway-image-qemuarm64.rootfs-20260918120819"
+QEMU_ARGV = [
+    "/opt/qemu/usr/bin/qemu-system-aarch64",
+    "-netdev", "user,id=net0,hostfwd=tcp:127.0.0.1:8883-:8883",
+    "-machine", "virt", "-cpu", "cortex-a76", "-smp", "4", "-m", "8192",
+    "-kernel", "/images/Image",
+    "-drive", f"file=/images/{ROOTFS_NAME}.ext4,if=none",
+]
+
+
+def _hypervisor_snapshot() -> dict:
+    """One snapshot of the single QEMU/TCG guest the campaign's runs target,
+    shaped as environment.capture_hypervisor_snapshot writes it."""
+    return {
+        "captured_utc": "2026-09-07T10:00:00.000Z",
+        "captured_monotonic_ns": 1,
+        "host": {"node": "harness-host", "machine": "x86_64", "boot_id": BOOT_ID},
+        "qemu": {
+            "found": 1,
+            "pids": [4242],
+            "error": None,
+            "pid": 4242,
+            "starttime_ticks": 123456,
+            "start_utc": "2026-09-07T09:00:00.000Z",
+            "exe_path": QEMU_ARGV[0],
+            "exe_sha256": "5d" * 32,
+            "version_line": "QEMU emulator version 8.2.7",
+            "argv": QEMU_ARGV,
+            "argv_sha256": "a1" * 32,
+            "parsed": env_mod.parse_qemu_argv(QEMU_ARGV),
+            "kernel_sha256": "44" * 32,
+            "rootfs_path": f"/images/{ROOTFS_NAME}.ext4",
+            "rootfs_image_name": ROOTFS_NAME,
+            "kvm_device_open": False,
+            "accelerator": "tcg",
+            "accelerator_basis": ["fixture"],
+            "target_arch": "aarch64",
+        },
+        "colocated_with_loadgen": True,
+        "generator_target_is_this_guest": True,
+        "problems": [],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +164,18 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         return 0
 
     monkeypatch.setattr(run_mod, "_run_subprocess", fake_subprocess)
+    # G4 core provenance (plan 655-661): the load generator and the one
+    # QEMU/TCG guest it targets, on the same boot (the run tests' fixture).
     monkeypatch.setattr(
         run_mod,
         "write_loadgen_environment",
-        lambda path: Path(path).write_text('{"role": "loadgen"}\n', "utf-8"),
+        lambda path, **_argv: Path(path).write_text(
+            json.dumps({"role": "loadgen", "machine": "x86_64", "boot_id": BOOT_ID}) + "\n",
+            "utf-8",
+        ),
+    )
+    monkeypatch.setattr(
+        run_mod, "capture_hypervisor_snapshot", lambda **_kwargs: _hypervisor_snapshot()
     )
     monkeypatch.setattr(run_mod, "read_git_commit", lambda *a, **k: "test-commit")
     monkeypatch.setattr(run_mod.time, "sleep", lambda s: sleeps.append(s))
@@ -155,10 +210,12 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         json.dumps(
             {
                 "role": "sut",
+                "captured_utc": "2026-09-07T09:50:00Z",
                 "node": SUT_NODE,
                 "nproc": 4,
                 "uname_a": "Linux sut-vm 6.8.0 aarch64",
                 "os_pretty_name": "fixture",
+                "shared_vcpu_note": "TCG emulation on the fixture host; ARM64 EMULATED",
             }
         )
         + "\n",
@@ -206,6 +263,9 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         # 5.2). The campaign tests are about batch behaviour, so the
         # absence is authorized explicitly and recorded as a deviation.
         allow_missing_controller_marker=True,
+        # The mode the fixture's records evidence; without it every run is
+        # recorded invalid (G4 core provenance, plan 655-661).
+        execution_mode="tcg-emulated",
     )
     return SimpleNamespace(
         calls=calls, sleeps=sleeps, base=base, kwargs=kwargs, tmp_path=tmp_path
@@ -1021,6 +1081,40 @@ def test_cli_campaign_passes_the_item_18_flags_through(monkeypatch) -> None:
     assert seen["twins_after_from"] == "ev/{run_id}.twins.after.json"
     assert seen["post_drain_events_from"] == "ev/{run_id}.events.post-drain.jsonl"
     assert seen["drain_transcript_from"] == "ev/{run_id}.drained.txt"
+
+
+def test_campaign_passes_the_declared_execution_mode_to_every_run(
+    plan_path, fake_env, monkeypatch
+) -> None:
+    """G4 core provenance (plan 655-661): the one declaration reaches every
+    executed run; without it each run gets None and is recorded invalid."""
+    seen: dict[str, list[object]] = {}
+
+    def fake_execute_run(plan_path_, run_id, **kwargs):
+        seen.setdefault(run_id, []).append(kwargs.get("execution_mode", "missing"))
+        return 0
+
+    monkeypatch.setattr(campaign_mod, "execute_run", fake_execute_run)
+    kwargs = {k: v for k, v in fake_env.kwargs.items() if k != "execution_mode"}
+    only = ["smoke_sequence"]
+    assert campaign_mod.run_campaign(
+        plan_path, only_conditions=only, execution_mode="native-kvm", **kwargs
+    ) == 0
+    assert campaign_mod.run_campaign(plan_path, only_conditions=only, **kwargs) == 0
+    assert seen == {rid: ["native-kvm", None] for rid in SIM_RUN_IDS}
+
+
+def test_a_campaign_run_without_an_execution_mode_is_recorded_invalid(
+    plan_path, fake_env
+) -> None:
+    kwargs = {k: v for k, v in fake_env.kwargs.items() if k != "execution_mode"}
+    rc = campaign_mod.run_campaign(plan_path, only_conditions=["smoke_sequence"], **kwargs)
+    assert rc == 1
+    manifest = _manifest(fake_env.base, "smoke-r01")
+    assert manifest["execution_mode"] is None
+    assert manifest["validity"] == "invalid"
+    assert [r.split(":")[1].strip() for r in manifest["validity_reasons"]] == ["P0"]
+    assert (fake_env.base / "raw" / "smoke-r01" / "SHA256SUMS").is_file()
 
 
 def test_cli_campaign_refuses_the_retired_allow_missing_restart_evidence_flag(
