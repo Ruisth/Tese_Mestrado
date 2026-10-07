@@ -1,0 +1,124 @@
+## 2026-10-02T13:33:00Z script under test: /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1
+
+######## m (final)
+bench ready: /tmp/g3-dry-fix/mfinal
+=== open S1 on the real rows (/mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/rows; manifest sha256 cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c)
+exit=0
+row file t1-smokes.sh: sha256 1b9869dae23aa6e92f8a80cb64023fdd7bb26b07b1ea993582b8777ab552e582 = sha256_after of the manifest (row t1-smokes, step 1, 182 bytes)
+row file t1-harness.sh: sha256 d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c = sha256_after of the manifest (row t1-harness, step 1, 1496 bytes)
+row file t1-harness-analyze.sh: sha256 d0fb59187c8fad3626c04c15b703911e599586a20231ba7c27849209b6e647c8 = sha256_after of the manifest (row t1-harness, step 2, 2094 bytes
+row file t2.sh: sha256 43fa83f2fc17b52dd41cb6d4f902ce2276ee2a0fae1e104b8692fe044f59e3b6 = sha256_after of the manifest (row t2, step 1, 1370 bytes)
+row file t3.sh: sha256 9731c836d334d9534109d8da738b63243c483286303016ba7df1ad42371497f6 = sha256_after of the manifest (row t3, step 1, 4481 bytes)
+row file t4-replay.sh: sha256 fb646091cbc47287eee6d7d960eb15eae8c390309c766dbfb8aa784d56ac2954 = sha256_after of the manifest (row t4-replay, step 1, 5262 bytes)
+row file t4-reset.sh: sha256 3c5d4ec05701e41517762814f9e7207d5956394496a00c839f0b41596d020681 = sha256_after of the manifest (row t4-reset, step 1, 59 bytes)
+row file t5.sh: sha256 31572a360b1db5a2e7c39845421f80d6d66b4293d715b803b30f15de44ffe555 = sha256_after of the manifest (row t5, step 1, 1141 bytes)
+rows.manifest.json sha256: cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c
+## 2026-10-02T13:33:01Z up=1246 session S1 is open: egw-exec/attempts/20261002T133300Z_guest-session_attempt01
+=== status (the turn line)
+turn of the changing subcommands: last taken by 'open S1' (pid 60000, 2026-10-02T13:33:00Z); that invocation: ended
+=== close
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+## 2026-10-02T13:33:02Z up=1247 session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+=== open S2 on the real rows (with Rui's go in the bench: S1's rows were not run)
+exit=0
+row file t6.sh: sha256 ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400 = sha256_after of the manifest (row t6, step 1, 8897 bytes)
+row file t7-mongo.sh: sha256 dd4545c3538a137acfc2a33eb99a749cf037e1ae18242773e4faf963b56d67c7 = sha256_after of the manifest (row t7-mongo, step 1, 5794 bytes)
+row file t7-ditto.sh: sha256 23ea0b99fa9f3e7eccbe429e42d51a9b2c68d9cc2d0b4c641a0ab7b306cc74e0 = sha256_after of the manifest (row t7-ditto, step 1, 5799 bytes)
+row file t8-a-reboot.sh: sha256 bb2d76e5ea3630b72fc39810f528766f549d0fc3f97667102874a3c77242a5c3 = sha256_after of the manifest (row t8, step 1, 812 bytes)
+row file t8-b-return.sh: sha256 f8259e353019bd02e604344292a07208c8b1116098af47b31f90b1a932a097c7 = sha256_after of the manifest (row t8, step 2, 463 bytes)
+row file t8-c-snapshot.sh: sha256 9a60f8d6f75b99a573c91f5353a8b8963c641000974389ffd7867ce2477e73a2 = sha256_after of the manifest (row t8, step 3, 590 bytes)
+row file t8-d-smoke.sh: sha256 f541f1caf33787327fe2d437da9c4994e540ce1346aa2987aca89a19e5514d53 = sha256_after of the manifest (row t8, step 4, 73 bytes)
+row file t9-a.sh: sha256 3ff287632ab2ca135e59c221c748d88339e5d8c11b07fce4e0c776ab666b5869 = sha256_after of the manifest (row t9, step 1, 387 bytes)
+row file t9-b.sh: sha256 d6d86b2599dbef67ba3d15501f21944bd638272f4080be68b46f2996dea93c8e = sha256_after of the manifest (row t9, step 2, 1940 bytes)
+row file t9-c.sh: sha256 9a3ae72b023c73ffa165451d34ec3095592c048b3dce3e335dddbd063d7632b7 = sha256_after of the manifest (row t9, step 3, 630 bytes)
+row file t9-de.sh: sha256 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae = sha256_after of the manifest (row t9, step 4, 2228 bytes)
+row file t9-exposure.sh: sha256 484f3fdf6a753d4eaae35be9a0538af9c7e51e64088ee0946a848b2f34c76f85 = sha256_after of the manifest (row t9, step 5, 2262 bytes)
+rows.manifest.json sha256: cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c
+## 2026-10-02T13:33:04Z up=1249 session S2 is open: egw-exec/attempts/20261002T133303Z_guest-session_attempt02
+=== close
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+## 2026-10-02T13:33:04Z up=1249 session S2 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+row attempts created in the bench: 0 (the real rows were only checked)
+
+######## a (final)
+bench ready: /tmp/g3-dry-fix/afinal
+=== open S1
+## 2026-10-02T13:33:06Z up=1251 session S1 is open: /tmp/g3-dry-fix/afinal/egw-exec/attempts/20261002T133305Z_guest-session_attempt01
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== row t1-smokes (detached)
+the stand-in is running: 62320 python -m egw_simulator run --broker 127.0.0.1 --port 8883 --username egw-simulator --password ...
+=== status
+status holds the value: 0 line(s)
+=== term t1-smokes
+exit=0
+## 2026-10-02T13:33:09Z up=1255 term t1-smokes: the process group 61921 (row state 'running', step 't1-smokes')
+61921 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M
+61939 tee -p -a /tmp/g3-dry-fix/afinal/egw-exec/g3-battery/console/002-row-t1-smokes.txt
+62314 /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_export exec --attempt
+62315 bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.en
+62320 python -m egw_simulator run --broker 127.0.0.1 --port 8883 --username egw-simulator 
+TERM sent to the process group 61921 (exit 0). KILL is never sent.
+The row's own trap finishes its attempt 'interrupted' and exports it; T7's fault job restores its service from its trap.
+Then: 'status'; check that no service was left stopped and no recorder or collector unit is active; 'close'.
+term output holds the value: 0 line(s)
+--- files of the state directory (the operator records) that hold the value:
+(end of list)
+--- the group listing kept after the signal:
+61921 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh row t1-smokes
+61939 tee -p -a /tmp/g3-dry-fix/afinal/egw-exec/g3-battery/console/002-row-t1-smokes.txt
+=== status after
+session S1: state=open attempt=/tmp/g3-dry-fix/afinal/egw-exec/attempts/20261002T133305Z_guest-session_attempt01 UP0=1250
+  elapsed host uptime: 19 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  HALT: up=1255 row=t1-smokes row t1-smokes was interrupted by a signal (TERM) during 't1-smokes' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the 
+  row t1-smokes: interrupted; gate=; class=; driver code=130; export=verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 3 registered artef
+    attempt /tmp/g3-dry-fix/afinal/egw-exec/attempts/20261002T133306Z_g3-qualification-t1-smokes_attempt01
+    HALT: up=1255 row t1-smokes was interrupted by a signal (TERM) during 't1-smokes' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t1-harness: not started
+
+######## b0 (final)
+bench ready: /tmp/g3-dry-fix/b0final
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== two 'row t1-smokes', the second 0 s after the first
+times the row's step ran (one line per shell that sourced the row file): 1
+attempts of the row: 1
+## egw-exec/g3-battery/console/002-row-t1-smokes.txt
+## 2026-10-02T13:33:26Z up=1271 row t1-smokes: attempt /tmp/g3-dry-fix/b0final/egw-exec/attempts/20261002T133326Z_g3-qualification-t1-smokes_attempt01 (ceiling 105 min from now: the operator enforces it with 'term t1-smokes')
+## 2026-10-02T13:33:26Z up=1271 row t1-smokes: step t1-smokes (hx: one shell, the row file is sourced)
+## 2026-10-02T13:33:31Z up=1278 row t1-smokes: step t1-smokes ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-02T13:33:31Z up=1278 row t1-smokes ended after 7 s; the attempt is OPEN for the operator's classification
+## egw-exec/g3-battery/console/003-row-t1-smokes.txt
+REFUSED: another invocation of this script is still running: 'row t1-smokes' (pid 63311, since 2026-10-02T13:33:26Z). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+halt lines in the session file: 0
+session S1: state=open attempt=/tmp/g3-dry-fix/b0final/egw-exec/attempts/20261002T133325Z_guest-session_attempt01 UP0=1269
+  elapsed host uptime: 30 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  row t1-smokes: awaiting-classification; gate=pass; class=; driver code=; export=
+    attempt /tmp/g3-dry-fix/b0final/egw-exec/attempts/20261002T133326Z_g3-qualification-t1-smokes_attempt01
+  row t1-harness: not started
+
+######## b1 (final)
+bench ready: /tmp/g3-dry-fix/b1final
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== two 'row t1-smokes', the second 0.15 s after the first
+times the row's step ran (one line per shell that sourced the row file): 1
+attempts of the row: 1
+## egw-exec/g3-battery/console/002-row-t1-smokes.txt
+## 2026-10-02T13:33:54Z up=1301 row t1-smokes: attempt /tmp/g3-dry-fix/b1final/egw-exec/attempts/20261002T133354Z_g3-qualification-t1-smokes_attempt01 (ceiling 105 min from now: the operator enforces it with 'term t1-smokes')
+## 2026-10-02T13:33:55Z up=1301 row t1-smokes: step t1-smokes (hx: one shell, the row file is sourced)
+## 2026-10-02T13:34:01Z up=1307 row t1-smokes: step t1-smokes ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-02T13:34:01Z up=1308 row t1-smokes ended after 7 s; the attempt is OPEN for the operator's classification
+## egw-exec/g3-battery/console/003-row-t1-smokes.txt
+REFUSED: another invocation of this script is still running: 'row t1-smokes' (pid 64601, since 2026-10-02T13:33:54Z). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+halt lines in the session file: 0
+session S1: state=open attempt=/tmp/g3-dry-fix/b1final/egw-exec/attempts/20261002T133353Z_guest-session_attempt01 UP0=1299
+  elapsed host uptime: 30 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  row t1-smokes: awaiting-classification; gate=pass; class=; driver code=; export=
+    attempt /tmp/g3-dry-fix/b1final/egw-exec/attempts/20261002T133354Z_g3-qualification-t1-smokes_attempt01
+  row t1-harness: not started
+
+## 2026-10-02T13:34:21Z ended

@@ -1,0 +1,13 @@
+{
+  "url": "http://127.0.0.1:8000/metrics",
+  "polled_utc": "2026-10-02T15:11:30.499Z",
+  "ok": true,
+  "monotonic_ns": 611857966286,
+  "wall_utc": "2026-10-02T15:11:31.476Z",
+  "error": null,
+  "confirmation_window_s": 60,
+  "confirmation_deadline_monotonic_ns": 671857966286,
+  "poll_returned_utc": "2026-10-02T15:11:30.559Z",
+  "lag_s": 0.122,
+  "lag_tolerance_s": 2.0
+}

@@ -1,0 +1,130 @@
+g3_hostprep.sh (S3) sha256 6613f15286f272150cdfba9fa508fadf2f89762ac795686218c143f079d7570e
+
+## 2026-10-05T08:41:03.887Z no guest, no open session
+your 131072x1 screen size is bogus. expect trouble
+no qemu-system-aarch64, no current_session
+
+## 2026-10-05T08:41:03.892Z tools clone /home/ruisth/egw-exec/repo: state before (decision summary, choice 1: local changes, or a HEAD that is neither 80e833f44f647fe9cd8f5e99d3abf3c444de95aa nor 8e492613d36490a560ae56beabd6d5c2c01a8696, are a stop; nothing is discarded)
+HEAD=80e833f44f647fe9cd8f5e99d3abf3c444de95aa branch=(detached)
+cf6bc62f730aad58a0fa4301d0740cf00ca6eec6 refs/heads/docs/integrated-yocto-plan-20260916
+fb1690d669eef89a835a1e158baf47f6e554e0d9 refs/heads/exec-dev
+status: clean
+HEAD is the battery's commit: the clone is moved to 8e492613d36490a560ae56beabd6d5c2c01a8696 below
+
+## 2026-10-05T08:41:03.915Z fetch from the clone's origin (the Windows repository: its origin/dev, where PR #54 was merged) and check out 8e492613d36490a560ae56beabd6d5c2c01a8696 detached
+FETCH_HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696
+the fetched tip is 8e492613d36490a560ae56beabd6d5c2c01a8696 itself
+HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696 tree=2f0514837f267d8975f7071041aad14a5c18dcab
+clean; every branch unchanged; parents: 80e833f44f647fe9cd8f5e99d3abf3c444de95aa 7c371e3f3382319b223d0a17dd8fd4d33aae8938 
+the reviewed head 7c371e3f3382319b223d0a17dd8fd4d33aae8938 has the tree 2f0514837f267d8975f7071041aad14a5c18dcab
+files that differ between the battery's 80e833f44f647fe9cd8f5e99d3abf3c444de95aa and 8e492613d36490a560ae56beabd6d5c2c01a8696: 10
+  LOG.md
+  PROGRESS.md
+  docs/evidence/g3-battery-2026-10/PACKAGES.sha256
+  docs/evidence/g3-battery-2026-10/README.md
+  docs/governance/g3-battery-2026-10-results.md
+  docs/governance/g3-readiness-map-2026-09-29.md
+  docs/governance/proposals/2026-10-03-t6-sampling-versus-restart-events.md
+  docs/governance/proposals/README.md
+  docs/setup/qemu_integrated_gateway.md
+  src/tests/test_runbook_itest_helpers.py
+nothing under tools/, and nothing under src/ outside src/tests, differs from 80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+controller, simulator, schemas, deployment, Dockerfile, locks, pyproject and CONTRACTS identical to 489bc9e5b5b0660026ea2630b8d1d124049ba2ce (no rebuild)
+/home/ruisth/egw-exec/repo/src/egw_experiments/__init__.py
+['acceptance', 'check', 'delta', 'mark', 'replay-check', 'same', 'snap', 'wait']
+
+## 2026-10-05T08:41:14.146Z identities held on the host (request section 2; the kernel, qemuboot.conf, the QEMU binary and the Yocto checkout are compared for S3)
+runbook: 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+runbook lines: 1623
+extraction-rule-source: fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1  /home/ruisth/egw-exec/repo/src/tests/test_runbook_itest_helpers.py
+local_export: 544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b  /home/ruisth/egw-exec/repo/src/egw_experiments/local_export.py
+fetch_started_at: 9c6dc824c885ce6d2edacdfb5fe4a4db4a96b6e0b6454f93300ee1b007421827  /home/ruisth/egw-exec/repo/tools/session/fetch_started_at.sh
+images.lock.env: 8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648  /home/ruisth/egw-exec/repo/src/deployment/images.lock.env
+compose.yaml: 1a32f6c2bd9e24eee075ef569828aa41ad6a7a7b260d4436e588dc9ca74d5982  /home/ruisth/egw-exec/repo/src/deployment/compose.yaml
+mosquitto.conf: ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615  /home/ruisth/egw-exec/repo/src/deployment/mosquitto/config/mosquitto.conf
+CONTRACTS: 247e3b02a1ffc8e30da3f9df701db5f851f018505ecb9f907b54562b9cf095c9  /home/ruisth/egw-exec/repo/src/CONTRACTS.md
+tunnel.sh: 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+ca.crt: 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+controller-record: 79e7d2105be035911e9fe596f609a77775b578f0578cab1bde77f0d610aa2022  /home/ruisth/egw-images/egw-controller-0.1.0-arm64.identity.txt
+controller-archive: 9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d  /home/ruisth/egw-images/egw-controller-0.1.0-arm64.tar
+image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+archive_sha256=9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d
+git trees: src/deployment=e056d389f7dd640c142bf714bb8ceb389ec460c2 src/schemas=1d5284cf28bbabc5c7ea554d5a5366faec5fcf95
+repo_identity: {"repo_commit": "8e492613d36490a560ae56beabd6d5c2c01a8696", "repo_dirty_lines": 0, "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b", "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5"}
+recorded, not compared (S3 runs no harness row; the environment input is replaced by the copy made after the preflight at open, the previous file kept beside it):
+c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60  /home/ruisth/egw-tcg/pilot/campaign_plan.json
+3f663ed0a36f5f52e241896b8c7c8a98051667a46224d2b24f70fd1d4460c7f5  /home/ruisth/egw-tcg/sut_environment.json
+yocto checkout (launcher): 489bc9e5b5b0660026ea2630b8d1d124049ba2ce, porcelain lines: 0
+run-qemu-integrated: 67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1  /home/ruisth/yocto/egw/src/yocto/scripts/run-qemu-integrated.sh
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+deploy_source_commit.txt: 489bc9e5b5b0660026ea2630b8d1d124049ba2ce (the deployment tree on the guest)
+rootfs-ext4: 22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+
+## 2026-10-05T08:41:17.049Z helper regenerated from the 8e492613d36490a560ae56beabd6d5c2c01a8696 runbook (predecessor kept) and checked
+e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  /home/ruisth/egw-tcg/itest-helpers.sh
+kept the previous helper as /home/ruisth/egw-tcg/itest-helpers.sh.e5eba37e529a
+wrote /home/ruisth/egw-tcg/itest-helpers.sh: sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (545 lines)
+runbook:  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+  heredoc sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (545 lines, 45460 bytes)
+deployed: /home/ruisth/egw-tcg/itest-helpers.sh
+  file    sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (545 lines, 45460 bytes)
+HELPERS OK: the deployed helper file is the runbook's section 6.1 heredoc, byte for byte
+helper sha256=e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb lines=545
+-rw-r--r-- 1 ruisth ruisth 45460 Oct  5 09:41 /home/ruisth/egw-tcg/itest-helpers.sh
+-rw-r--r-- 1 ruisth ruisth 30071 Sep 28 21:53 /home/ruisth/egw-tcg/itest-helpers.sh.1634c35bc79d
+-rw-r--r-- 1 ruisth ruisth 45320 Oct  2 12:39 /home/ruisth/egw-tcg/itest-helpers.sh.39403ead5a81
+-rw-r--r-- 1 ruisth ruisth 30071 Sep 28 21:53 /home/ruisth/egw-tcg/itest-helpers.sh.before-compat-capture-r01
+-rw-r--r-- 1 ruisth ruisth 18870 Sep 19 20:58 /home/ruisth/egw-tcg/itest-helpers.sh.c4f9f89ea64c
+-rw-r--r-- 1 ruisth ruisth 45460 Oct  5 09:41 /home/ruisth/egw-tcg/itest-helpers.sh.e5eba37e529a
+-rw-r--r-- 1 ruisth ruisth 26860 Sep 26 18:33 /home/ruisth/egw-tcg/itest-helpers.sh.e76f036e49e0
+-rw-r--r-- 1 ruisth ruisth 19477 Sep 25 09:47 /home/ruisth/egw-tcg/itest-helpers.sh.f94cff6f6379
+
+## 2026-10-05T08:41:17.103Z the five -q2 identifiers unused on the host (itest, itest-replay, pilot results; no name holding one under the attempts directory or output_test)
+fresh on the host: itest-reboot-q2
+fresh on the host: itest-post-reboot-01-q2
+fresh on the host: itest-tls-wrongca-q2
+fresh on the host: itest-auth-wrongpw-q2
+fresh on the host: itest-notls-q2
+
+## 2026-10-05T08:41:25.417Z earlier attempts of rows t8 and t9 (the export tool numbers a new attempt after the highest of its slug under the attempts directory, output_test/runs and output_test/incomplete)
+/home/ruisth/egw-exec/attempts/20261002T150829Z_g3-qualification-t1-smokes_attempt01
+/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01
+/home/ruisth/egw-exec/attempts/20261002T154427Z_g3-qualification-t2_attempt01
+/home/ruisth/egw-exec/attempts/20261002T155313Z_g3-qualification-t3_attempt01
+/home/ruisth/egw-exec/attempts/20261002T160154Z_g3-qualification-t4-replay_attempt01
+/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01
+/home/ruisth/egw-exec/attempts/20261002T162159Z_g3-qualification-t5_attempt01
+/home/ruisth/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+/home/ruisth/egw-exec/attempts/20261003T135147Z_g3-qualification-t7-mongo_attempt01
+/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01
+/home/ruisth/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T150829Z_g3-qualification-t1-smokes_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T152710Z_g3-qualification-t1-harness_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T154427Z_g3-qualification-t2_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T155313Z_g3-qualification-t3_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T160154Z_g3-qualification-t4-replay_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T161432Z_g3-qualification-t4-reset_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T162159Z_g3-qualification-t5_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T135147Z_g3-qualification-t7-mongo_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T140639Z_g3-qualification-t7-ditto_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+the battery's attempts (22 entries above) are admitted as they are
+row t8: 20261003T142310Z_g3-qualification-t8_attempt01 found 2 time(s), no other attempt of the slug (no attempt02): the new attempt is expected as attempt02
+row t9: no attempt of the slug: the new attempt is expected as attempt01
+state directory of S3 today (information; 'open S3' creates it): absent
+
+## 2026-10-05T08:41:27.122Z the -q2 identifiers unused on the guest root file system (offline, read-only: debugfs -c; no QEMU, no session)
+guest event directories listed: 37 lines
+ . .. controller_restart-r01 controller_restart-r02 controller_restart-r03 itest-3dev-01 itest-3dev-01-q1 itest-ditto-fault-01-q1 itest-dropout-01 itest-dropout-01-q1 itest-dup-01 itest-dup-01-q1 itest-dup-02-q1 itest-flow-02 itest-g2-01 itest-invalid-01 itest-invalid-01-q1 itest-mongo-fault-01 itest-mongo-fault-01-q1 itest-post-reboot-01 itest-preflight-02 itest-slice-01 itest-smoke-01 itest-smoke-01-q1 itest-smoke-02 itest-smoke-02-q1 itest-smoke-03 itest-smoke-03-q1 nominal-r01 nominal-r01.warmup nominal-r02 nominal-r02.warmup proof-adr0011-r01 proof-adr0011-r02 proof-adr0011-r03 smoke_sequence-r01 smoke_sequence-r02 
+fresh on the guest: itest-reboot-q2
+fresh on the guest: itest-post-reboot-01-q2
+fresh on the guest: itest-tls-wrongca-q2
+fresh on the guest: itest-auth-wrongpw-q2
+fresh on the guest: itest-notls-q2
+rootfs-ext4-after-listing: 22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+
+outcome=prepared (at 2026-10-05T08:41:28.481Z)

@@ -1,0 +1,21 @@
+## 2026-10-02T13:25:14Z script under test: /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 4c0819f140c253bab5d8dd7af695b6a92fb81e3c9b2920289b183e7fd3c569fa
+
+######## h (after4)
+bench ready: /tmp/g3-dry-fix/hafter4
+=== open S1, row t1-smokes (detached, in its own process group, to its end)
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+gate=pass state=awaiting-classification 
+=== term t1-smokes when the listing of the row's group holds a QEMU line (made up)
+## 2026-10-02T13:25:19Z up=759 term t1-smokes: the process group 20020 (row state 'awaiting-classification', step 'ended')
+HALT: term t1-smokes: a qemu-system-aarch64 process is in the row's process group 20020: nothing was signalled. QEMU is never killed without Rui's decision.
+exit=1
+halt lines of the session file: 1; of the row file: 1
+=== classify t1-smokes (its gate passed; the session now holds a halt)
+row t1-smokes: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-fix/hafter4/out/runs/2026-10-02/20261002T132516Z_g3-qualification-t1-smokes_attempt01
+Next: 'close', then hand back to Rui: session S1 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+exit=0
+=== row t1-harness
+REFUSED: NOT STARTED: session S1 has a recorded halt (up=759 row=t1-smokes term t1-smokes: a qemu-system-aarch64 process is in the row's process group 20020: nothing was signalled. QEMU is never killed without Rui's decision.). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)
+exit=2
+
+## 2026-10-02T13:25:20Z ended

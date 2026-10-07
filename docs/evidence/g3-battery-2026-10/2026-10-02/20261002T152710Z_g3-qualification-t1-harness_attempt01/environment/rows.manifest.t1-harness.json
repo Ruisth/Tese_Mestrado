@@ -1,0 +1,159 @@
+{
+  "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "6940366cca642d8f824092278e82e500112d8a3f9df36ed6d32cbc6595ead304",
+  "runbook": {
+    "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae",
+    "lines": 1614
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "da8d31ddeb4f53c057d279a01964ef6464152660368cd08ef5c8ab6767700489",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for each of the ten headings"
+  },
+  "substitution_rule": {
+    "suffix": "-q1",
+    "ids": [
+      {
+        "old": "itest-smoke-$i",
+        "new": "itest-smoke-$i-q1",
+        "occurrences": 2
+      },
+      {
+        "old": "itest-3dev-01",
+        "new": "itest-3dev-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-invalid-01",
+        "new": "itest-invalid-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-01",
+        "new": "itest-dup-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-02",
+        "new": "itest-dup-02-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dropout-01",
+        "new": "itest-dropout-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-mongo-fault-01",
+        "new": "itest-mongo-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-ditto-fault-01",
+        "new": "itest-ditto-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-reboot",
+        "new": "itest-reboot-q1",
+        "occurrences": 8
+      },
+      {
+        "old": "itest-post-reboot-01",
+        "new": "itest-post-reboot-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-tls-wrongca",
+        "new": "itest-tls-wrongca-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-auth-wrongpw",
+        "new": "itest-auth-wrongpw-q1",
+        "occurrences": 4
+      },
+      {
+        "old": "itest-notls",
+        "new": "itest-notls-q1",
+        "occurrences": 3
+      }
+    ],
+    "unchanged": [
+      "nominal-r02",
+      "controller_restart-r03",
+      "itest-acl-$T",
+      "itest-replay"
+    ],
+    "token": "an id not preceded by [A-Za-z0-9_] and not followed by [A-Za-z0-9_-]; every occurrence of each id as a plain string is such a token (asserted), so none is left behind and none is matched inside a longer id",
+    "asserted": "per file the count of each id; the text after the substitution with every '-q1' removed is the extracted text; the unchanged literals are untouched; the extracted text held no '-q1'"
+  },
+  "row": {
+    "row": "t1-harness",
+    "session": "S1",
+    "steps": [
+      "t1-harness.sh",
+      "t1-harness-analyze.sh"
+    ],
+    "note": "t1-harness-analyze.sh is the prose-only step of runbook line 1320."
+  },
+  "files": {
+    "t1-harness.sh": {
+      "row": "t1-harness",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 1"
+      ],
+      "source_line_numbers": [
+        1310,
+        1311,
+        1312,
+        1313
+      ],
+      "source_line_ranges": "1310-1313",
+      "host_command_starts": [
+        1310,
+        1311,
+        1312,
+        1313
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 4,
+      "sha256_before": "d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c",
+      "sha256_after": "d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c",
+      "bytes_before": 1496,
+      "bytes_after": 1496,
+      "substitutions": [],
+      "diff": "t1-harness.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1310-1313, four one-line commands. Nothing is substituted: nominal-r02 is a plan entry."
+    },
+    "t1-harness-analyze.sh": {
+      "row": "t1-harness",
+      "session": "S1",
+      "step_order": 2,
+      "kind": "prose-only, runbook line 1320",
+      "source_line_numbers": [
+        1320
+      ],
+      "derived_from_sentence": "The harness applies the confirmation deadline itself (manifest `confirmation_deadline_clock_domain: \"controller\"`), so no `pre`/`post` is used here; read the result with `python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json` and the columns `confirmation_deadline_source`, `sent_valid`, `delivered_unique`, `lost`, `late_confirmations`, `double_accepted` of `~/egw-tcg/pilot/results/processed/per_run.csv`",
+      "lines": 21,
+      "sha256_before": null,
+      "sha256_after": "d0fb59187c8fad3626c04c15b703911e599586a20231ba7c27849209b6e647c8",
+      "bytes_after": 2094,
+      "substitutions": [],
+      "diff": null,
+      "bash_n": "ok",
+      "range_note": "The analyze command of line 1320 (the same as the fenced line 1427) and a read of the six columns line 1320 names from nominal-r02's row of processed/per_run.csv. A constant of the script, not an extraction."
+    }
+  }
+}

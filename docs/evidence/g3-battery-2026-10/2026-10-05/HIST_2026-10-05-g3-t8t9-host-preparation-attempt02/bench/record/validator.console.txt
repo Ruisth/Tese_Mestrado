@@ -1,0 +1,118 @@
+checker run: sha256 ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95 (<S>/g3/s3bprep/s3b_preflight_exception.py, in place); the script's EXCEPTION_SHA ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95 (equal); g3_battery.sh sha256 42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034
+## 2026-10-05T11:33:28Z the checker alone; python: the execution venv's (/home/ruisth/egw-exec/venv/bin/python, Python 3.12.3), PYTHONDONTWRITEBYTECODE=1
+
+=== fixture unchanged
+fixture variant unchanged: nothing changed
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 778c7fd0eff12dd066c3141fd010499c7bbf21a361986eec62b32a2675f43e30
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 0; lines: 7 (6 'ok:')
+  last line: EXCEPTION APPLIES: preflight 20261005T105656Z_live-preflight_attempt11 stays failed and invalid; the session proceeds under the authorised T8/T9 exception (collector-duration only: UTC window 43 s of 45 s declared)
+  as expected (exit 0; last line matches: ^EXCEPTION APPLIES: preflight 20261005T105656Z_live-preflight_attempt11 stays failed and invalid; the session proceeds under the authorised T8/T9 exception \(collector-duration only: UTC window 43 s of 45 s declared\)$)
+
+=== fixture step7-exit1
+fixture variant step7-exit1: commands.jsonl step 7 (stack-health): exit_code 0 -> 1; every other line unchanged
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 4cfbf6c669e4fca40a1a206fb4fc38d8d282a59f5a4e2cb3cba9c2b2aa4383df tree 790dd7b3e0e43cd9d00a2c3a7133ca0012abb61f5a368b31936126328fed696d
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 4 (3 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: step stack-health ended 1, not 0 - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: step stack-health ended 1, not 0 - the halt stands$)
+
+=== fixture no-attempt-json
+fixture variant no-attempt-json: attempt.json removed
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json absent commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 0a80e9a9b50c13a51fcbd06a21c1804914e1e1e1dd3b6e5a32fee33f0f7da618
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 3 (2 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: attempt.json could not be read ([Errno 2] No such file or directory: '<V>/no-attempt-json/attempts/20261005T105656Z_live-preflight_attempt11/attempt.json') - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: attempt.json could not be read \(.*No such file or directory.*\) - the halt stands$)
+
+=== fixture other-run-id
+fixture variant other-run-id: the console's DRIVER RESULT line now reads: DRIVER RESULT 20261005T105656Z_live-preflight_attempt12: exit=3 (instrum ...  status=failed instrumentation_validity=invalid system_outcome=inconclusive export=exported; no attempt directory 20261005T105656Z_live-preflight_attempt12 exists
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 778c7fd0eff12dd066c3141fd010499c7bbf21a361986eec62b32a2675f43e30
+FIXTURE console: sha256 65e33483dfa54b8909303a5b2ab326134ef42f8f4a3e3185e6cf05ff65396306; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt12: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt12; NO such directory: the script would NOT run the checker (its plain halt 'preflight.sh exited 3'); the checker alone, on the attempt the stub placed (20261005T105656Z_live-preflight_attempt11), with that console:
+  checker exit 1; lines: 2 (1 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: the attempt directory <V>/other-run-id/attempts/20261005T105656Z_live-preflight_attempt11 is not the driver's attempt 20261005T105656Z_live-preflight_attempt12 - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: the attempt directory .* is not the driver's attempt 20261005T105656Z_live-preflight_attempt12 - the halt stands$)
+
+=== fixture other-run-id-dir
+fixture variant other-run-id-dir: the console's DRIVER RESULT line now reads: DRIVER RESULT 20261005T105656Z_live-preflight_attempt12: exit=3 (instrum ...  status=failed instrumentation_validity=invalid system_outcome=inconclusive export=exported; a copy of the attempt directory is named 20261005T105656Z_live-preflight_attempt12 (its attempt.json run_id is still 20261005T105656Z_live-preflight_att
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 778c7fd0eff12dd066c3141fd010499c7bbf21a361986eec62b32a2675f43e30
+FIXTURE 20261005T105656Z_live-preflight_attempt12: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 778c7fd0eff12dd066c3141fd010499c7bbf21a361986eec62b32a2675f43e30
+FIXTURE console: sha256 65e33483dfa54b8909303a5b2ab326134ef42f8f4a3e3185e6cf05ff65396306; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt12: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt12; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 3 (2 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: attempt.json run_id='20261005T105656Z_live-preflight_attempt11', not '20261005T105656Z_live-preflight_attempt12' - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: attempt.json run_id='20261005T105656Z_live-preflight_attempt11', not '20261005T105656Z_live-preflight_attempt12' - the halt stands$)
+
+=== fixture collector-problem
+fixture variant collector-problem: collector-check.json problems = ['bench: egw-mongodb-1 has 3 forward gaps in its window (a problem listed by the check)']
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree c2aee48ac01ce8b737a5d20e224ae352cf300fbb10f93ceacfcdb2fcc2566325
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 5 (4 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: collector-check reports problems: ['bench: egw-mongodb-1 has 3 forward gaps in its window (a problem listed by the check)'] - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: collector-check reports problems: \[.*\] - the halt stands$)
+
+=== fixture capture-failures
+fixture variant capture-failures: attempt.json capture_failures = [{'step': 'collector-live', 'seq': 13, 'note': "bench: the console capture of 'collector-live' was lost"}]
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json 487b32a029107e3e45f8ccb4e58f82ad7d83b770dbf7862ab318c8c48273cdb5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 9797d81d46554f80b6c80ac1081d2a9f666494f5b4a98adc64d03a6bb80d95cb
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 3 (2 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: attempt.json records capture failures: [{'note': "bench: the console capture of 'collector-live' was lost", 'seq': 13, 'step': 'collector-live'}] - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: attempt.json records capture failures: \[.*\] - the halt stands$)
+
+=== fixture capture-truncated
+fixture variant capture-truncated: commands.jsonl step 13 (collector-live): capture.stdout.state complete -> truncated (bytes unchanged); every other line unchanged
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5 commands.jsonl 5f6d6f40360846f6b62a80ca3f8e42d6fff8fec7dd182c836f9e4af5f8e6ad0c tree 360f9c166d0dbbf9a26dbbc323a2ee19a38e13224fee982016e0202e3effc0f6
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 4 (3 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: step collector-live: its stdout capture is not complete ({'state': 'truncated', 'bytes_received': 2345, 'bytes_kept': 2345, 'error': None, 'echo': 'written'}) - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: step collector-live: its stdout capture is not complete \(.*'state': 'truncated'.*\) - the halt stands$)
+
+=== fixture system-fault
+fixture variant system-fault: attempt.json system_outcome='fail', reason starts 'observed system fault(s): the stack is not healthy, a contai'; the console's DRIVER RESULT line now reads: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrum ...  status=failed instrumentation_validity=invalid system_outcome=fail export=exported
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json 2bb9034c8ed2ec5dff1abc9f0938638a1d0859854999c3e5db94ed2aab644004 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 27ac170d0b3376d01080f9d9de97ceb5e1e934957894d8942f4ee167579ccb0a
+FIXTURE console: sha256 88e88ed38011481ae2b26bd3ca4a26d2c4f08c5672adb02e69b2f227360a2c33; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 1 (0 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: the driver's result line does not say system_outcome=inconclusive: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=fail export=exported - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: the driver's result line does not say system_outcome=inconclusive: DRIVER RESULT .* - the halt stands$)
+
+=== fixture system-fault-record
+fixture variant system-fault-record: attempt.json system_outcome='fail', reason starts 'observed system fault(s): the stack is not healthy, a contai'
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json 2bb9034c8ed2ec5dff1abc9f0938638a1d0859854999c3e5db94ed2aab644004 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree f705d895b25ce2eaaa52453e1f1c3533bdf254683c9b0688cc853e35c5e0bfa8
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 3 (2 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: attempt.json system_outcome='fail', not 'inconclusive' - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: attempt.json system_outcome='fail', not 'inconclusive' - the halt stands$)
+
+=== fixture reason-fault
+fixture variant reason-fault: attempt.json system_outcome='inconclusive', reason starts 'observed system fault(s): the stack is not healthy, a contai'
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json cf380f912ceef5d96ce4d329c3094a53357b5dad84a3fae132d51b1252eb3cf1 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree 329aec644455b957348b546f675d8c85387a789fc0354de4c5fc8990918a251c
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+  the console names 20261005T105656Z_live-preflight_attempt11; that directory exists: the script would run the checker on it
+  checker exit 1; lines: 3 (2 'ok:')
+  last line: EXCEPTION DOES NOT APPLY: attempt.json's reason is not the frozen preflight's reason for collector-duration as its only failed mandatory step, with nothing observed and nothing skipped: 'observed system fault(s): the stack is not healthy, a container was OOM-killed or is not there at all, or the kernel reports a memory-cgroup OOM in this boot (stack-health exit 3); the preflight ran, but mandatory instrumentation failed: the collector did not hold the duration it declares, or the shortfall could not be judged (see console/ and commands.jsonl); ' - the halt stands
+  as expected (exit 1; last line matches: ^EXCEPTION DOES NOT APPLY: attempt.json's reason is not the frozen preflight's reason for collector-duration as its only failed mandatory step, with nothing observed and nothing skipped: .* - the halt stands$)
+
+=== the real WSL attempt directory with the real driver console (read in place, read-only)
+  /home/ruisth/egw-exec/attempts/20261005T105656Z_live-preflight_attempt11: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5, commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9; console bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c
+  checker exit 0; lines: 7 (6 'ok:')
+  last line: EXCEPTION APPLIES: preflight 20261005T105656Z_live-preflight_attempt11 stays failed and invalid; the session proceeds under the authorised T8/T9 exception (collector-duration only: UTC window 43 s of 45 s declared)
+  as expected (exit 0; last line matches: ^EXCEPTION APPLIES: preflight 20261005T105656Z_live-preflight_attempt11 stays failed and invalid)
+  after: attempt.json b031bb65ecb68cbc9664f18709b4cc136410484b66ae5810afe443d4fcf818b5, commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9; console bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c
+
+=== the checker with one comment line appended (the bytes e6 refuses), on the unchanged fixture
+  changed copy: sha256 4de7107904600d1e12a79c3fba875f0e469abde19a6e663fa7d3cf8b4f85d9bc (not ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95)
+  checker exit 0; lines: 7 (6 'ok:')
+  last line: EXCEPTION APPLIES: preflight 20261005T105656Z_live-preflight_attempt11 stays failed and invalid; the session proceeds under the authorised T8/T9 exception (collector-duration only: UTC window 43 s of 45 s declared)
+  as expected (exit 0; last line matches: ^EXCEPTION APPLIES: )
+  (it still applies the exception: the logic is unchanged; what refuses it in e6 is the script's check of the bytes, before the checker is run)
+
+## 2026-10-05T11:33:32Z VALIDATOR: 13 of 13 as expected; checker sha256 after the runs ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95

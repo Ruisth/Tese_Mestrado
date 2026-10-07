@@ -1,0 +1,243 @@
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 1 at +0 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 2 at +5 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 3 at +10 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 4 at +15 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 5 at +21 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 6 at +26 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 7 at +31 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 8 at +36 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 9 at +41 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 10 at +46 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 11 at +51 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 12 at +56 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 13 at +61 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 14 at +66 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 15 at +71 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 16 at +76 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 17 at +81 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 18 at +86 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 19 at +91 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 20 at +96 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 21 at +101 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 22 at +106 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 23 at +111 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 24 at +116 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 25 at +121 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 26 at +126 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 27 at +131 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 28 at +136 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 29 at +141 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 30 at +146 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 31 at +151 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 32 at +156 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 33 at +161 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 34 at +166 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 35 at +171 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 36 at +176 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 37 at +181 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 38 at +186 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 39 at +191 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 40 at +196 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 41 at +201 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 42 at +206 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 43 at +211 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 44 at +216 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 45 at +221 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 46 at +226 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 47 at +231 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 48 at +236 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 49 at +241 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 50 at +246 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 51 at +251 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 52 at +256 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 53 at +261 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 54 at +266 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 55 at +271 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 56 at +276 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 57 at +281 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 58 at +286 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 59 at +291 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 60 at +296 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 61 at +301 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 62 at +306 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 63 at +311 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 64 at +316 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 65 at +321 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 66 at +326 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 67 at +331 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 68 at +336 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 69 at +341 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 70 at +346 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 71 at +351 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 72 at +356 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 73 at +361 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 74 at +367 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 75 at +372 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 76 at +377 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 77 at +382 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 78 at +387 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 79 at +392 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 80 at +397 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 81 at +402 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 82 at +407 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 83 at +412 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 84 at +417 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 85 at +422 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 86 at +427 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 87 at +432 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 88 at +437 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 89 at +442 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 90 at +447 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 91 at +452 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 92 at +457 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 93 at +462 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 94 at +467 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 95 at +472 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 96 at +477 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 97 at +482 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 98 at +487 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 99 at +492 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 100 at +497 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 101 at +502 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 102 at +507 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 103 at +512 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 104 at +517 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 105 at +523 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 106 at +528 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 107 at +533 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 108 at +538 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 109 at +543 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 110 at +548 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 111 at +553 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 112 at +558 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 113 at +563 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 114 at +568 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 115 at +573 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 116 at +578 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 117 at +583 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 118 at +588 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 119 at +593 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 120 at +598 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+1070 /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device vi
+sample 121 at +603 s: qemu pgrep exit=0 (0 running, 1 none); /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09/boot/s1.status absent; ports 2222/8883 busy
+STOP: the first QEMU did not exit, or ports 2222/8883 were not freed, within 600 s - QEMU was NOT signalled and is NOT killed

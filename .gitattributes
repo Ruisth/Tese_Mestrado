@@ -40,3 +40,8 @@ docs/evidence/g2-complete-flow/** -text whitespace=-blank-at-eol,-blank-at-eof,-
 # transcripts and metrics files keep their carriage returns, and every file is
 # covered by a SHA-256 manifest.
 docs/evidence/finite-proof-r03/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+
+# Preserve the captured bytes of the G3 qualifying battery capsule: console
+# transcripts and the guest-session records keep their carriage returns, and
+# every file is covered by its package seal and by the capsule's outer seal.
+docs/evidence/g3-battery-2026-10/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

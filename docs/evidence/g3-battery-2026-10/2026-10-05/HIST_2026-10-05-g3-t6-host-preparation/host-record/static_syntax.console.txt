@@ -1,0 +1,96 @@
+g3_hostprep.sh: sha256 ad214aeba54f6ede31dc3bbb8272cc55ff3e3645583e062ca0277a20292845ec; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+seal_prep.sh: sha256 8ea6f7040c6e492bb5aaec4f7a9bb025adf5058b537d932384214075801a3fff; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+ops/seal_ops.sh: sha256 d8b3de3cff5bfc210f64b4f0eb91d630812194f6e63875d4bf1a8048d4d72044; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+ops/seal_ops_finish.sh: sha256 97f50ceb4ae8e0319e34b6d7c064b88dc40f54b591032ae9083c5edf3b99b51b; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+ops/g3_go.sh: sha256 cb77af8965ba00d844c40328944f3a16d4b5a9ba07b953368bf663f2cfe10625; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+ops/g3_wait.sh: sha256 28dc98ce620b80f677b3e13e20a0292b62419f1a711c5810bebeb290f8ee2415; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+host-record/plan_check_bench.sh: sha256 db5be657bf1399a69dd5486ff3de7b38b387b339c7719c930fca752bc61ac523; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+host-record/static_values.sh: sha256 a9f3b5488aa0f88e13f9dcac0a41e50996ea4b65ab2909fc03ce6d6279c82f42; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+host-record/static_syntax.sh: sha256 c0a3e27e72214e084adb35afae414cd2312cf6e790638e763ea416be67421fbd; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+host-record/seal_bench.sh: sha256 c016a38c8e0dddaa433e598d5d1595d92f8bce73f9460d5bad77db61eeb02c28; bash -n ok; CR bytes 0; BOM no; lines with non-ASCII bytes 0
+
+shellcheck 0.11.0 (-s bash, default severity), new script against its base copy:
+== g3_hostprep.sh: 7 finding(s); base: 5
+   now:        1 note: Not following: ./tools/session/common.sh was not specified as input (see shellcheck -x). [SC1091]
+   now:        2 note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+   now:        2 note: Quote expansions in this for loop glob to prevent wordsplitting, e.g. "$dir"/*.txt . [SC2231]
+   now:        1 warning: DRIVERS appears unused. Verify use (or export if used externally). [SC2034]
+   now:        1 warning: EGW_EXEC_REPO appears unused. Verify use (or export if used externally). [SC2034]
+   base:       1 note: Not following: ./tools/session/common.sh was not specified as input (see shellcheck -x). [SC1091]
+   base:       1 note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+   base:       1 note: Quote expansions in this for loop glob to prevent wordsplitting, e.g. "$dir"/*.txt . [SC2231]
+   base:       1 warning: DRIVERS appears unused. Verify use (or export if used externally). [SC2034]
+   base:       1 warning: EGW_EXEC_REPO appears unused. Verify use (or export if used externally). [SC2034]
+== seal_prep.sh: 2 finding(s); base: 2
+   now:        2 note: Make sure not to read and write the same file in the same pipeline. [SC2094]
+== ops/seal_ops.sh: 2 finding(s); base: 2
+   now:        2 note: Make sure not to read and write the same file in the same pipeline. [SC2094]
+== ops/seal_ops_finish.sh: 3 finding(s); base: 3
+   now:        1 note: Check exit code directly with e.g. 'if mycmd;', not indirectly with $?. [SC2181]
+   now:        2 note: Make sure not to read and write the same file in the same pipeline. [SC2094]
+== ops/g3_go.sh: 0 finding(s); base: 0
+== ops/g3_wait.sh: 1 finding(s); base: 1
+   now:        1 note: Use find instead of ls to better handle non-alphanumeric filenames. [SC2012]
+== the record scripts:
+   host-record/plan_check_bench.sh: 11 finding(s)
+      line 28:34: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 29:28: warning: Use "${var:?}" to ensure this never expands to /home . [SC2115]
+      line 55:77: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 56:49: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 57:71: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 58:42: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 59:47: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 65:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 66:42: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 67:56: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 101:17: warning: Use "${var:?}" to ensure this never expands to /home . [SC2115]
+   host-record/static_values.sh: 5 finding(s)
+      line 34:63: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 57:110: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+      line 61:34: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 66:30: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+      line 75:29: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+   host-record/static_syntax.sh: 0 finding(s)
+   host-record/seal_bench.sh: 39 finding(s)
+      line 25:29: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+      line 84:48: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 87:16: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 88:61: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 95:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 96:7: note: Use find instead of ls to better handle non-alphanumeric filenames. [SC2012]
+      line 98:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 106:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 109:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 116:119: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 118:48: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 142:125: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 151:91: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 160:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 164:91: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 174:48: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 175:123: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 178:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 186:94: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 189:52: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 203:85: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 207:57: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 213:84: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 217:121: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 230:48: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 235:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 242:57: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 253:5: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 256:49: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 257:151: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 261:5: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+      line 262:5: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+      line 263:5: note: Expressions don't expand in single quotes, use double quotes for that. [SC2016]
+      line 268:87: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 270:48: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 271:142: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 276:142: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 279:48: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+      line 281:44: note: Note that A && B || C is not if-then-else. C may run when A is true. [SC2015]
+
+summary: bash -n passes, no CR, no BOM, ASCII only, for every script
+exit=0

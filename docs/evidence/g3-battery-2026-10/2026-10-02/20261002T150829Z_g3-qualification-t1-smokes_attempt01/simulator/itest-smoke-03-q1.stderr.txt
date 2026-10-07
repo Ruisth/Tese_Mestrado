@@ -1,0 +1,3 @@
+egw_simulator: scenario=smoke seed=42 run_id=itest-smoke-03-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=30.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=336 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-smoke-03-q1

@@ -1,0 +1,12 @@
+## 2026-10-05T19:25:55Z bs4_untouched.sh before (HOME=/home/ruisth); host uptime 4169.04 s
+entries of ~/egw-exec and ~/egw-tcg: 19216; sha256 of the listing: a3ab5c41b3c54eab5526a5217fc34c8fa4e657a35c0a4d8ff78ff402ae0ef8e2
+entries of output_test: 6266; sha256 of the listing: 87633ddcdb881aabd9a709199dcd80c40ed0ff195fd3997d031f1f6a007ae35a
+clone HEAD: 8e492613d36490a560ae56beabd6d5c2c01a8696
+plan ~/egw-tcg/pilot/campaign_plan.json: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60 (the value of the brief, c195bd3f...)
+S4's default state directory ~/egw-exec/g3-t6-s4: does not exist
+~/egw-exec/current_session: does not exist
+~/egw-tcg/pilot/results/raw/controller_restart-r04: does not exist
+attempts of row t6 in ~/egw-exec/attempts: 20261003T132936Z_g3-qualification-t6_attempt01 
+/tmp entries named g3-s4-*: g3-s4-bench g3-s4-host-plan g3-s4-host-sc g3-s4-op g3-s4-op-src g3-s4-op.run1 
+marker: /tmp/g3-s4-bench/_untouched/.started made at 2026-10-05T19:26:02Z
+keepalive clients, 'sleep N' with N of 3600 or more (not started and not ended by this stream): pid 400 sleep 43200, running for 4167 s; 

@@ -1,0 +1,11 @@
+--- first-preparation/ops/g3_wait.sh
++++ ops/g3_wait.sh
+@@ -6,7 +6,7 @@
+ # Usage (WSL): g3_wait.sh <open|row|close> <S3|slug> [max minutes]
+ set -u
+ KIND=${1:?} NAME=${2:?} MAX=${3:-170}
+-STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3}
++STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3-attempt02}   # S3, second opening: a fresh state directory
+ P=$(cd "$(dirname "$0")/.." && pwd)     # S3: the folder that holds ops/ and the steps script (no fixed path)
+ case $KIND in
+     open | close) pat="g3_battery.sh $KIND" ;;

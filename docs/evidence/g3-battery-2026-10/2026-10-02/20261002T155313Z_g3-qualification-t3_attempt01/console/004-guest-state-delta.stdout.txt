@@ -1,0 +1,6 @@
+## faults: what the system did during the measured run
+none
+## problems: what the two records do not let anyone say
+none
+guest state before/after: 0 fault(s), 0 problem(s)
+guest-state-delta: faults=0 problems=0

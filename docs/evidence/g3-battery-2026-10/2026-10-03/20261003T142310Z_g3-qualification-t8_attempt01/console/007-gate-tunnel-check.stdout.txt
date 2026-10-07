@@ -1,0 +1,3 @@
+tunnel: no control socket at /home/ruisth/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+TUNNEL CHECK: the master answers on /home/ruisth/egw-tcg/tunnel.ctl

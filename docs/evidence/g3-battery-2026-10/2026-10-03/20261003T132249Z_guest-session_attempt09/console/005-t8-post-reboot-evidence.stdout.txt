@@ -1,0 +1,27 @@
+boot_id_now=76471e31-e8e4-4b86-9f26-2042fa395c05
+boot_id_pre_reboot=d22195a1-84a7-4e88-806a-639db9d8fd83
+ 14:37:20 up 11 min,  load average: 3.48, 4.06, 2.93
+ -2 b35d0fa279794e8cad2e4223327528f3 Fri 2026-10-02 15:01:45 UTC Fri 2026-10-02 16:33:46 UTC
+ -1 d22195a184a74e88806a639db9d8fd83 Sat 2026-10-03 13:23:00 UTC Sat 2026-10-03 14:25:44 UTC
+  0 76471e31e8e44b869f262042fa395c05 Sat 2026-10-03 14:26:15 UTC Sat 2026-10-03 14:37:20 UTC
+## /var/lib/docker mount
+/dev/vdb /var/lib/docker ext4
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+## containers
+egw-controller-1 Up 10 minutes (healthy) 6 days ago
+egw-ditto-things-1 Up 10 minutes (healthy) 12 days ago
+egw-ditto-gateway-1 Up 10 minutes (healthy) 12 days ago
+egw-ditto-policies-1 Up 10 minutes (healthy) 12 days ago
+egw-mongodb-1 Up 10 minutes (healthy) 12 days ago
+egw-mosquitto-1 Up 10 minutes (healthy) 12 days ago
+## event directories (count, the -q1 ones)
+35
+10
+## previous boot: kernel OOM lines
+0
+## previous boot: last 5 lines
+2026-10-03T14:25:44+00:00 egw-qemu-integrated systemd[1]: Shutting down.
+2026-10-03T14:25:44+00:00 egw-qemu-integrated systemd-shutdown[1]: Syncing filesystems and block devices.
+2026-10-03T14:25:44+00:00 egw-qemu-integrated systemd-shutdown[1]: Sending SIGTERM to remaining processes...
+2026-10-03T14:25:44+00:00 egw-qemu-integrated systemd-journald[109]: Received SIGTERM from PID 1 (systemd-shutdow).
+2026-10-03T14:25:44+00:00 egw-qemu-integrated systemd-journald[109]: Journal stopped

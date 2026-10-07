@@ -1,0 +1,1 @@
+no egw-events-* and no egw-resources-* unit is active

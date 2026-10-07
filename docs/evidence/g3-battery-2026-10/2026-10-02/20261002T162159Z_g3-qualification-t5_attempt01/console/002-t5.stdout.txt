@@ -1,0 +1,141 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+R=itest-dropout-01-q1; T0_5=$(guest_epoch) && run_test $R 42 --scenario dropout-reconnect --duration 180; RT=$?     # the guest epoch before the test's first action bounds its broker log (third line)
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 13104 12365 67 672 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 5130.69 s, end 5262.15 s, elapsed 131.46 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T16:22:15Z -> 2026-10-02T16:24:20Z and bash SECONDS elapsed 125 s, recorded only
+{
+  "label": "before",
+  "seed": 42,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-02-q1",
+        "last_seq": 59,
+        "last_message_id": "1025fa50-ff9c-51bb-91be-3c14064328d7",
+        "last_ts": "2026-10-02T16:17:45.898Z",
+        "accepted_count": 1214
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-02-q1",
+        "last_seq": 11,
+        "last_message_id": "0ccae7a8-bce3-5b00-ad00-f76d7e52dfa1",
+        "last_ts": "2026-10-02T16:17:43.678Z",
+        "accepted_count": 230
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-02-q1",
+        "last_seq": 599,
+        "last_message_id": "fbdc7c18-ea2e-55ec-a936-968e912ba5d0",
+        "last_ts": "2026-10-02T16:17:46.799Z",
+        "accepted_count": 11524
+      }
+    }
+  }
+}
+egw_simulator: scenario=dropout-reconnect seed=42 run_id=itest-dropout-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=180.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=2016 intended_invalid=0 buffered_dropout=165 dropout_disconnects=3
+/home/ruisth/egw-tcg/itest/itest-dropout-01-q1
+marker monotonic_ns=5406677618558 lag_s=0.14
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 15120 14381 67 672 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 5504.36 s, end 5635.56 s, elapsed 131.20 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T16:28:07Z -> 2026-10-02T16:30:13Z and bash SECONDS elapsed 126 s, recorded only
+OUTCOME RECONCILIATION itest-dropout-01-q1: published=2016 with_logged_outcome=2016 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=2016 {'accepted': 2016, 'rejected': 0, 'duplicate': 0, 'failed': 0, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dropout-01-q1",
+        "last_seq": 179,
+        "last_message_id": "81ae9371-0fc6-5649-a7f6-af0f68a0bf3f",
+        "last_ts": "2026-10-02T16:27:09.096Z",
+        "accepted_count": 1394
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dropout-01-q1",
+        "last_seq": 35,
+        "last_message_id": "a81a6855-a928-5b5f-b17b-3599fca1408e",
+        "last_ts": "2026-10-02T16:27:05.096Z",
+        "accepted_count": 266
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dropout-01-q1",
+        "last_seq": 1799,
+        "last_message_id": "4778f60b-6956-5e57-8621-c0bcb549d5d9",
+        "last_ts": "2026-10-02T16:27:09.997Z",
+        "accepted_count": 13324
+      }
+    }
+  }
+}
+WARNING: 1 warning(s) in the row above; the exit status does not reflect them
+{
+  "run_id": "itest-dropout-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 2016,
+  "sent_valid": 2016,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 2016,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 2016,
+  "latency_count": 2016,
+  "latency_ms_p50": 3183.696616,
+  "latency_ms_p95": 6572.947412,
+  "latency_ms_max": 7448.792272,
+  "marker_lag_s": 0.14,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 2016,
+    "intended_invalid": 0,
+    "buffered_dropout": 165,
+    "dropout_disconnects": 3
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": [
+    "dropout run without simulator-manifest totals (logs/simulator/.../manifest.json): dropout_disconnects and buffered_dropout not verifiable; the C10 acceptance criterion fails for this run (work order P1b)"
+  ]
+}
+5689c879-5f50-49ed-8303-0d42c4898beb smartwatch: existed_before=True accepted_count 1214 -> 1394 (delta 180); accepted records in events.jsonl 180; last_run_id itest-dropout-01-q1 last_seq 179: OK
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9 smart_ring: existed_before=True accepted_count 230 -> 266 (delta 36); accepted records in events.jsonl 36; last_run_id itest-dropout-01-q1 last_seq 35: OK
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 smart_clothing: existed_before=True accepted_count 11524 -> 13324 (delta 1800); accepted records in events.jsonl 1800; last_run_id itest-dropout-01-q1 last_seq 1799: OK
+/metrics accepted: 12365 -> 14381 (delta 2016); events.jsonl 2016: OK
+/metrics rejected: 67 -> 67 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 672 -> 672 (delta 0); events.jsonl 0: OK
+/metrics failed: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics dropped: 0 -> 0 (delta 0)
+TEST STATUS itest-dropout-01-q1: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.
+[ "$RT" = 0 ] && python3 -c "import json;m=json.load(open('$HOME/egw-tcg/itest/$R/manifest.json'));print(m.get('note'))" || stop "test 5: not evaluated (RT='$RT')"
+dropout-reconnect performs a real client disconnect with buffered redelivery: at each deterministic window the simulator drops its MQTT connection (client disconnect, socket closed); events scheduled inside the window are still generated on schedule and buffered locally in order; at window end the client reconnects and flushes the buffer in order before resuming live publishing. Every generated event is published exactly once, seq stays strictly monotonic and gap-free, and buffered events carry a late publish_monotonic_ns (the actual publish instant). PUBACK capture stays best-effort (CONTRACTS.md section 7, v1.1). Broker-side/network-level faults remain test-harness territory.
+if [ "$RT" != 0 ]; then stop "test 5: broker log NOT read (RT='$RT')"; elif ! sut_log broker $R "$T0_5"; then stop "test 5: the broker log bounded to this test was NOT read - it shows no connection or disconnection, nor their absence"; elif grep -E "egw-simulator-$R" ~/egw-tcg/itest/$R.sut/broker.log > ~/egw-tcg/itest/$R.broker.txt && [ -s ~/egw-tcg/itest/$R.broker.txt ]; then wc -l ~/egw-tcg/itest/$R.broker.txt; else stop "test 5: the broker log bounded to this test holds no line of the client egw-simulator-$R, or $R.broker.txt could not be written"; fi     # the excerpt is taken from the log of THIS test (sut_log: [T0_5, the guest's clock at the read]), never from the broker's whole history, where an earlier execution's lines of the same client id would be counted
+proof_fetch_sut_log: broker: bounds since_guest_epoch=1790958133 (2026-10-02T16:22:13Z) until_guest_epoch=1790958614 (2026-10-02T16:30:14Z) first=2026-10-02T16:22:24.766413258Z last=2026-10-02T16:30:12.539016710Z excluded_before_since_lines=1991 excluded_sha256=1575dd94f56c9a14618f7ace653153a0438625d6f2fc7cc5b2e8753437250ee8 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: broker: 53 line(s), 6811 bytes, sha256 da60bf46d987e511f9d03c9f8eec5152b376ebc3e0fed6a6afb79f6003c403bd, written to /home/ruisth/egw-tcg/itest/itest-dropout-01-q1.sut/broker.log
+8 /home/ruisth/egw-tcg/itest/itest-dropout-01-q1.broker.txt

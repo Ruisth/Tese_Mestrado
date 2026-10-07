@@ -1,0 +1,111 @@
+script run: sha256 42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034 (<S>/g3/s3bprep/g3_battery.sh, run in place; the checker beside it: s3b_preflight_exception.py sha256 ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95, the script's EXCEPTION_SHA ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95)
+## 2026-10-05T11:33:32Z scenario e5a; host uptime 655.39 s; row files: the real <S>/g3/s3bprep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3b_run.sh 5c9fca40ebc3a0a6, bs3b_setup.sh 33eb543d7a71ad5f, bs3b_env.sh d1c6d829b8397f43, bs3b_stubs.py 047420a051837d7e, bs3b_fixture.sh 43b1a1d601fd91ac, bs3b_mutate.py a90d069fe9666026
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (the host's sleep and timeout)
+bench keepalive: the steps script's keepalive_check is answered by the bench's ps stub, which adds a SYNTHETIC client (pid 4194301 'sleep 43200', parent 4194300 'Relay(bench)'; no process) to the listing that check reads; the bench starts and ends no client; processes 'sleep N' with N of 3600 or more now on the host: 2
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+fixture: a copy of the exported package 20261005T105656Z_live-preflight_attempt11 (output_test/runs/2026-10-05; 43 files; the copy matches the package's own SHA256SUMS, 42 files); the driver console (sha256 bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c, the operator script's S3-preflight.console.txt) without its last line 'preflight.sh exit=3'; last line now: DRIVER RESULT 20261005T105656Z_live-preflight_att
+fixture variant capture-failures: attempt.json capture_failures = [{'step': 'collector-live', 'seq': 13, 'note': "bench: the console capture of 'collector-live' was lost"}]
+FIXTURE 20261005T105656Z_live-preflight_attempt11: attempt.json 487b32a029107e3e45f8ccb4e58f82ad7d83b770dbf7862ab318c8c48273cdb5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree d65c9599c83f69e56073d963363469eb6333705f4541ac60bb60a6e60fd68a53
+FIXTURE console: sha256 2d3310755706fc526aadc26e70cc898e219ff1002326369dfd93b2b2a8941e71; its DRIVER RESULT line: DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation...
+--- the driver console the script will keep (the fixture's console plus the line 'preflight.sh exit=3' its run_driver appends): sha256 bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c (the real console's)
+EXPECTED: attempt.json records one capture failure. The checker refuses (exit 1, 'EXCEPTION DOES NOT APPLY: ... - the halt stands'); open halts 'the authorised exception does NOT apply'; no 'PROCEEDED UNDER' line, no preflight_exception key, no environment copy, no gate; the preflight attempt is not modified; then 'close' closes.
+
+=== g3_battery.sh open S3
+-> exit 1
+## 2026-10-05T11:33:34Z up=657 open S3: steps script <S>/g3/s3bprep/g3_battery.sh sha256 42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034
+EGW_EXEC_REPO=<bench>/repo EXEC=<bench>/egw-exec SESSION=<none> (the three values of the operator procedure); STATE=<bench>/egw-exec/g3-t8t9-s3-attempt02 ROWS=<S>/g3/s3bprep/rows OUT=<bench>/out
+## 2026-10-05T11:33:34Z up=657 candidate identities
+## 2026-10-05T11:33:34Z up=657 row files of S3 against <S>/g3/s3bprep/rows/rows.manifest.json
+## 2026-10-05T11:33:34Z up=657 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T11:33:34Z up=657 guest root file system before the boot
+rootfs ext4: b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093  <bench>/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093 (the value the close of S3's first opening recorded)
+## 2026-10-05T11:33:34Z up=657 keepalive
+keepalive: pid 305 'sleep 43200', parent 304 (Relay(305)), running for 655 s, about 42545 s left
+keepalive: pid 308 'sleep 43202', parent 307 (Relay(308)), running for 655 s, about 42547 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 61 s, about 43139 s left
+keepalive: attached, about 43139 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T11:33:34Z up=657 UP0=657 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T11:33:34Z up=657 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/egw-exec/g3-t8t9-s3-attempt02/S3-guest_session_open.console.txt)
+DRIVER RESULT 20261005T113334Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+guest_session_open.sh exit=0
+## 2026-10-05T11:33:35Z up=658 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/egw-exec/g3-t8t9-s3-attempt02/S3-preflight.console.txt)
+TUNNEL UP
+DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=inconclusive export=exported
+preflight.sh exit=3
+## 2026-10-05T11:33:35Z up=658 preflight.sh exited 3: the authorised T8/T9 exception for collector-duration is examined (read-only)
+ok: driver result: 20261005T105656Z_live-preflight_attempt11 exit=3 failed, invalid, inconclusive, exported
+ok: attempt directory is the driver's: 20261005T105656Z_live-preflight_attempt11
+EXCEPTION DOES NOT APPLY: attempt.json records capture failures: [{'note': "bench: the console capture of 'collector-live' was lost", 'seq': 13, 'step': 'collector-live'}] - the halt stands
+HALT: preflight.sh exited 3 and the authorised exception does NOT apply (checker exit 1; see <bench>/egw-exec/g3-t8t9-s3-attempt02/S3-preflight-exception.txt and <bench>/egw-exec/g3-t8t9-s3-attempt02/S3-preflight.console.txt)
+The session state is 'halted' and nothing was closed. If '<bench>/egw-exec/current_session' exists the guest is UP: decide, then run 'close'.
+CHECK ok: exit status 1: open S3 (a halt)
+CHECK ok: the expected root file system is the second opening's (b48b010d...)
+CHECK ok: the root file system read (the stub) is that value
+CHECK ok: the state directory is the script's new default (EGW_G3_STATE unset)
+CHECK ok: the session's state file in the default state directory g3-t8t9-s3-attempt02: exists
+CHECK ok: steps_script_sha256 recorded by open: 42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034
+CHECK ok: the keepalive check of open found the bench's synthetic client (the ps stub; no process)
+CHECK ok: the halt of open
+CHECK ok: the exception is examined
+CHECK ok: the checker's last line
+CHECK ok: the checker's record in the state directory ends with that line
+CHECK ok: the checker does not apply the exception
+CHECK ok: no line 'PROCEEDED UNDER THE AUTHORISED T8/T9 EXCEPTION'
+CHECK ok: preflight_exception lines in the session's state file: 0
+CHECK ok: preflight_exit recorded: 3
+CHECK ok: preflight_attempt recorded (the attempt the DRIVER RESULT line names): <bench>/egw-exec/attempts/20261005T105656Z_live-preflight_attempt11
+CHECK ok: the session's state: halted
+CHECK ok: halts recorded for the session: 1
+CHECK ok: the operator's next step
+CHECK ok: no environment copy (its heading)
+CHECK ok: the environment copy's record in the state directory: absent
+CHECK ok: the harness input sut_environment.json (sha256 unchanged since the setup): 4c14c3a001c131bda2cec90c13cd0ef30e65fb5a718e875b9fe6febf4f8e05e6
+CHECK ok: kept copies of the harness input: 0
+CHECK ok: sut_environment keys in the session's state file: 0
+CHECK ok: the gate driver is NOT run
+CHECK ok: the gate driver's console: 0
+CHECK ok: gate attempts created: 0
+CHECK ok: gate_health_exit in the session's state file: 0
+CHECK ok: the guest listing is NOT run
+CHECK ok: attempts of 'live preflight' in the attempts directory (the fixture's only; the stub created none): 1
+CHECK ok: the driver console kept by the script: bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c
+CHECK ok: after open: the preflight attempt 20261005T105656Z_live-preflight_attempt11 in the attempts directory, against the fixture it was copied from: attempt.json 487b32a029107e3e45f8ccb4e58f82ad7d83b770dbf7862ab318c8c48273cdb5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree d65c9599c83f69e56073d963363469eb6333705f4541ac60bb60a6e60fd68a53
+CHECK ok: an open session (current_session): exists
+--- the fake process that stands for QEMU after the halted open: pid 22611 alive, start tick 65792
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-05T11:33:35Z up=658 close S3: <bench>/egw-exec/attempts/20261005T113334Z_guest-session_attempt01
+keepalive: pid 305 'sleep 43200', parent 304 (Relay(305)), running for 656 s, about 42544 s left
+keepalive: pid 308 'sleep 43202', parent 307 (Relay(308)), running for 656 s, about 42546 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 62 s, about 43138 s left
+keepalive: attached, about 43138 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T11:33:35Z up=658 no recorder or collector unit active (read-only)
+## 2026-10-05T11:33:35Z up=658 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-05T11:33:35Z up=658 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/egw-exec/g3-t8t9-s3-attempt02/S3-guest_session_close.console.txt)
+DRIVER RESULT 20261005T113334Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+guest_session_close.sh exit=0
+## 2026-10-05T11:33:36Z up=659 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close (the stub guest answers)
+CHECK ok: the session is closed
+CHECK ok: the recorded stop with the 130 s allowance was run
+CHECK ok: the session's state after close: closed
+CHECK ok: halts recorded for the session after close (no new one): 1
+CHECK ok: an open session (current_session) after close: absent
+CHECK ok: the fake QEMU after close: not running
+CHECK ok: preflight_exception lines after close: 0
+CHECK ok: after close: the preflight attempt 20261005T105656Z_live-preflight_attempt11 in the attempts directory, against the fixture it was copied from: attempt.json 487b32a029107e3e45f8ccb4e58f82ad7d83b770dbf7862ab318c8c48273cdb5 commands.jsonl 09a06a54185d2724ddb308668398c70bcf3e622d70eba875c3545649759631b9 tree d65c9599c83f69e56073d963363469eb6333705f4541ac60bb60a6e60fd68a53
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+CHECK ok: the prepared checker after the scenario: ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95
+
+## 2026-10-05T11:33:37Z SCENARIO e5a: PASS (44 checks)

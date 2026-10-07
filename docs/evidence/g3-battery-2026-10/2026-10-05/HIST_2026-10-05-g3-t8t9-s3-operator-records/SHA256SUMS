@@ -1,0 +1,14 @@
+9071b011a83f582db30a8f30489d3339f362435e847eb6ad9fc058fc89ee30b6  ./README.md
+3c000e9044b6333b15f6c37f2786bbd0e1dac47f5e7fc7932a1dc5e82dba9191  ./operator/classification-notes/S3-halt-at-open.md
+83950a9f532d84ab1057234062e1be882cbd62dda88e4a385603eee0529c0716  ./operator/g3_go.sh
+b1324eff4ca16692c61fd43961a4f628757be115d75ccbc23a55e7250d4afbaf  ./operator/g3_wait.sh
+5429aacea1abf854002278bf666e5e4bca153f114a6e713b9183f8ed73a31691  ./operator/seal_ops.sh
+a77bd201a54d02620e625a620d2da796a8834289ec67daa808ed15324950f5cb  ./state/S3-g3_battery.sh
+5ca1c6e54a6af56275177ea932084b7f2eeb9b66e70fac7cf63a0e05dda04868  ./state/S3-guest_session_close.console.txt
+5dfb6ab48f28c6df09124dfc98bfc4dd8516ce7a72a5702c43ab2c1e86c6d205  ./state/S3-guest_session_open.console.txt
+bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c  ./state/S3-preflight.console.txt
+678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d  ./state/S3-rows.manifest.json
+3bac20158418607fab50a944ca935738e5f13a936d5f6f54fb7ab3cf0bbc441d  ./state/console/001-open-S3.txt
+b8516ad1a5a810dd1dab9ea16757a4d9c16a9b6cf6adc5c7cec3882bb16d0cf6  ./state/console/002-close-S3.txt
+798746478a7f5d9c0efc7bd5eff1f316601482085d099548c22bb8f5d2a49c7c  ./state/session-S3.env
+522b5d91769130b71d4f2520aba50376779cd9178a44579a3a6b2d7ece50364f  ./state/turn.env

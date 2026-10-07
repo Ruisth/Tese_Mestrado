@@ -1,0 +1,58 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-02T16:21:59.381033Z",
+  "emulated": true,
+  "ended_utc": "2026-10-02T16:32:29.195841Z",
+  "expected_artefacts": [],
+  "headline": "G3 qualification t5: pass. PASS (packet section 5; decision 3, timed), with two points stated for review. itest-dropout-01-q1 (seed 42, scenario dropout-reconnect, 180 s, 2016 messages): PROCEDURE ...",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "close S1; the two stated points go to the Project Manager's review in the S1 result note",
+  "pid": 11183,
+  "purpose": "official",
+  "reason": "PASS (packet section 5; decision 3, timed), with two points stated for review. itest-dropout-01-q1 (seed 42, scenario dropout-reconnect, 180 s, 2016 messages): PROCEDURE COMPLETE, no STOP, empty stderr. The fault was delivered: dropout_disconnects 3, buffered_dropout 165 (simulator stderr and its manifest totals, which also carries the dropout scope note). Timed, controller-marker deadline: sent_valid 2016, delivered_unique 2016, lost 0, late_confirmations 0, duplicates 0, double_accepted 0, failed 0; latency p95 about 6.6 s, max about 7.4 s (ARM64 emulated, informational); every delta line OK (twins +180/+36/+1800; /metrics accepted +2016). The broker log bounded to this test was read (outside 0, unstamped 0, excluded_read_rc 0,0) and its excerpt holds 8 lines of the client egw-simulator-itest-dropout-01-q1: 4 'New client connected' lines and 4 'Client ... disconnected' lines. Gate after the row: pass. POINT 1, the Expected wording 'N+1 connections and N disconnections' (marked UNVERIFIED in the runbook): with N = 3 the log shows N+1 = 4 connections, the 3 disconnections of the dropout windows (16:25:04, 16:25:42, 16:26:18Z, each followed by a new connection) and one more disconnection line at 16:27:09Z, the client's own end when the simulator finished; the bounded read is taken after the run, so that last line is always inside it. I read the item as met (the three dropout disconnections and the four connections are shown); read literally, the count of disconnection lines is N+1, not N. POINT 2, the check's one warning: 'dropout run without simulator-manifest totals (logs/simulator/.../manifest.json) ... the C10 acceptance criterion fails for this run'. It concerns the campaign criterion C10 and the harness layout, which an ad-hoc run does not have; the totals themselves are in this run's own manifest and stderr (3 and 165) and in the reconcile's sim_totals. It is not an item of test 5's Expected list.",
+  "run_id": "20261002T162159Z_g3-qualification-t5_attempt01",
+  "scenario": "G3 qualification t5",
+  "seed": null,
+  "started_utc": "2026-10-02T16:21:59.671837Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "battery": "G3 qualifying battery (decision packet of 2026-10-01, revision 2; authorised 2026-10-02)",
+    "egw_clone": "/home/ruisth/egw-exec/repo",
+    "harness_run_id": null,
+    "helper_sha256": "e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb",
+    "host_uptime_at_row_start_s": 5109,
+    "host_uptime_baseline_s": 24,
+    "ids_note": null,
+    "itest_run_ids": [
+      "itest-dropout-01-q1"
+    ],
+    "row": "t5",
+    "row_ceiling_min": 38,
+    "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+    "runbook": {
+      "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+      "lines": 1614,
+      "path": "docs/setup/qemu_integrated_gateway.md",
+      "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae"
+    },
+    "session": "20261002T150133Z_guest-session_attempt08",
+    "session_elapsed_at_row_start_s": 5085,
+    "session_label": "S1",
+    "step_files": {
+      "t5.sh": "31572a360b1db5a2e7c39845421f80d6d66b4293d715b803b30f15de44ffe555"
+    },
+    "step_source_lines": {
+      "t5.sh": "1407-1409"
+    },
+    "steps_script_sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1"
+  }
+}

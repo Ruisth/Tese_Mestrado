@@ -1,0 +1,5 @@
+Client egw-acl-20261005T120642Z-p1-sim-pub sending CONNECT
+Client egw-acl-20261005T120642Z-p1-sim-pub received CONNACK (0)
+Client egw-acl-20261005T120642Z-p1-sim-pub sending PUBLISH (d0, q1, r0, m1, 'c2dt/acl-probe/20261005T120642Z', ... (48 bytes))
+Client egw-acl-20261005T120642Z-p1-sim-pub received PUBACK (Mid: 1, RC:0)
+Client egw-acl-20261005T120642Z-p1-sim-pub sending DISCONNECT

@@ -1,0 +1,123 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+  it differs from the final bytes (g3_battery.sh, sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-05T09:14:19Z scenario s9; host uptime 124.38 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh affd2cb43b5a4487, bs3_setup.sh 995fab22d656906d, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+bench keepalive: no keepalive client of wsl.exe runs on the host (2026-10-05) and the bench starts none: the steps script's keepalive_check is answered by the bench's ps stub, which adds a SYNTHETIC client (pid 4194301 'sleep 43200', parent 4194300 'Relay(bench)'; no process) to the listing that check reads; processes 'sleep N' with N of 3600 or more now on the host: 0
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: 'open S1' and 'open S2' are refused (authority consumed) and write nothing; with a second earlier attempt of row t8 'open S3' halts (NOT FRESH) while the recorded attempt01 is admitted; with an attempt of row t8 that the freshness check does not see (nested in a sealed package) the export tool numbers the new attempt attempt06: 'row t8' halts before any step.
+
+=== g3_battery.sh open S1
+-> exit 2
+REFUSED: session S1 is a session of the battery of 2026-10-02/03, whose authority is consumed (request of 2026-10-04): nothing of S1 or S2 is re-run or replaced. This script opens S3 only: g3_battery.sh open S3
+CHECK ok: exit status 2: open S1 (refused)
+CHECK ok: open S1 is refused: its authority is consumed
+
+=== g3_battery.sh open S2
+-> exit 2
+REFUSED: session S2 is a session of the battery of 2026-10-02/03, whose authority is consumed (request of 2026-10-04): nothing of S1 or S2 is re-run or replaced. This script opens S3 only: g3_battery.sh open S3
+CHECK ok: exit status 2: open S2 (refused)
+CHECK ok: open S2 is refused: its authority is consumed
+CHECK ok: state directory after the two refusals: absent
+--- bench: a second earlier attempt of row t8 is put in the attempts directory
+
+=== g3_battery.sh open S3
+-> exit 1
+## 2026-10-05T09:14:23Z up=128 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+## 2026-10-05T09:14:23Z up=128 candidate identities
+## 2026-10-05T09:14:23Z up=128 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:14:24Z up=129 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+NOT FRESH: an earlier attempt of row t8 exists: <bench>/egw-exec/attempts/20261004T101010Z_g3-qualification-t8_attempt02
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+HALT: an id of S3 is not fresh on the host; nothing was started
+CHECK ok: exit status 1: open S3 with another earlier attempt of row t8 (a halt)
+CHECK ok: the other earlier attempt is NOT FRESH
+CHECK ok: admitted lines for the recorded attempt01 (attempts directory and output root): 2
+CHECK ok: the halt of open
+CHECK ok: session state file written: no
+--- bench: that attempt is removed; an attempt05 of row t8 is put two levels down in a package of the output root, where the freshness check does not look and the export tool's numbering does
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-05T09:14:24Z up=129 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+## 2026-10-05T09:14:24Z up=129 candidate identities
+## 2026-10-05T09:14:24Z up=130 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:14:25Z up=130 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:14:25Z up=130 guest root file system before the boot
+## 2026-10-05T09:14:25Z up=130 keepalive
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 63 s, about 43137 s left
+keepalive: attached, about 43137 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:14:25Z up=131 UP0=130 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T09:14:25Z up=131 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-05T09:14:26Z up=131 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-05T09:14:27Z up=133 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-05T09:14:28Z up=134 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-05T09:14:29Z up=134 session S3 is open: <bench>/egw-exec/attempts/20261005T091426Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 18008 alive, start tick 13133
+
+=== g3_battery.sh row t8
+-> exit 1
+## 2026-10-05T09:14:29Z up=135 row t8 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 68 s, about 43132 s left
+keepalive: attached, about 43132 s left (needed: 9900 s). The Windows keep-awake stays the operator's own check.
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:14:31Z up=136 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261005T091427Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-05T09:14:32Z up=137 row t8: attempt <bench>/egw-exec/attempts/20261005T091431Z_g3-qualification-t8_attempt06 (ceiling 135 min, counted from the row's start at up=136 and shared by everything the row does: the operator enforces it with 'term t8')
+HALT: row t8: the new attempt is named 20261005T091431Z_g3-qualification-t8_attempt06, which does not end '_g3-qualification-t8_attempt02' (the name the request of 2026-10-04, section 3, expects): an attempt of this row exists that was not accounted for, or the admitted one is not where it is kept. No step of the row was run
+## 2026-10-05T09:14:33Z up=138 row t8 ended after 2 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S3: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+CHECK ok: exit status 1: row t8 (a halt before any step)
+CHECK ok: the halt of row t8
+recorded steps of row t8, in order: <none>
+CHECK ok: the steps of row t8 are the expected ones
+CHECK ok: reboot commands sent to the stub guest: 0
+--- the row's record: attempt_name=20261005T091431Z_g3-qualification-t8_attempt06
+
+=== g3_battery.sh classify t8 failed not-applicable not-run bench: scenario s9 bench: none
+-> exit 1
+## 2026-10-05T09:14:33Z up=138 classify t8: not started (failed, not-applicable/not-run)
+row t8: classified 'not started'; driver code 2; export: verified -> <bench>/out/runs/2026-10-05/20261005T091431Z_g3-qualification-t8_attempt06
+HALT: row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+NOTE: this row's gate did not pass (): no further row starts; 'close' and hand back to Rui.
+CHECK ok: row t8 is classified not started
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-05T09:14:34Z up=139 row t9 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=139 row=t8 row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval). In S3 a halt ends the session (decision summary, choice 2; request, section 5): classify the row if it awaits classification, then 'close', then hand back to Rui
+CHECK ok: exit status 2: row t9 after the halt of row t8 (refused: nothing was started)
+CHECK ok: row t9 is refused because of the recorded halt
+CHECK ok: attempts of row t9 created: 0
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-05T09:14:34Z up=139 close S3: <bench>/egw-exec/attempts/20261005T091426Z_guest-session_attempt01
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 72 s, about 43128 s left
+keepalive: attached, about 43128 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:14:34Z up=139 no recorder or collector unit active (read-only)
+## 2026-10-05T09:14:34Z up=139 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-05T09:14:34Z up=139 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/state/S3-guest_session_close.console.txt)
+## 2026-10-05T09:14:34Z up=140 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-05T09:14:35Z SCENARIO s9: PASS (23 checks)

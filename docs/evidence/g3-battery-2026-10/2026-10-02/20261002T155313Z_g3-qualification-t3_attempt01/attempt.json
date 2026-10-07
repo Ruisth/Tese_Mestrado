@@ -1,0 +1,58 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-02T15:53:13.063320Z",
+  "emulated": true,
+  "ended_utc": "2026-10-02T16:01:32.617118Z",
+  "expected_artefacts": [],
+  "headline": "G3 qualification t3: pass. PASS (packet section 5; decision 3, T3 not timed). itest-invalid-01-q1 (seed 42, scenario invalid-payload, 120 s, 1344 messages, 67 intended invalid): the run id was fres...",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "row t4-replay",
+  "pid": 6653,
+  "purpose": "official",
+  "reason": "PASS (packet section 5; decision 3, T3 not timed). itest-invalid-01-q1 (seed 42, scenario invalid-payload, 120 s, 1344 messages, 67 intended invalid): the run id was fresh on the host and on the guest (F3 fresh), PROCEDURE COMPLETE, no STOP, empty stderr. The copy fetched after the final drain equals the guest's log byte for byte and was kept write-once as itest-invalid-01-q1.events.post-drain.jsonl (C3 ok). Acceptance by the end of the drain: valid 1277, accepted 1277, never accepted 0 (exit 0). intended_invalid 67, rejected 67, intended_invalid accepted 0, valid rejected 0; every delta line OK (twins 114/23/1140; /metrics accepted +1277, rejected +67). The 67 rejections are in the controller log bounded to this run (lines 1449, rejected 67; first error: schema validation failed, accel_y not a number). Reported, deciding nothing for T3: lost 0, late_confirmations 0, double_accepted 0, failed 0. Gate after the row: pass.",
+  "run_id": "20261002T155313Z_g3-qualification-t3_attempt01",
+  "scenario": "G3 qualification t3",
+  "seed": null,
+  "started_utc": "2026-10-02T15:53:13.364816Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "battery": "G3 qualifying battery (decision packet of 2026-10-01, revision 2; authorised 2026-10-02)",
+    "egw_clone": "/home/ruisth/egw-exec/repo",
+    "harness_run_id": null,
+    "helper_sha256": "e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb",
+    "host_uptime_at_row_start_s": 3285,
+    "host_uptime_baseline_s": 24,
+    "ids_note": null,
+    "itest_run_ids": [
+      "itest-invalid-01-q1"
+    ],
+    "row": "t3",
+    "row_ceiling_min": 37,
+    "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+    "runbook": {
+      "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+      "lines": 1614,
+      "path": "docs/setup/qemu_integrated_gateway.md",
+      "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae"
+    },
+    "session": "20261002T150133Z_guest-session_attempt08",
+    "session_elapsed_at_row_start_s": 3261,
+    "session_label": "S1",
+    "step_files": {
+      "t3.sh": "9731c836d334d9534109d8da738b63243c483286303016ba7df1ad42371497f6"
+    },
+    "step_source_lines": {
+      "t3.sh": "1345-1373"
+    },
+    "steps_script_sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1"
+  }
+}

@@ -1,0 +1,11 @@
+--- first-preparation/ops/seal_ops_finish.sh
++++ ops/seal_ops_finish.sh
+@@ -58,7 +58,7 @@
+     rm -f "$PKG/state/turn.lock"; EARLIER="$EARLIER; the copy of the turn lock (state/turn.lock) was removed, as seal_ops.sh does"
+ fi
+ # Is the copy complete? It is compared, by content, with the state directory as it stands now.
+-STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3}
++STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3-attempt02}   # S3, second opening: a fresh state directory
+ if [ -d "$STATE" ]; then
+     DIFF=$(diff -rq -x turn.lock "$STATE" "$PKG/state" 2>&1)
+     if [ $? -eq 0 ]; then CMP="state/ is identical to the state directory as it stood at finishing (diff -rq, the turn lock aside)"

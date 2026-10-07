@@ -1,0 +1,11 @@
+2026-10-07T12:08:28Z start: collector_sha256=9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97 host=egw-qemu-integrated source=auto interval=1s duration=45s uptime_s=254.44 boot_id=85783f36-2a51-42bc-998b-294cc51510db pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
+2026-10-07T12:08:28Z sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+2026-10-07T12:08:30Z calibrated: wall second 1791374910 began at uptime 255.51 s (calibration 1)
+2026-10-07T12:08:41Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:08:39Z)
+2026-10-07T12:08:41Z clock phase: aimed at second 2026-10-07T12:08:40Z and sampled in 2026-10-07T12:08:41Z; recalibrating
+2026-10-07T12:08:42Z calibrated: wall second 1791374922 began at uptime 266.38 s (calibration 2)
+2026-10-07T12:09:14Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:09:12Z)
+2026-10-07T12:09:14Z clock phase: aimed at second 2026-10-07T12:09:13Z and sampled in 2026-10-07T12:09:14Z; recalibrating
+2026-10-07T12:09:15Z calibrated: wall second 1791374955 began at uptime 298.23 s (calibration 3)
+2026-10-07T12:09:16Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0
+2026-10-07T12:09:16Z stop: samples=46 utc_gap_seconds=2 withheld_samples=0 withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=3 pacing=wall-clock uptime_s=299.98 boot_id=85783f36-2a51-42bc-998b-294cc51510db

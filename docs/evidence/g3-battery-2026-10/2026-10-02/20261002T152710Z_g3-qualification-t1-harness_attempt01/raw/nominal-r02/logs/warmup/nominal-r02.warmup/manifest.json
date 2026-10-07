@@ -1,0 +1,49 @@
+{
+  "protocol_version": "1.0",
+  "simulator_version": "0.1.0",
+  "scenario": "nominal",
+  "seed": 246295039,
+  "run_id": "nominal-r02.warmup",
+  "egw_id": "egw-01",
+  "devices": [
+    {
+      "device_type": "smartwatch",
+      "device_uuid": "06137ec3-bc0c-4b85-a112-803c31eabd15"
+    },
+    {
+      "device_type": "smart_ring",
+      "device_uuid": "5c80bff6-3931-4a2e-bd03-4b888142ea2b"
+    },
+    {
+      "device_type": "smart_clothing",
+      "device_uuid": "ade9be58-7249-4968-89f5-c02b6e8b2079"
+    }
+  ],
+  "rates_hz": {
+    "aggregate": 11.2,
+    "per_device": {
+      "smartwatch": 1.0,
+      "smart_ring": 0.19999999999999998,
+      "smart_clothing": 10.0
+    }
+  },
+  "duration_s": 120.0,
+  "qos": 1,
+  "broker": {
+    "host": "127.0.0.1",
+    "port": 8883,
+    "tls": true,
+    "ca_cert": "/home/ruisth/egw-tcg/ca.crt"
+  },
+  "git_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+  "started_utc": "2026-10-02T15:29:35.124Z",
+  "finished_utc": "2026-10-02T15:31:28.124Z",
+  "completed": true,
+  "totals": {
+    "sent": 1344,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "note": null
+}

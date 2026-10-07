@@ -1,0 +1,4 @@
+container=egw-controller-1
+container_id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787
+started_at=2026-10-07T12:19:27.194536889Z
+guest_epoch=1791376329

@@ -1,0 +1,2 @@
+proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 1791035658 (2026-10-03T13:54:18Z) to the stop request; expected=die,stop,start of egw-mongodb-1; the rules are in /home/ruisth/egw-tcg/itest/itest-mongo-fault-01-q1.sut/docker-events.coverage.txt
+proof_fetch_sut_log: docker-events: 430 line(s), 826513 bytes, sha256 3d7815161d8ebd8de07791c90533390765484c145ccb6689ec3eb60537318858, written to /home/ruisth/egw-tcg/itest/itest-mongo-fault-01-q1.sut/docker-events.log

@@ -1,0 +1,35 @@
+{
+  "run_id": "itest-dropout-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 2016,
+  "sent_valid": 2016,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 2016,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 2016,
+  "latency_count": 2016,
+  "latency_ms_p50": 3183.696616,
+  "latency_ms_p95": 6572.947412,
+  "latency_ms_max": 7448.792272,
+  "marker_lag_s": 0.14,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 2016,
+    "intended_invalid": 0,
+    "buffered_dropout": 165,
+    "dropout_disconnects": 3
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": [
+    "dropout run without simulator-manifest totals (logs/simulator/.../manifest.json): dropout_disconnects and buffered_dropout not verifiable; the C10 acceptance criterion fails for this run (work order P1b)"
+  ]
+}

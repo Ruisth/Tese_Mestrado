@@ -1,0 +1,16 @@
+## 2026-10-04T21:44:45Z reference (the first file this stream wrote in WSL): 2026-10-04 22:20:53.342656854 +0100
+entries under ~/egw-exec (venv apart), ~/egw-tcg and ~/egw-images newer than the reference:
+(end of list)
+entries under ~/yocto, to depth 4, newer than the reference:
+(end of list)
+compiled python files of the venv newer than the reference: 0
+  2026-10-03 15:39:17  /home/ruisth/egw-exec
+  2026-10-03 15:23:10  /home/ruisth/egw-exec/attempts
+  2026-10-03 15:39:43  /home/ruisth/egw-exec/g3-battery
+  2026-10-03 15:38:48  /home/ruisth/egw-tcg
+  2026-10-03 15:25:35  /home/ruisth/egw-tcg/itest
+  2026-10-02 12:49:58  /home/ruisth/egw-exec/repo/.git/index
+~/egw-exec/g3-t8t9-s3 exists: no; ~/egw-exec/current_session exists: no
+execution clone HEAD: 80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+qemu-system-aarch64 processes: 0; processes of this stream's benches: 0
+benches of this stream in WSL: /tmp/g3-s3-op-a /tmp/g3-s3-op-b /tmp/g3-s3-op-f1 /tmp/g3-s3-op-f2 /tmp/g3-s3-op-l1 /tmp/g3-s3-op-l2 /tmp/g3-s3-op-n1-gate /tmp/g3-s3-op-n1-kernel /tmp/g3-s3-op-n1-name /tmp/g3-s3-op-n1-noreboot /tmp/g3-s3-op-n2-gate /tmp/g3-s3-op-n2-kernel /tmp/g3-s3-op-n2-name /tmp/g3-s3-op-n2-noreboot /tmp/g3-s3-op-n3-gate /tmp/g3-s3-op-n3-kernel /tmp/g3-s3-op-n3-name /tmp/g3-s3-op-n3-noreboot /tmp/g3-s3-op-s1 /tmp/g3-s3-op-s2 /tmp/g3-s3-op-s3 

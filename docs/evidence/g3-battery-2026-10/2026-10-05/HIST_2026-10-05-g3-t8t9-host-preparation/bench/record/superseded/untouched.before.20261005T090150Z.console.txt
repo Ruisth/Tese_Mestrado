@@ -1,0 +1,5 @@
+## 2026-10-04T22:09:27Z bs3_untouched.sh before (HOME=/home/ruisth)
+entries of ~/egw-exec and ~/egw-tcg: 18681; sha256 of the listing: 028de9d12b699427316549664f6f712864a9a23c54af97d501ffa1b0ec642aba
+clone HEAD: 80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+/tmp entries: g3-s3-bench g3-s3-op-a g3-s3-op-b g3-s3-op-f1 g3-s3-op-f2 g3-s3-op-l1 g3-s3-op-l2 g3-s3-op-n1-gate g3-s3-op-n1-kernel g3-s3-op-n1-name g3-s3-op-n1-noreboot g3-s3-op-n2-gate g3-s3-op-n2-kernel g3-s3-op-n2-name g3-s3-op-n2-noreboot g3-s3-op-n3-gate g3-s3-op-n3-kernel g3-s3-op-n3-name g3-s3-op-n3-noreboot g3-s3-op-s1 g3-s3-op-s2 g3-s3-op-s3 snap-private-tmp systemd-private-a3554b82fdf84a4d9122024f6040bd4e-systemd-logind.service-9iticc systemd-private-a3554b82fdf84a4d9122024f6040bd4e-systemd-resolved.service-xgqbOO systemd-private-a3554b82fdf84a4d9122024f6040bd4e-systemd-timesyncd.service-4XrMib systemd-private-a3554b82fdf84a4d9122024f6040bd4e-wsl-pro.service-DsTsOo 
+marker: /tmp/g3-s3-bench/.started made at 2026-10-04T22:09:28Z

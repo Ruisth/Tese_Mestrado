@@ -1,0 +1,48 @@
+{
+  "run": "preflight-20261007T120444Z",
+  "deployed_sha256": "9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97",
+  "rows_per_service": {
+    "egw-mosquitto-1": 45,
+    "egw-ditto-things-1": 45,
+    "egw-ditto-policies-1": 45,
+    "egw-mongodb-1": 45,
+    "egw-ditto-gateway-1": 45,
+    "egw-controller-1": 45
+  },
+  "unexpected_names": [],
+  "distinct_instants": 45,
+  "distinct_instants_in_window": 45,
+  "window": [
+    "2026-10-07T12:08:28Z",
+    "2026-10-07T12:09:16Z"
+  ],
+  "window_seconds": 48,
+  "start_line": "2026-10-07T12:08:28Z start: collector_sha256=9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97 host=egw-qemu-integrated source=auto interval=1s duration=45s uptime_s=254.44 boot_id=85783f36-2a51-42bc-998b-294cc51510db pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "stop_line": "2026-10-07T12:09:16Z stop: samples=46 utc_gap_seconds=2 withheld_samples=0 withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=3 pacing=wall-clock uptime_s=299.98 boot_id=85783f36-2a51-42bc-998b-294cc51510db",
+  "inventory": "2026-10-07T12:09:16Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0",
+  "declared_expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "declared_interval_s": 1.0,
+  "declared_duration_s": 45.0,
+  "declared_duration_shortfall_s": null,
+  "monotonic_bounds": {
+    "start_uptime_s": "254.44",
+    "stop_uptime_s": "299.98",
+    "start_boot_id": "85783f36-2a51-42bc-998b-294cc51510db",
+    "stop_boot_id": "85783f36-2a51-42bc-998b-294cc51510db"
+  },
+  "rounds_the_declared_interval_implies": 49,
+  "samples": 46,
+  "closing_counters": {
+    "utc_gap_seconds": "2",
+    "withheld_samples": "0",
+    "withheld_elapsed_s": "0.00",
+    "withheld_runs_unmeasured": "0",
+    "withheld_open_at_stop": "0"
+  },
+  "closing_record_reconciliation": "run",
+  "resource_validation": "run",
+  "observations": [
+    "the collector reports utc_gap_seconds=2: 2 second(s) of UTC, beyond one interval, in which no sample was stamped. A wall clock stepped forward adds to it although no time passed unsampled (collect-resources.sh), so it is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it"
+  ],
+  "problems": []
+}

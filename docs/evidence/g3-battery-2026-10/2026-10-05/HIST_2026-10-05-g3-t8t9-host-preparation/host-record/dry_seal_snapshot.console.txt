@@ -1,0 +1,39 @@
+snapshot of the preparation folder at 2026-10-04T21:33:51Z; seal_prep.sh sha256 68a2cf0462ec639f4abe43f8d19a693fed2cdfc87f47759ef824eb7a3d79d589
+placeholder (not delivered yet): operator-notes.md
+placeholder (not delivered yet): bench-notes.md
+placeholder (not delivered yet): bench/record/
+placeholder (the host preparation has not run): record/console.txt
+of the preparation folder, not copied: operator-procedure.battery.md base; of ops/, only the four scripts are copied
+secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+secret sweep: PEM private-key headers -> 0 file(s)
+sealed 83 files; seal 7c9355255e77; record outcome: outcome=prepared (at 2026-01-01T00:00:00.000Z)
+seal_prep.sh exit=0
+sha256sum -c: verified (83 files)
+top level of the package:
+    README.md
+    SHA256SUMS
+    bench
+    g3_battery.README.md
+    g3_battery.sh
+    g3_check_rows.sh
+    g3_extract_rows.py
+    g3_hostprep.sh
+    g3_rows_dryrun.sh
+    host-record
+    operator-procedure.md
+    operator-record
+    ops
+    part1-record
+    prep_brief.md
+    rows
+    rows-record
+    runbook.8e49261.md
+    seal_prep.sh
+    verification
+verification/:
+    bench-notes.md
+    diffs
+    host-notes.md
+    operator-notes.md
+    rows-notes.md
+throw-away tree removed

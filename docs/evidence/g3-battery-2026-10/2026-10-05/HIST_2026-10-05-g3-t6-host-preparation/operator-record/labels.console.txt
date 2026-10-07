@@ -1,0 +1,86 @@
+
+=== bench labels: script under test 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (g3_battery.sh of the preparation, run in place)
+drivers of the copy before the stubs: 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+helpers e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb, tunnel.sh 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (from the runbook blob 317165936abe...)
+
+=== g3_battery.sh open S1
+-> exit 2
+REFUSED: session S1 is a session of the battery of 2026-10-02/03, whose authority is consumed: nothing of S1 or S2 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4
+CHECK ok: exit status 2: 'open S1' refused
+
+=== g3_battery.sh open S2
+-> exit 2
+REFUSED: session S2 is a session of the battery of 2026-10-02/03, whose authority is consumed: nothing of S1 or S2 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4
+CHECK ok: exit status 2: 'open S2' refused
+
+=== g3_battery.sh open S3
+-> exit 2
+REFUSED: session S3 (tests 8 and 9, 2026-10-05) is closed and its authority is consumed: nothing of S3 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4
+CHECK ok: exit status 2: 'open S3' refused
+
+=== g3_battery.sh open S5
+-> exit 2
+REFUSED: usage: g3_battery.sh open S4
+CHECK ok: exit status 2: 'open S5' refused
+
+=== g3_battery.sh open
+-> exit 2
+REFUSED: usage: g3_battery.sh open S4
+CHECK ok: exit status 2: 'open' refused
+
+=== g3_battery.sh row t8
+-> exit 2
+REFUSED: unknown row 't8' (S4: t6 only; the rows of S1, S2 and S3 are not run again)
+CHECK ok: exit status 2: 'row t8' refused
+
+=== g3_battery.sh row t9
+-> exit 2
+REFUSED: unknown row 't9' (S4: t6 only; the rows of S1, S2 and S3 are not run again)
+CHECK ok: exit status 2: 'row t9' refused
+
+=== g3_battery.sh row t1-harness
+-> exit 2
+REFUSED: unknown row 't1-harness' (S4: t6 only; the rows of S1, S2 and S3 are not run again)
+CHECK ok: exit status 2: 'row t1-harness' refused
+
+=== g3_battery.sh term t9
+-> exit 2
+REFUSED: unknown row 't9'
+CHECK ok: exit status 2: 'term t9' refused
+
+=== g3_battery.sh open S1
+-> exit 2
+REFUSED: session S1 is a session of the battery of 2026-10-02/03, whose authority is consumed: nothing of S1 or S2 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4
+CHECK ok: open S1: the battery's authority is consumed, S4 only
+
+=== g3_battery.sh open S3
+-> exit 2
+REFUSED: session S3 (tests 8 and 9, 2026-10-05) is closed and its authority is consumed: nothing of S3 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4
+CHECK ok: exit status 2: open S3 refused
+CHECK ok: open S3: its authority is consumed, S4 only
+
+=== g3_battery.sh open S2
+-> exit 2
+REFUSED: session S2 is a session of the battery of 2026-10-02/03, whose authority is consumed: nothing of S1 or S2 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4
+CHECK ok: open S2: the battery's authority is consumed, S4 only
+
+=== g3_battery.sh row t8
+-> exit 2
+REFUSED: unknown row 't8' (S4: t6 only; the rows of S1, S2 and S3 are not run again)
+CHECK ok: row t8: unknown row (S4: t6 only)
+
+=== g3_battery.sh classify t8 finished valid pass x y
+-> exit 2
+REFUSED: unknown row 't8'
+CHECK ok: exit status 2: classify t8 refused
+
+=== g3_battery.sh 
+-> exit 2
+usage: EGW_EXEC_REPO=$HOME/egw-exec/repo bash g3_battery.sh open S4 | row t6 | classify t6 <status> <validity> <outcome> <reason> <next-action> | term t6 | close | status
+CHECK ok: exit status 2: no subcommand: the usage
+CHECK ok: the usage names open S4 and row t6
+CHECK ok: no state directory was created by any refusal
+CHECK ok: no session was opened
+
+=== bench labels: 19 checks, 0 failed
+RESULT labels: PASS

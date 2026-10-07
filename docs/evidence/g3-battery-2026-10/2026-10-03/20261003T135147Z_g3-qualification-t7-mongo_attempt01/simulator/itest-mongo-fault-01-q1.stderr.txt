@@ -1,0 +1,3 @@
+egw_simulator: scenario=nominal seed=42 run_id=itest-mongo-fault-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=300.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=3360 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-mongo-fault-01-q1

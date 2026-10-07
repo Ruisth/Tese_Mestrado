@@ -1,0 +1,10 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1503-1516 (prompt removed)
++++ b/rows/t9-b.sh
+@@ -7 +7 @@
+-# egw-simulator-itest-auth-wrongpw, is (b)'s, never (c)'s. UNVERIFIED: whether the broker's "not authorised" line names
++# egw-simulator-itest-auth-wrongpw-q1, is (b)'s, never (c)'s. UNVERIFIED: whether the broker's "not authorised" line names
+@@ -13,2 +13,2 @@
+-if T0_9B=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"; else stop "test 9(b): the lower bound of (b)'s evidence was NOT read - the probe was NOT run"; fi
+-sut_log broker itest-auth-wrongpw "$T0_9B" && cat ~/egw-tcg/itest/itest-auth-wrongpw.sut/broker.log || stop "test 9(b): the broker log bounded to (b) was NOT read - (b) has no evidence (a read that failed shows no refusal)"
++if T0_9B=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw-q1 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"; else stop "test 9(b): the lower bound of (b)'s evidence was NOT read - the probe was NOT run"; fi
++sut_log broker itest-auth-wrongpw-q1 "$T0_9B" && cat ~/egw-tcg/itest/itest-auth-wrongpw-q1.sut/broker.log || stop "test 9(b): the broker log bounded to (b) was NOT read - (b) has no evidence (a read that failed shows no refusal)"

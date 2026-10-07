@@ -1,0 +1,74 @@
+## 2026-10-02T13:24:53Z script under test: /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 4c0819f140c253bab5d8dd7af695b6a92fb81e3c9b2920289b183e7fd3c569fa
+
+######## k (after3)
+bench ready: /tmp/g3-dry-fix/kafter3
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== close with no keepalive client (the bench's 'ps' hides them)
+## 2026-10-02T13:24:55Z up=735 close S1: egw-exec/attempts/20261002T132454Z_guest-session_attempt01
+KEEPALIVE: no 'exec sleep' client of wsl.exe with at least 1800 s left (best: -1 s; -1 = none).
+REFUSED: the keepalive client is not attached with 1800 s left (see above): nothing was stopped. Attach one, then 'close' again
+exit=2
+session: state=open; stop attempted: 0
+=== close with the keepalive back
+## 2026-10-02T13:24:55Z up=735 close S1: egw-exec/attempts/20261002T132454Z_guest-session_attempt01
+keepalive: pid 297 'sleep 43200', parent 289 (Relay(297)), running for 733 s, about 42467 s left
+keepalive: attached, about 42467 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-02T13:24:55Z up=735 no recorder or collector unit active (read-only)
+## 2026-10-02T13:24:55Z up=735 the recorded stop with the controller's 130 s allowance (PM condition 4)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 130
+## 2026-10-02T13:24:55Z up=735 guest_session_close.sh (frozen driver, repo/tools/session/guest_session_close.sh; console egw-exec/g3-battery/S1-guest_session_close.console.txt)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 60
+exported 20261002T132454Z_guest-session_attempt01: out/runs/2026-10-02/20261002T132454Z_guest-session_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT 20261002T132454Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+## 2026-10-02T13:24:55Z up=736 session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+
+######## h (after3)
+bench ready: /tmp/g3-dry-fix/hafter3
+=== open S1, row t1-smokes (to its end)
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t1-smokes <status> <validity> <outcome> <reason> <next-action>'.
+=== term t1-smokes when the listing of the row's group holds a QEMU line (made up)
+REFUSED: the recorded process group 16120 is this invocation's own
+exit=2
+halt lines of the session file: 0; of the row file: 0
+=== classify t1-smokes (its gate passed; the session now holds a halt)
+row t1-smokes: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-fix/hafter3/out/runs/2026-10-02/20261002T132458Z_g3-qualification-t1-smokes_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== row t1-harness
+Next: read the console and the files, then 'classify t1-harness <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+
+######## r (after3)
+bench ready: /tmp/g3-dry-fix/rafter3
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+--- 1. a recorder unit of an itest row
+exit=0
+BENCH events_capture.sh stub: cleanup itest-mongo-fault-01-q1 home/egw-tcg/itest/itest-mongo-fault-01-q1.sut/events-partial
+--- 1. a recorder unit of a harness row
+exit=0
+BENCH events_capture.sh stub: cleanup nominal-r02 home/egw-tcg/itest/nominal-r02.sut/events-partial
+--- 2. a service left stopped
+exit=0
+bench docker compose stub: compose --env-file .env --env-file images.lock.env start mongodb
+--- 3. the harness's collector
+exit=0
+bench systemctl stub: stop egw-resources-nominal-r02
+--- 4. the tunnel
+exit=0
+Exit request sent.
+TUNNEL CLOSED
+tunnel: no control socket at home/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+--- what reached the (stub) guest:
+ssh egw-tcg cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env start mongodb
+ssh egw-tcg sudo systemctl stop egw-resources-nominal-r02
+
+## 2026-10-02T13:25:03Z ended

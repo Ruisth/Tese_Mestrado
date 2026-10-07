@@ -1,0 +1,17 @@
+## 2026-10-05T19:57:30Z bs4_untouched.sh after (HOME=/home/ruisth); host uptime 6179.47 s
+entries of ~/egw-exec and ~/egw-tcg: 19216; sha256 of the listing: a3ab5c41b3c54eab5526a5217fc34c8fa4e657a35c0a4d8ff78ff402ae0ef8e2
+listing of ~/egw-exec and ~/egw-tcg (path, modification time, size of every entry): IDENTICAL before and after
+entries of output_test: 6266; sha256 of the listing: 87633ddcdb881aabd9a709199dcd80c40ed0ff195fd3997d031f1f6a007ae35a
+listing of output_test (path, modification time, size of every entry): IDENTICAL before and after
+entries newer than the marker (2026-10-05T19:26:02Z): ~/egw-exec and ~/egw-tcg 0; output_test 0
+clone HEAD: 8e492613d36490a560ae56beabd6d5c2c01a8696 (unchanged)
+plan ~/egw-tcg/pilot/campaign_plan.json: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60 (the value of the brief, c195bd3f...)
+S4's default state directory ~/egw-exec/g3-t6-s4: does not exist
+~/egw-exec/current_session: does not exist
+~/egw-tcg/pilot/results/raw/controller_restart-r04: does not exist
+attempts of row t6 in ~/egw-exec/attempts: 20261003T132936Z_g3-qualification-t6_attempt01 
+/tmp entries that were not there before: systemd-private-8f7a4f6f757741d3af59b60599f62a05-wsl-pro.service-m80mmL 
+processes whose command line names the bench root /tmp/g3-s4-bench: 2
+156677 bash <S>/g3/t6prep/ben
+processes named qemu-system-aarch64 on this host (real pgrep, the frozen drivers' pattern): 0; bash loops that stood for QEMU: 0
+keepalive clients, 'sleep N' with N of 3600 or more (not started and not ended by this stream): pid 400 sleep 43200, running for 6183 s; 

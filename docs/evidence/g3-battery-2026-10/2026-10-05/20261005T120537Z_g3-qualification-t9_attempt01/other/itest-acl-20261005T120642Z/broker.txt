@@ -1,0 +1,15 @@
+[2Kmosquitto-1  | 2026-10-05T12:08:58.520022097Z 2026-10-05T12:08:58: New client connected from 127.0.0.1:39976 as egw-acl-20261005T120642Z-ctl-sub (p2, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:08:58.522495761Z 2026-10-05T12:08:58: egw-acl-20261005T120642Z-ctl-sub 1 c2dt/#
+[2Kmosquitto-1  | 2026-10-05T12:08:58.546267281Z 2026-10-05T12:08:58: New client connected from 127.0.0.1:39992 as egw-acl-20261005T120642Z-sim-sub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:08:58.553270513Z 2026-10-05T12:08:58: egw-acl-20261005T120642Z-sim-sub 1 c2dt/#
+[2Kmosquitto-1  | 2026-10-05T12:09:09.529992612Z 2026-10-05T12:09:09: New client connected from 127.0.0.1:56318 as egw-acl-20261005T120642Z-p1-sim-pub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:09:09.544732004Z 2026-10-05T12:09:09: Client egw-acl-20261005T120642Z-p1-sim-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:12.285106436Z 2026-10-05T12:09:12: New client connected from 127.0.0.1:52300 as egw-acl-20261005T120642Z-p2-ctl-pub (p2, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:09:12.336373412Z 2026-10-05T12:09:12: Client egw-acl-20261005T120642Z-p2-ctl-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:18.058230932Z 2026-10-05T12:09:18: New client connected from 127.0.0.1:52304 as egw-acl-20261005T120642Z-p3-ctl-pub-v5 (p5, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:09:18.081400868Z 2026-10-05T12:09:18: Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:21.682280052Z 2026-10-05T12:09:21: New client connected from 127.0.0.1:45692 as egw-acl-20261005T120642Z-p4-sim-pub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:09:21.737202676Z 2026-10-05T12:09:21: Client egw-acl-20261005T120642Z-p4-sim-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:24.842049844Z 2026-10-05T12:09:24: Client egw-acl-20261005T120642Z-anon disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:10:24.260235558Z 2026-10-05T12:10:24: Client egw-acl-20261005T120642Z-ctl-sub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:10:24.285513974Z 2026-10-05T12:10:24: Client egw-acl-20261005T120642Z-sim-sub disconnected.

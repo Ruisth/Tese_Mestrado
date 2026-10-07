@@ -1,0 +1,239 @@
+1000:1000 data/events
+OK: image id sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+OK: architecture arm64
+OK: os linux
+OK: revision label 489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+OK: source commit 489bc9e5b5b0660026ea2630b8d1d124049ba2ce, clean build context
+INFO: archive sha256 in the record: 9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d; built 2026-09-26T17:30:30Z
+INFO: python dependencies: LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 c43c761a646c09b086c9b05efeac5d2b6bb2d9b9ea08a37a709c175c16c2eb45)
+CONTROLLER IMAGE IDENTITY: verified (egw-controller:0.1.0 = sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46)
+OK: .env present, no placeholders
+OK: TLS material present (ca.crt, server.crt, server.key)
+OK: Mosquitto password file present
+OK: passwd closed to others (1883:1883 600)
+OK: certs/server.key closed to others (1883:1883 600)
+OK: certs/ca.key closed to others (1000:1000 600)
+Read test as uid:gid 1883:1883 in a one-shot container of: docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+OK: 1883:1883 is the image user "mosquitto" (uid:gid)
+OK: uid 1883 reads mosquitto.conf
+OK: uid 1883 reads acl
+OK: uid 1883 reads passwd
+OK: uid 1883 reads certs/ca.crt
+OK: uid 1883 reads certs/server.crt
+OK: uid 1883 reads certs/server.key
+
+OK: the broker user (1883:1883) can read its key, certificates, password file and ACL;
+    no secret is open to others.
+OK: broker user can read its secrets; none is open to others
+OK: all 5 image(s) in images.lock.env pinned by @sha256 digest
+OK: data/events directory ready (bind mount for events.jsonl)
+OK: docker compose config accepted
+OK: controller image egw-controller:0.1.0 present (identity: scripts/verify-controller-image.sh)
+
+OK: configuration is complete and consistent. Safe to run:
+    docker compose --env-file .env --env-file images.lock.env up -d
+ Container egw-mongodb-1  Created
+ Container egw-mosquitto-1  Created
+ Container egw-ditto-policies-1  Created
+ Container egw-ditto-gateway-1  Created
+ Container egw-ditto-things-1  Created
+ Container egw-controller-1  Created
+ Container egw-mongodb-1  Starting
+ Container egw-mosquitto-1  Starting
+ Container egw-mongodb-1  Started
+ Container egw-ditto-policies-1  Starting
+ Container egw-mosquitto-1  Started
+ Container egw-ditto-policies-1  Started
+ Container egw-ditto-gateway-1  Starting
+ Container egw-ditto-things-1  Starting
+ Container egw-ditto-things-1  Started
+ Container egw-ditto-gateway-1  Started
+ Container egw-mosquitto-1  Waiting
+ Container egw-ditto-gateway-1  Waiting
+ Container egw-mosquitto-1  Healthy
+ Container egw-ditto-gateway-1  Healthy
+ Container egw-controller-1  Starting
+ Container egw-controller-1  Started
+up exit=0
+previous=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6
+11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  /opt/egw/deployment/scripts/collect-resources.sh
+e974bf5c4dc7d618db7cc3eac3dc0739bc16a3ef288c18bc5953b0a9ba0ebbf6  ./.env.example
+fa6f2c2e6c18ac02a9dc1b831636da110d4e8ed187d0d400c619b8873c72574e  ./.gitignore
+3fafbae52fbe7ce5c04e9d5839185a4be9ad4c4f7411c6ee7a7b3a0aeb40ff4d  ./README.md
+1a32f6c2bd9e24eee075ef569828aa41ad6a7a7b260d4436e588dc9ca74d5982  ./compose.yaml
+8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648  ./images.lock.env
+76804469c3181f1942d02f9c4e54b339f7889d0a0219ef69530f7b46529bb273  ./mosquitto/config/acl
+ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615  ./mosquitto/config/mosquitto.conf
+eb46b22fbacdb953ee1f2612a41fbbd0055db00a720c857d8b2c727692a0b4a6  ./scripts/build-controller-image.sh
+056699b117c4a1d954ab0b504f981ed99361a9030e05fe0b2b887990d7c85ded  ./scripts/capture-sut-environment.sh
+11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  ./scripts/collect-resources.sh
+9ae07b0c5e4b03385053d270e379b0bf767f34156839ad2c7a53a9aee2f3c7d4  ./scripts/fetch-collector-output.sh
+2c5cd153722fac7a40a280b9303612d82482a17f249b7b9fc1236edc60ef6ea9  ./scripts/generate-dev-auth.sh
+91560e10c7909f8af58189f29874d33b8c0ff4f53a693ec2f16c88fee895190b  ./scripts/generate-dev-tls.sh
+48b6e66c38c8e06000b73fadf86e5023d903c5a78d56e1e3f2e888ed86c3182b  ./scripts/generate-runtime-lock.sh
+2787b60c652a3ade6baa0462db7f6290741677f1fe6874ba0b27ec25f8d2a5ee  ./scripts/measure-cold-start.sh
+c73502b299035c58f2d36d52f367e48ba17772bdb28bf4c5eee3368d3e576d9d  ./scripts/prepare-broker-secrets.sh
+b1be37a10a1c8c2566607896715e902222787128758d9ea58b9a47d03f6f63c1  ./scripts/probe-acl.sh
+514c820c103e355639527b79bc5cad90b57b5eb55e41ba46c563163bd2e4d822  ./scripts/resolve-image-lock.sh
+f58f49182c8f749200007aa35949ba0f448c207c25c926e9e798cf7299b9e392  ./scripts/validate-config.sh
+7e0f32348da4de6e66619179817d4da0eec5e2596253dda88ca4b1d7e5678b7b  ./scripts/verify-controller-image.sh
+deployed files equal to the clean clone: 20; different: 0; only on the guest: 0; only in the clone: 0; allowed differences: 0; unreadable lines: 0
+tunnel: no control socket at /home/ruisth/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+health: 000
+cat: /tmp/egw-pf-health.json: No such file or directory
+
+ready: 000
+cat: /tmp/egw-pf-ready.json: No such file or directory
+
+metrics: 000
+cat: /tmp/egw-pf-metrics.json: No such file or directory
+
+READY
+egw-controller-1 running starting
+egw-ditto-gateway-1 running healthy
+egw-ditto-policies-1 running healthy
+egw-ditto-things-1 running healthy
+egw-mongodb-1 running healthy
+egw-mosquitto-1 running healthy
+## the six expected services
+egw-mosquitto-1 status=running health=healthy OOMKilled=false restarts=0
+egw-mongodb-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-policies-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-things-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-gateway-1 status=running health=healthy OOMKilled=false restarts=0
+egw-controller-1 status=running health=healthy OOMKilled=false restarts=0
+## every container
+egw-controller-1 OOMKilled=false restarts=0
+egw-ditto-things-1 OOMKilled=false restarts=0
+egw-ditto-gateway-1 OOMKilled=false restarts=0
+egw-ditto-policies-1 OOMKilled=false restarts=0
+egw-mongodb-1 OOMKilled=false restarts=0
+egw-mosquitto-1 OOMKilled=false restarts=0
+## memory-cgroup OOM lines this boot
+memory-cgroup OOM lines: 0
+## storage
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    466.1M      1.6G  22% /
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G     56.0K      3.9G   0% /tmp
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1932        5256           5         824        6001
+Swap:             0           0           0
+## docker stats (one sample; slow under TCG)
+egw-controller-1 46.73MiB / 256MiB 18.25% 1.04%
+egw-ditto-things-1 541.5MiB / 768MiB 70.50% 31.77%
+egw-ditto-gateway-1 527.6MiB / 768MiB 68.70% 38.51%
+egw-ditto-policies-1 498.4MiB / 768MiB 64.89% 23.75%
+egw-mongodb-1 244.6MiB / 512MiB 47.78% 6.55%
+egw-mosquitto-1 4.152MiB / 128MiB 3.24% 0.29%
+OK: passwd closed to others (1883:1883 600)
+OK: certs/server.key closed to others (1883:1883 600)
+OK: certs/ca.key closed to others (1000:1000 600)
+Read test as uid:gid 1883:1883 in a one-shot container of: docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+OK: 1883:1883 is the image user "mosquitto" (uid:gid)
+OK: uid 1883 reads mosquitto.conf
+OK: uid 1883 reads acl
+OK: uid 1883 reads passwd
+OK: uid 1883 reads certs/ca.crt
+OK: uid 1883 reads certs/server.crt
+OK: uid 1883 reads certs/server.key
+
+OK: the broker user (1883:1883) can read its key, certificates, password file and ACL;
+    no secret is open to others.
+check exit=0
+host_before=1791198028.839191940 guest=1791198030 host_after=1791198029.567438148
+host_before=1791198029.568279100 guest=1791198030 host_after=1791198030.247820346
+host_before=1791198030.248615096 guest=1791198031 host_after=1791198030.995761229
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Mon 2026-10-05 11:00:33 UTC
+RTCTimeUSec=Mon 2026-10-05 11:00:32 UTC
+Mon Oct  5 11:00:33 UTC 2026
+wrote /opt/egw/evidence/sut_environment.json
+{
+  "role": "sut",
+  "captured_utc": "2026-10-05T11:00:36Z",
+  "node": "egw-qemu-integrated",
+  "uname_a": "Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux",
+  "os_pretty_name": "Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)",
+  "nproc": 4,
+  "cpu_model": "0xd0b",
+  "mem_total_kb": 8204356,
+  "docker_version": "Docker version 25.0.9, build 43987fca48",
+  "docker_compose_version": "Docker Compose version v2.26.0",
+  "provider": "QEMU 8.2.7 TCG (qemu-system-native) on WSL2 Ubuntu-24.04, Windows 11 x86-64",
+  "region": "local-workstation",
+  "instance_type": "qemu -machine virt -cpu cortex-a76 -smp 4 -m 8192; ARM64 EMULATED",
+  "shared_vcpu_note": "TCG emulation on a shared x86-64 host; load generator co-located; never native ARM64"
+}
+Running as unit: egw-resources-preflight-20261005T105656Z.service; invocation ID: 6144976efa854f34affe072faea2029f
+inactive
+Oct 05 11:00:39 egw-qemu-integrated systemd[1]: Started /usr/bin/sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-preflight-20261005T105656Z.csv --duration 45 --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1.
+Oct 05 11:00:39 egw-qemu-integrated sh[3007]: collecting container resources into /tmp/resources-preflight-20261005T105656Z.csv (source: auto, one sample every 1s, duration: 45s, 0 = until SIGTERM)
+Oct 05 11:00:39 egw-qemu-integrated sh[3007]: pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; diagnostics: /tmp/resources-preflight-20261005T105656Z.csv.diagnostics.log; lifecycle: /tmp/resources-preflight-20261005T105656Z.csv.lifecycle.csv
+Oct 05 11:00:39 egw-qemu-integrated sh[3007]: sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+Oct 05 11:00:46 egw-qemu-integrated sh[3007]: diagnostics (first lines; all of them are in /tmp/resources-preflight-20261005T105656Z.csv.diagnostics.log):
+Oct 05 11:00:46 egw-qemu-integrated sh[3068]: 2026-10-05T11:00:46Z sample withheld at uptime 276.10 s: it fell in second 2026-10-05T11:00:46Z, not after the last stamped second 2026-10-05T11:00:46Z (a clock stepped back, or two samples in one second); no rows
+Oct 05 11:01:22 egw-qemu-integrated sh[3007]: collector stopped after 46 samples (forward UTC gaps: 0 s; withheld: 2 sample(s), with 2.29 s of elapsed time without an accepted sample beyond one interval and the UTC gaps, 0 run(s) of them unmeasured and 0 still withheld at stop; 14 diagnostic line(s) in /tmp/resources-preflight-20261005T105656Z.csv.diagnostics.log); output: /tmp/resources-preflight-20261005T105656Z.csv
+Oct 05 11:01:23 egw-qemu-integrated systemd[1]: egw-resources-preflight-20261005T105656Z.service: Deactivated successfully.
+Oct 05 11:01:23 egw-qemu-integrated systemd[1]: egw-resources-preflight-20261005T105656Z.service: Consumed 7.610s CPU time.
+-rw-r--r--    1 root     root         20623 Oct  5 11:01 /tmp/resources-preflight-20261005T105656Z.csv
+-rw-r--r--    1 root     root          2471 Oct  5 11:01 /tmp/resources-preflight-20261005T105656Z.csv.diagnostics.log
+-rw-r--r--    1 root     root           708 Oct  5 11:00 /tmp/resources-preflight-20261005T105656Z.csv.lifecycle.csv
+fetch: resources-preflight-20261005T105656Z.csv present sha256=abc395e8d6f4c4009005e2335d34d6ac55974867fef3a2f59914f048880e3cd3 verified
+fetch: resources-preflight-20261005T105656Z.csv.diagnostics.log present sha256=63450ebfe856522c190e52526e296c263ec1004d38630ef1a642d32ba5d59adc verified
+fetch: resources-preflight-20261005T105656Z.csv.lifecycle.csv present sha256=a3d87b81175f910e091947e4467367db0e1c926439c4b5ea3a84ba9fd1731a8d verified
+fetch: resources-preflight-20261005T105656Z.csv.self-test absent (optional)
+fetch: result exit=0 (every mandatory file present and verified)
+{
+  "run": "preflight-20261005T105656Z",
+  "deployed_sha256": "11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6",
+  "rows_per_service": {
+    "egw-mosquitto-1": 43,
+    "egw-ditto-things-1": 43,
+    "egw-ditto-policies-1": 43,
+    "egw-mongodb-1": 43,
+    "egw-ditto-gateway-1": 43,
+    "egw-controller-1": 43
+  },
+  "unexpected_names": [],
+  "distinct_instants": 43,
+  "distinct_instants_in_window": 43,
+  "window": [
+    "2026-10-05T11:00:39Z",
+    "2026-10-05T11:01:22Z"
+  ],
+  "window_seconds": 43,
+  "start_line": "2026-10-05T11:00:39Z start: collector_sha256=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 host=egw-qemu-integrated source=auto interval=1s duration=45s pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "stop_line": "2026-10-05T11:01:22Z stop: samples=46 utc_gap_seconds=0 withheld_samples=2 withheld_elapsed_s=2.29 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=3 pacing=wall-clock",
+  "inventory": "2026-10-05T11:01:22Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0",
+  "declared_expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "declared_interval_s": 1.0,
+  "declared_duration_s": 45.0,
+  "declared_duration_shortfall_s": 2.0,
+  "rounds_the_declared_interval_implies": 44,
+  "samples": 46,
+  "closing_counters": {
+    "utc_gap_seconds": "0",
+    "withheld_samples": "2",
+    "withheld_elapsed_s": "2.29",
+    "withheld_runs_unmeasured": "0",
+    "withheld_open_at_stop": "0"
+  },
+  "closing_record_reconciliation": "run",
+  "resource_validation": "run",
+  "observations": [
+    "the collector reports withheld_samples=2 (2.29 s of elapsed time): 2 sample(s) withheld (each fell in a second that is not after the last stamped one -- a clock stepped back, or two samples in one second -- so no rows were written for it). The collector recalibrates its phase after one, so it is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it, and what the withheld samples cost is a problem of its own when it is in neither count",
+    "the closing record states samples=46, more rounds than its own 43 s window at the interval=1s the 'start:' line declares allows (44): a sampling round that stamped no second (a withheld sample, or one lost to a clock stepped back) is counted there and in no window, so this is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it",
+    "the collector's window is 43 s, 2 s shorter than the duration=45s the 'start:' line declares: the stop hook ends the collector with SIGTERM after the measured run, before its declared duration, so this is recorded, not judged here (the coverage is judged by validate_resources_csv over the window it is given, which in the preflight check is the collector's own)"
+  ],
+  "problems": []
+}
+the collector stopped 2 s before the duration=45s its 'start:' line declares (its own window is 43 s): the samples, the coverage and the gaps were checked against that shorter window, not against the declared one
+exported 20261005T105656Z_live-preflight_attempt11: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-05\20261005T105656Z_live-preflight_attempt11 (verified, 40 files, 0 excluded)
+DRIVER RESULT 20261005T105656Z_live-preflight_attempt11: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=inconclusive export=exported
+preflight.sh exit=3

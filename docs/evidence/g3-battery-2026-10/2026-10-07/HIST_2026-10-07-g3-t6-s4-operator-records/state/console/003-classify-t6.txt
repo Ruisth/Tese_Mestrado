@@ -1,0 +1,5 @@
+## 2026-10-07T12:33:23Z up=5037 classify t6: pass (finished, valid/pass)
+exported 20261007T121121Z_g3-qualification-t6_attempt02: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-07\20261007T121121Z_g3-qualification-t6_attempt02 (verified, 95 files, 0 excluded)
+DRIVER RESULT 20261007T121121Z_g3-qualification-t6_attempt02: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t6: pass. PASS under the criterion amended on 2026-10-05 (request of 2026-10-05, section 6, with the supplement of 2026-10-07). Plan entry controller_restart-r04 (seed 1715385812, ..."
+row t6: classified 'pass'; driver code 0; export: verified -> /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-07/20261007T121121Z_g3-qualification-t6_attempt02
+Next: the next row of session S4, or 'close' after the last one.

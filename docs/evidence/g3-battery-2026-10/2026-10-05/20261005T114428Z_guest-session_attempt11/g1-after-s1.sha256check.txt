@@ -1,0 +1,3 @@
+Image: OK
+egw-image-qemuarm64.rootfs.ext4: OK
+egw-image-qemuarm64.rootfs.manifest: OK

@@ -1,0 +1,23 @@
+bench ready: /tmp/g3-dry-fix/xfinal
+bench data disk: /tmp/g3-dry-fix/xfinal/data.img sha256 61b652e6c0649ef66f2b89653b53a45895f1c3e0da5ea53f7f9de8979518186e
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== close
+exit=0
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+  -rw-r--r-- 1 ruisth ruisth 8388608 Oct  2 14:41 data.img
+  Last mounted on:          <not available>
+  Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+  Filesystem state:         clean
+  Last mount time:          n/a
+  Maximum mount count:      -1
+  Journal features:         (none)
+## 2026-10-02T13:41:11Z up=1760 session S1 closed (guest_session_close.sh exit 0)
+bench data disk after the listing: sha256 61b652e6c0649ef66f2b89653b53a45895f1c3e0da5ea53f7f9de8979518186e (byte-identical: the listing wrote nothing)
+=== with a (bench) QEMU process still shown, the disk is not read
+bench ready: /tmp/g3-dry-fix/xfinalq
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+data disk after the close: NOT listed (qemu pgrep exit 0: a qemu-system-aarch64 process is left, or that was not determined)
+  1. seal the operator records (egw-exec/g3-battery: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<date>-g3-battery-operato
+  2. write output_test/decisions/<date>_g3-battery-s1-results.md (every row and its class; no G3 claim);
+  3. release the keepalive client and the Windows keep-awake.

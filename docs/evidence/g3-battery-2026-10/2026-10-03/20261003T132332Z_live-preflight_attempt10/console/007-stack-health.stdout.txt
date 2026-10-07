@@ -1,0 +1,37 @@
+egw-controller-1 running starting
+egw-ditto-gateway-1 running healthy
+egw-ditto-policies-1 running healthy
+egw-ditto-things-1 running healthy
+egw-mongodb-1 running healthy
+egw-mosquitto-1 running healthy
+## the six expected services
+egw-mosquitto-1 status=running health=healthy OOMKilled=false restarts=0
+egw-mongodb-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-policies-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-things-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-gateway-1 status=running health=healthy OOMKilled=false restarts=0
+egw-controller-1 status=running health=healthy OOMKilled=false restarts=0
+## every container
+egw-controller-1 OOMKilled=false restarts=0
+egw-ditto-things-1 OOMKilled=false restarts=0
+egw-ditto-gateway-1 OOMKilled=false restarts=0
+egw-ditto-policies-1 OOMKilled=false restarts=0
+egw-mongodb-1 OOMKilled=false restarts=0
+egw-mosquitto-1 OOMKilled=false restarts=0
+## memory-cgroup OOM lines this boot
+memory-cgroup OOM lines: 0
+## storage
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    467.5M      1.6G  22% /
+/dev/vdb                 31.2G      2.4G     27.2G   8% /var/lib/docker
+tmpfs                     3.9G     56.0K      3.9G   0% /tmp
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1670        5520           5         822        6263
+Swap:             0           0           0
+## docker stats (one sample; slow under TCG)
+egw-controller-1 46.73MiB / 256MiB 18.25% 0.94%
+egw-ditto-things-1 504.6MiB / 768MiB 65.71% 62.36%
+egw-ditto-gateway-1 480.4MiB / 768MiB 62.55% 48.79%
+egw-ditto-policies-1 475.3MiB / 768MiB 61.88% 50.30%
+egw-mongodb-1 246.9MiB / 512MiB 48.22% 3.85%
+egw-mosquitto-1 4.125MiB / 128MiB 3.22% 0.16%

@@ -1,0 +1,33 @@
+{
+  "run_id": "itest-invalid-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 1344,
+  "sent_valid": 1277,
+  "intended_invalid_sent": 67,
+  "delivered_unique": 1277,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 67,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 1277,
+  "latency_count": 1277,
+  "latency_ms_p50": 2359.954528,
+  "latency_ms_p95": 4453.592931200001,
+  "latency_ms_max": 4803.812944,
+  "marker_lag_s": 0.15,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 1344,
+    "intended_invalid": 67,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}

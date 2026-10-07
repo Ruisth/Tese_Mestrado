@@ -4846,3 +4846,180 @@ is unchanged.
   report it.
 - **Decisions and next steps.** One separately authorised bounded session
   for test 6 on the unchanged candidate. G3 stays `Not decided`.
+
+## Entry #C054 — Test 6 passes under the amended criterion in session S4; the G3 evidence published and a closing proposal submitted; G3 not closed
+
+- **Date:** 2026-10-07. **Scope:** session S4 of the G3 qualifying battery
+  (test 6 only, plan entry `controller_restart-r04`, seed 1715385812) under
+  Rui's authorisation of 2026-10-07 («Autorizo a sessão S4 nos termos do
+  parecer do PM») of the request of 2026-10-05 with its preparation
+  supplement of 2026-10-07 (the records are published byte for byte in
+  [`docs/evidence/g3-battery-2026-10/records/`](docs/evidence/g3-battery-2026-10/records/)),
+  on the Project Manager's register entries
+  "2026-10-05 21:56 WEST — S4 preparation: one bounded emergency-procedure
+  correction" and "2026-10-07 14:19 WEST — S4 T6 passed; consolidate G3
+  evidence for decision" (the register is held outside the repository);
+  then the consolidation the second entry orders and Rui relayed: one
+  documentary and evidence pull request that proposes G3's closure, with
+  no new session, no change to the controller and no repeat of the
+  battery. The tools are `1fd9792`, the merge of PR #57; the candidate is
+  the battery's, unchanged (the controller image `9a293fe1…` from
+  `489bc9e`, the pinned images, the guest image under QEMU 8.2.7 TCG); the
+  one change on the guest is the collector the frozen preflight installs
+  (`11444c0a…` → `9e678b02…`, instrumentation). This entry records; it
+  changes no rule, threshold, deadline, load or file of the candidate, and
+  accepts no family, gate or claim.
+- **Why.** Test 6 was the one family without a valid qualifying run: r03
+  invalid under rule 1a (#C050), the criterion amended prospectively
+  (#C052) and the prerequisites built offline (#C053), so one bounded
+  session was needed. With its result every family has a recorded row, and
+  the Project Manager's order is to consolidate the evidence for Rui's
+  decision on G3.
+- **What.**
+  - *Preparation.* The sealed host preparation of 2026-10-05,
+    `HIST_2026-10-05-g3-t6-host-preparation` (268 entries, `34715555…`):
+    the clean clone at `1fd9792`, the retained controller image, the
+    helpers `e5eba37e…`, the new collector `9e678b02…`, drivers
+    `2c209b09…`, and `controller_restart-r04` added to the host's pilot plan
+    at order 96, the 95 earlier entries preserved. Its supplement of
+    2026-10-07, `HIST_2026-10-07-g3-t6-preparation-supplement` (29 entries,
+    `74dbe1a9…`), made the one correction the Project Manager found: the
+    emergency command omitted `events_capture.sh`'s optional `KEEP_DIR`, so
+    it could stop the recorder and return 0 without preserving its four
+    files. A new operator script, `ops/g3_recorder_cleanup.sh`
+    (`71ff2ceb…`), runs after `term t6` or `T6=incomplete`, and always
+    before `close`, the existing `events_capture.sh cleanup
+    controller_restart-r04 KEEP_DIR`, unchanged, with `KEEP_DIR` inside the
+    session's package (`recovery/events-partial-controller_restart-r04`):
+    each try bounded by `timeout 120`, at most three, `close` only after its
+    `OK:` line and otherwise `HALT:`, with no close, no forced power-off and
+    no signal to QEMU. It was verified offline on four bench paths (kept,
+    retried, hung, halted), the steps script `g3_battery.sh` (`7a63b361…`)
+    unchanged. **It was not used in S4**: no `term`, no `T6=incomplete`, and
+    the gate found no recorder or collector unit active; it stays tested
+    offline only.
+  - *S4, 2026-10-07* (open 12:03:48–12:10:52Z; the row 12:11:14–12:32:30Z,
+    1,239 s on the host's uptime clock, the ceiling's basis, against 47 min; classified 12:33:23Z; close
+    12:34:01–12:35:30Z). Every identity equal at the open (clone `1fd9792`,
+    runbook `31716593…`, drivers `2c209b09…`, root file system
+    `6fce1688…`). The preflight passed with the new collector installed (the
+    previous one kept on the guest), the deployed tree equal to the clone
+    but `README.md`, and `collector-duration` 45.54 s on the guest's
+    monotonic clock for the declared 45 s (its UTC window, 48 s, reported
+    apart); the gate passed (six services healthy, the running images equal
+    to the record). The close: `stop -t 130` exit 0, no OOM, QEMU exit 0
+    with no process left, close driver exit 0; root file system `1605905b…`
+    after it.
+  - *Test 6, `controller_restart-r04` — Pass under the criterion amended on
+    2026-10-05* (row 15 of the results addendum; package
+    `20261007T121121Z_g3-qualification-t6_attempt02`, 97 entries, the inner
+    run sealed with 46). `T6=ok`: harness exit 0 with the recorder's cleanup
+    done, drain `quiet`. One restart at +300 s, returncode 0; the capture
+    shows one `die` and one `start` of `egw-controller-1`; the gate after
+    reads `EXPECTED-RESTART`, the same container, restart count 0, not
+    OOM-killed. `restart_metrics_endpoint_recovery_s` 12.134 s, within
+    120 s. Every `delta` line OK (600, 120 and 6,000 accepted); N1 report
+    0/0. `acceptance --exactly-once` exit 0: 6,720 valid messages accepted
+    exactly once in `events.post-drain.jsonl`, 0 more than once, 0 never;
+    `double_accepted` 0. The configuration identity equal to the packet.
+    Reported beside it: functional recovery 20.04 s; the transition rule
+    `1a-option-a-2026-10-05` admitted 2 rows (12:19:26Z, 12:19:27Z), none
+    rejected. This is the first run on the guest of the lines merged on
+    2026-10-05 (the transition rule on a live restart, the collector's
+    uptime bounds, `--exactly-once` on a real post-drain copy, `delta`'s N1
+    options, `fetch_started_at.sh`). `controller_restart-r03` stays invalid
+    and is not re-judged.
+  - *The delay numbers, explained.* Against the controller marker plus
+    60 s, r04 reports `lost` 2,153 and `late_confirmations` 67, a sizing
+    finding that decides nothing. Both come from the timed copy
+    (`events.jsonl`, fetched after the confirmation window): `lost` is the
+    valid messages sent less those confirmed by the deadline in it,
+    6,720 − 4,567 = 2,153; `late_confirmations` counts its accepted lines
+    acknowledged after the deadline, 67 of its 4,634. `analyze.py` never
+    counts a late line as confirmed, so the 67 are among the 2,153 and are
+    never added to them; the other 2,086 were accepted after the timed copy
+    was taken, during the drain (the timed copy is a byte prefix of the
+    post-drain copy). None of the 2,153 is a permanent loss: all 6,720 were
+    accepted exactly once by the end of the drain. Functional recovery was
+    demonstrated in this run; timely delivery at the nominal load
+    (11.2 msg/s, deadline = controller marker + 60 s) was not. The
+    analyser's global line `restart_recovery_observed_every_run: FAILED -
+    1/4` (r01–r03 not evidenced) is kept unchanged: the scoped judgement of
+    test 6 neither accepts the campaign nor requalifies an earlier run.
+  - *The evidence published* in
+    [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md):
+    byte copies of 38 packages under `<UTC date>/<package>/` — the 31
+    indexed in #C050 and #C051 and the seven of test 6 (the host preparation
+    and its supplement, S4's guest session, preflight and gate, the t6
+    attempt02 and the S4 operator records). Each package's own `SHA256SUMS`
+    was verified in place and again in the copy, and each copy compared file
+    by file with its original; `PACKAGES.sha256` grows from 31 to 38 lines,
+    the 31 earlier lines kept byte for byte, the file sorted by path; a
+    secret sweep of the copies (the values of the execution host's four
+    secret variables, never printed, and PEM private-key headers) found
+    nothing; 2,525 sealed entries, 2,563 files with their 38 seals,
+    75,731,082 bytes. Beside them, under `records/`, byte copies of the 22
+    local notes of the battery (the packet, the authorisations, the
+    requests, the result notes, the decisions on T5 and T6, S4's supplement
+    and a dated correction of one register date). The README is rewritten as
+    the capsule's index; an outer seal, `SHA256SUMS`, covers every file of
+    the directory but itself (2,587 entries; sha256
+    `4517e91e36dbe03963a25474c47af5c05510ba2a221f4d0ef5fc41bb59fb00f9`). Three `.out` files of the T9 package, which the
+    repository's `*.out` ignore rule had held back, were added explicitly,
+    and every seal was verified again from a tree extracted from the
+    commit. `.gitattributes`
+    keeps the capsule's bytes from text conversion, and the Markdown link
+    checker skips the files a sealed package lists (captured bytes, vouched
+    for by their seal). The originals stay in `output_test`.
+  - *The closing proposal*,
+    [`docs/governance/proposals/2026-10-07-g3-closing-proposal.md`](docs/governance/proposals/2026-10-07-g3-closing-proposal.md),
+    proposes G3's closure clause by clause — T1–T9 and their sub-checks,
+    the continuity of the image and configuration, the contracts frozen,
+    the P0 defects and the limitations — and keeps the tools that changed
+    between sessions (`80e833f`, `8e49261`, `1fd9792`: the T8 procedure,
+    test 6's prerequisites and the authorised collector replacement) apart
+    from the system under test. It decides nothing.
+  - *The records.* Row 15, the S4 section and the delay paragraph in the
+    [results addendum](docs/governance/g3-battery-2026-10-results.md); a
+    marker, the T6 note, the r04 line of issue 4 and decision 7 marked done
+    in the [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md);
+    a PROGRESS marker. The gate decision log is unchanged: G3
+    `Not decided`.
+- **Tests.** No file of the system under test or of the session tools
+  changed. The Project Manager recomputed the 345 checksum entries of the
+  seven seals of S4 and its supplement (the session, preflight, gate, t6
+  and operator-records packages, the nested r04 seal and the supplement)
+  with no failure: 299 outer entries plus the 46 of the nested seal, not
+  345 unique files. The publication verified the 38 seals in place and in
+  the copies and compared every copied tree with its original;
+  `PACKAGES.sha256` verifies against the copies. The link check
+  (`python tools/ci/check_markdown_links.py`) and the CI of the pull
+  request are recorded there.
+- **Review.** The Project Manager's read-only review of S4 (the register
+  entry of 2026-10-07, 14:19 WEST): the manifest valid with no invalidity
+  reason, the inner 46-file run sealed, the drain quiet, the harness and
+  the exactly-once check exit 0; an independent join by run and message
+  identity found 6,720 distinct sent and 6,720 distinct accepted after the
+  drain, with no missing, repeated or extra identity; the three twins agree
+  (600, 120, 6,000), N1 0/0; the endpoint recovery recomputed to 12.134 s
+  and the functional one to 20.04 s; the delay populations as above. The
+  one final consistency review of the pull request is recorded with it.
+- **Limits.** Everything observed is of an emulated guest on a shared host;
+  no timing is a native figure. "Exactly once" is one accepted result per
+  valid sent identity of this run, not a general MQTT exactly-once
+  guarantee; the N1 options exercised with N1 = 0 do not prove every N1
+  branch; no OOM in this session is not prolonged stability. The battery
+  was not one continuous identical-tool execution: S1 and S2 ran the tools
+  of `80e833f`, S3 those of `8e49261`, S4 those of `1fd9792` with the
+  collector replaced at its open, and the favourable rows ran T1–T5 (S1),
+  T7 (S2), T8–T9 (S3) and T6 (S4), not T1–T9 in one pass. Every invalid,
+  incomplete and halted attempt is kept as recorded (row 8 invalid, row 11
+  inconclusive at the halt, the first S3 preflight invalid). No C10 or C12
+  admission, no native-performance, capacity or prolonged-stability claim.
+- **Decisions and next steps.** None taken here. All nine families now
+  have favourable technical evidence in their own adopted criteria; full
+  gate admission remains Rui's dated decision on the closing proposal,
+  after the review of this consolidation. G3 stays `Not decided`. The G4
+  pilot needs its own preparation and authorisation; no `exp-v1` tag or
+  campaign is authorised, and the 2026-10-20 target and the 2026-10-31
+  latest date are not changed by this result.

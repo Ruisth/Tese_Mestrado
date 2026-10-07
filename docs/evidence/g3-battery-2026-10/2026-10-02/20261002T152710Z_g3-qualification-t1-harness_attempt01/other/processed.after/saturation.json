@@ -1,0 +1,108 @@
+{
+  "criteria": {
+    "expected_runs_per_load": 10,
+    "host_cpu_sustain_s": 60,
+    "host_cpu_utilization_gt": 0.9,
+    "latency_ms_p95_gt": 1000.0,
+    "loss_rate_gt": 0.01,
+    "max_head_gap_s": 5.0,
+    "max_sample_gap_s": 5.0,
+    "min_metrics_coverage_pct": 90.0,
+    "min_resource_coverage_pct": 90.0,
+    "min_series_distinct_instants": 2,
+    "queue_depth_floor": 100,
+    "queue_growth_sustain_s": 60,
+    "run_fraction_gte": 0.5
+  },
+  "decision_rule": "Unit of analysis is the run (plan 7.3). A load is saturated when the across-run mean loss rate exceeds 1%, OR the across-run mean p95 latency exceeds 1000 ms, OR at least half of the evaluable runs at that load sustain host-level CPU utilization above 0.90 for at least 60 s (host_cpu_utilization = sum of container docker-stats cpu_pct / (100 * nproc from sut_environment.json)), OR at least half of the evaluable runs show persistent queue growth: controller queue_depth (1 Hz GET /metrics samples) strictly increasing across consecutive samples for a span of at least 60 s with every sample above the floor of 100 messages. Sustained windows break across sampling gaps larger than max_sample_gap_s (work order P1b). A load's verdict is decided ONLY when the planned number of valid runs exists and every run carries the required instrumentation (host-CPU criterion evaluable; resources AND controller-metrics coverage each >= min_resource_coverage_pct; neither series starting later than max_head_gap_s into the measured window; at least min_series_distinct_instants valid distinct sample instants per series; controller metrics present); otherwise the verdict is 'insufficient-evidence', never 'not-saturated'. Saturation is the first (lowest) load with verdict 'saturated'.",
+  "first_saturated_load_msg_s": null,
+  "generated_by": "egw_experiments.analyze",
+  "loads": [
+    {
+      "evidence_sufficient": false,
+      "expected_runs": 10,
+      "host_cpu_sustained_run_fraction": null,
+      "insufficient_evidence_detail": [
+        "0/10 valid runs"
+      ],
+      "latency_ms_p95_mean": null,
+      "loss_rate_mean": null,
+      "n_runs": 0,
+      "queue_growth_run_fraction": null,
+      "rate_msg_s": 10.0,
+      "saturated": false,
+      "triggered": {
+        "host_cpu_sustained": null,
+        "loss_rate": false,
+        "p95_latency": false,
+        "queue_growth": null
+      },
+      "verdict": "insufficient-evidence"
+    },
+    {
+      "evidence_sufficient": false,
+      "expected_runs": 10,
+      "host_cpu_sustained_run_fraction": null,
+      "insufficient_evidence_detail": [
+        "0/10 valid runs"
+      ],
+      "latency_ms_p95_mean": null,
+      "loss_rate_mean": null,
+      "n_runs": 0,
+      "queue_growth_run_fraction": null,
+      "rate_msg_s": 50.0,
+      "saturated": false,
+      "triggered": {
+        "host_cpu_sustained": null,
+        "loss_rate": false,
+        "p95_latency": false,
+        "queue_growth": null
+      },
+      "verdict": "insufficient-evidence"
+    },
+    {
+      "evidence_sufficient": false,
+      "expected_runs": 10,
+      "host_cpu_sustained_run_fraction": null,
+      "insufficient_evidence_detail": [
+        "0/10 valid runs"
+      ],
+      "latency_ms_p95_mean": null,
+      "loss_rate_mean": null,
+      "n_runs": 0,
+      "queue_growth_run_fraction": null,
+      "rate_msg_s": 100.0,
+      "saturated": false,
+      "triggered": {
+        "host_cpu_sustained": null,
+        "loss_rate": false,
+        "p95_latency": false,
+        "queue_growth": null
+      },
+      "verdict": "insufficient-evidence"
+    },
+    {
+      "evidence_sufficient": false,
+      "expected_runs": 10,
+      "host_cpu_sustained_run_fraction": null,
+      "insufficient_evidence_detail": [
+        "0/10 valid runs"
+      ],
+      "latency_ms_p95_mean": null,
+      "loss_rate_mean": null,
+      "n_runs": 0,
+      "queue_growth_run_fraction": null,
+      "rate_msg_s": 250.0,
+      "saturated": false,
+      "triggered": {
+        "host_cpu_sustained": null,
+        "loss_rate": false,
+        "p95_latency": false,
+        "queue_growth": null
+      },
+      "verdict": "insufficient-evidence"
+    }
+  ],
+  "pending_advisor_signoff": "PENDING ADVISOR SIGN-OFF BEFORE exp-v1 (audit R23): the host-level CPU rule (> 0.90 utilization sustained 60 s), the queue-growth rule (strictly increasing over >= 60 s, floor 100), the >= 0.5 run-fraction rule, the 5 s sampling-cadence cap (MAX_SAMPLE_GAP_S) and the 90% minimum resources coverage (SATURATION_MIN_RESOURCE_COVERAGE_PCT) must be confirmed with the advisor before the protocol freeze (G4); they must not change afterwards.",
+  "protocol_version": "1.0.0"
+}

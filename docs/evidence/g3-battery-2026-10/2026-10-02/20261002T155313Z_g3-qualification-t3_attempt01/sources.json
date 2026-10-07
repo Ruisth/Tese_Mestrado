@@ -1,0 +1,11 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-02T15:53:13.323641Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-invalid-01-q1",
+      "role": "itest run itest-invalid-01-q1: the simulator's directory with the fetched events.jsonl, and every itest-invalid-01-q1.* sibling the helpers write (transcript, marker, metrics, twins, reconcile, copies, .sut/)",
+      "siblings_glob": "itest-invalid-01-q1.*"
+    }
+  ]
+}

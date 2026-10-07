@@ -1,0 +1,12 @@
+variant default: the group 68945 before the TERM:
+    | 68945 /home/ruisth/egw-exec/venv/bin/python -c  import subprocess, sys, time p = subprocess.Popen(["bash", "-c
+    | 68947 bash -c :; ( intr=; trap 'intr=1; echo "harness_cmd: interrupted - the Docker events recorder is stopped
+    | 68948 bash -c :; ( intr=; trap 'intr=1; echo "harness_cmd: interrupted - the Docker events recorder is stopped
+    | 68949 /usr/bin/sleep 60
+variant default: after the TERM: processes left in the group: 0; the trap ran: yes; the cleanup stand-in ran: NO
+variant ignored: the group 68962 before the TERM:
+    | 68962 /home/ruisth/egw-exec/venv/bin/python -c  import subprocess, sys, time p = subprocess.Popen(["bash", "-c
+    | 68964 bash -c trap '' PIPE; ( intr=; trap 'intr=1; echo "harness_cmd: interrupted - the Docker events recorder
+    | 68965 bash -c trap '' PIPE; ( intr=; trap 'intr=1; echo "harness_cmd: interrupted - the Docker events recorder
+    | 68966 /usr/bin/sleep 60
+variant ignored: after the TERM: processes left in the group: 0; the trap ran: yes; the cleanup stand-in ran: yes

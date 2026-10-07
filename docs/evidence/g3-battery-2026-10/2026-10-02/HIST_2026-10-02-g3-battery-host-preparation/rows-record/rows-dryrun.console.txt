@@ -1,0 +1,89 @@
+## 2026-10-02T11:59:43Z g3_rows_dryrun.sh (sha256 bf0fac2c48b32a0398e678823e6a72cdddd5568a49bed48c3434584a1e9523bb) with g3_check_rows.sh (sha256 1173e78cb81a1e5d4e39e26645f322d1f5f360cb086899e6951c15b7228ddc26)
+## t1-smokes.sh with stub run_test (the second repetition fails) and stub stop
+for i in 01 02 03; do run_test itest-smoke-$i-q1 42 --scenario smoke || { stop "test 1 interrupted at itest-smoke-$i-q1 - the remaining repetitions were NOT started"; break; }; done
+run_test: itest-smoke-01-q1 42 --scenario smoke
+run_test: itest-smoke-02-q1 42 --scenario smoke
+STOP: test 1 interrupted at itest-smoke-02-q1 - the remaining repetitions were NOT started
+[step t1-smokes.sh ended with status 0]
+
+## t1-harness-analyze.sh with a stub python (analyze) and a made-up per_run.csv of two rows
+# G3 battery, row t1-harness, step 2 of 2: PROSE-ONLY step. No fenced runbook line exists for it.
+# Written by g3_extract_rows.py from a constant of that script; nothing is extracted and no id is substituted.
+# It derives from docs/setup/qemu_integrated_gateway.md at 80e833f (sha256 c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae), line 1320, which says:
+#   "The harness applies the confirmation deadline itself (manifest `confirmation_deadline_clock_domain: "controller"`), so no `pre`/`post` is used here; read the result with `python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json` and the columns `confirmation_deadline_source`, `sent_valid`, `delivered_unique`, `lost`, `late_confirmations`, `double_accepted` of `~/egw-tcg/pilot/results/processed/per_run.csv`"
+# Decision packet of 2026-10-01 (revision 2), execution choice "Prose-only steps": T1's analyze read (line 1320)
+# is run and recorded. The plan entry is nominal-r02 (decision 1b; packet section 2, row 2). The analyze command
+# is, character for character, the runbook's own fenced line 1427 (test 6). The second command prints the six
+# columns line 1320 names from this run's row of per_run.csv. Both print; neither judges.
+python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json; echo "analyze exit=$?"
+STUB python: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-dry-rowsA.TTvoBc/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-dry-rowsA.TTvoBc/home/egw-tcg/pilot/campaign_plan.json]
+analyze exit=0
+python3 - ~/egw-tcg/pilot/results/processed/per_run.csv nominal-r02 <<'EOF'
+import csv, sys
+path, rid = sys.argv[1], sys.argv[2]
+cols = ("confirmation_deadline_source", "sent_valid", "delivered_unique", "lost", "late_confirmations", "double_accepted")
+with open(path, newline="", encoding="utf-8") as fh:
+    rows = [r for r in csv.DictReader(fh) if r.get("run_id") == rid]
+print("per_run.csv:", path, "- rows of", rid + ":", len(rows))
+for r in rows:
+    print(rid, " ".join("%s=%s" % (c, r.get(c)) for c in cols))
+sys.exit(0 if len(rows) == 1 else 1)
+EOF
+per_run.csv: /tmp/g3-dry-rowsA.TTvoBc/home/egw-tcg/pilot/results/processed/per_run.csv - rows of nominal-r02: 1
+nominal-r02 confirmation_deadline_source=controller-marker sent_valid=6720 delivered_unique=6700 lost=20 late_confirmations=20 double_accepted=0
+echo "per_run read exit=$? (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)"
+per_run read exit=0 (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)
+[step t1-harness-analyze.sh ended with status 0]
+
+## t1-harness-analyze.sh when per_run.csv has no row of nominal-r02
+python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json; echo "analyze exit=$?"
+STUB python: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-dry-rowsA.TTvoBc/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-dry-rowsA.TTvoBc/home/egw-tcg/pilot/campaign_plan.json]
+analyze exit=0
+python3 - ~/egw-tcg/pilot/results/processed/per_run.csv nominal-r02 <<'EOF'
+print("per_run.csv:", path, "- rows of", rid + ":", len(rows))
+per_run.csv: /tmp/g3-dry-rowsA.TTvoBc/home/egw-tcg/pilot/results/processed/per_run.csv - rows of nominal-r02: 0
+echo "per_run read exit=$? (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)"
+per_run read exit=1 (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)
+[step t1-harness-analyze.sh ended with status 0]
+
+## t9-exposure.sh with stub ssh and ss
+# G3 battery, row t9, step 5 of 5: PROSE-ONLY step. No fenced runbook line exists for it.
+# Written by g3_extract_rows.py from a constant of that script; nothing is extracted and no id is substituted.
+# It derives from docs/setup/qemu_integrated_gateway.md at 80e833f (sha256 c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae), line 1529 (the last sentence of test 9's Expected), which says:
+#   "Also keep `ssh -p 2222 root@127.0.0.1` refused and `nmap`-free port evidence: `ss -ltn` on the host shows only 2222 and 8883 forwarded by QEMU; inside the guest `docker ps` shows `127.0.0.1:8080` and `127.0.0.1:8000` bindings and MongoDB with no published port (work order item 5)."
+# Decision packet of 2026-10-01 (revision 2), execution choice "Prose-only steps": T9's three exposure checks
+# are run and recorded, read-only. Operator procedure, T9: `ssh -n -o BatchMode=yes ... -p 2222 root@127.0.0.1 true`, where only "Permission denied" counts; `ss -ltnp`; the guest's `docker ps` ports.
+# The three commands only read, each prints what it read and its exit status, and none judges.
+# (1) root over ssh on the forwarded port 2222. BatchMode: no prompt, so no password is ever asked or typed;
+#     the host key is checked against the runbook's pinned file and nothing is added to it; the one key the
+#     guest accepts for 'egw' is the key offered. Only "Permission denied" counts as the refusal: "Host key
+#     verification failed", a timeout or "Connection refused" is no evidence, and exit 0 is a root login.
+ssh -n -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o UserKnownHostsFile="$HOME/.ssh/known_hosts_egw_tcg" -o IdentitiesOnly=yes -i "$HOME/.ssh/egw_campaign" -p 2222 root@127.0.0.1 true; echo "root ssh exit=$?"
+STUB ssh argc=19: [-n] [-o] [BatchMode=yes] [-o] [ConnectTimeout=20] [-o] [StrictHostKeyChecking=yes] [-o] [UpdateHostKeys=no] [-o] [UserKnownHostsFile=/tmp/g3-dry-rowsA.TTvoBc/home/.ssh/known_hosts_egw_tcg] [-o] [IdentitiesOnly=yes] [-i] [/tmp/g3-dry-rowsA.TTvoBc/home/.ssh/egw_campaign] [-p] [2222] [root@127.0.0.1] [true]
+STUB ssh: stdin is not a terminal
+root@127.0.0.1: Permission denied (publickey,password).
+root ssh exit=255
+# (2) the host's listening TCP sockets with their owning process. Expected: 2222 and 8883 forwarded by QEMU;
+#     8000 and 8080 belong to this project's own ssh tunnel master (runbook 5.7), not to QEMU.
+ss -ltnp; echo "ss exit=$?"
+STUB ss: [-ltnp]
+ss exit=0
+# (3) the guest's published container ports, read over ssh. Expected: bindings on 127.0.0.1:8080 and
+#     127.0.0.1:8000, and MongoDB with no published port.
+ssh -n egw-tcg 'docker ps --format "{{.Names}} {{.Ports}}"'; echo "docker ps exit=$?"
+STUB ssh argc=3: [-n] [egw-tcg] [docker ps --format "{{.Names}} {{.Ports}}"]
+STUB ssh: stdin is not a terminal
+egw-controller-1 127.0.0.1:8000->8000/tcp
+egw-mongodb-1 
+docker ps exit=0
+[step t9-exposure.sh ended with status 0]
+
+## self-test of the checker: each altered copy must be refused
+detected: an id left without its suffix (t4-reset.sh) -> 7 FAIL line(s), first: FAIL  t4-reset.sh: itest-dup-02-q1 stands 0 time(s), expected 1
+detected: one of T8's five literals not substituted (t8-c-snapshot.sh) -> 7 FAIL line(s), first: FAIL  t8-c-snapshot.sh: itest-reboot-q1 stands 4 time(s), expected 5
+detected: a changed character outside the ids (t6.sh: 300 -> 301) -> 4 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+detected: an id that must not change was changed (t1-harness.sh) -> 5 FAIL line(s), first: FAIL  t1-harness.sh: 1 '-q1', expected 0
+detected: a carriage return (t5.sh) -> 5 FAIL line(s), first: FAIL  t5.sh holds a carriage return
+detected: a suffix added where no id stands (t2.sh) -> 4 FAIL line(s), first: FAIL  t2.sh: 2 '-q1', expected 1
+the unaltered copy passes
+dryrun exit=0

@@ -1,0 +1,79 @@
+{
+  "rows_manifest_sha256": "7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47",
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "e3aa669d38c6320db1bfa853fd25834ac4d848e6fb04c6e9f341fbfd39c23050",
+  "runbook": {
+    "commit": "1fd9792bb76f02c6948f33887207dba4837202db",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f",
+    "lines": 1624
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "b63ef7d88ae22e623bf381ef0dc3e6fbfbf050d966d5b0e09cc961ee169d83be",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for the one heading"
+  },
+  "substitution_rule": {
+    "suffix": null,
+    "ids": [],
+    "unchanged": [
+      "controller_restart-r04"
+    ],
+    "token": "none: session S4 substitutes no id",
+    "asserted": "each step file is the extracted text, byte for byte (sha256_before equals sha256_after and the diff is empty); the plan-entry literals of the extracted text are exactly controller_restart-r01 (a comment of line 1421) and controller_restart-r04 (the run id, the runbook's own literal), once each; the extracted text holds no itest id, no '-q1' and no '-q2' (the suffixes of the ids of sessions S1 and S2 and of session S3, which are not reused)"
+  },
+  "row": {
+    "row": "t6",
+    "session": "S4",
+    "steps": [
+      "t6.sh"
+    ],
+    "note": "Plan entry controller_restart-r04 (seed read from the pilot plan; refused if already used): the harness run with the controller restarted at +300 s and the resource transition judged under the rule 1a-option-a-2026-10-05 (line 1425), then - each only when T6=ok - delta on the twins (line 1426) and the per-identity check 'acceptance --exactly-once' on the post-drain copy (line 1427), and analyze (line 1428)."
+  },
+  "files": {
+    "t6.sh": {
+      "row": "t6",
+      "session": "S4",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 6"
+      ],
+      "source_line_numbers": [
+        1421,
+        1422,
+        1423,
+        1424,
+        1425,
+        1426,
+        1427,
+        1428
+      ],
+      "source_line_ranges": "1421-1428",
+      "host_command_starts": [
+        1421,
+        1422,
+        1423,
+        1424,
+        1425,
+        1426,
+        1427,
+        1428
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 8,
+      "sha256_before": "ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377",
+      "sha256_after": "ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377",
+      "bytes_before": 12167,
+      "bytes_after": 12167,
+      "substitutions": [],
+      "diff": "t6.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1421-1428, eight one-line commands: the whole fenced block (line 1420 opens it, line 1429 closes it). Nothing is substituted: controller_restart-r04 is the runbook's own literal, a plan entry."
+    }
+  }
+}

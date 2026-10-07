@@ -1,0 +1,5 @@
+fetch: resources-controller_restart-r03.csv present sha256=4becf31aa1e5bc61c2e05445c7724ec8117313eca7a8cc26c7a39e85c63b9e4a verified
+fetch: resources-controller_restart-r03.csv.diagnostics.log present sha256=c28a09d032380bc0183b525983829ec16be0049ad25fb5e720d0ee0ebedfe835 verified
+fetch: resources-controller_restart-r03.csv.lifecycle.csv present sha256=2df607851737d162813146843851f191409cb1d17be0f42eb91b9930566a1ea0 verified
+fetch: resources-controller_restart-r03.csv.self-test absent (optional)
+fetch: result exit=0 (every mandatory file present and verified)

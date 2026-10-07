@@ -1,0 +1,224 @@
+--- base/g3_check_rows.sh
++++ g3_check_rows.sh
+@@ -1,8 +1,8 @@
+ #!/bin/bash
+-# Independent check of the row files of G3 session S3 (tests 8 and 9; written by
+-# g3_extract_rows.py). It restates the line ranges and the ids on its own (it does not
+-# take them from the manifest) and compares every row file with the lines of the runbook
+-# blob of the merged commit 8e49261. It READS only: the blob, the row files and the
++# Independent check of the row files of G3 session S4 (test 6 only; written by
++# g3_extract_rows.py). It restates the line range and the literals on its own (it does not
++# take them from the manifest) and compares the row file with the lines of the runbook
++# blob of the merged commit 1fd9792. It READS only: the blob, the row files and the
+ # manifest; it writes no file anywhere, starts nothing and contacts nothing.
+ #
+ # Two modes, by where the blob is read from. Which mode proves what:
+@@ -10,18 +10,18 @@
+ #       clean clone ($EGW_EXEC_REPO, default ~/egw-exec/repo), whose HEAD must be the
+ #       commit before the checks and which must be clean at the commit after them. It
+ #       proves that the row files are the lines of the runbook THE EXECUTION CLONE HOLDS at
+-#       its checked-out commit, and that this clone is at 8e49261 and clean. It cannot pass
+-#       before the clone has moved to 8e49261.
++#       its checked-out commit, and that this clone is at 1fd9792 and clean. It cannot pass
++#       before the clone has moved to 1fd9792.
+ #   blob mode (--blob <file>, or EGW_G3_RUNBOOK_BLOB=<file>): the blob is read from that
+ #       file, whose sha256 is asserted. It proves that the row files are the lines of A
+-#       FILE WITH THE PINNED SHA256 of the runbook at 8e49261, and nothing about any clone
++#       FILE WITH THE PINNED SHA256 of the runbook at 1fd9792, and nothing about any clone
+ #       (neither its HEAD nor its state): git is never called. For the preparation before
+ #       the clone moves; the clone-mode check is then still to be made, after the move.
+ # Usage (WSL): bash g3_check_rows.sh [--blob <runbook blob file>] <rows directory>
+ set -u
+ usage() {
+     echo "usage: g3_check_rows.sh [--blob <runbook blob file>] <rows directory>" >&2
+-    echo "  without --blob (clone mode): the blob is read with git show from the clean clone, which must be at 8e49261 and clean;" >&2
++    echo "  without --blob (clone mode): the blob is read with git show from the clean clone, which must be at 1fd9792 and clean;" >&2
+     echo "      proves that the row files are the lines of the runbook the execution clone holds at its checked-out commit" >&2
+     echo "  with --blob, or EGW_G3_RUNBOOK_BLOB (blob mode): the blob is that file, its sha256 asserted;" >&2
+     echo "      proves that the row files are the lines of a file with the pinned sha256, and nothing about any clone" >&2
+@@ -39,9 +39,11 @@
+ done
+ [ -n "$ROWS" ] || usage
+ C=${EGW_EXEC_REPO:-$HOME/egw-exec/repo}
+-COMMIT=8e492613d36490a560ae56beabd6d5c2c01a8696
++# S4 (brief, stream ROWS, checker: "commit, hash, line table, file list"): the merged commit, its
++# runbook blob (1,624 lines, asserted below) and, further down, the one-file table.
++COMMIT=1fd9792bb76f02c6948f33887207dba4837202db
+ RB=docs/setup/qemu_integrated_gateway.md
+-RB_SHA=4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
++RB_SHA=317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+ bad=0
+ ok() { echo "ok    $*"; }
+ no() { echo "FAIL  $*"; bad=$((bad + 1)); }
+@@ -63,32 +65,25 @@
+     [ "$(git -C "$C" rev-parse HEAD)" = "$COMMIT" ] && ok "clone HEAD is $COMMIT" || no "clone HEAD"
+ fi
+ [ "$(blob | sha256sum | cut -d' ' -f1)" = "$RB_SHA" ] && ok "runbook blob sha256 $RB_SHA" || no "runbook blob sha256"
+-[ "$(blob | wc -l)" = 1623 ] && ok "1623 lines" || no "line count"
++[ "$(blob | wc -l)" = 1624 ] && ok "1624 lines" || no "line count"
+ [ "$(blob | grep -c -- '-q2')" = 0 ] && ok "no '-q2' in the blob" || no "the blob holds '-q2'"
+-[ "$(blob | awk '(NR>=1486&&NR<=1500)+(NR>=1509&&NR<=1534)' | grep -c -- '-q1')" = 0 ] && ok "no '-q1' in lines 1486-1500 and 1509-1534 of the blob (the lines of the step files)" || no "the blob's lines of the step files hold '-q1'"
++# S4: neither earlier session's suffix ('-q1': S1 and S2; '-q2': S3) in the lines of the step file.
++[ "$(blob | awk 'NR>=1421&&NR<=1428' | grep -c -- '-q[12]')" = 0 ] && ok "no '-q1' and no '-q2' in lines 1421-1428 of the blob (the lines of the step file)" || no "the blob's lines of the step file hold '-q1' or '-q2'"
++# S4: lines 1421-1428 are test 6's whole fenced block: its heading on 1416, the fence opened on
++# 1420 and closed on 1429 (no other fence before test 7's heading on 1437), eight host$ lines.
++[ "$(blob | awk 'NR==1416' | grep -c '^### Test 6 ')" = 1 ] && [ "$(blob | awk 'NR==1437' | grep -c '^### Test 7 ')" = 1 ] \
++    && [ "$(blob | awk 'NR>=1417&&NR<=1436' | grep -n '^```' | cut -d: -f1 | tr '\n' ' ')" = '4 13 ' ] \
++    && [ "$(blob | awk 'NR>=1421&&NR<=1428' | grep -c '^host\$ ')" = 8 ] \
++    && ok "test 6's heading on line 1416, its one fence opened on 1420 and closed on 1429 (test 7's heading on 1437), eight host\$ lines 1421-1428" \
++    || no "test 6's heading, fence or host\$ lines are not on lines 1416, 1420, 1429 and 1421-1428"
+ 
+-# file | awk condition on the blob's line number | new id=count ... (the ids of the request's section 3).
+-TABLE='t8-a-reboot.sh|NR>=1486&&NR<=1495|itest-reboot-q2=15
+-t8-b-wait-boot-id.sh|NR==1496|itest-reboot-q2=8
+-t8-c-unaided.sh|NR==1497|itest-reboot-q2=32
+-t8-d-tunnel.sh|NR==1498|
+-t8-e-state.sh|NR==1499|itest-reboot-q2=5
+-t8-f-smoke.sh|NR==1500|itest-post-reboot-01-q2=1
+-t9-a.sh|NR>=1509&&NR<=1510|itest-tls-wrongca-q2=1
+-t9-b.sh|NR>=1511&&NR<=1524|itest-auth-wrongpw-q2=4
+-t9-c.sh|NR>=1525&&NR<=1527|itest-notls-q2=3
+-t9-de.sh|NR>=1528&&NR<=1534|'
+-OLD='itest-reboot
+-itest-post-reboot-01
+-itest-tls-wrongca
+-itest-auth-wrongpw
+-itest-notls'
+-PROSE='t9-exposure.sh|1537'
++# file | awk condition on the blob's line number | new id=count ... (S4: none; nothing is substituted).
++TABLE='t6.sh|NR>=1421&&NR<=1428|'
+ 
+ echo "## the directory"
+-want=$( { echo "$TABLE" | cut -d'|' -f1 | sed 'p;s/$/.diff/'; echo "$PROSE" | cut -d'|' -f1; echo rows.manifest.json; } | sort)
++want=$( { echo "$TABLE" | cut -d'|' -f1 | sed 'p;s/$/.diff/'; echo rows.manifest.json; } | sort)
+ have=$(ls -A "$ROWS" | sort)
+-[ "$want" = "$have" ] && ok "exactly the 22 expected files (11 steps, 10 diffs, the manifest)" || { no "directory listing"; diff <(echo "$want") <(echo "$have"); }
++[ "$want" = "$have" ] && ok "exactly the 3 expected files (1 step, 1 diff, the manifest)" || { no "directory listing"; diff <(echo "$want") <(echo "$have"); }
+ 
+ echo "## every file: LF only, one final newline, UTF-8"
+ pre=$bad
+@@ -99,14 +94,14 @@
+     [ "$(tail -c 1 "$f" | od -An -tx1 | tr -d ' ')" = 0a ] || no "$n does not end with a newline"
+     iconv -f UTF-8 -t UTF-8 "$f" > /dev/null 2>&1 || no "$n is not UTF-8"
+ done
+-[ "$bad" = "$pre" ] && ok "no CR, final newline, UTF-8 in $(ls -A "$ROWS" | wc -l) files (the empty diffs are those of the files without a substitution)"
++[ "$bad" = "$pre" ] && ok "no CR, final newline, UTF-8 in $(ls -A "$ROWS" | wc -l) files (the empty diff is that of the file without a substitution)"
+ 
+ echo "## the runbook step files"
+ while IFS='|' read -r name cond ids; do
+     f=$ROWS/$name
+     if bash -n "$f" 2> /dev/null; then ok "$name: bash -n"; else no "$name: bash -n"; fi
+-    # byte identity: with every '-q2' removed the file is the blob's lines, prompt removed
+-    if sed 's/-q2//g' "$f" | cmp -s - <(orig "$cond"); then ok "$name: without '-q2' it is byte-identical to the blob's lines ($cond)"; else no "$name: differs from the blob's lines"; fi
++    # byte identity. S4 (no substitution): the file itself is the blob's lines, prompt removed
++    if cmp -s "$f" <(orig "$cond"); then ok "$name: byte-identical to the blob's lines ($cond), the prompt removed"; else no "$name: differs from the blob's lines"; fi
+     total=0
+     for pair in $ids; do
+         new=${pair%=*}; n=${pair##*=}; total=$((total + n))
+@@ -114,6 +109,7 @@
+     done
+     [ "$(count '-q2' "$f")" = "$total" ] && ok "$name: $total '-q2' in all, each one an id's" || no "$name: $(count '-q2' "$f") '-q2', expected $total"
+     # the ids-only diff: its '-' lines are its '+' lines without '-q2'; its '+' lines are the file's lines that hold '-q2'
++    # (S4: the table names no id, so total is 0 and the second branch is not reached)
+     d=$f.diff
+     if [ "$total" = 0 ]; then
+         [ ! -s "$d" ] && cmp -s "$f" <(orig "$cond") && ok "$name: no substitution, empty diff, the file is the blob's lines" || no "$name: diff of a file without substitution"
+@@ -125,33 +121,30 @@
+     fi
+ done <<< "$TABLE"
+ 
+-echo "## no old literal left without its '-q2' (all step files)"
+-while IFS= read -r old; do
+-    # as a token (word boundaries) and, stricter, as a plain string
+-    if grep -nP "(?<![A-Za-z0-9_])\\Q$old\\E(?![A-Za-z0-9_])(?!-q2(?![A-Za-z0-9_-]))" "$ROWS"/*.sh > /dev/null; then no "$old stands as a token without '-q2'"; fi
+-    if grep -nP "\\Q$old\\E(?!-q2(?![A-Za-z0-9_-]))" "$ROWS"/*.sh > /dev/null; then no "$old stands as a string without '-q2'"; else ok "$old: every occurrence is followed by '-q2' ($(cat "$ROWS"/*.sh | grep -oF -- "$old-q2" | wc -l) in all)"; fi
+-done <<< "$OLD"
+-# S3: no id of the battery (sessions S1 and S2, suffix '-q1') may stand in a step file.
+-if grep -qF -- '-q1' "$ROWS"/*.sh; then no "a step file holds '-q1', the suffix of the battery's ids: $(grep -lF -- '-q1' "$ROWS"/*.sh | xargs -n 1 basename | tr '\n' ' ')"; else ok "no '-q1' (the suffix of the battery's ids) in any step file"; fi
+-pre=$bad
+-for lit in 'itest-acl-$T-q2'; do
+-    grep -qF -- "$lit" "$ROWS"/*.sh && no "$lit: an id that must not change was changed"
+-done
+-[ "$(grep -oF 'itest-acl-$T' "$ROWS"/t9-de.sh | wc -l)" = 11 ] || no "itest-acl-\$T does not stand 11 times in t9-de.sh"
+-[ "$bad" = "$pre" ] && ok "unchanged: itest-acl-\$T x$(grep -oF 'itest-acl-$T' "$ROWS"/t9-de.sh | wc -l) (t9-de.sh)"
+-
+-echo "## the prose-only step file"
+-while IFS='|' read -r name line; do
+-    f=$ROWS/$name
+-    if bash -n "$f" 2> /dev/null; then ok "$name: bash -n"; else no "$name: bash -n"; fi
+-    # S3: its header names the merged commit, the blob's sha256 and the sentence's line.
+-    sed -n '3p' "$f" | grep -qF -- "# It derives from $RB at ${COMMIT:0:7} (sha256 $RB_SHA), line $line (" && ok "$name: its line 3 names $RB at ${COMMIT:0:7}, sha256 $RB_SHA, line $line" || no "$name: line 3 does not name the commit, the sha256 and line $line"
+-    q=$(sed -n '4p' "$f" | sed 's/^#   "//; s/"$//')
+-    [ -n "$q" ] && [ "$(blob | awk "NR==$line" | grep -cF -- "$q")" = 1 ] && ok "$name: the sentence quoted on its line 4 stands on runbook line $line" || no "$name: quoted sentence"
+-    grep -qF -- '-q2' "$f" && no "$name holds '-q2'"
+-    grep -qE '^[^#]*(rm |mv |cp |tee |>[^&]|sudo|kill|systemctl|compose)' "$f" && no "$name: a command that is not a plain read"
+-done <<< "$PROSE"
+-grep -v '^#' "$ROWS/t9-exposure.sh" | cut -d' ' -f1 | tr '\n' ' ' | grep -qx 'ssh ss ssh ' && ok "t9-exposure.sh: three commands (ssh, ss, ssh)" || no "t9-exposure.sh commands"
++# S4 (brief, stream ROWS): no identifier substitution - controller_restart-r04 is the runbook's
++# own literal; the three changes of the merged block against the battery's are restated by line.
++echo "## the run id, the literals and the three changes of the merged block (t6.sh; nothing substituted)"
++f=$ROWS/t6.sh
++l1=$(sed -n '1p' "$f"); l5=$(sed -n '5p' "$f"); l7=$(sed -n '7p' "$f")
++[ "$(wc -l < "$f")" = 8 ] && ok "t6.sh: 8 lines" || no "t6.sh: $(wc -l < "$f") lines, 8 expected"
++case $l1 in
++    'RID=controller_restart-r04; F6=used; '*) [ "$(count 'controller_restart-r04' "$f")" = 1 ] && ok "t6.sh: controller_restart-r04 stands once, opening line 1 ('RID=controller_restart-r04; F6=used; ...')" || no "t6.sh: controller_restart-r04 stands $(count 'controller_restart-r04' "$f") time(s), 1 expected" ;;
++    *) no "t6.sh: line 1 does not open with 'RID=controller_restart-r04; F6=used; '" ;;
++esac
++[ "$(grep -oE '(nominal|controller_restart|smoke_sequence)-r[0-9][0-9]' "$f" | sort | tr '\n' ' ')" = 'controller_restart-r01 controller_restart-r04 ' ] \
++    && ok "t6.sh: the plan-entry literals are controller_restart-r01 (line 1's comment) and controller_restart-r04, once each" \
++    || no "t6.sh: the plan-entry literals are $(grep -oE '(nominal|controller_restart|smoke_sequence)-r[0-9][0-9]' "$f" | sort | tr '\n' ' ')"
++[ "$(grep -cE 'itest-[A-Za-z0-9$-]*[A-Za-z0-9$]' "$f")" = 0 ] && ok "t6.sh: no itest id" || no "t6.sh holds an itest id"
++if grep -qE -- '-q[12]' "$ROWS"/*.sh; then no "a step file holds '-q1' or '-q2', the suffix of an earlier session's ids: $(grep -lE -- '-q[12]' "$ROWS"/*.sh | xargs -n 1 basename | tr '\n' ' ')"; else ok "no '-q1' (sessions S1 and S2) and no '-q2' (session S3) in any step file"; fi
++case $l5 in
++    *' --restart-transition-rule 1a-option-a-2026-10-05; HR=$?; '*) [ "$(grep -c -- '--restart-transition-rule' "$f")" = 1 ] && ok "t6.sh: line 5, and no other line, hands the harness '--restart-transition-rule 1a-option-a-2026-10-05'" || no "t6.sh: --restart-transition-rule stands on more than line 5" ;;
++    *) no "t6.sh: line 5 does not hand the harness '--restart-transition-rule 1a-option-a-2026-10-05'" ;;
++esac
++case $l7 in
++    '[ "$T6" = ok ] && $REC acceptance $RAW6/logs/simulator/$RID --events $RAW6/events.post-drain.jsonl --exactly-once || stop '*) [ "$(grep -c -- 'acceptance \$RAW6' "$f")" = 1 ] && ok "t6.sh: line 7, and no other line, is the exactly-once check of the post-drain copy, run only when T6=ok" || no "t6.sh: the acceptance check stands on more than line 7" ;;
++    *) no "t6.sh: line 7 is not '[ \"\$T6\" = ok ] && \$REC acceptance ... --exactly-once || stop ...'" ;;
++esac
++[ "$(grep -c 'STOP:' "$f")" = 0 ] && ok "t6.sh holds no 'STOP:' text (a line of its console that opens with 'STOP:' is the helpers' stop)" || no "t6.sh holds 'STOP:' text"
+ 
+ echo "## the manifest"
+ python3 - "$ROWS" "$COMMIT" "$RB" "$RB_SHA" <<'EOF' || bad=$((bad + 1))
+@@ -168,18 +161,21 @@
+     if e["kind"] == "runbook" and (e["sha256_before"] == e["sha256_after"]) != (not e["substitutions"]):
+         bad += 1; print("FAIL  %s: before/after hashes and the substitution map disagree" % name)
+ steps = [f for r in m["rows"] for f in r["steps"]]
+-if steps != list(m["files"]) or len(m["rows"]) != 2:
++if steps != list(m["files"]) or len(m["rows"]) != 1:
+     bad += 1; print("FAIL  the rows table and the files disagree")
+-# S3: the runbook identity, the suffix and the session label the steps script will require.
+-if m["runbook"] != {"commit": commit, "path": rb, "sha256": rb_sha, "lines": 1623}:
+-    bad += 1; print("FAIL  the manifest's runbook identity is not %s, %s, 1623 lines" % (commit, rb_sha))
+-if m["substitution_rule"]["suffix"] != "-q2":
+-    bad += 1; print("FAIL  the manifest's suffix is not '-q2'")
+-if [(r["row"], r["session"]) for r in m["rows"]] != [("t8", "S3"), ("t9", "S3")] or any(e["session"] != "S3" for e in m["files"].values()):
+-    bad += 1; print("FAIL  the manifest's rows are not t8 and t9 of session S3")
+-print("%s  manifest: %d files in %d rows (%s; session S3), runbook %s, suffix %s; every sha256_after and diff_sha256 is the file's; rule checked against the frozen functions: %s"
++# S4: the runbook identity, no substitution and the session label the steps script will require.
++if m["runbook"] != {"commit": commit, "path": rb, "sha256": rb_sha, "lines": 1624}:
++    bad += 1; print("FAIL  the manifest's runbook identity is not %s, %s, 1624 lines" % (commit, rb_sha))
++if m["substitution_rule"]["suffix"] is not None or m["substitution_rule"]["ids"] != []:
++    bad += 1; print("FAIL  the manifest's substitution rule is not 'none' (no suffix, no id)")
++for name, e in m["files"].items():
++    if e["sha256_before"] != e["sha256_after"] or e["substitutions"] or e["diff_bytes"] != 0:
++        bad += 1; print("FAIL  %s: the manifest records a substitution or a non-empty diff" % name)
++if [(r["row"], r["session"]) for r in m["rows"]] != [("t6", "S4")] or any(e["session"] != "S4" for e in m["files"].values()):
++    bad += 1; print("FAIL  the manifest's rows are not t6 of session S4")
++print("%s  manifest: %d file(s) in %d row(s) (%s; session S4), runbook %s, substitution: %s; every sha256_after and diff_sha256 is the file's; rule checked against the frozen functions: %s"
+       % ("ok   " if not bad else "FAIL ", len(m["files"]), len(m["rows"]), ", ".join(r["row"] for r in m["rows"]), m["runbook"]["commit"][:7],
+-         m["substitution_rule"]["suffix"], m["extraction_rule"]["checked_against_the_frozen_functions"]))
++         "none" if m["substitution_rule"]["suffix"] is None else m["substitution_rule"]["suffix"], m["extraction_rule"]["checked_against_the_frozen_functions"]))
+ sys.exit(1 if bad else 0)
+ EOF
+ pre=$bad
+@@ -188,7 +184,7 @@
+     m=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["files"][sys.argv[2]]["sha256_before"])' "$ROWS/rows.manifest.json" "$name")
+     [ "$b" = "$m" ] || no "$name: sha256_before is not the sha256 of the blob's lines"
+ done <<< "$TABLE"
+-[ "$bad" = "$pre" ] && ok "manifest sha256_before of the 10 runbook files recomputed from the blob with awk and sed"
++[ "$bad" = "$pre" ] && ok "manifest sha256_before of the 1 runbook file recomputed from the blob with awk and sed"
+ 
+ if [ -n "$BLOB" ]; then
+     echo "## the clone: NOT read (blob mode)"

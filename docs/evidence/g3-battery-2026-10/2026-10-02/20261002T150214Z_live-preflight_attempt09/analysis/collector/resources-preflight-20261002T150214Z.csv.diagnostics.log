@@ -1,0 +1,9 @@
+2026-10-02T15:05:59Z start: collector_sha256=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 host=egw-qemu-integrated source=auto interval=1s duration=45s pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
+2026-10-02T15:05:59Z sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+2026-10-02T15:06:01Z calibrated: wall second 1790953561 began at uptime 268.95 s (calibration 1)
+2026-10-02T15:06:01Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-02T15:05:59Z)
+2026-10-02T15:06:30Z sample withheld at uptime 299.50 s: it fell in second 2026-10-02T15:06:30Z, not after the last stamped second 2026-10-02T15:06:30Z (a clock stepped back, or two samples in one second); no rows
+2026-10-02T15:06:31Z calibrated: wall second 1790953591 began at uptime 300.06 s (calibration 2)
+2026-10-02T15:06:31Z stamps resumed after 1 withheld sample(s): 1.10 s of elapsed time without an accepted sample (uptime 298.50 s to 300.60 s, less one interval); not in the forward UTC-gap count
+2026-10-02T15:06:44Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0
+2026-10-02T15:06:44Z stop: samples=46 utc_gap_seconds=1 withheld_samples=1 withheld_elapsed_s=1.10 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=2 pacing=wall-clock

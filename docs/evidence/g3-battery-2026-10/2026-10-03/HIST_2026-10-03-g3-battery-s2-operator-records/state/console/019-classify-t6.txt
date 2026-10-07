@@ -1,0 +1,6 @@
+## 2026-10-03T13:51:04Z up=1764 classify t6: invalid instrumentation (failed, invalid/unknown)
+exported 20261003T132936Z_g3-qualification-t6_attempt01: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-03\20261003T132936Z_g3-qualification-t6_attempt01 (verified, 93 files, 0 excluded)
+DRIVER RESULT 20261003T132936Z_g3-qualification-t6_attempt01: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=unknown export=exported headline="G3 qualification t6: invalid instrumentation. INVALID INSTRUMENTATION (packet section 5, T6 row: resources.csv rejected, HR=1 with an instrumentation reason). Plan entry controller_restart-r03 (see..."
+row t6: classified 'invalid instrumentation'; driver code 3; export: verified -> /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+NOTE: invalid instrumentation of the shared chain is a halt condition (packet section 4, halt 2). If this is one, do not run a further row: 'close' and hand back to Rui.
+Next: the next row of session S2, or 'close' after the last one.

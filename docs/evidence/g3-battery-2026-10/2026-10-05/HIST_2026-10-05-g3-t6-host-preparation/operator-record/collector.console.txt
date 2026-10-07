@@ -1,0 +1,19 @@
+
+=== bench collector: script under test 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (g3_battery.sh of the preparation, run in place)
+drivers of the copy before the stubs: 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+helpers e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb, tunnel.sh 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (from the runbook blob 317165936abe...)
+
+=== g3_battery.sh open S4
+-> exit 1
+## 2026-10-05T18:52:01Z up=2012 open S4: steps script <S>/g3/t6prep/g3_battery.sh sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+## 2026-10-05T18:52:01Z up=2012 candidate identities
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  <bench>/repo/docs/setup/qemu_integrated_gateway.md
+collector: bd2de1d530f09f1eb8825ea4b98ca7879de89db331aae29aeab6a96602c84898  <bench>/repo/src/deployment/scripts/collect-resources.sh
+HALT: collector (<bench>/repo/src/deployment/scripts/collect-resources.sh) is bd2de1d530f09f1eb8825ea4b98ca7879de89db331aae29aeab6a96602c84898, the recorded identity is 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97 (packet section 4, halt 6); nothing was started
+CHECK ok: exit status 1: open S4 halts
+CHECK ok: HALT names the collector and its recorded identity
+CHECK ok: nothing was started: no session
+CHECK ok: no session state file
+
+=== bench collector: 4 checks, 0 failed
+RESULT collector: PASS

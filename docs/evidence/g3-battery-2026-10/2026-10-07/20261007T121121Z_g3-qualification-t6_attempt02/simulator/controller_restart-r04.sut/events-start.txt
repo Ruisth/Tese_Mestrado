@@ -1,0 +1,10 @@
+recorder_sha256=1afdce8ca9baaca1bb8d7af840dba4cd2d90069aaa7689227831ac92df0e6480
+start_fact_boot_id=85783f36-2a51-42bc-998b-294cc51510db
+start_fact_MainPID=277
+start_fact_ExecMainStartTimestampMonotonic=11072602
+recorder_since_guest_epoch=1791375121
+Running as unit: egw-events-controller_restart-r04.service; invocation ID: a35097ed899643558b827d1187fcd8a8
+start epoch=1791375242 pid=5288 since=1791375121
+cli-start epoch=1791375242 cli_pid=5290
+ready epoch=1791375243 events_bytes=129115 unit=active
+run_guest_t0=1791375243

@@ -1,0 +1,2 @@
+c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b  /home/ruisth/egw-tcg/pilot/campaign_plan.json
+c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b  /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.after-harness.json

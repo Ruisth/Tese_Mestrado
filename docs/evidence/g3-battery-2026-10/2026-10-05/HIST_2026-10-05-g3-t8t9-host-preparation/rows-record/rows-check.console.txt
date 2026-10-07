@@ -1,0 +1,103 @@
+## 2026-10-04T21:19:46Z g3_check_rows.sh (sha256 2f1863b0f3b85f7ab2b8db65745f2d7a5d802ed0031fbcdb94e5cd666b64b11d) --blob <S>/g3/s3prep/runbook.8e49261.md <S>/g3/s3prep/rows
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## blob mode; HOME=/tmp/g3-s3-rows-record.550RXr/home, EGW_EXEC_REPO=/tmp/g3-s3-rows-record.550RXr/home/egw-exec/repo (no clone there), a stub git first on PATH that records every call
+## the blob
+blob mode: the blob is the file <S>/g3/s3prep/runbook.8e49261.md; no clone is read, so nothing below shows a clone's HEAD or state
+ok    the blob file is a readable regular file
+ok    runbook blob sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+ok    1623 lines
+ok    no '-q2' in the blob
+ok    no '-q1' in lines 1486-1500 and 1509-1534 of the blob (the lines of the step files)
+## the directory
+ok    exactly the 22 expected files (11 steps, 10 diffs, the manifest)
+## every file: LF only, one final newline, UTF-8
+ok    no CR, final newline, UTF-8 in 22 files (the empty diffs are those of the files without a substitution)
+## the runbook step files
+ok    t8-a-reboot.sh: bash -n
+ok    t8-a-reboot.sh: without '-q2' it is byte-identical to the blob's lines (NR>=1486&&NR<=1495)
+ok    t8-a-reboot.sh: itest-reboot-q2 stands 15 time(s)
+ok    t8-a-reboot.sh: 15 '-q2' in all, each one an id's
+ok    t8-a-reboot.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-b-wait-boot-id.sh: bash -n
+ok    t8-b-wait-boot-id.sh: without '-q2' it is byte-identical to the blob's lines (NR==1496)
+ok    t8-b-wait-boot-id.sh: itest-reboot-q2 stands 8 time(s)
+ok    t8-b-wait-boot-id.sh: 8 '-q2' in all, each one an id's
+ok    t8-b-wait-boot-id.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-c-unaided.sh: bash -n
+ok    t8-c-unaided.sh: without '-q2' it is byte-identical to the blob's lines (NR==1497)
+ok    t8-c-unaided.sh: itest-reboot-q2 stands 32 time(s)
+ok    t8-c-unaided.sh: 32 '-q2' in all, each one an id's
+ok    t8-c-unaided.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-d-tunnel.sh: bash -n
+ok    t8-d-tunnel.sh: without '-q2' it is byte-identical to the blob's lines (NR==1498)
+ok    t8-d-tunnel.sh: 0 '-q2' in all, each one an id's
+ok    t8-d-tunnel.sh: no substitution, empty diff, the file is the blob's lines
+ok    t8-e-state.sh: bash -n
+ok    t8-e-state.sh: without '-q2' it is byte-identical to the blob's lines (NR==1499)
+ok    t8-e-state.sh: itest-reboot-q2 stands 5 time(s)
+ok    t8-e-state.sh: 5 '-q2' in all, each one an id's
+ok    t8-e-state.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-f-smoke.sh: bash -n
+ok    t8-f-smoke.sh: without '-q2' it is byte-identical to the blob's lines (NR==1500)
+ok    t8-f-smoke.sh: itest-post-reboot-01-q2 stands 1 time(s)
+ok    t8-f-smoke.sh: 1 '-q2' in all, each one an id's
+ok    t8-f-smoke.sh: the diff is ids-only (1 line(s) changed)
+ok    t9-a.sh: bash -n
+ok    t9-a.sh: without '-q2' it is byte-identical to the blob's lines (NR>=1509&&NR<=1510)
+ok    t9-a.sh: itest-tls-wrongca-q2 stands 1 time(s)
+ok    t9-a.sh: 1 '-q2' in all, each one an id's
+ok    t9-a.sh: the diff is ids-only (1 line(s) changed)
+ok    t9-b.sh: bash -n
+ok    t9-b.sh: without '-q2' it is byte-identical to the blob's lines (NR>=1511&&NR<=1524)
+ok    t9-b.sh: itest-auth-wrongpw-q2 stands 4 time(s)
+ok    t9-b.sh: 4 '-q2' in all, each one an id's
+ok    t9-b.sh: the diff is ids-only (3 line(s) changed)
+ok    t9-c.sh: bash -n
+ok    t9-c.sh: without '-q2' it is byte-identical to the blob's lines (NR>=1525&&NR<=1527)
+ok    t9-c.sh: itest-notls-q2 stands 3 time(s)
+ok    t9-c.sh: 3 '-q2' in all, each one an id's
+ok    t9-c.sh: the diff is ids-only (2 line(s) changed)
+ok    t9-de.sh: bash -n
+ok    t9-de.sh: without '-q2' it is byte-identical to the blob's lines (NR>=1528&&NR<=1534)
+ok    t9-de.sh: 0 '-q2' in all, each one an id's
+ok    t9-de.sh: no substitution, empty diff, the file is the blob's lines
+## no old literal left without its '-q2' (all step files)
+ok    itest-reboot: every occurrence is followed by '-q2' (60 in all)
+ok    itest-post-reboot-01: every occurrence is followed by '-q2' (1 in all)
+ok    itest-tls-wrongca: every occurrence is followed by '-q2' (1 in all)
+ok    itest-auth-wrongpw: every occurrence is followed by '-q2' (4 in all)
+ok    itest-notls: every occurrence is followed by '-q2' (3 in all)
+ok    no '-q1' (the suffix of the battery's ids) in any step file
+ok    unchanged: itest-acl-$T x11 (t9-de.sh)
+## the prose-only step file
+ok    t9-exposure.sh: bash -n
+ok    t9-exposure.sh: its line 3 names docs/setup/qemu_integrated_gateway.md at 8e49261, sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db, line 1537
+ok    t9-exposure.sh: the sentence quoted on its line 4 stands on runbook line 1537
+ok    t9-exposure.sh: three commands (ssh, ss, ssh)
+## the manifest
+ok     manifest: 11 files in 2 rows (t8, t9; session S3), runbook 8e49261, suffix -q2; every sha256_after and diff_sha256 is the file's; rule checked against the frozen functions: True
+ok    manifest sha256_before of the 10 runbook files recomputed from the blob with awk and sed
+## the clone: NOT read (blob mode)
+note  the row files were compared with a file of the pinned sha256, not with the execution clone: repeat without --blob once the clone is at 8e492613d36490a560ae56beabd6d5c2c01a8696
+
+ROW FILES OK (0 failures; blob mode: against a file with the pinned sha256; no clone was read)
+check exit=0
+git calls recorded by the stub: 0 (0 expected: blob mode reads no clone)
+
+## the same through the environment variable EGW_G3_RUNBOOK_BLOB (last line only)
+ROW FILES OK (0 failures; blob mode: against a file with the pinned sha256; no clone was read)
+check (environment variable) exit=0
+
+## usage errors: no rows directory; --blob without a file
+usage: g3_check_rows.sh [--blob <runbook blob file>] <rows directory>
+  without --blob (clone mode): the blob is read with git show from the clean clone, which must be at 8e49261 and clean;
+      proves that the row files are the lines of the runbook the execution clone holds at its checked-out commit
+  with --blob, or EGW_G3_RUNBOOK_BLOB (blob mode): the blob is that file, its sha256 asserted;
+      proves that the row files are the lines of a file with the pinned sha256, and nothing about any clone
+exit=2 (2 expected)
+usage: g3_check_rows.sh [--blob <runbook blob file>] <rows directory>
+  without --blob (clone mode): the blob is read with git show from the clean clone, which must be at 8e49261 and clean;
+      proves that the row files are the lines of the runbook the execution clone holds at its checked-out commit
+  with --blob, or EGW_G3_RUNBOOK_BLOB (blob mode): the blob is that file, its sha256 asserted;
+      proves that the row files are the lines of a file with the pinned sha256, and nothing about any clone
+exit=2 (2 expected)

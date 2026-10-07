@@ -1,0 +1,222 @@
+## 2026-10-02T13:34:29Z script under test: /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1
+
+######## c (final)
+bench ready: /tmp/g3-dry-fix/cfinal
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== row t1-smokes (detached); its whole group is then KILLed from outside the script (a crash)
+row group 65888: 5 processes
+/mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/fix/fx_repro.sh: line 85: 65888 Killed                  setsid bash "$VS/bench_run.sh" "$b" "$G" "$@" > /dev/null 2>&1 < /dev/null
+after the kill: 0 processes
+attempt before the close: running unknown; exported packages: 0
+=== close
+exit=2
+## 2026-10-02T13:34:34Z up=1344 close S1: egw-exec/attempts/20261002T133429Z_guest-session_attempt01
+REFUSED: row t1-smokes is recorded 'running', its process is gone and its attempt is not finished and exported (attempt.json status and export receipt: 'running none'). The safe close finishes and exports the open attempt BEFORE the stop (packet section 4): nothing was stopped. First fetch what the row left on the guest (its /tmp is lost at the power-off; README, 'Restorations'), then mark and export the attempt with
+attempt after the close: running unknown; exported packages: 0; session: state=open
+=== the frozen recover line the refusal names (bench paths), then 'close' again
+20261002T133429Z_guest-session_attempt01: running: not touched (name it with --interrupt if its process died)
+20261002T133431Z_g3-qualification-t1-smokes_attempt01: exported
+attempt after the recover: interrupted interrupted; exported packages: 1
+exit=1
+## 2026-10-02T13:34:34Z up=1344 close S1: egw-exec/attempts/20261002T133429Z_guest-session_attempt01
+HALT: row t1-smokes: its process died without its trap (it was recorded 'running'); its attempt was finished and exported outside this script (interrupted complete) and the row is now recorded 'interrupted' (packet section 4, halt 2). It is NOT classified: its class is written in the result note
+keepalive: pid 297 'sleep 43200', parent 289 (Relay(297)), running for 1342 s, about 41858 s left
+keepalive: attached, about 41858 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-02T13:34:34Z up=1344 no recorder or collector unit active (read-only)
+## 2026-10-02T13:34:34Z up=1344 the recorded stop with the controller's 130 s allowance (PM condition 4)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 130
+## 2026-10-02T13:34:35Z up=1344 guest_session_close.sh (frozen driver, repo/tools/session/guest_session_close.sh; console egw-exec/g3-battery/S1-guest_session_close.console.txt)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 60
+exported 20261002T133429Z_guest-session_attempt01: out/runs/2026-10-02/20261002T133429Z_guest-session_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT 20261002T133429Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+## 2026-10-02T13:34:35Z up=1345 session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+session: state=closed
+=== status
+session S1: state=closed attempt=egw-exec/attempts/20261002T133429Z_guest-session_attempt01 UP0=1337
+  HALT: up=1344 row t1-smokes: its process died without its trap (it was recorded 'running'); its attempt was finished and exported outside this script (interrupted complete) and the row is now recorded 'interrupted' (packet section 4, halt 2). It is NOT classified: its class is written in the resul
+  row t1-smokes: interrupted; gate=; class=; driver code=; export=verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 2 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this 
+    attempt egw-exec/attempts/20261002T133431Z_g3-qualification-t1-smokes_attempt01
+  row t1-harness: not started
+
+######## d (final)
+bench ready: /tmp/g3-dry-fix/dfinal
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== the guest is lost: no QEMU process, ssh refused (bench flags removed)
+=== row t1-smokes
+## 2026-10-02T13:34:37Z up=1347 row t1-smokes (session S1): steps script sha256 fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1
+keepalive: pid 297 'sleep 43200', parent 289 (Relay(297)), running for 1345 s, about 41855 s left
+keepalive: attached, about 41855 s left (needed: 8100 s). The Windows keep-awake stays the operator's own check.
+row file t1-smokes.sh: sha256 ddd4f11dc20282d91986f0b94071bc82dde962f423b76d7bb097cdbe48cf82a2 = sha256_after of the manifest (row t1-smokes, step 1, 323 bytes)
+session clock: NOW=1347 UP0=1345 elapsed=2 s (cutoff 10800 s)
+HALT: no qemu-system-aarch64 process could be shown (pgrep exit 1: 1 none, other undetermined): the guest is lost; row t1-smokes was NOT started (packet section 4, halt 6)
+exit=1
+=== close (call 1)
+## 2026-10-02T13:34:37Z up=1347 close S1: egw-exec/attempts/20261002T133436Z_guest-session_attempt01
+keepalive: pid 297 'sleep 43200', parent 289 (Relay(297)), running for 1345 s, about 41855 s left
+keepalive: attached, about 41855 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+HALT: close S1: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt as it stands; its guest steps cannot succeed (expect exit 5)
+## 2026-10-02T13:34:37Z up=1347 guest_session_close.sh (frozen driver, repo/tools/session/guest_session_close.sh; console egw-exec/g3-battery/S1-guest_session_close.console.txt)
+STOP: ssh exited non-zero - the tunnel was NOT opened
+STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran
+exported 20261002T133436Z_guest-session_attempt01: out/runs/2026-10-02/20261002T133436Z_guest-session_attempt01 (verified, 19 files, 0 excluded)
+DRIVER RESULT 20261002T133436Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+## 2026-10-02T13:34:38Z up=1347 session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=1
+=== close (call 2)
+REFUSED: no open session
+exit=2
+=== status
+open session (current_session): none; host uptime now: 1348 s; WSL boot db7dfaf8-e2aa-4785-a1a5-9b4f8ea5acab
+session S1: state=closed attempt=egw-exec/attempts/20261002T133436Z_guest-session_attempt01 UP0=1345
+  HALT: up=1347 row=t1-smokes no qemu-system-aarch64 process could be shown (pgrep exit 1: 1 none, other undetermined): the guest is lost; row t1-smokes was NOT started (packet section 4, halt 6)
+  HALT: up=1347 close S1: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt as it stands; its g
+session S2: not opened
+current_session: cat: egw-exec/current_session: No such file or directory
+exported session packages: 1
+=== status
+session S1: state=closed attempt=egw-exec/attempts/20261002T133436Z_guest-session_attempt01 UP0=1345
+  HALT: up=1347 row=t1-smokes no qemu-system-aarch64 process could be shown (pgrep exit 1: 1 none, other undetermined): the guest is lost; row t1-smokes was NOT started (packet section 4, halt 6)
+  HALT: up=1347 close S1: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt as it stands; its g
+session S2: not opened
+=== open S2 without Rui's go
+## 2026-10-02T13:34:38Z up=1348 open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1
+REFUSED: S2 is authorised only if S1 reached its planned end without a halt condition, and: S1 recorded a halt: up=1347 close S1: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt as it
+exit=2
+=== open S2 with Rui's go (the bench's rootfs stub answers S1's value)
+DRIVER RESULT 20261002T133439Z_g2-gate-preconditions_attempt02: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## 2026-10-02T13:34:39Z up=1349 run ids of S2 unused on the guest (read-only listing)
+## 2026-10-02T13:34:39Z up=1349 session S2 is open: egw-exec/attempts/20261002T133438Z_guest-session_attempt02
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+
+######## f (final)
+bench ready: /tmp/g3-dry-fix/ffinal
+=== open S1 (detached; the bench's stub preflight waits 25 s); 8 s later, close
+session file while the open runs: state=opening 
+close exit=2
+REFUSED: another invocation of this script is still running: 'open S1' (pid 68368, since 2026-10-02T13:34:40Z). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+--- what the open printed afterwards:
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-02T13:35:05Z up=1376 session S1 is open: egw-exec/attempts/20261002T133440Z_guest-session_attempt01
+=== status
+session S1: state=open attempt=egw-exec/attempts/20261002T133440Z_guest-session_attempt01 UP0=1350
+
+######## o (final)
+bench ready: /tmp/g3-dry-fix/ofinal
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== the guest is lost; the close driver is run by hand (the bench's stub), not through 'close'
+exported 20261002T133519Z_guest-session_attempt01: out/runs/2026-10-02/20261002T133519Z_guest-session_attempt01 (verified, 19 files, 0 ex
+DRIVER RESULT 20261002T133519Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verifi
+current_session: cat: egw-exec/current_session: No such file or directory
+=== close, without Rui's go
+REFUSED: no open session (egw-exec/current_session is absent), but session S1 is recorded 'open' in egw-exec/g3-battery/session-S1.env: it was closed outside this script, or its open left no session. That record is changed only on Rui's explicit direction: 'close' with EGW_G3_RUI_GO set to his words records the session closed, with a halt (his words are recorded)
+exit=2
+session: state=open
+=== close with Rui's go, while a (bench) QEMU process is shown
+## 2026-10-02T13:35:21Z up=1392 close S1: no session is open; session S1 is recorded 'open'. EGW_G3_RUI_GO is set and is recorded: bench: Rui said record it closed
+REFUSED: a qemu-system-aarch64 process is running although no session is open: session S1 is NOT recorded closed. QEMU is never killed without Rui's decision
+exit=2
+session: state=open
+=== close with Rui's go
+## 2026-10-02T13:35:21Z up=1392 close S1: no session is open; session S1 is recorded 'open'. EGW_G3_RUI_GO is set and is recorded: bench: Rui said record it closed
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+HALT: session S1 was not closed by this script (its record said 'open'; guest_session_close_exit=''): it is recorded closed on Rui's direction (bench: Rui said record it closed). The session attempt's own package says how it ended: egw-exec/attempts/20261002T133519Z_guest-session_attempt01
+exit=1
+rootfs_after_close=c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260
+state=closed
+closed_outside=the record said 'open'; no current_session and no qemu-system-aarch64 process at up=1392; EGW_G3_RUI_GO: bench: Rui said record it closed
+=== status
+session S1: state=closed attempt=egw-exec/attempts/20261002T133519Z_guest-session_attempt01 UP0=1391
+  HALT: up=1392 session S1 was not closed by this script (its record said 'open'; guest_session_close_exit=''): it is recorded closed on Rui's direction (bench: Rui said record it closed). The session attempt's own package says how it ended: egw-exec/attempts/20261002T133519Z_guest-session_attempt01
+session S2: not opened
+=== open S2 without Rui's go
+## 2026-10-02T13:35:21Z up=1393 open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1
+REFUSED: S2 is authorised only if S1 reached its planned end without a halt condition, and: S1's close driver did not end 0. With Rui's explicit direction, set EGW_G3_RUI_GO to his words (they are recorded)
+exit=2
+=== open S2 with Rui's go
+## 2026-10-02T13:35:23Z up=1394 session S2 is open: egw-exec/attempts/20261002T133522Z_guest-session_attempt02
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+
+######## k (final)
+bench ready: /tmp/g3-dry-fix/kfinal
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== close with no keepalive client (the bench's 'ps' hides them)
+## 2026-10-02T13:35:25Z up=1396 close S1: egw-exec/attempts/20261002T133524Z_guest-session_attempt01
+KEEPALIVE: no 'exec sleep' client of wsl.exe with at least 1800 s left (best: -1 s; -1 = none).
+REFUSED: the keepalive client is not attached with 1800 s left (see above): nothing was stopped. Attach one, then 'close' again
+exit=2
+session: state=open; stop attempted: 0
+=== close with the keepalive back
+## 2026-10-02T13:35:25Z up=1396 close S1: egw-exec/attempts/20261002T133524Z_guest-session_attempt01
+keepalive: pid 297 'sleep 43200', parent 289 (Relay(297)), running for 1394 s, about 41806 s left
+keepalive: attached, about 41806 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-02T13:35:25Z up=1396 no recorder or collector unit active (read-only)
+## 2026-10-02T13:35:25Z up=1396 the recorded stop with the controller's 130 s allowance (PM condition 4)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 130
+## 2026-10-02T13:35:25Z up=1396 guest_session_close.sh (frozen driver, repo/tools/session/guest_session_close.sh; console egw-exec/g3-battery/S1-guest_session_close.console.txt)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 60
+exported 20261002T133524Z_guest-session_attempt01: out/runs/2026-10-02/20261002T133524Z_guest-session_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT 20261002T133524Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+## 2026-10-02T13:35:25Z up=1397 session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+
+######## h (final)
+bench ready: /tmp/g3-dry-fix/hfinal
+=== open S1, row t1-smokes (detached, in its own process group, to its end)
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+gate=pass state=awaiting-classification 
+=== term t1-smokes when the listing of the row's group holds a QEMU line (made up)
+## 2026-10-02T13:35:30Z up=1402 term t1-smokes: the process group 71616 (row state 'awaiting-classification', step 'ended')
+HALT: term t1-smokes: a qemu-system-aarch64 process is in the row's process group 71616: nothing was signalled. QEMU is never killed without Rui's decision.
+exit=1
+halt lines of the session file: 1; of the row file: 1
+=== classify t1-smokes (its gate passed; the session now holds a halt)
+row t1-smokes: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-fix/hfinal/out/runs/2026-10-02/20261002T133527Z_g3-qualification-t1-smokes_attempt01
+Next: 'close', then hand back to Rui: session S1 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+exit=0
+=== row t1-harness
+REFUSED: NOT STARTED: session S1 has a recorded halt (up=1402 row=t1-smokes term t1-smokes: a qemu-system-aarch64 process is in the row's process group 71616: nothing was signalled. QEMU is never killed without Rui's decision.). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)
+exit=2
+
+######## r (final)
+bench ready: /tmp/g3-dry-fix/rfinal
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+--- 1. a recorder unit of an itest row
+exit=0
+BENCH events_capture.sh stub: cleanup itest-mongo-fault-01-q1 home/egw-tcg/itest/itest-mongo-fault-01-q1.sut/events-partial
+--- 1. a recorder unit of a harness row
+exit=0
+BENCH events_capture.sh stub: cleanup nominal-r02 home/egw-tcg/itest/nominal-r02.sut/events-partial
+--- 2. a service left stopped
+exit=0
+bench docker compose stub: compose --env-file .env --env-file images.lock.env start mongodb
+--- 3. the harness's collector
+exit=0
+bench systemctl stub: stop egw-resources-nominal-r02
+--- 4. the tunnel
+exit=0
+Exit request sent.
+TUNNEL CLOSED
+tunnel: no control socket at home/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+--- what reached the (stub) guest:
+ssh egw-tcg cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env start mongodb
+ssh egw-tcg sudo systemctl stop egw-resources-nominal-r02
+
+## 2026-10-02T13:35:33Z ended

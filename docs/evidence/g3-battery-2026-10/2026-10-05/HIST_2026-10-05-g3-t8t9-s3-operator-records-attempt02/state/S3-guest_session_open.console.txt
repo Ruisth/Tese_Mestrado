@@ -1,0 +1,142 @@
+## host
+Linux Ruisth-Desktop 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544) (gcc (GCC) 11.2.0, GNU ld (GNU Binutils) 2.37) #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025
+16
+               total        used        free      shared  buff/cache   available
+Mem:           31798         738       28568           3        2819       31060
+Swap:           8192           0        8192
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd       1007G  171G  785G  18% /
+C:\             1.7T  1.2T  515G  70% /mnt/c
+## ports (2222 8883 8000 8080 must be free)
+none listening
+## OS build artefacts (/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64)
+4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  Image-qemuarm64.bin
+d4569c0e845f3a7e36d292953de64dde76b6e81b7482206d0f0f385bcf805fc7  egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093  egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+9f554f3bdd4bbb73c196afba4050bcded7a0ceaba41278cbb0622f6f1adf8940  egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+## data disk
+-rw-r--r-- 1 ruisth ruisth 34359738368 Oct  5 12:03 /home/ruisth/yocto/egw-integrated/egw-data.img
+Last mounted on:          /var/lib/docker
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Mon Oct  5 11:56:27 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## rootfs ext4 state
+Last mounted on:          /
+Filesystem features:      has_journal ext_attr resize_inode dir_index orphan_file filetype extent 64bit flex_bg metadata_csum_seed sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Mon Oct  5 11:56:22 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## QEMU
+5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+QEMU emulator version 8.2.7
+## OS build source (Yocto checkout, launcher and kas)
+489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+0
+67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1  scripts/run-qemu-integrated.sh
+48eb8e9e493d9ac3ce48e82795ac2b200145212b15e0c60f84a6b7d6deeebb83  kas/egw-qemuarm64-integrated.yml
+63c09f156f806b1c5bc7dcd7a782f2deee9424e5323eb4be4913b962d95ef3bf  kas/egw-qemuarm64-integrated.lock.yml
+## execution clone
+8e492613d36490a560ae56beabd6d5c2c01a8696
+0
+11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  deployment/scripts/collect-resources.sh
+8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648  deployment/images.lock.env
+1a32f6c2bd9e24eee075ef569828aa41ad6a7a7b260d4436e588dc9ca74d5982  deployment/compose.yaml
+## host helpers
+e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  /home/ruisth/egw-tcg/itest-helpers.sh
+38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+## controller image record
+9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d  /home/ruisth/egw-images/egw-controller-0.1.0-arm64.tar
+identity_format=1
+image_ref=egw-controller:0.1.0
+image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+image_architecture=arm64
+image_os=linux
+builder_image_id=sha256:6af29d05d7fb2759233dcf028706a49d453732b80d8774f2f73e4d746e13446c
+source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+source_tree_state=clean
+source_tree_scope=src/ (the build context); files changed outside it: 0
+image_revision_label=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+dockerfile_base_image=docker.io/library/python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+dockerfile_sha256=6e419f5490e658684e6ee2089694f09a35a5b84ab7b6f0a45e94c0930e78069c
+archive_file=egw-controller-0.1.0-arm64.tar
+archive_sha256=9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d
+archive_size_bytes=53423616
+python_version=Python 3.12.13
+python_dependencies=LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 c43c761a646c09b086c9b05efeac5d2b6bb2d9b9ea08a37a709c175c16c2eb45)
+pip_freeze_sha256=f3c8754232b35da04611aeb9bd551f6d70bcbff4c18a48e9594e1084bfee0edd
+docker_client_version=29.8.0
+docker_server_version=29.8.0
+buildx_version=github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6
+build_host=MINGW64_NT-10.0-26200 3.6.3-7674c51e.x86_64 x86_64
+built_utc=2026-09-26T17:30:30Z
+pip_freeze=annotated-doc==0.0.5
+pip_freeze=annotated-types==0.8.0
+pip_freeze=anyio==4.15.1
+pip_freeze=attrs==26.1.0
+pip_freeze=certifi==2026.7.22
+pip_freeze=click==8.5.0
+pip_freeze=egw @ file:///app
+pip_freeze=fastapi==0.141.1
+pip_freeze=h11==0.16.0
+pip_freeze=httpcore==1.0.9
+pip_freeze=httpx==0.28.1
+pip_freeze=idna==3.20
+pip_freeze=jsonschema==4.26.0
+pip_freeze=jsonschema-specifications==2025.9.1
+pip_freeze=paho-mqtt==2.1.0
+pip_freeze=pip==25.0.1
+pip_freeze=pydantic==2.13.5
+pip_freeze=pydantic_core==2.46.5
+pip_freeze=referencing==0.37.0
+pip_freeze=rpds-py==2026.6.3
+pip_freeze=setuptools==84.0.0
+pip_freeze=starlette==1.7.0
+pip_freeze=typing-inspection==0.4.4
+pip_freeze=typing_extensions==4.16.0
+pip_freeze=uvicorn==0.53.0
+[2026-10-05T11:44:30Z] opening session s1
+[2026-10-05T11:45:02Z] s1: guest up, is-system-running=running, uptime=11:45:02 up 0 min,  load average: 0.78, 0.19, 0.06
+[2026-10-05T11:45:02Z] s1: the guest stays up. Watch it with: tail -F /home/ruisth/egw-exec/attempts/20261005T114428Z_guest-session_attempt11/boot/s1.log   |   ssh into it with: /home/ruisth/egw-exec/attempts/20261005T114428Z_guest-session_attempt11/scripts/gssh.sh
+running
+ 11:45:03 up 0 min,  load average: 0.78, 0.19, 0.06
+              total        used        free      shared  buff/cache   available
+Mem:           8012         111        7732           4         169        7827
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    465.5M      1.6G  22% /
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G         0      3.9G   0% /tmp
+## journal replay / fsck
+Oct 05 11:44:40 egw-qemu-integrated kernel: raid6: using neon recovery algorithm
+Oct 05 11:44:41 egw-qemu-integrated kernel: EXT4-fs (vda): mounted filesystem 6e01c895-f44f-4183-92f5-b61569f9bef8 r/w with ordered data mode. Quota mode: disabled.
+Oct 05 11:44:41 egw-qemu-integrated kernel: EXT4-fs (vda): re-mounted 6e01c895-f44f-4183-92f5-b61569f9bef8.
+Oct 05 11:44:42 egw-qemu-integrated kernel: EXT4-fs (vdb): mounted filesystem 5244d70e-07de-4875-8dea-8291b0a03bf2 r/w with ordered data mode. Quota mode: disabled.
+Oct 05 11:44:43 egw-qemu-integrated kernel: EXT4-fs (vdb): resizing filesystem from 8388608 to 8388608 blocks
+Oct 05 11:44:48 egw-qemu-integrated containerd[249]: time="2026-10-05T11:44:48.151191978Z" level=info msg="Start recovering state"
+## docker
+egw-controller-1 Exited (0) 42 minutes ago egw-controller:0.1.0
+egw-ditto-things-1 Exited (143) 42 minutes ago eclipse/ditto-things:3.9.4
+egw-ditto-gateway-1 Exited (143) 42 minutes ago eclipse/ditto-gateway:3.9.4
+egw-ditto-policies-1 Exited (143) 42 minutes ago eclipse/ditto-policies:3.9.4
+egw-mongodb-1 Exited (0) 42 minutes ago mongo:7.0.39
+egw-mosquitto-1 Exited (0) 42 minutes ago eclipse-mosquitto:2.0.22
+## clock
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Mon 2026-10-05 11:45:06 UTC
+RTCTimeUSec=Mon 2026-10-05 11:45:05 UTC
+2026-10-05T11:45:06Z
+## OOM so far this boot
+0
+session open: /home/ruisth/egw-exec/attempts/20261005T114428Z_guest-session_attempt11 (qemu pid 34407)
+DRIVER RESULT 20261005T114428Z_guest-session_attempt11: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+guest_session_open.sh exit=0

@@ -1,0 +1,95 @@
+
+=== bench suffix: script under test 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (g3_battery.sh of the preparation, run in place)
+drivers of the copy before the stubs: 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+helpers e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb, tunnel.sh 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (from the runbook blob 317165936abe...)
+
+=== g3_battery.sh open S4
+-> exit 0
+## 2026-10-05T18:52:05Z up=2016 open S4: steps script <S>/g3/t6prep/g3_battery.sh sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+## 2026-10-05T18:52:05Z up=2016 candidate identities
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  <bench>/repo/docs/setup/qemu_integrated_gateway.md
+collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  <bench>/repo/src/deployment/scripts/collect-resources.sh
+## 2026-10-05T18:52:05Z up=2016 row files of S4 against <bench>/rows/rows.manifest.json
+row file t6.sh: sha256 18fb4c6bc2338183fb1aa0e3c1d45dc1cc60f6f4a4af4e9db6e8af70dfe7a563 = sha256_after of the manifest (row t6, step 1, 1417 bytes)
+rows.manifest.json sha256: b8eea704a6303f348ef13352114f08fc7126e54835d0c7d6f77ace94d7f98c0f
+## 2026-10-05T18:52:06Z up=2016 run ids of S4 unused on the host
+plan entry controller_restart-r04: status=planned seed=1715385812 condition=controller_restart duration_s=600 warmup_s=0
+fresh on the host: controller_restart-r04 (planned, no raw directory, no <bench>/home/egw-tcg/itest/controller_restart-r04.*)
+## 2026-10-05T18:52:06Z up=2016 guest root file system before the boot
+rootfs ext4: 6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  <bench>/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4 (the value the close of S3's second opening recorded)
+## 2026-10-05T18:52:06Z up=2016 keepalive
+keepalive: pid 400 'sleep 43200', parent 396 (Relay(400)), running for 2008 s, about 41192 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 60 s, about 43140 s left
+keepalive: attached, about 43140 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T18:52:06Z up=2016 UP0=2016 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T18:52:06Z up=2016 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/egw-exec/g3-t6-s4/S4-guest_session_open.console.txt)
+DRIVER RESULT 20261005T185206Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+guest_session_open.sh exit=0
+## 2026-10-05T18:52:06Z up=2016 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/egw-exec/g3-t6-s4/S4-preflight.console.txt)
+DRIVER RESULT 20261005T185206Z_live-preflight_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+preflight.sh exit=0
+labels: QEMU/TCG and ARM64 EMULATED are present
+harness input now: <bench>/home/egw-tcg/sut_environment.json sha256 92d03e649db850554b24c3656757a4f1601855e1042753764c7a63011f6bd626
+## 2026-10-05T18:52:06Z up=2017 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/egw-exec/g3-t6-s4/S4-gate_health.console.txt)
+DRIVER RESULT 20261005T185206Z_g2-gate-preconditions_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+gate_health.sh exit=0
+## 2026-10-05T18:52:06Z up=2017 run ids of S4 unused on the guest (read-only listing)
+fresh on the guest: controller_restart-r04
+## 2026-10-05T18:52:07Z up=2017 session S4 is open: <bench>/egw-exec/attempts/20261005T185206Z_guest-session_attempt01
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S4 (no earlier t6 attempt anywhere: fresh)
+
+=== g3_battery.sh row t6
+-> exit 1
+## 2026-10-05T18:52:07Z up=2017 row t6 (session S4): steps script sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+keepalive: pid 400 'sleep 43200', parent 396 (Relay(400)), running for 2009 s, about 41191 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 61 s, about 43139 s left
+keepalive: attached, about 43139 s left (needed: 4620 s). The Windows keep-awake stays the operator's own check.
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  <bench>/repo/docs/setup/qemu_integrated_gateway.md
+collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  <bench>/repo/src/deployment/scripts/collect-resources.sh
+row file t6.sh: sha256 18fb4c6bc2338183fb1aa0e3c1d45dc1cc60f6f4a4af4e9db6e8af70dfe7a563 = sha256_after of the manifest (row t6, step 1, 1417 bytes)
+plan entry controller_restart-r04: status=planned seed=1715385812 condition=controller_restart duration_s=600 warmup_s=0
+fresh on the host: controller_restart-r04 (planned, no raw directory, no <bench>/home/egw-tcg/itest/controller_restart-r04.*)
+## 2026-10-05T18:52:07Z up=2017 row t6: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261005T185206Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 a713c8ba15548631b4e2576ff30c7636c79565c7d3d82bcad3a2cdb6978cac86)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-05T18:52:07Z up=2018 row t6: attempt <bench>/egw-exec/attempts/20261005T185207Z_g3-qualification-t6_attempt01 (ceiling 47 min, counted from the row's start at up=2017 and shared by everything the row does: the operator enforces it with 'term t6')
+HALT: row t6: the new attempt is named 20261005T185207Z_g3-qualification-t6_attempt01, which does not end '_g3-qualification-t6_attempt02' (the name the request of 2026-10-05, section 3, expects): an attempt of this row exists that was not accounted for, or the admitted one is not where it is kept. No step of the row was run
+## 2026-10-05T18:52:07Z up=2018 row t6 ended after 1 s; the attempt is OPEN for the operator's classification
+attempt:  <bench>/egw-exec/attempts/20261005T185207Z_g3-qualification-t6_attempt01
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S4: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+CHECK ok: exit status 1: row t6 halts
+CHECK ok: HALT: the new attempt is attempt01, not attempt02
+CHECK ok: no step of the row ran (no t6 console, no snapshot)
+CHECK ok: the plan was not touched
+CHECK ok: no restart reached the guest
+
+=== g3_battery.sh classify t6 failed not-applicable not-run @<bench>/reason.txt @<bench>/next.txt
+-> exit 1
+## 2026-10-05T18:52:07Z up=2018 classify t6: not started (failed, not-applicable/not-run)
+DRIVER RESULT 20261005T185207Z_g3-qualification-t6_attempt01: exit=2 (a prerequisite failed: the test did not run) status=failed instrumentation_validity=not-applicable system_outcome=not-run export=exported headline="G3 qualification t6: not started. bench: the row ran to its end on the bench (stand-in row file)"
+row t6: classified 'not started'; driver code 2; export: verified -> <bench>/out/runs/2026-10-05/20261005T185207Z_g3-qualification-t6_attempt01
+HALT: row t6 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+NOTE: this row's gate did not pass (): no further row starts; 'close' and hand back to Rui.
+Next: 'close', then hand back to Rui: session S4 has a recorded halt, and no further row starts.
+CHECK ok: exit status 1: classify t6 not started: a halt
+CHECK ok: the halt of a row not started
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-05T18:52:08Z up=2018 close S4: <bench>/egw-exec/attempts/20261005T185206Z_guest-session_attempt01
+keepalive: pid 400 'sleep 43200', parent 396 (Relay(400)), running for 2010 s, about 41190 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 62 s, about 43138 s left
+keepalive: attached, about 43138 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T18:52:08Z up=2018 no recorder or collector unit active (read-only)
+## 2026-10-05T18:52:08Z up=2018 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-05T18:52:08Z up=2018 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/egw-exec/g3-t6-s4/S4-guest_session_close.console.txt)
+DRIVER RESULT 20261005T185206Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+guest_session_close.sh exit=0
+## 2026-10-05T18:52:08Z up=2019 session S4 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+
+=== bench suffix: 9 checks, 0 failed
+RESULT suffix: PASS
