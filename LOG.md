@@ -5084,3 +5084,90 @@ is unchanged.
   decisions, output paths). Neither this decision nor that preparation
   authorises the pilot's execution, an `exp-v1` tag, the campaign or a
   reduction of the 95-attempt target; no schedule date changes.
+
+## Entry #C056 — G4 pilot prerequisites built offline: the generator check, the core provenance, the pilot plan and a proposed operational contract
+
+- **Date:** 2026-10-07. **Scope:** one offline tooling block; no session, no
+  guest, no build, no change to the system under test, no `exp-v1`, no
+  campaign, no reduction of the 95-attempt target. G4 stays `Not decided`.
+- **Authority.** The Project Manager's opinion registered as "2026-10-07 20:11
+  WEST — G4 request: consolidate minimum offline work, not runtime approval"
+  recommended one block (plans and isolation, P5, core P6, an operational
+  contract) in one pull request. The student's authorisation of 2026-10-07,
+  in Portuguese: «Autorizo o bloco offline delimitado pelo PM, incluindo a
+  preparação dos planos e procedimentos e as ferramentas mínimas P5/P6, num
+  único PR. As tolerâncias e os limites operacionais devem ser apresentados
+  antes da autorização de execução. Não autorizo sessões, build, alterações
+  ao sistema sob teste, exp-v1, campanha ou redução das 95 tentativas.»
+- **Generator check (P5).** `python -m egw_experiments generator-check`
+  rebuilds each message's scheduled instant from the simulator's own
+  schedule and judges the client's publish-call cadence: relative lateness,
+  overruns and catch-up bursts, publish gaps and the span. It detects a stall
+  followed by catch-up that leaves the count, the span and the mean rate
+  unchanged. PUBACK observations (a null is not loss) and the controller's
+  acceptance on the guest clock are reported apart and never enter the
+  verdict. With `--run-dir`, the run's seal must verify. No tolerance is
+  built in, and only an approved profile can certify. Profile A (no overrun;
+  20 ms relative lateness and span deviation) is
+  `experiments/g4-pilot/generator_tolerances.proposed.json`, `status`
+  proposed, not adopted.
+- **Core provenance (P6).**
+  - The mode and its record: `--execution-mode` on `run` and `campaign`, with
+    no default and no environment fallback. An unset mode gives a sealed,
+    invalid run, and an unknown token is refused before anything is written.
+  - The harness reads `hypervisor_environment.json` from `/proc` on the host
+    at the run's start and end. It records the exact QEMU command line, TCG
+    without KVM, co-location with the load generator and the forward of the
+    broker port. The load-generator record gains the simulator command
+    lines, with the password redacted.
+  - The manifest is version 1.5, with `image_identity` and a `provenance`
+    record. Its checks add validity reasons with no allow flag. G5, the order
+    of the guest capture against the QEMU start, is advisory, because the
+    WSL wall clock drifts.
+  - A declared native mode is always invalid, with its contradictions named;
+    this is the wrong-provenance regression.
+  - Old runs are untouched: `collect` re-checks only manifests that carry
+    the record, and adds nothing to the others.
+  - The analysis classifies every run and groups by mode. Every aggregator,
+    the recovery layer included, refuses mixed modes, and runs without the
+    record form their own `unrecorded` group. Every table and figure carries
+    the mode, the figures in their name, title, footer and metadata.
+  - The guest capture script, the controller and the simulator are
+    unchanged. There is no `--pilot` refusal and no claims suppression for
+    emulated runs.
+- **Pilot plan (P1/P7).** `tools/session/g4_pilot_plan.py` (`write`,
+  `check`) builds `experiments/g4-pilot/g4_pilot_plan.json` (sha256
+  `dae0889b…`): five fresh entries `g4pilot-s1…-a01` to `g4pilot-s4…-a01`
+  (120 s nominal; 600 s nominal after 120 s; 300 s at 10 and at 50 msg/s;
+  3,600 s soak). Every field carries its source, and every departure from
+  the frozen conditions is declared. Seeds and devices are checked against
+  the G3/campaign plan, the proof and the test seeds. No campaign entry is
+  used. The master seed 20261007 and stage 1's zero warm-up are working
+  choices for the student.
+- **Operational contract (proposal).** It is
+  `experiments/g4-pilot/README.md`, section "Operational contract (proposal,
+  not adopted)":
+  - per-row maxima with every wait included;
+  - a 2,100 s reserve for evidence recovery and the controlled close;
+  - session budgets on `/proc/uptime`;
+  - stop-and-ask on overrun, with QEMU never killed;
+  - host and guest disk floors with their bases;
+  - partial-export retention;
+  - the expected rootfs `1605905b…` of the last verified close.
+- **Records.** The runbook's `harness_cmd` and the finite proof's harness
+  arguments pass `--execution-mode tcg-emulated`. Dated status notes are
+  added to runbook sections 8 and 9.
+- **Verification.** Each stream was written with its tests failing first.
+  One consolidated review covered six dimensions and verified each finding
+  adversarially. It confirmed 37 findings (2 material, 30 minor, 5 wording),
+  and all were applied, again with the tests first. The integrated
+  selection ran the whole suite once on the clean head `39c5805` (tree
+  `cb8905a`; WSL2, Python 3.12.3): 3,921 passed, 12 skipped, none failed.
+  Eleven of the skips are Windows-only tests; the twelfth is the citation
+  test, which needs the git history that CI checks out. The evidence is
+  `output_test/runs/2026-10-07/HIST_2026-10-07-g4-tooling-integrated-attempt01/`.
+  The only commit after that head changes LOG and PROGRESS.
+- **Next.** The student decides the tolerance profile, the budgets and
+  floors, the master seed and the stage 1 warm-up. The step files are then
+  sealed, and a one-page session request follows. Each session needs its
+  own authorisation and attendance.
