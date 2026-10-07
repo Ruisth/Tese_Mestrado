@@ -248,7 +248,16 @@ the reforecast triggers of the adopted schedule.
 | Add and run live integration tests | Persisted Linux test report containing at least one real MQTT/Ditto integration path; fakes remain unit evidence only | Integrated emulated guest |
 | Advance Chapters 1–3 and the integrated emulated deployment diagram of [`../../diagrams/architecture.md`](../../diagrams/architecture.md), which is the design of record since 2026-09-18 (the two-layer deployment diagram is historical and is not reused as the architecture of record) | Compiling thesis sources and editable diagrams with no unsupported result claims. Diagram labels follow the authorised wearable-data wording of [`../governance/language-policy.md`](../governance/language-policy.md), keeping the literal `/telemetry` topic | The title and RQs reported approved; the open rows D007, D014 and the template half of D004 |
 
-## G3 — P0 feature freeze (window of 24–30 August, elapsed; live target: the nine test families, 2026-09-21 to 2026-09-24)
+## G3 — P0 feature freeze (window of 24–30 August, elapsed; gate accepted 2026-10-07)
+
+> **G3 accepted on 2026-10-07** — authority: the student (Rui Duarte); scope:
+> the functional P0 freeze on the documented ARM64 candidate emulated with
+> QEMU/TCG, the nine families from the authorised sessions S1–S4, with the
+> qualifications of its
+> [decision record](../governance/decisions/2026-10-07-g3-closure.md). The
+> items below keep their own states: this acceptance admits no claim and moves
+> nothing that belongs to G4. *(Until 2026-10-07 this heading read "live target:
+> the nine test families, 2026-09-21 to 2026-09-24".)*
 
 **Cut rule:** freeze P0 at the local digital-twin core. Require three wearable
 types and the mandatory nominal, invalid, reconnect, restart and failure

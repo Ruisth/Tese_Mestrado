@@ -18,7 +18,11 @@ held outside the repository); the packages are indexed, with their seals, in
 Narrative: LOG #C050. *(2026-10-07: the page now covers sessions S1 to S4;
 the standing row of each family, apart from the historical attempts, is in
 "Standing rows as of 2026-10-07" below; the packages and the result notes
-are published byte for byte in the capsule; LOG #C054.)*
+are published byte for byte in the capsule; LOG #C054.)* *(Later on
+2026-10-07: the student accepted G3, as the functional P0 freeze on the
+documented emulated candidate, with the qualifications of the Project
+Manager's opinion ([decision record](decisions/2026-10-07-g3-closure.md);
+LOG #C055). This page still re-labels no attempt.)*
 
 ## Candidate and sessions
 

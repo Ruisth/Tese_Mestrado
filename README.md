@@ -37,6 +37,14 @@ integration evidence only, and no gate or claim follows from it.
 > The pause on test acceptance mentioned below stays on the G3 qualifying
 > runs until the candidate is frozen after package D, by the student's
 > decision of 2026-09-21; bounded engineering diagnostics continue.
+>
+> **Updated on 2026-10-07.** G3 is now recorded as accepted by the student as
+> the functional P0 freeze on the documented emulated candidate, with the
+> qualifications of the Project Manager's opinion (the G3 row and the
+> accepted-gates sentence below; [decision record](docs/governance/decisions/2026-10-07-g3-closure.md),
+> [LOG `#C055`](LOG.md)). The qualifying battery the pause above refers to ran
+> from 2026-10-02 to 2026-10-07; the G4 pilot and the campaign are not
+> authorised by this decision.
 
 The Yocto/QEMU functional foundation has been built and accepted. The service
 code, simulator and experimental tooling exist, and the first bounded
@@ -44,7 +52,8 @@ end-to-end flow ran inside the emulated Yocto guest on 2026-09-18, with its
 record held outside the repository. Completing the nine integration/recovery
 test families, the bounded pilot, the protocol freeze and the functional
 campaign remains outstanding, and test acceptance is paused at the student's
-request. No performance result or research claim has been accepted, and no official campaign has been completed or admitted; the diagnostic measurements taken so far are not accepted campaign results or native performance evidence.
+request. *(Superseded for G3 on 2026-10-07: the nine families ran in sessions
+S1–S4 and G3 is accepted as the functional P0 freeze; see the G3 row below.)* No performance result or research claim has been accepted, and no official campaign has been completed or admitted; the diagnostic measurements taken so far are not accepted campaign results or native performance evidence.
 
 | Workstream | Current state | Remaining evidence or work |
 |---|---|---|
@@ -54,24 +63,29 @@ request. No performance result or research claim has been accepted, and no offic
 | Integrated QEMU/TCG gateway profile | Built and booted on 2026-09-18, with build, boot and an isolated MongoDB 7 test sealed under `docs/evidence/integrated-qemu/` | Incorporate the locally hash-sealed first-flow record into the published evidence package; re-measure the Ditto memory footprint under the limits that pull request #34 merged for the `ditto-things` teardown OOM before any stability statement beyond bounded observations |
 | Native ARM64 Yocto target | **Future work under the adopted plan**: documented and unverified. No provisioned host or native Yocto boot is recorded, and none is required to complete this dissertation | Nothing is owed. If native work is ever authorised: adapt the image, verify boot, network, storage, reboot and image identity, each under its own protocol |
 | Digital-twin services — G2 | **Accepted on 2026-09-21** by the student, **in a bounded functional scope only**: one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow, and stored-twin persistence across one declared, quiescent whole-stack service restart, on the identified Yocto ARM64 guest **emulated with QEMU/TCG on an x86-64 host** ([decision record](docs/governance/decisions/2026-09-21-g2-closure.md)). The evidence is the published capsule `docs/evidence/g2-complete-flow/` of the guest session of 2026-09-20/21, executed at `b7e0c83`; the approval retains the four qualifications of the review listed in the decision record, and it admits no claim and accepts no other gate. *(Updated 2026-09-21; this cell previously read "Six containers were deployed inside the emulated Yocto guest on 2026-09-18 and a bounded telemetry-to-twin trace was produced; that record is a locally hash-sealed candidate outside the published evidence package, not admitted". That record keeps that status and is not admitted by the decision.)* | Nothing further for the accepted scope, which covers the identified candidate only: a later changed image needs its own verification. Outside that scope and still open: the exercised negative cases, which remain G3 work; in-flight restart recovery and the nine integration/recovery families (G3); the nominal 11.2 msg/s workload, which failed its delivery deadline on 2026-09-19; a readiness step that captures the status and the body explicitly in future planned runs; a locked set of controller Python dependencies before the experimental freeze *(updated 2026-09-21; previously "Incorporate it into the published evidence package, then demonstrate MQTT/TLS → controller → Ditto → API with identity-reconciled evidence labelled emulated")* |
-| Wearable simulator and recovery — G3 | Three profiles and six scenarios implemented with unit-level checks. The nine integration/recovery test families were exercised once on 2026-09-18: functional results were shown for tests 2 and 8 and for the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only). The record is a locally hash-sealed candidate archive held outside the repository, not admitted to the project evidence record. *Corrected 2026-09-19: the earlier "seven passing" overstated it* | Complete the nine families — the battery is **not complete**: test 5 fails its deadline criterion (326 of 2,016 valid events confirmed late), two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`), both runbook prose steps that the extracted test commands did not include — and the timed harness parts of tests 1 and 6 are invalid. Two diagnostic findings recorded on 2026-09-19 are open: a delivery backlog under QEMU/TCG, and a controller restart that appears to discard the controller's in-memory queue (bears on C12). Only the smartwatch is paper-aligned, with ring/clothing as dissertation extensions |
+| Wearable simulator and recovery — G3 | **Accepted on 2026-10-07** by the student, **as the functional P0 freeze on the documented ARM64 candidate emulated with QEMU/TCG only**: the nine integration/recovery families, each sub-check on its own adopted criterion, from the authorised sessions S1–S4 (2026-10-02 to 2026-10-07), test 6 under its criterion amended prospectively on 2026-10-05, with the qualifications of the Project Manager's opinion ([decision record](docs/governance/decisions/2026-10-07-g3-closure.md); evidence in `docs/evidence/g3-battery-2026-10/`). Timely delivery at 11.2 msg/s and prolonged stability are not shown, and no claim is admitted. *(Updated 2026-10-07; this cell previously read "Three profiles and six scenarios implemented with unit-level checks. The nine integration/recovery test families were exercised once on 2026-09-18: functional results were shown for tests 2 and 8 and for the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only). The record is a locally hash-sealed candidate archive held outside the repository, not admitted to the project evidence record. *Corrected 2026-09-19: the earlier 'seven passing' overstated it*")* | Nothing further for the accepted scope. Outside it and still open: the two findings of 2026-09-19 that the risk register lists as open (timely delivery at 11.2 msg/s not shown) and the deferred `ditto-things` footprint measurement; the G4 pilot needs its own request and authorisation. *(Updated 2026-10-07; this cell previously read "Complete the nine families — the battery is **not complete**: test 5 fails its deadline criterion (326 of 2,016 valid events confirmed late), two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`), both runbook prose steps that the extracted test commands did not include — and the timed harness parts of tests 1 and 6 are invalid. Two diagnostic findings recorded on 2026-09-19 are open: a delivery backlog under QEMU/TCG, and a controller restart that appears to discard the controller's in-memory queue (bears on C12). Only the smartwatch is paper-aligned, with ring/clothing as dissertation extensions")* |
 | Experimental tooling and pilot — G4 | Campaign runner, collection and analysis code have unit-level evidence | Verify instrumentation against the emulated guest, generate the hashed runtime lock for the controller image, complete the bounded pilot and freeze the protocol |
 | Experimental campaign — G5 | **Not executed**; no admitted campaign dataset | Select the emulated functional campaign at the pilot and run it frozen. The 95-run composition, the 24-hour soak included, is the quantity that campaign **attempts to reach** under QEMU, subject to the pilot's feasibility check — superseding the earlier position that it was not carried over; it is neither the frozen protocol nor a promise of 95 valid runs |
 | Dissertation and analysis — G6 | Introduction and theoretical framework are drafted; remaining chapters are not complete | Author/supervisor review, literature screening, evidence-based evaluation, discussion and conclusions |
 | Final release and submission — G7 | **Pending** | Complete dissertation review, reproduction package and submission checks |
 
-Three gates are formally accepted: G1 (2026-08-14, functional platform layer
+Four gates are formally accepted: G1 (2026-08-14, functional platform layer
 only), G0 (2026-09-19, project initiation and baseline alignment only;
-*updated 2026-09-19 with the G0 decision*) and G2 (2026-09-21, bounded
+*updated 2026-09-19 with the G0 decision*), G2 (2026-09-21, bounded
 functional scope only: one bounded smartwatch → MQTT/TLS → controller → Ditto →
 API flow, and stored-twin persistence across one declared, quiescent
 whole-stack service restart, on the identified Yocto ARM64 guest emulated with
 QEMU/TCG on an x86-64 host, with the qualifications of the review;
 [decision record](docs/governance/decisions/2026-09-21-g2-closure.md))
+and G3 (2026-10-07, the functional P0 freeze on the documented emulated
+candidate only, with the qualifications of the Project Manager's opinion;
+[decision record](docs/governance/decisions/2026-10-07-g3-closure.md))
 *(updated 2026-09-21 with the G2 decision; this sentence previously began "Two
-gates are formally accepted: G1 … and G0 …")*. **0 of 15 research claims are
-accepted**; acceptance of the functional platform does not admit C01/C02 or any
-performance claim, and G2's acceptance admits no claim. Historical unit-test totals are not live validation and are not
+gates are formally accepted: G1 … and G0 …"; updated 2026-10-07 with the G3
+decision, when it began "Three gates are formally accepted: G1 … G0 … and
+G2 …")*. **0 of 15 research claims are accepted**; acceptance of the
+functional platform does not admit C01/C02 or any performance claim, and the
+acceptances of G2 and G3 admit no claim. Historical unit-test totals are not live validation and are not
 presented as fresh results.
 
 ## Planning and decision boundary
@@ -174,7 +188,9 @@ gate log and in its
 [decision record](docs/governance/decisions/2026-09-19-g0-closure.md), and G2's
 of 2026-09-21 in the gate log and in its
 [decision record](docs/governance/decisions/2026-09-21-g2-closure.md)
-*(G2 added 2026-09-21)* — approves
+*(G2 added 2026-09-21)*, and G3's of 2026-10-07 in the gate log and in its
+[decision record](docs/governance/decisions/2026-10-07-g3-closure.md)
+*(G3 added 2026-10-07)* — approves
 no extension and does not alter the
 [claim-evidence matrix](docs/claim_evidence_matrix.md).
 
@@ -194,7 +210,11 @@ no extension and does not alter the
    the Ditto memory footprint under the limits that pull request #34 merged for
    the `ditto-things` teardown OOM. Claim no general or prolonged stability from
    the bounded observations made so far.
-3. Complete the nine integration/recovery test families in the emulated guest
+3. *(Done for G3 on 2026-10-07: the nine families ran in sessions S1–S4 and G3
+   is accepted as the functional P0 freeze —
+   [decision record](docs/governance/decisions/2026-10-07-g3-closure.md); the
+   bounded pilot is the separate G4 request. The item is kept as written.)*
+   Complete the nine integration/recovery test families in the emulated guest
    once test acceptance resumes (it is paused at the student's request): run
    the two sub-checks that were not run — the sequence-reset sub-check of
    test 4 (`itest-dup-02`) and the Ditto repeat of test 7

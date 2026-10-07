@@ -44,6 +44,11 @@ fulfilled. The packages are published in
 the remaining step is Rui's dated G3 decision on the
 [closing proposal](proposals/2026-10-07-g3-closing-proposal.md), which this
 page does not take. G3 stays `Not decided`.)*
+*(Marker added 2026-10-07, later: the student accepted G3 on that date, as the
+functional P0 freeze on the documented emulated candidate, with the
+qualifications of the Project Manager's opinion
+([decision record](decisions/2026-10-07-g3-closure.md); LOG #C055). This map is
+now a historical record of the path to that decision.)*
 
 **What G3 requires.** The criterion is the plan's
 ([integrated plan](INTEGRATED_DEVELOPMENT_PLAN_2026.md), *G3 — P0 feature

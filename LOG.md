@@ -5023,3 +5023,64 @@ is unchanged.
   pilot needs its own preparation and authorisation; no `exp-v1` tag or
   campaign is authorised, and the 2026-10-20 target and the 2026-10-31
   latest date are not changed by this result.
+
+## Entry #C055 — G3 accepted by the student as the functional P0 freeze on the emulated candidate
+
+- **Date:** 2026-10-07. **Scope:** the student's G3 decision, transcribed;
+  no session, no change to the system under test or the tools, no repeat.
+- **Why.** Pull request #58 published the battery's evidence and the closing
+  proposal (#C054). The Project Manager's opinion registered as "2026-10-07
+  16:37 WEST — PR58: favourable merge and bounded G3 closure opinion"
+  verified the publication from the committed objects (the 2,563 package
+  files and the 22 records against their originals, the outer seal's 2,587
+  entries, the 38 package seals and the 31 earlier `PACKAGES.sha256` lines
+  unchanged), accepted the narrow link-checker adaptation, found no material
+  defect and recommended the closure with four qualifications. Rui merged
+  #58 as `65e780e`; its tree, `c2f7c22`, is the reviewed head's (`1df9b46`),
+  verified before this entry.
+- **What.** The student's approval of 2026-10-07, in Portuguese: «Aprovo o
+  fecho do G3 — congelamento funcional P0 — no candidato ARM64 emulado
+  documentado no PR #58, com as qualificações do parecer do PM. Aceito a
+  execução autorizada em S1–S4 e a emenda prospetiva do T6, preservando os
+  resultados históricos e as limitações declaradas. Esta decisão não admite
+  claims de desempenho, capacidade ou estabilidade, nem autoriza o piloto G4
+  ou a campanha.» Transcribed, with a translation, the four qualifications,
+  the evidence and the exclusions, into the decision record
+  [`docs/governance/decisions/2026-10-07-g3-closure.md`](docs/governance/decisions/2026-10-07-g3-closure.md);
+  the G3 row of the [gate-decision log](docs/governance/gate_decision_log.md)
+  is `Accepted`, 2026-10-07, the student, with the row it replaces kept
+  verbatim under "Superseded row states"; README, PROGRESS, `docs/README.md`,
+  the proposals index, the closing proposal (a dated status marker; its
+  text kept), the readiness map, the results addendum and the backlog's G3
+  heading carry the decision as dated markers, and the PROGRESS cells the
+  accepted scope touches are updated with it.
+- **The four qualifications.** (1) A functional P0 freeze on the documented
+  ARM64 QEMU/TCG candidate, not native performance or a complete
+  experimental campaign. (2) The standing results span the authorised
+  sessions S1–S4, with the test 8 procedure repaired, test 6's
+  instrumentation changed and later completions, on the same system under
+  test: a disclosed
+  sequence, accepted explicitly, not one pass of T1–T9 in order with
+  identical tools. (3) Test 6 passes under the criterion adopted
+  prospectively on 2026-10-05; its 6,720 eventual exactly-once acceptances
+  do not establish timely delivery at 11.2 msg/s (2,153 after the deadline,
+  the initial 67 included, none permanently lost); the historical invalid
+  and incomplete outcomes and the global failed campaign checks stay
+  unchanged. (4) No open P0 defect was identified by the bounded review; the
+  historical open risk rows and the deferred `ditto-things` footprint
+  measurement remain disclosed, the no-OOM evidence is limited to these
+  sessions, and tests 7, 8 and 9 keep their fault, persistence and
+  tested-control limits.
+- **Limits.** The decision is the student's own; the opinion, the merge, the
+  capsule and the green checks are not it, and no supervisor approval is
+  asserted. It admits no claim (C10 and C12 included) and no performance,
+  capacity, stability, native or security-audit conclusion; it does not
+  reopen the decisions of 2026-09-30 and 2026-10-05; the declared
+  limitations are carried as disclosed limitations, neither waived nor
+  marked solved.
+- **Decisions and next steps.** G3 is accepted; G4 to G7 stay
+  `Not decided`. Next, a separate short request for the G4 pilot and its
+  protocol (scope, observations sought, durations and stop limits, the D007
+  decisions, output paths). Neither this decision nor that preparation
+  authorises the pilot's execution, an `exp-v1` tag, the campaign or a
+  reduction of the 95-attempt target; no schedule date changes.
