@@ -9,6 +9,7 @@ broker, no socket, no real sleeping; the checks go through ``cli.main``.
 """
 from __future__ import annotations
 
+import errno
 import functools
 import itertools
 import json
@@ -24,6 +25,7 @@ import pytest
 
 from egw_experiments import cli
 from egw_experiments import generator_check as gc
+from egw_experiments.checksums import write_sha256sums
 from egw_experiments.run import SUBPROCESS_GRACE_S
 from egw_simulator.devices import make_devices, split_rate
 from egw_simulator.publisher import InMemoryPublisher, PublishResult
@@ -141,6 +143,22 @@ class FailingPublisher(InMemoryPublisher):
         return super().publish(topic, payload, wait_budget_s=wait_budget_s)
 
 
+class StartStallPublisher(InMemoryPublisher):
+    """The first publish call waits ``stall_s`` BEFORE its stamp is taken:
+    a start stall (first-call cost, a descheduled process) after which the
+    run loop catches up, so the first event is the late one."""
+
+    def __init__(self, clock: FakeClock, stall_s: float) -> None:
+        super().__init__(clock=clock)
+        self.clock = clock
+        self.stall_s = stall_s
+
+    def publish(self, topic, payload, *, wait_budget_s: float = 0.0):
+        if not self.records:
+            self.clock.sleep(self.stall_s)
+        return super().publish(topic, payload, wait_budget_s=wait_budget_s)
+
+
 class DelayedAckPublisher:
     """Fake broker whose PUBACK arrives ``ack_delay_s`` after each publish
     (as in test_simulator_runner): the wait is bounded by the budget, the
@@ -196,13 +214,22 @@ def config(output_dir: Path, *, run_id: str = RUN_ID, scenario: str = "smoke",
     )
 
 
+def seal(run_dir: Path) -> Path:
+    """(Re)write the run directory's SHA256SUMS, as the harness seals a run;
+    a test that edits a sealed run on purpose re-seals it so that the defect
+    under test, not the seal, is what the check must find."""
+    write_sha256sums(run_dir)
+    return run_dir
+
+
 def simulate(root: Path, *, run_id: str = RUN_ID, scenario: str = "smoke",
              duration_s: float = 10.0, rate: float = 11.2, seed: int = 7,
              clock: FakeClock | None = None, publisher=None,
              harness_extra: dict | None = None) -> Path:
     """Run the real run loop into a harness-shaped run directory and return
-    it: logs/simulator/<run_id>/, the root copy of sent_events.jsonl and a
-    harness manifest whose stamps bracket the run on the same fake clock."""
+    it: logs/simulator/<run_id>/, the root copy of sent_events.jsonl, a
+    harness manifest whose stamps bracket the run on the same fake clock and
+    the SHA256SUMS seal over all of it."""
     clock = clock if clock is not None else FakeClock()
     pub = publisher(clock) if publisher is not None else InMemoryPublisher(clock=clock)
     run_dir = root / "raw" / run_id
@@ -221,7 +248,7 @@ def simulate(root: Path, *, run_id: str = RUN_ID, scenario: str = "smoke",
         "simulator_returncode": 0,
         **(harness_extra or {}),
     })
-    return run_dir
+    return seal(run_dir)
 
 
 def sim_dir(run_dir: Path, run_id: str = RUN_ID) -> Path:
@@ -290,6 +317,7 @@ def test_correct_cadence_is_sustained_under_an_approved_profile(tmp_path, capsys
     assert identity["missing"]["count"] == identity["duplicates"]["count"] == 0
     assert rep["inputs"]["root_copy"]["identical"] is True
     assert rep["inputs"]["problem_count"] == 0
+    assert rep["inputs"]["seal"]["state"] == "verified"
 
     timing = rep["generator_timing"]
     assert timing["applicable"] is True and timing["partial"] is False
@@ -364,6 +392,38 @@ def test_a_stall_with_catch_up_keeps_count_and_span_but_is_detected(
     assert evaluation["verdict"] == "NOT_SUSTAINED" and evaluation["certifying"] is True
     outside = {row["name"] for row in evaluation["per_tolerance"] if not row["within"]}
     assert outside == {"max_relative_lateness_ms", "max_overrun_events"}
+
+
+START_STALL_S = 0.25
+
+
+def test_a_start_stall_with_catch_up_is_not_sustained(tmp_path) -> None:
+    """The first event is the late one: anchoring on the first record would
+    hide the stall (lateness 0, no overrun) and a signed span deviation
+    (negative here) would pass. The anchor is the minimum over the records
+    and the span deviation is compared in absolute value."""
+    run_dir = simulate(tmp_path, publisher=lambda clock: StartStallPublisher(clock, START_STALL_S))
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rep["identity"]["exact"] is True
+    timing = rep["generator_timing"]
+    lateness = timing["relative_lateness_ms"]
+    assert lateness["max"] == pytest.approx(START_STALL_S * 1000, abs=0.001)
+    assert lateness["max_offset_s"] == 0.0  # the first scheduled instant
+    overruns = timing["overruns"]
+    assert overruns["events"] > 0 and overruns["bursts"] == 1
+    assert overruns["largest"]["first_offset_s"] == 0.0  # the burst opens the run
+    assert overruns["largest"]["stall_estimate_ms"] == pytest.approx(
+        START_STALL_S * 1000, abs=0.001)
+    assert timing["span"]["deviation_ms"] == pytest.approx(-START_STALL_S * 1000, abs=0.001)
+
+    assert rc == gc.EXIT_NOT_SUSTAINED == 4
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_SUSTAINED" and evaluation["certifying"] is True
+    rows = {row["name"]: row for row in evaluation["per_tolerance"]}
+    assert {name for name, row in rows.items() if not row["within"]} == {
+        "max_relative_lateness_ms", "max_overrun_events", "max_span_deviation_ms"}
+    assert rows["max_span_deviation_ms"]["value"] == pytest.approx(
+        START_STALL_S * 1000, abs=0.001)
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +571,11 @@ DEFECTS = [
                  "line 3: publish_monotonic_ns", id="ns-as-string"),
     pytest.param(_edit_lines(_set(2, puback_monotonic_ns=1.5)),
                  "line 3: puback_monotonic_ns", id="puback-float"),
+    # Valid JSON integers no monotonic_ns stamp can be: named, never an OverflowError.
+    pytest.param(_edit_lines(_set(2, publish_monotonic_ns=10**400)),
+                 "line 3: publish_monotonic_ns", id="ns-beyond-64-bits"),
+    pytest.param(_edit_lines(_set(2, puback_monotonic_ns=10**400)),
+                 "line 3: puback_monotonic_ns", id="puback-beyond-64-bits"),
     pytest.param(_edit_lines(_set(2, intended_invalid=0)), "line 3: intended_invalid",
                  id="flag-not-bool"),
     pytest.param(_edit_lines(_set(2, run_id="other-run")), "run_id other than",
@@ -557,6 +622,7 @@ DEFECTS = [
 def test_incomplete_or_unreadable_records_are_not_shown(tmp_path, capsys, mutate, expected) -> None:
     run_dir = simulate(tmp_path, duration_s=3.0)
     mutate(run_dir)
+    seal(run_dir)
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
     assert rc == gc.EXIT_NOT_SHOWN == 1
     evaluation = rep["evaluation"]
@@ -572,6 +638,7 @@ def test_incomplete_or_unreadable_records_are_not_shown(tmp_path, capsys, mutate
 def test_a_whole_run_whose_manifest_says_not_completed_is_not_sustained(tmp_path) -> None:
     run_dir = simulate(tmp_path, duration_s=3.0)
     _sim_manifest(lambda d: d.update(completed=False))(run_dir)
+    seal(run_dir)
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
     assert rc == 4 and rep["evaluation"]["verdict"] == "NOT_SUSTAINED"
     assert any("completed" in reason for reason in rep["evaluation"]["reasons"])
@@ -597,9 +664,265 @@ def test_an_interrupted_run_whose_records_are_not_a_schedule_prefix_is_not_shown
     _sim_manifest(lambda d: d.update(completed=False))(run_dir)
     _edit_lines(_delete(9))(run_dir)
     _sim_manifest(lambda d: d["totals"].update(sent=d["totals"]["sent"] - 1))(run_dir)
+    seal(run_dir)
     rc, rep = check(tmp_path, "--run-dir", run_dir)
     assert rc == 1
     assert any("prefix" in reason for reason in rep["evaluation"]["reasons"])
+
+
+def _strict_json(path: Path):
+    """Read a report as strict JSON: NaN and infinities are refused."""
+    def refuse(name):
+        raise AssertionError(f"the report holds {name}, which is not JSON")
+    return json.loads(path.read_text(encoding="utf-8"), parse_constant=refuse)
+
+
+def _sim_manifest_literal(key: str, literal: str):
+    """Set one top-level key of the simulator manifest to a raw JSON literal."""
+    def mutate(run_dir: Path) -> None:
+        path = sim_dir(run_dir) / "manifest.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc[key] = "@@literal@@"
+        text = json.dumps(doc, indent=2).replace('"@@literal@@"', literal)
+        path.write_text(text + "\n", encoding="utf-8", newline="\n")
+    return mutate
+
+
+NON_FINITE = [
+    pytest.param(_sim_manifest(lambda d: d["rates_hz"]["per_device"].update(smart_ring=math.nan)),
+                 "NaN", id="per-device-rate-nan"),
+    pytest.param(_sim_manifest(lambda d: d["rates_hz"].update(aggregate=math.nan)), "NaN",
+                 id="aggregate-rate-nan"),
+    pytest.param(_sim_manifest(lambda d: d.update(seed=math.inf)), "Infinity",
+                 id="seed-infinity"),
+    pytest.param(_sim_manifest(lambda d: d.update(duration_s=-math.inf)), "-Infinity",
+                 id="duration-minus-infinity"),
+    pytest.param(_sim_manifest(lambda d: d.update(completed=math.nan)), "NaN",
+                 id="completed-nan"),
+    pytest.param(_sim_manifest_literal("duration_s", "1e400"), "1e400",
+                 id="duration-beyond-a-float"),
+    pytest.param(_sim_manifest(lambda d: d["rates_hz"].update(aggregate=10**400)),
+                 "rates_hz.aggregate", id="aggregate-integer-beyond-a-float"),
+    pytest.param(_harness(execution_mode=math.nan), "NaN", id="harness-manifest-nan"),
+]
+
+
+@pytest.mark.parametrize("mutate,expected", NON_FINITE)
+def test_a_manifest_number_json_cannot_hold_is_not_shown_and_reported(
+    tmp_path, capsys, mutate, expected
+) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0)
+    mutate(run_dir)
+    seal(run_dir)
+    out = tmp_path / "checks" / "report.json"
+    argv = ["generator-check", "--run-dir", str(run_dir),
+            "--tolerances", str(approved(tmp_path)), "--out", str(out)]
+    assert cli.main(argv) == gc.EXIT_NOT_SHOWN == 1
+    rep = _strict_json(out)  # written, and strict JSON
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_SHOWN" and evaluation["certifying"] is False
+    assert any(expected in reason for reason in evaluation["reasons"]), evaluation["reasons"]
+    printed = capsys.readouterr().out
+    assert "verdict: NOT_SHOWN (exit 1)" in printed and f"wrote {out}" in printed
+
+
+def test_a_run_with_no_scheduled_event_is_not_shown_and_reported(tmp_path) -> None:
+    # The simulator accepts any duration above 0; below its schedule epsilon
+    # the schedule is empty and the run writes no record.
+    run_dir = simulate(tmp_path, duration_s=1e-10)
+    assert (run_dir / "sent_events.jsonl").read_bytes() == b""
+    out = tmp_path / "checks" / "report.json"
+    argv = ["generator-check", "--run-dir", str(run_dir),
+            "--tolerances", str(approved(tmp_path)), "--out", str(out)]
+    assert cli.main(argv) == gc.EXIT_NOT_SHOWN == 1
+    rep = _strict_json(out)
+    assert rep["evaluation"]["verdict"] == "NOT_SHOWN"
+    assert any("no scheduled event" in r for r in rep["evaluation"]["reasons"])
+    assert rep["schedule"] is None and rep["generator_timing"] is None
+
+
+def test_an_out_that_cannot_be_created_is_a_usage_error_without_a_verdict(tmp_path, capsys) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file, not a directory\n", encoding="utf-8")
+    out = blocker / "report.json"
+    argv = ["generator-check", "--run-dir", str(run_dir),
+            "--tolerances", str(approved(tmp_path)), "--out", str(out)]
+    assert cli.main(argv) == gc.EXIT_USAGE == 2
+    captured = capsys.readouterr()
+    assert "cannot write" in captured.err and str(out) in captured.err
+    assert "refusing to overwrite" not in captured.err
+    # No verdict line: its exit code would not be the process's.
+    assert "verdict:" not in captured.out
+    assert blocker.read_text(encoding="utf-8") == "a file, not a directory\n"
+
+
+class _FullDisk:
+    """A file object whose write fails as on a full disk."""
+
+    def __init__(self, fh) -> None:
+        self.fh = fh
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        self.fh.close()
+        return False
+
+    def write(self, text: str) -> int:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    def close(self) -> None:
+        self.fh.close()
+
+
+@pytest.mark.parametrize("failure,expected", [
+    ("permission", "Permission denied"),
+    ("full-disk", "No space left on device"),
+])
+def test_an_os_error_writing_the_report_exits_2_and_leaves_no_partial_report(
+    tmp_path, capsys, monkeypatch, failure, expected
+) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    out = tmp_path / "checks" / "report.json"
+    real_open = open
+
+    def failing_open(path, mode="r", *args, **kwargs):
+        if Path(path) == out:
+            if failure == "permission":
+                raise PermissionError(errno.EACCES, "Permission denied", str(path))
+            return _FullDisk(real_open(path, mode, *args, **kwargs))
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(gc, "open", failing_open, raising=False)
+    argv = ["generator-check", "--run-dir", str(run_dir),
+            "--tolerances", str(approved(tmp_path)), "--out", str(out)]
+    assert cli.main(argv) == gc.EXIT_USAGE == 2
+    captured = capsys.readouterr()
+    assert "cannot write" in captured.err and expected in captured.err
+    assert "verdict:" not in captured.out
+    assert not out.exists()  # no partial report blocks a write-once retry
+
+
+# ---------------------------------------------------------------------------
+# 4b. With --run-dir the run's seal must verify; its manifest must be readable
+# ---------------------------------------------------------------------------
+
+
+def test_a_consistent_edit_the_seal_detects_is_not_shown(tmp_path, capsys) -> None:
+    profile = approved(tmp_path)
+    base_dir = simulate(tmp_path / "base")
+    stall_dir = simulate(tmp_path / "stall",
+                         publisher=lambda clock: StallOncePublisher(clock, 4.15, STALL_S))
+    rc, rep = check(tmp_path, "--run-dir", stall_dir, "--tolerances", profile)
+    assert rc == 4 and rep["inputs"]["seal"]["state"] == "verified"
+    # The same edit to both copies passes the root-copy comparison and the
+    # schedule: only the seal can show that these are not the run's records.
+    for target, source in zip(_both_copies(stall_dir), _both_copies(base_dir)):
+        shutil.copyfile(source, target)
+    capsys.readouterr()
+    rc, rep = check(tmp_path, "--run-dir", stall_dir, "--tolerances", profile)
+    assert rc == gc.EXIT_NOT_SHOWN == 1
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_SHOWN" and evaluation["certifying"] is False
+    assert evaluation["per_tolerance"] == []
+    assert rep["inputs"]["root_copy"]["identical"] is True
+    assert rep["identity"]["exact"] is True  # the edit is otherwise invisible
+    seal_info = rep["inputs"]["seal"]
+    assert seal_info["state"] == "failed"
+    assert seal_info["problems"] == [
+        f"mismatch: logs/simulator/{RUN_ID}/sent_events.jsonl",
+        "mismatch: sent_events.jsonl",
+    ]
+    assert any("SHA256SUMS" in r and "mismatch: sent_events.jsonl" in r
+               for r in evaluation["reasons"]), evaluation["reasons"]
+    assert "seal [SHA256SUMS]: FAILED" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("mutate,state,expected", [
+    pytest.param(_unlink("SHA256SUMS"), "missing", "SHA256SUMS missing", id="unsealed"),
+    pytest.param(_write("added.txt", b"after the seal\n"), "failed", "unlisted: added.txt",
+                 id="file-added-after-the-seal"),
+    pytest.param(_unlink(f"{SIM}/manifest.json"), "failed",
+                 f"missing: {SIM}/manifest.json", id="sealed-file-deleted"),
+    pytest.param(_write("SHA256SUMS", b"not a sums line\n"), "failed", "malformed line 1",
+                 id="malformed-seal"),
+    pytest.param(_write("SHA256SUMS", b"\xff\xfe\n"), "unreadable", "SHA256SUMS",
+                 id="seal-not-utf8"),
+])
+def test_a_run_dir_without_a_verified_seal_is_not_shown(tmp_path, mutate, state, expected) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    mutate(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == gc.EXIT_NOT_SHOWN == 1
+    assert rep["evaluation"]["verdict"] == "NOT_SHOWN"
+    assert rep["inputs"]["seal"]["state"] == state
+    assert any(expected in r for r in rep["evaluation"]["reasons"]), rep["evaluation"]["reasons"]
+
+
+def test_a_bare_simulator_directory_has_no_seal_to_verify(tmp_path) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    (run_dir / "SHA256SUMS").unlink()
+    rc, rep = check(tmp_path, "--sim-dir", sim_dir(run_dir), "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    assert rep["inputs"]["seal"]["applicable"] is False
+
+
+@pytest.mark.parametrize("content,expected", [
+    (b"{corrupt", "manifest.json unreadable"),
+    (b"[]", "is not a JSON object"),
+], ids=["not-json", "not-an-object"])
+def test_an_unreadable_harness_manifest_is_not_shown(tmp_path, capsys, content, expected) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0, harness_extra={"execution_mode": "tcg-emulated"})
+    (run_dir / "manifest.json").write_bytes(content)
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == gc.EXIT_NOT_SHOWN == 1
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_SHOWN"
+    assert any(r.startswith("harness manifest: ") and expected in r
+               for r in evaluation["reasons"]), evaluation["reasons"]
+    run_section = rep["run"]
+    assert run_section["execution_mode"] is None  # never inferred
+    assert run_section["execution_mode_source"].startswith("harness manifest not usable: ")
+    assert expected in run_section["execution_mode_source"]
+    assert "no harness manifest" not in capsys.readouterr().out
+
+
+def test_an_impossible_stamp_counts_as_no_stamp_in_non_certifying_sections(tmp_path) -> None:
+    # The elapsed and acceptance sections never change the verdict: an
+    # integer no monotonic_ns stamp can be is treated as no stamp there.
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    _harness(measured_started_monotonic_ns=10**400)(run_dir)
+    seal(run_dir)
+    events_path = tmp_path / "events.jsonl"
+    events_path.write_text(
+        "".join(json.dumps({"run_id": RUN_ID, "outcome": "accepted",
+                            "received_monotonic_ns": stamp,
+                            "ditto_ack_monotonic_ns": stamp}) + "\n"
+                for stamp in (GUEST_OFFSET_NS, 10**400, GUEST_OFFSET_NS + GUEST_STEP_NS)),
+        encoding="utf-8", newline="\n")
+    out = tmp_path / "checks" / "report.json"
+    argv = ["generator-check", "--run-dir", str(run_dir), "--events", str(events_path),
+            "--tolerances", str(approved(tmp_path)), "--out", str(out)]
+    assert cli.main(argv) == gc.EXIT_SUSTAINED == 0
+    rep = _strict_json(out)
+    assert rep["elapsed"]["measured_started_ns"] is None
+    assert rep["generator_timing"]["anchor"]["c_upper_bound_s"] is None
+    acceptance = rep["controller_acceptance"]
+    assert acceptance["received_missing"] == acceptance["accepted_without_ack"] == 1
+    assert acceptance["received"]["n"] == acceptance["accepted_ack"]["n"] == 2
+
+
+def test_a_missing_harness_manifest_only_empties_the_elapsed_section(tmp_path) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    (run_dir / "manifest.json").unlink()
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    assert rep["elapsed"] is None
+    assert rep["run"]["execution_mode_source"] == "no harness manifest"
 
 
 # ---------------------------------------------------------------------------
@@ -749,6 +1072,11 @@ BAD_PROFILES = [
                  id="negative"),
     pytest.param(_bad_tolerance(max_span_deviation_ms="20"), "max_span_deviation_ms",
                  id="string"),
+    # Valid JSON integers too large for a float: refused, never an OverflowError.
+    pytest.param(_bad_tolerance(max_overrun_events=10**400), "max_overrun_events",
+                 id="integer-too-large-for-a-float"),
+    pytest.param(_bad_tolerance(max_relative_lateness_ms=10**400), "max_relative_lateness_ms",
+                 id="limit-too-large-for-a-float"),
 ]
 
 
@@ -904,6 +1232,7 @@ def test_dropout_reconnect_timing_is_not_applicable(tmp_path) -> None:
 
     _sim_manifest(lambda d: d["totals"].update(
         buffered_dropout=d["totals"]["buffered_dropout"] + 1))(run_dir)
+    seal(run_dir)
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", profile)
     assert rc == 1
     assert any("buffered_dropout" in r for r in rep["evaluation"]["reasons"])
@@ -962,6 +1291,7 @@ def test_the_execution_mode_is_copied_from_the_harness_manifest_never_inferred(t
 
     old = simulate(tmp_path / "b")
     write_json(old / "sut_environment.json", {"role": "sut", "provider": "QEMU/TCG emulated"})
+    seal(old)
     rc, rep = check(tmp_path, "--run-dir", old)
     assert rep["run"]["execution_mode"] is None
     assert "not recorded" in rep["run"]["execution_mode_source"]
@@ -976,6 +1306,7 @@ def test_the_warm_up_is_checked_on_request_and_labelled(tmp_path, capsys) -> Non
     clock = FakeClock()
     run(config(run_dir / "logs" / "warmup", run_id=f"{RUN_ID}.warmup", duration_s=2.0),
         InMemoryPublisher(clock=clock), clock=clock, validator=_validator())
+    seal(run_dir)
     capsys.readouterr()
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--warmup")
     assert rc == 3
@@ -1015,6 +1346,29 @@ def test_a_window_that_is_not_a_positive_finite_number_is_a_usage_error(tmp_path
     run_dir = simulate(tmp_path, duration_s=2.0)
     assert cli.main(["generator-check", "--run-dir", str(run_dir), "--window-s", window]) == 2
     assert "--window-s" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("window", ["0.0999", "0.05", "1e-3", "1e-5"])
+def test_a_window_below_a_tenth_of_a_second_is_a_usage_error(tmp_path, capsys, window) -> None:
+    # The windows table holds one row per window: a unit slip (1e-6 for 1)
+    # would allocate billions of rows on a soak run.
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    out = tmp_path / "out.json"
+    argv = ["generator-check", "--run-dir", str(run_dir), "--window-s", window,
+            "--out", str(out)]
+    assert cli.main(argv) == gc.EXIT_USAGE == 2
+    err = capsys.readouterr().err
+    assert "--window-s" in err and "0.1" in err
+    assert not out.exists()
+    with pytest.raises(ValueError, match="window"):
+        gc.check_generator(run_dir=run_dir, window_s=float(window))
+
+
+def test_a_window_of_a_tenth_of_a_second_is_accepted(tmp_path) -> None:
+    run_dir = simulate(tmp_path, duration_s=2.0)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--window-s", "0.1")
+    assert rc == 3 and rep["generator_timing"]["windows"]["window_s"] == 0.1
+    assert gc.MIN_WINDOW_S == 0.1
 
 
 def test_one_input_layout_is_required(tmp_path) -> None:
