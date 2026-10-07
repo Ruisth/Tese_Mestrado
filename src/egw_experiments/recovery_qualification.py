@@ -43,6 +43,28 @@ it is false and names the runs that are not, with their qualification and
 reason. Without a campaign plan the planned set is unknown and the
 criterion is false, saying so.
 
+Execution modes (G4 core provenance, plan 655-661) are never pooled into
+one criterion (plan 429-432; review of the G4 tooling, finding 8). Each
+run's execution-mode group is the analyser's own classification
+(:func:`egw_experiments.analyze.classify_execution_mode` on the run's
+sealed manifest and environment records): a recorded mode, ``unrecorded``
+(no provenance record), or no group (a provenance failure, which is never
+evidence whatever its validity says, as in the analyser, or a planned run
+without a directory). Every record carries its group (``execution_mode``,
+the leading CSV column) and, in the JSON, ``execution_mode_status`` and
+``execution_mode_problems``. The criterion is evaluated once per group
+(:func:`evaluate_criterion`, which refuses runs of more than one group
+itself with :class:`~egw_experiments.analyze.MixedExecutionModeError`)
+against the whole plan: a planned run of another group is not evidence for
+the group, and a run in no group keeps its own qualification; with no run
+in any group it is evaluated once with no group (named ``none``). The JSON
+holds these evaluations in ``criteria_by_execution_mode``; its
+``criterion`` is the single evaluation of a tree of one group (its values
+those of the layer before the execution modes, with ``execution_mode`` and
+``execution_mode_label`` beside them), and for several groups a criterion
+that never passes and names the groups. The CLI prints one line for it
+and, for several groups, one line per group.
+
 This layer changes no count: lost, late and every other figure of the
 analysis come from ``egw_experiments.analyze``, whose per-run, summary,
 acceptance and saturation outputs it neither reads nor rewrites, and it
@@ -53,7 +75,9 @@ unchanged into the JSON, says so). The
 qualification is read from the sealed manifests'
 restart evidence records alone (``drain``, ``twin_snapshots``,
 ``events_post_drain_fetch``, ``validity``, ``exclusion``) and the
-``SHA256SUMS`` verification. The ``analyze`` command runs it after the
+``SHA256SUMS`` verification, with the analyser's provenance gate (a run
+whose execution-mode classification is a provenance failure is never
+evidence; see above). The ``analyze`` command runs it after the
 analysis and keeps its own exit code (``cli._cmd_analyze`` says why);
 ``recovery`` runs it alone. No timestamp enters the files, so repeated runs
 over the same evidence are identical.
@@ -86,15 +110,22 @@ import csv
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Sequence
 
 from . import n1_report
 from .analyze import (
     INTEGRITY_FAILED,
     INTEGRITY_OK,
     INTEGRITY_UNSEALED,
+    NO_GROUP_NAME,
+    PROVENANCE_BLOCKING_STATUSES,
+    _group_order,
     check_run_integrity,
+    classify_execution_mode,
+    execution_mode_label,
     load_campaign_plan_for_analysis,
+    read_environment_records,
+    require_single_execution_mode,
 )
 from .run import (
     DEFAULT_RESULTS_BASE,
@@ -130,7 +161,17 @@ STATEMENT = (
     "records alone."
 )
 
+#: The label of the JSON's ``criterion`` when the runs span several
+#: execution-mode groups (it never passes; see ``criteria_by_execution_mode``).
+SEVERAL_GROUPS_LABEL = (
+    "several execution-mode groups: the criterion is evaluated once per group "
+    "and never across groups"
+)
+
 CSV_COLUMNS = [
+    # The run's execution-mode group (blank: no group), as the analyser's
+    # other tables lead with theirs (G4 core provenance, plan 655-661).
+    "execution_mode",
     "run_id",
     "planned",
     "validity",
@@ -174,7 +215,11 @@ def qualification_of(facts: dict[str, Any]) -> tuple[str, str]:
     reads, and the reason when it is not ``recovery_observed``.
 
     Evidence first: a run that is not valid, not sealed and verified, or
-    excluded evidences nothing, whatever its drain says. Then the drain:
+    excluded evidences nothing, whatever its drain says; nor does a run
+    with an execution-mode provenance failure (``execution_mode_status``
+    unset, unknown or inconsistent: the analyser's gate, which never
+    aggregates such a run whatever its validity says; facts without the
+    key, as :func:`run_facts` gives them, are not gated). Then the drain:
     ``gave-up`` is the failed recovery, ``quiet`` needs the after snapshot
     and the post-drain events present and verified, anything else (an
     instrument failure, a missing step) evidences nothing.
@@ -186,6 +231,9 @@ def qualification_of(facts: dict[str, Any]) -> tuple[str, str]:
         blockers.append(f"integrity {facts.get('integrity')!r}")
     if facts.get("excluded"):
         blockers.append("excluded per the manifest")
+    status = facts.get("execution_mode_status")
+    if status in PROVENANCE_BLOCKING_STATUSES:
+        blockers.append(f"execution-mode provenance failure ({status!r})")
     if blockers:
         return "not_evidenced", "; ".join(blockers) + ": the run is not evidence"
     outcome = facts.get("drain_outcome")
@@ -287,11 +335,34 @@ def run_facts(
     return facts, (manifest if isinstance(manifest, dict) else None)
 
 
+def execution_mode_of(run_dir: Path, manifest: dict[str, Any] | None) -> dict[str, Any]:
+    """The run's execution-mode group as the analyser classifies it
+    (:func:`egw_experiments.analyze.classify_execution_mode` on the run's
+    own sealed manifest and environment records, a missing or unreadable
+    manifest read as an empty one, as there): ``execution_mode`` (the
+    group: the recorded mode, ``unrecorded``, or None for a provenance
+    failure), ``execution_mode_status`` and ``execution_mode_problems``. A
+    planned run without a directory has no group and no status."""
+    if not Path(run_dir).is_dir():
+        return {"execution_mode": None, "execution_mode_status": None, "execution_mode_problems": []}
+    mode = classify_execution_mode(
+        manifest if manifest is not None else {}, read_environment_records(run_dir)
+    )
+    return {
+        "execution_mode": mode["execution_mode_group"],
+        "execution_mode_status": mode["execution_mode_status"],
+        "execution_mode_problems": list(mode["problems"]),
+    }
+
+
 def inspect_run(run_dir: Path, run_id: str, *, planned: bool) -> dict[str, Any]:
     """The facts of one controller_restart run, read from its sealed
-    manifest, plus its qualification and its N1 identities (decision 2 of
-    2026-09-30: reported, never counted)."""
+    manifest, with its execution-mode group (:func:`execution_mode_of`),
+    its qualification and its N1 identities (decision 2 of 2026-09-30:
+    reported, never counted)."""
     facts, manifest = run_facts(run_dir, run_id, planned=planned)
+    facts.update(execution_mode_of(run_dir, manifest))
+    facts["qualification"], facts["reason"] = qualification_of(facts)
     n1 = None
     if run_dir.is_dir():
         try:
@@ -422,16 +493,131 @@ def n1_of_run(
     return {"events_copy": copy, **report}
 
 
+def evaluate_criterion(
+    members: list[dict[str, Any]],
+    *,
+    execution_mode: str | None = None,
+    elsewhere: Iterable[dict[str, Any]] = (),
+    planned_ids: Sequence[str] | None = None,
+    plan_problem: str | None = None,
+) -> dict[str, Any]:
+    """The criterion of ONE execution-mode group (plan 429-432: execution
+    modes are never pooled into one criterion).
+
+    ``members`` are the run records (:func:`inspect_run`) of the group:
+    records of more than one group among them, or of a group other than
+    ``execution_mode`` when it is named, raise
+    :class:`~egw_experiments.analyze.MixedExecutionModeError`, as the
+    analyser's aggregators do; the caller partitions the runs.
+    ``elsewhere`` are the records the group's evaluation must still name:
+    the planned runs outside the group (a planned run of another group is
+    not evidence for this one, so it is ``not_evidenced`` here, its own
+    qualification in the reason) and the runs in no group (a planned run
+    without a directory, a provenance failure), which keep their own
+    qualification. The records are taken in plan order, then the
+    unplanned ones by run id, as the JSON lists them.
+
+    ``planned_ids`` are the plan's controller_restart runs, None when no
+    plan was read (``plan_problem`` then says why, when the plan could not
+    be read). Returns ``name``, ``execution_mode``,
+    ``execution_mode_label``, ``passed``, ``detail`` and
+    ``not_qualified``.
+    """
+    group = require_single_execution_mode(
+        [{"execution_mode_group": record.get("execution_mode")} for record in members],
+        what=f"{CRITERION} (recovery qualification)",
+        execution_mode=execution_mode,
+    )
+    planned = list(planned_ids) if planned_ids is not None else []
+    position = {run_id: index for index, run_id in enumerate(planned)}
+    records = sorted(
+        [*members, *elsewhere],
+        key=lambda r: (
+            (0, position[r["run_id"]], "")
+            if r.get("run_id") in position
+            else (1, 0, str(r.get("run_id")))
+        ),
+    )
+
+    def entry(record: dict[str, Any]) -> dict[str, Any]:
+        other = record.get("execution_mode")
+        if other is None or other == group:
+            return {
+                "run_id": record["run_id"],
+                "qualification": record["qualification"],
+                "reason": record["reason"],
+            }
+        return {
+            "run_id": record["run_id"],
+            "qualification": "not_evidenced",
+            "reason": (
+                f"in execution-mode group {other!r}, not {group!r}: execution "
+                "modes are never pooled (plan 429-432); its own qualification "
+                f"is {record['qualification']}"
+            ),
+        }
+
+    entries = [entry(record) for record in records]
+    not_qualified = [e for e in entries if e["qualification"] != "recovery_observed"]
+    counts = (
+        f"{len(entries) - len(not_qualified)}/{len(entries)} controller_restart "
+        "run(s) recovery_observed"
+    )
+    unplanned = [record for record in records if not record.get("planned")]
+    if planned_ids is None:
+        passed = False
+        detail = (
+            (f"the campaign plan could not be read ({plan_problem})" if plan_problem
+             else "no campaign plan supplied")
+            + ", so the planned set of controller_restart runs is unknown; "
+            + f"{counts} among the directories found in raw/"
+        )
+    elif not planned:
+        # An unplanned directory never stands for a planned run: with no
+        # controller_restart run in the plan there is nothing to qualify,
+        # whatever raw/ holds (its directories stay listed, unplanned).
+        passed = False
+        detail = "the campaign plan lists no controller_restart run"
+        if unplanned:
+            detail += (
+                f"; {counts} among {len(unplanned)} unplanned "
+                + ("directory" if len(unplanned) == 1 else "directories")
+                + " in raw/, which do not stand for a planned run"
+            )
+        else:
+            detail += " and raw/ holds none"
+    else:
+        passed = not not_qualified
+        detail = counts + f" ({len(planned)} planned"
+        detail += f", {len(unplanned)} unplanned)" if unplanned else ")"
+    return {
+        "name": CRITERION,
+        "execution_mode": group,
+        "execution_mode_label": execution_mode_label(group),
+        "passed": passed,
+        "detail": detail,
+        "not_qualified": not_qualified,
+    }
+
+
 def qualify_recovery(
     base_dir: str | Path | None, plan_path: str | Path | None
 ) -> dict[str, Any]:
     """The qualification document: every controller_restart run of the plan
-    (and any unplanned one under ``raw/``), the criterion, the statement.
+    (and any unplanned one under ``raw/``) with its execution-mode group,
+    the criterion evaluated once per group, the statement.
 
     ``plan_path`` None falls back to the analyser's ``EGW_CAMPAIGN_PLAN``
     variable (:func:`load_campaign_plan_for_analysis`); an unreadable plan
     is reported in ``plan_problem`` and treated as no plan. Raises
     ``FileNotFoundError`` when ``raw/`` does not exist.
+
+    The groups are those of the runs (in the analyser's order: the
+    recorded modes, then ``unrecorded``), or the single group None when no
+    run has one. ``criteria_by_execution_mode`` holds one
+    :func:`evaluate_criterion` per group; ``criterion`` is that evaluation
+    when there is one group, and for several a criterion that never passes
+    (no criterion is met across groups) and names them.
     """
     base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
     raw_dir = base / "raw"
@@ -460,39 +646,44 @@ def qualify_recovery(
     runs = [inspect_run(raw_dir / run_id, run_id, planned=True) for run_id in planned_ids]
     runs += [inspect_run(raw_dir / run_id, run_id, planned=False) for run_id in unplanned_ids]
 
-    not_qualified = [
-        {"run_id": r["run_id"], "qualification": r["qualification"], "reason": r["reason"]}
-        for r in runs
-        if r["qualification"] != "recovery_observed"
-    ]
-    observed = sum(1 for r in runs if r["qualification"] == "recovery_observed")
-    counts = f"{observed}/{len(runs)} controller_restart run(s) recovery_observed"
-    if plan is None:
-        passed = False
-        detail = (
-            (f"the campaign plan could not be read ({plan_problem})" if plan_problem
-             else "no campaign plan supplied")
-            + ", so the planned set of controller_restart runs is unknown; "
-            + f"{counts} among the directories found in raw/"
+    groups: list[str | None] = sorted(
+        {r["execution_mode"] for r in runs if r["execution_mode"] is not None},
+        key=_group_order,
+    ) or [None]
+    criteria = [
+        evaluate_criterion(
+            [r for r in runs if r["execution_mode"] == group],
+            execution_mode=group,
+            elsewhere=[
+                r
+                for r in runs
+                if r["execution_mode"] != group
+                and (r["planned"] or r["execution_mode"] is None)
+            ],
+            planned_ids=planned_ids if plan is not None else None,
+            plan_problem=plan_problem,
         )
-    elif not planned_ids:
-        # An unplanned directory never stands for a planned run: with no
-        # controller_restart run in the plan there is nothing to qualify,
-        # whatever raw/ holds (its directories stay listed above, unplanned).
-        passed = False
-        detail = "the campaign plan lists no controller_restart run"
-        if unplanned_ids:
-            detail += (
-                f"; {counts} among {len(unplanned_ids)} unplanned "
-                + ("directory" if len(unplanned_ids) == 1 else "directories")
-                + " in raw/, which do not stand for a planned run"
-            )
-        else:
-            detail += " and raw/ holds none"
+        for group in groups
+    ]
+    if len(criteria) == 1:
+        criterion = criteria[0]
     else:
-        passed = not not_qualified
-        detail = counts + f" ({len(planned_ids)} planned"
-        detail += f", {len(unplanned_ids)} unplanned)" if unplanned_ids else ")"
+        verdicts = ", ".join(
+            f"{c['execution_mode']} {'PASSED' if c['passed'] else 'FAILED'}" for c in criteria
+        )
+        criterion = {
+            "name": CRITERION,
+            "execution_mode": None,
+            "execution_mode_label": SEVERAL_GROUPS_LABEL,
+            "passed": False,
+            "detail": (
+                f"the controller_restart runs belong to {len(groups)} "
+                f"execution-mode groups ({', '.join(str(g) for g in groups)}); the "
+                f"criterion is evaluated once per group ({verdicts}) and never "
+                "across groups (plan 429-432)"
+            ),
+            "not_qualified": [],
+        }
     return {
         "condition_id": CONDITION_ID,
         "plan": str(plan_path) if plan is not None and plan_path is not None else (
@@ -500,34 +691,44 @@ def qualify_recovery(
         ),
         "plan_problem": plan_problem,
         "runs": runs,
-        "criterion": {
-            "name": CRITERION,
-            "passed": passed,
-            "detail": detail,
-            "not_qualified": not_qualified,
-        },
+        "criterion": criterion,
+        "criteria_by_execution_mode": criteria,
         "statement": STATEMENT,
     }
 
 
-def summary_line(doc: dict[str, Any]) -> str:
-    """The one line the CLI prints: the criterion, the counts, the runs
-    that are not qualified and where the files are."""
-    criterion = doc["criterion"]
+def _criterion_line(criterion: dict[str, Any], *, group: bool) -> str:
+    """One ``[recovery]`` line: the criterion, its detail, its group when
+    ``group``, and the runs that are not qualified."""
     line = (
         f"[recovery] {criterion['name']}: "
         f"{'PASSED' if criterion['passed'] else 'FAILED'} - {criterion['detail']}"
     )
+    if group:
+        named = criterion.get("execution_mode")
+        line += f"; execution-mode group {named if named is not None else NO_GROUP_NAME}"
     if criterion["not_qualified"]:
         line += "; not qualified: " + ", ".join(
             f"{n['run_id']} ({n['qualification']}" + (f": {n['reason']}" if n["reason"] else "") + ")"
             for n in criterion["not_qualified"]
         )
-    line += (
+    return line
+
+
+def summary_line(doc: dict[str, Any]) -> str:
+    """What the CLI prints: one line with the criterion, its group, the
+    counts, the runs that are not qualified and where the files are; for
+    runs of several execution-mode groups, that line (the criterion that
+    names the groups) followed by one line per group."""
+    per_group = doc["criteria_by_execution_mode"]
+    several = len(per_group) > 1
+    first = _criterion_line(doc["criterion"], group=not several) + (
         f"; written to processed/{JSON_FILENAME} and processed/{CSV_FILENAME}; "
         "no count of lost, late or N1 changed"
     )
-    return line
+    if not several:
+        return first
+    return "\n".join([first, *(_criterion_line(c, group=True) for c in per_group)])
 
 
 def _csv_value(value: Any) -> str:

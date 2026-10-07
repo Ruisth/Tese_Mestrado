@@ -109,11 +109,13 @@ after the analysis, which writes ``processed/recovery_qualification.json``
 and ``.csv`` (one record per ``controller_restart`` run of the plan: its
 validity, drain outcome and source, the presence and verification of the
 after snapshot and the post-drain events, and its qualification —
-``recovery_observed``, ``recovery_failed`` or ``not_evidenced`` — plus the
-criterion ``restart_recovery_observed_every_run``) and prints one
-``[recovery]`` summary line; ``recovery`` runs that layer alone. The layer
-changes no count and adds nothing to the acceptance table (ADR 0011 leaves
-``analyze.py`` unchanged).
+``recovery_observed``, ``recovery_failed`` or ``not_evidenced`` — and its
+execution-mode group, plus the criterion
+``restart_recovery_observed_every_run``, evaluated once per execution-mode
+group and never across groups) and prints one ``[recovery]`` summary line
+(and one per group when the runs span several); ``recovery`` runs that
+layer alone. The layer changes no count and adds nothing to the acceptance
+table (ADR 0011 leaves ``analyze.py`` unchanged).
 """
 
 from __future__ import annotations

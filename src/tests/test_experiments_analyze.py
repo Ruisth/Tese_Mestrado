@@ -3852,7 +3852,10 @@ MODE_ROOTFS = "egw-gateway-image-qemuarm64.rootfs-20260918120819"
 MODE_BROKER = "127.0.0.1"
 MODE_PORT = 8883
 TCG_LABEL = "ARM64 emulated by QEMU/TCG on an x86-64 host"
-UNRECORDED_LABEL = "execution mode NOT RECORDED (manifests predate the field)"
+UNRECORDED_LABEL = (
+    "execution mode NOT RECORDED (no provenance record: a run older than the "
+    "field, or an external run)"
+)
 MODE_COLUMNS = [
     "execution_mode",
     "execution_mode_status",
@@ -4568,3 +4571,92 @@ def test_figures_are_stamped_with_execution_mode(tmp_path, capsys) -> None:
     legacy = by_file["latency_percentiles_vs_load.unrecorded.png"]
     assert legacy["execution_mode_label"] == UNRECORDED_LABEL
     assert "QEMU version not recorded" in _png_text(figures / legacy["figure_file"])["Description"]
+
+
+def _footer_row(run_id: str, version: str | None) -> dict:
+    """One drawable tcg-emulated load-sweep row whose manifest records the
+    QEMU version line ``version`` (None: not recorded)."""
+    return _sweep_row(
+        10.0,
+        0.0,
+        100.0,
+        run_id=run_id,
+        execution_mode_group="tcg-emulated",
+        _qemu_version_line=version,
+        latency_ms_p50=1.0,
+        latency_ms_p99=3.0,
+        delivery_rate=1.0,
+    )
+
+
+@pytest.mark.parametrize(
+    "versions, footer",
+    [
+        (
+            (MODE_QEMU_VERSION, None),
+            f"2 run(s); QEMU: {MODE_QEMU_VERSION} (1 run); version not recorded (1 run)",
+        ),
+        ((MODE_QEMU_VERSION, MODE_QEMU_VERSION), f"2 run(s); QEMU: {MODE_QEMU_VERSION} (2 runs)"),
+        ((None, None), "2 run(s); QEMU version not recorded (2 runs)"),
+    ],
+    ids=["one-without", "all-recorded", "none-recorded"],
+)
+def test_the_figure_footer_counts_the_runs_of_each_qemu_version(
+    tmp_path, versions, footer
+) -> None:
+    """The footer never presents a version as every drawn run's when some
+    runs recorded none: it counts the runs of each version line and the
+    runs without one (review of the G4 tooling, finding 10)."""
+    pytest.importorskip("matplotlib")
+    rows = [_footer_row(f"run{i}", version) for i, version in enumerate(versions)]
+    index = analyze.generate_figures(tmp_path, rows, execution_mode="tcg-emulated")
+    assert index
+    for entry in index:
+        description = _png_text(tmp_path / entry["figure_file"])["Description"]
+        assert f"; {footer}; runs: run0 run1" in description, description
+
+
+def test_the_not_recorded_label_does_not_say_an_external_run_predates_the_field(
+    tmp_path, capsys
+) -> None:
+    """An external run written by this harness carries a current manifest
+    and no provenance record: it is 'unrecorded' without predating the
+    field, so neither the group label nor the notice says it does (review
+    of the G4 tooling, findings 11 and 28)."""
+    base = tmp_path / "results"
+    run_dir = make_external_run(
+        base, "cold_start-r01", "cold_start", [{"label": "c1", "duration_s": 30.0}], seal=False
+    )
+    manifest = json.loads((run_dir / "manifest.json").read_text("utf-8"))
+    manifest["manifest_version"] = "1.5"
+    (run_dir / "manifest.json").write_text(json.dumps(manifest) + "\n", "utf-8")
+    write_sha256sums(run_dir)
+
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert analyze.UNRECORDED_LABEL == UNRECORDED_LABEL
+    (notice,) = [line for line in out.splitlines() if "NOT RECORDED" in line]
+    assert f"with the {UNRECORDED_LABEL}:" in notice and notice.endswith(": cold_start-r01")
+    assert "predate" not in out
+    (duration,) = _summary_rows(base, "cold_start", "duration_s")
+    assert duration["execution_mode"] == "unrecorded"
+
+
+def test_an_empty_tree_names_its_group_none(tmp_path, capsys) -> None:
+    """With no included run the one evaluation has no group: the figures
+    notice names it 'none', as the summary line does, never 'unclassified'
+    (review of the G4 tooling, finding 12)."""
+    pytest.importorskip("matplotlib")
+    base = tmp_path / "results"
+    (base / "raw").mkdir(parents=True)
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert (
+        "notice: no load_sweep runs in execution-mode group none in results/raw "
+        "yet; its figures skipped"
+    ) in out
+    assert "execution-mode group(s): none" in out
+    assert "unclassified" not in out
+    saturation = json.loads((base / "processed" / "saturation.json").read_text("utf-8"))
+    assert saturation["execution_modes"] == [None]
+    assert list((base / "figures").glob("*.png")) == []
