@@ -91,6 +91,11 @@ RUN_TEST_SEEDS = (42, 7)
 #: The fields the harness writes beside the status (run.py, update_plan_status).
 HARNESS_WRITTEN = ("status", "result_dir", "finished_utc", "validity")
 
+#: The commit every file:line citation of the plan and of its README refers
+#: to (the branch's base: lines move in later commits, and the citations are
+#: anchored, never re-cited).
+SOURCES_AT_COMMIT = "e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94"
+
 
 def _load_tool():
     spec = importlib.util.spec_from_file_location("g4_pilot_plan", TOOL)
@@ -204,6 +209,113 @@ def test_write_gives_the_committed_bytes_and_names_each_entry_and_the_sha256(tmp
 def test_the_pilot_readme_names_the_committed_plans_sha256():
     readme = (PILOT_DIR / "README.md").read_text(encoding="utf-8")
     assert hashlib.sha256(COMMITTED.read_bytes()).hexdigest() in readme
+
+
+# ---------------------------------------------------------------------------
+# every file:line citation refers to one stated commit
+# ---------------------------------------------------------------------------
+
+
+def test_the_plan_names_the_commit_its_citations_refer_to(tool):
+    plan = tool.build_pilot_plan(WORKING_SEED)
+    assert plan["pilot"]["sources_at_commit"] == SOURCES_AT_COMMIT
+    assert json.loads(COMMITTED.read_bytes())["pilot"]["sources_at_commit"] == SOURCES_AT_COMMIT
+    for value in (None, "HEAD", SOURCES_AT_COMMIT[:7]):
+        changed = json.loads(json.dumps(plan))
+        changed["pilot"]["sources_at_commit"] = value
+        assert any("sources_at_commit" in p for p in tool.plan_problems(changed)), value
+
+
+def _section(text: str, heading: str) -> str:
+    """The body of the README section ``heading`` (up to the next ``## ``)."""
+    body = text.split(f"\n{heading}\n", 1)[1]
+    return body.split("\n## ", 1)[0]
+
+
+def test_the_pilot_readme_states_the_commit_at_the_top_of_the_plan_and_of_the_source_mapping():
+    readme = (PILOT_DIR / "README.md").read_text(encoding="utf-8")
+    for heading in ("## The plan", "## Source mapping, field by field"):
+        first_paragraph = _section(readme, heading).strip().split("\n\n", 1)[0]
+        assert SOURCES_AT_COMMIT in first_paragraph, heading
+        assert "every file:line citation" in " ".join(first_paragraph.split()).lower(), heading
+
+
+#: Citations of the plan and of its README: (as cited, path, first line,
+#: last line, what those lines hold at SOURCES_AT_COMMIT).
+CITED = (
+    ("qemu_integrated_gateway.md:1544", "docs/setup/qemu_integrated_gateway.md", 1544, 1544,
+     "--scenario nominal --duration 120"),
+    ("qemu_integrated_gateway.md:1544", "docs/setup/qemu_integrated_gateway.md", 1544, 1544,
+     "short soak (`--scenario soak --duration 3600`)"),
+    ("run.py:5033-5054", "src/egw_experiments/run.py", 5033, 5054, 'run_id=f"{run_id}.warmup"'),
+    ("run.py:5968-5973", "src/egw_experiments/run.py", 5968, 5973, "remaining_cooldown = max(0.0, cooldown_s"),
+    ("run.py:508-510", "src/egw_experiments/run.py", 508, 510, "METRICS_MANDATORY_CONDITION_IDS"),
+    ("run.py:723-725", "src/egw_experiments/run.py", 723, 725, "SKIP_WARMUP_STRICT_CONDITIONS"),
+    ("run.py:5768-5769", "src/egw_experiments/run.py", 5768, 5769, '"plan_entry": entry'),
+    ("run.py:3981-3991", "src/egw_experiments/run.py", 3981, 3991, "--skip-warmup on condition"),
+    ("`5563-5570`", "src/egw_experiments/run.py", 5563, 5570, '"skip_warmup"'),
+    ("run.py:4752-4757", "src/egw_experiments/run.py", 4752, 4757, 'update_plan_status(plan_path, run_id, "running")'),
+    ("`5959-5966`", "src/egw_experiments/run.py", 5959, 5966, '"completed" if ok else "failed"'),
+    ("`4788-4796`", "src/egw_experiments/run.py", 4788, 4796, 'int(entry["duration_s"])'),
+    ("run.py:355-356", "src/egw_experiments/run.py", 355, 356, "DEFAULT_PLAN_PATH = "),
+    ("run.py:4610-4615", "src/egw_experiments/run.py", 4610, 4615, "not found in"),
+    ("cli.py:574-585", "src/egw_experiments/cli.py", 574, 585, '"--base-dir"'),
+    ("cli.py:732-743", "src/egw_experiments/cli.py", 732, 743, '"--base-dir"'),
+    ("analyze.py:1234-1236", "src/egw_experiments/analyze.py", 1234, 1236, "CAMPAIGN_PLAN_ENV_VAR"),
+    ("analyze.py:3469-3470", "src/egw_experiments/analyze.py", 3469, 3470, "_clean_dir(figures_dir)"),
+    ("analyze.py:2566-2568", "src/egw_experiments/analyze.py", 2566, 2568, "expected = condition.repetitions"),
+    ("analyze.py:2591-2597", "src/egw_experiments/analyze.py", 2591, 2597, "the campaign plan lists"),
+    ("analyze.py:2614-2618", "src/egw_experiments/analyze.py", 2614, 2618, "INCOMPLETE"),
+    ("analyze.py:3004-3007", "src/egw_experiments/analyze.py", 3004, 3007, "expected_per_load"),
+    ("analyze.py:2435-2437", "src/egw_experiments/analyze.py", 2435, 2437,
+     '(row.get("condition_id"), row.get("rate_msg_s"))'),
+    ("recovery_qualification.py:478-483", "src/egw_experiments/recovery_qualification.py", 478, 483,
+     "the campaign plan lists no controller_restart run"),
+    ("protocol.py:285", "src/egw_experiments/protocol.py", 285, 285, "rate_msg_s=NOMINAL_RATE_MSG_S"),
+    ("plan_gen.py:43-50", "src/egw_experiments/plan_gen.py", 43, 50, "def derive_run_seed"),
+    ("devices.py:38-45", "src/egw_simulator/devices.py", 38, 45, "def device_uuid_for"),
+    ("claim_evidence_matrix.md:174", "docs/claim_evidence_matrix.md", 174, 174, "does **not** satisfy"),
+    ("INTEGRATED_DEVELOPMENT_PLAN_2026.md:643-645", "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md",
+     643, 645, "a short nominal run"),
+)
+
+#: A repository path with a line or a range, as the plan cites it.
+CITATION_RE = re.compile(r"((?:src|docs|tools|experiments)/[\w./-]+\.(?:py|md)):([0-9]+)(?:-([0-9]+))?")
+
+
+@pytest.fixture(scope="module")
+def at_sources_commit():
+    """The lines of a file at the commit the committed plan names; skipped
+    where git cannot read that commit (no git, or a shallow clone)."""
+    commit = json.loads(COMMITTED.read_bytes())["pilot"]["sources_at_commit"]
+    try:
+        probe = subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=REPO, capture_output=True)
+    except OSError as exc:
+        pytest.skip(f"git cannot be run here ({exc})")
+    if probe.returncode != 0:
+        pytest.skip(f"git cannot read commit {commit} here: {probe.stderr.decode(errors='replace').strip()}")
+    cache: dict[str, list[str]] = {}
+
+    def lines(path: str) -> list[str]:
+        if path not in cache:
+            shown = subprocess.run(["git", "show", f"{commit}:{path}"], cwd=REPO, capture_output=True)
+            assert shown.returncode == 0, (path, shown.stderr)
+            cache[path] = shown.stdout.decode("utf-8").splitlines()
+        return cache[path]
+
+    return lines
+
+
+def test_every_cited_line_holds_what_the_citation_claims_at_the_stated_commit(at_sources_commit):
+    readme = (PILOT_DIR / "README.md").read_text(encoding="utf-8")
+    plan_text = COMMITTED.read_text(encoding="utf-8")
+    for cited, path, first, last, anchor in CITED:
+        assert cited in readme or cited in plan_text, cited
+        held = "\n".join(at_sources_commit(path)[first - 1:last])
+        assert anchor in held, (cited, anchor, held)
+    # Every path:line the plan cites in the repository exists at that commit.
+    for path, first, last in CITATION_RE.findall(plan_text):
+        assert len(at_sources_commit(path)) >= int(last or first), (path, first, last)
 
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,8 @@ departure), which the harness echoes into the run's manifest
 travel verbatim; the plan's own ``pilot`` block states the purpose, that the
 runs are non-citable and are not campaign attempts, every condition-level
 departure (counts, rate levels, order, the conditions not run) and the
-source of every field. The plan names no execution mode: that is declared
+source of every field, with the commit every file:line citation refers to
+(``sources_at_commit``). The plan names no execution mode: that is declared
 for each run when it is made, never supplied by its input.
 
 ``write`` refuses, with nothing written (exit 2): a master seed that is not a
@@ -138,9 +139,15 @@ RUN_TEST_SEEDS = {42: "tests 1 and 3", 7: "test 2"}
 
 WHOLE_NUMBER = re.compile(r"[0-9]+")
 
+#: The commit every file:line citation of the plan refers to (the plan's
+#: ``pilot.sources_at_commit``), and so every citation below and in this
+#: file's comments: the base of the branch that added the tool. Lines move
+#: in later commits; a citation is read at this commit and never re-cited.
+SOURCES_AT_COMMIT = "e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94"
+
 # Where the values come from (paths from the repository root; the request
 # annex is kept outside the repository, in the local decisions folder).
-PROTOCOL = "src/egw_experiments/protocol.py"
+PROTOCOL ="src/egw_experiments/protocol.py"
 PLAN_GEN = "src/egw_experiments/plan_gen.py"
 RUN = "src/egw_experiments/run.py"
 SCENARIOS_PY = "src/egw_simulator/scenarios.py"
@@ -461,6 +468,7 @@ def build_pilot_plan(master_seed: int) -> dict[str, Any]:
                 "plan": dict(PLAN_SOURCES),
                 "runs": {spec.run_id: pilot_sources(spec) for spec in PILOT_SPECS},
             },
+            "sources_at_commit": SOURCES_AT_COMMIT,
         },
     }
 
@@ -622,6 +630,9 @@ def plan_problems(plan: Any) -> list[str]:
         if not isinstance(named, dict) or set(named) != ENTRY_FIELDS or not all(
                 isinstance(s, str) and s for s in named.values()):
             problems.append(f"its sources do not name every field of {rid}")
+    if pilot.get("sources_at_commit") != SOURCES_AT_COMMIT:
+        problems.append(f"its pilot block's sources_at_commit is {pilot.get('sources_at_commit')!r}, not "
+                        f"{SOURCES_AT_COMMIT!r}, the commit its file:line citations refer to")
     return problems
 
 

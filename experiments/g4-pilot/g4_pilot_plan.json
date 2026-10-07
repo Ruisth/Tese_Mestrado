@@ -277,7 +277,8 @@
           "warmup_s": "src/egw_experiments/protocol.py:403"
         }
       }
-    }
+    },
+    "sources_at_commit": "e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94"
   },
   "plan_version": "1.0",
   "protocol_version": "1.0.0",

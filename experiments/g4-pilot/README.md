@@ -19,12 +19,20 @@ by its input.
 | | |
 |---|---|
 | File | `experiments/g4-pilot/g4_pilot_plan.json`: the campaign plan's canonical serialisation (`plan_to_json`: sorted keys, two-space indent, LF, one trailing newline, no timestamp) |
-| sha256 | `8c011edd3e36df46ef3d27e4e6075954bb8d302393db5a80113260f3f66b8281` |
+| sha256 | `dae0889bf3b1386778d2709b411544a116401c415b916c8a3ef8689f0e77b5ca` |
 | Written by | [`tools/session/g4_pilot_plan.py`](../../tools/session/g4_pilot_plan.py) `write --master-seed 20261007`, with G3's plan as it stood after test 6 and the finite proof r03 plan, both held in `docs/evidence/`, passed as `--against`, and `--against-seed 42 --against-seed 7` |
 | Master seed | `20261007`: a **working choice** presented to the student, after the finite proof's date convention (`20260925`). The tool has no default; another master seed is a new build with new seeds, a new file and a new sha256 |
 | Pinned by | [`src/tests/test_g4_pilot_plan.py`](../../src/tests/test_g4_pilot_plan.py): the file's bytes equal `build_pilot_plan(20261007)`, and this README names its sha256 |
 
 ## The plan
+
+Every file:line citation in this README and in the plan (its `pilot.sources`,
+`purpose`, `deviations_from_protocol` and each entry's `pilot.deviations`)
+refers to commit `e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94`, the base of the
+branch that added the plan, which the plan records as
+`pilot.sources_at_commit`. Lines move in later commits, so a citation is read
+at that commit (`git show e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94:<path>`),
+never in a later tree; the tests check a sample of the cited lines there.
 
 | Order | Stage | `run_id` | `condition_id` | `scenario` | `rate_msg_s` | `duration_s` | `warmup_s` | `cooldown_s` | `seed` |
 |---|---|---|---|---|---|---|---|---|---|
@@ -55,8 +63,9 @@ Bold marks a departure from the frozen condition. Every entry has `runner`
   both.
 - **Top-level `pilot`.** `label`, `purpose`, `non_citable: true`,
   `not_campaign_attempts: true`, `deviations_from_protocol` (one row for every
-  condition of the frozen protocol) and `sources` (the source of every field of
-  the plan and of every entry).
+  condition of the frozen protocol), `sources` (the source of every field of
+  the plan and of every entry) and `sources_at_commit` (the commit every
+  file:line citation refers to).
 - **`plan_version`** `1.0`, **`protocol_version`** `1.0.0`: the frozen protocol
   is not changed.
 
@@ -74,8 +83,10 @@ command yet.
 
 ## Source mapping, field by field
 
-The file's `pilot.sources` holds the same mapping. Paths are from the
-repository root; `protocol.py`, `plan_gen.py` and `run.py` are under
+The file's `pilot.sources` holds the same mapping. Every file:line citation in
+it and below refers to commit `e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94`
+(`pilot.sources_at_commit`), not to a later tree: lines move in later
+commits. Paths are from the repository root; `protocol.py`, `plan_gen.py` and `run.py` are under
 `src/egw_experiments/`, `scenarios.py` and `devices.py` under
 `src/egw_simulator/`, the runbook is `docs/setup/qemu_integrated_gateway.md`
 and the plan is `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`.
