@@ -1135,3 +1135,73 @@ def test_operating_rule_4_refuses_every_warning_analyze_prints_about_the_plan(tm
     assert "whatever the exit code" in rule
     for line in quoted:
         assert f"`{line}" in rule, line
+
+
+# ---------------------------------------------------------------------------
+# the operational contract (a proposal) adds up
+# ---------------------------------------------------------------------------
+
+
+def test_the_operational_contract_proposal_adds_up():
+    section = _section((PILOT_DIR / "README.md").read_text(encoding="utf-8"),
+                       "## Operational contract (proposal, not adopted)")
+    text = " ".join(section.split())
+    # The harness's code bounds on the pilot's path, as the contract itemises
+    # them: three collector hooks, not four (the StartedAt fetch is not on
+    # the pilot's path), so the items sum to the stated 3,221 s.
+    code_bounds = {
+        "three collector hooks (start, stop, fetch) at 300 + 15 s": 3 * 315,
+        "the events fetch 3 x 300 s with back-off": 3 * 300 + 2 + 4,
+        "three SUT fetches at 315 s": 3 * 315,
+        "simulator grace 300 s": 300,
+        "the confirmation window 60 s": 60,
+        "sampler stop 30 s": 30,
+        "environment capture 30 s": 30,
+        "marker 5 s": 5,
+    }
+    for item in code_bounds:
+        assert item in text, item
+    assert "four hooks" not in text
+    assert sum(code_bounds.values()) == 3221
+    assert "the code's bounds on the pilot's path, 3,221" in text
+    # Plus an explicit allowance for the two hypervisor snapshots every
+    # simulator run now takes (two --version runs bounded at 10 s, and the
+    # hashing of the QEMU binary and the kernel, which no code bounds).
+    snapshots = 60
+    assert "a 60 s allowance for the two hypervisor snapshots" in text
+    events_start = events_cleanup = 120
+    execute_run = sum(code_bounds.values()) + snapshots
+    s_harness = events_start + execute_run + events_cleanup
+    variable = "D + max(0, C - 60) + (W > 0 ? W + 300 : 0)"
+    assert f"| `S_harness` | {s_harness:,} + {variable} |" in text
+    assert f"`execute_run` {execute_run:,} + {variable}" in text
+    s_pre, s_post = 1780, 4145
+    assert f"| `S_pre` | {s_pre:,} |" in text and f"| `S_post` | {s_post:,} |" in text
+
+    def r_max(w: int, d: int, c: int) -> int:
+        return s_pre + s_harness + d + max(0, c - 60) + (w + 300 if w > 0 else 0) + s_post
+
+    rows = {"| 1: 120 s nominal, no warm-up |": r_max(0, 120, 0),
+            "| 2: 600 s nominal after 120 s |": r_max(120, 600, 0),
+            "| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down |": r_max(0, 300, 120),
+            "| 5: 3,600 s soak |": r_max(0, 3600, 0)}
+    assert list(rows.values()) == [9566, 10466, 9806, 13046]
+    for row, seconds in rows.items():
+        line = next(line for line in section.splitlines() if line.startswith(row))
+        assert f"| {seconds:,}" in line and f"({seconds // 60} min)" in line, (line, seconds)
+
+    reserve, budget_a, budget_b, row_4_start = 2100, 18000, 16200, 3900
+    need = row_4_start + rows["| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down |"] + reserve
+    assert need == 15806 and need <= budget_a
+    assert f"`{row_4_start:,} + {need - row_4_start - reserve:,} + {reserve:,} = {need:,} s`" in text
+    assert f"about {(budget_a - need) // 10 * 10:,} s of slip" in text
+    soak_start = budget_b - rows["| 5: 3,600 s soak |"] - reserve
+    assert soak_start == 1054
+    assert f"`now - UP0 <= {soak_start:,} s`" in text
+
+    # The maximum is not claimed to bound what no code bounds: it holds
+    # because the step file runs the harness step under timeout.
+    assert "true maximum" not in text and "no wait is left outside it" not in text
+    assert "whatever an inner step takes" in text
+    for unbounded in ("hashing", "SHA256SUMS", "per socket operation"):
+        assert unbounded in text, unbounded

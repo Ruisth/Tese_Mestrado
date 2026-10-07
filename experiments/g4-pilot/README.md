@@ -299,27 +299,34 @@ results.
 **Clock.** Every budget is counted in whole seconds of the host's `/proc/uptime`, from `UP0`, read when the open
 command starts. UTC is never used: over the G3 sessions it moved by between -5.1 % and +3.0 % against `/proc/uptime`.
 
-**Per-row maximum, with every wait included.** `R_max = S_pre + S_harness + S_post`. Each term is either a bound the
-code already enforces or a step bound that the pilot's step file enforces with `timeout`, on the model of
-`tools/session/proof.sh` (`bounded`/`left`). The maximum is therefore a true maximum, and no wait is left outside it.
+**Per-row maximum.** `R_max = S_pre + S_harness + S_post`. The inner terms are the code's bounds (the harness's
+timeouts and fixed waits) or step bounds, with one explicit allowance: 60 s for the two hypervisor snapshots that every
+simulator run takes. Some work inside these terms has no bound in code: the hashing of the QEMU binary and the kernel
+at each snapshot; the run's ingest, validity, manifest and `SHA256SUMS` seal; and the controller marker poll, which is
+bounded per socket operation only. So the row maximum does not rest on the inner terms. It holds because the pilot's
+step file runs each step, the harness step included, under `timeout` of what is left of `R_max`, on the model of
+`tools/session/proof.sh` (`bounded`/`left`), whatever an inner step takes. A step stopped that way is the
+instrumentation failure of enforcement rule 2.
 
 | Term | Seconds | What it covers |
 |---|---:|---|
 | `S_pre` | 1,780 | row checks 180 (budget, keepalive, identities, run-id freshness, disk floors); new attempt and collector copy 120; guest state before 120; `wait_ready 300` 335; pre-run `drained` (limit 900) 935; metrics and snapshot 90 |
-| `S_harness` | 3,461 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) | `events_start` 120; `execute_run` 3,221 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) (four hooks at 300 + 15 s, the events fetch 3 x 300 s with back-off, three SUT fetches at 315 s, simulator grace 300 s, the confirmation window 60 s, sampler stop 30 s, environment capture 30 s, marker 5 s); `events_cleanup` 120 |
+| `S_harness` | 3,521 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) | `events_start` 120; `execute_run` 3,281 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0): the code's bounds on the pilot's path, 3,221 (three collector hooks (start, stop, fetch) at 300 + 15 s, the events fetch 3 x 300 s with back-off, three SUT fetches at 315 s, simulator grace 300 s, the confirmation window 60 s, sampler stop 30 s, environment capture 30 s, marker 5 s), plus a 60 s allowance for the two hypervisor snapshots (two `qemu-system-aarch64 --version` runs bounded at 10 s each, and the hashing of the QEMU binary and the kernel, which no code bounds); `events_cleanup` 120 |
 | `S_post` | 4,145 | post-run `drained` (limit 1,500) 1,535; two `scp` 240; snapshots after 90; accounting and guest state after 360; the row's export 600; gate after the row 1,020; classification 300 |
 
 | Row | `R_max` (s) | Expected (annex) |
 |---|---:|---|
-| 1: 120 s nominal, no warm-up | 9,506 (158 min) | 9-11 min |
-| 2: 600 s nominal after 120 s | 10,406 (173 min) | 22-26 min |
-| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down | 9,746 each (162 min) | 13-16 and 22-24 min |
-| 5: 3,600 s soak | 12,986 (216 min) | 76-78 min |
+| 1: 120 s nominal, no warm-up | 9,566 (159 min) | 9-11 min |
+| 2: 600 s nominal after 120 s | 10,466 (174 min) | 22-26 min |
+| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down | 9,806 each (163 min) | 13-16 and 22-24 min |
+| 5: 3,600 s soak | 13,046 (217 min) | 76-78 min |
 
 The maximum is reached only if every wait reaches its limit, and the expected times do not change. A shorter maximum
 needs shorter inner bounds, and each would be a separate decision. Examples: a pre-run quiet limit of 300 s after a
 post-run drain that reached quiet saves 600 s per row; a 300 s healthy wait in the gate after the row saves another
-600 s. The harness's own 3,221 s changes only through a tooling change.
+600 s. The 3,221 s are the harness's code bounds on the pilot's path, and the 60 s allowance covers the two hypervisor
+snapshots this tooling adds to every simulator run; a later change to the harness's waits changes them, and this
+table is then recomputed.
 
 **Reserve.** 2,100 s is kept back in every session and never given to a row: 900 s for evidence recovery after an
 interruption (recorder cleanup, the run's `events.jsonl`, the guest's `/tmp` captures, `local_export recover`) and
@@ -327,9 +334,9 @@ interruption (recorder cleanup, the run's `events.jsonl`, the guest's `/tmp` cap
 export). The G3 closes took 62-86 s.
 
 **Session budgets.**
-- Session A (rows 1 to 4): `B_A = 18,000 s` (5 h 00 min). Row 4 needs `3,900 + 9,746 + 2,100 = 15,746 s` when it
-  starts on time, and the margin covers about 2,250 s of slip. The expected end is about 92 min.
-- Session B (row 5): `B_B = 16,200 s` (4 h 30 min). The soak may start while `now - UP0 <= 1,114 s`; the G3 opens
+- Session A (rows 1 to 4): `B_A = 18,000 s` (5 h 00 min). Row 4 needs `3,900 + 9,806 + 2,100 = 15,806 s` when it
+  starts on time, and the margin covers about 2,190 s of slip. The expected end is about 92 min.
+- Session B (row 5): `B_B = 16,200 s` (4 h 30 min). The soak may start while `now - UP0 <= 1,054 s`; the G3 opens
   took 404-417 s. The expected end is about 87 min.
 - Keepalive: at least 21,600 s at the open, and at least `R_max + 2,100 + 1,800` s before each row.
 - The session must be open, with its gate passed, by `UP0 + 3,600 s`; otherwise stop and ask.
