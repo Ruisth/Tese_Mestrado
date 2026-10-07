@@ -262,6 +262,8 @@ CITED = (
     ("cli.py:574-585", "src/egw_experiments/cli.py", 574, 585, '"--base-dir"'),
     ("cli.py:732-743", "src/egw_experiments/cli.py", 732, 743, '"--base-dir"'),
     ("analyze.py:1234-1236", "src/egw_experiments/analyze.py", 1234, 1236, "CAMPAIGN_PLAN_ENV_VAR"),
+    ("analyze.py:1242-1245", "src/egw_experiments/analyze.py", 1242, 1245, "has no 'runs' list"),
+    ("`3458-3467`", "src/egw_experiments/analyze.py", 3458, 3467, "BY COUNT ONLY"),
     ("analyze.py:3469-3470", "src/egw_experiments/analyze.py", 3469, 3470, "_clean_dir(figures_dir)"),
     ("analyze.py:2566-2568", "src/egw_experiments/analyze.py", 2566, 2568, "expected = condition.repetitions"),
     ("analyze.py:2591-2597", "src/egw_experiments/analyze.py", 2591, 2597, "the campaign plan lists"),
@@ -1087,3 +1089,49 @@ def test_analyze_of_the_pilot_base_reads_the_named_plan_and_leaves_g3s_tree_alon
         assert path.read_bytes() == body
     for path, body in kept.items():
         assert path.read_bytes() == body
+
+
+def _readme_rule(number: int) -> str:
+    """Operating rule ``number`` of the pilot README, whitespace folded."""
+    rules = _section((PILOT_DIR / "README.md").read_text(encoding="utf-8"), "## Operating rules for the plan files")
+    body = rules.split(f"\n{number}. ", 1)[1].split(f"\n{number + 1}. ", 1)[0]
+    return " ".join(body.split())
+
+
+def test_operating_rule_4_refuses_every_warning_analyze_prints_about_the_plan(tmp_path, monkeypatch, capsys):
+    # analyze degrades completeness to counts and still exits 0 whether the
+    # plan is unreadable, holds no 'runs' list or is not given at all; each
+    # case prints '[analyze] WARNING:' lines, and rule 4 must refuse on any
+    # such line and quote each of the ones about the plan as analyze words it.
+    base = tmp_path / "results"
+    (base / "raw").mkdir(parents=True)
+    no_runs = tmp_path / "no-runs.json"
+    no_runs.write_text("{}\n", encoding="utf-8")
+    broken = tmp_path / "broken.json"
+    broken.write_text("{", encoding="utf-8")
+    missing = tmp_path / "missing.json"
+    monkeypatch.delenv(CAMPAIGN_PLAN_ENV_VAR, raising=False)
+    quoted = set()
+    for plan in (no_runs, broken, missing, None):
+        assert cli.main(["analyze", "--base-dir", str(base), *(["--plan", str(plan)] if plan else [])]) == 0
+        captured = capsys.readouterr()
+        warnings = [line for line in (captured.out + captured.err).splitlines()
+                    if line.startswith("[analyze] WARNING:") and "campaign plan" in line]
+        assert warnings, plan
+        for line in warnings:
+            line = line.replace(str(plan), "<path>") if plan else line
+            if "could not be read: " in line:
+                line = line.split("could not be read: ", 1)[0] + "could not be read: <error>"
+            if "BY COUNT ONLY" in line:
+                line = line.split("BY COUNT ONLY", 1)[0] + "BY COUNT ONLY"
+            quoted.add(line)
+    assert quoted == {
+        "[analyze] WARNING: campaign plan <path> could not be read: <error>",
+        "[analyze] WARNING: campaign plan <path> has no 'runs' list",
+        "[analyze] WARNING: no campaign plan supplied; run completeness is checked BY COUNT ONLY",
+    }
+    rule = _readme_rule(4)
+    assert "any line that begins `[analyze] WARNING:`" in rule
+    assert "whatever the exit code" in rule
+    for line in quoted:
+        assert f"`{line}" in rule, line

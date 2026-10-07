@@ -219,10 +219,20 @@ Ditto and MongoDB over the pilot are storage growth the pilot measures anyway.
    - `collect --plan <working> --base-dir <pilot>/results` (`cli.py:732-743`).
    - `analyze --base-dir <pilot>/results --plan <sealed>` with
      `EGW_CAMPAIGN_PLAN` unset (`env -u EGW_CAMPAIGN_PLAN ...`;
-     `src/egw_experiments/analyze.py:1234-1236`), and the output checked for
-     an `[analyze] WARNING: campaign plan ... could not be read` line: an
-     unreadable `--plan` degrades completeness to counts and still exits 0
-     (`analyze.py:3458-3467`).
+     `src/egw_experiments/analyze.py:1234-1236`). When the plan cannot be
+     used, analyze degrades completeness to counts and still exits 0
+     (`analyze.py:1242-1245`, `3458-3467`), so the step captures both of its
+     streams and refuses, whatever the exit code, when either holds any line
+     that begins `[analyze] WARNING:`. The ones about the plan, as analyze
+     words them:
+     - `[analyze] WARNING: campaign plan <path> could not be read: <error>`
+       (standard error): the file is missing, unreadable or not JSON;
+     - `[analyze] WARNING: campaign plan <path> has no 'runs' list` (standard
+       error): the file is JSON but not a plan (`{}`, or another file named
+       by mistake);
+     - `[analyze] WARNING: no campaign plan supplied; run completeness is checked BY COUNT ONLY — ...`
+       (standard output): printed after either line above, and alone when
+       neither `--plan` nor `EGW_CAMPAIGN_PLAN` names a plan.
 5. **Never** `plan`, `plan-supplement` or `campaign` (other than `--dry-run`,
    which only prints) on the pilot plan or G3's; never `analyze` of
    `~/egw-tcg/pilot/results`. `analyze` wipes and rebuilds `processed/` and
