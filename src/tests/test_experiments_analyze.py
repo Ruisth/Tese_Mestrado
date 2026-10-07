@@ -4268,6 +4268,27 @@ def test_the_checks_are_re_applied_to_the_sealed_records(tmp_path) -> None:
     assert "provenance: G2: " in row["warnings"]
 
 
+def test_an_advisory_g5_failure_leaves_the_run_recorded(tmp_path, capsys) -> None:
+    """G5 is advisory (environment.provenance_problems skips it), and the
+    analysis re-applies the same shared function: a guest record whose clock
+    reads earlier than the derived QEMU start never makes a run inconsistent."""
+    def guest_clock_before_the_derived_start(records: dict) -> None:
+        records["sut"]["captured_utc"] = "2026-10-07T11:20:00Z"  # before MODE_QEMU_START_UTC
+
+    base = tmp_path / "results"
+    run_dir = _mode_run(base, "nominal-r01", "tcg-emulated", change=guest_clock_before_the_derived_start)
+    manifest = json.loads((run_dir / "manifest.json").read_text("utf-8"))
+    g5 = next(c for c in manifest["provenance"]["checks"] if c["check"] == "G5")
+    assert g5["ok"] is False and g5["advisory"] is True
+    assert analyze.analyze(base_dir=base) == 0
+    assert "PROVENANCE FAILURE" not in capsys.readouterr().out
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode_status"] == "recorded"
+    assert row["execution_mode_group"] == "tcg-emulated"
+    assert row["provenance_ok"] == "true"
+    assert "provenance:" not in row["warnings"]
+
+
 def test_a_manifest_naming_two_modes_is_inconsistent(tmp_path) -> None:
     """The group key must be unambiguous: the top-level declaration and the
     provenance record's copy of it must agree."""

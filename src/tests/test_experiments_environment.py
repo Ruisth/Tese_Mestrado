@@ -452,6 +452,9 @@ def test_snapshot_of_the_one_tcg_guest(host) -> None:
     assert q["pid"] == QEMU_PID
     assert q["starttime_ticks"] == QEMU_STARTTIME
     assert q["start_utc"] == QEMU_START_UTC
+    # The basis of start_utc is recorded: the host's btime read at THIS
+    # snapshot and the clock tick rate (G5 compares the guest's clock with it).
+    assert q["btime"] == BTIME and q["clock_ticks_per_second"] == CLK_TCK
     assert q["exe_path"] == str(images / "qemu-system-aarch64")
     assert q["exe_sha256"] == _sha(b"qemu binary\n")
     assert q["version_line"] == QEMU_VERSION
@@ -460,6 +463,9 @@ def test_snapshot_of_the_one_tcg_guest(host) -> None:
     assert q["argv_sha256"] == _sha(b"".join(a.encode() + b"\0" for a in argv))
     assert q["parsed"]["smp"] == 4 and q["parsed"]["machine"] == "virt"
     assert q["kernel_sha256"] == _sha(b"arm64 kernel image\n")
+    # The kernel hash describes the file on disk when the snapshot is taken,
+    # not proven to be the bytes QEMU loaded at its start.
+    assert q["kernel_hash_basis"] == "file on disk at capture"
     assert q["rootfs_path"] == str(images / (ROOTFS_NAME + ".ext4"))
     assert q["rootfs_image_name"] == ROOTFS_NAME
     assert q["kvm_device_open"] is False
@@ -483,8 +489,9 @@ def test_snapshot_without_exactly_one_qemu_chooses_none(host, pids) -> None:
     q = snap["qemu"]
     assert q["found"] == len(pids) and q["pids"] == pids
     assert q["error"]
-    for key in ("pid", "starttime_ticks", "start_utc", "exe_path", "exe_sha256", "version_line", "argv",
-                "argv_sha256", "parsed", "kernel_sha256", "rootfs_path", "rootfs_image_name", "accelerator"):
+    for key in ("pid", "starttime_ticks", "start_utc", "btime", "clock_ticks_per_second", "exe_path",
+                "exe_sha256", "version_line", "argv", "argv_sha256", "parsed", "kernel_sha256",
+                "kernel_hash_basis", "rootfs_path", "rootfs_image_name", "accelerator"):
         assert q[key] is None, key
     assert snap["colocated_with_loadgen"] is None
     assert snap["generator_target_is_this_guest"] is None
@@ -540,6 +547,10 @@ def test_snapshot_records_co_location_from_the_boot_ids(host) -> None:
         ("127.0.0.1", PORT, None, True),
         ("localhost", PORT, None, True),
         ("127.0.0.1", PORT, f"hostfwd=tcp::{PORT}-:8883", True),
+        # 0.0.0.0 is every address, as the empty host address is: QEMU's
+        # slirp listens on loopback too, so the generator's connection enters.
+        ("127.0.0.1", PORT, f"hostfwd=tcp:0.0.0.0:{PORT}-:8883", True),
+        ("localhost", PORT, f"hostfwd=tcp:0.0.0.0:{PORT}-:8883", True),
         ("127.0.0.1", 1883, None, False),
         ("10.0.0.5", PORT, None, False),
         ("127.0.0.1", PORT, f"hostfwd=tcp:192.168.1.2:{PORT}-:8883", False),
@@ -565,6 +576,7 @@ def test_snapshot_names_unreadable_identity_files(host, monkeypatch) -> None:
     snap = _snapshot(host)
     q = snap["qemu"]
     assert q["exe_sha256"] is None and q["kernel_sha256"] is None and q["version_line"] is None
+    assert q["kernel_hash_basis"] is None  # no hash, so no basis is stated
     for prefix in ("qemu.exe_sha256:", "qemu.kernel_sha256:", "qemu.version_line:"):
         assert any(p.startswith(prefix) for p in snap["problems"]), prefix
 
@@ -679,9 +691,12 @@ def test_a_consistent_tcg_run_passes_every_check(records) -> None:
     checks = env_mod.provenance_checks(**records)
     assert [c["check"] for c in checks] == TCG_CHECKS
     for check in checks:
-        assert set(check) == {"check", "ok", "detail"}
+        # G5 alone is advisory and says so; every other check keeps the shape.
+        advisory = {"advisory"} if check["check"] == "G5" else set()
+        assert set(check) == {"check", "ok", "detail"} | advisory, check
         assert check["ok"] is True, check
         assert isinstance(check["detail"], str) and check["detail"]
+    assert _by_id(checks)["G5"]["advisory"] is True
     assert env_mod.provenance_problems(checks) == []
 
 
@@ -752,9 +767,6 @@ FAILURES = [
     ("G4", "no label states emulation", _apply_all(
         _set("sut_env.provider", "Raspberry Pi 5"), _set("sut_env.instance_type", "8 GB"),
         _set("sut_env.shared_vcpu_note", "dedicated cores"))),
-    ("G5", "a guest capture older than this QEMU", _set("sut_env.captured_utc", "2026-10-07T11:20:00Z")),
-    ("G5", "no guest capture time", _set("sut_env.captured_utc", None)),
-    ("G5", "an unreadable QEMU start", _set("hypervisor_env.start.qemu.start_utc", "yesterday")),
     ("L1", "the load-generator record is not one", _set("loadgen_env.role", "sut")),
     ("L1", "another machine", _set("loadgen_env.machine", "aarch64")),
     ("L1", "no load-generator record", _set("loadgen_env", None)),
@@ -774,7 +786,48 @@ def test_each_tcg_check_fails_on_its_own_fact(records, check, case, change) -> N
     assert check in failed, (case, checks)
     problems = env_mod.provenance_problems(checks)
     assert any(p.startswith(f"provenance: {check}: ") for p in problems)
-    assert len(problems) == len(failed)
+    # One reason per failed check, the advisory G5 excepted (a missing guest
+    # or hypervisor record also fails G5, which is never a reason).
+    assert len(problems) == len(failed - set(env_mod.ADVISORY_CHECKS))
+
+
+#: G5's facts. Its QEMU start is derived from the host's btime read at the
+#: snapshot, which moves with every host wall-clock step since QEMU started
+#: (WSL2: -5.1 % to +3.0 % against uptime over a session), so a good run can
+#: fail it and a stale record can pass it: G5 is advisory.
+G5_FAILURES = [
+    ("a guest capture older than this QEMU", _set("sut_env.captured_utc", "2026-10-07T11:20:00Z")),
+    # The 2026-10-07 margin (QEMU 12:03:59Z, guest 12:08:26Z) overtaken by a
+    # forward drift of the host's wall clock: the derived start passes the capture.
+    ("a QEMU start drifted past the capture", _set("hypervisor_env.start.qemu.start_utc", "2026-10-07T12:08:27.000Z")),
+    ("no guest capture time", _set("sut_env.captured_utc", None)),
+    ("an unreadable QEMU start", _set("hypervisor_env.start.qemu.start_utc", "yesterday")),
+]
+
+
+@pytest.mark.parametrize(("case", "change"), G5_FAILURES, ids=[c for c, _ in G5_FAILURES])
+def test_g5_is_advisory_and_never_a_validity_reason(records, case, change) -> None:
+    rec = copy.deepcopy(records)
+    change(rec)
+    checks = env_mod.provenance_checks(**rec)
+    assert [c["check"] for c in checks] == TCG_CHECKS
+    g5 = _by_id(checks)["G5"]
+    assert g5["ok"] is False and g5["advisory"] is True, case
+    assert "advisory" in g5["detail"]
+    assert [c["check"] for c in checks if not c["ok"]] == ["G5"]
+    assert env_mod.provenance_problems(checks) == []
+
+
+def test_g5_names_the_clock_basis_of_the_qemu_start(records) -> None:
+    g5 = _by_id(env_mod.provenance_checks(**records))["G5"]
+    assert g5["ok"] is True
+    assert f"btime {BTIME}" in g5["detail"] and f"{CLK_TCK} Hz" in g5["detail"]
+    assert QEMU_START_UTC in g5["detail"] and "advisory" in g5["detail"]
+    # A snapshot that does not record its btime is named as such, never guessed.
+    rec = copy.deepcopy(records)
+    del rec["hypervisor_env"]["start"]["qemu"]["btime"]
+    g5 = _by_id(env_mod.provenance_checks(**rec))["G5"]
+    assert g5["ok"] is True and "btime not recorded" in g5["detail"]
 
 
 def test_g4_reads_the_labels_case_insensitively(records) -> None:
@@ -787,11 +840,12 @@ def test_g4_reads_the_labels_case_insensitively(records) -> None:
     assert _by_id(env_mod.provenance_checks(**rec))["G4"]["ok"] is True
 
 
-def test_h5_accepts_a_forward_on_every_address(records) -> None:
+@pytest.mark.parametrize("host_addr", ["", "0.0.0.0"])
+def test_h5_accepts_a_forward_on_every_address(records, host_addr) -> None:
     rec = copy.deepcopy(records)
     rec["hypervisor_env"]["start"]["qemu"]["parsed"]["hostfwd"] = [{
-        "rule": f"tcp::{PORT}-:8883", "protocol": "tcp", "host_addr": "", "host_port": PORT, "guest_addr": "",
-        "guest_port": 8883,
+        "rule": f"tcp:{host_addr}:{PORT}-:8883", "protocol": "tcp", "host_addr": host_addr, "host_port": PORT,
+        "guest_addr": "", "guest_port": 8883,
     }]
     assert _by_id(env_mod.provenance_checks(**rec))["H5"]["ok"] is True
 
@@ -810,6 +864,19 @@ def test_the_wrong_provenance_regression_names_n0_n1_and_n2(records) -> None:
     for check in ("N0", "N1", "N2"):
         assert any(p.startswith(f"provenance: {check}: ") for p in problems), check
     assert str(QEMU_PID) in by_id["N1"]["detail"]
+
+
+def test_n1_names_a_local_qemu_forwarding_the_port_on_every_address(records) -> None:
+    """A forward bound to 0.0.0.0 takes the generator's loopback traffic as
+    much as one bound to 127.0.0.1: N1 names it."""
+    rec = copy.deepcopy(records)
+    rec["execution_mode"] = "native-kvm"
+    rule = f"tcp:0.0.0.0:{PORT}-:8883"
+    for snapshot in ("start", "end"):
+        rec["hypervisor_env"][snapshot]["qemu"]["parsed"]["hostfwd"] = [env_mod._parse_hostfwd(rule)]
+    n1 = _by_id(env_mod.provenance_checks(**rec))["N1"]
+    assert n1["ok"] is False
+    assert rule in n1["detail"] and str(QEMU_PID) in n1["detail"]
 
 
 def test_a_native_run_without_contradictions_still_fails_n0(records) -> None:
@@ -857,11 +924,13 @@ def test_provenance_problems_format() -> None:
     checks = [
         {"check": "P0", "ok": True, "detail": "declared"},
         {"check": "H1", "ok": False, "detail": "no hypervisor record"},
-        {"check": "G5", "ok": False, "detail": "too early"},
+        {"check": "G5", "ok": False, "detail": "too early", "advisory": True},
+        {"check": "I1", "ok": False, "detail": "no kernel hash", "advisory": False},
     ]
+    # An advisory check is recorded with its verdict and is never a reason.
     assert env_mod.provenance_problems(checks) == [
         "provenance: H1: no hypervisor record",
-        "provenance: G5: too early",
+        "provenance: I1: no kernel hash",
     ]
     assert env_mod.provenance_problems([]) == []
 

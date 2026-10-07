@@ -35,8 +35,9 @@ that bind the three together:
   (:func:`capture_hypervisor_snapshot`, :func:`write_hypervisor_environment`).
 - The execution mode is DECLARED by the operator and never inferred:
   :func:`provenance_checks` compares the declaration with the three records,
-  and :func:`provenance_problems` turns each failed check into one validity
-  reason. The guest's free-text labels only corroborate.
+  and :func:`provenance_problems` turns each failed check, except an
+  advisory one (G5), into one validity reason. The guest's free-text labels
+  only corroborate.
 
 Every ``/proc`` read goes through a ``proc_root`` argument, so the tests read
 a fake tree. A value that cannot be read is recorded as null with the reason
@@ -94,6 +95,21 @@ PROC_ROOT = Path("/proc")
 QEMU_EXECUTABLE = "qemu-system-aarch64"
 KVM_DEVICE = "/dev/kvm"
 QEMU_VERSION_TIMEOUT_S = 10.0
+
+#: What ``kernel_sha256`` describes: the ``-kernel`` file as it is on disk
+#: when the snapshot is taken. QEMU reads the kernel only at its start, so a
+#: file replaced on disk since then (a rebuilt deploy directory) would be
+#: hashed in its place; no check detects that.
+KERNEL_HASH_BASIS = "file on disk at capture"
+
+#: Checks recorded with their verdict that never become a validity reason
+#: (:func:`provenance_problems`). G5 compares the guest's own wall clock with
+#: a QEMU start derived from the host's btime at the snapshot, which moves
+#: with every host wall-clock step since QEMU started (WSL2: -5.1 % to
+#: +3.0 % against uptime over a session), so it can fail a good run and has
+#: no upper bound. The guard against a stale guest record is the session
+#: procedure (the preflight captures it after the boot), not this check.
+ADVISORY_CHECKS: tuple[str, ...] = ("G5",)
 
 #: Command-line flags whose value is never written to a record (plan 9.2).
 SECRET_FLAGS: tuple[str, ...] = ("--password",)
@@ -710,6 +726,8 @@ def _empty_qemu_record() -> dict[str, Any]:
         "pid": None,
         "starttime_ticks": None,
         "start_utc": None,
+        "btime": None,
+        "clock_ticks_per_second": None,
         "exe_path": None,
         "exe_sha256": None,
         "version_line": None,
@@ -717,6 +735,7 @@ def _empty_qemu_record() -> dict[str, Any]:
         "argv_sha256": None,
         "parsed": None,
         "kernel_sha256": None,
+        "kernel_hash_basis": None,
         "rootfs_path": None,
         "rootfs_image_name": None,
         "kvm_device_open": None,
@@ -754,7 +773,10 @@ def _capture_qemu(
         problems.append(f"qemu.{field}: {problem}")
 
     # The process's identity: its start, in clock ticks after the boot and
-    # in UTC (btime + ticks / SC_CLK_TCK).
+    # in UTC (btime + ticks / SC_CLK_TCK). btime is the host's wall clock
+    # minus its time since boot, read NOW: every host wall-clock step since
+    # QEMU started moves start_utc, so the btime and the tick rate used are
+    # recorded beside it (G5, which compares with it, is advisory).
     ticks, problem = _proc_value(
         pid_dir / "stat", _parse_starttime, "start time (field 22)"
     )
@@ -765,6 +787,8 @@ def _capture_qemu(
     else:
         btime, problem = _proc_value(proc_root / "stat", _parse_btime, "btime")
         hz = _clock_ticks_per_second()
+        qemu["btime"] = btime
+        qemu["clock_ticks_per_second"] = hz or None
         if problem:
             note("start_utc", problem)
         elif not hz:
@@ -807,9 +831,11 @@ def _capture_qemu(
     else:
         note("version_line", "no executable path to run --version on")
 
-    # The image: the kernel file hashed as it is on disk now, and the rootfs
-    # drive named after the Yocto image (<image>-<machine>.rootfs-<date>.<type>);
-    # the rootfs is booted in place and changes, so it is named, not hashed.
+    # The image: the kernel file hashed as it is on disk now (its basis is
+    # recorded: not proven to be the bytes QEMU loaded at its start), and the
+    # rootfs drive named after the Yocto image
+    # (<image>-<machine>.rootfs-<date>.<type>); the rootfs is booted in place
+    # and changes, so it is named, not hashed.
     if parsed is None:
         note("kernel_sha256", "no command line was read")
         note("rootfs_path", "no command line was read")
@@ -824,6 +850,8 @@ def _capture_qemu(
                 qemu["kernel_sha256"] = sha256_file(kernel)
             except OSError as exc:
                 note("kernel_sha256", f"cannot read {kernel}: {exc}")
+            else:
+                qemu["kernel_hash_basis"] = KERNEL_HASH_BASIS
         rootfs = [d for d in parsed["drives"] if ".rootfs" in d.rsplit("/", 1)[-1]]
         if len(rootfs) == 1:
             base = rootfs[0].rsplit("/", 1)[-1]
@@ -886,10 +914,16 @@ def _is_loopback(host: Any) -> bool:
         return False
 
 
+#: Host addresses of a hostfwd rule that mean every address: QEMU's slirp
+#: starts from INADDR_ANY and keeps it for an empty address, and 0.0.0.0
+#: parses to the same value, so a loopback connection enters either.
+EVERY_ADDRESS_HOSTFWD: tuple[str, ...] = ("", "0.0.0.0")
+
+
 def _forwarded_rules(hostfwd: Any, port: Any) -> list[str]:
     """The TCP forwards of ``hostfwd`` that a connection to a loopback
-    address on ``port`` enters: host address loopback or empty (every
-    address)."""
+    address on ``port`` enters: host address loopback, or empty or
+    ``0.0.0.0`` (every address)."""
     if not isinstance(hostfwd, list) or not _is_int(port):
         return []
     rules: list[str] = []
@@ -899,7 +933,7 @@ def _forwarded_rules(hostfwd: Any, port: Any) -> list[str]:
         if not _is_int(rule.get("host_port")) or rule.get("host_port") != port:
             continue
         addr = rule.get("host_addr")
-        if addr == "" or _is_loopback(addr):
+        if addr in EVERY_ADDRESS_HOSTFWD or _is_loopback(addr):
             rules.append(str(rule.get("rule")))
     return rules
 
@@ -1028,7 +1062,10 @@ def image_identity_record(
 
 
 def _check(check: str, ok: bool, detail: str) -> dict[str, Any]:
-    return {"check": check, "ok": bool(ok), "detail": detail}
+    record: dict[str, Any] = {"check": check, "ok": bool(ok), "detail": detail}
+    if check in ADVISORY_CHECKS:
+        record["advisory"] = True
+    return record
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -1184,24 +1221,44 @@ def _emulated_checks(
         keys = ", ".join(EMULATION_LABEL_KEYS)
         add("G4", False, f"no guest label ({keys}) states emulation")
 
+    # G5 (advisory, ADVISORY_CHECKS): the guest's clock against a QEMU start
+    # derived from the host's btime at the snapshot; never a validity reason.
     captured_utc, start_utc = (sut or {}).get("captured_utc"), sq.get("start_utc")
     captured, started = _parse_utc(captured_utc), _parse_utc(start_utc)
+    btime, hz, ticks = sq.get("btime"), sq.get("clock_ticks_per_second"), sq.get("starttime_ticks")
+    if _is_int(btime) and _is_int(hz) and _is_int(ticks):
+        basis = (
+            f"derived from the host's btime {btime} read at the start snapshot "
+            f"plus {ticks} ticks at {hz} Hz"
+        )
+    else:
+        basis = "btime not recorded at the start snapshot"
+    advisory = (
+        "advisory: the derived start moves with every host wall-clock step "
+        "since QEMU started, so this is never a validity reason"
+    )
     if captured is None or started is None:
         add(
             "G5",
             False,
             f"the guest capture time {captured_utc!r} or the QEMU start "
-            f"{start_utc!r} is not a UTC timestamp",
+            f"{start_utc!r} is not a UTC timestamp; {advisory}",
         )
     elif captured < started:
         add(
             "G5",
             False,
             f"the guest record ({captured_utc}) predates this QEMU process "
-            f"({start_utc}): it describes another guest instance",
+            f"({start_utc}, {basis}): it describes another guest instance, or "
+            f"the host's wall clock stepped since QEMU started; {advisory}",
         )
     else:
-        add("G5", True, f"the guest record ({captured_utc}) follows QEMU's start")
+        add(
+            "G5",
+            True,
+            f"the guest record ({captured_utc}) follows QEMU's start "
+            f"({start_utc}, {basis}); {advisory}",
+        )
 
     # L1: the load generator runs on the hypervisor's host machine.
     lg_role, lg_machine = lg.get("role"), lg.get("machine")
@@ -1290,7 +1347,9 @@ def provenance_checks(
     port: int | None,
 ) -> list[dict[str, Any]]:
     """The G4 core provenance checks (plan 655-661) of one run, from its
-    own records: a list of ``{"check", "ok", "detail"}`` in a fixed order.
+    own records: a list of ``{"check", "ok", "detail"}`` in a fixed order;
+    an advisory check (``ADVISORY_CHECKS``: G5) also carries
+    ``"advisory": true``.
 
     - P0: the execution mode is declared and known. Unset or unknown, P0 is
       the only check: no mode is ever inferred, from the labels or anything
@@ -1300,9 +1359,14 @@ def provenance_checks(
       line) at the end; H3 the accelerator is TCG and KVM is not requested;
       H4 co-location is recorded as a boolean consistent with the two boot
       ids; H5 the generator's target is a loopback address forwarded into
-      this QEMU; G1 the guest record's role is ``sut``; G2 its uname states
+      this QEMU (a forward on a loopback, empty or ``0.0.0.0`` host
+      address); G1 the guest record's role is ``sut``; G2 its uname states
       aarch64; G3 its nproc equals ``-smp``; G4 a guest label states
-      emulation; G5 the guest record was captured after this QEMU started;
+      emulation; G5 (advisory) the guest record's clock reads no earlier
+      than the QEMU start derived from the host's btime at the snapshot,
+      which moves with the host's wall-clock steps, so G5 can fail a good
+      run and does not bind the record to this session (the session
+      procedure does: the preflight captures it after the boot);
       L1 the load-generator record runs on the hypervisor's host machine;
       I1 the QEMU executable, the kernel and the rootfs image are
       identified.
@@ -1333,11 +1397,14 @@ def provenance_checks(
 
 
 def provenance_problems(checks: list[dict[str, Any]]) -> list[str]:
-    """One validity reason per failed check: ``provenance: <check>: <detail>``."""
+    """One validity reason per failed check: ``provenance: <check>: <detail>``.
+    An advisory check (``"advisory": true``) is recorded with its verdict and
+    is never a reason, so it never invalidates a run; ``run``, ``collect``
+    and the analysis all judge through this function."""
     return [
         f"provenance: {check.get('check')}: {check.get('detail')}"
         for check in checks
-        if not check.get("ok")
+        if not check.get("ok") and check.get("advisory") is not True
     ]
 
 
