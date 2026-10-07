@@ -27,7 +27,8 @@ departure), which the harness echoes into the run's manifest
 travel verbatim; the plan's own ``pilot`` block states the purpose, that the
 runs are non-citable and are not campaign attempts, every condition-level
 departure (counts, rate levels, order, the conditions not run) and the
-source of every field. The plan names no execution mode: that is declared
+source of every field, with the commit every file:line citation refers to
+(``sources_at_commit``). The plan names no execution mode: that is declared
 for each run when it is made, never supplied by its input.
 
 ``write`` refuses, with nothing written (exit 2): a master seed that is not a
@@ -39,12 +40,18 @@ that G3's plan (the campaign plan of master seed 42 with its supplement),
 the finite proof r03, the run_test seeds 42 and 7, an ``--against`` plan or
 an ``--against-seed`` already spends. It writes the campaign plan's
 canonical serialisation and prints one line per entry and the file's sha256.
+The text goes to a temporary file beside the output and is published under
+the output's name by a hard link, which never replaces a file: a write that
+fails part-way leaves no part of the plan and removes the directories it
+created, and the message names anything it could not remove.
 
 ``check`` writes nothing. ``run`` rewrites the plan it is given and never
 reads an entry's status, so the pilot is run through a working copy of the
 sealed plan, and ``check`` is run before each run. It refuses (exit 2)
-unless: both copies are the canonical serialisation; the sealed copy is this
-tool's plan for its master seed with every entry still ``planned``; its
+unless: both copies are the canonical serialisation; the sealed copy is,
+byte for byte, this tool's plan for its master seed
+(``plan_to_json(build_pilot_plan(master_seed))``, so every entry is still
+``planned`` and no free text, label, basis or source was changed); its
 sha256 is the one named, when one is; the working copy holds every frozen
 field of the sealed one and nothing the harness does not write; the run id
 is ``planned`` and every entry before it has run; ``<base>/raw/<run id>`` is
@@ -61,6 +68,7 @@ import json
 import math
 import os
 import re
+import secrets
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -131,9 +139,15 @@ RUN_TEST_SEEDS = {42: "tests 1 and 3", 7: "test 2"}
 
 WHOLE_NUMBER = re.compile(r"[0-9]+")
 
+#: The commit every file:line citation of the plan refers to (the plan's
+#: ``pilot.sources_at_commit``), and so every citation below and in this
+#: file's comments: the base of the branch that added the tool. Lines move
+#: in later commits; a citation is read at this commit and never re-cited.
+SOURCES_AT_COMMIT = "e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94"
+
 # Where the values come from (paths from the repository root; the request
 # annex is kept outside the repository, in the local decisions folder).
-PROTOCOL = "src/egw_experiments/protocol.py"
+PROTOCOL ="src/egw_experiments/protocol.py"
 PLAN_GEN = "src/egw_experiments/plan_gen.py"
 RUN = "src/egw_experiments/run.py"
 SCENARIOS_PY = "src/egw_simulator/scenarios.py"
@@ -454,6 +468,7 @@ def build_pilot_plan(master_seed: int) -> dict[str, Any]:
                 "plan": dict(PLAN_SOURCES),
                 "runs": {spec.run_id: pilot_sources(spec) for spec in PILOT_SPECS},
             },
+            "sources_at_commit": SOURCES_AT_COMMIT,
         },
     }
 
@@ -615,7 +630,26 @@ def plan_problems(plan: Any) -> list[str]:
         if not isinstance(named, dict) or set(named) != ENTRY_FIELDS or not all(
                 isinstance(s, str) and s for s in named.values()):
             problems.append(f"its sources do not name every field of {rid}")
+    if pilot.get("sources_at_commit") != SOURCES_AT_COMMIT:
+        problems.append(f"its pilot block's sources_at_commit is {pilot.get('sources_at_commit')!r}, not "
+                        f"{SOURCES_AT_COMMIT!r}, the commit its file:line citations refer to")
     return problems
+
+
+def built_problems(raw: bytes, plan: dict[str, Any]) -> list[str]:
+    """Why ``raw`` (the bytes of ``plan``) is not, byte for byte, this
+    tool's plan for the master seed ``plan`` names,
+    ``plan_to_json(build_pilot_plan(master_seed))``: so a changed free
+    text, label, basis or source, or a key added anywhere, is found as
+    surely as a changed figure. A master seed that is not a whole number is
+    ``plan_problems``' to report."""
+    master_seed = plan.get("master_seed")
+    if type(master_seed) is not int or master_seed < 0:
+        return []
+    if raw != plan_to_json(build_pilot_plan(master_seed)).encode("utf-8"):
+        return [f"the sealed plan is not, byte for byte, this tool's plan for its master seed {master_seed} "
+                f"(plan_to_json(build_pilot_plan({master_seed})))"]
+    return []
 
 
 def sealed_problems(sealed: dict[str, Any]) -> list[str]:
@@ -762,14 +796,74 @@ def read_plan(path: Path) -> dict[str, Any]:
     return plan
 
 
-def write_plan(plan: dict[str, Any], out: Path) -> str:
-    """Write ``plan`` to ``out`` once, canonically; the sha256 of what was
-    written. An ``out`` that came to exist meanwhile raises FileExistsError."""
+class PlanNotWritten(Exception):
+    """``write_plan`` did not publish the plan under ``out``: ``cause`` is
+    the error, and ``left`` names what this write created and could not
+    remove again (normally nothing)."""
+
+    def __init__(self, out: Path, cause: OSError, left: list[Path]) -> None:
+        super().__init__(f"{out} was not written ({cause})")
+        self.out, self.cause, self.left = out, cause, left
+
+
+def _missing_directories(directory: Path) -> list[Path]:
+    """``directory`` and its ancestors that do not exist yet, deepest first:
+    the ones a ``mkdir(parents=True)`` of it would create."""
+    missing = []
+    for candidate in (directory, *directory.parents):
+        if candidate.exists() or candidate.is_symlink():
+            break
+        missing.append(candidate)
+    return missing
+
+
+def _remove(temporary: Path | None, directories: list[Path]) -> list[Path]:
+    """Remove ``temporary`` and then the (empty) ``directories``, deepest
+    first; what could not be removed."""
+    left = []
+    if temporary is not None:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            left.append(temporary)
+    for directory in directories:
+        try:
+            directory.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            left.append(directory)
+    return left
+
+
+def write_plan(plan: dict[str, Any], out: Path) -> tuple[str, list[Path]]:
+    """Write ``plan`` to ``out`` once, canonically, and never leave a part of
+    it under ``out``: the text goes to a new temporary file in ``out``'s
+    directory, is synced, and is then published under ``out`` by a hard
+    link, which refuses a target that exists, so an ``out`` that came to
+    exist meanwhile is never replaced. Returns the sha256 of what was
+    written and what could not be removed afterwards (the temporary name of
+    the same file; normally nothing). On any failure before the link the
+    temporary file and the directories this write created are removed, and
+    PlanNotWritten names what, if anything, is left."""
     text = plan_to_json(plan)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("x", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    created = _missing_directories(out.parent)
+    temporary: Path | None = None
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        candidate = out.parent / f".{out.name}.{os.getpid()}.{secrets.token_hex(6)}.partial"
+        descriptor = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o666)
+        temporary = candidate
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.link(temporary, out)
+    except OSError as exc:
+        raise PlanNotWritten(out, exc, _remove(temporary, created)) from exc
+    return hashlib.sha256(text.encode("utf-8")).hexdigest(), _remove(temporary, [])
 
 
 # ---------------------------------------------------------------------------
@@ -809,15 +903,21 @@ def _write(args: argparse.Namespace, forbid: Path) -> int:
     if reasons:
         return _stop(reasons, "nothing was written")
     try:
-        digest = write_plan(plan, args.out)
-    except OSError as exc:
-        return _stop([f"{args.out} was not written ({exc})"], "nothing was written")
+        digest, left = write_plan(plan, args.out)
+    except PlanNotWritten as exc:
+        if exc.left:
+            return _stop([str(exc)], "nothing else was written, but these are left behind and are to be "
+                                     f"removed by hand: {', '.join(map(str, exc.left))}")
+        return _stop([str(exc)], "nothing was written")
     for order, entry in enumerate(plan["runs"], start=1):
         print(f"entry {order}: run_id={entry['run_id']} stage={entry['pilot']['stage']} "
               f"condition_id={entry['condition_id']} scenario={entry['scenario']} "
               f"duration_s={entry['duration_s']} warmup_s={entry['warmup_s']} "
               f"cooldown_s={entry['cooldown_s']} rate_msg_s={entry['rate_msg_s']} seed={entry['seed']}")
     print(f"wrote {args.out}: entries={len(plan['runs'])} master_seed={plan['master_seed']} sha256={digest}")
+    for path in left:
+        print(f"g4_pilot_plan: the temporary name {path} of the plan just written could not be removed: "
+              "remove it by hand", file=sys.stderr)
     return 0
 
 
@@ -856,6 +956,7 @@ def _check(args: argparse.Namespace, forbid: Path) -> int:
             reasons.append(f"the sealed plan's sha256 is {actual}, not {args.sealed_sha256}")
     if isinstance(sealed, dict):
         reasons += [f"the sealed plan: {problem}" for problem in plan_problems(sealed)]
+        reasons += built_problems(sealed_raw, sealed)
         reasons += sealed_problems(sealed)
         if working is not None:
             reasons += working_problems(working, sealed)

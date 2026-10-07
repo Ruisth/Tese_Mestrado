@@ -91,6 +91,11 @@ RUN_TEST_SEEDS = (42, 7)
 #: The fields the harness writes beside the status (run.py, update_plan_status).
 HARNESS_WRITTEN = ("status", "result_dir", "finished_utc", "validity")
 
+#: The commit every file:line citation of the plan and of its README refers
+#: to (the branch's base: lines move in later commits, and the citations are
+#: anchored, never re-cited).
+SOURCES_AT_COMMIT = "e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94"
+
 
 def _load_tool():
     spec = importlib.util.spec_from_file_location("g4_pilot_plan", TOOL)
@@ -204,6 +209,115 @@ def test_write_gives_the_committed_bytes_and_names_each_entry_and_the_sha256(tmp
 def test_the_pilot_readme_names_the_committed_plans_sha256():
     readme = (PILOT_DIR / "README.md").read_text(encoding="utf-8")
     assert hashlib.sha256(COMMITTED.read_bytes()).hexdigest() in readme
+
+
+# ---------------------------------------------------------------------------
+# every file:line citation refers to one stated commit
+# ---------------------------------------------------------------------------
+
+
+def test_the_plan_names_the_commit_its_citations_refer_to(tool):
+    plan = tool.build_pilot_plan(WORKING_SEED)
+    assert plan["pilot"]["sources_at_commit"] == SOURCES_AT_COMMIT
+    assert json.loads(COMMITTED.read_bytes())["pilot"]["sources_at_commit"] == SOURCES_AT_COMMIT
+    for value in (None, "HEAD", SOURCES_AT_COMMIT[:7]):
+        changed = json.loads(json.dumps(plan))
+        changed["pilot"]["sources_at_commit"] = value
+        assert any("sources_at_commit" in p for p in tool.plan_problems(changed)), value
+
+
+def _section(text: str, heading: str) -> str:
+    """The body of the README section ``heading`` (up to the next ``## ``)."""
+    body = text.split(f"\n{heading}\n", 1)[1]
+    return body.split("\n## ", 1)[0]
+
+
+def test_the_pilot_readme_states_the_commit_at_the_top_of_the_plan_and_of_the_source_mapping():
+    readme = (PILOT_DIR / "README.md").read_text(encoding="utf-8")
+    for heading in ("## The plan", "## Source mapping, field by field"):
+        first_paragraph = _section(readme, heading).strip().split("\n\n", 1)[0]
+        assert SOURCES_AT_COMMIT in first_paragraph, heading
+        assert "every file:line citation" in " ".join(first_paragraph.split()).lower(), heading
+
+
+#: Citations of the plan and of its README: (as cited, path, first line,
+#: last line, what those lines hold at SOURCES_AT_COMMIT).
+CITED = (
+    ("qemu_integrated_gateway.md:1544", "docs/setup/qemu_integrated_gateway.md", 1544, 1544,
+     "--scenario nominal --duration 120"),
+    ("qemu_integrated_gateway.md:1544", "docs/setup/qemu_integrated_gateway.md", 1544, 1544,
+     "short soak (`--scenario soak --duration 3600`)"),
+    ("run.py:5033-5054", "src/egw_experiments/run.py", 5033, 5054, 'run_id=f"{run_id}.warmup"'),
+    ("run.py:5968-5973", "src/egw_experiments/run.py", 5968, 5973, "remaining_cooldown = max(0.0, cooldown_s"),
+    ("run.py:508-510", "src/egw_experiments/run.py", 508, 510, "METRICS_MANDATORY_CONDITION_IDS"),
+    ("run.py:723-725", "src/egw_experiments/run.py", 723, 725, "SKIP_WARMUP_STRICT_CONDITIONS"),
+    ("run.py:5768-5769", "src/egw_experiments/run.py", 5768, 5769, '"plan_entry": entry'),
+    ("run.py:3981-3991", "src/egw_experiments/run.py", 3981, 3991, "--skip-warmup on condition"),
+    ("`5563-5570`", "src/egw_experiments/run.py", 5563, 5570, '"skip_warmup"'),
+    ("run.py:4752-4757", "src/egw_experiments/run.py", 4752, 4757, 'update_plan_status(plan_path, run_id, "running")'),
+    ("`5959-5966`", "src/egw_experiments/run.py", 5959, 5966, '"completed" if ok else "failed"'),
+    ("`4788-4796`", "src/egw_experiments/run.py", 4788, 4796, 'int(entry["duration_s"])'),
+    ("run.py:355-356", "src/egw_experiments/run.py", 355, 356, "DEFAULT_PLAN_PATH = "),
+    ("run.py:4610-4615", "src/egw_experiments/run.py", 4610, 4615, "not found in"),
+    ("cli.py:574-585", "src/egw_experiments/cli.py", 574, 585, '"--base-dir"'),
+    ("cli.py:732-743", "src/egw_experiments/cli.py", 732, 743, '"--base-dir"'),
+    ("analyze.py:1234-1236", "src/egw_experiments/analyze.py", 1234, 1236, "CAMPAIGN_PLAN_ENV_VAR"),
+    ("analyze.py:1242-1245", "src/egw_experiments/analyze.py", 1242, 1245, "has no 'runs' list"),
+    ("`3458-3467`", "src/egw_experiments/analyze.py", 3458, 3467, "BY COUNT ONLY"),
+    ("analyze.py:3469-3470", "src/egw_experiments/analyze.py", 3469, 3470, "_clean_dir(figures_dir)"),
+    ("analyze.py:2566-2568", "src/egw_experiments/analyze.py", 2566, 2568, "expected = condition.repetitions"),
+    ("analyze.py:2591-2597", "src/egw_experiments/analyze.py", 2591, 2597, "the campaign plan lists"),
+    ("analyze.py:2614-2618", "src/egw_experiments/analyze.py", 2614, 2618, "INCOMPLETE"),
+    ("analyze.py:3004-3007", "src/egw_experiments/analyze.py", 3004, 3007, "expected_per_load"),
+    ("analyze.py:2435-2437", "src/egw_experiments/analyze.py", 2435, 2437,
+     '(row.get("condition_id"), row.get("rate_msg_s"))'),
+    ("recovery_qualification.py:478-483", "src/egw_experiments/recovery_qualification.py", 478, 483,
+     "the campaign plan lists no controller_restart run"),
+    ("protocol.py:285", "src/egw_experiments/protocol.py", 285, 285, "rate_msg_s=NOMINAL_RATE_MSG_S"),
+    ("plan_gen.py:43-50", "src/egw_experiments/plan_gen.py", 43, 50, "def derive_run_seed"),
+    ("devices.py:38-45", "src/egw_simulator/devices.py", 38, 45, "def device_uuid_for"),
+    ("claim_evidence_matrix.md:174", "docs/claim_evidence_matrix.md", 174, 174, "does **not** satisfy"),
+    ("INTEGRATED_DEVELOPMENT_PLAN_2026.md:643-645", "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md",
+     643, 645, "a short nominal run"),
+)
+
+#: A repository path with a line or a range, as the plan cites it.
+CITATION_RE = re.compile(r"((?:src|docs|tools|experiments)/[\w./-]+\.(?:py|md)):([0-9]+)(?:-([0-9]+))?")
+
+
+@pytest.fixture(scope="module")
+def at_sources_commit():
+    """The lines of a file at the commit the committed plan names; skipped
+    where git cannot read that commit (no git, or a shallow clone)."""
+    commit = json.loads(COMMITTED.read_bytes())["pilot"]["sources_at_commit"]
+    try:
+        probe = subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=REPO, capture_output=True)
+    except OSError as exc:
+        pytest.skip(f"git cannot be run here ({exc})")
+    if probe.returncode != 0:
+        pytest.skip(f"git cannot read commit {commit} here: {probe.stderr.decode(errors='replace').strip()}")
+    cache: dict[str, list[str]] = {}
+
+    def lines(path: str) -> list[str]:
+        if path not in cache:
+            shown = subprocess.run(["git", "show", f"{commit}:{path}"], cwd=REPO, capture_output=True)
+            assert shown.returncode == 0, (path, shown.stderr)
+            cache[path] = shown.stdout.decode("utf-8").splitlines()
+        return cache[path]
+
+    return lines
+
+
+def test_every_cited_line_holds_what_the_citation_claims_at_the_stated_commit(at_sources_commit):
+    readme = (PILOT_DIR / "README.md").read_text(encoding="utf-8")
+    plan_text = COMMITTED.read_text(encoding="utf-8")
+    for cited, path, first, last, anchor in CITED:
+        assert cited in readme or cited in plan_text, cited
+        held = "\n".join(at_sources_commit(path)[first - 1:last])
+        assert anchor in held, (cited, anchor, held)
+    # Every path:line the plan cites in the repository exists at that commit.
+    for path, first, last in CITATION_RE.findall(plan_text):
+        assert len(at_sources_commit(path)) >= int(last or first), (path, first, last)
 
 
 # ---------------------------------------------------------------------------
@@ -527,6 +641,54 @@ def test_refuses_an_output_under_g3s_tree_as_given_or_by_default(tmp_path):
     assert not out.parent.exists()
 
 
+def _limit_file_size() -> None:
+    """A stand-in for a full disk in the child: no file may grow past 100
+    bytes, and a write past it fails (EFBIG) instead of killing the process."""
+    import resource
+    import signal
+
+    signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+    resource.setrlimit(resource.RLIMIT_FSIZE, (100, 100))
+
+
+def test_a_write_that_fails_part_way_leaves_nothing_and_a_retry_writes_the_plan(tmp_path):
+    pytest.importorskip("resource")
+    out = tmp_path / "g4-pilot" / "plan" / "g4_pilot_plan.sealed.json"
+    env = {**os.environ, "PYTHONPATH": str(SRC_DIR), "PYTHONDONTWRITEBYTECODE": "1"}
+    failed = subprocess.run(
+        [sys.executable, str(TOOL), "write", "--master-seed", str(WORKING_SEED), "--out", str(out)],
+        env=env, capture_output=True, text=True, preexec_fn=_limit_file_size)
+    _refused(failed, f"{out} was not written")
+    # No part of the plan is left under its name or under another, and the
+    # directories this write created are gone: "nothing was written" holds.
+    assert not out.exists()
+    assert list(tmp_path.iterdir()) == []
+
+    # So the retry is not refused as an existing output, and it writes the plan.
+    written, _ = _write(tmp_path, out=out)
+    assert written.returncode == 0, written.stderr
+    assert out.read_bytes() == COMMITTED.read_bytes()
+    assert [p.name for p in out.parent.iterdir()] == [out.name]
+
+
+def test_write_plan_never_replaces_an_output_that_appeared_meanwhile(tmp_path, tool, monkeypatch):
+    out = tmp_path / "plan" / "g4_pilot_plan.sealed.json"
+    real = tool.plan_to_json
+
+    def and_meanwhile(plan):
+        # Another writer creates the output after the tool's own check.
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("another writer's plan\n", encoding="utf-8")
+        return real(plan)
+
+    monkeypatch.setattr(tool, "plan_to_json", and_meanwhile)
+    with pytest.raises(tool.PlanNotWritten) as refused:
+        tool.write_plan(tool.build_pilot_plan(WORKING_SEED), out)
+    assert refused.value.left == []
+    assert out.read_text(encoding="utf-8") == "another writer's plan\n"
+    assert [p.name for p in out.parent.iterdir()] == [out.name]
+
+
 def test_a_usage_error_writes_nothing(tmp_path):
     out = tmp_path / "plan.json"
     for argv in (
@@ -735,6 +897,43 @@ def test_check_refuses_a_sealed_plan_that_is_not_the_tools_plan(tmp_path, tool):
     _refused(refused, f"the sealed plan: entry 4 ({IDS[3]}): rate_msg_s is 100.0, the pilot's is 50.0")
 
 
+@pytest.mark.parametrize("change", ["label", "purpose", "source", "basis", "note", "extra-key"])
+def test_check_refuses_a_sealed_plan_whose_free_text_labels_or_sources_were_changed(tmp_path, tool, change):
+    # The sealed copy must be the tool's plan for its own master seed byte
+    # for byte, so what the figure checks do not judge is refused as well:
+    # the free text, the top-level label, the sources and a key added to
+    # the pilot block (an execution mode the plan must never supply).
+    working, sealed, base = _pair(tmp_path, tool)
+    plan = plan_gen.load_campaign_plan(sealed)
+    pilot = plan["pilot"]
+    if change == "label":
+        pilot["label"] = "CITABLE"
+    elif change == "purpose":
+        pilot["purpose"] += " Edited by hand."
+    elif change == "source":
+        pilot["sources"]["runs"][IDS[0]]["seed"] = "made up"
+    elif change == "basis":
+        plan["runs"][0]["pilot"]["deviations"][0]["basis"] = "made up basis"
+    elif change == "note":
+        pilot["deviations_from_protocol"][4]["note"] = "edited by hand"
+    else:
+        pilot["execution_mode"] = "native-kvm"
+    _canonical(plan, sealed)
+    working.write_bytes(sealed.read_bytes())
+    refused = _check(working, sealed, base, IDS[0], forbid_under=tmp_path / "pilot")
+    _refused(refused, f"the sealed plan is not, byte for byte, this tool's plan for its master seed {WORKING_SEED}")
+
+
+def test_check_accepts_the_tools_plan_for_the_master_seed_the_sealed_copy_names(tmp_path, tool):
+    # The comparison is with the plan of the sealed copy's own master seed;
+    # which sealed copy is meant is what --sealed-sha256 pins.
+    sealed = _canonical(tool.build_pilot_plan(TEST_SEED), tmp_path / "g4-pilot" / "plan" / "sealed.json")
+    working = sealed.with_name("working.json")
+    working.write_bytes(sealed.read_bytes())
+    ready = _check(working, sealed, tmp_path / "g4-pilot" / "results", IDS[0], forbid_under=tmp_path / "pilot")
+    assert ready.returncode == 0, ready.stderr
+
+
 def test_check_refuses_a_plan_or_base_under_g3s_tree_as_given_through_dotdot_or_a_link(tmp_path, tool):
     working, sealed, base = _pair(tmp_path, tool)
     forbid = tmp_path / "pilot"
@@ -890,3 +1089,119 @@ def test_analyze_of_the_pilot_base_reads_the_named_plan_and_leaves_g3s_tree_alon
         assert path.read_bytes() == body
     for path, body in kept.items():
         assert path.read_bytes() == body
+
+
+def _readme_rule(number: int) -> str:
+    """Operating rule ``number`` of the pilot README, whitespace folded."""
+    rules = _section((PILOT_DIR / "README.md").read_text(encoding="utf-8"), "## Operating rules for the plan files")
+    body = rules.split(f"\n{number}. ", 1)[1].split(f"\n{number + 1}. ", 1)[0]
+    return " ".join(body.split())
+
+
+def test_operating_rule_4_refuses_every_warning_analyze_prints_about_the_plan(tmp_path, monkeypatch, capsys):
+    # analyze degrades completeness to counts and still exits 0 whether the
+    # plan is unreadable, holds no 'runs' list or is not given at all; each
+    # case prints '[analyze] WARNING:' lines, and rule 4 must refuse on any
+    # such line and quote each of the ones about the plan as analyze words it.
+    base = tmp_path / "results"
+    (base / "raw").mkdir(parents=True)
+    no_runs = tmp_path / "no-runs.json"
+    no_runs.write_text("{}\n", encoding="utf-8")
+    broken = tmp_path / "broken.json"
+    broken.write_text("{", encoding="utf-8")
+    missing = tmp_path / "missing.json"
+    monkeypatch.delenv(CAMPAIGN_PLAN_ENV_VAR, raising=False)
+    quoted = set()
+    for plan in (no_runs, broken, missing, None):
+        assert cli.main(["analyze", "--base-dir", str(base), *(["--plan", str(plan)] if plan else [])]) == 0
+        captured = capsys.readouterr()
+        warnings = [line for line in (captured.out + captured.err).splitlines()
+                    if line.startswith("[analyze] WARNING:") and "campaign plan" in line]
+        assert warnings, plan
+        for line in warnings:
+            line = line.replace(str(plan), "<path>") if plan else line
+            if "could not be read: " in line:
+                line = line.split("could not be read: ", 1)[0] + "could not be read: <error>"
+            if "BY COUNT ONLY" in line:
+                line = line.split("BY COUNT ONLY", 1)[0] + "BY COUNT ONLY"
+            quoted.add(line)
+    assert quoted == {
+        "[analyze] WARNING: campaign plan <path> could not be read: <error>",
+        "[analyze] WARNING: campaign plan <path> has no 'runs' list",
+        "[analyze] WARNING: no campaign plan supplied; run completeness is checked BY COUNT ONLY",
+    }
+    rule = _readme_rule(4)
+    assert "any line that begins `[analyze] WARNING:`" in rule
+    assert "whatever the exit code" in rule
+    for line in quoted:
+        assert f"`{line}" in rule, line
+
+
+# ---------------------------------------------------------------------------
+# the operational contract (a proposal) adds up
+# ---------------------------------------------------------------------------
+
+
+def test_the_operational_contract_proposal_adds_up():
+    section = _section((PILOT_DIR / "README.md").read_text(encoding="utf-8"),
+                       "## Operational contract (proposal, not adopted)")
+    text = " ".join(section.split())
+    # The harness's code bounds on the pilot's path, as the contract itemises
+    # them: three collector hooks, not four (the StartedAt fetch is not on
+    # the pilot's path), so the items sum to the stated 3,221 s.
+    code_bounds = {
+        "three collector hooks (start, stop, fetch) at 300 + 15 s": 3 * 315,
+        "the events fetch 3 x 300 s with back-off": 3 * 300 + 2 + 4,
+        "three SUT fetches at 315 s": 3 * 315,
+        "simulator grace 300 s": 300,
+        "the confirmation window 60 s": 60,
+        "sampler stop 30 s": 30,
+        "environment capture 30 s": 30,
+        "marker 5 s": 5,
+    }
+    for item in code_bounds:
+        assert item in text, item
+    assert "four hooks" not in text
+    assert sum(code_bounds.values()) == 3221
+    assert "the code's bounds on the pilot's path, 3,221" in text
+    # Plus an explicit allowance for the two hypervisor snapshots every
+    # simulator run now takes (two --version runs bounded at 10 s, and the
+    # hashing of the QEMU binary and the kernel, which no code bounds).
+    snapshots = 60
+    assert "a 60 s allowance for the two hypervisor snapshots" in text
+    events_start = events_cleanup = 120
+    execute_run = sum(code_bounds.values()) + snapshots
+    s_harness = events_start + execute_run + events_cleanup
+    variable = "D + max(0, C - 60) + (W > 0 ? W + 300 : 0)"
+    assert f"| `S_harness` | {s_harness:,} + {variable} |" in text
+    assert f"`execute_run` {execute_run:,} + {variable}" in text
+    s_pre, s_post = 1780, 4145
+    assert f"| `S_pre` | {s_pre:,} |" in text and f"| `S_post` | {s_post:,} |" in text
+
+    def r_max(w: int, d: int, c: int) -> int:
+        return s_pre + s_harness + d + max(0, c - 60) + (w + 300 if w > 0 else 0) + s_post
+
+    rows = {"| 1: 120 s nominal, no warm-up |": r_max(0, 120, 0),
+            "| 2: 600 s nominal after 120 s |": r_max(120, 600, 0),
+            "| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down |": r_max(0, 300, 120),
+            "| 5: 3,600 s soak |": r_max(0, 3600, 0)}
+    assert list(rows.values()) == [9566, 10466, 9806, 13046]
+    for row, seconds in rows.items():
+        line = next(line for line in section.splitlines() if line.startswith(row))
+        assert f"| {seconds:,}" in line and f"({seconds // 60} min)" in line, (line, seconds)
+
+    reserve, budget_a, budget_b, row_4_start = 2100, 18000, 16200, 3900
+    need = row_4_start + rows["| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down |"] + reserve
+    assert need == 15806 and need <= budget_a
+    assert f"`{row_4_start:,} + {need - row_4_start - reserve:,} + {reserve:,} = {need:,} s`" in text
+    assert f"about {(budget_a - need) // 10 * 10:,} s of slip" in text
+    soak_start = budget_b - rows["| 5: 3,600 s soak |"] - reserve
+    assert soak_start == 1054
+    assert f"`now - UP0 <= {soak_start:,} s`" in text
+
+    # The maximum is not claimed to bound what no code bounds: it holds
+    # because the step file runs the harness step under timeout.
+    assert "true maximum" not in text and "no wait is left outside it" not in text
+    assert "whatever an inner step takes" in text
+    for unbounded in ("hashing", "SHA256SUMS", "per socket operation"):
+        assert unbounded in text, unbounded

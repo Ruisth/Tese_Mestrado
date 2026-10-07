@@ -19,12 +19,20 @@ by its input.
 | | |
 |---|---|
 | File | `experiments/g4-pilot/g4_pilot_plan.json`: the campaign plan's canonical serialisation (`plan_to_json`: sorted keys, two-space indent, LF, one trailing newline, no timestamp) |
-| sha256 | `8c011edd3e36df46ef3d27e4e6075954bb8d302393db5a80113260f3f66b8281` |
+| sha256 | `dae0889bf3b1386778d2709b411544a116401c415b916c8a3ef8689f0e77b5ca` |
 | Written by | [`tools/session/g4_pilot_plan.py`](../../tools/session/g4_pilot_plan.py) `write --master-seed 20261007`, with G3's plan as it stood after test 6 and the finite proof r03 plan, both held in `docs/evidence/`, passed as `--against`, and `--against-seed 42 --against-seed 7` |
 | Master seed | `20261007`: a **working choice** presented to the student, after the finite proof's date convention (`20260925`). The tool has no default; another master seed is a new build with new seeds, a new file and a new sha256 |
 | Pinned by | [`src/tests/test_g4_pilot_plan.py`](../../src/tests/test_g4_pilot_plan.py): the file's bytes equal `build_pilot_plan(20261007)`, and this README names its sha256 |
 
 ## The plan
+
+Every file:line citation in this README and in the plan (its `pilot.sources`,
+`purpose`, `deviations_from_protocol` and each entry's `pilot.deviations`)
+refers to commit `e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94`, the base of the
+branch that added the plan, which the plan records as
+`pilot.sources_at_commit`. Lines move in later commits, so a citation is read
+at that commit (`git show e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94:<path>`),
+never in a later tree; the tests check a sample of the cited lines there.
 
 | Order | Stage | `run_id` | `condition_id` | `scenario` | `rate_msg_s` | `duration_s` | `warmup_s` | `cooldown_s` | `seed` |
 |---|---|---|---|---|---|---|---|---|---|
@@ -55,8 +63,9 @@ Bold marks a departure from the frozen condition. Every entry has `runner`
   both.
 - **Top-level `pilot`.** `label`, `purpose`, `non_citable: true`,
   `not_campaign_attempts: true`, `deviations_from_protocol` (one row for every
-  condition of the frozen protocol) and `sources` (the source of every field of
-  the plan and of every entry).
+  condition of the frozen protocol), `sources` (the source of every field of
+  the plan and of every entry) and `sources_at_commit` (the commit every
+  file:line citation refers to).
 - **`plan_version`** `1.0`, **`protocol_version`** `1.0.0`: the frozen protocol
   is not changed.
 
@@ -74,8 +83,10 @@ command yet.
 
 ## Source mapping, field by field
 
-The file's `pilot.sources` holds the same mapping. Paths are from the
-repository root; `protocol.py`, `plan_gen.py` and `run.py` are under
+The file's `pilot.sources` holds the same mapping. Every file:line citation in
+it and below refers to commit `e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94`
+(`pilot.sources_at_commit`), not to a later tree: lines move in later
+commits. Paths are from the repository root; `protocol.py`, `plan_gen.py` and `run.py` are under
 `src/egw_experiments/`, `scenarios.py` and `devices.py` under
 `src/egw_simulator/`, the runbook is `docs/setup/qemu_integrated_gateway.md`
 and the plan is `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`.
@@ -175,7 +186,9 @@ Ditto and MongoDB over the pilot are storage growth the pilot measures anyway.
    given, with `..` folded or through a symbolic link (`--forbid-under`,
    default `~/egw-tcg/pilot`).
 2. **A sealed copy and a working copy.** `write` writes the sealed copy once
-   (`plan/g4_pilot_plan.sealed.json`; write-once) and it should be byte-equal
+   (`plan/g4_pilot_plan.sealed.json`; write-once, published whole by a hard
+   link from a temporary file, so a write that fails part-way leaves no part
+   of it and is simply repeated) and it should be byte-equal
    to this file (same master seed, same sha256); its sha256 goes into the
    host-preparation package and the file is made read-only. The working copy
    `plan/g4_pilot_plan.json` is a byte copy of it. `run` rewrites the plan it
@@ -186,8 +199,10 @@ Ditto and MongoDB over the pilot are storage growth the pilot measures anyway.
 3. **Before each run**, `check --plan <working> --sealed <sealed>
    --sealed-sha256 <recorded> --base-dir <pilot>/results --run-id <run id>`:
    it writes nothing and refuses unless both copies are canonical, the sealed
-   one is this tool's plan with every entry still `planned`, the working one
-   holds every frozen field of it, the run id is `planned` with every entry
+   one is, byte for byte, this tool's plan for its master seed
+   (`plan_to_json(build_pilot_plan(master_seed))`: every entry still
+   `planned`, and no free text, label, basis or source changed), the working
+   one holds every frozen field of it, the run id is `planned` with every entry
    before it run, `raw/<run id>` is absent, nothing lies under G3's tree and
    the entry is one the harness can run as planned (the harness itself reads
    the figures only after it has created the run directory and marked the
@@ -204,10 +219,20 @@ Ditto and MongoDB over the pilot are storage growth the pilot measures anyway.
    - `collect --plan <working> --base-dir <pilot>/results` (`cli.py:732-743`).
    - `analyze --base-dir <pilot>/results --plan <sealed>` with
      `EGW_CAMPAIGN_PLAN` unset (`env -u EGW_CAMPAIGN_PLAN ...`;
-     `src/egw_experiments/analyze.py:1234-1236`), and the output checked for
-     an `[analyze] WARNING: campaign plan ... could not be read` line: an
-     unreadable `--plan` degrades completeness to counts and still exits 0
-     (`analyze.py:3458-3467`).
+     `src/egw_experiments/analyze.py:1234-1236`). When the plan cannot be
+     used, analyze degrades completeness to counts and still exits 0
+     (`analyze.py:1242-1245`, `3458-3467`), so the step captures both of its
+     streams and refuses, whatever the exit code, when either holds any line
+     that begins `[analyze] WARNING:`. The ones about the plan, as analyze
+     words them:
+     - `[analyze] WARNING: campaign plan <path> could not be read: <error>`
+       (standard error): the file is missing, unreadable or not JSON;
+     - `[analyze] WARNING: campaign plan <path> has no 'runs' list` (standard
+       error): the file is JSON but not a plan (`{}`, or another file named
+       by mistake);
+     - `[analyze] WARNING: no campaign plan supplied; run completeness is checked BY COUNT ONLY — ...`
+       (standard output): printed after either line above, and alone when
+       neither `--plan` nor `EGW_CAMPAIGN_PLAN` names a plan.
 5. **Never** `plan`, `plan-supplement` or `campaign` (other than `--dry-run`,
    which only prints) on the pilot plan or G3's; never `analyze` of
    `~/egw-tcg/pilot/results`. `analyze` wipes and rebuilds `processed/` and
@@ -274,27 +299,34 @@ results.
 **Clock.** Every budget is counted in whole seconds of the host's `/proc/uptime`, from `UP0`, read when the open
 command starts. UTC is never used: over the G3 sessions it moved by between -5.1 % and +3.0 % against `/proc/uptime`.
 
-**Per-row maximum, with every wait included.** `R_max = S_pre + S_harness + S_post`. Each term is either a bound the
-code already enforces or a step bound that the pilot's step file enforces with `timeout`, on the model of
-`tools/session/proof.sh` (`bounded`/`left`). The maximum is therefore a true maximum, and no wait is left outside it.
+**Per-row maximum.** `R_max = S_pre + S_harness + S_post`. The inner terms are the code's bounds (the harness's
+timeouts and fixed waits) or step bounds, with one explicit allowance: 60 s for the two hypervisor snapshots that every
+simulator run takes. Some work inside these terms has no bound in code: the hashing of the QEMU binary and the kernel
+at each snapshot; the run's ingest, validity, manifest and `SHA256SUMS` seal; and the controller marker poll, which is
+bounded per socket operation only. So the row maximum does not rest on the inner terms. It holds because the pilot's
+step file runs each step, the harness step included, under `timeout` of what is left of `R_max`, on the model of
+`tools/session/proof.sh` (`bounded`/`left`), whatever an inner step takes. A step stopped that way is the
+instrumentation failure of enforcement rule 2.
 
 | Term | Seconds | What it covers |
 |---|---:|---|
 | `S_pre` | 1,780 | row checks 180 (budget, keepalive, identities, run-id freshness, disk floors); new attempt and collector copy 120; guest state before 120; `wait_ready 300` 335; pre-run `drained` (limit 900) 935; metrics and snapshot 90 |
-| `S_harness` | 3,461 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) | `events_start` 120; `execute_run` 3,221 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) (four hooks at 300 + 15 s, the events fetch 3 x 300 s with back-off, three SUT fetches at 315 s, simulator grace 300 s, the confirmation window 60 s, sampler stop 30 s, environment capture 30 s, marker 5 s); `events_cleanup` 120 |
+| `S_harness` | 3,521 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) | `events_start` 120; `execute_run` 3,281 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0): the code's bounds on the pilot's path, 3,221 (three collector hooks (start, stop, fetch) at 300 + 15 s, the events fetch 3 x 300 s with back-off, three SUT fetches at 315 s, simulator grace 300 s, the confirmation window 60 s, sampler stop 30 s, environment capture 30 s, marker 5 s), plus a 60 s allowance for the two hypervisor snapshots (two `qemu-system-aarch64 --version` runs bounded at 10 s each, and the hashing of the QEMU binary and the kernel, which no code bounds); `events_cleanup` 120 |
 | `S_post` | 4,145 | post-run `drained` (limit 1,500) 1,535; two `scp` 240; snapshots after 90; accounting and guest state after 360; the row's export 600; gate after the row 1,020; classification 300 |
 
 | Row | `R_max` (s) | Expected (annex) |
 |---|---:|---|
-| 1: 120 s nominal, no warm-up | 9,506 (158 min) | 9-11 min |
-| 2: 600 s nominal after 120 s | 10,406 (173 min) | 22-26 min |
-| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down | 9,746 each (162 min) | 13-16 and 22-24 min |
-| 5: 3,600 s soak | 12,986 (216 min) | 76-78 min |
+| 1: 120 s nominal, no warm-up | 9,566 (159 min) | 9-11 min |
+| 2: 600 s nominal after 120 s | 10,466 (174 min) | 22-26 min |
+| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down | 9,806 each (163 min) | 13-16 and 22-24 min |
+| 5: 3,600 s soak | 13,046 (217 min) | 76-78 min |
 
 The maximum is reached only if every wait reaches its limit, and the expected times do not change. A shorter maximum
 needs shorter inner bounds, and each would be a separate decision. Examples: a pre-run quiet limit of 300 s after a
 post-run drain that reached quiet saves 600 s per row; a 300 s healthy wait in the gate after the row saves another
-600 s. The harness's own 3,221 s changes only through a tooling change.
+600 s. The 3,221 s are the harness's code bounds on the pilot's path, and the 60 s allowance covers the two hypervisor
+snapshots this tooling adds to every simulator run; a later change to the harness's waits changes them, and this
+table is then recomputed.
 
 **Reserve.** 2,100 s is kept back in every session and never given to a row: 900 s for evidence recovery after an
 interruption (recorder cleanup, the run's `events.jsonl`, the guest's `/tmp` captures, `local_export recover`) and
@@ -302,9 +334,9 @@ interruption (recorder cleanup, the run's `events.jsonl`, the guest's `/tmp` cap
 export). The G3 closes took 62-86 s.
 
 **Session budgets.**
-- Session A (rows 1 to 4): `B_A = 18,000 s` (5 h 00 min). Row 4 needs `3,900 + 9,746 + 2,100 = 15,746 s` when it
-  starts on time, and the margin covers about 2,250 s of slip. The expected end is about 92 min.
-- Session B (row 5): `B_B = 16,200 s` (4 h 30 min). The soak may start while `now - UP0 <= 1,114 s`; the G3 opens
+- Session A (rows 1 to 4): `B_A = 18,000 s` (5 h 00 min). Row 4 needs `3,900 + 9,806 + 2,100 = 15,806 s` when it
+  starts on time, and the margin covers about 2,190 s of slip. The expected end is about 92 min.
+- Session B (row 5): `B_B = 16,200 s` (4 h 30 min). The soak may start while `now - UP0 <= 1,054 s`; the G3 opens
   took 404-417 s. The expected end is about 87 min.
 - Keepalive: at least 21,600 s at the open, and at least `R_max + 2,100 + 1,800` s before each row.
 - The session must be open, with its gate passed, by `UP0 + 3,600 s`; otherwise stop and ask.
