@@ -264,4 +264,88 @@ The tests pin each point below (`evaluate_acceptance`, `detect_saturation` and
 
 ## Operational contract (proposal, not adopted)
 
-To be written at integration.
+**Status: a proposal for the student's decision, put forward on 2026-10-07. Nothing in this section is adopted, and
+no session is authorised by it.** These limits, with the generator tolerances of
+[`generator_tolerances.proposed.json`](generator_tolerances.proposed.json) (`status: "proposed"`), are presented
+before any execution authorisation. The numbers come from the harness code and from the G3 sessions S1 to S4 (their
+operator records and packages in `docs/evidence/g3-battery-2026-10/`). They are engineering estimates, not pilot
+results.
+
+**Clock.** Every budget is counted in whole seconds of the host's `/proc/uptime`, from `UP0`, read when the open
+command starts. UTC is never used: over the G3 sessions it moved by between -5.1 % and +3.0 % against `/proc/uptime`.
+
+**Per-row maximum, with every wait included.** `R_max = S_pre + S_harness + S_post`. Each term is either a bound the
+code already enforces or a step bound that the pilot's step file enforces with `timeout`, on the model of
+`tools/session/proof.sh` (`bounded`/`left`). The maximum is therefore a true maximum, and no wait is left outside it.
+
+| Term | Seconds | What it covers |
+|---|---:|---|
+| `S_pre` | 1,780 | row checks 180 (budget, keepalive, identities, run-id freshness, disk floors); new attempt and collector copy 120; guest state before 120; `wait_ready 300` 335; pre-run `drained` (limit 900) 935; metrics and snapshot 90 |
+| `S_harness` | 3,461 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) | `events_start` 120; `execute_run` 3,221 + D + max(0, C - 60) + (W > 0 ? W + 300 : 0) (four hooks at 300 + 15 s, the events fetch 3 x 300 s with back-off, three SUT fetches at 315 s, simulator grace 300 s, the confirmation window 60 s, sampler stop 30 s, environment capture 30 s, marker 5 s); `events_cleanup` 120 |
+| `S_post` | 4,145 | post-run `drained` (limit 1,500) 1,535; two `scp` 240; snapshots after 90; accounting and guest state after 360; the row's export 600; gate after the row 1,020; classification 300 |
+
+| Row | `R_max` (s) | Expected (annex) |
+|---|---:|---|
+| 1: 120 s nominal, no warm-up | 9,506 (158 min) | 9-11 min |
+| 2: 600 s nominal after 120 s | 10,406 (173 min) | 22-26 min |
+| 3 and 4: 300 s at 10 and 50 msg/s, 120 s cool-down | 9,746 each (162 min) | 13-16 and 22-24 min |
+| 5: 3,600 s soak | 12,986 (216 min) | 76-78 min |
+
+The maximum is reached only if every wait reaches its limit, and the expected times do not change. A shorter maximum
+needs shorter inner bounds, and each would be a separate decision. Examples: a pre-run quiet limit of 300 s after a
+post-run drain that reached quiet saves 600 s per row; a 300 s healthy wait in the gate after the row saves another
+600 s. The harness's own 3,221 s changes only through a tooling change.
+
+**Reserve.** 2,100 s is kept back in every session and never given to a row: 900 s for evidence recovery after an
+interruption (recorder cleanup, the run's `events.jsonl`, the guest's `/tmp` captures, `local_export recover`) and
+1,200 s for the controlled close (the per-container stop limits, the QEMU-end wait of 180 s, the rootfs hash and the
+export). The G3 closes took 62-86 s.
+
+**Session budgets.**
+- Session A (rows 1 to 4): `B_A = 18,000 s` (5 h 00 min). Row 4 needs `3,900 + 9,746 + 2,100 = 15,746 s` when it
+  starts on time, and the margin covers about 2,250 s of slip. The expected end is about 92 min.
+- Session B (row 5): `B_B = 16,200 s` (4 h 30 min). The soak may start while `now - UP0 <= 1,114 s`; the G3 opens
+  took 404-417 s. The expected end is about 87 min.
+- Keepalive: at least 21,600 s at the open, and at least `R_max + 2,100 + 1,800` s before each row.
+- The session must be open, with its gate passed, by `UP0 + 3,600 s`; otherwise stop and ask.
+
+**Enforcement rule.**
+1. Before each row, the step file records the instant, the remaining budget and its decision. It starts the row only
+   if `(now - UP0) + R_max(row) + 2,100 <= B_session` and all of the following hold: the keepalive check passes, the
+   disk floors are met, the identities and the run id's freshness hold, `g4_pilot_plan.py check` passes, and the
+   previous row's post-run drain reached quiet. Otherwise the row is recorded as "not started: budget", and the
+   session goes to evidence recovery and the controlled close.
+2. Within a row, every step runs under `timeout -s TERM` of the smaller of its step bound and what is left of
+   `R_max(row)`. When the allowance is spent the step is not started. Recovery and close are never cut short. A step
+   whose bound fires is an instrumentation failure, and no further row starts.
+3. On overrun, stop and ask. If a row reaches `R_max`, if a running row reaches `B_session - 2,100`, or if a TERMed
+   step has not ended 60 s later, no new step starts and the student decides between waiting and sending TERM to the
+   row's process group. KILL is never used, and the group is refused if it holds QEMU or the keepalive client.
+4. QEMU is never killed or forced off without the student's decision. A QEMU that has not ended 180 s after the
+   power-off is reported and left for that decision.
+
+**Disk floors.** These are checked before the open and before each row with `df -B1`, never `df -h`. Below a floor,
+the row is not started.
+- Host, both `C:` (`/mnt/c`) and the WSL root `/`: at least 50 GiB available. The WSL ext4 is a VHDX on `C:`, so `C:`
+  binds. The guest's sparse images can add at most about 31.2 GiB, and the pilot's evidence is about 0.2-0.25 GB.
+  50 GiB keeps a margin of about 50 % for what is not bounded. At preparation, 548.7 GB and 842.4 GB were available.
+- Guest `/`: at least 512 MiB available. The soak's estimated growth there is 13-29 MB, the largest of any row, and
+  1.6G was available at S4.
+- Guest `/var/lib/docker`: at least 4 GiB available. The container logs are capped at about 900 MB, and the growth
+  of MongoDB and Ditto per message is not recorded, so the floor has a margin of four times. 27.1G was available.
+- Guest `/tmp`: at least 1 GiB available, out of a 3.9G tmpfs. The soak's captures are about 6-7 MB.
+
+**Partial exports.**
+- An interrupted step file marks its attempt `interrupted` and exports it, and the package is kept whatever it holds.
+- An export that is not yet verified stays under `output_test/incomplete/` and is never deleted. `local_export recover`
+  runs once per session, before the close.
+- A raw run directory cut off before its seal is recovered only with `collect` and is never re-run under its id.
+- Before any close, the guest's `/tmp` captures and the run's `events.jsonl` are fetched.
+
+**Identity at preparation.** The expected guest rootfs (the in-place ext4) is the value recorded at the last verified
+close, S4 on 2026-10-07: `1605905bec22db7ccc02cd53b50e23a0046e59262e42e8ff67d566999b6d0853`. It is revalidated at
+preparation, and a mismatch is reported and never overwritten.
+
+**Load at 50 msg/s.** Any forecast of broker drops at 50 msg/s is conditional on the ingress actually achieved and on
+the assumed service rate. The broker's drop counter is not enabled (C2 declined), so the cause of a missing identity
+is indeterminate rather than a measured broker drop. Neither the broker nor its ACL limits are changed.
