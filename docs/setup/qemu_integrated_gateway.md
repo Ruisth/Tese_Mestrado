@@ -1028,6 +1028,8 @@ events_stop() {
 # cleanup's - and a cleanup that failed on the way is named in its STOP or in events_start's above it.
 # A run id whose run directory exists is refused before the recorder starts (2): the harness refuses that directory,
 # and the records in it are another execution's, never this run's.
+# --execution-mode tcg-emulated (since 2026-10-07, G4 core provenance): the harness has no default for it, and a run
+# without it is recorded and sealed but invalid; every run of this runbook is emulated.
 harness_cmd() {
   local id=$1 tools="$EGW_CLONE/tools/session"; shift
   (
@@ -1042,7 +1044,7 @@ harness_cmd() {
       stop "harness_cmd $id: the harness was NOT started (no Docker events recorder ready before the workload, or an interruption)$unit"; exit 2; }
     python -m egw_experiments run --run-id "$id" --plan ~/egw-tcg/pilot/campaign_plan.json --base-dir ~/egw-tcg/pilot/results \
       --broker 127.0.0.1 --port "$MQTT_PORT" --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert ~/egw-tcg/ca.crt \
-      --controller-url "$CTRL" --sut-env-from ~/egw-tcg/sut_environment.json \
+      --controller-url "$CTRL" --sut-env-from ~/egw-tcg/sut_environment.json --execution-mode tcg-emulated \
       --fetch-events-cmd 'scp egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl "{dest}"' \
       --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 \
       --collector-start-cmd "ssh egw-tcg 'sudo systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s} --expect-services {expect_services}'" \
@@ -1551,6 +1553,8 @@ Expected: (a) exit 1, `connection failed` with a certificate-verify error; (b) a
 ---
 
 ## 9. Instrumentation changes required (described, not implemented — deliverable 3)
+
+*(Status 2026-10-07: the core of items 1-4 is implemented in the harness and the analysis for the G4 pilot, as `experiments/README.md` describes, differently from the proposal below in five points. The mode is declared on the harness command line (`--execution-mode`, no default) and not in the guest script, which is deployed to the guest and stays unchanged. The hypervisor record is captured by the harness itself from `/proc` on the host. The analysis writes flat outputs with an execution-mode column, refuses mixed-mode aggregates in code and stamps every figure, without `processed/<execution_mode>/` directories. There is no `--pilot` refusal and no `performance_claims_allowed = False` treatment of emulated runs. The QEMU-process sampler of item 5 is not implemented (optional). Items 6 and 7 are unchanged. The text below is the proposal as written.)*
 
 1. **`src/deployment/scripts/capture-sut-environment.sh`** — add fields: `execution_mode` (`tcg-emulated` | `native-kvm` | `native-metal`, from an `EGW_EXECUTION_MODE` variable with **no default**: an unset value must make the harness mark the run invalid), `hypervisor` (`systemd-detect-virt` output, present in the G1 rootfs), `cpu_part` (from `/proc/cpuinfo`), `cpu_features`, `kernel_cmdline` (`/proc/cmdline`, which carries `mem=` and `root=`), `image_identity` (`/etc/buildinfo` content or `IMAGE_NAME`, rootfs sha256 from the build evidence passed as `EGW_IMAGE_SHA256`), `container_image_ids` (`docker image inspect --format '{{.RepoTags}} {{.Id}}'` of the six images), `docker_info_cgroup_version`, `cfs_bandwidth` (recorded as disabled per plan v2.0 §5 item 2).
 2. **A host-side capture** (new `scripts/capture-hypervisor-environment.sh`, run on the WSL host, output `hypervisor_environment.json`): QEMU version (`qemu_version.txt`), the exact runqemu command line (machine, `-cpu`, `-smp`, `-m`, `-netdev`), the disk file and its size, WSL kernel `uname -a`, Windows build, host CPU model and `nproc`, `.wslconfig` limits, and `colocated_with_loadgen: true`. The harness references it from the manifest next to `sut_environment.json` and `loadgen_environment.json` (three environments for emulated runs; work order item 7).
