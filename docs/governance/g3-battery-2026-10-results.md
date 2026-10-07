@@ -1,4 +1,4 @@
-# G3 qualifying battery of 2026-10-02 and 2026-10-03, and its T8/T9 completion of 2026-10-05 — results addendum
+# G3 qualifying battery of 2026-10-02 and 2026-10-03, its T8/T9 completion of 2026-10-05 and its T6 session of 2026-10-07 — results addendum
 
 **A record, not a decision.** This page consolidates what the two sessions of
 the G3 qualifying battery recorded, row by row, keeping three things apart
@@ -15,7 +15,10 @@ sessions and packages are the two result notes held locally
 entry of 2026-10-03, 15:50 WEST (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`,
 held outside the repository); the packages are indexed, with their seals, in
 [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md).
-Narrative: LOG #C050.
+Narrative: LOG #C050. *(2026-10-07: the page now covers sessions S1 to S4;
+the standing row of each family, apart from the historical attempts, is in
+"Standing rows as of 2026-10-07" below; the packages and the result notes
+are published byte for byte in the capsule; LOG #C054.)*
 
 ## Candidate and sessions
 
@@ -102,6 +105,101 @@ Boundaries the Project Manager states for these rows:
 - Seven families now have favourable technical evidence on this candidate
   (T1–T4 and T7–T9). That is not a G3 decision.
 
+## Test 6 under the amended criterion: session S4 of 2026-10-07
+
+Authority: Rui's authorisation of one session S4 (test 6 only) on
+2026-10-07, under the request of 2026-10-05 and its preparation supplement
+of 2026-10-07 (published byte for byte in the capsule's
+[`records/`](../evidence/g3-battery-2026-10/records/));
+the Project Manager's register entries of 2026-10-05, 21:56 WEST, and
+2026-10-07, 14:19 WEST. The candidate is the battery's, unchanged:
+controller image `9a293fe1…` from `489bc9e`, the pinned images, the guest
+image under QEMU 8.2.7 TCG. The procedure and tools are the merge of PR #57,
+`1fd9792` (runbook `31716593…`, helpers `e5eba37e…`): test 6 on a fresh plan
+entry, `controller_restart-r04` (seed 1715385812), judged by the criterion
+amended on 2026-10-05, with the transition rule `1a-option-a-2026-10-05`.
+The one change on the guest is instrumentation: at the open the frozen
+preflight installed the collector of `1fd9792` (`11444c0a…` → `9e678b02…`).
+Narrative: LOG #C054.
+
+| Part | Time (UTC) | What happened |
+|---|---|---|
+| Open | 12:03:48–12:10:52 | Every identity equal (clone `1fd9792`, drivers `2c209b09…`, root file system `6fce1688…` as S3's second close left it). The preflight passed: the new collector installed, the deployed tree equal to the clone but `README.md`, `collector-duration` 45.54 s on the guest's monotonic clock for the declared 45 s. The gate passed: six services healthy, the running images equal to the record. |
+| Row t6 | 12:11:14–12:32:30 | 1,239 s on the host's uptime clock (the ceiling's basis; the UTC stamps span 1,276 s) against the 47 min ceiling; no `STOP:` line; the gate after it passed; classified at 12:33:23. The recorder's emergency cleanup of the supplement was not needed. |
+| Close | 12:34:01–12:35:30 | `stop -t 130` exit 0, no OOM, QEMU ended exit 0 with no process left, close driver exit 0; root file system `1605905b…` after it. |
+
+| # | Row | Run id | Validity | Functional outcome | Timed delivery | Class | Package (`output_test/runs/`) |
+|---|---|---|---|---|---|---|---|
+| 15 | T6 | `controller_restart-r04` | valid: manifest `valid` with no reason against it; the inner run sealed (46 files); drain `quiet` | one restart at +300 s, returncode 0; the capture one `die` and one `start` of `egw-controller-1`, the gate after `EXPECTED-RESTART` on the same container, restart count 0, no OOM kill; endpoint recovery 12.134 s (within 120 s); every `delta` OK (600, 120, 6,000 accepted), N1 report 0/0; `acceptance --exactly-once`: 6,720 accepted exactly once, 0 more than once, 0 never; `double_accepted` 0; configuration identity equal to the packet | not a pass condition of test 6 since 2026-10-05; **reported only**, a sizing finding: 4,567 of 6,720 by the deadline (`lost` 2,153, the 67 late among them; below) | Pass (the criterion amended on 2026-10-05) | `2026-10-07/20261007T121121Z_g3-qualification-t6_attempt02` |
+
+**The delay numbers of row 15, read correctly.** Both are counted against
+the controller marker plus 60 s on the timed copy of the events
+(`events.jsonl`, fetched after the confirmation window). `lost` is the valid
+messages sent less those confirmed by the deadline in that copy:
+6,720 − 4,567 = 2,153. `late_confirmations` counts that copy's accepted
+lines acknowledged after the deadline: 67 of its 4,634. A late line is
+never counted as confirmed, so the 67 are among the 2,153 and are never
+added to them; the other 2,086 were accepted after the timed copy was
+taken, during the drain (`src/egw_experiments/analyze.py`: a late
+acceptance is counted and skipped before it can be confirmed, and
+`lost = sent_valid - delivered_unique`). None of the 2,153 is a permanent
+loss: all 6,720 valid messages were accepted exactly once by the end of the
+drain (`events.post-drain.jsonl`, of which the timed copy is a byte
+prefix). Functional recovery was demonstrated in this run (20.04 s,
+reported beside the endpoint figure); timely delivery at the nominal load
+(11.2 msg/s, deadline = controller marker + 60 s) was not.
+
+Boundaries the Project Manager states for this row:
+
+- "Exactly once" is one accepted result per valid sent identity of this
+  run, not a general MQTT exactly-once guarantee. The endpoint recovery runs
+  from the end of the restart command to the first `/metrics` answer; it is
+  not the time from the fault to functional recovery.
+- The N1 options exercised with N1 = 0 do not prove every N1 branch; no OOM
+  in this session is not prolonged stability. The recorder's emergency
+  cleanup was not needed and stays tested offline only.
+- Row 8 stays invalid and is not re-judged. The analyser's global line
+  `restart_recovery_observed_every_run: FAILED - 1/4` (r01–r03 not
+  evidenced) is kept unchanged: row 15 neither accepts the campaign nor
+  requalifies an earlier run.
+- With row 15 all nine families have favourable technical evidence in their
+  own adopted criteria. That is not a G3 decision: full gate admission
+  remains Rui's dated decision, after the review of the
+  [closing proposal](proposals/2026-10-07-g3-closing-proposal.md).
+
+The session, preflight, gate and operator-records packages of S4, its host
+preparation of 2026-10-05 and the supplement of 2026-10-07 are published
+with the other 31 packages in the
+[evidence index](../evidence/g3-battery-2026-10/README.md).
+
+## Standing rows as of 2026-10-07
+
+The current row of each family and sub-check, on its own adopted criterion,
+apart from the historical attempts. Nothing is re-labelled: every row keeps
+the class it was recorded with.
+
+| Family | Sub-check | Standing row | Run | Class as recorded |
+|---|---|---|---|---|
+| T1 | three smokes | 1 (S1) | `itest-smoke-01/02/03-q1` | Pass |
+| T1 | harness | 2 (S1) | `nominal-r02` | Pass (artefact chain; delivery reported only) |
+| T2 | three wearables | 3 (S1) | `itest-3dev-01-q1` | Pass |
+| T3 | invalid payloads | 4 (S1) | `itest-invalid-01-q1` | Pass |
+| T4 | replay | 5 (S1) | `itest-dup-01-q1` | Pass |
+| T4 | sequence reset | 6 (S1) | `itest-dup-02-q1` | Pass |
+| T5 | dropout and reconnection | 7 (S1) | `itest-dropout-01-q1` | Pass, as sealed (reading admitted 2026-10-05) |
+| T6 | controller restart | 15 (S4) | `controller_restart-r04` | Pass (the criterion amended on 2026-10-05) |
+| T7 | MongoDB fault | 9 (S2) | `itest-mongo-fault-01-q1` | Pass |
+| T7 | Ditto fault | 10 (S2) | `itest-ditto-fault-01-q1` | Pass |
+| T8 | guest reboot | 13 (S3, second opening) | `itest-reboot-q2`, smoke `itest-post-reboot-01-q2` | Pass |
+| T9 | TLS and authorisation | 14 (S3, second opening) | five sub-checks and the exposure observations | Pass |
+
+Historical attempts, kept as recorded and not standing: row 8 (T6
+`controller_restart-r03`, invalid instrumentation), row 11 (T8
+`itest-reboot-q1`, inconclusive, halted), row 12 (T9 in S2, not run), and
+S3's first opening (halted at its preflight, no row run). The executions of
+2026-09-18 and `controller_restart-r01`/`-r02` keep their records outside
+this battery.
+
 ## Boundaries the Project Manager states
 
 - **T1–T4** are technically favourable in their own criteria, every required
@@ -183,7 +281,9 @@ Boundaries the Project Manager states for these rows:
    ([decision record](g3-t5-t6-decisions-2026-10-05.md); LOG #C052).
    *(Later on 2026-10-05: option A adopted with the Project Manager's
    conditions; the three prerequisites and the exactly-once check implemented
-   offline; LOG #C053.)*
+   offline; LOG #C053.)* *(2026-10-07: run in session S4 as
+   `controller_restart-r04`, a Pass under the amended criterion — row 15;
+   row 8 stays invalid; LOG #C054.)*
 3. **T8 and T9, completion — fulfilled on 2026-10-05; nothing outstanding.**
    Both rows pass (section above), and the Project Manager sees no reason to
    repeat them on this configuration. The conditions set after S2, all met by
@@ -192,6 +292,11 @@ Boundaries the Project Manager states for these rows:
    bounded session with fresh run identities (`-q2`) and the procedural
    revision recorded (`8e49261`); its preparation showing the SUT image,
    containers and configuration unchanged; the prior results preserved.
+4. **G3 itself.** *(2026-10-07)* With row 15 every family has a favourable
+   row in its own adopted criteria; the
+   [closing proposal](proposals/2026-10-07-g3-closing-proposal.md) sets out
+   G3's criteria clause by clause for Rui's dated decision. Nothing is
+   decided here.
 
 G3 remains `Not decided`; G4 and the campaign are not released. No promise
 that another run closes G3, no automatic move of the 2026-10-20 target, and no

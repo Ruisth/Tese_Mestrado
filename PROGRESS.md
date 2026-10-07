@@ -578,6 +578,25 @@ acceptance.*
   `controller_restart-r04` and the per-identity exactly-once check. Nothing
   ran on the guest; the system under test is unchanged, the collector's hash
   is not; the next step is one separately authorised session; LOG #C053.)*
+  *(Marker added 2026-10-07: T6 ran in one bounded session, S4, on the
+  unchanged candidate with the tools of `1fd9792` (the one change on the
+  guest being the collector the frozen preflight installed), and
+  `controller_restart-r04` passes under the criterion amended on
+  2026-10-05: recovery 12.134 s to the first `/metrics` answer, every
+  `delta` OK, all 6,720 valid messages accepted exactly once after the
+  drain. Its `lost` 2,153 against the deadline (the 67 late confirmations
+  among them, not added) is a sizing finding: none is a permanent loss,
+  and timely delivery at the nominal load is not shown. Every family of the
+  battery now has favourable technical evidence in its own adopted
+  criteria — T1–T5 in S1, T7 in S2, T8 and T9 in S3, T6 in S4 — with the
+  invalid, incomplete and halted attempts kept as recorded. The 38 packages
+  are published as byte copies in
+  [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md),
+  and the [closing proposal](docs/governance/proposals/2026-10-07-g3-closing-proposal.md)
+  sets out G3's criteria clause by clause for Rui's dated decision; row 15
+  of the [results addendum](docs/governance/g3-battery-2026-10-results.md);
+  LOG #C054. G3 stays `Not decided` until that decision; the G4 pilot needs
+  its own preparation and authorisation.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
   image still installs its Python dependencies without a hashed lock.
 - **G5 — Not decided.** No frozen emulated functional campaign;
