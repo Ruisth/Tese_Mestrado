@@ -806,6 +806,82 @@ def build_parser() -> argparse.ArgumentParser:
         "--run-id", default=None, help="verify only this run directory"
     )
 
+    # generator-check (G4 pilot prerequisite P5) ------------------------------
+    p_gen = sub.add_parser(
+        "generator-check",
+        help="check that the load generator kept its schedule in one run: "
+        "identity and count against the exact schedule rebuilt from the "
+        "simulator manifest; relative lateness, overruns and catch-up bursts "
+        "of the client publish calls (host clock; not broker ingress); PUBACK "
+        "observations (a null is not loss); with --events the controller's "
+        "acceptance on the guest clock, never subtracted from host stamps. "
+        "Exit 0 SUSTAINED, 1 NOT_SHOWN, 2 usage, 3 NOT_CERTIFIED, 4 "
+        "NOT_SUSTAINED. Reads only; no tolerance is built in",
+    )
+    p_gen_input = p_gen.add_mutually_exclusive_group(required=True)
+    p_gen_input.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="a harness run directory (raw/<run_id>/): the simulator output is "
+        "read from logs/simulator/<run_id>/ and compared byte for byte with the "
+        "root copy of sent_events.jsonl; the harness manifest gives the "
+        "elapsed-time stamps and the execution_mode it recorded (copied, never "
+        "inferred)",
+    )
+    p_gen_input.add_argument(
+        "--sim-dir",
+        type=Path,
+        default=None,
+        help="a bare simulator output directory (<output>/<run_id>/ with "
+        "manifest.json and sent_events.jsonl): no root-copy check and no "
+        "elapsed-time section",
+    )
+    p_gen.add_argument(
+        "--events",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="a copy of the controller's events.jsonl of the run (the sealed "
+        "copy or the post-drain copy), read for the acceptance section only; "
+        "it never changes the verdict",
+    )
+    p_gen.add_argument(
+        "--tolerances",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="a tolerance profile (JSON; see experiments/README.md). Without a "
+        "profile whose status is 'approved' and whose approval names its "
+        "decision record no report certifies (exit 3); a 'proposed' profile is "
+        "evaluated and labelled non-certifying; an invalid one exits 2",
+    )
+    p_gen.add_argument(
+        "--window-s",
+        type=float,
+        default=1.0,
+        help="width of the per-window count comparison, a reporting resolution "
+        "outside the verdict (default 1.0 s, the period of the 1 Hz samplers)",
+    )
+    p_gen.add_argument(
+        "--warmup",
+        action="store_true",
+        help="with --run-dir: check the warm-up's simulator output "
+        "(logs/warmup/<run_id>.warmup/) instead; the report is labelled "
+        "warm-up and never stands for the measured run",
+    )
+    p_gen.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="write the JSON report to FILE once (an existing file is never "
+        "replaced); refused inside the run or simulator directory and inside "
+        "any directory sealed by SHA256SUMS. Suggested: "
+        "<base>/checks/generator/<run_id>.json, beside raw/ (analyze cleans "
+        "processed/ and figures/)",
+    )
+
     return parser
 
 
@@ -1093,4 +1169,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_recovery(args)
     if args.command == "verify-checksums":
         return _cmd_verify(args)
+    if args.command == "generator-check":
+        # Imported on use: the check loads the simulator's run loop, which
+        # no other subcommand needs.
+        from .generator_check import run_from_args
+
+        return run_from_args(args)
     raise AssertionError(f"unhandled command {args.command!r}")
