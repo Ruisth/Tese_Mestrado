@@ -53,16 +53,27 @@ stamp of another:
   the harness's measured start, run end after the last publish, process time
   against the duration and the harness's kill bound.
 
+Inputs are read as what they must be, every defect named: both manifests
+are strict JSON (NaN, infinities and numbers beyond a float are refused), a
+schedule with no event is not a schedule, and with ``--run-dir`` the run
+directory's ``SHA256SUMS`` must exist and verify (the harness's own
+``egw_experiments.checksums`` verification) and its harness manifest, when
+present, must be a readable JSON object. A bare simulator directory
+(``--sim-dir``) carries no seal of its own and none is verified.
+
 Verdicts and exit codes: SUSTAINED 0 (identity exact, ``completed`` true and
 every tolerance of an APPROVED profile entry for the run's scenario and
 aggregate rate met); NOT_SHOWN 1 (an input defect: missing, unreadable or
-inconsistent files; never judged as passed); 2 usage (bad arguments, an
-invalid tolerance file, an output that exists or lies inside the run or a
-sealed directory);
+inconsistent files, a seal that is missing or does not verify; never judged
+as passed); 2 usage (bad arguments, a ``--window-s`` below
+:data:`MIN_WINDOW_S`, an invalid tolerance file, an output that exists, lies
+inside the run or a sealed directory, or cannot be written: then no report
+is written and no verdict is given);
 NOT_CERTIFIED 3 (metrics computed but no profile, a profile that is not
 approved, no entry for the condition, or timing not applicable, as for
 dropout-reconnect); NOT_SUSTAINED 4 (an approved tolerance exceeded, or a
-whole run that did not complete its schedule).
+whole run that did not complete its schedule). Exit 1 only ever means a
+NOT_SHOWN evaluation, written to its report.
 
 No tolerance is built in. A profile is a JSON file (:func:`load_tolerances`);
 only one whose ``status`` is ``approved`` and whose ``approval`` names who
@@ -79,6 +90,7 @@ manifest when it recorded one and is never inferred.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import math
@@ -102,7 +114,7 @@ from egw_simulator.scenarios import (
 )
 
 from .analyze import percentile
-from .checksums import SUMS_FILENAME
+from .checksums import SUMS_FILENAME, verify_sha256sums
 from .environment import utc_now_iso
 from .run import MANIFEST_FILENAME, SUBPROCESS_GRACE_S, simulator_run_dir
 
@@ -139,6 +151,11 @@ LIST_LIMIT = 20
 PROBLEM_LIMIT = 200
 
 DEFAULT_WINDOW_S = 1.0
+#: The smallest ``--window-s``: the windows table holds one row per window,
+#: so a unit slip (1e-6 for 1) would allocate billions of rows on a soak run.
+#: A tenth of a second is still finer than the 1 Hz samplers it is read
+#: against.
+MIN_WINDOW_S = 0.1
 
 #: The harness's layout (run.py): the measured run's simulator output under
 #: logs/simulator/<run_id>/, the warm-up's under logs/warmup/<run_id>.warmup/.
@@ -232,6 +249,24 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+#: ``time.monotonic_ns`` is a signed 64-bit count: no stamp reaches 2**63.
+STAMP_LIMIT_NS = 2**63
+
+
+def _is_stamp(value: Any) -> bool:
+    """A value a ``monotonic_ns`` stamp can be: an integer in [0, 2**63)."""
+    return _is_int(value) and 0 <= value < STAMP_LIMIT_NS
+
+
+def _finite(value: Any) -> bool:
+    """A finite number; an integer too large for a float is not one (JSON
+    holds such integers, and ``math.isfinite`` raises OverflowError on them)."""
+    try:
+        return _is_number(value) and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -314,9 +349,10 @@ def _parse_condition(key: str, value: Any) -> ConditionTolerance:
             raise ToleranceError(
                 f"condition {key!r}: {name} must be {kind}, got {_brief(item)}"
             )
-        if not math.isfinite(item) or item < 0:
+        if not _finite(item) or item < 0:
             raise ToleranceError(
-                f"condition {key!r}: {name} must be finite and not negative"
+                f"condition {key!r}: {name} must be finite, within the range of "
+                "a float and not negative"
             )
         numbers[name] = item if integer else float(item)
     return ConditionTolerance(**numbers)
@@ -336,7 +372,8 @@ def load_tolerances(path: Path) -> ToleranceProfile:
     (integer) and ``max_span_deviation_ms``, finite and not negative). The
     rate of a key is matched to the manifest's ``rates_hz.aggregate`` by
     exact float equality; two keys naming the same condition are refused, as
-    are booleans, NaN, infinities and repeated object keys.
+    are booleans, NaN, infinities, integers too large for a float and
+    repeated object keys.
     """
     path = Path(path)
     try:
@@ -481,11 +518,11 @@ def _manifest_shape_problems(manifest: dict) -> list[str]:
     if not _is_int(manifest.get("seed")):
         problems.append("seed is not an integer")
     duration = manifest.get("duration_s")
-    if not _is_number(duration) or not math.isfinite(duration) or duration <= 0:
+    if not _finite(duration) or duration <= 0:
         problems.append("duration_s is not a finite number above 0")
     rates = manifest.get("rates_hz")
     aggregate = rates.get("aggregate") if isinstance(rates, dict) else None
-    if not _is_number(aggregate) or not math.isfinite(aggregate) or aggregate <= 0:
+    if not _finite(aggregate) or aggregate <= 0:
         problems.append("rates_hz.aggregate is not a finite number above 0")
     devices = manifest.get("devices")
     if not isinstance(devices, list) or not devices or not all(
@@ -556,6 +593,13 @@ def reconstruct_schedule(sim_manifest: Any) -> tuple[Schedule | None, list[str]]
         )
         for seq, offset in enumerate(scheduled_times(rates[device.device_type], duration)):
             raw.append((offset, index, seq))
+    if not raw:
+        # The simulator accepts any duration above 0; below its schedule
+        # epsilon the run loop schedules nothing, and there is nothing to check.
+        return None, [
+            f"no scheduled event: duration_s {_brief(duration)} at "
+            f"{_brief(aggregate)} msg/s gives an empty schedule"
+        ]
     raw.sort()
 
     instants: list[float] = []
@@ -663,16 +707,21 @@ def _record_problems(record: dict) -> list[str]:
     for key in ("run_id", "message_id", "device_uuid", "device_type"):
         if key in record and not isinstance(record[key], str):
             found.append(f"{key} must be a string, got {_brief(record[key])}")
-    for key in ("seq", "publish_monotonic_ns"):
-        if key in record and (not _is_int(record[key]) or record[key] < 0):
-            found.append(
-                f"{key} must be a non-negative integer (not a boolean), got "
-                f"{_brief(record[key])}"
-            )
-    puback = record.get("puback_monotonic_ns")
-    if "puback_monotonic_ns" in record and puback is not None and not _is_int(puback):
+    if "seq" in record and (not _is_int(record["seq"]) or record["seq"] < 0):
         found.append(
-            f"puback_monotonic_ns must be an integer or null, got {_brief(puback)}"
+            f"seq must be a non-negative integer (not a boolean), got "
+            f"{_brief(record['seq'])}"
+        )
+    if "publish_monotonic_ns" in record and not _is_stamp(record["publish_monotonic_ns"]):
+        found.append(
+            "publish_monotonic_ns must be a non-negative integer below 2**63 (not a "
+            f"boolean), got {_brief(record['publish_monotonic_ns'])}"
+        )
+    puback = record.get("puback_monotonic_ns")
+    if "puback_monotonic_ns" in record and puback is not None and not _is_stamp(puback):
+        found.append(
+            "puback_monotonic_ns must be a non-negative integer below 2**63 or null, "
+            f"got {_brief(puback)}"
         )
     if "intended_invalid" in record and not isinstance(record["intended_invalid"], bool):
         found.append(
@@ -1202,7 +1251,7 @@ def controller_acceptance(events_path: Path, run_id: str | None, *, window_s: fl
         outcome = record.get("outcome")
         outcomes[outcome if isinstance(outcome, str) else _brief(outcome)] += 1
         stamp = record.get("received_monotonic_ns")
-        if _is_int(stamp):
+        if _is_stamp(stamp):
             received.append(stamp)
             # One consumer logs in arrival order, so within one clock the
             # received stamps never decrease along the file; a decrease is a
@@ -1214,7 +1263,7 @@ def controller_acceptance(events_path: Path, run_id: str | None, *, window_s: fl
             without_received += 1
         if outcome == "accepted":
             ack = record.get("ditto_ack_monotonic_ns")
-            if _is_int(ack):
+            if _is_stamp(ack):
                 acked.append(ack)
             else:
                 accepted_without_ack += 1
@@ -1254,8 +1303,9 @@ def harness_elapsed(
     started = harness_manifest.get("measured_started_monotonic_ns")
     finished = harness_manifest.get("finished_monotonic_ns")
     publish = [record["publish_monotonic_ns"] for record, _event in usable]
-    started = started if _is_int(started) else None
-    finished = finished if _is_int(finished) else None
+    # A value no monotonic_ns stamp can be is no stamp (non-certifying section).
+    started = started if _is_stamp(started) else None
+    finished = finished if _is_stamp(finished) else None
     process = (finished - started) / NS if started is not None and finished is not None else None
     kill_bound = duration_s + SUBPROCESS_GRACE_S
     return {
@@ -1282,7 +1332,7 @@ def harness_elapsed(
 
 
 def _rate_key(scenario: Any, rate: Any) -> str | None:
-    if not isinstance(scenario, str) or not _is_number(rate):
+    if not isinstance(scenario, str) or not _finite(rate):
         return None
     return f"{scenario}@{float(rate)!r}"
 
@@ -1390,20 +1440,78 @@ def evaluate(report: dict, profile: ToleranceProfile | None) -> dict:
 # ---------------------------------------------------------------------------
 
 
+class _NotStrictJson(ValueError):
+    """A number that strict JSON cannot hold (and the report could not)."""
+
+
+def _refuse_non_finite_constant(name: str) -> None:
+    raise _NotStrictJson(f"holds {name}, which is not a JSON number")
+
+
+def _finite_float(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value):
+        raise _NotStrictJson(f"holds {text}, which is beyond the range of a float")
+    return value
+
+
 def _read_json_object(path: Path) -> tuple[dict | None, str | None, str | None]:
     """(object, sha256, problem): the problem names a missing, unreadable or
-    non-object file; the object is None then."""
+    non-object file; the object is None then.
+
+    Strict JSON: NaN, Infinity, -Infinity and a number literal beyond the
+    range of a float are refused here, so no value copied into the report
+    can stop it from being written (it is serialised with
+    ``allow_nan=False``)."""
     try:
         data = _read_bytes(path)
     except CheckInputError as exc:
         return None, None, str(exc)
     try:
-        obj = json.loads(data.decode("utf-8"))
+        obj = json.loads(
+            data.decode("utf-8"),
+            parse_constant=_refuse_non_finite_constant,
+            parse_float=_finite_float,
+        )
     except (UnicodeDecodeError, ValueError) as exc:
         return None, _sha256(data), f"{path} unreadable: {exc}"
     if not isinstance(obj, dict):
         return None, _sha256(data), f"{path} is not a JSON object"
     return obj, _sha256(data), None
+
+
+def _seal_state(run_dir: Path) -> tuple[dict, list[str]]:
+    """(the seal section, problems) of a harness run directory.
+
+    The run directory's ``SHA256SUMS`` must exist and verify, with the
+    harness's own verification (``egw_experiments.checksums``, as
+    ``verify-checksums`` and ``analyze`` use it): otherwise its files are
+    not shown to be the run's record, and nothing is judged as passed.
+    """
+    sums_path = run_dir / SUMS_FILENAME
+    section: dict[str, Any] = {
+        "applicable": True,
+        "path": str(sums_path),
+        "verification": "egw_experiments.checksums.verify_sha256sums",
+        "state": None,
+        "problem_count": 0,
+        "problems": [],
+    }
+    if not sums_path.is_file():
+        section["state"] = "missing"
+        return section, [
+            f"{SUMS_FILENAME} missing in {run_dir}: the run directory is not "
+            "sealed, so its files are not shown to be the run's record"
+        ]
+    try:
+        found = verify_sha256sums(run_dir)
+    except (OSError, UnicodeDecodeError) as exc:
+        section["state"] = "unreadable"
+        return section, [f"{SUMS_FILENAME} of {run_dir} cannot be verified: {exc}"]
+    section["state"] = "failed" if found else "verified"
+    section["problem_count"] = len(found)
+    section["problems"] = found[:PROBLEM_LIMIT]
+    return section, [f"{SUMS_FILENAME} does not verify: {problem}" for problem in found]
 
 
 def check_generator(
@@ -1417,30 +1525,50 @@ def check_generator(
 ) -> dict:
     """The full report of one run; ``report['evaluation']['verdict']``.
 
-    ``run_dir`` is a harness run directory: the simulator output is read
-    from ``logs/simulator/<run_id>/`` (or the warm-up's), where ``run_id``
-    is the harness manifest's (the directory's name without one). ``sim_dir``
-    is a bare simulator output directory. Exactly one is given.
+    ``run_dir`` is a harness run directory: its ``SHA256SUMS`` must exist
+    and verify, and the simulator output is read from
+    ``logs/simulator/<run_id>/`` (or the warm-up's), where ``run_id`` is the
+    harness manifest's (the directory's name without one). ``sim_dir`` is a
+    bare simulator output directory, with no seal of its own. Exactly one is
+    given. ``window_s`` is at least :data:`MIN_WINDOW_S`.
     """
     if (sim_dir is None) == (run_dir is None):
         raise ValueError("give exactly one of sim_dir and run_dir")
     if warmup and run_dir is None:
         raise ValueError("the warm-up is read from a harness run directory")
+    if not (_finite(window_s) and window_s >= MIN_WINDOW_S):
+        raise ValueError(
+            f"the window must be a finite number of seconds of at least "
+            f"{MIN_WINDOW_S}, got {window_s!r}"
+        )
     problems: list[str] = []
     harness: dict | None = None
     harness_info: dict | None = None
+    harness_problem: str | None = None
     root_copy_path: Path | None = None
     expected_run_id: str | None = None
+    seal: dict[str, Any] = {
+        "applicable": False,
+        "reason": "a bare simulator directory carries no seal of its own; "
+        "none is verified",
+    }
     if run_dir is not None:
         run_dir = Path(run_dir)
+        seal, seal_problems = _seal_state(run_dir)
+        problems.extend(seal_problems)
         harness_path = run_dir / MANIFEST_FILENAME
         harness, harness_sha, harness_problem = _read_json_object(harness_path)
+        harness_present = harness_path.exists()
+        if harness_problem is not None and harness_present:
+            # Present but unreadable, not strict JSON or not an object: the
+            # run directory is not what a harness run must be. A MISSING
+            # harness manifest only empties the elapsed section (and a sealed
+            # run that lost it fails its seal above).
+            problems.append(f"harness manifest: {harness_problem}")
         harness_info = {
             "path": str(harness_path),
-            "present": harness_path.is_file(),
+            "present": harness_present,
             "sha256": harness_sha,
-            # A missing or unreadable harness manifest only empties the
-            # elapsed section; it never changes the verdict.
             "problem": harness_problem,
         }
         run_id = harness.get("run_id") if harness else None
@@ -1474,6 +1602,9 @@ def check_generator(
     elif harness is not None:
         execution_mode = None
         mode_source = "not recorded: the harness manifest predates the field"
+    elif harness_info is not None and harness_info["present"]:
+        execution_mode = None
+        mode_source = f"harness manifest not usable: {harness_problem}"
     else:
         execution_mode, mode_source = None, "no harness manifest"
     rates = manifest.get("rates_hz")
@@ -1578,6 +1709,7 @@ def check_generator(
             "layout": "harness run directory" if run_dir is not None else "simulator directory",
             "run_dir": str(run_dir) if run_dir is not None else None,
             "simulator_dir": str(sim_dir),
+            "seal": seal,
             "simulator_manifest": {"path": str(manifest_path), "sha256": manifest_sha},
             "sent_events": sent_info,
             "root_copy": root_copy,
@@ -1653,6 +1785,21 @@ def console_lines(report: dict) -> list[str]:
             f"  {row['name']}: {_fmt(row['value'])} against {_fmt(row['limit'])}: "
             f"{'within' if row['within'] else 'OUTSIDE'}"
             + ("" if evaluation["certifying"] else " (non-certifying)")
+        )
+    seal = report["inputs"]["seal"]
+    if not seal["applicable"]:
+        lines.append(f"seal [{SUMS_FILENAME}]: not applicable: {seal['reason']}")
+    elif seal["state"] == "verified":
+        lines.append(f"seal [{SUMS_FILENAME}]: verified")
+    elif seal["state"] == "failed":
+        lines.append(
+            f"seal [{SUMS_FILENAME}]: FAILED, {seal['problem_count']} problem(s): the "
+            "files are not shown to be the run's record"
+        )
+    else:
+        lines.append(
+            f"seal [{SUMS_FILENAME}]: {seal['state'].upper()}: the files are not "
+            "shown to be the run's record"
         )
     identity = report["identity"]
     if identity is not None:
@@ -1749,12 +1896,20 @@ def console_lines(report: dict) -> list[str]:
 
 
 def write_report(path: Path, report: dict) -> None:
-    """Write the report once: an existing file raises ``FileExistsError``."""
+    """Write the report once: an existing file raises ``FileExistsError``;
+    any other failure raises ``OSError`` and leaves no partial file behind
+    (a partial report would block a write-once retry)."""
     text = json.dumps(report, indent=2, allow_nan=False) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     # Mode 'x': creation and the write-once refusal are one step.
-    with open(path, "x", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
+    fh = open(path, "x", encoding="utf-8", newline="\n")
+    try:
+        with fh:
+            fh.write(text)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            path.unlink()
+        raise
 
 
 def _out_refusal(out: Path, run_dir: Path | None, sim_dir: Path | None) -> str | None:
@@ -1791,8 +1946,11 @@ def _usage(message: str) -> int:
 def run_from_args(args: argparse.Namespace) -> int:
     """The ``generator-check`` subcommand (``egw_experiments.cli``)."""
     window_s = args.window_s
-    if not (math.isfinite(window_s) and window_s > 0):
-        return _usage(f"--window-s must be a finite number of seconds above 0, got {window_s}")
+    if not (math.isfinite(window_s) and window_s >= MIN_WINDOW_S):
+        return _usage(
+            f"--window-s must be a finite number of seconds of at least {MIN_WINDOW_S}, "
+            f"got {window_s}"
+        )
     if args.warmup and args.run_dir is None:
         return _usage("--warmup reads the warm-up of a harness run: it needs --run-dir")
     profile = None
@@ -1813,12 +1971,21 @@ def run_from_args(args: argparse.Namespace) -> int:
         window_s=window_s,
         warmup=args.warmup,
     )
+    if out is not None:
+        # Written before the console summary: a verdict line is printed only
+        # when its exit code is the process's, and exit 1 only ever means a
+        # NOT_SHOWN evaluation, never a failed write.
+        try:
+            write_report(out, report)
+        except OSError as exc:
+            if isinstance(exc, FileExistsError) and out.exists():
+                return _usage(f"refusing to overwrite {out}: the report is write-once")
+            return _usage(
+                f"cannot write {out}: {exc}; no report was written and no verdict "
+                "is given"
+            )
     for line in console_lines(report):
         print(line)
     if out is not None:
-        try:
-            write_report(out, report)
-        except FileExistsError:
-            return _usage(f"refusing to overwrite {out}: the report is write-once")
         print(f"wrote {out}")
     return VERDICT_EXIT[report["evaluation"]["verdict"]]

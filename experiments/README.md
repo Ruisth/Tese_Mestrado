@@ -672,6 +672,17 @@ using the run loop's own functions (`scheduled_times`, `make_devices`,
 `split_rate`, `make_message_id`, the scenario's injector and windows). It
 reads only. Each section names its clock:
 
+- **Seal and inputs** (before anything is judged). With `--run-dir`, the run
+  directory's `SHA256SUMS` must exist and verify, checked with the harness's
+  own verification (`egw_experiments.checksums`, as `verify-checksums` and
+  `analyze` use it). A run that is unsealed, or whose seal does not verify,
+  is `NOT_SHOWN` with every seal problem named: an edit made the same way to
+  both copies of `sent_events.jsonl` passes every other check. The harness
+  manifest, when present, must be a readable JSON object, or the run is
+  `NOT_SHOWN`; a missing one only empties the elapsed section. Both manifests
+  are read as strict JSON: NaN, Infinity and numbers beyond the range of a
+  float are `NOT_SHOWN`, and so is a schedule with no event. A bare simulator
+  directory (`--sim-dir`) has no seal of its own, and none is verified.
 - **Identity and count** (exact, no tolerance). The manifest must agree with
   `make_devices` and with `split_rate` (exact floats). Every line must be a
   JSON object with exactly the record fields and types. Every record must be
@@ -690,8 +701,8 @@ reads only. Each section names its clock:
   section reports lateness percentiles and **overruns**: events published at
   or after the next scheduled instant, which start a catch-up. It also
   reports catch-up bursts, publish gaps, the span against the scheduled span,
-  and per-window counts (`--window-s`, a reporting resolution outside the
-  verdict).
+  and per-window counts (`--window-s`, at least 0.1 s, a reporting resolution
+  outside the verdict).
 - **PUBACK observations** (host clock; never in the verdict). Nulls are split
   into structural (zero wait budget), overrun and other. A **null puback is
   not loss**: it was not observed within the wait budget.
@@ -710,10 +721,13 @@ Verdicts and exit codes:
 | exit | verdict | when |
 |---|---|---|
 | 0 | `SUSTAINED` | identity exact, `completed` true, every tolerance of an **approved** profile entry met |
-| 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, or the root copy differs. Nothing is judged as passed |
-| 2 | usage | bad arguments, an invalid tolerance file, or an `--out` that exists or lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS` |
+| 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, the root copy differs, a run directory whose `SHA256SUMS` is missing or does not verify, an unreadable harness manifest, NaN or Infinity in a manifest, or an empty schedule. Nothing is judged as passed |
+| 2 | usage | bad arguments, a `--window-s` below 0.1 s, an invalid tolerance file, or an `--out` that exists, lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS`, or cannot be written (then no report is written and no verdict is given) |
 | 3 | `NOT_CERTIFIED` | metrics computed, but no profile, a profile not `approved`, no entry for the condition, or timing not applicable (`dropout-reconnect`) |
 | 4 | `NOT_SUSTAINED` | an approved tolerance exceeded, or a whole run with `completed` false |
+
+Exit 1 only ever means a `NOT_SHOWN` evaluation, and with `--out` its report
+is written.
 
 **No tolerance is adopted.** The check has no built-in tolerance. A profile
 (`--tolerances`) is a JSON object with exactly these keys: `profile_id`,
@@ -733,11 +747,12 @@ decision record.
 `--warmup` checks the warm-up (`logs/warmup/<run_id>.warmup/`); that report
 is labelled and never stands for the measured run. The `execution_mode` is
 copied from the harness manifest when it records one, and never inferred.
-The JSON report (`--out`) is written once. It is refused inside the run or
-simulator directory and inside any directory sealed by `SHA256SUMS`. Keep it
-beside `raw/`, never under `processed/` or `figures/`, which `analyze`
-cleans. The check changes
-no validity rule and no run's validity.
+The JSON report (`--out`) is written once, before the console summary. It is
+refused inside the run or simulator directory and inside any directory sealed
+by `SHA256SUMS`; an `--out` that cannot be written exits 2, leaves no partial
+file and prints no verdict. Keep it beside `raw/`, never under `processed/`
+or `figures/`, which `analyze` cleans. The check changes no validity rule and
+no run's validity.
 
 ### 4. Analyze (any number of times, reproducibly)
 

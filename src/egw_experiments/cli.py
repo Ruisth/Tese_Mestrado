@@ -843,7 +843,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--run-dir",
         type=Path,
         default=None,
-        help="a harness run directory (raw/<run_id>/): the simulator output is "
+        help="a harness run directory (raw/<run_id>/): its SHA256SUMS must "
+        "exist and verify, and its harness manifest, when present, must be a "
+        "readable JSON object (otherwise NOT_SHOWN); the simulator output is "
         "read from logs/simulator/<run_id>/ and compared byte for byte with the "
         "root copy of sent_events.jsonl; the harness manifest gives the "
         "elapsed-time stamps and the execution_mode it recorded (copied, never "
@@ -854,8 +856,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="a bare simulator output directory (<output>/<run_id>/ with "
-        "manifest.json and sent_events.jsonl): no root-copy check and no "
-        "elapsed-time section",
+        "manifest.json and sent_events.jsonl): no seal, no root-copy check and "
+        "no elapsed-time section",
     )
     p_gen.add_argument(
         "--events",
@@ -881,7 +883,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=1.0,
         help="width of the per-window count comparison, a reporting resolution "
-        "outside the verdict (default 1.0 s, the period of the 1 Hz samplers)",
+        "outside the verdict (default 1.0 s, the period of the 1 Hz samplers; "
+        "at least 0.1 s, a smaller value exits 2)",
     )
     p_gen.add_argument(
         "--warmup",
@@ -897,7 +900,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="write the JSON report to FILE once (an existing file is never "
         "replaced); refused inside the run or simulator directory and inside "
-        "any directory sealed by SHA256SUMS. Suggested: "
+        "any directory sealed by SHA256SUMS; a FILE that cannot be written "
+        "exits 2 with no report and no verdict. Suggested: "
         "<base>/checks/generator/<run_id>.json, beside raw/ (analyze cleans "
         "processed/ and figures/)",
     )
