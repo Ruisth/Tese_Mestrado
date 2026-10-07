@@ -553,6 +553,94 @@ Bulky raw data stays out of normal Git history but is preserved in a
 versioned archive with SHA-256 checksums and its location recorded in the
 manifest/release (plan 5.8).
 
+### Generator check: `generator-check` (G4 pilot prerequisite P5)
+
+The plan checks generator delivery on every pilot run: a run whose generator
+could not sustain the requested rate is a pilot finding, not a measurement. A
+mean rate cannot show that. The simulator catches up after a stall, so a run
+with a mid-run stall has the count, identity set, first-to-last span and mean
+rate of a perfect run. `N / duration` and `(N - 1) / span` are reported only
+as a summary.
+
+```bash
+python -m egw_experiments generator-check --run-dir results/raw/<run_id> \
+    [--events results/raw/<run_id>/events.jsonl] [--tolerances FILE] \
+    [--window-s 1.0] [--warmup] [--out <base>/checks/generator/<run_id>.json]
+python -m egw_experiments generator-check --sim-dir <output>/<run_id> ...
+```
+
+The check rebuilds the run's exact schedule from the simulator manifest,
+using the run loop's own functions (`scheduled_times`, `make_devices`,
+`split_rate`, `make_message_id`, the scenario's injector and windows). It
+reads only. Each section names its clock:
+
+- **Identity and count** (exact, no tolerance). The manifest must agree with
+  `make_devices` and with `split_rate` (exact floats). Every line must be a
+  JSON object with exactly the record fields and types. Every record must be
+  a scheduled identity of this run, present once, with its UUID v5
+  `message_id`. The counts must equal the schedule and `totals`, the
+  invalid-event flags must be the injector's, and `publish_monotonic_ns`
+  must never decrease. The run root's `sent_events.jsonl` must be byte for
+  byte the simulator's.
+- **Generator timing** (host monotonic clock). `publish_monotonic_ns` is
+  taken just before the client's publish call. It measures **the client's
+  publish-call cadence, not broker ingress**: paho keeps at most 20 QoS 1
+  messages in flight and queues the rest locally. The simulator does not
+  record its schedule origin, so the origin is inferred as
+  `min(publish - scheduled offset)`. Lateness is therefore **relative**: it
+  omits one constant `c >= 0`, which the harness's start stamp bounds. The
+  section reports lateness percentiles and **overruns**: events published at
+  or after the next scheduled instant, which start a catch-up. It also
+  reports catch-up bursts, publish gaps, the span against the scheduled span,
+  and per-window counts (`--window-s`, a reporting resolution outside the
+  verdict).
+- **PUBACK observations** (host clock; never in the verdict). Nulls are split
+  into structural (zero wait budget), overrun and other. A **null puback is
+  not loss**: it was not observed within the wait budget.
+- **Controller acceptance** (guest monotonic clock; only with `--events`;
+  never in the verdict). This covers arrival and acknowledgement cadence,
+  unreadable lines and lines of other runs. **The controller's stamps are on
+  the guest clock and are never subtracted from or compared with host
+  stamps.** A served rate below the offered rate is a system observation,
+  not a generator shortfall.
+- **Elapsed** (harness stamps, host clock; non-certifying). This covers the
+  first publish after the measured start, the end after the last publish,
+  and the process time against the kill bound.
+
+Verdicts and exit codes:
+
+| exit | verdict | when |
+|---|---|---|
+| 0 | `SUSTAINED` | identity exact, `completed` true, every tolerance of an **approved** profile entry met |
+| 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, or the root copy differs. Nothing is judged as passed |
+| 2 | usage | bad arguments, an invalid tolerance file, or an `--out` that exists or lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS` |
+| 3 | `NOT_CERTIFIED` | metrics computed, but no profile, a profile not `approved`, no entry for the condition, or timing not applicable (`dropout-reconnect`) |
+| 4 | `NOT_SUSTAINED` | an approved tolerance exceeded, or a whole run with `completed` false |
+
+**No tolerance is adopted.** The check has no built-in tolerance. A profile
+(`--tolerances`) is a JSON object with exactly these keys: `profile_id`,
+`status` (`proposed` or `approved`), `approval` (null when proposed;
+`{approved_by, decision_record, date}` when approved), `rate_key` (the
+literal `"<scenario>@<aggregate rate>"`), `basis` and `conditions`. Each key
+of `conditions` is `<scenario>@<aggregate rate>`, matched to the manifest's
+rate by exact float equality, and holds `max_relative_lateness_ms`,
+`max_overrun_events` and `max_span_deviation_ms`. Only an `approved` profile
+certifies. A `proposed` one is evaluated and labelled non-certifying.
+[`g4-pilot/generator_tolerances.proposed.json`](g4-pilot/generator_tolerances.proposed.json)
+holds proposal A, `status: "proposed"`, with its basis (0 overruns, 20 ms
+relative lateness, 20 ms span deviation). Its baseline is an engineering
+basis only and is non-citable. Approval is the student's act, through a
+decision record.
+
+`--warmup` checks the warm-up (`logs/warmup/<run_id>.warmup/`); that report
+is labelled and never stands for the measured run. The `execution_mode` is
+copied from the harness manifest when it records one, and never inferred.
+The JSON report (`--out`) is written once. It is refused inside the run or
+simulator directory and inside any directory sealed by `SHA256SUMS`. Keep it
+beside `raw/`, never under `processed/` or `figures/`, which `analyze`
+cleans. The check changes
+no validity rule and no run's validity.
+
 ### 4. Analyze (any number of times, reproducibly)
 
 ```bash
