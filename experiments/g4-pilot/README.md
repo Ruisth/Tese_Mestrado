@@ -330,8 +330,9 @@ table is then recomputed.
 
 **Reserve.** 2,100 s is kept back in every session and never given to a row: 900 s for evidence recovery after an
 interruption (recorder cleanup, the run's `events.jsonl`, the guest's `/tmp` captures, `local_export recover`) and
-1,200 s for the controlled close (the per-container stop limits, the QEMU-end wait of 180 s, the rootfs hash and the
-export). The G3 closes took 62-86 s.
+1,200 s for the controlled close (the per-container stop limits, the QEMU-end wait of 180 s, the rootfs hash, the
+export, and the session's one `analyze` run of the pilot base with its copy, bounded at 360 s and 90 s). The G3
+closes took 62-86 s.
 
 **Session budgets.**
 - Session A (rows 1 to 4): `B_A = 18,000 s` (5 h 00 min). Row 4 needs `3,900 + 9,806 + 2,100 = 15,806 s` when it
@@ -356,8 +357,10 @@ export). The G3 closes took 62-86 s.
 4. QEMU is never killed or forced off without the student's decision. A QEMU that has not ended 180 s after the
    power-off is reported and left for that decision.
 
-**Disk floors.** These are checked before the open and before each row with `df -B1`, never `df -h`. Below a floor,
-the row is not started.
+**Disk floors.** These are checked before the open and before each row, never with `df -h`. On the host the check
+uses `df -B1`. On the guest it uses `df -P -k`, because the guest's BusyBox `df` has no `-B` option; the unit is
+read from the header, and each floor is judged on `(KiB - 1) x 1024` bytes, a lower bound. Below a floor, the row
+is not started.
 - Host, both `C:` (`/mnt/c`) and the WSL root `/`: at least 50 GiB available. The WSL ext4 is a VHDX on `C:`, so `C:`
   binds. The guest's sparse images can add at most about 31.2 GiB, and the pilot's evidence is about 0.2-0.25 GB.
   50 GiB keeps a margin of about 50 % for what is not bounded. At preparation, 548.7 GB and 842.4 GB were available.
