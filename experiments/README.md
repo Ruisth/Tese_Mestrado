@@ -160,6 +160,22 @@ python -m egw_experiments campaign \
     --restart-cmd 'ssh vm docker compose -f /opt/egw/src/deployment/compose.yaml restart controller'
 ```
 
+*(Note 2026-10-07, execution mode.)* This invocation and the `run` example
+in 2a target a native ARM VM. This harness has no native provenance
+capture, so a run declared `--execution-mode native-kvm` or `native-metal`
+is recorded and sealed but invalid (check N0), and a run without
+`--execution-mode` is invalid too (check P0); no native procedure is
+documented here. For the emulated system, the integrated QEMU guest, the
+declaration is `tcg-emulated` and the generator's target is the loopback
+forward, as in the runbook's `harness_cmd`
+([`docs/setup/qemu_integrated_gateway.md`](../docs/setup/qemu_integrated_gateway.md),
+6.1; see "Execution mode and core provenance" below):
+
+```bash
+python -m egw_experiments campaign ... \
+    --execution-mode tcg-emulated --broker 127.0.0.1 --port 8883
+```
+
 Behaviour:
 
 - **Frozen order, never reshuffled.** `--only-conditions a,b` and
@@ -275,6 +291,12 @@ python -m egw_experiments run --run-id nominal-r01 \
     --collector-stop-cmd  "ssh vm 'systemctl stop egw-resources-{run_id}'" \
     --collector-fetch-cmd 'sh src/deployment/scripts/fetch-collector-output.sh vm /tmp/resources-{run_id}.csv "{dest}"'
 ```
+
+Like the `campaign` example in 2, this one targets a native ARM VM, where
+no declaration can give a valid run (N0, or P0 without the flag: see the
+note there). On the integrated QEMU guest add `--execution-mode
+tcg-emulated` with `--broker 127.0.0.1 --port 8883`, as the runbook's
+`harness_cmd` does.
 
 The manual equivalent (no hooks) still works, and is held to the same
 accounting — start the collector by hand, with the same service list,
@@ -482,7 +504,8 @@ python -m egw_experiments run --run-id <run_id> ... \
   environment-variable fallback: omitted, the run is still executed, recorded
   and sealed with `execution_mode: null`, and it is invalid ("an unset value
   invalidates the run"). Any other value from an API caller is refused with
-  exit 2 before anything is written. `collect` takes no such option. The mode
+  exit 2 before anything is written, by `run` and by `campaign` alike (no
+  campaign log line, no run directory). `collect` takes no such option. The mode
   is never inferred, from the guest's labels or from anything else.
 - **Three environment records** per simulator run. `sut_environment.json`
   (the guest's, ingested, unchanged). `loadgen_environment.json` (the
@@ -494,13 +517,20 @@ python -m egw_experiments run --run-id <run_id> ... \
   capture, start, end}`), two snapshots read from the harness host's `/proc`:
   the host (uname, boot id, CPUs, `MemTotal`, CPU model, WSL); the single
   process whose `argv[0]` is `qemu-system-aarch64` (none or several: none is
-  chosen), with its pid, start time, exact command line and its sha256, the
+  chosen), with its pid, start time (in ticks after the boot, and in UTC as
+  the host's `btime` read at that snapshot plus those ticks, with the `btime`
+  and `clock_ticks_per_second` used), exact command line and its sha256, the
   executable's sha256 and `--version` line, the parsed options, the kernel's
-  sha256, the rootfs drive and its image name, whether `/dev/kvm` is open
+  sha256 (`kernel_hash_basis: "file on disk at capture"`: the `-kernel` file
+  as it is when the snapshot is taken; QEMU reads it only at its start, so a
+  kernel replaced on disk since then, by a rebuilt deploy directory for
+  instance, would be hashed in its place, and no check detects that), the
+  rootfs drive and its image name, whether `/dev/kvm` is open
   and the accelerator derived from these; and two derived facts,
   `colocated_with_loadgen` (that process is in this host's table and the
   boot id is the load generator's) and `generator_target_is_this_guest` (the
-  broker is a loopback address and a forward of that QEMU takes the port).
+  broker is a loopback address and a forward of that QEMU on a loopback,
+  empty or `0.0.0.0` host address takes the port).
   Whatever cannot be read is null, with its reason in the snapshot's
   `problems`; nothing is guessed. The start snapshot is taken before the
   collector start hook and the end snapshot after the collector stop hook,
@@ -513,29 +543,45 @@ python -m egw_experiments run --run-id <run_id> ... \
   "image_digests"` and the configuration identity's `controller_image_id`,
   each null when not read), `provenance` (`{rule: "G4 core provenance (plan
   655-661)", declared_by: "--execution-mode", execution_mode, checks:
-  [{check, ok, detail}], problems}`) and `config.cli.execution_mode`.
+  [{check, ok, detail}], problems}`, the advisory G5 also carrying
+  `advisory: true`) and `config.cli.execution_mode`.
 - **The checks** (`environment.provenance_checks`, on the run's own files).
   P0: the mode is set and known. For `tcg-emulated`: H1 one QEMU process at
   the start; H2 the same pid, start time, boot id and command line at the
   end; H3 the accelerator is TCG and KVM is not requested; H4 the
   co-location is a boolean the two boot ids bear out; H5 the generator's
-  target enters that QEMU; G1 the guest record's role is `sut`; G2 its
-  `uname_a` states aarch64; G3 its `nproc` equals `-smp`; G4 one of its
-  labels states emulation; G5 it was captured after the QEMU process started
-  (so the guest record must be captured in the session of the run, not
-  copied from an earlier one); L1 the load generator runs on the
-  hypervisor's host machine; I1 the QEMU executable, the kernel and the
-  rootfs image are identified. For `native-kvm` and `native-metal`, N0
-  always fails (no native provenance capture exists in this harness), and
-  N1 (a local QEMU takes the generator's port), N2 (a guest label states
-  emulation) and N3 (the guest is `egw-qemu-integrated`) name each
-  contradiction found: the wrong-provenance regression. No check has a
-  tolerance.
-- **The rule.** Each failed check is one validity reason,
-  `provenance: <check>: <detail>`, on every simulator run, timed or not. No
-  allow flag suppresses it and no deviation is recorded; the run is still
-  sealed, so the evidence of an invalid run stays verifiable. The rule is
-  gated by the `provenance` record, never by the version string.
+  target enters that QEMU (a loopback broker, and a forward of the port on a
+  loopback, empty or `0.0.0.0` host address); G1 the guest record's role is
+  `sut`; G2 its `uname_a` states aarch64; G3 its `nproc` equals `-smp`; G4
+  one of its labels states emulation; G5 (advisory, below) its
+  `captured_utc` is not earlier than the QEMU start; L1 the load generator
+  runs on the hypervisor's host machine; I1 the QEMU executable, the kernel
+  and the rootfs image are identified. For `native-kvm` and `native-metal`,
+  N0 always fails (no native provenance capture exists in this harness),
+  and N1 (a local QEMU takes the generator's port, on the same addresses as
+  H5), N2 (a guest label states emulation) and N3 (the guest is
+  `egw-qemu-integrated`) name each contradiction found: the
+  wrong-provenance regression. No check has a tolerance.
+- **G5 is advisory (2026-10-07).** It compares the guest's own wall clock
+  with a QEMU start derived on the host as `btime` + start ticks / tick
+  rate, and `btime` is read at the start snapshot: every step of the host's
+  wall clock since QEMU started moves the derived start, and WSL2's wall
+  clock drifted by -5.1 % to +3.0 % against uptime over the G3 sessions. G5
+  can therefore fail a good run late in a long session, and it has no upper
+  bound: a guest record captured in a later session passes it. Its verdict
+  is recorded with `advisory: true` and a detail naming the `btime` used,
+  and it is never a validity reason (`environment.provenance_problems` skips
+  it, for `run`, `collect` and the analysis alike). G5 does not show that the
+  guest record belongs to the run's session. The guard against a stale
+  record is the session procedure: the preflight
+  (`tools/session/preflight.sh`) captures the guest record after the boot,
+  and that capture, not one from an earlier boot, is the one passed with
+  `--sut-env-from` (runbook 5.8 and its `harness_cmd`).
+- **The rule.** Each failed check, except the advisory G5, is one validity
+  reason, `provenance: <check>: <detail>`, on every simulator run, timed or
+  not. No allow flag suppresses it and no deviation is recorded; the run is
+  still sealed, so the evidence of an invalid run stays verifiable. The rule
+  is gated by the `provenance` record, never by the version string.
 - **Old and external runs.** A manifest without the `provenance` record
   (every run sealed before 1.5) keeps its bytes, seal and verdict: `collect`
   judges it as before and adds no key and no file to it. External runs
@@ -567,8 +613,11 @@ problems recorded at run time are re-applied unchanged.
 A run whose manifest carries the `provenance` record (manifest 1.5) is
 checked again on its own sealed files, a `--sut-env-from` given here
 included; the hypervisor record is a run-time measurement and is never
-captured after the fact. A run without the record is judged as before and
-gains no key and no file (see "Execution mode and core provenance" above).
+captured after the fact. No check shows that a guest record given here was
+captured in the run's session (G5 is advisory and has no upper bound): only
+the capture of the run's own session belongs here. A run without the record
+is judged as before and gains no key and no file (see "Execution mode and
+core provenance" above).
 
 Raw evidence already present is never overwritten. After the data freeze
 (`data-v1`) raw directories are immutable and `collect` must not be used.
@@ -1148,8 +1197,8 @@ Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
 Every simulator run whose manifest carries the `provenance` record (manifest
 1.5), timed or not, also REQUIRES a declared execution mode that its three
 environment records bear out (see "Execution mode and core provenance"): an
-unset mode and each failed check is a reason, with NO override, and the run
-is still sealed.
+unset mode and each failed check, except the advisory G5, is a reason, with
+NO override, and the run is still sealed.
 
 A failed requirement marks the manifest `validity: "invalid"` with
 explicit reasons — it never degrades to a warning, because CPU/RAM
@@ -1227,7 +1276,8 @@ from a label and never with a default (`execution_mode_status` in
   always did. Nothing is fabricated for it: `raw/` is never touched, its
   `execution_mode` cell stays blank, and its bytes and seal are unchanged;
 - `recorded` — a provenance record, a declared mode in
-  `tcg-emulated`/`native-kvm`/`native-metal`, and no failed check when the
+  `tcg-emulated`/`native-kvm`/`native-metal`, and no failed check (the
+  advisory G5 aside) when the
   provenance checks (`egw_experiments.environment.provenance_checks`, the
   same function the harness and `collect` use) are applied again to the
   run's sealed `sut_environment.json`, `hypervisor_environment.json` and
