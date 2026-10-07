@@ -1,0 +1,12 @@
+script run: sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (<S>/g3/t6prep/g3_battery.sh, run in place; its rows: <S>/g3/t6prep/rows, manifest sha256 7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47, t6.sh sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377)
+## 2026-10-07T11:13:00Z scenario supp-hang; host uptime 345.59 s
+bench scripts (sha256, first 16 characters): bs4_run.sh 116aaa90713a0bca, bs4_setup.sh 256a58eaf4c49f3a, bs4_env.sh 826b47e6e1c786fd, bs4_stubs.py 664b1471e2d2a243, bs4_harness.py 679dc276e52aa17d, bs4_src.sh 265bdcb397a83d01
+setup failed:
+module stubs installed in mod/stubs: curl killall pkill python python3 scp sleep ss ssh timeout
+stub guest state (mod/state): broker.guest controller.guest docker-events.guest identity_capture metrics.json remote_events.jsonl
+module stub clone (mod/clone/tools/session): events_capture.sh proof_fetch_sut_log.sh
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+gate record: S3's sealed container_identities.txt, sha256 a713c8ba15548631b4e2576ff30c7636c79565c7d3d82bcad3a2cdb6978cac86
+real plan copied: sha256 61d55940fcccdb942ff508ab6fc920b0fa163837ef7459438d789a1879b1eaac (NOT c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60)

@@ -1,0 +1,145 @@
+script run: sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (<S>/g3/t6prep/g3_battery.sh, run in place; its rows: <S>/g3/t6prep/rows, manifest sha256 7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47, t6.sh sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377)
+## 2026-10-07T11:14:04Z scenario supp-retry; host uptime 407.96 s
+bench scripts (sha256, first 16 characters): bs4_run.sh 116aaa90713a0bca, bs4_setup.sh 256a58eaf4c49f3a, bs4_env.sh 826b47e6e1c786fd, bs4_stubs.py 664b1471e2d2a243, bs4_harness.py 679dc276e52aa17d, bs4_src.sh 265bdcb397a83d01
+drivers of the copy before the stubs: 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed (the recorded drivers_sha256)
+collector of the copy: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97
+test module imported: test_runbook_itest_helpers.py sha256 b63ef7d88ae22e623bf381ef0dc3e6fbfbf050d966d5b0e09cc961ee169d83be; runbook sha256 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+gate record: S3's sealed container_identities.txt, sha256 a713c8ba15548631b4e2576ff30c7636c79565c7d3d82bcad3a2cdb6978cac86
+real plan copied: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60 (the value of the brief)
+bench plan after plan-supplement --entry g3-t6 (merged code): sha256 61d55940fcccdb942ff508ab6fc920b0fa163837ef7459438d789a1879b1eaac (the value of the brief, 61d55940...), 96 entries; the last: controller_restart-r04 planned 1715385812
+EXPECTED: try 1 copies 3 of the 4 files (the scp of cli.stderr fails), ends 1, its INCOMPLETE staging folder is kept; try 2 keeps the four files; close; the package holds KEEP_DIR and the incomplete folder.
+
+=== g3_battery.sh open S4
+-> exit 0
+## 2026-10-07T11:14:04Z up=408 open S4: steps script <S>/g3/t6prep/g3_battery.sh sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+## 2026-10-07T11:14:04Z up=408 candidate identities
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  <bench>/repo/docs/setup/qemu_integrated_gateway.md
+collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  <bench>/repo/src/deployment/scripts/collect-resources.sh
+## 2026-10-07T11:14:04Z up=408 row files of S4 against <S>/g3/t6prep/rows/rows.manifest.json
+row file t6.sh: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377 = sha256_after of the manifest (row t6, step 1, 12167 bytes)
+## 2026-10-07T11:14:04Z up=408 run ids of S4 unused on the host
+plan entry controller_restart-r04: status=planned seed=1715385812 condition=controller_restart duration_s=600 warmup_s=0
+fresh on the host: controller_restart-r04 (planned, no raw directory, no <bench>/home/egw-tcg/itest/controller_restart-r04.*)
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): <bench>/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): <bench>/out/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+## 2026-10-07T11:14:04Z up=408 guest root file system before the boot
+rootfs ext4: 6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  <bench>/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4 (the value the close of S3's second opening recorded)
+## 2026-10-07T11:14:04Z up=408 keepalive
+keepalive: pid 318 'sleep 43200', parent 317 (Relay(318)), running for 404 s, about 42796 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 60 s, about 43140 s left
+keepalive: attached, about 43140 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-07T11:14:04Z up=408 UP0=408 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-07T11:14:04Z up=408 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/egw-exec/g3-t6-s4/S4-guest_session_open.console.txt)
+guest_session_open.sh exit=0
+## 2026-10-07T11:14:05Z up=409 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/egw-exec/g3-t6-s4/S4-preflight.console.txt)
+preflight.sh exit=0
+labels: QEMU/TCG and ARM64 EMULATED are present
+harness input now: <bench>/home/egw-tcg/sut_environment.json sha256 92d03e649db850554b24c3656757a4f1601855e1042753764c7a63011f6bd626
+## 2026-10-07T11:14:05Z up=409 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/egw-exec/g3-t6-s4/S4-gate_health.console.txt)
+gate_health.sh exit=0
+## 2026-10-07T11:14:05Z up=409 run ids of S4 unused on the guest (read-only listing)
+fresh on the guest: controller_restart-r04
+## 2026-10-07T11:14:05Z up=409 session S4 is open: <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S4
+CHECK ok: the session is open
+CHECK ok: the clone's collector is compared with S4's COLLECTOR_SHA
+CHECK ok: the runbook is the merged blob
+CHECK ok: repo_identity names the merged drivers
+CHECK ok: S2's t6 attempt admitted in the WSL attempts directory
+CHECK ok: S2's t6 attempt admitted under output_test/runs/2026-10-03/
+CHECK ok: r04 is 'planned' in the plan
+CHECK ok: r04 is fresh on the host
+CHECK ok: r04 is fresh on the guest
+CHECK ok: the root file system read is 6fce1688...
+CHECK ok: the expected root file system is S4's
+CHECK ok: the preflight driver ended 0
+CHECK ok: the environment copy ran
+CHECK ok: the gate driver ran
+CHECK ok: no exception is examined or applied (case-insensitive 'exception')
+CHECK ok: the session's state: open
+CHECK ok: the state file is in the script's default state directory <EXEC>/g3-t6-s4: exists
+CHECK ok: steps_script_sha256 recorded by open: 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+--- the fake process that stands for QEMU after the open: pid 2845 alive, start tick 40899
+
+=== g3_battery.sh row t6 (detached, as ops/g3_go.sh starts it)
+CHECK ok: the harness stand-in is asleep inside the run: exists
+
+=== g3_battery.sh term t6
+-> exit 0
+## 2026-10-07T11:16:21Z up=542 term t6: the process group 4110 (row state 'running', step 't6')
+TERM sent to the process group 4110 (exit 0). KILL is never sent.
+CHECK ok: exit status 0: term t6
+CHECK ok: the row's attempt finished 'interrupted' and exported
+CHECK ok: F1 reproduced: the recorder unit is left active on the stub guest: active
+--- the fake QEMU after the term: pid 2845 alive, start tick 40899
+CHECK ok: bench copy: events_capture.sh is now the REAL one of 1fd9792 (sha256): b06b8678023dba80e42e315204d87638c3e50aadea6b74d2e0fc0926f7a4536c
+
+=== ops/g3_recorder_cleanup.sh (sha256 71ff2ceb496ae60d71ef50bb076f10f5d8bb798422afa97ad1a3dd1b239d7b3b)
+-> exit 0 after 0 s
+    | ## 2026-10-07T11:16:22Z recorder cleanup of controller_restart-r04: session <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01
+    | events_capture.sh: <bench>/repo/tools/session/events_capture.sh (sha256 b06b8678023dba80e42e315204d87638c3e50aadea6b74d2e0fc0926f7a4536c); this script sha256 71ff2ceb496ae60d71ef50bb076f10f5d8bb798422afa97ad1a3dd1b239d7b3b
+    | KEEP_DIR: <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04; each try bounded by timeout 120 s; at most 3 tries
+    | ## 2026-10-07T11:16:22Z try 1 of 3 (timeout 120 s)
+    | events_capture: /tmp/egw-events-controller_restart-r04/cli.stderr was not copied from the guest
+    | STOP: events_capture: 3 of the recorder's 4 files copied, kept INCOMPLETE in <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04.copy.yZ7JY8 (not the run's capture, not <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04); NONE kept in <bench>/egw-exec/attempts/20261007T11140
+    | try 1: exit 1
+    | kept INCOMPLETE (not the run's capture, not KEEP_DIR): <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04.copy.yZ7JY8: events.partial.jsonl lifecycle.txt start-facts.txt 
+    | ## 2026-10-07T11:16:22Z try 2 of 3 (timeout 120 s)
+    | events_capture: cleanup: the recorder's 4 files kept in <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04 (a partial capture, not the run's)
+    | try 2: exit 0
+    | kept INCOMPLETE (not the run's capture, not KEEP_DIR): <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04.copy.yZ7JY8: events.partial.jsonl lifecycle.txt start-facts.txt 
+    | OK: the recorder egw-events-controller_restart-r04 is stopped and its partial capture is kept in <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01/recovery/events-partial-controller_restart-r04 (try 2): 'close' may run
+CHECK ok: exit status 0: the new script
+CHECK ok: try 1 ended 1
+CHECK ok: try 1's STOP names the incomplete copy
+CHECK ok: the script names the kept incomplete folder
+CHECK ok: try 2 ended 0
+CHECK ok: OK after try 2
+CHECK ok: the incomplete staging folder holds 3 files: 3
+CHECK ok: KEEP_DIR/lifecycle.txt equals the guest's: 1c94ad50131336210fbe94e94b54bdb3e4122f60dded9a1b51a9b5005d45a823
+CHECK ok: KEEP_DIR/start-facts.txt equals the guest's: ff4925005584503d3cddaf097f2c819333b4a315d81c170a42c0567218e7466c
+CHECK ok: KEEP_DIR/events.partial.jsonl equals the guest's events.jsonl: 15139d4541c6b8377ef733d2eee2c91fc6eaad08f066839c770c61c4da7f7685
+CHECK ok: KEEP_DIR/cli-stderr.txt equals the guest's cli.stderr: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+CHECK ok: no docker-events.log is written for the partial capture: 0
+CHECK ok: the fake QEMU before the close (same pid and start tick): pid 2845 alive, start tick 40899
+CHECK ok: no stop of the stack or power-off reached the stub guest before close: 0
+CHECK ok: the script never runs close: 0
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-07T11:16:23Z up=543 close S4: <bench>/egw-exec/attempts/20261007T111405Z_guest-session_attempt01
+keepalive: pid 318 'sleep 43200', parent 317 (Relay(318)), running for 539 s, about 42661 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 196 s, about 43004 s left
+keepalive: attached, about 43004 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-07T11:16:23Z up=544 no recorder or collector unit active (read-only)
+## 2026-10-07T11:16:23Z up=544 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-07T11:16:23Z up=544 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/egw-exec/g3-t6-s4/S4-guest_session_close.console.txt)
+guest_session_close.sh exit=0
+rootfs ext4 after the close: 6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4 (the image is mutable: a later boot expects this value)
+## 2026-10-07T11:16:23Z up=544 session S4 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+CHECK ok: the session's state after close: closed
+CHECK ok: an open session (current_session) after close: absent
+CHECK ok: the fake QEMU after close: not running
+CHECK ok: the session's package exists: exists
+CHECK ok: the package's SHA256SUMS verify: verified
+CHECK ok: the package holds recovery/events-partial-controller_restart-r04/events.partial.jsonl, equal to KEEP_DIR's: 15139d4541c6b8377ef733d2eee2c91fc6eaad08f066839c770c61c4da7f7685
+CHECK ok: the package holds recovery/events-partial-controller_restart-r04/lifecycle.txt, equal to KEEP_DIR's: 1c94ad50131336210fbe94e94b54bdb3e4122f60dded9a1b51a9b5005d45a823
+CHECK ok: the package holds recovery/events-partial-controller_restart-r04/start-facts.txt, equal to KEEP_DIR's: ff4925005584503d3cddaf097f2c819333b4a315d81c170a42c0567218e7466c
+CHECK ok: the package holds recovery/events-partial-controller_restart-r04/cli-stderr.txt, equal to KEEP_DIR's: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+CHECK FAILED: the package's SHA256SUMS lists the partial capture - no line matches:   ./recovery/events-partial-controller_restart-r04/events\.partial\.jsonl$
+CHECK ok: the package also holds the incomplete folder: 1
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+CHECK ok: the script under test after the scenario (sha256): 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+CHECK ok: the row file after the scenario (sha256): ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377
+
+## 2026-10-07T11:16:24Z SCENARIO supp-retry: FAIL (1 of 55 checks failed)

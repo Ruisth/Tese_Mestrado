@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1399 (prompt removed)
++++ b/rows/t4-reset.sh
+@@ -1 +1 @@
+-run_test itest-dup-02 42 --scenario smoke --duration 60
++run_test itest-dup-02-q1 42 --scenario smoke --duration 60

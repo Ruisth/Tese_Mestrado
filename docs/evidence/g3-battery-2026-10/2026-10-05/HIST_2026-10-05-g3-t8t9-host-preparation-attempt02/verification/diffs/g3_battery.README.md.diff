@@ -1,0 +1,25 @@
+--- first-preparation/g3_battery.README.md
++++ g3_battery.README.md
+@@ -10,6 +10,22 @@
+ row, retries no step, and never uses `ACCEPT_UNACCOUNTED`, `--force` or `local_export set run_id=…`. G3 stays
+ `Not decided` whatever S3 shows.
+ 
++**Second opening of S3 (authorisation of 2026-10-05,
++`output_test/decisions/2026-10-05_g3-s3b-exception-authorisation.md`).** This copy differs from the sealed S3 script
++(`a77bd201…`) in three places only, each marked `S3, second opening` in the script: (1) the root file system expected
++before the boot is `b48b010d…`, the value the first opening's close recorded; (2) the state directory is
++`~/egw-exec/g3-t8t9-s3-attempt02` (the first opening's, `~/egw-exec/g3-t8t9-s3`, is kept as it is); (3) the authorised
++exception for `collector-duration`: when the frozen `preflight.sh` ends exit 3, `open` checks the sha256 of
++`s3b_preflight_exception.py` (beside the script) and runs it, read-only, on the preflight attempt and the driver's
++console. It goes on ONLY when the checker shows the attempt identified and complete (its own DRIVER RESULT line,
++exported), the fifteen other steps ended 0 with every capture complete, `collector-check` with no problem and six
++services, no observed system fault and nothing skipped, and the sole failure the numeric duration judgement of
++`collector-duration` on a readable, consistent report. Then it records `preflight_exception=proceeded under the
++authorised T8/T9 exception …` and prints `PROCEEDED UNDER THE AUTHORISED T8/T9 EXCEPTION`; the preflight stays failed
++and invalid, and the environment copy, the fresh gate, every identity check and the units' absence stay mandatory.
++Anything else is the halt it always was (`HALT: preflight.sh exited 3 and the authorised exception does NOT apply`).
++The checker's lines are kept in `<state>/S3-preflight-exception.txt`. The exception covers this session only.
++
+ **What the script never does (decision summary, condition B).** It never runs `compose up`, `start` or `restart`, nor
+ `docker start`; it never re-launches QEMU and never signals it. The one stack start of S3 is the frozen preflight
+ driver's, at `open`: that is the prescribed one. After the reboot of test 8 nothing on the guest is started, restarted

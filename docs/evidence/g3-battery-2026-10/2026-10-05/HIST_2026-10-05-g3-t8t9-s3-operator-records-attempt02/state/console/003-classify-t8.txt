@@ -1,0 +1,5 @@
+## 2026-10-05T12:05:09Z up=2629 classify t8: pass (finished, valid/pass)
+exported 20261005T115131Z_g3-qualification-t8_attempt02: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-05\20261005T115131Z_g3-qualification-t8_attempt02 (verified, 83 files, 0 excluded)
+DRIVER RESULT 20261005T115131Z_g3-qualification-t8_attempt02: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t8: pass. Every Expected item of test 8 met on the corrected procedure: reboot shown inside the same QEMU process (boot id fc85c700 -> 0a780c6e, guest answering 27 s after the rebo..."
+row t8: classified 'pass'; driver code 0; export: verified -> /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-05/20261005T115131Z_g3-qualification-t8_attempt02
+Next: the next row of session S3, or 'close' after the last one.

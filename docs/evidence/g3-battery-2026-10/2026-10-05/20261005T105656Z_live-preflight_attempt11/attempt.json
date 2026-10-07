@@ -1,0 +1,31 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-05T10:56:56.920503Z",
+  "emulated": true,
+  "ended_utc": "2026-10-05T11:01:42.336711Z",
+  "expected_artefacts": [],
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "8e492613d36490a560ae56beabd6d5c2c01a8696",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "invalid",
+  "next_action": "STOP: read console/ and analysis/collector/; the instrumentation is not usable",
+  "pid": 94606,
+  "purpose": "engineering",
+  "reason": "the preflight ran, but mandatory instrumentation failed: the collector did not hold the duration it declares, or the shortfall could not be judged (see console/ and commands.jsonl); ",
+  "run_id": "20261005T105656Z_live-preflight_attempt11",
+  "scenario": "live preflight",
+  "seed": null,
+  "started_utc": "2026-10-05T10:56:57.012466Z",
+  "status": "failed",
+  "system_outcome": "inconclusive",
+  "validity_note": "",
+  "workload": {
+    "collector_samples": "45 s at 1 s",
+    "expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+    "session": "20261005T105614Z_guest-session_attempt10"
+  }
+}

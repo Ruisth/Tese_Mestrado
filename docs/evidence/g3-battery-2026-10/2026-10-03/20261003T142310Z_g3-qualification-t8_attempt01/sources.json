@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-03T14:23:10.939615Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-post-reboot-01-q1",
+      "role": "itest run itest-post-reboot-01-q1: the simulator's directory with the fetched events.jsonl, and every itest-post-reboot-01-q1.* sibling the helpers write (transcript, marker, metrics, twins, reconcile, copies, .sut/)",
+      "siblings_glob": "itest-post-reboot-01-q1.*"
+    },
+    {
+      "added_utc": "2026-10-03T14:23:10.974795Z",
+      "kind": "other",
+      "path": "/home/ruisth/egw-tcg/itest/itest-reboot-q1.boot_id.pre",
+      "role": "T8's prefix files: the boot id before the reboot and the pre-reboot and post-reboot twin snapshots",
+      "siblings_glob": "itest-reboot-q1.*"
+    }
+  ]
+}

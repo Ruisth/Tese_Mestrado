@@ -1,0 +1,67 @@
+
+=== bench preflight3: script under test 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (g3_battery.sh of the preparation, run in place)
+drivers of the copy before the stubs: 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+helpers e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb, tunnel.sh 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (from the runbook blob 317165936abe...)
+
+=== g3_battery.sh open S4
+-> exit 1
+## 2026-10-05T18:51:59Z up=2010 open S4: steps script <S>/g3/t6prep/g3_battery.sh sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+## 2026-10-05T18:51:59Z up=2010 candidate identities
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  <bench>/repo/docs/setup/qemu_integrated_gateway.md
+collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  <bench>/repo/src/deployment/scripts/collect-resources.sh
+## 2026-10-05T18:51:59Z up=2010 row files of S4 against <bench>/rows/rows.manifest.json
+row file t6.sh: sha256 18fb4c6bc2338183fb1aa0e3c1d45dc1cc60f6f4a4af4e9db6e8af70dfe7a563 = sha256_after of the manifest (row t6, step 1, 1417 bytes)
+rows.manifest.json sha256: b8eea704a6303f348ef13352114f08fc7126e54835d0c7d6f77ace94d7f98c0f
+## 2026-10-05T18:52:00Z up=2010 run ids of S4 unused on the host
+plan entry controller_restart-r04: status=planned seed=1715385812 condition=controller_restart duration_s=600 warmup_s=0
+fresh on the host: controller_restart-r04 (planned, no raw directory, no <bench>/home/egw-tcg/itest/controller_restart-r04.*)
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): <bench>/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): <bench>/out/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+## 2026-10-05T18:52:00Z up=2010 guest root file system before the boot
+rootfs ext4: 6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  <bench>/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4 (the value the close of S3's second opening recorded)
+## 2026-10-05T18:52:00Z up=2010 keepalive
+keepalive: pid 400 'sleep 43200', parent 396 (Relay(400)), running for 2002 s, about 41198 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 60 s, about 43140 s left
+keepalive: attached, about 43140 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T18:52:00Z up=2010 UP0=2010 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T18:52:00Z up=2010 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/egw-exec/g3-t6-s4/S4-guest_session_open.console.txt)
+DRIVER RESULT 20261005T185200Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+guest_session_open.sh exit=0
+## 2026-10-05T18:52:00Z up=2010 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/egw-exec/g3-t6-s4/S4-preflight.console.txt)
+DRIVER RESULT 20261005T185200Z_live-preflight_attempt01: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=unknown export=exported
+preflight.sh exit=3
+HALT: preflight.sh exited 3; see <bench>/egw-exec/g3-t6-s4/S4-preflight.console.txt
+CHECK ok: exit status 1: open S4 halts
+CHECK ok: HALT: preflight.sh exited 3
+CHECK ok: no exception is examined or applied
+CHECK ok: no environment copy
+CHECK ok: no gate driver
+CHECK ok: session-S4.env: state halted
+CHECK ok: session-S4.env: preflight_exit=3
+
+=== g3_battery.sh row t6
+-> exit 2
+## 2026-10-05T18:52:00Z up=2011 row t6 (session S4): steps script sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+REFUSED: session S4 is recorded 'halted', not open
+CHECK ok: exit status 2: row t6 refused
+CHECK ok: row t6: the session is recorded halted, not open
+CHECK ok: no t6 attempt was created
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-05T18:52:00Z up=2011 close S4: <bench>/egw-exec/attempts/20261005T185200Z_guest-session_attempt01
+keepalive: pid 400 'sleep 43200', parent 396 (Relay(400)), running for 2003 s, about 41197 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 61 s, about 43139 s left
+keepalive: attached, about 43139 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T18:52:01Z up=2011 no recorder or collector unit active (read-only)
+## 2026-10-05T18:52:01Z up=2011 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-05T18:52:01Z up=2011 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/egw-exec/g3-t6-s4/S4-guest_session_close.console.txt)
+DRIVER RESULT 20261005T185200Z_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+guest_session_close.sh exit=0
+## 2026-10-05T18:52:01Z up=2011 session S4 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: session-S4.env: state closed
+
+=== bench preflight3: 12 checks, 0 failed
+RESULT preflight3: PASS

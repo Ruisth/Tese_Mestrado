@@ -1,0 +1,166 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+R=itest-invalid-01-q1; F3=used; [ ! -e $P/$R ] && ssh egw-tcg "[ ! -e /opt/egw/deployment/data/events/$R ]" && F3=fresh; if [ "$F3" = fresh ]; then T0_3=$(guest_epoch) && run_test $R 42 --scenario invalid-payload --duration 120; RT=$?; else RT=used; stop "test 3: $R is not fresh (F3='$F3': $P/$R exists on the host, the guest holds an event log of it, or the guest did not answer) - a run id used before is never judged, so the simulator was NOT started and nothing was published: choose a NEW run id"; fi     # F3: whether the run id was fresh before this run on the host ('pre' refuses a used one) AND on the guest, whose event log of a run id persists and is appended to and which 'pre' cannot see (a guest that does not answer leaves F3 'used'), so on a fresh one every file under $P/$R and every line of the fetched log are this run's, and on any other nothing is started (Section 7, rule 1: a failed precondition publishes nothing); the guest epoch before the test's first action bounds its controller log (fifth line); UNVERIFIED: the guest freshness read on the real guest (Appendix B, item 24)
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 9744 9744 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 3303.58 s, end 3435.06 s, elapsed 131.48 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T15:53:26Z -> 2026-10-02T15:55:31Z and bash SECONDS elapsed 125 s, recorded only
+{
+  "label": "before",
+  "seed": 42,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-smoke-03-q1",
+        "last_seq": 29,
+        "last_message_id": "50f585d4-9895-513e-bf84-f1b6bf9d22ea",
+        "last_ts": "2026-10-02T15:22:50.481Z",
+        "accepted_count": 980
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-smoke-03-q1",
+        "last_seq": 5,
+        "last_message_id": "a6968c47-a740-5f8f-a143-eed03ac1fe90",
+        "last_ts": "2026-10-02T15:22:46.481Z",
+        "accepted_count": 183
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-smoke-03-q1",
+        "last_seq": 299,
+        "last_message_id": "262d9dd1-7bcd-5ee3-b28d-2b9d71e97c08",
+        "last_ts": "2026-10-02T15:22:51.382Z",
+        "accepted_count": 9184
+      }
+    }
+  }
+}
+egw_simulator: scenario=invalid-payload seed=42 run_id=itest-invalid-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=120.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=1344 intended_invalid=67 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-invalid-01-q1
+marker monotonic_ns=3520454389982 lag_s=0.15
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 11088 11021 67 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 3618.31 s, end 3749.77 s, elapsed 131.46 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T15:58:24Z -> 2026-10-02T16:00:29Z and bash SECONDS elapsed 125 s, recorded only
+OUTCOME RECONCILIATION itest-invalid-01-q1: published=1344 with_logged_outcome=1344 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=1344 {'accepted': 1277, 'rejected': 67, 'duplicate': 0, 'failed': 0, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-invalid-01-q1",
+        "last_seq": 119,
+        "last_message_id": "77107fc9-718f-5013-bfa1-af866e2ee4e0",
+        "last_ts": "2026-10-02T15:57:25.224Z",
+        "accepted_count": 1094
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-invalid-01-q1",
+        "last_seq": 23,
+        "last_message_id": "6dde222c-8e0d-5271-9ce2-b141d3b3f069",
+        "last_ts": "2026-10-02T15:57:21.224Z",
+        "accepted_count": 206
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-invalid-01-q1",
+        "last_seq": 1199,
+        "last_message_id": "0f92b148-9a33-5ff1-97fa-97a00930e6b9",
+        "last_ts": "2026-10-02T15:57:26.124Z",
+        "accepted_count": 10324
+      }
+    }
+  }
+}
+{
+  "run_id": "itest-invalid-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 1344,
+  "sent_valid": 1277,
+  "intended_invalid_sent": 67,
+  "delivered_unique": 1277,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 67,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 1277,
+  "latency_count": 1277,
+  "latency_ms_p50": 2359.954528,
+  "latency_ms_p95": 4453.592931200001,
+  "latency_ms_max": 4803.812944,
+  "marker_lag_s": 0.15,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 1344,
+    "intended_invalid": 67,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}
+5689c879-5f50-49ed-8303-0d42c4898beb smartwatch: existed_before=True accepted_count 980 -> 1094 (delta 114); accepted records in events.jsonl 114; last_run_id itest-invalid-01-q1 last_seq 119: OK
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9 smart_ring: existed_before=True accepted_count 183 -> 206 (delta 23); accepted records in events.jsonl 23; last_run_id itest-invalid-01-q1 last_seq 23: OK
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 smart_clothing: existed_before=True accepted_count 9184 -> 10324 (delta 1140); accepted records in events.jsonl 1140; last_run_id itest-invalid-01-q1 last_seq 1199: OK
+/metrics accepted: 9744 -> 11021 (delta 1277); events.jsonl 1277: OK
+/metrics rejected: 0 -> 67 (delta 67); events.jsonl 67: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics dropped: 0 -> 0 (delta 0)
+TEST STATUS itest-invalid-01-q1: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.
+C3=stop; [ "$F3" = fresh ] && ssh egw-tcg "cat /opt/egw/deployment/data/events/$R/events.jsonl" | cmp -s - $P/$R/events.jsonl && keep $P/$R/events.jsonl $P/$R.events.post-drain.jsonl && C3=ok || stop "test 3: no copy of the events fetched after the drain of this run (F3='$F3': a run id used before, on the host or on the guest, is never judged; on a fresh one the precondition failed, 'finish' stopped before its fetch - a drain that gave up -, or the fetched file is not the guest's whole log - a fetch that failed part-way, or a line appended after it), or it was not kept - test 3 is NOT evaluated"     # 'finish' (6.1) fetches events.jsonl only after its 'drained' (wait && drained && fetch): on a fresh run id that file is the end of test 3's planned collection, kept here write-once under test 6's name before anything could fetch it again - also when 'finish' stopped AFTER its fetch (RT not 0: 'accounted' naming a message without a logged outcome, for instance), so that such a message is judged on the next line and fails test 3; a drain that gave up stopped 'finish' before its fetch, so there is no copy; and the file is kept only when it is, byte for byte, the guest's log read again here (cmp): a fetch that failed part-way leaves a partial file, which is no copy; UNVERIFIED: the whole-log comparison on the real guest (Appendix B, item 24)
+[ "$C3" = ok ] && $REC acceptance $P/$R --events $P/$R.events.post-drain.jsonl || stop "test 3: the per-identity acceptance check was not run (C3='$C3'), could not read its inputs (exit 1: test 3 NOT evaluated) or found a valid message never accepted in the post-drain copy (exit 4: test 3 FAILS)"     # every valid message (not intended_invalid) needs an accepted line of this run in the copy; no timestamp is read, so a late acceptance counts; UNVERIFIED: on a real event log (Appendix B, item 24)
+ACCEPTANCE BY THE END OF THE DRAIN itest-invalid-01-q1 (itest-invalid-01-q1.events.post-drain.jsonl): valid=1277 accepted by the end of the drain=1277 never accepted=0
+-> OK: every valid message of itest-invalid-01-q1 has an accepted line in itest-invalid-01-q1.events.post-drain.jsonl (a late acceptance counts: no deadline is applied)
+[ "$RT" = 0 ] && python3 - ~/egw-tcg/itest/$R <<'EOF' || stop "test 3: not evaluated (RT='$RT') or the evaluation script failed"
+import json, sys
+d = sys.argv[1]
+sent = {json.loads(l)["message_id"]: json.loads(l) for l in open(f"{d}/sent_events.jsonl")}
+ev = [json.loads(l) for l in open(f"{d}/events.jsonl")]
+inv = {m for m, s in sent.items() if s.get("intended_invalid")}
+rej = {e["message_id"] for e in ev if e["outcome"] == "rejected"}
+acc = {e["message_id"] for e in ev if e["outcome"] == "accepted"}
+print("intended_invalid:", len(inv), "rejected:", len(rej), "intended_invalid accepted:", len(inv & acc), "valid rejected:", len(rej - inv))
+EOF
+intended_invalid: 67 rejected: 67 intended_invalid accepted: 0 valid rejected: 0
+[ "$RT" = 0 ] && sut_log controller $R "$T0_3" && python3 - ~/egw-tcg/itest/$R.sut/controller.log <<'EOF' || stop "test 3: the controller log bounded to this test was NOT read (RT='$RT', or sut_log stopped above), or it could not be counted - it shows no rejection, nor their absence"
+import json, sys
+n = rejected = 0
+first = None
+for line in open(sys.argv[1], encoding="utf-8"):
+    n += 1
+    try:
+        doc = json.loads(line.partition(" ")[2])
+    except ValueError:
+        continue
+    ctx = doc.get("context") if isinstance(doc, dict) else None
+    if isinstance(ctx, dict) and doc.get("message") == "telemetry event processed" and ctx.get("outcome") == "rejected":
+        rejected += 1
+        first = first or ctx.get("error")
+print("controller log of this test (%s): lines=%d rejected=%d first rejection error: %s" % (sys.argv[1], n, rejected, first))
+EOF
+proof_fetch_sut_log: controller: bounds since_guest_epoch=1790956404 (2026-10-02T15:53:24Z) until_guest_epoch=1790956832 (2026-10-02T16:00:32Z) first=2026-10-02T15:53:25.013435671Z last=2026-10-02T16:00:30.561633716Z excluded_before_since_lines=22886 excluded_sha256=485dac3463e7f9a57d72947c172db8155d9a19df12eb07b86265dda42c5b8972 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: controller: 1449 line(s), 353212 bytes, sha256 3c52d0835225ac12a6914082e19ef6be90d79a652a4df4afe70c026983e5f317, written to /home/ruisth/egw-tcg/itest/itest-invalid-01-q1.sut/controller.log
+controller log of this test (/home/ruisth/egw-tcg/itest/itest-invalid-01-q1.sut/controller.log): lines=1449 rejected=67 first rejection error: schema validation failed: $.accel_y: 'not-a-number' is not of type 'number'

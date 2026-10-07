@@ -1,0 +1,163 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+  it differs from the final bytes (g3_battery.sh, sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-04T23:01:13Z scenario s10a; host uptime 7453.16 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh fc1a6629d55c11aa, bs3_setup.sh c59f48bc4a8c4ea9, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: a line starting with STOP: in the console of (a) (printed by the stub openssl: the real line (a) has no helper call that prints one): (b), (c), (d)+(e) and the exposure step are not run.
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-04T23:01:15Z up=7455 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+## 2026-10-04T23:01:15Z up=7455 candidate identities
+## 2026-10-04T23:01:16Z up=7455 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-04T23:01:16Z up=7456 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T23:01:16Z up=7456 guest root file system before the boot
+## 2026-10-04T23:01:16Z up=7456 keepalive
+## 2026-10-04T23:01:16Z up=7456 UP0=7456 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-04T23:01:16Z up=7456 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-04T23:01:17Z up=7457 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-04T23:01:18Z up=7458 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-04T23:01:19Z up=7459 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-04T23:01:19Z up=7459 session S3 is open: <bench>/egw-exec/attempts/20261004T230116Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 258720 alive, start tick 745684
+
+=== g3_battery.sh row t8
+-> exit 0
+## 2026-10-04T23:01:19Z up=7459 row t8 (session S3): steps script sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T23:01:20Z up=7460 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261004T230118Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-04T23:01:20Z up=7460 row t8: attempt <bench>/egw-exec/attempts/20261004T230120Z_g3-qualification-t8_attempt02 (ceiling 135 min, counted from the row's start at up=7460 and shared by everything the row does: the operator enforces it with 'term t8')
+## 2026-10-04T23:01:21Z up=7461 row t8: the gate's read before the row
+## 2026-10-04T23:01:21Z up=7461 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=258720 start=745684 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 258720
+## 2026-10-04T23:01:21Z up=7461 row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+drained: queue_depth 0 and identical counters on 2 consecutive readings over 0 s (0 0 0 true 2026-09-18T10:00:00Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 7461.80 s, end 7461.80 s, 
+reboot command sent (status not tested) 2026-10-04T23:01:22Z: boot id aaaaaaaa-0000-4000-8000-00000000000a, 6 running container ids, 3 event directory names and /var/lib/docker on /dev/vdb saved
+## 2026-10-04T23:01:22Z up=7461 row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T23:01:22Z up=7461 row t8: waiting at most 48 s from the end of step a (up=7461) for the guest to answer over ssh with a boot id other than the saved one aaaaaaaa-0000-4000-8000-00000000000a (read-only polls every 3 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (u
+poll 1 at +0 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 2 at +4 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 3 at +7 s (bounded to 20 s): exit status 0 and the answer is the boot id bbbbbbbb-0000-4000-8000-00000000000b, not the saved pre-reboot id aaaaaaaa-0000-4000-8000-00000000000a: the guest answers from another boot (step b judges and records the reboot)
+## 2026-10-04T23:01:28Z up=7468 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+QEMU PROCESS: pid=258720 start=745684 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU PROCESS UNCHANGED: the same process as before step a (pid 258720, started at tick 745684) with the same disks (file=<bench>/rootfs.ext4;file=<bench>/data.img); whether the guest rebooted inside it is what step b shows
+## 2026-10-04T23:01:28Z up=7468 row t8: step t8-b-wait-boot-id (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=rebooting)
+carrier set by the steps script from the record of the step before: T8=rebooting
+REBOOT SHOWN: boot id aaaaaaaa-0000-4000-8000-00000000000a -> bbbbbbbb-0000-4000-8000-00000000000b (read 1 of at most 90, 10 s apart, each bounded to 20 s)
+## 2026-10-04T23:01:28Z up=7468 row t8: step t8-b-wait-boot-id ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T23:01:28Z up=7468 row t8: step t8-c-unaided (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=rebooted)
+carrier set by the steps script from the record of the step before: T8=rebooted
+CONTAINERS RETURNED UNAIDED: the 6 container ids saved before the reboot are listed running again (read 2 of at most 90, 10 s apart, each bounded to 20 s; these lines started nothing)
+PERSISTENCE SHOWN: 3 event directories intact; /var/lib/docker on /dev/vdb
+observations read, exit 0 (not a judgement: the set, the directories and the mount source above are)
+## 2026-10-04T23:01:38Z up=7478 row t8: step t8-c-unaided ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T23:01:38Z up=7478 row t8: step t8-d-tunnel (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=returned)
+carrier set by the steps script from the record of the step before: T8=returned
+TUNNEL CLOSED
+TUNNEL UP
+## 2026-10-04T23:01:39Z up=7478 row t8: step t8-d-tunnel ended; hx status 0 (the status of its last line; never a verdict)
+TUNNEL CHECK: the master answers on <bench>/home/egw-tcg/tunnel.ctl
+## 2026-10-04T23:01:39Z up=7479 row t8: step t8-e-state (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=reconnected)
+carrier set by the steps script from the record of the step before: T8=reconnected
+CONTROLLER PROCESS NEW: started_at 2026-09-18T10:00:00Z -> 2026-10-03T14:26:40Z
+## 2026-10-04T23:01:39Z up=7479 row t8: step t8-e-state ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T23:01:39Z up=7479 row t8: step t8-f-smoke (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=ok)
+carrier set by the steps script from the record of the step before: T8=ok
+drained: queue_depth 0 and identical counters on 2 consecutive readings over 0 s (0 0 0 true 2026-10-03T14:26:40Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 7479.33 s, end 7479.34 s, 
+drained: queue_depth 0 and identical counters on 2 consecutive readings over 0 s (0 0 0 true 2026-10-03T14:26:40Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 7479.42 s, end 7479.42 s, 
+TEST STATUS itest-post-reboot-01-q2: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.
+## 2026-10-04T23:01:39Z up=7479 row t8: step t8-f-smoke ended; hx status 0 (the status of its last line; never a verdict)
+row t8: step f shows 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: - this script records no halt for the smoke. That is NOT a verdict: lost and late_confirmations are read by the operator, and a value above 0 is a classified FAILURE of T8, not a halt (T9 may then start, with this row's gate passed)
+## 2026-10-04T23:01:39Z up=7479 row t8: the gate after the row
+TUNNEL CHECK: the master answers on <bench>/home/egw-tcg/tunnel.ctl
+## 2026-10-04T23:01:40Z up=7479 GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-04T23:01:40Z up=7480 row t8 ended after 19 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t8 <status> <validity> <outcome> <reason> <next-action>'.
+CHECK ok: exit status 0: row t8
+CHECK ok: no halt was recorded by row t8
+recorded steps of row t8, in order: guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh x3 t8-qemu-after t8-b-wait-boot-id t8-c-unaided t8-d-tunnel t8-tunnel-check t8-e-state t8-f-smoke t8-previous-boot-journal t8-previous-boot-oom guest-state-after gate-healthy gate-units gate-tunnel-check
+CHECK ok: the steps of row t8 are the expected ones
+CHECK ok: step b: REBOOT SHOWN
+CHECK ok: step c: CONTAINERS RETURNED UNAIDED
+CHECK ok: step c: PERSISTENCE SHOWN
+CHECK ok: step e: CONTROLLER PROCESS NEW
+CHECK ok: step f: the smoke's status line of a completed procedure
+CHECK ok: the QEMU process after the wait is the one recorded before step a
+CHECK ok: the gate of row t8 passed
+CHECK ok: the name of the new attempt ends _g3-qualification-t8_attempt02: _g3-qualification-t8_attempt02
+CHECK ok: reboot commands sent to the stub guest: 1
+CHECK ok: the fake QEMU process after the row: pid 258720 alive, start tick 745684
+
+=== g3_battery.sh classify t8 finished valid pass bench: scenario s10a bench: none
+-> exit 0
+## 2026-10-04T23:01:40Z up=7480 classify t8: pass (finished, valid/pass)
+row t8: classified 'pass'; driver code 0; export: verified -> <bench>/out/runs/2026-10-04/20261004T230120Z_g3-qualification-t8_attempt02
+Next: the next row of session S3, or 'close' after the last one.
+CHECK ok: exit status 0: classify t8
+--- bench: from here on the stub simulator leaves no directory and exits 1 (a refused connection)
+
+=== g3_battery.sh row t9
+-> exit 0
+## 2026-10-04T23:01:40Z up=7480 row t9 (session S3): steps script sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+## 2026-10-04T23:01:41Z up=7481 row t9: attempt <bench>/egw-exec/attempts/20261004T230141Z_g3-qualification-t9_attempt01 (ceiling 25 min, counted from the row's start at up=7480 and shared by everything the row does: the operator enforces it with 'term t9')
+## 2026-10-04T23:01:41Z up=7481 row t9: the gate's read before the row
+## 2026-10-04T23:01:41Z up=7481 row t9: step t9-a (hx: one shell, the row file is sourced)
+STOP: bench: a line starting with STOP: in the console of (a) (printed by the stub openssl)
+exit=1
+## 2026-10-04T23:01:41Z up=7481 row t9: step t9-a ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T23:01:41Z up=7481 row t9: step t9-a printed STOP: (or left no console): t9-b and every later step were NOT run (runbook line 15)
+## 2026-10-04T23:01:41Z up=7481 row t9: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+TUNNEL CHECK: the master answers on <bench>/home/egw-tcg/tunnel.ctl
+## 2026-10-04T23:01:42Z up=7481 GATE t9: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-04T23:01:42Z up=7481 row t9 ended after 1 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+  <bench>/egw-exec/attempts/20261004T230141Z_g3-qualification-t9_attempt01/console/002-t9-a.stdout.txt:5:STOP: bench: a line starting with STOP: in the console of (a) (printed by the stub openssl)
+Next: read the console and the files, then 'classify t9 <status> <validity> <outcome> <reason> <next-action>'.
+CHECK ok: exit status 0: row t9 (its later steps are not run; the row itself records no halt)
+recorded steps of row t9, in order: guest-state-before t9-a guest-state-after guest-state-delta gate-healthy gate-units gate-tunnel-check
+CHECK ok: the steps of row t9 are the expected ones
+CHECK ok: the script says which steps were not run
+--- STOP: lines of step t9-a: STOP: bench: a line starting with STOP: in the console of (a) (printed by the stub openssl)|
+CHECK ok: a line starting with STOP: in the console of t9-a
+CHECK ok: the exposure step was run: no
+--- the row's record: step_not_run=t9-b and later: t9-a printed STOP:
+
+=== g3_battery.sh classify t9 failed valid fail bench: scenario s10a bench: none
+-> exit 0
+## 2026-10-04T23:01:42Z up=7482 classify t9: valid SUT failure (failed, valid/fail)
+row t9: classified 'valid SUT failure'; driver code 1; export: verified -> <bench>/out/runs/2026-10-04/20261004T230141Z_g3-qualification-t9_attempt01
+Next: the next row of session S3, or 'close' after the last one.
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-04T23:01:42Z up=7482 close S3: <bench>/egw-exec/attempts/20261004T230116Z_guest-session_attempt01
+## 2026-10-04T23:01:42Z up=7482 no recorder or collector unit active (read-only)
+## 2026-10-04T23:01:42Z up=7482 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-04T23:01:42Z up=7482 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/state/S3-guest_session_close.console.txt)
+## 2026-10-04T23:01:43Z up=7483 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-04T23:01:44Z SCENARIO s10a: PASS (24 checks)

@@ -1,0 +1,22 @@
+base: sha256 2221ff2f5e2c2671f22e3f5b13455457eb3516f46ea156fe8e55f2fab98d3f3b
+new: sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+changed          : close_outside (-1 +2 lines)
+changed          : cmd_close (-2 +3 lines)
+changed          : cmd_open (-28 +21 lines)
+changed          : cmd_row (-4 +27 lines)
+changed          : cmd_status (-1 +3 lines)
+changed          : fresh_row (-1 +7 lines)
+only in the new  : gate_images_check (18 lines)
+changed          : main (-1 +1 lines)
+changed          : open_label (-1 +3 lines)
+changed          : rootfs_after_close (-1 +1 lines)
+only in the new  : row_attempt_suffix (1 lines)
+changed          : row_itest_ids (-1 +1 lines)
+changed          : row_session (-2 +1 lines)
+changed          : session_rows (-1 +1 lines)
+changed          : steps_t8 (-10 +60 lines)
+changed          : t8_qemu (-0 +4 lines)
+changed          : t8_wait_ssh (-26 +52 lines)
+changed          : verify_candidate (-1 +13 lines)
+changed          : want_sha (-1 +1 lines)
+identical (63)   : add_src attempt_state check_guest_state close_interrupted close_rows cmd_classify cmd_term console_of data_disk_header delta_counts driver_run_id environment_copy finish_log fresh_itest fresh_plan gate_after halt keepalive_check manifest_tool no_stop on_signal one_line open_halt open_interrupted own_pgid plan_entry receipt_state refuse register_late register_sources row_alive row_ceiling_min row_files row_fresh_ids row_group row_harness_id row_id_note row_restarted row_set row_workload_ids run_driver run_row_steps run_step say sha_of snapshot stamp start_log state_add state_get state_set steps_t9 t8_evidence t8_shown take_turn tee_safe text_arg tunnel_now units_script up_now verify_row_files wait_group wsl_boot_id

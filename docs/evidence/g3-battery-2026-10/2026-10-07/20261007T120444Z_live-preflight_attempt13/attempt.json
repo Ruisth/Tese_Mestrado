@@ -1,0 +1,31 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-07T12:04:44.675699Z",
+  "emulated": true,
+  "ended_utc": "2026-10-07T12:09:37.120762Z",
+  "expected_artefacts": [],
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "1fd9792bb76f02c6948f33887207dba4837202db",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "smartwatch slice, then the nominal entry",
+  "pid": 20661,
+  "purpose": "engineering",
+  "reason": "stack up through the interlock; dev collector deployed and live-checked with six services",
+  "run_id": "20261007T120444Z_live-preflight_attempt13",
+  "scenario": "live preflight",
+  "seed": null,
+  "started_utc": "2026-10-07T12:04:44.771682Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "collector_samples": "45 s at 1 s",
+    "expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+    "session": "20261007T120357Z_guest-session_attempt12"
+  }
+}

@@ -1,0 +1,9 @@
+ok: runbook (the blob, as the clone's docs/setup/qemu_integrated_gateway.md) 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+ok: runbook lines 1624
+ok: the worktree's own runbook 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+ok: export tool src/egw_experiments/local_export.py 544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b
+ok: collector src/deployment/scripts/collect-resources.sh 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97
+ok: drivers (38 files, repo_identity's order) 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+ok: driver files counted 38
+ok: test module src/tests/test_runbook_itest_helpers.py of the worktree b63ef7d88ae22e623bf381ef0dc3e6fbfbf050d966d5b0e09cc961ee169d83be
+source ready (read-only): /tmp/g3-s4-bench/_src

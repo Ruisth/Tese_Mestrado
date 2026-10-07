@@ -1,0 +1,8 @@
+ Container egw-ditto-things-1  Stopping
+ Container egw-ditto-things-1  Stopped
+stop exit=0 state_before=running state_after_stop=exited 2026-10-03T14:10:56Z
+INTERRUPTION SHOWN: ditto-things went from 'running' to 'exited'
+ Container egw-ditto-things-1  Starting
+ Container egw-ditto-things-1  Started
+start exit=0 state_after_start=running state_before_start=exited 2026-10-03T14:11:55Z
+RECOVERY SHOWN: ditto-things is 'running' after start (it was 'exited' before the start)

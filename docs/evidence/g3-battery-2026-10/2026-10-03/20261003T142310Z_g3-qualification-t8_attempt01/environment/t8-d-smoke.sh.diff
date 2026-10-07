@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1492 (prompt removed)
++++ b/rows/t8-d-smoke.sh
+@@ -1 +1 @@
+-R=itest-post-reboot-01; run_test $R 42 --scenario smoke --duration 30
++R=itest-post-reboot-01-q1; run_test $R 42 --scenario smoke --duration 30

@@ -1,0 +1,213 @@
+## 2026-10-04T21:44:07Z script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-04T21:44:07Z up=2827 open S3: steps script <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+## 2026-10-04T21:44:07Z up=2827 candidate identities
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+Yocto checkout yocto/egw: HEAD=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+Yocto checkout: clean (0 porcelain lines)
+## 2026-10-04T21:44:07Z up=2827 row files of S3 against rows/rows.manifest.json
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+row file t9-a.sh: sha256 34fcbc12d6feb4b76a730664dbd47693120d455bea1dc787e3e0a13be4c36d26 = sha256_after of the manifest (row t9, step 1, 40 bytes)
+row file t9-b.sh: sha256 01274bf148695759a7c2408e22ab2405317cd2cfeec62042f6508a592ab0448b = sha256_after of the manifest (row t9, step 2, 40 bytes)
+row file t9-c.sh: sha256 ffe6f929da135c75afdc68111f6d2b66e6c6bf4812355b9c11e4b902e6b0bbd8 = sha256_after of the manifest (row t9, step 3, 40 bytes)
+row file t9-de.sh: sha256 8cbb90980d6627a34037ee9aeb6b5e46b553a6bdeb06096a0ba18c3950d3633b = sha256_after of the manifest (row t9, step 4, 153 bytes)
+row file t9-exposure.sh: sha256 d3a49efcb08261936c190b4a470523c1edd81a925f26e394c6de0007b6405961 = sha256_after of the manifest (row t9, step 5, 41 bytes)
+## 2026-10-04T21:44:07Z up=2827 run ids of S3 unused on the host
+fresh on the host: itest-reboot-q2
+fresh on the host: itest-post-reboot-01-q2
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+fresh on the host: itest-tls-wrongca-q2
+fresh on the host: itest-auth-wrongpw-q2
+fresh on the host: itest-notls-q2
+## 2026-10-04T21:44:07Z up=2827 guest root file system before the boot
+rootfs ext4: 22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd (the value S2's close recorded)
+## 2026-10-04T21:44:07Z up=2827 keepalive
+## 2026-10-04T21:44:07Z up=2827 UP0=2827 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-04T21:44:07Z up=2827 guest_session_open.sh (frozen driver, repo/tools/session/guest_session_open.sh; console state/S3-guest_session_open.console.txt)
+session open: egw-exec/attempts/20261004T214407Z_guest-session_attempt01 (bench stub)
+## 2026-10-04T21:44:07Z up=2827 preflight.sh (frozen driver, repo/tools/session/preflight.sh; console state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-04T21:44:08Z up=2828 gate_health.sh (frozen driver, repo/tools/session/gate_health.sh; console state/S3-gate_health.console.txt)
+## 2026-10-04T21:44:08Z up=2828 run ids of S3 unused on the guest (read-only listing)
+fresh on the guest: itest-reboot-q2
+fresh on the guest: itest-post-reboot-01-q2
+fresh on the guest: itest-tls-wrongca-q2
+fresh on the guest: itest-auth-wrongpw-q2
+fresh on the guest: itest-notls-q2
+## 2026-10-04T21:44:08Z up=2828 session S3 is open: egw-exec/attempts/20261004T214407Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+
+=== g3_battery.sh row t8
+-> exit 0
+## 2026-10-04T21:44:08Z up=2828 row t8 (session S3): steps script sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+Yocto checkout yocto/egw: HEAD=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+Yocto checkout: clean (0 porcelain lines)
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+session clock: NOW=2828 UP0=2827 elapsed=1 s (cutoff 10800 s)
+fresh on the host: itest-reboot-q2
+fresh on the host: itest-post-reboot-01-q2
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T21:44:08Z up=2828 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: egw-exec/attempts/20261004T214408Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-04T21:44:08Z up=2828 row t8: attempt egw-exec/attempts/20261004T214408Z_g3-qualification-t8_attempt02 (ceiling 135 min, counted from the row's start at up=2828 and shared by everything the row does: the operator enforces it with 'term t8')
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+## 2026-10-04T21:44:09Z up=2829 row t8: the gate's read before the row
+## 2026-10-04T21:44:09Z up=2829 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=84629 start=282768 disks=file=rootfs.ext4;file=data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 84629
+## 2026-10-04T21:44:09Z up=2829 row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+## 2026-10-04T21:44:09Z up=2829 row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:09Z up=2829 row t8: waiting at most 900 s from the end of step a (up=2829) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 10 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; n
+poll 1 at +0 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 2 at +10 s (bounded to 20 s): exit status 0 and the answer is the boot id 22222222-2222-4222-8222-222222222222, not the saved pre-reboot id 11111111-1111-4111-8111-111111111111: the guest answers from another boot (step b judges and records the reboot)
+## 2026-10-04T21:44:19Z up=2839 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+QEMU PROCESS: pid=84629 start=282768 disks=file=rootfs.ext4;file=data.img
+QEMU PROCESS UNCHANGED: the same process as before step a (pid 84629, started at tick 282768) with the same disks (file=rootfs.ext4;file=data.img); whether the guest rebooted inside it is what step b shows
+## 2026-10-04T21:44:19Z up=2839 row t8: step t8-b-wait-boot-id (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=rebooting)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+carrier set by the steps script from the record of the step before: T8=rebooting
+REBOOT SHOWN: boot id 11111111-1111-4111-8111-111111111111 -> 22222222-2222-4222-8222-222222222222 (bench fake of line b)
+## 2026-10-04T21:44:19Z up=2839 row t8: step t8-b-wait-boot-id ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:19Z up=2839 row t8: step t8-c-unaided (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=rebooted)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+carrier set by the steps script from the record of the step before: T8=rebooted
+CONTAINERS RETURNED UNAIDED: bench fake of line c
+PERSISTENCE SHOWN: bench fake of line c
+## 2026-10-04T21:44:19Z up=2839 row t8: step t8-c-unaided ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:19Z up=2839 row t8: step t8-d-tunnel (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=returned)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+carrier set by the steps script from the record of the step before: T8=returned
+## 2026-10-04T21:44:19Z up=2839 row t8: step t8-d-tunnel ended; hx status 0 (the status of its last line; never a verdict)
+TUNNEL CHECK: the master answers on home/egw-tcg/tunnel.ctl
+## 2026-10-04T21:44:20Z up=2839 row t8: step t8-e-state (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=reconnected)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+carrier set by the steps script from the record of the step before: T8=reconnected
+## 2026-10-04T21:44:20Z up=2839 row t8: step t8-e-state ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:20Z up=2839 row t8: step t8-f-smoke (hx: one shell, the row file is sourced; carrier set from the record of the step before: T8=ok)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+carrier set by the steps script from the record of the step before: T8=ok
+TEST STATUS itest-post-reboot-01-q2: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict (bench fake of line f).
+## 2026-10-04T21:44:20Z up=2840 row t8: step t8-f-smoke ended; hx status 0 (the status of its last line; never a verdict)
+row t8: step f shows 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: - this script records no halt for the smoke. That is NOT a verdict: lost and late_confirmations are read by the operator, and a value above 0 is a classified FAILURE of T8, not a halt (T9 may then start, with this row's gate passed
+## 2026-10-04T21:44:20Z up=2840 row t8: the gate after the row
+TUNNEL CHECK: the master answers on home/egw-tcg/tunnel.ctl
+## 2026-10-04T21:44:20Z up=2840 GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-04T21:44:20Z up=2840 row t8 ended after 12 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t8 <status> <validity> <outcome> <reason> <next-action>'.
+--- the t8 attempt's steps, in order: 001-guest-state-before 002-t8-qemu-before 003-t8-a-reboot 004-t8-wait-ssh 005-t8-wait-ssh 006-t8-qemu-after 007-t8-b-wait-boot-id 008-t8-c-unaided 009-t8-d-tunnel 010-t8-tunnel-check 011-t8-e-state 012-t8-f-smoke 013-t8-previous-boot-journal 014-t8-previous-boot-oom 015-guest-state-after 016-gate-healthy 017-gate-units 018-gate-tunnel-check 
+--- the row's state file: attempt_name=20261004T214408Z_g3-qualification-t8_attempt02;start_up=2828;ceiling_min=135;t8_run=s1;t8_qemu_before=pid=84629 start=282768 disks=file=rootfs.ext4;file=data.img;t8_wait=started up=2829, 0 s after step a ended (up=2829); budget 900 s from that instant; the row's start (up=2828) and its ceiling (135 min) are not reset;t8_ssh_answered=poll=2 at=+10s up=2839 boot_id=22222222-2222-4222-8222-222222222222;t8_qemu_after=exit=0 (0: the same process and disks as before step a);t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classification);t8_smoke=procedure complete: 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: (not a verdict);gate=pass;state=awaiting-classification;
+--- the workload field's authority text: G3 qualification, session S3: tests 8 and 9 only (request of 2026-10-04; decision summary output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md)
+--- the fake process that stands for QEMU: pid 84629 still running (never signalled by the script)
+
+=== g3_battery.sh classify t8 failed valid fail bench: the fake smoke printed lost and late_confirmations above 0 bench: none
+-> exit 0
+## 2026-10-04T21:44:20Z up=2840 classify t8: valid SUT failure (failed, valid/fail)
+row t8: classified 'valid SUT failure'; driver code 1; export: verified -> out/runs/2026-10-04/20261004T214408Z_g3-qualification-t8_attempt02
+Next: the next row of session S3, or 'close' after the last one.
+
+=== g3_battery.sh row t9
+-> exit 0
+## 2026-10-04T21:44:21Z up=2840 row t9 (session S3): steps script sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+Yocto checkout yocto/egw: HEAD=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+Yocto checkout: clean (0 porcelain lines)
+row file t9-a.sh: sha256 34fcbc12d6feb4b76a730664dbd47693120d455bea1dc787e3e0a13be4c36d26 = sha256_after of the manifest (row t9, step 1, 40 bytes)
+row file t9-b.sh: sha256 01274bf148695759a7c2408e22ab2405317cd2cfeec62042f6508a592ab0448b = sha256_after of the manifest (row t9, step 2, 40 bytes)
+row file t9-c.sh: sha256 ffe6f929da135c75afdc68111f6d2b66e6c6bf4812355b9c11e4b902e6b0bbd8 = sha256_after of the manifest (row t9, step 3, 40 bytes)
+row file t9-de.sh: sha256 8cbb90980d6627a34037ee9aeb6b5e46b553a6bdeb06096a0ba18c3950d3633b = sha256_after of the manifest (row t9, step 4, 153 bytes)
+row file t9-exposure.sh: sha256 d3a49efcb08261936c190b4a470523c1edd81a925f26e394c6de0007b6405961 = sha256_after of the manifest (row t9, step 5, 41 bytes)
+session clock: NOW=2841 UP0=2827 elapsed=14 s (cutoff 10800 s)
+fresh on the host: itest-tls-wrongca-q2
+fresh on the host: itest-auth-wrongpw-q2
+fresh on the host: itest-notls-q2
+## 2026-10-04T21:44:21Z up=2841 row t9: attempt egw-exec/attempts/20261004T214421Z_g3-qualification-t9_attempt01 (ceiling 25 min, counted from the row's start at up=2841 and shared by everything the row does: the operator enforces it with 'term t9')
+row file t9-a.sh: sha256 34fcbc12d6feb4b76a730664dbd47693120d455bea1dc787e3e0a13be4c36d26 = sha256_after of the manifest (row t9, step 1, 40 bytes)
+row file t9-b.sh: sha256 01274bf148695759a7c2408e22ab2405317cd2cfeec62042f6508a592ab0448b = sha256_after of the manifest (row t9, step 2, 40 bytes)
+row file t9-c.sh: sha256 ffe6f929da135c75afdc68111f6d2b66e6c6bf4812355b9c11e4b902e6b0bbd8 = sha256_after of the manifest (row t9, step 3, 40 bytes)
+row file t9-de.sh: sha256 8cbb90980d6627a34037ee9aeb6b5e46b553a6bdeb06096a0ba18c3950d3633b = sha256_after of the manifest (row t9, step 4, 153 bytes)
+row file t9-exposure.sh: sha256 d3a49efcb08261936c190b4a470523c1edd81a925f26e394c6de0007b6405961 = sha256_after of the manifest (row t9, step 5, 41 bytes)
+## 2026-10-04T21:44:21Z up=2841 row t9: the gate's read before the row
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-a (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-a ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-b (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-b ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-c (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-c ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-de (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-de ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:21Z up=2841 row t9: step t9-exposure (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+## 2026-10-04T21:44:22Z up=2841 row t9: step t9-exposure ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T21:44:22Z up=2841 row t9: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+TUNNEL CHECK: the master answers on home/egw-tcg/tunnel.ctl
+## 2026-10-04T21:44:22Z up=2842 GATE t9: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-04T21:44:22Z up=2842 row t9 ended after 1 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t9 <status> <validity> <outcome> <reason> <next-action>'.
+--- the t9 attempt's steps, in order: 001-guest-state-before 002-t9-a 003-t9-b 004-t9-c 005-t9-de 006-t9-exposure 007-guest-state-after 008-guest-state-delta 009-gate-healthy 010-gate-units 011-gate-tunnel-check 
+
+=== g3_battery.sh classify t9 finished valid pass bench: fake rows bench: none
+-> exit 0
+## 2026-10-04T21:44:22Z up=2842 classify t9: pass (finished, valid/pass)
+row t9: classified 'pass'; driver code 0; export: verified -> out/runs/2026-10-04/20261004T214421Z_g3-qualification-t9_attempt01
+Next: the next row of session S3, or 'close' after the last one.
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-04T21:44:22Z up=2842 close S3: egw-exec/attempts/20261004T214407Z_guest-session_attempt01
+## 2026-10-04T21:44:22Z up=2842 no recorder or collector unit active (read-only)
+## 2026-10-04T21:44:23Z up=2842 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-04T21:44:23Z up=2842 guest_session_close.sh (frozen driver, repo/tools/session/guest_session_close.sh; console state/S3-guest_session_close.console.txt)
+rootfs ext4 after the close: 22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd (the image is mutable: a later boot expects this value)
+## 2026-10-04T21:44:23Z up=2843 session S3 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+  1. verify every export (the export tool's own verification, then 'sha256sum -c' in each package), then seal the operator records (state: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<UTC date>-g3-t8t9-s3-operator-records;
+  2. write output_test/decisions/<date>_g3-t8-t9-results.md (each row's validity, functional outcome and timed delivery stated apart; no G3 claim);
+  3. release the keepalive client and the Windows keep-awake.
+
+=== g3_battery.sh status
+-> exit 0
+session S3: state=closed attempt=egw-exec/attempts/20261004T214407Z_guest-session_attempt01 UP0=2827
+  row t8: classified; gate=pass; class=valid SUT failure; driver code=1; export=verified -> out/runs/2026-10-04/20261004T214408Z_g3-qualification-t8_attempt02
+    attempt egw-exec/attempts/20261004T214408Z_g3-qualification-t8_attempt02
+  row t9: classified; gate=pass; class=pass; driver code=0; export=verified -> out/runs/2026-10-04/20261004T214421Z_g3-qualification-t9_attempt01
+    attempt egw-exec/attempts/20261004T214421Z_g3-qualification-t9_attempt01
+
+--- packages under the bench's output root: /tmp/g3-s3-op-s3/out/runs/2026-10-03/: 20261003T142310Z_g3-qualification-t8_attempt01 /tmp/g3-s3-op-s3/out/runs/2026-10-04/: 20261004T214407Z_guest-session_attempt01 20261004T214408Z_g2-gate-preconditions_attempt01 20261004T214408Z_g3-qualification-t8_attempt02 20261004T214408Z_live-preflight_attempt01 20261004T214421Z_g3-qualification-t9_attempt01 
+--- 'compose up', 'start' or 'restart' sent to the stub guest: 0
+--- processes of the bench left: 0
+## 2026-10-04T21:44:23Z ended

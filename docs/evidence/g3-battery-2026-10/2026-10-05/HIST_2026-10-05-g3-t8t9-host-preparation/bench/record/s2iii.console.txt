@@ -1,0 +1,235 @@
+script run: the FINAL bytes, <scratchpad>/g3/s3prep/g3_battery.sh, sha256 a77bd201a54d02620e625a620d2da796a8834289ec67daa808ed15324950f5cb
+## 2026-10-05T09:34:38Z scenario s2iii; host uptime 98.01 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh affd2cb43b5a4487, bs3_setup.sh 995fab22d656906d, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=0 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+bench keepalive: no keepalive client of wsl.exe runs on the host (2026-10-05) and the bench starts none: the steps script's keepalive_check is answered by the bench's ps stub, which adds a SYNTHETIC client (pid 4194301 'sleep 43200', parent 4194300 'Relay(bench)'; no process) to the listing that check reads; processes 'sleep N' with N of 3600 or more now on the host: 1
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: the guest never answers after the reboot: every poll ends 255 at once, one poll every 10 s, for 900 s of /proc/uptime from the end of step a; the last polls are bounded to what is left (below 20 s, never 0); then HALT 'reboot not shown within the wait', line b not run, QEMU not signalled; 'row t9' refused; 'close' halts because the guest does not answer.
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-05T09:34:42Z up=101 open S3: steps script <scratchpad>/g3/s3prep/g3_battery.sh sha256 a77bd201a54d02620e625a620d2da796a8834289ec67daa808ed15324950f5cb
+## 2026-10-05T09:34:42Z up=101 candidate identities
+## 2026-10-05T09:34:42Z up=101 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:34:42Z up=102 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:34:42Z up=102 guest root file system before the boot
+## 2026-10-05T09:34:42Z up=102 keepalive
+keepalive: pid 272 'sleep 43200', parent 271 (Relay(272)), running for 21 s, about 43179 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 62 s, about 43138 s left
+keepalive: attached, about 43179 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:34:43Z up=102 UP0=102 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T09:34:43Z up=102 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-05T09:34:43Z up=102 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-05T09:34:45Z up=104 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-05T09:34:46Z up=105 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-05T09:34:47Z up=106 session S3 is open: <bench>/egw-exec/attempts/20261005T093443Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 10413 alive, start tick 10249
+
+=== g3_battery.sh row t8
+-> exit 1
+## 2026-10-05T09:34:47Z up=106 row t8 (session S3): steps script sha256 a77bd201a54d02620e625a620d2da796a8834289ec67daa808ed15324950f5cb
+keepalive: pid 272 'sleep 43200', parent 271 (Relay(272)), running for 26 s, about 43174 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 66 s, about 43134 s left
+keepalive: attached, about 43174 s left (needed: 9900 s). The Windows keep-awake stays the operator's own check.
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:34:48Z up=107 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261005T093445Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-05T09:34:48Z up=107 row t8: attempt <bench>/egw-exec/attempts/20261005T093448Z_g3-qualification-t8_attempt02 (ceiling 135 min, counted from the row's start at up=107 and shared by everything the row does: the operator enforces it with 'term t8')
+## 2026-10-05T09:34:49Z up=109 row t8: the gate's read before the row
+## 2026-10-05T09:34:50Z up=109 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=10413 start=10249 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 10413
+## 2026-10-05T09:34:50Z up=109 row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 130 s (0 0 0 true 2026-09-18T10:00:00Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 110.15 s, end 241.02 s,
+reboot command sent (status not tested) 2026-10-05T09:37:00Z: boot id aaaaaaaa-0000-4000-8000-00000000000a, 6 running container ids, 3 event directory names and /var/lib/docker on /dev/vdb saved
+## 2026-10-05T09:37:00Z up=241 row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T09:37:00Z up=241 row t8: waiting at most 900 s from the end of step a (up=241) for the guest to answer over ssh with a boot id other than the saved one aaaaaaaa-0000-4000-8000-00000000000a (read-only polls every 10 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (u
+poll 1 at +0 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 2 at +10 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 3 at +20 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 4 at +30 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 5 at +40 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 6 at +50 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 7 at +60 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 8 at +70 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 9 at +80 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 10 at +91 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 11 at +101 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 12 at +111 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 13 at +121 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 14 at +131 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 15 at +141 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 16 at +151 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 17 at +161 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 18 at +171 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 19 at +182 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 20 at +192 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 21 at +202 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 22 at +212 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 23 at +222 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 24 at +232 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 25 at +242 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 26 at +252 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 27 at +262 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 28 at +273 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 29 at +283 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 30 at +293 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 31 at +303 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 32 at +313 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 33 at +323 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 34 at +333 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 35 at +343 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 36 at +353 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 37 at +364 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 38 at +374 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 39 at +384 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 40 at +394 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 41 at +404 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 42 at +414 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 43 at +424 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 44 at +434 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 45 at +445 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 46 at +455 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 47 at +465 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 48 at +475 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 49 at +485 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 50 at +495 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 51 at +505 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 52 at +515 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 53 at +525 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 54 at +536 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 55 at +546 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 56 at +556 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 57 at +566 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 58 at +576 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 59 at +586 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 60 at +597 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 61 at +607 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 62 at +617 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 63 at +627 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 64 at +637 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 65 at +647 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 66 at +657 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 67 at +667 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 68 at +677 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 69 at +687 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 70 at +698 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 71 at +708 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 72 at +718 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 73 at +728 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 74 at +738 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 75 at +748 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 76 at +758 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 77 at +768 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 78 at +778 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 79 at +789 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 80 at +799 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 81 at +809 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 82 at +819 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 83 at +829 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 84 at +839 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 85 at +849 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 86 at +859 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 87 at +870 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 88 at +880 s (bounded to 20 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 89 at +890 s (bounded to 10 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+## 2026-10-05T09:51:34Z up=1141 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+QEMU PROCESS: pid=10413 start=10249 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU PROCESS UNCHANGED: the same process as before step a (pid 10413, started at tick 10249) with the same disks (file=<bench>/rootfs.ext4;file=<bench>/data.img); whether the guest rebooted inside it is what step b shows
+HALT: row t8: reboot not shown within the wait: in the 900 s after step a ended, none of the 89 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id aaaaaaaa-0000-4000-8000-00000000000a (89 ended with another status - no answer, whatever they printed; 0 answered the saved id; 0 ended 0 without one boot id as the answer); the last poll: exit status 255 (124: ended 
+## 2026-10-05T09:51:35Z up=1141 row t8: the gate after the row
+TUNNEL CHECK: the master answers on <bench>/home/egw-tcg/tunnel.ctl
+HALT: row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not answer); whether a recorder or collector unit is active was not determined (gate-units exit 97); 
+## 2026-10-05T09:51:35Z up=1141 row t8 ended after 1034 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S3: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+CHECK ok: exit status 1: row t8 (a halt)
+CHECK ok: the halt of row t8
+recorded steps of row t8, in order: guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh x89 t8-qemu-after guest-state-after gate-healthy gate-units gate-tunnel-check
+CHECK ok: the steps of row t8 are the expected ones
+CHECK ok: the fake QEMU process after the row: pid 10413 alive, start tick 10249
+CHECK ok: commands that start, restart or bring up anything, sent to the stub guest (the test module's own pattern): 0
+CHECK ok: pkill or killall calls: 0
+CHECK ok: the halt says it is not by itself a failure of the system
+CHECK ok: the halt says line b was not run and nothing was signalled or started
+CHECK ok: the QEMU reading after the wait: the same process
+  poll 1 (step 004): command starts 'timeout 20', exit status 255, 0.0 s
+  poll 2 (step 005): command starts 'timeout 20', exit status 255, 0.0 s
+  poll 3 (step 006): command starts 'timeout 20', exit status 255, 0.0 s
+  ... (81 more polls)
+  poll 85 (step 088): command starts 'timeout 20', exit status 255, 0.0 s
+  poll 86 (step 089): command starts 'timeout 20', exit status 255, 0.0 s
+  poll 87 (step 090): command starts 'timeout 20', exit status 255, 0.0 s
+  poll 88 (step 091): command starts 'timeout 20', exit status 255, 0.0 s
+  poll 89 (step 092): command starts 'timeout 10', exit status 255, 0.0 s
+polls: 89; run by the host's timeout: 89; bounds used (s): 20 10; smallest 10, largest 20; exit statuses seen: 255
+CHECK ok: polls not run by the host's timeout: 0
+CHECK ok: the smallest bound of a poll is 10 s: the remainder of the budget, below 20 and never 0
+CHECK ok: the largest bound of a poll (s): 20
+--- step a ended at up=241; the halt was recorded at up=1141: 900 s
+CHECK ok: the wait expired 900 s (to within 5 s) after step a ended
+CHECK ok: the row's start instant is recorded once and was not reset: 1
+CHECK ok: the row's ceiling as recorded (min): 135
+--- the row's record of the wait: started up=241, 0 s after step a ended (up=241); budget 900 s from that instant; the row's start (up=107) and its ceiling (135 min) are not reset
+CHECK ok: reboot commands sent to the stub guest: 1
+
+=== g3_battery.sh classify t8 failed unknown inconclusive bench: scenario s2iii bench: none
+-> exit 0
+## 2026-10-05T09:51:35Z up=1141 classify t8: inconclusive / not demonstrated (failed, unknown/inconclusive)
+row t8: classified 'inconclusive / not demonstrated'; driver code 3; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 1 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -> <bench>/out/runs/2026-10-05/20261005T093448Z_g3-qualification-t8_attempt02
+NOTE: this row's gate did not pass (failed: the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not answer); whether a recorder or collector unit is active was not determined (gate-units exit 97); ): no further row starts; 'close' and hand back to Rui.
+Next: 'close', then hand back to Rui: session S3 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+CHECK ok: row t8 is classified inconclusive / not demonstrated
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-05T09:51:36Z up=1142 row t9 (session S3): steps script sha256 a77bd201a54d02620e625a620d2da796a8834289ec67daa808ed15324950f5cb
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=1141 row=t8 row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not answer); whether a recorder or collector unit is active was not determined (gat
+CHECK ok: exit status 2: row t9 after the halt of row t8 (refused: nothing was started)
+CHECK ok: row t9 is refused because of the recorded halt
+CHECK ok: attempts of row t9 created: 0
+
+=== g3_battery.sh close
+-> exit 1
+## 2026-10-05T09:51:36Z up=1142 close S3: <bench>/egw-exec/attempts/20261005T093443Z_guest-session_attempt01
+keepalive: pid 272 'sleep 43200', parent 271 (Relay(272)), running for 1061 s, about 42139 s left
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 1102 s, about 42098 s left
+keepalive: attached, about 42139 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:51:36Z up=1142 no recorder or collector unit active (read-only)
+HALT: close: the guest did not answer (exit 97) although a qemu-system-aarch64 process is running: whether a unit is active is UNKNOWN and nothing was stopped. 'close' answers the same for as long as the guest does not answer: hand back to Rui (QEMU is never killed without his decision; the frozen guest_session_close.sh is what finishes and exports the session attempt)
+CHECK ok: exit status 1: close with a guest that does not answer and the QEMU process alive (a halt)
+CHECK ok: close: the guest did not answer, nothing was stopped, QEMU is not killed
+CHECK ok: the fake QEMU process after the close: pid 10413 alive, start tick 10249
+
+=== g3_battery.sh status
+open session (current_session): <bench>/egw-exec/attempts/20261005T093443Z_guest-session_attempt01; host uptime now: 1142 s; WSL boot 584a7a11-31cd-4468-a752-6efe1dcbd386
+qemu pgrep exit=0 (0 running, 1 none)
+session S3: state=open attempt=<bench>/egw-exec/attempts/20261005T093443Z_guest-session_attempt01 UP0=102
+  elapsed host uptime: 1040 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  HALT: up=1141 row=t8 row t8: reboot not shown within the wait: in the 900 s after step a ended, none of the 89 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id aaaaaaaa-0000-4000-8000-00000000000a (89 ended with another status - n
+  HALT: up=1141 row=t8 row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did
+  HALT: up=1142 close: the guest did not answer (exit 97) although a qemu-system-aarch64 process is running: whether a unit is active is UNKNOWN and nothing was stopped. 'close' answers the same for as long as the guest does not answer: hand back to Rui (QEMU is never killed without his decision; th
+  row t8: classified; gate=failed: the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not answer); whether a recorder or collector 
+    attempt <bench>/egw-exec/attempts/20261005T093448Z_g3-qualification-t8_attempt02
+    HALT: up=1141 row t8: reboot not shown within the wait: in the 900 s after step a ended, none of the 89 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id aaaaaaaa-0000-4000-8000-00000000000a (89 ended with another status - no ans
+    HALT: up=1141 row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not 
+  row t9: not started
+
+=== the end of the bench
+the fake process 10413 that stood for QEMU was still running: ended now by the bench itself
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-05T09:51:37Z SCENARIO s2iii: PASS (26 checks)

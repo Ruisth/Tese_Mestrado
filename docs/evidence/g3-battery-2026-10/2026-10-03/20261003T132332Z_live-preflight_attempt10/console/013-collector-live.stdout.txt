@@ -1,0 +1,13 @@
+inactive
+Oct 03 13:27:07 egw-qemu-integrated systemd[1]: Started /usr/bin/sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-preflight-20261003T132332Z.csv --duration 45 --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1.
+Oct 03 13:27:07 egw-qemu-integrated sh[2980]: collecting container resources into /tmp/resources-preflight-20261003T132332Z.csv (source: auto, one sample every 1s, duration: 45s, 0 = until SIGTERM)
+Oct 03 13:27:07 egw-qemu-integrated sh[2980]: pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; diagnostics: /tmp/resources-preflight-20261003T132332Z.csv.diagnostics.log; lifecycle: /tmp/resources-preflight-20261003T132332Z.csv.lifecycle.csv
+Oct 03 13:27:07 egw-qemu-integrated sh[2980]: sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+Oct 03 13:27:18 egw-qemu-integrated sh[2980]: diagnostics (first lines; all of them are in /tmp/resources-preflight-20261003T132332Z.csv.diagnostics.log):
+Oct 03 13:27:19 egw-qemu-integrated sh[3060]: 2026-10-03T13:27:18Z sample withheld at uptime 266.92 s: it fell in second 2026-10-03T13:27:18Z, not after the last stamped second 2026-10-03T13:27:18Z (a clock stepped back, or two samples in one second); no rows
+Oct 03 13:27:51 egw-qemu-integrated sh[2980]: collector stopped after 45 samples (forward UTC gaps: 2 s; withheld: 2 sample(s), with 1.23 s of elapsed time without an accepted sample beyond one interval and the UTC gaps, 0 run(s) of them unmeasured and 0 still withheld at stop; 13 diagnostic line(s) in /tmp/resources-preflight-20261003T132332Z.csv.diagnostics.log); output: /tmp/resources-preflight-20261003T132332Z.csv
+Oct 03 13:27:51 egw-qemu-integrated systemd[1]: egw-resources-preflight-20261003T132332Z.service: Deactivated successfully.
+Oct 03 13:27:51 egw-qemu-integrated systemd[1]: egw-resources-preflight-20261003T132332Z.service: Consumed 7.584s CPU time.
+-rw-r--r--    1 root     root         20146 Oct  3 13:27 /tmp/resources-preflight-20261003T132332Z.csv
+-rw-r--r--    1 root     root          2469 Oct  3 13:27 /tmp/resources-preflight-20261003T132332Z.csv.diagnostics.log
+-rw-r--r--    1 root     root           708 Oct  3 13:27 /tmp/resources-preflight-20261003T132332Z.csv.lifecycle.csv

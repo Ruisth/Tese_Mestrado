@@ -1,0 +1,56 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-07T12:11:21.033875Z",
+  "emulated": true,
+  "ended_utc": "2026-10-07T12:33:23.430845Z",
+  "expected_artefacts": [],
+  "headline": "G3 qualification t6: pass. PASS under the criterion amended on 2026-10-05 (request of 2026-10-05, section 6, with the supplement of 2026-10-07). Plan entry controller_restart-r04 (seed 1715385812, ...",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "1fd9792bb76f02c6948f33887207dba4837202db",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "close (the recorded compose stop -t 130, then the frozen close driver); the result note in output_test/decisions; no G3 claim: the evidence is consolidated and the closing opinion follows separately.",
+  "pid": 21228,
+  "purpose": "official",
+  "reason": "PASS under the criterion amended on 2026-10-05 (request of 2026-10-05, section 6, with the supplement of 2026-10-07). Plan entry controller_restart-r04 (seed 1715385812, 600 s at 11.2 msg/s, 6,720 messages), F6 fresh. T6=ok: harness exit 0 with the recorder cleanup done, run directory sealed (46 files, verified), drain quiet. The controller restarted once mid-run: restart record at +300 s, returncode 0; the capture shows one die and one start of egw-controller-1 (kill, stop and restart of a graceful restart beside them); the gate after shows EXPECTED-RESTART, same container, restart count unchanged, no OOM, six services healthy. Recovery: restart_metrics_endpoint_recovery_s 12.134 s (within 120 s; from the end of the restart command to the first /metrics answer); functional recovery 20.04 s (events-accepted-monotonic), reported only. delta: all three device lines OK (600, 120, 6,000 accepted); N1 report 0/0. acceptance --exactly-once: 6,720 valid messages accepted exactly once in events.post-drain.jsonl, 0 more than once, 0 never; double_accepted 0. Configuration identity equal to the packet (broker ea37827c, W 4999, Q 1000, byte limits 0, expiry 1h, sys_interval 10, not reloaded, stop grace 130s, controller image 9a293fe1 from 489bc9e, paho 2.1.0, A3 a). Transition rule 1a-option-a-2026-10-05: 2 rows admitted (12:19:26Z, 12:19:27Z); proved-down interval applied, 0 rows rejected. Reported beside the result, deciding nothing (sizing finding): lost 2,153 and late_confirmations 67 against the controller marker plus 60 s.",
+  "run_id": "20261007T121121Z_g3-qualification-t6_attempt02",
+  "scenario": "G3 qualification t6",
+  "seed": null,
+  "started_utc": "2026-10-07T12:11:21.389364Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "battery": "G3 qualification, session S4: test 6 only (controller_restart-r04; request of 2026-10-05, output_test/decisions/2026-10-05_g3-t6-session-request.md; criterion amended on 2026-10-05, LOG #C052; transition rule 1a-option-a-2026-10-05, LOG #C053)",
+    "egw_clone": "/home/ruisth/egw-exec/repo",
+    "harness_run_id": "controller_restart-r04",
+    "helper_sha256": "e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb",
+    "host_uptime_at_row_start_s": 3746,
+    "host_uptime_baseline_s": 3318,
+    "ids_note": null,
+    "itest_run_ids": [],
+    "row": "t6",
+    "row_ceiling_min": 47,
+    "rows_manifest_sha256": "7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47",
+    "runbook": {
+      "commit": "1fd9792bb76f02c6948f33887207dba4837202db",
+      "lines": 1624,
+      "path": "docs/setup/qemu_integrated_gateway.md",
+      "sha256": "317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f"
+    },
+    "session": "20261007T120357Z_guest-session_attempt12",
+    "session_elapsed_at_row_start_s": 428,
+    "session_label": "S4",
+    "step_files": {
+      "t6.sh": "ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377"
+    },
+    "step_source_lines": {
+      "t6.sh": "1421-1428"
+    },
+    "steps_script_sha256": "7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c"
+  }
+}

@@ -1,0 +1,15 @@
+## 2026-10-05T18:44:06Z static checks of the scripts and of the row files (bash 5.2.21(1)-release, Python 3.12.3)
+g3_extract_rows.py                 CR bytes 0; BOM no; UTF-8 valid; final newline; python syntax ok
+g3_check_rows.sh                   CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+g3_rows_dryrun.sh                  CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows-record/rows-proofs.sh         CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows-record/manifest-compat.py     CR bytes 0; BOM no; UTF-8 valid; final newline; python syntax ok
+rows-record/run-record.sh          CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/rows.manifest.json            CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t6.sh                         CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t6.sh.diff                    CR bytes 0; BOM no; UTF-8 valid; empty; -
+
+## the three scripts against the untouched copies of P/base (git diff --no-index --numstat: added, removed; diff -u line count)
+g3_extract_rows.py: base 11c19af75faf43994c6f68f1ca7b6bdfc1aa7c0e56e1939b7c8dc52173604598 (716 lines) -> e3aa669d38c6320db1bfa853fd25834ac4d848e6fb04c6e9f341fbfd39c23050 (598 lines); numstat 131 249; diff -u 515 lines
+g3_check_rows.sh: base 2f1863b0f3b85f7ab2b8db65745f2d7a5d802ed0031fbcdb94e5cd666b64b11d (204 lines) -> ae7038d3e046afa921ca7084240388bd8e87fe4c34797b9c750bffedc4d48494 (200 lines); numstat 68 72; diff -u 224 lines
+g3_rows_dryrun.sh: base fbbca2f638f8a7b7364efcdd7756203504227c989708874c570c5339c48503e3 (121 lines) -> 1f32c56c32895b5d2cfd466b5e18db8cc3465a295df61085527294f75983c994 (213 lines); numstat 163 71; diff -u 276 lines

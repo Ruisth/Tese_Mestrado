@@ -1,0 +1,8 @@
+tag=20261005T120642Z topic=c2dt/acl-probe/20261005T120642Z window_s=90 subscribe_lines_before_publish: ctl-sub=1 sim-sub=1; whole run: ctl-sub=1 sim-sub=1 (broker log rc=0)
+authorised subscriber (egw-controller):   P1=1 P2=0 P3=0 P4=1 rc=27
+unauthorised subscriber (egw-simulator):  deliveries=0 stdout_bytes=0 rc=27
+liveness: covered=yes clock=uptime sub_start=901 p1_start=916 p4_end=931 earliest_timeout=991 (sub_start+window; p4_end+2 must not exceed it) exec_end: ctl-sub=997 sim-sub=997 (each must exceed p4_end)
+publishers rc: P1=0 P2=0 P3=0 P4=0; v5 'Not authorized' lines=1
+anonymous: refused rc=5 refusal_lines=1 deliveries=0 stdout_bytes=0 accepted_in_broker_log=0 broker_lines=1 stderr=Connection error: Connection Refused: not authorised. 
+evidence: broker_log=complete checked: anchor_rc=0 collection_rc=0 collection_lines=400 tail=400 anchor_found=1 (must be 1) grep_rc=0 tagged_lines: collection=15 broker.txt=15; write_check (write and read back in the evidence directory): before_run=ok after_collection=ok
+verdict=PASS

@@ -1,0 +1,72 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+  it differs from the final bytes (g3_battery.sh, sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-05T09:09:31Z scenario s7iii; host uptime 16.35 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh 087742a50a4bfe6b, bs3_setup.sh eb3bbc6c0a5c74d2, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: the smoke's step shell ends before the helper prints anything (the bench ends it when the simulator starts): the console holds neither 'TEST STATUS ... PROCEDURE COMPLETE' nor a STOP:; HALT, 'row t9' refused. (The real line f always ends with one of the two lines; a shell that dies is the one way to neither.)
+
+=== g3_battery.sh open S3
+-> exit 2
+## 2026-10-05T09:09:32Z up=17 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+## 2026-10-05T09:09:32Z up=17 candidate identities
+## 2026-10-05T09:09:32Z up=17 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:09:32Z up=17 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:09:32Z up=17 guest root file system before the boot
+## 2026-10-05T09:09:32Z up=17 keepalive
+REFUSED: the keepalive client is not attached (see above); nothing was started
+CHECK FAILED: exit status 2, expected 0: open S3
+CHECK FAILED: the session is open - no line matches: ^## .* session S3 is open
+--- the fake process that stands for QEMU after the open: pid none not running
+
+=== g3_battery.sh row t8
+-> exit 2
+## 2026-10-05T09:09:33Z up=17 row t8 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: session S3 was not opened by this script (<bench>/state/session-S3.env is absent)
+CHECK FAILED: exit status 2, expected 1: row t8 (a halt)
+CHECK FAILED: the halt of row t8 - no line matches: ^HALT: row t8: step f printed no STOP: but its console does not show the line 'TEST STATUS itest-post-reboot-01-q2: \.\.\. -> PROCEDURE COMPLETE'
+recorded steps of row t8, in order: <none>
+CHECK FAILED: the steps of row t8 are not: ^guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh( x[0-9]+)? t8-qemu-after t8-b-wait-boot-id t8-c-unaided t8-d-tunnel t8-tunnel-check t8-e-state t8-f-smoke t8-previous-boot-journal t8-previous-boot-oom guest-state-after gate-healthy gate-units gate-tunnel-check$
+CHECK ok: the fake QEMU process after the row: pid none not running
+CHECK ok: commands that start, restart or bring up anything, sent to the stub guest (the test module's own pattern): 0
+CHECK ok: pkill or killall calls: 0
+grep: : No such file or directory
+grep: : No such file or directory
+CHECK FAILED: lines of the smoke's console that start with STOP: / with TEST STATUS: ' / ', expected '0 / 0'
+grep: /tmp/g3-s3-bench/s7iii/state/row-t8.env: No such file or directory
+--- the row's keys: t8_smoke=; the step's record: 
+
+=== g3_battery.sh classify t8 failed invalid unknown bench: scenario s7iii bench: none
+-> exit 2
+REFUSED: row t8 was not started
+CHECK FAILED: exit status 2, expected 1: classify t8 as invalid instrumentation (classify records a halt: exit 1)
+CHECK FAILED: row t8 is classified invalid instrumentation and exported - no line matches: ^row t8: classified 'invalid instrumentation'; driver code [0-9]+; export: verified
+CHECK FAILED: classify records the halt of that class - no line matches: ^HALT: row t8 is classified invalid instrumentation \(request, section 5 item 2; decision summary, choice 2\): no further row of S3 starts
+CHECK FAILED: halts recorded for the session by this classify: '0', expected '1'
+CHECK FAILED: the row's state after classify: '', expected 'classified'
+--- the last lines classify printed: REFUSED: row t8 was not started|
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-05T09:09:33Z up=18 row t9 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: session S3 was not opened by this script (<bench>/state/session-S3.env is absent)
+CHECK ok: exit status 2: row t9 after the halt of row t8 (refused: nothing was started)
+CHECK FAILED: row t9 is refused because of the recorded halt - no line matches: ^REFUSED: NOT STARTED: session S3 has a recorded halt
+CHECK ok: attempts of row t9 created: 0
+
+=== g3_battery.sh close
+-> exit 2
+REFUSED: no open session
+CHECK FAILED: exit status 2, expected 0: close
+CHECK FAILED: the session is closed - no line matches: ^## .* session S3 closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-05T09:09:34Z SCENARIO s7iii: FAIL (14 of 20 checks failed)

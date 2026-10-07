@@ -1,0 +1,276 @@
+{
+  "rows_manifest_sha256": "678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d",
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "11c19af75faf43994c6f68f1ca7b6bdfc1aa7c0e56e1939b7c8dc52173604598",
+  "runbook": {
+    "commit": "8e492613d36490a560ae56beabd6d5c2c01a8696",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db",
+    "lines": 1623
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for each of the two headings"
+  },
+  "substitution_rule": {
+    "suffix": "-q2",
+    "ids": [
+      {
+        "old": "itest-reboot",
+        "new": "itest-reboot-q2",
+        "occurrences": 60
+      },
+      {
+        "old": "itest-post-reboot-01",
+        "new": "itest-post-reboot-01-q2",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-tls-wrongca",
+        "new": "itest-tls-wrongca-q2",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-auth-wrongpw",
+        "new": "itest-auth-wrongpw-q2",
+        "occurrences": 4
+      },
+      {
+        "old": "itest-notls",
+        "new": "itest-notls-q2",
+        "occurrences": 3
+      }
+    ],
+    "unchanged": [
+      "itest-acl-$T"
+    ],
+    "token": "an id not preceded by [A-Za-z0-9_] and not followed by [A-Za-z0-9_-]; every occurrence of each id as a plain string is such a token (asserted), so none is left behind and none is matched inside a longer id",
+    "asserted": "per file the count of each id; the text after the substitution with every '-q2' removed is the extracted text; the unchanged literals are untouched; the extracted text held no '-q2' and no '-q1' (the suffix of the battery's ids, which are not reused)"
+  },
+  "row": {
+    "row": "t9",
+    "session": "S3",
+    "steps": [
+      "t9-a.sh",
+      "t9-b.sh",
+      "t9-c.sh",
+      "t9-de.sh",
+      "t9-exposure.sh"
+    ],
+    "note": "Each of t9-a, t9-b, t9-c, t9-de only if the one before printed no STOP:. t9-exposure.sh is the prose-only step of runbook line 1537; the steps script runs it likewise only if t9-de printed no STOP: (runbook line 15), so after a STOP of (d)+(e) the three read-only exposure reads are not in the package."
+  },
+  "files": {
+    "t9-a.sh": {
+      "row": "t9",
+      "session": "S3",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1509,
+        1510
+      ],
+      "source_line_ranges": "1509-1510",
+      "host_command_starts": [
+        1509,
+        1510
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 2,
+      "sha256_before": "e431473a5ccbe397d6d2c35da27fd02cabf38300af26f0498f00c2dbecba5acc",
+      "sha256_after": "34be9077366b587ae976db89e7aaaeda2bcdbcf8d3976af8254d5a5219169dac",
+      "bytes_before": 384,
+      "bytes_after": 387,
+      "substitutions": [
+        {
+          "old": "itest-tls-wrongca",
+          "new": "itest-tls-wrongca-q2",
+          "count": 1,
+          "source_lines": [
+            1510
+          ]
+        }
+      ],
+      "diff": "t9-a.sh.diff",
+      "diff_sha256": "85ad2aaf417599d240455c14a33090dfa815359c673c1d7fce8f2486e839f9c5",
+      "diff_bytes": 643,
+      "bash_n": "ok",
+      "range_note": "Lines 1509-1510. Line 1508, the comment '# (a) wrong CA -> TLS verification fails', stands in the fence before the first host$ line and is dropped by the rule, so it is in no file."
+    },
+    "t9-b.sh": {
+      "row": "t9",
+      "session": "S3",
+      "step_order": 2,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1511,
+        1512,
+        1513,
+        1514,
+        1515,
+        1516,
+        1517,
+        1518,
+        1519,
+        1520,
+        1521,
+        1522,
+        1523,
+        1524
+      ],
+      "source_line_ranges": "1511-1524",
+      "host_command_starts": [
+        1523,
+        1524
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [
+        1511,
+        1512,
+        1513,
+        1514,
+        1515,
+        1516,
+        1517,
+        1518,
+        1519,
+        1520,
+        1521,
+        1522
+      ],
+      "lines": 14,
+      "sha256_before": "bc4335f915922a1b5b5f10baaadbfd53125a95008618f2c8ddbb21e9d2614a1d",
+      "sha256_after": "29e7e98099e9bb30c58c4b141b87b4bf886ccd082a42da31a0c3b8656a4c4d5b",
+      "bytes_before": 1928,
+      "bytes_after": 1940,
+      "substitutions": [
+        {
+          "old": "itest-auth-wrongpw",
+          "new": "itest-auth-wrongpw-q2",
+          "count": 4,
+          "source_lines": [
+            1517,
+            1523,
+            1524,
+            1524
+          ]
+        }
+      ],
+      "diff": "t9-b.sh.diff",
+      "diff_sha256": "1c08cb2a9581d6cc8fd1bb4037443d8dea141682da94f03027d380688d1592b5",
+      "diff_bytes": 1578,
+      "bash_n": "ok",
+      "range_note": "Lines 1511-1522 are comments: by the rule they are continuation lines of the command of line 1510 ((a)'s simulator), and by their text they describe (b) and (c); they run nothing and are placed here by source line. Commands: lines 1523 and 1524. The id stands four times, once in the comment of line 1517 inside the client id 'egw-simulator-itest-auth-wrongpw', which changes with it."
+    },
+    "t9-c.sh": {
+      "row": "t9",
+      "session": "S3",
+      "step_order": 3,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1525,
+        1526,
+        1527
+      ],
+      "source_line_ranges": "1525-1527",
+      "host_command_starts": [
+        1526,
+        1527
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [
+        1525
+      ],
+      "lines": 3,
+      "sha256_before": "8a8da5b548f4731dc91bfb70de12045ce164f3a678cb17d30e848a391ae34416",
+      "sha256_after": "e95f9f153a766f0ab0f21fefb4b93e0893578be80d863b411c1dfc1f64fbbf43",
+      "bytes_before": 621,
+      "bytes_after": 630,
+      "substitutions": [
+        {
+          "old": "itest-notls",
+          "new": "itest-notls-q2",
+          "count": 3,
+          "source_lines": [
+            1526,
+            1527,
+            1527
+          ]
+        }
+      ],
+      "diff": "t9-c.sh.diff",
+      "diff_sha256": "3f2207e566057351b83f60e3ca7c34218df1f25969dfd37c4a751596b61d08e8",
+      "diff_bytes": 1293,
+      "bash_n": "ok",
+      "range_note": "Line 1525 is a comment, by the rule a continuation line of the command of line 1524. Commands: lines 1526 and 1527."
+    },
+    "t9-de.sh": {
+      "row": "t9",
+      "session": "S3",
+      "step_order": 4,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1528,
+        1529,
+        1530,
+        1531,
+        1532,
+        1533,
+        1534
+      ],
+      "source_line_ranges": "1528-1534",
+      "host_command_starts": [
+        1531,
+        1532,
+        1533,
+        1534
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [
+        1528,
+        1529,
+        1530
+      ],
+      "lines": 7,
+      "sha256_before": "4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae",
+      "sha256_after": "4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae",
+      "bytes_before": 2228,
+      "bytes_after": 2228,
+      "substitutions": [],
+      "diff": "t9-de.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1528-1530 are comments, by the rule continuation lines of the command of line 1527. Commands: lines 1531-1534. Nothing is substituted: itest-acl-$T is fresh by its UTC stamp."
+    },
+    "t9-exposure.sh": {
+      "row": "t9",
+      "session": "S3",
+      "step_order": 5,
+      "kind": "prose-only, runbook line 1537",
+      "source_line_numbers": [
+        1537
+      ],
+      "derived_from_sentence": "Also keep `ssh -p 2222 root@127.0.0.1` refused and `nmap`-free port evidence: `ss -ltn` on the host shows only 2222 and 8883 forwarded by QEMU; inside the guest `docker ps` shows `127.0.0.1:8080` and `127.0.0.1:8000` bindings and MongoDB with no published port (work order item 5).",
+      "lines": 18,
+      "sha256_before": null,
+      "sha256_after": "ec18b22a643203a1c2d9bc9a9519b5b4a6f69de65df9944d832f09744428fe9c",
+      "bytes_after": 2262,
+      "substitutions": [],
+      "diff": null,
+      "bash_n": "ok",
+      "range_note": "The three exposure checks of the last sentence of line 1537 in the non-interactive, read-only forms of the packet's execution choices: root over ssh on 2222 with -n and BatchMode=yes (only 'Permission denied' counts), ss -ltnp on the host, the guest's docker ps port bindings through ssh egw-tcg. A constant of the script, not an extraction."
+    }
+  }
+}

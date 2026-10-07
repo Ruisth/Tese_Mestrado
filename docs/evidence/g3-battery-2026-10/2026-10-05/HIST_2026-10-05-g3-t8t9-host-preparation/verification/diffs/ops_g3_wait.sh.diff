@@ -1,0 +1,22 @@
+--- base/ops/g3_wait.sh
++++ ops/g3_wait.sh
+@@ -1,12 +1,13 @@
+ #!/bin/bash
+-# Operator's waiter for the G3 battery (read-only): returns when a detached
+-# g3_battery.sh subcommand has ended, then prints the end of its console and
+-# the script's own 'status'. It signals nothing and writes nothing.
+-# Usage (WSL): g3_wait.sh <open|row|close> <S1|S2|slug> [max minutes]
++# Operator's waiter for session S3 (G3, tests 8 and 9) (read-only): returns
++# when a detached g3_battery.sh subcommand has ended, then prints the end of
++# its console and the script's own 'status'. It signals nothing and writes
++# nothing.
++# Usage (WSL): g3_wait.sh <open|row|close> <S3|slug> [max minutes]
+ set -u
+ KIND=${1:?} NAME=${2:?} MAX=${3:-170}
+-STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-battery}
+-P=/mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep
++STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3}
++P=$(cd "$(dirname "$0")/.." && pwd)     # S3: the folder that holds ops/ and the steps script (no fixed path)
+ case $KIND in
+     open | close) pat="g3_battery.sh $KIND" ;;
+     row) pat="g3_battery.sh row $NAME" ;;

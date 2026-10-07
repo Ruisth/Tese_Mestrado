@@ -1,0 +1,71 @@
+--- fix/g3_extract_rows.before.py	2026-10-02 12:58:31.387792700 +0100
++++ g3_extract_rows.py	2026-10-02 14:30:03.381157900 +0100
+@@ -21,7 +21,8 @@
+ 
+ The script reads its two inputs and writes only inside <out>. It refuses an <out> inside the
+ frozen clone, the run directory, the image and build trees, output_test, ChatGPT or the
+-read-only worktree. It starts nothing and contacts nothing.
++read-only worktree (by path component as well as under $HOME, so a redirected HOME does not
++lift the refusal). It starts nothing and contacts nothing.
+ 
+ Usage (WSL):
+   python3 g3_extract_rows.py --runbook <blob|-> [--rule-source <test file blob>] --out <dir> [--replace]
+@@ -216,7 +217,8 @@
+      "(no row file). t8-c-snapshot.sh only if the tunnel is up; t8-d-smoke.sh only after REBOOT SHOWN and no STOP:."),
+     ("t9", "S2", ["t9-a.sh", "t9-b.sh", "t9-c.sh", "t9-de.sh", "t9-exposure.sh"],
+      "Each of t9-a, t9-b, t9-c, t9-de only if the one before printed no STOP:. t9-exposure.sh is the prose-only "
+-     "step of runbook line 1529."),
++     "step of runbook line 1529; the steps script runs it likewise only if t9-de printed no STOP: (runbook "
++     "line 15), so after a STOP of (d)+(e) the three read-only exposure reads are not in the package."),
+ ]
+ 
+ # ---------------------------------------------------------------------------------------------
+@@ -382,8 +384,12 @@
+ 
+ 
+ def only_defines(cmd_text):
+-    """True for a command that defines and does nothing else: one assignment of a double-quoted string
+-    holding no substitution, or one function definition 'name() { ... }' whose closing brace ends the text."""
++    """The kind of a command that LOOKS like a definition and nothing else, or None: one assignment of a
++    double-quoted string holding no substitution, or a text that opens with 'name() {' and ends with '}'.
++    For a function this is a test of the head and of the last character only, not a parse: a text such as
++    'f() { :; }; action; g() { :; }' would pass it. It holds for the five commands it is applied to (test
++    7's definition lines); the proof that sourcing them runs one assignment and defines four functions,
++    and nothing else, is the DEBUG-trap trace of g3_check_rows.sh."""
+     if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*="[^"$`\\\n]*"', cmd_text):
+         return "assignment"
+     m = re.match(r"([A-Za-z_][A-Za-z0-9_]*)\(\) \{", cmd_text)
+@@ -401,6 +407,10 @@
+ 
+ 
+ def forbidden_out(path):
++    """Why PATH must not receive the row files, or None. The four trees of the execution host are refused
++    under $HOME AND by path component: a dry run redirects HOME (to an isolated tree), and a guard that
++    followed HOME alone would then let an --out typed into the real ~/egw-exec, ~/egw-tcg, ~/egw-images or
++    ~/yocto through."""
+     real = os.path.realpath(path)
+     home = os.path.realpath(os.path.expanduser("~"))
+     for sub in ("egw-exec", "egw-tcg", "egw-images", "yocto"):
+@@ -408,7 +418,7 @@
+         if real == root or real.startswith(root + os.sep):
+             return "inside %s" % root
+     parts = real.replace("\\", "/").split("/")
+-    for bad in ("output_test", "ChatGPT", "cand"):
++    for bad in ("egw-exec", "egw-tcg", "egw-images", "yocto", "output_test", "ChatGPT", "cand"):
+         if bad in parts:
+             return "inside a '%s' directory" % bad
+     return None
+@@ -684,8 +694,11 @@
+         "A command is cut between two files only before trailing comment lines (asserted): lines 1503-1514 (after "
+         "the command of line 1502), 1517 (after 1516) and 1520-1522 (after 1519). Comments run nothing.",
+         "Not extracted, by the rule: line 1500 (a comment before the first host$ line of test 9's fence) and line "
+-        "1260 (the section's preamble under '## 7.', outside the ten headings; the steps script's hx loads the "
+-        "same preamble from the clean clone).",
++        "1260 (the section's preamble under '## 7.', outside the ten headings: it sources ~/egw-tcg/.env and "
++        "~/egw-tcg/itest-helpers.sh). The steps script's hx runs a superset of it, HOST_PRE of the clean clone's "
++        "tools/session/guest_common.sh: the execution venv activated, ~/egw-tcg/.env exported, EGW_CLONE set to "
++        "the clean clone, the DEPLOYED ~/egw-tcg/itest-helpers.sh and ~/egw-tcg/tunnel.sh sourced (files of the "
++        "host, not of the clone), and the tunnel checked or reopened.",
+         "The step files of kind 'runbook' hold the extracted lines and nothing else: no header, no added line. "
+         "The two prose-only files are constants of the script and open with the runbook sentence they derive from.",
+         "A <file>.diff is the unified diff (no context lines) between the extracted text and the step file; its "

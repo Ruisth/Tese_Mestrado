@@ -1,0 +1,291 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T161432Z_g3-qualification-t4-reset_attempt01",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-10-02\\20261002T161432Z_g3-qualification-t4-reset_attempt01"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-10-02T16:21:42.030078Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": "attempt.json",
+      "sha256": "f0054916cf359bff29c7bed43ee14b909726853f5581ce8b0e4837e5decbb84c",
+      "size": 3042,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "2ce2e21c7c10a69d871fbea6e01800045929ce3ea8bf693939573614f163aba0",
+      "size": 12681,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-guest-state-before.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/001-guest-state-before.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-guest-state-before.stdout.txt",
+      "sha256": "7eb4d2c5cc054729162afa7be70cc9a8f79f2690234b979a6a4fe426cf6de8b6",
+      "size": 1729,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/001-guest-state-before.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-t4-reset.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/002-t4-reset.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-t4-reset.stdout.txt",
+      "sha256": "6e699258dd09d0a49a336c7d7c1ecfc7e314a830e99812e285c8e2d30c2f009e",
+      "size": 6622,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/002-t4-reset.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-guest-state-after.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/003-guest-state-after.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-guest-state-after.stdout.txt",
+      "sha256": "431b1df2ae35b37b900f1b0af2a4b99541b95913169605263cc80a6a0f84a275",
+      "size": 1729,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/003-guest-state-after.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-guest-state-delta.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/004-guest-state-delta.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-guest-state-delta.stdout.txt",
+      "sha256": "67bc35c937fd198674c1cd0e36f7d1fbb7d7bea80ae199c468f912e94b669535",
+      "size": 211,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/004-guest-state-delta.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-gate-healthy.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/005-gate-healthy.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-gate-healthy.stdout.txt",
+      "sha256": "71ebe281f611e797227be48ca77a902f421975ba39613329a3512fd715ce1e03",
+      "size": 348,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/005-gate-healthy.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-gate-units.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/006-gate-units.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-gate-units.stdout.txt",
+      "sha256": "8c648e58851cdf309c702fdb4e50ec9d646bcc7814d766ac85cd6eb19d46dd87",
+      "size": 54,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/006-gate-units.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-gate-tunnel-check.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/007-gate-tunnel-check.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-gate-tunnel-check.stdout.txt",
+      "sha256": "66a16585f4f1aad2bf5148d416ed20ba1b58dc0b3fd624de07305ddba0adcf6a",
+      "size": 68,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/console/007-gate-tunnel-check.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/g3_battery.sh",
+      "sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1",
+      "size": 98349,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/environment/g3_battery.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/rows.manifest.json",
+      "sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+      "size": 37232,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/environment/rows.manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/rows.manifest.t4-reset.json",
+      "sha256": "6db69ad8ae2758b56a80c91f3a52962a4047082ec2a5fb5b9392742b4157096e",
+      "size": 4357,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/environment/rows.manifest.t4-reset.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t4-reset.sh",
+      "sha256": "3c5d4ec05701e41517762814f9e7207d5956394496a00c839f0b41596d020681",
+      "size": 59,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/environment/t4-reset.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t4-reset.sh.diff",
+      "sha256": "c139b745fefffe8050bf94615dae0219692743c24cc46cddbd800460ab258308",
+      "size": 232,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/environment/t4-reset.sh.diff",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "5f3860e30b7420fab7cd4041d5f46a0a567a6d45c50f0b281b25fc1cd92a40ea",
+      "size": 433,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01/sources.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1/events.jsonl",
+      "sha256": "a205961377d858994ab0f5971a0eb4ed1b48abced514261d8df251eca9d546fe",
+      "size": 216755,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1/manifest.json",
+      "sha256": "acd1b64b0fb2ba6391f311fac55b5d4e74fd177c033ec367576885e005565d36",
+      "size": 1131,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1/sent_events.jsonl",
+      "sha256": "98ece6e6f1e9d6a023dcb443d8e67ceac30df14b51a2a42d81b11d1e342e9727",
+      "size": 182291,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.marker.json",
+      "sha256": "bfcbd52f575afe50aefd2bc5dd4c4229abf483e0bb4e8b4e236907a6b9e500fd",
+      "size": 376,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.marker.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.metrics.after.json",
+      "sha256": "3a1a07a15e1bf28c074efcce37729069b029cc2c6cd8328626a873d18099c514",
+      "size": 330,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.metrics.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.metrics.before.json",
+      "sha256": "02783cfc4dc2abaea418992317472c8b72887cde9bbe2b206a470e98261b062d",
+      "size": 330,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.metrics.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.reconcile/events.jsonl",
+      "sha256": "a205961377d858994ab0f5971a0eb4ed1b48abced514261d8df251eca9d546fe",
+      "size": 216755,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.reconcile/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.reconcile/manifest.json",
+      "sha256": "5d96371cb2d59cd1a5959c48c9921f5ca9a09ea3cc5cb5925200ffca2c88f309",
+      "size": 754,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.reconcile/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.reconcile/sent_events.jsonl",
+      "sha256": "98ece6e6f1e9d6a023dcb443d8e67ceac30df14b51a2a42d81b11d1e342e9727",
+      "size": 182291,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.reconcile/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.reconcile.json",
+      "sha256": "d3de5bae3e5201c80fc030e5806ccc0f9a7ae44fce6e169a4531eb9d99889981",
+      "size": 859,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.reconcile.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.stderr.txt",
+      "sha256": "e4964239895a6c0590c5fa45c379a6bc80f3d77d95adc80c2382a11bb047283d",
+      "size": 305,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.twins.after.json",
+      "sha256": "a410c55058b76b49cb38ae4014bcff2676c742259aa3db1695bfaca62ceccf9a",
+      "size": 1113,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.twins.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.twins.before.json",
+      "sha256": "02a9e674f722fe5fd2bd9fded7fbb7ac505db62932db89168b89ccfa60ddbd16",
+      "size": 1112,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.twins.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-dup-02-q1.window-closed.json",
+      "sha256": "27f131db9e2f883b3d6abcc8e2c57ab51211e055f49e40ab416eb58ed3f63681",
+      "size": 195,
+      "source": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1.window-closed.json",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20261002T161432Z_g3-qualification-t4-reset_attempt01",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

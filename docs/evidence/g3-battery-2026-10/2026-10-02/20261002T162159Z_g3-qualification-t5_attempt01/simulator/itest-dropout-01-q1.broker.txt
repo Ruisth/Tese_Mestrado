@@ -1,0 +1,8 @@
+[2Kmosquitto-1  | 2026-10-02T16:24:20.705477071Z 2026-10-02T16:24:20: New client connected from 10.0.2.2:58347 as egw-simulator-itest-dropout-01-q1 (p2, c1, k30, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-02T16:25:04.617873634Z 2026-10-02T16:25:04: Client egw-simulator-itest-dropout-01-q1 disconnected.
+[2Kmosquitto-1  | 2026-10-02T16:25:10.369084450Z 2026-10-02T16:25:10: New client connected from 10.0.2.2:54547 as egw-simulator-itest-dropout-01-q1 (p2, c1, k30, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-02T16:25:42.534278172Z 2026-10-02T16:25:42: Client egw-simulator-itest-dropout-01-q1 disconnected.
+[2Kmosquitto-1  | 2026-10-02T16:25:48.097125420Z 2026-10-02T16:25:48: New client connected from 10.0.2.2:47091 as egw-simulator-itest-dropout-01-q1 (p2, c1, k30, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-02T16:26:18.124501442Z 2026-10-02T16:26:18: Client egw-simulator-itest-dropout-01-q1 disconnected.
+[2Kmosquitto-1  | 2026-10-02T16:26:21.654230866Z 2026-10-02T16:26:21: New client connected from 10.0.2.2:42863 as egw-simulator-itest-dropout-01-q1 (p2, c1, k30, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-02T16:27:09.825696430Z 2026-10-02T16:27:09: Client egw-simulator-itest-dropout-01-q1 disconnected.

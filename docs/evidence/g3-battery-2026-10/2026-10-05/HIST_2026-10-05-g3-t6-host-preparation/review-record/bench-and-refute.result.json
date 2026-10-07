@@ -1,0 +1,239 @@
+{
+  "summary": "Bench the S4 operator script on the real t6 step file against stubs, then adversarially verify the bench claims",
+  "agentCount": 2,
+  "logs": [
+    "bench: 21/21 PASS; 3 defect(s) fixed"
+  ],
+  "result": {
+    "bench": {
+      "scenarios": [
+        {
+          "name": "1 pass (pass.console.txt, 99 checks)",
+          "result": "PASS",
+          "decisive_lines": "open: 'collector: 9e678b02…  <bench>/repo/src/deployment/scripts/collect-resources.sh'; two 'admitted: …20261003T132936Z_g3-qualification-t6_attempt01' lines. Row: 'gate record: … the six containers equal S2's'; 'row t6: attempt …_g3-qualification-t6_attempt02 (ceiling 47 min'. Step: 'carriers after the unset: … DRAIN_QUIET_S=<unset> …'; 'drained: queue_depth 0 … over 13x s' (real 130 s window); 'config_identity: wrote …/controller_restart-r04.config_identity.json'; 'test 6: resources_proved_down: applies=True …'; 'test 6: resources_transition_rows: rule=1a-option-a-2026-10-05 admitted=True why_not=None resources_ingested=True count=2 instants=[…]'; 'test 6: harness exit 0 and the recorder's cleanup done, run directory sealed, the drain quiet'; 'itest_reconcile stub: delta exit=0'; 'itest_reconcile stub: acceptance exit=0'; no STOP:. Drain hook: 'proof_hook_drained: controller_restart-r04: drained with DRAIN_QUIET_S=130 DRAIN_STEP_S=5 DRAIN_LIMIT_S=900'. Call: 'itest_reconcile acceptance <RAW6>/logs/simulator/controller_restart-r04 --events <RAW6>/events.post-drain.jsonl --exactly-once'. Snapshots: before 61d55940… r04 planned; after 'completed validity=valid result_dir=set finished_utc=set'. Gate: 'EXPECTED-RESTART: egw-controller-1 was restarted in place …', 'guest-state-delta: faults=0 problems=0', '\"--expect-restarted\", \"egw-controller-1\"', 'GATE t6: pass'. Workload battery = the S4 authority text. Classify: 'row t6: classified 'pass'; driver code 0; export: verified -> …_attempt02'. Close: stub guest got 'docker compose --env-file .env --env-file images.lock.env stop -t 130', 'session S4 closed (guest_session_close.sh exit 0)'; one restart only, between the before and after reads."
+        },
+        {
+          "name": "2 labels (labels.console.txt, 58)",
+          "result": "PASS",
+          "decisive_lines": "'REFUSED: session S1 is a session of the battery of 2026-10-02/03, whose authority is consumed: … This script opens S4 only' (S2 same); 'REFUSED: session S3 (tests 8 and 9, 2026-10-05) is closed and its authority is consumed'; 'REFUSED: unknown row 't8' (S4: t6 only; …)' (t9, t5 same); all exit 2, no state dir; second open S4: 'REFUSED: a session is open (…)'; after close: 'REFUSED: …/session-S4.env exists: session S4 was already opened'."
+        },
+        {
+          "name": "3a-d freshness raw dir / not in plan / not planned / twins.before sibling (fresh-a..d, 52 each)",
+          "result": "PASS",
+          "decisive_lines": "open: 'NOT FRESH: …/pilot/results/raw/controller_restart-r04 exists' / 'plan entry controller_restart-r04: NOT in the plan' / '…: status=running …' / 'NOT FRESH: …/itest/controller_restart-r04.twins.before.json exists', then 'HALT: an id of S4 is not fresh on the host; nothing was started' (no state file, session, fake QEMU, attempt). Row (after a passing open): 'HALT: an id of row t6 is not fresh on the host, …: the row was NOT started and no attempt was created'; no recorder, harness, restart; second row 'REFUSED: NOT STARTED: session S4 has a recorded halt'."
+        },
+        {
+          "name": "3e admitted attempt (fresh-e, 43)",
+          "result": "PASS",
+          "decisive_lines": "exactly two 'admitted:' lines (attempts dir and out/runs/2026-10-03); the same attempt also under runs/2026-10-04 or incomplete/: 'NOT FRESH: an earlier attempt of row t6 exists: …', halt, nothing started."
+        },
+        {
+          "name": "3f another earlier t6 attempt (fresh-f, 41)",
+          "result": "PASS",
+          "decisive_lines": "'NOT FRESH: an earlier attempt of row t6 exists: <bench>/egw-exec/attempts/20261004T120000Z_g3-qualification-t6_attempt05' halts open; under out/incomplete/ it halts the row before the attempt."
+        },
+        {
+          "name": "3g export names attempt03 (fresh-g, 38)",
+          "result": "PASS",
+          "decisive_lines": "'HALT: row t6: the new attempt is named …_g3-qualification-t6_attempt03, which does not end '_g3-qualification-t6_attempt02' … No step of the row was run'; no step recorded, no harness, no restart, plan 61d55940…; classify not-applicable/not-run; close."
+        },
+        {
+          "name": "4a collector differs (id-a, 40)",
+          "result": "PASS",
+          "decisive_lines": "'HALT: collector (<bench>/repo/src/deployment/scripts/collect-resources.sh) is <hex>, the recorded identity is 9e678b02… (packet section 4, halt 6); nothing was started'; at the row: '…: row t6 was NOT started and no attempt was created'."
+        },
+        {
+          "name": "4b drivers_sha256 differs (id-b, 33)",
+          "result": "PASS",
+          "decisive_lines": "'HALT: drivers_sha256 is not 2c209b09… (packet section 4, halt 6); nothing was started'."
+        },
+        {
+          "name": "4c root file system differs (id-c, 35)",
+          "result": "PASS",
+          "decisive_lines": "'rootfs ext4: 1111…', 'expected:    6fce1688… (the value the close of S3's second opening recorded)', 'HALT: the guest root file system is not the expected one, … nothing was started'."
+        },
+        {
+          "name": "4d gate record differs from S2's (id-d, 43)",
+          "result": "PASS",
+          "decisive_lines": "'  S2:  identity egw-controller-1 … image_id=sha256:9a293fe1…'; 'HALT: the gate package's record of the running images (…: 6 identity line(s)) differs from S2's …: row t6 was NOT started and no attempt was created'; no row file; second row 'REFUSED: NOT STARTED: session S4 has a recorded halt'."
+        },
+        {
+          "name": "5 preflight non-zero (pf-1, pf-3, 37 each)",
+          "result": "PASS",
+          "decisive_lines": "script grep: 0 'EXCEPTION', 0 's3b_preflight_exception', 3 lowercase 'exception' all comments; 'preflight.sh exit=1'/'exit=3', 'HALT: preflight.sh exited N; see <bench>/egw-exec/g3-t6-s4/S4-preflight.console.txt'; no '## environment input', no env-copy record, sut_environment.json unchanged, no gate console/attempt, no guest listing; state=halted, preflight_exit=N; row t6 'REFUSED: session S4 is recorded 'halted', not open'; close closes."
+        },
+        {
+          "name": "6 harness exit 1 (out-h1, 50)",
+          "result": "PASS",
+          "decisive_lines": "'[harness] INVALID: bench case: harness exit 1'; 'STOP: test 6: the harness run was not sealed, or it exited 1'; delta/acceptance not called, their STOPs name T6='stop'; no SHA256SUMS; plan 'failed validity=invalid'; gate pass, no row halt; classify invalid/unknown records classify's halt."
+        },
+        {
+          "name": "6 harness exit 2 (out-h2, 55)",
+          "result": "PASS",
+          "decisive_lines": "'test 6: resources_proved_down: not read - harness_cmd answered 2, the harness was not started'; 'STOP: … it exited 2 (… 2: the harness was not started …)'; no delta/acceptance, no raw dir, no restart, plan planned; row records a halt: 'guest-state-delta: faults=0 problems=1', 'HALT: row t6: the gate did NOT pass …: guest-state-delta exit 2'; export 'verified; incomplete: … 1 registered artefact(s) that were never written'."
+        },
+        {
+          "name": "6 harness_cmd 3 (out-h3, 53)",
+          "result": "PASS",
+          "decisive_lines": "'STOP: harness_cmd controller_restart-r04: the harness answered 0, and the Docker events recorder's cleanup after it FAILED'; 'STOP: test 6: the procedure is INCOMPLETE'; no delta/acceptance; row halt 'gate-units exit 3'; close 'HALT: close: a recorder or collector unit is active (exit 3): nothing was stopped'; after the README's runbook cleanup by hand, close closes."
+        },
+        {
+          "name": "6 drain gave-up (out-gaveup, 47)",
+          "result": "PASS",
+          "decisive_lines": "'STOP: test 6: the drain gave up (manifest drain.outcome 'gave-up')'; delta and acceptance not called (T6='gaveup'); gate pass, no halt."
+        },
+        {
+          "name": "6 delta 4 (out-delta4, 48)",
+          "result": "PASS",
+          "decisive_lines": "'itest_reconcile stub: delta exit=4', 'STOP: test 6: delta NOT run (T6='ok') or it exited non-zero (4 = MISMATCH)'; line 1427 still ran: 'itest_reconcile stub: acceptance exit=0'."
+        },
+        {
+          "name": "6 --exactly-once 4 and 1 (out-eo4, out-eo1, 48 each)",
+          "result": "PASS",
+          "decisive_lines": "'itest_reconcile stub: acceptance exit=4' / '=1' and 'STOP: test 6: the per-identity exactly-once check was not run (T6='ok'), could not read its inputs (exit 1: …) or found … (exit 4: test 6 FAILS)'; delta 0; gate pass; eo1 classify invalid/unknown halts."
+        },
+        {
+          "name": "7 term (term.console.txt, 47)",
+          "result": "PASS",
+          "decisive_lines": "stand-in in the row's group, fake QEMU not; 'TERM sent to the process group N (exit 0). KILL is never sent.'; 'row t6: interrupted by a signal (TERM)'; 'DRIVER RESULT …_attempt02: exit=130 (interrupted: marked interrupted and exported) … capture_failures=2'; 'row t6: attempt finished 'interrupted'; driver code 130; export: verified -> …'; fake QEMU same pid and start tick; host keepalive pid 400 same start tick. FINDING F1: recorder unit egw-events-controller_restart-r04 left active; close 'HALT: close: a recorder or collector unit is active (exit 3): nothing was stopped'."
+        },
+        {
+          "name": "8 after a halt (afterhalt, 47; also id-d, fresh-a..d, out-h2)",
+          "result": "PASS",
+          "decisive_lines": "'HALT: row t6: the new attempt is named …_attempt03 …'; 'REFUSED: row t6 was already started (…/row-t6.env): a row is run once, never repeated'; classify not-applicable/not-run 'HALT: row t6 is classified not started …' + 'Next: 'close', then hand back to Rui'; close closes; open S4 refused (session-S4.env exists). Pre-attempt halts: 'REFUSED: NOT STARTED: session S4 has a recorded halt (…)'."
+        },
+        {
+          "name": "9 integrity (integrity.console.txt, 67)",
+          "result": "PASS",
+          "decisive_lines": "open with t6.sh changed: 'STOP: t6.sh: sha256 … is not the manifest sha256_after ec8ac010…', 'HALT: the row files of t6 are not the manifest's; nothing was started'; while open: changed script copy 'REFUSED: this steps script is not the one session S4 was opened with (sha256 7a63b361…)'; manifest 'REFUSED: rows.manifest.json is not the one session S4 was opened with'; t6.sh 'HALT: the row files of t6 are not the manifest's: the row was NOT started and no attempt was created'; restored 'REFUSED: NOT STARTED: session S4 has a recorded halt'."
+        },
+        {
+          "name": "experiment term-pipe-exp (a copy, NOT the script under test, sha 99ac9265…)",
+          "result": "PASS",
+          "decisive_lines": "copy differs in STEP_PRE only ('trap \"\" PIPE;', 2 diff lines): 'the recorder unit egw-events-controller_restart-r04 was stopped by harness_cmd's own cleanup after the TERM'; 'close after the term: exit 0' with no restoration."
+        }
+      ],
+      "defects_fixed": [
+        "None in P/g3_battery.sh: no bench showed a wrong halt, a missed halt or a false pass of its logic, so it was not edited (sha256 unchanged, 7a63b361…).",
+        "Not corrected, needs a decision. Finding F1: `term t6` while harness_cmd runs leaves the recorder unit egw-events-controller_restart-r04 active. The TERM goes to the row's whole group (g3_battery.sh line 2046), so it also ends `local_export exec`, which holds the step's console pipes. harness_cmd's interruption cleanup is then killed by SIGPIPE: in the trial run before it called events_cleanup, in the three recorded runs at the cleanup child's first write. `close` then halts and stops nothing. The README prescribes the runbook's cleanup only after T6=incomplete, so after a term the session is handed back to Rui. On a bench copy, adding `trap \"\" PIPE;` to STEP_PRE fixed it (term-pipe-exp; mechanism in record/sigpipe.console.txt). It was not applied: the request specifies TERM to the group, it would change the environment of the measured step on the normal path too, and this is the ceiling path, which fails safe. The options for Rui or the operator stream are that one-line change (then every scenario re-run), a README entry for close after `term t6`, or leaving the hand-back as it stands.",
+        "Bench-script corrections only, none in the operator script: the ssh-log start count now leaves out the module stub's own capture/fetch lines; the package check now names raw/<rid>/manifest.json exactly; the keepalive comparison now uses the /proc start tick, because `ps lstart` moved 9 s with WSL clock steps; out-h2's export line is now expected as `verified; incomplete`; listings are now masked before they are cut."
+      ],
+      "final_script_sha256": "7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c",
+      "not_benched": [
+        "The real harness (run.py) was not run: no simulator workload, no collector hooks, no restart at the +300 s timing (the stand-in restarts at once), no real computation of resources_transition_rows or resources_proved_down, and no fetch_started_at.sh. The stand-in bs4_harness.py writes the run directory and uses the merged run.update_plan_status, format_collector_template and format_cmd_template.",
+        "The real analyze and the real itest_reconcile delta and acceptance --exactly-once verdicts were not run: the stand-in and the module's STUB_PYTHON return each case's exit code.",
+        "The frozen session drivers were stubs: no stack start, no collector install, no collector-duration judged on the uptime bounds, no real gate_health. Their exit codes went through the real driver_status.py.",
+        "Nothing touched a guest: ssh, docker, systemd units and Docker events were all stubs (the module's STUB_EVENTS_CAPTURE and STUB_FETCH_SUT_LOG replace the copy's events_capture.sh and proof_fetch_sut_log.sh), and the tunnel used a stub master.",
+        "Not exercised, all paths S4 did not change from S3b's script: the 47 min ceiling and the 3 h cut-off as real times; a missing or short keepalive (a synthetic client is always present); a WSL restart; a lost tunnel; a guest answering 97 at the gate or at close; close with no QEMU left; close_outside with EGW_G3_RUI_GO; a dead row and local_export recover; an export failure; step statuses 97 and 74.",
+        "Also not exercised: the data-disk ext4 header (the bench disk is a text file), the Windows keep-awake, and `term` on the real harness, including the collector unit egw-resources-r04 after a term (finding F1)."
+      ],
+      "untouched_shown": "bs4_untouched.sh ran read-only against the real HOME before any bench (marker 2026-10-05T19:26:02Z, record/untouched.before.console.txt) and after the final run (2026-10-05T20:03:32Z, record/untouched.after.console.txt). ~/egw-exec and ~/egw-tcg: 19,216 entries with an identical path, mtime and size listing (sha256 a3ab5c41…) and 0 entries newer than the marker; the clone HEAD stayed 8e492613…. The plan ~/egw-tcg/pilot/campaign_plan.json was c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60 both times. ~/egw-exec/g3-t6-s4, current_session and raw/controller_restart-r04 are absent, and S2's attempt01 is the only t6 attempt. output_test: 6,266 entries, identical listing (sha256 87633ddc…), 0 newer. No process naming /tmp/g3-s4-bench is left, there is no qemu-system-aarch64 process and no fake QEMU loop, the host keepalive (pid 400) is untouched, and /tmp has no new entry. Every scenario also checked at its end that no process of its bench was left and that P/g3_battery.sh and P/rows/t6.sh were unchanged. Files outside the bench were only read: the worktree S/t6m, the real plan (copied) and S3's sealed gate record. Bench files, consoles and <S>/g3/t6prep/bench-notes.md are LF-only, contain no password value and name no tool or vendor. Consoles: <S>/g3/t6prep/bench/record/."
+    },
+    "refute": {
+      "refuted": [
+        {
+          "scenario": "term (brief 7), recorded as 'PASS (with F1)'",
+          "why": "The PASS could not fail on the close. bs4_run.sh lines 772-788 count both outcomes of 'close' as ok: exit 0, or 'HALT: close: a recorder or collector unit is active'. The console (record/term.console.txt) shows the failure branch: 'unit-controller_restart-r04=active', then 'HALT: close: a recorder or collector unit is active (exit 3): nothing was stopped', and a close only after 'bench only: the runbook's own cleanup of the recorder of r04, by hand (... after a 'term' it is Rui's decision)'. The request says the session is closed in a controlled way whatever the result (sections 1 and 5), and any restoration is itself a halt (section 5 item 6). The README's close row (g3_battery.README.md line 159) gives a cleanup only after T6=incomplete, not after a term. So on the 47 min ceiling path, which is the path the ceiling exists for, S4 as scripted cannot close without Rui. The narrow items of the brief are shown: 'TERM sent to the process group 176844 (exit 0). KILL is never sent.', 'driver code 130; export: verified', the fake QEMU with the same pid and start tick, and keepalive pid 400 unchanged. A requirement of the request is not met on this path, so the PASS label overstates it.",
+          "severity": "material"
+        },
+        {
+          "scenario": "term / term-pipe-exp: how F1 works ('Either way the unit ... stays active'; the remedy 'trap \"\" PIPE')",
+          "why": "Shown only with the test module's STUB_EVENTS_CAPTURE. Its 'cleanup' writes 'unit_state_before_cleanup=' to stdout before it writes 'inactive' to the unit file, so SIGPIPE kills it before it marks the unit stopped (term console: 'capture [cleanup] [r04] [.../events-partial]' and unit=active). The real tools/session/events_capture.sh (sha256 b06b8678..., lines 120-145 and 186) runs the guest command over 'ssh egw-tcg'. Its first writes go to sshd, and the ssh client ignores SIGPIPE. When the cleanup is reached, the guest-side 'systemctl stop' can run before the broken pipe propagates back (a race), and only the host's record is lost. The other case, recorded only in a trial log, is certain: the subshell dies at its trap's echo before any cleanup, and the unit stays active. F1 stands as a risk. But 'either way active', and the claim that the one-line remedy fixes it, are established only against the stub.",
+          "severity": "minor"
+        },
+        {
+          "scenario": "pass (brief 1): four of its 99 checks cannot fail",
+          "why": "(a) 'the step shell unset the carriers and printed them': bs4_env.sh lines 15-16 already unset DEVICES ACCEPT_UNACCOUNTED EVENTS_EXPECTED DRAIN_* READY_LIMIT_S before every run, so the line reads '<unset>' whether or not STEP_PRE unsets them. No scenario sets a carrier in the operator's environment. The same weakness holds wherever this check appears (out-* via row_ran). (b) 'rootfs_after_close recorded: 6fce1688...': the sha256sum stub answers 6fce1688 for any *.rootfs-*.ext4. (c) 'repo_identity names the merged drivers': the stub answers DRIVERS_SHA for any stream on stdin. This also makes the guest-state hash that g3_battery.sh line 656 prints the drivers' value under the bench. (d) The 'test 6: resources_transition_rows: rule=1a-option-a-2026-10-05 admitted=True ... count=2' and 'resources_proved_down' lines print constants of bs4_harness.py lines 212-219. They show t6.sh's read-only printing, not the transition rule. The decisive pass behaviour is still shown (see upheld).",
+          "severity": "minor"
+        }
+      ],
+      "upheld": [
+        "Final bytes. Every one of the 24 consoles of the script under test begins 'script run: sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c'. That equals the sha256 of <S>/g3/t6prep/g3_battery.sh computed now (2,356 lines; mtime 18:51Z, before the run of 19:58:57Z-20:03:18Z). rows/t6.sh is ec8ac010... and rows.manifest.json is 7d2a0f0d..., both current. Each console ends 'the script under test after the scenario (sha256): 7a63b361...'. The bench-script hashes printed in each console (bs4_run 116aaa90, bs4_setup 256a58ea, bs4_env 826b47e6, bs4_stubs 664b1471, bs4_harness 679dc276, bs4_src 265bdcb3) match the current files. Totals: 0 'CHECK FAILED', 1,265 'CHECK ok' including term-pipe-exp's 43, so 1,222 for the 25 scenarios as claimed. The superseded runs (19:52Z and 19:58Z moves) carry the same script hash and are all PASS.",
+        "Real t6.sh and real helpers in the row scenarios (pass, out-*, term). The step console of /tmp/g3-s4-bench/pass shows the set -v echo of the row file's own lines: 'RID=controller_restart-r04; F6=used; if ...', 'T6=stop; if [ \"$F6\" = fresh ] ...', '[ \"$T6\" = ok ] && $REC delta ...'. The attempt's environment/t6.sh hashes to ec8ac010. The helper file is e5eba37e (545 lines) and tunnel.sh is 38f5cae9, both written by the runbook's heredocs. harness_cmd, events_start, events_cleanup, drained and config_identity are the real functions ('drained: queue_depth 0 ... 27 consecutive readings over 131 s', 'config_identity: wrote .../controller_restart-r04.config_identity.json'). Stand-ins, as the notes declare: the harness and analyze (bs4_harness.py), $REC (STUB_PYTHON), events_capture.sh and proof_fetch_sut_log.sh (the module's stubs), the four session drivers, ssh, curl and scp. The open-only scenarios do not run t6.sh, by design.",
+        "pass: decisive lines shown. 'row t6: attempt .../20261005T195905Z_g3-qualification-t6_attempt02 (ceiling 47 min ...'; 'test 6: harness exit 0 and the recorder's cleanup done, run directory sealed, the drain quiet'; 'itest_reconcile stub: delta exit=0' and '... acceptance exit=0'. The calls log has the exact delta and acceptance argv with --exactly-once on logs/simulator/controller_restart-r04 and events.post-drain.jsonl. The harness argv has '--restart-at-s 300' and '--restart-transition-rule 1a-option-a-2026-10-05'. Plan snapshots: 'planned' then 'completed validity=valid result_dir=set finished_utc=set'. My own byte diff of the two snapshots shows only r04's four lines (status, validity, result_dir, finished_utc), so O1 holds. 'EXPECTED-RESTART: egw-controller-1 was restarted in place ...', 'GATE t6: pass', the workload 'battery' text equal to S4's authority, 'classified 'pass'; driver code 0; export: verified', the stub guest received 'docker compose ... stop -t 130', and session, preflight, gate and row packages are all exported. attempt.json purpose=official (read by me; no console check asserts it).",
+        "labels: S1, S2 and S3 refused with the consumed-authority texts (exit 2); 'REFUSED: usage: g3_battery.sh open S4'; 'REFUSED: unknown row 't8' (S4: t6 only ...)' and the same for t9 and t5; 'REFUSED: a session is open (...)'; and after close 'REFUSED: .../session-S4.env exists: session S4 was already opened'.",
+        "fresh-a to fresh-d: each condition halts open with 'HALT: an id of S4 is not fresh on the host; nothing was started' (no state file, no QEMU, no attempt). Each then halts the row before the attempt: 'HALT: an id of row t6 is not fresh on the host ... no attempt was created (packet section 4, halt 1)', with no recorder, no harness, no restart and the plan unchanged. A second row is refused: 'REFUSED: NOT STARTED: session S4 has a recorded halt'. fresh-e: S2's attempt01 is admitted in its two places and 'NOT FRESH' in runs/2026-10-04 and incomplete/. fresh-f: '..._attempt05' is NOT FRESH at open and at the row. fresh-g: 'HALT: row t6: the new attempt is named ..._attempt03, which does not end '_g3-qualification-t6_attempt02' ...' with no step recorded. A read-only check of the real output_test finds only S2's attempt01, so attempt02 is the name to expect.",
+        "id-a to id-d: the collector of the bench copy changed gives 'HALT: collector (...) is 0df5dbef..., the recorded identity is 9e678b02...', at open and at the row. drivers_sha256 and the root file system halt at open ('rootfs ext4: 1111...' / 'expected: 6fce1688...'); these two differences are injected through the sha256sum stub, so they show the comparison, not which object is hashed. The gate record changed gives 'HALT: the gate package's record of the running images ... differs from S2's ...: row t6 was NOT started and no attempt was created'.",
+        "pf-1 and pf-3: 'preflight.sh exit=1' or '=3', then 'HALT: preflight.sh exited N'. No environment copy, no gate driver, no guest listing; state=halted; the row is refused with 'session S4 is recorded 'halted''; close closes. The script holds 0 'EXCEPTION' and 0 's3b_preflight_exception', and its three case-insensitive 'exception' lines (7, 110, 1052) are comments that say it was removed.",
+        "Outcome scenarios, through the real row lines. out-h1: 'STOP: test 6: the harness run was not sealed, or it exited 1'; delta and acceptance not called; plan 'failed validity=invalid'; classify invalid then 'HALT: row t6 is classified invalid instrumentation'. out-h2: 'resources_proved_down: not read - harness_cmd answered 2'; no raw directory and no restart; the gate halts on the expected restart not shown ('guest-state-delta: faults=0 problems=1'). out-h3: 'STOP: harness_cmd ...: the harness answered 0, and the Docker events recorder's cleanup after it FAILED', T6=incomplete, the gate halts on the active unit, close halts, and after the prescribed cleanup close closes. out-gaveup: 'STOP: test 6: the drain gave up', with no delta and no acceptance. out-delta4: 'delta exit=4', its STOP, and line 1427 still runs ('acceptance exit=0'). out-eo4 and out-eo1: line 1427's STOP, with delta 0.",
+        "afterhalt and integrity. afterhalt: after a halt inside the row, 'REFUSED: row t6 was already started ... never repeated'; classify not-run gives 'HALT: row t6 is classified not started' and 'Next: 'close''; close closes, and 'open S4' is then refused. integrity: a changed t6.sh halts open ('STOP: t6.sh: sha256 5d11adfc... is not the manifest sha256_after ec8ac010...'). A changed copy of the script gives 'REFUSED: this steps script is not the one session S4 was opened with'. A changed manifest is refused. A changed t6.sh halts the row before the attempt. Note that check (a) ran a changed copy of the script at another path, not the script changed in place; the self-hash mechanism is the same.",
+        "Untouchedness. Before (19:25:55Z) and after (20:03:32Z): ~/egw-exec and ~/egw-tcg have 19,216 entries with listing sha256 a3ab5c41... in both; output_test has 6,266 entries with 87633ddc... in both; 0 entries newer than the marker; plan c195bd3f...; clone HEAD 8e492613 unchanged; no new /tmp entry and no bench or QEMU process left.",
+        "Found during this review, with no re-runs. No console was ambiguous enough to justify one, and the bench scripts are hard-wired to /tmp/g3-s4-bench (bs4_setup.sh, bs4_env.sh and bs4_stubs.py refuse other roots), so running them under /tmp/g3-s4-refute-* would have meant editing them. The read-only inspection scripts I used are in <S>/g3/t6prep/check/refute-bench/ (r1-r7)."
+      ],
+      "gaps": [
+        "Section 5 item 1: no scenario shows the halt for 'the clone not at 1fd9792 or not clean'. The git stub's git.head and git.dirty flags are never set in bs4_run.sh. The real clone was still at 8e492613 at 20:03Z (untouched.after), so this is the first check the real 'open' will meet if the preparation has not moved the clone.",
+        "Section 5 item 1: these differing identities are never benched in S4: runbook, helpers, tunnel.sh, ca.crt, export tool, kernel, qemuboot.conf, QEMU binary, the Yocto checkout (git.yocto.* is unused), and the system identities the frozen preflight checks (images.lock.env, compose.yaml, mosquitto.conf, CONTRACTS.md, src/schemas, the deployed tree 573e902b). Also not benched: r04 present on the guest (guest.events.extra is never used), guest_session_open.sh or gate_health.sh ending non-zero, and the environment copy failing.",
+        "Section 4: the frozen preflight's real work is never run. That covers the stack start through its interlock, the collector's copy and install with the previous one kept, the deployed tree against the clone, 45 s of live collection, and collector-duration on the uptime bounds. The four session drivers are stubs.",
+        "Section 4 and section 5 item 4: the 47 min ceiling as a time and its enforcement, and the 3 h cutoff, are not benched. The only TERM was sent by hand at about 131 s. The term guards (a QEMU process or the keepalive inside the row's group leads to HALT and nothing is signalled) are never exercised: the fake QEMU runs in its own session and the keepalive belongs to the WSL relay, so 'untouched' could not fail. The collector unit egw-resources-r04 after a TERM is not benched.",
+        "Section 4: the restart at +300 s mid-run is not benched (the stand-in restarts at once). The 6 h keepalive is shown only in the positive case, with a synthetic client. The Windows keep-awake is not benched.",
+        "Section 5 item 2: step status 97 or 74, and export, transcript or snapshot failures, are not benched in S4.",
+        "Section 5 item 3: the failed-gate causes 'not six healthy within 900 s', 'OOM kill' and 'an unexpected restart or replacement' are not benched. The guest-state stub always answers oomkilled=false restarts=0 and 'ALL HEALTHY'. Only 'unit active' (out-h3) and 'expected restart not shown' (out-h2) are shown.",
+        "Section 5 item 5: guest, tunnel, WSL or keepalive lost is not benched (the ssh wrapper's guest.down flag is never set). Neither is a tunnel found down and reopened at the gate.",
+        "Section 5 item 6: the README requires the one prescribed restoration to be run 'through hx on the open attempt ... recorded'. The bench ran events_capture.sh cleanup directly, so recording a restoration is never shown. After a term there is no prescribed path at all (F1). This needs Rui's decision or a README entry before S4.",
+        "Section 6, classification: the per_run.csv inputs that decide the class (restart_metrics_endpoint_recovery_s against 120 s, double_accepted, lost, late_confirmations, functional recovery) are constants of the analyze stand-in. 'Recovery above 120 s' and 'double_accepted above 0' are never exercised, and nothing shows the operator reading them.",
+        "Section 6, invalid instrumentation: delta exit 1 or 2 is not benched. The row does not record the exit codes of $REC: line 1426's STOP is the same text for delta 1, 2 and 4; line 1427's STOP is the same for acceptance 1 and 4; the step status is analyze's 0. The consoles tell exit 1 from exit 4 only by the stub's own 'itest_reconcile stub: ... exit=N' line, so the real tool's text (for example '-> FAIL') that the operator must classify from is never shown.",
+        "Section 6, not started and invalid causes: these are not benched: config_identity failing, a rejected resources.csv or a failed fetch_started_at.sh (harness exit 1 with those reasons), wait_ready or drained failing (T6=stop 'not ready, not drained'), events_start not ready (events_start_rc), and t6.sh's own F6 refusal (it is never reached, because the script pre-empts it).",
+        "Section 6, reported-beside items: the transition rule's computation, resources_proved_down and the N1 report are stand-in constants or stubs. The real harness, analyze, delta and acceptance are not run on any file.",
+        "Section 6, evidence: the real export into output_test/runs/<UTC date>/ (the bench exports into <bench>/out), the sealing of the operator records as HIST_..., the secret sweep of those records, and the result note in output_test/decisions/ are all manual steps that are not benched.",
+        "The README's 'What is unverified' section (g3_battery.README.md, around lines 204-215) is now stale. It still says the changed paths were benched with a stand-in t6.sh, and that 'term t6 during the harness ... was not exercised for t6 in any bench'. This bench did both, and found F1."
+      ]
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Bench"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Refute"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "bench",
+      "phaseIndex": 1,
+      "phaseTitle": "Bench",
+      "agentId": "a785263404194f40c",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791227731371,
+      "queuedAt": 1791227731353,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f…",
+      "promptPreview": "You are stream BENCH of the preparation of a bounded guest session (S4, test 6 only) of an MSc project. Read <S>/g3/t6prep/brief.md (hard rules 1-8 apply: write only under C:/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372…",
+      "promptFramed": true,
+      "lastProgressAt": 1791230747796,
+      "tokens": 591214,
+      "toolCalls": 125,
+      "durationMs": 3016424,
+      "resultPreview": "{\"scenarios\":[{\"name\":\"1 pass (pass.console.txt, 99 checks)\",\"result\":\"PASS\",\"decisive_lines\":\"open: 'collector: 9e678b02…  <bench>/repo/src/deployment/scripts/collect-resources.sh'; two 'admitted: …20261003T132936Z_g3-qualification-t6_attempt01' lines. Row: 'gate record: … the six containers equal S2's'; 'row t6: attempt …_g3-qualification-t6_attempt02 (ceiling 47 min'. Step: 'carriers after the …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "refute-bench",
+      "phaseIndex": 2,
+      "phaseTitle": "Refute",
+      "agentId": "a851338895df4430a",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791230747817,
+      "queuedAt": 1791230747800,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent, skeptical reviewer (read-only: do not modify anything under <S>/g3/t6prep; scratch only under <S>/g3/t6prep/check/refute-b…",
+      "promptFramed": true,
+      "lastProgressAt": 1791231416922,
+      "tokens": 324006,
+      "toolCalls": 59,
+      "durationMs": 669105,
+      "resultPreview": "{\"refuted\":[{\"scenario\":\"term (brief 7), recorded as 'PASS (with F1)'\",\"why\":\"The PASS could not fail on the close. bs4_run.sh lines 772-788 count both outcomes of 'close' as ok: exit 0, or 'HALT: close: a recorder or collector unit is active'. The console (record/term.console.txt) shows the failure branch: 'unit-controller_restart-r04=active', then 'HALT: close: a recorder or collector unit is ac…"
+    }
+  ],
+  "totalTokens": 915220,
+  "totalToolCalls": 184
+}

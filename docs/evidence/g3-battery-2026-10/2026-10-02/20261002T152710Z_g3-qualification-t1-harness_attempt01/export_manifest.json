@@ -1,0 +1,641 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T152710Z_g3-qualification-t1-harness_attempt01",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-10-02\\20261002T152710Z_g3-qualification-t1-harness_attempt01"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-10-02T15:43:59.636017Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": "attempt.json",
+      "sha256": "3bd5f291c899ad69d934a257eead106ef61fa915ba5f892d6c8d42a11cf70ef1",
+      "size": 3689,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "5fcdb6de575905363b45130e6d8b66690ff88300b6c7c31e0addd27e14b87b75",
+      "size": 19237,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-guest-state-before.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/001-guest-state-before.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-guest-state-before.stdout.txt",
+      "sha256": "ceb4a27b17c9a441aa28925951623aeae7617d157c14c6c1b505b6c6087f6bea",
+      "size": 1711,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/001-guest-state-before.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-snapshot-before.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/002-snapshot-before.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-snapshot-before.stdout.txt",
+      "sha256": "ca7da7ac87177107db5ecf088ca65a65226f9074c5dd7f6c4c3795d0e005e60b",
+      "size": 824,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/002-snapshot-before.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-t1-harness.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/003-t1-harness.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-t1-harness.stdout.txt",
+      "sha256": "1f2b252884b189d9f3875a3ef66f1cabf2ba39741f7d97fb6cffae048466c5f8",
+      "size": 4031,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/003-t1-harness.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-snapshot-after-harness.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/004-snapshot-after-harness.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-snapshot-after-harness.stdout.txt",
+      "sha256": "3387b47568b7f5079d643bb967f17b508a6a0fdeb33e0c35ff161f781439cbf3",
+      "size": 303,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/004-snapshot-after-harness.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-t1-harness-analyze.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/005-t1-harness-analyze.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-t1-harness-analyze.stdout.txt",
+      "sha256": "c7dbd42bccaf17eb42b29a9467b7d3c4e4b1b4e8319fa456cbe3d528c9d480ba",
+      "size": 4141,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/005-t1-harness-analyze.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-snapshot-after.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/006-snapshot-after.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-snapshot-after.stdout.txt",
+      "sha256": "1facd51de79b98c075ff7f9999b5b12c5b62a2481210171972b6aa5276a13ff7",
+      "size": 1014,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/006-snapshot-after.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-guest-state-after.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/007-guest-state-after.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-guest-state-after.stdout.txt",
+      "sha256": "971dd495d44e1f90bc1b0e12ae2531248fa63d6722a4f657e22e12f517a0bb09",
+      "size": 1711,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/007-guest-state-after.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/008-guest-state-delta.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/008-guest-state-delta.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/008-guest-state-delta.stdout.txt",
+      "sha256": "67bc35c937fd198674c1cd0e36f7d1fbb7d7bea80ae199c468f912e94b669535",
+      "size": 211,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/008-guest-state-delta.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/009-gate-healthy.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/009-gate-healthy.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/009-gate-healthy.stdout.txt",
+      "sha256": "0e03a70260ca6bc439ae92ed812c1041ddf4b7613c840552040a8188675663a2",
+      "size": 348,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/009-gate-healthy.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/010-gate-units.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/010-gate-units.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/010-gate-units.stdout.txt",
+      "sha256": "8c648e58851cdf309c702fdb4e50ec9d646bcc7814d766ac85cd6eb19d46dd87",
+      "size": 54,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/010-gate-units.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/011-gate-tunnel-check.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/011-gate-tunnel-check.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/011-gate-tunnel-check.stdout.txt",
+      "sha256": "66a16585f4f1aad2bf5148d416ed20ba1b58dc0b3fd624de07305ddba0adcf6a",
+      "size": 68,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/011-gate-tunnel-check.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/g3_battery.sh",
+      "sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1",
+      "size": 98349,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/environment/g3_battery.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/rows.manifest.json",
+      "sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+      "size": 37232,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/environment/rows.manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/rows.manifest.t1-harness.json",
+      "sha256": "6fc1ff3b8f3c88352e9d2136125e6ba7e529a59324fbbfb29f83c5098860a532",
+      "size": 5615,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/environment/rows.manifest.t1-harness.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t1-harness-analyze.sh",
+      "sha256": "d0fb59187c8fad3626c04c15b703911e599586a20231ba7c27849209b6e647c8",
+      "size": 2094,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/environment/t1-harness-analyze.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t1-harness.sh",
+      "sha256": "d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c",
+      "size": 1496,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/environment/t1-harness.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t1-harness.sh.diff",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/environment/t1-harness.sh.diff",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/campaign_plan.after-harness.json",
+      "sha256": "c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b",
+      "size": 39248,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.after-harness.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/campaign_plan.after.json",
+      "sha256": "c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b",
+      "size": 39248,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/campaign_plan.before.json",
+      "sha256": "5d902a429b9fd4e25f2c4586341f94be2853104fe12a76b88852a1ed30203e23",
+      "size": 39095,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/acceptance_by_condition.csv",
+      "sha256": "aa5cb32a66270147058836741cdfd2faf3e09eb927eab4de5637d8848e7964bf",
+      "size": 7242,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/acceptance_by_condition.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/external_runs.csv",
+      "sha256": "04894825d2eaf665b8c6259512c71c1315aba638807b94940aedd5747757df2d",
+      "size": 88,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/external_runs.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/per_run.csv",
+      "sha256": "40c019cb497dfe7da2dd7c3dc840a2092757e3ad4a16235ad8db6f63410b4559",
+      "size": 4849,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/per_run.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/recovery_qualification.csv",
+      "sha256": "76b09c6f91c3797eb5227c7a058d0ef056bd6593be2af1a773969f63e6d11cc8",
+      "size": 695,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/recovery_qualification.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/recovery_qualification.json",
+      "sha256": "07f0bc9a67cc07b00726211eff0fba40617aee23c25db0d5a46d9791e4a31e20",
+      "size": 5287,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/recovery_qualification.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/resources_by_run.csv",
+      "sha256": "4d0f6959138fde807a76f370c45276d1d83876eb59da76e0331ae1a3f05cad54",
+      "size": 1494,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/resources_by_run.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/saturation.json",
+      "sha256": "801b11e9c7d378372927a8a4f40b1b8e631cbcb6222ecfecfbf8916db2a2fd8d",
+      "size": 4628,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/saturation.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.after/summary_by_condition.csv",
+      "sha256": "4a145a792d4c4b4dcb7e626d4edd72a78a652843cd9e906e6799411490ccd949",
+      "size": 1406,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.after/summary_by_condition.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.before/acceptance_by_condition.csv",
+      "sha256": "0625155a8e02b66181e8fe0bbe822285f101b1f6818c2acecd6976e2bec88877",
+      "size": 7268,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.before/acceptance_by_condition.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.before/external_runs.csv",
+      "sha256": "04894825d2eaf665b8c6259512c71c1315aba638807b94940aedd5747757df2d",
+      "size": 88,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.before/external_runs.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.before/per_run.csv",
+      "sha256": "7b66cea97d08add06b104581bcc81bc45459e519d83f2cf0cd401cd1c10e28d8",
+      "size": 3953,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.before/per_run.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.before/resources_by_run.csv",
+      "sha256": "2ae388453e6c1523b1275b282b341c2437202fdaa73dbe9747de815968b9ce29",
+      "size": 166,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.before/resources_by_run.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.before/saturation.json",
+      "sha256": "801b11e9c7d378372927a8a4f40b1b8e631cbcb6222ecfecfbf8916db2a2fd8d",
+      "size": 4628,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.before/saturation.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/processed.before/summary_by_condition.csv",
+      "sha256": "641aab04fcee52897363de05760b7f4d02846188e8636beea77c441544f828a4",
+      "size": 89,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/processed.before/summary_by_condition.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "29327cb1fe6bbe79dcbda2c23eceafbea4a27b075d0b83056edf46d0876f360f",
+      "size": 614,
+      "source": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/sources.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/SHA256SUMS",
+      "sha256": "c30ee61fed631fe7a6f9be769d0fc8a9829d6204e7541d9b84a52b5f227a8089",
+      "size": 3575,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/SHA256SUMS",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/controller_metrics.csv",
+      "sha256": "ade7f8a8e5c6e587c23fc5817dfc8aee34dccd076cdea091a1f7380477a5f353",
+      "size": 103877,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/controller_metrics.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/events.jsonl",
+      "sha256": "28bd0ec3d2487a423c39ef1e41936001ab2c4815fb12322db80f32b30b7d2831",
+      "size": 1511240,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/loadgen_environment.json",
+      "sha256": "50cdbe35690e115e86322af125b292dceadf27c67990a0ff9dcf182d1c27b74d",
+      "size": 529,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/loadgen_environment.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/hook-fetch.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/hook-fetch.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/hook-fetch.stdout.txt",
+      "sha256": "f25e4caa6f5847e9b754f5063eaca30e89c83e1df7c7210bfa47d8870ef50bb9",
+      "size": 522,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/hook-fetch.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/hook-start.stderr.txt",
+      "sha256": "8ef47f6b724a1a5f80c626f13539f9ad9d1b4106b5b3f7f3e632ffd33c79b99b",
+      "size": 100,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/hook-start.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/hook-start.stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/hook-start.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/hook-stop.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/hook-stop.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/hook-stop.stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/hook-stop.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/resources-nominal-r02.csv",
+      "sha256": "9eb107a6ffe338e8b4bf777140fe72cd7e695ba266c50934ae0f9df9a50dc15e",
+      "size": 327116,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/resources-nominal-r02.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/resources-nominal-r02.csv.diagnostics.log",
+      "sha256": "c59ffb99dd51b25e24a31fe96fdecc6c77dcdb259039c01593246ca39a67f007",
+      "size": 17711,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/resources-nominal-r02.csv.diagnostics.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/collector/resources-nominal-r02.csv.lifecycle.csv",
+      "sha256": "ddfc7f72e0e089b5406083428f9f4cf6592165f226b7a0f9773b383d63d2a030",
+      "size": 708,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/collector/resources-nominal-r02.csv.lifecycle.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/simulator/nominal-r02/manifest.json",
+      "sha256": "909a3ab23510a675817dcf13b1840a31430d362e735f74f34a48092a141277bf",
+      "size": 1138,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/simulator/nominal-r02/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/simulator/nominal-r02/sent_events.jsonl",
+      "sha256": "192e2b7e1cf62347da85271e97457be172c030bac5d0ecc049c702328108aae8",
+      "size": 1802864,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/simulator/nominal-r02/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/simulator.log",
+      "sha256": "5075d5ea818a40c08800612148f40aed27840853dcc524a4c3001c2dc826e3a7",
+      "size": 347,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/simulator.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/broker.log",
+      "sha256": "8d5bf3e0c07f37516c3614fbe8b88d4324fdd43d7f491b00254819691a5453b6",
+      "size": 8666,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/broker.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/controller.log",
+      "sha256": "c2cd056f3c8d3253bc2243aa3efb53196d539b7d11da17325dcc3b3f35a39760",
+      "size": 1596373,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/controller.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/docker-events.cli-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/docker-events.cli-stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/docker-events.coverage.txt",
+      "sha256": "b319ca47f960da7f9067218faadf3e5b89af9862d0703f407233e279ff3e8549",
+      "size": 2651,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/docker-events.coverage.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/docker-events.lifecycle.txt",
+      "sha256": "dfada1d42e3cbf50096556743865720b30b57214b4996c8c387b1072965de587",
+      "size": 198,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/docker-events.lifecycle.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/docker-events.log",
+      "sha256": "b168040d555c15b25a219275a6c77d1ea9051baf8f823930725c59ff5a816b46",
+      "size": 999383,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/docker-events.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/docker-events.start-facts.txt",
+      "sha256": "5082e20e5182da90719dfd079f93c8d1f14596d6a2e918884a37217e3b0b629b",
+      "size": 98,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/docker-events.start-facts.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/docker-events.stop.txt",
+      "sha256": "2453d63d695fe50773da06491e8c61223fed79efd945fa463ba6829cd61c4a3c",
+      "size": 339,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/docker-events.stop.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/hook-broker_log.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/hook-broker_log.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/hook-broker_log.stdout.txt",
+      "sha256": "562da702ac5f939bbf57feaa2675d8f29fe36b26d7b7dd2474f0e63051e75880",
+      "size": 606,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/hook-broker_log.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/hook-controller_log.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/hook-controller_log.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/hook-controller_log.stdout.txt",
+      "sha256": "6f39a64cc4e57a593bd8c713ea82651e37e0e42e549e8d5325816768f02234e1",
+      "size": 624,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/hook-controller_log.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/hook-docker_events.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/hook-docker_events.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/sut/hook-docker_events.stdout.txt",
+      "sha256": "c44835dafca095cee9415014a6ada01cca92c9665e16baf590a1abd73f1813ae",
+      "size": 465,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/sut/hook-docker_events.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/warmup/nominal-r02.warmup/manifest.json",
+      "sha256": "f920cf1e8fcf7ef6ade4b82ab8cab3e39b8cfc01edf3647384df2959ae9f7ea4",
+      "size": 1145,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/warmup/nominal-r02.warmup/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/warmup/nominal-r02.warmup/sent_events.jsonl",
+      "sha256": "dc4342b224ec39ebce97c77048124ad91931ce26088c48b06d7b3b253c815871",
+      "size": 368964,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/warmup/nominal-r02.warmup/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/logs/warmup.log",
+      "sha256": "36f34e1515bf5c1643a4af2281d7c88da2ce48eee36368bc003fdf9d14e8a33c",
+      "size": 358,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/logs/warmup.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/manifest.json",
+      "sha256": "40e3b7515990d610659d6825723134863d2f124ab1cb0e939857808a9dc97ca2",
+      "size": 15602,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/resources.csv",
+      "sha256": "9eb107a6ffe338e8b4bf777140fe72cd7e695ba266c50934ae0f9df9a50dc15e",
+      "size": 327116,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/resources.csv",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/sent_events.jsonl",
+      "sha256": "192e2b7e1cf62347da85271e97457be172c030bac5d0ecc049c702328108aae8",
+      "size": 1802864,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "raw/nominal-r02/sut_environment.json",
+      "sha256": "f6a53ceeec7648f70f737cf622653a048e4c1251749a4f872734f9783728288b",
+      "size": 816,
+      "source": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02/sut_environment.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "other/nominal-r02.sut/events-start.txt",
+      "sha256": "f08d81a81965ab6773516f5854cf87345e667b0e86fefadee13d5327672bd6b9",
+      "size": 517,
+      "source": "/home/ruisth/egw-tcg/itest/nominal-r02.sut/events-start.txt",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20261002T152710Z_g3-qualification-t1-harness_attempt01",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

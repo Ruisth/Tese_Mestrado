@@ -1,0 +1,74 @@
+## 2026-10-03T14:38:24Z up=4687 close S2: /home/ruisth/egw-exec/attempts/20261003T132249Z_guest-session_attempt09
+keepalive: pid 490 'sleep 43200', parent 489 (Relay(490)), running for 4675 s, about 38525 s left
+keepalive: pid 496 'sleep 43202', parent 495 (Relay(496)), running for 4675 s, about 38527 s left
+keepalive: attached, about 38527 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-03T14:38:24Z up=4687 no recorder or collector unit active (read-only)
+no egw-events-* and no egw-resources-* unit is active
+## 2026-10-03T14:38:25Z up=4688 the recorded stop with the controller's 130 s allowance (PM condition 4)
+ Container egw-controller-1  Stopping
+ Container egw-ditto-things-1  Stopping
+ Container egw-controller-1  Stopped
+ Container egw-ditto-gateway-1  Stopping
+ Container egw-mosquitto-1  Stopping
+ Container egw-mosquitto-1  Stopped
+ Container egw-ditto-things-1  Stopped
+ Container egw-ditto-gateway-1  Stopped
+ Container egw-ditto-policies-1  Stopping
+ Container egw-ditto-policies-1  Stopped
+ Container egw-mongodb-1  Stopping
+ Container egw-mongodb-1  Stopped
+stop exit=0
+egw-controller-1 Exited (0) 18 seconds ago
+egw-ditto-things-1 Exited (143) 10 seconds ago
+egw-ditto-gateway-1 Exited (143) 6 seconds ago
+egw-ditto-policies-1 Exited (143) 2 seconds ago
+egw-mongodb-1 Exited (0) 1 second ago
+egw-mosquitto-1 Exited (0) 13 seconds ago
+## 2026-10-03T14:38:48Z up=4712 guest_session_close.sh (frozen driver, /home/ruisth/egw-exec/repo/tools/session/guest_session_close.sh; console /home/ruisth/egw-exec/g3-battery/S2-guest_session_close.console.txt)
+Exit request sent.
+TUNNEL CLOSED
+ Container egw-ditto-things-1  Stopping
+ Container egw-controller-1  Stopping
+ Container egw-controller-1  Stopped
+ Container egw-mosquitto-1  Stopping
+ Container egw-ditto-things-1  Stopped
+ Container egw-ditto-gateway-1  Stopping
+ Container egw-mosquitto-1  Stopped
+ Container egw-ditto-gateway-1  Stopped
+ Container egw-ditto-policies-1  Stopping
+ Container egw-ditto-policies-1  Stopped
+ Container egw-mongodb-1  Stopping
+ Container egw-mongodb-1  Stopped
+stop exit=0
+egw-controller-1 Exited (0) 20 seconds ago
+egw-ditto-things-1 Exited (143) 12 seconds ago
+egw-ditto-gateway-1 Exited (143) 9 seconds ago
+egw-ditto-policies-1 Exited (143) 4 seconds ago
+egw-mongodb-1 Exited (0) 3 seconds ago
+egw-mosquitto-1 Exited (0) 15 seconds ago
+no memory-cgroup OOM in this boot
+memory-cgroup OOM lines: 0
+[2026-10-03T14:38:53Z] s1: collecting the final guest state
+[2026-10-03T14:39:03Z] s1: QEMU ended: exit=0 finished=2026-10-03T14:39:03Z
+[2026-10-03T14:39:05Z] s1: G1 artefacts: egw-image-qemuarm64.rootfs.manifest: OK
+[2026-10-03T14:39:05Z] s1: session closed: exit=0 closed=2026-10-03T14:39:05Z
+22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-rw-r--r-- 1 ruisth ruisth 34359738368 Oct  3 15:39 /home/ruisth/yocto/egw-integrated/egw-data.img
+no qemu process left
+exported 20261003T132249Z_guest-session_attempt09: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-03\20261003T132249Z_guest-session_attempt09 (verified, 87 files, 0 excluded)
+DRIVER RESULT 20261003T132249Z_guest-session_attempt09: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+guest_session_close.sh exit=0
+rootfs ext4 after the close: 22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd (S2 opens only on this value)
+data disk after the close (read-only listing, no qemu-system-aarch64 process left):
+  -rw-r--r-- 1 ruisth ruisth 34359738368 Oct  3 15:39 /home/ruisth/yocto/egw-integrated/egw-data.img
+  Last mounted on:          /var/lib/docker
+  Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+  Filesystem state:         clean
+  Last mount time:          Sat Oct  3 15:26:17 2026
+  Maximum mount count:      -1
+  Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## 2026-10-03T14:39:43Z up=4768 session S2 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+  1. seal the operator records (/home/ruisth/egw-exec/g3-battery: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<date>-g3-battery-operator-records;
+  2. write output_test/decisions/<date>_g3-battery-s2-results.md (every row and its class; no G3 claim);
+  3. release the keepalive client and the Windows keep-awake.

@@ -1,0 +1,34 @@
+## 2026-10-04T21:20:09Z static checks of the scripts and of the row files (bash 5.2.21(1)-release, Python 3.12.3)
+g3_extract_rows.py                 CR bytes 0; BOM no; UTF-8 valid; final newline; python syntax ok
+g3_check_rows.sh                   CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+g3_rows_dryrun.sh                  CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows-record/rows-proofs.sh         CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows-record/manifest-compat.py     CR bytes 0; BOM no; UTF-8 valid; final newline; python syntax ok
+rows-record/run-record.sh          CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/rows.manifest.json            CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t8-a-reboot.sh                CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t8-a-reboot.sh.diff           CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t8-b-wait-boot-id.sh          CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t8-b-wait-boot-id.sh.diff     CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t8-c-unaided.sh               CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t8-c-unaided.sh.diff          CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t8-d-tunnel.sh                CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t8-d-tunnel.sh.diff           CR bytes 0; BOM no; UTF-8 valid; empty; -
+rows/t8-e-state.sh                 CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t8-e-state.sh.diff            CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t8-f-smoke.sh                 CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t8-f-smoke.sh.diff            CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t9-a.sh                       CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t9-a.sh.diff                  CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t9-b.sh                       CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t9-b.sh.diff                  CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t9-c.sh                       CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t9-c.sh.diff                  CR bytes 0; BOM no; UTF-8 valid; final newline; -
+rows/t9-de.sh                      CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+rows/t9-de.sh.diff                 CR bytes 0; BOM no; UTF-8 valid; empty; -
+rows/t9-exposure.sh                CR bytes 0; BOM no; UTF-8 valid; final newline; bash -n ok
+
+## the three scripts against the untouched copies of P/base (git diff --no-index --numstat: added, removed)
+g3_extract_rows.py: base 6940366cca642d8f824092278e82e500112d8a3f9df36ed6d32cbc6595ead304 (776 lines) -> 11c19af75faf43994c6f68f1ca7b6bdfc1aa7c0e56e1939b7c8dc52173604598 (716 lines); numstat 169 229
+g3_check_rows.sh: base 1173e78cb81a1e5d4e39e26645f322d1f5f360cb086899e6951c15b7228ddc26 (175 lines) -> 2f1863b0f3b85f7ab2b8db65745f2d7a5d802ed0031fbcdb94e5cd666b64b11d (204 lines); numstat 110 81
+g3_rows_dryrun.sh: base bf0fac2c48b32a0398e678823e6a72cdddd5568a49bed48c3434584a1e9523bb (75 lines) -> fbbca2f638f8a7b7364efcdd7756203504227c989708874c570c5339c48503e3 (121 lines); numstat 83 37

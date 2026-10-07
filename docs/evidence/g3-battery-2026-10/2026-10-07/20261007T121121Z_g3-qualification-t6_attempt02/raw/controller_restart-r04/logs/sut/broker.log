@@ -1,0 +1,90 @@
+[2Kmosquitto-1  | 2026-10-07T12:14:06.863687662Z 2026-10-07T12:14:06: New connection from 127.0.0.1:39688 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:14:06.944206510Z 2026-10-07T12:14:06: New connection from 10.0.2.2:55527 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:14:06.987731694Z 2026-10-07T12:14:06: New client connected from 10.0.2.2:55527 as egw-simulator-controller_restart-r04 (p2, c1, k30, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-07T12:14:07.029078558Z 2026-10-07T12:14:07: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:14:27.307268999Z 2026-10-07T12:14:27: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:14:39.239123959Z 2026-10-07T12:14:39: New connection from 127.0.0.1:34662 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:14:39.584525943Z 2026-10-07T12:14:39: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:15:11.443100493Z 2026-10-07T12:15:11: New connection from 127.0.0.1:58736 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:15:11.699935597Z 2026-10-07T12:15:11: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:15:30.582937004Z 2026-10-07T12:15:30: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:15:43.705452572Z 2026-10-07T12:15:43: New connection from 127.0.0.1:52724 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:15:44.013913740Z 2026-10-07T12:15:43: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:16:16.069641001Z 2026-10-07T12:16:16: New connection from 127.0.0.1:43642 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:16:16.541571273Z 2026-10-07T12:16:16: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:16:33.826599699Z 2026-10-07T12:16:33: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:16:48.838563379Z 2026-10-07T12:16:48: New connection from 127.0.0.1:45738 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:16:49.115474147Z 2026-10-07T12:16:49: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:17:21.152155364Z 2026-10-07T12:17:21: New connection from 127.0.0.1:58236 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:17:21.404750388Z 2026-10-07T12:17:21: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:17:37.154230058Z 2026-10-07T12:17:37: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:17:53.644656250Z 2026-10-07T12:17:53: New connection from 127.0.0.1:58048 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:17:54.060231914Z 2026-10-07T12:17:54: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:18:26.320470402Z 2026-10-07T12:18:26: New connection from 127.0.0.1:47918 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:18:26.617045922Z 2026-10-07T12:18:26: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:18:39.291255730Z 2026-10-07T12:18:39: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:18:58.734743374Z 2026-10-07T12:18:58: New connection from 127.0.0.1:59388 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:18:58.984787358Z 2026-10-07T12:18:58: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:19:21.958243577Z 2026-10-07T12:19:21: Client egw-controller-egw-01 disconnected.
+[2Kmosquitto-1  | 2026-10-07T12:19:31.023090809Z 2026-10-07T12:19:31: New connection from 127.0.0.1:60400 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:19:31.253945641Z 2026-10-07T12:19:31: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:19:38.579061785Z 2026-10-07T12:19:38: New connection from 172.18.0.7:39175 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:19:38.656727705Z 2026-10-07T12:19:38: New client connected from 172.18.0.7:39175 as egw-controller-egw-01 (p2, c0, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-07T12:19:38.773665481Z 2026-10-07T12:19:38: egw-controller-egw-01 1 c2dt/+/+/telemetry
+[2Kmosquitto-1  | 2026-10-07T12:19:42.517996921Z 2026-10-07T12:19:42: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:20:03.410705705Z 2026-10-07T12:20:03: New connection from 127.0.0.1:43548 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:20:03.679470521Z 2026-10-07T12:20:03: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:20:35.744166098Z 2026-10-07T12:20:35: New connection from 127.0.0.1:38372 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:20:36.016141186Z 2026-10-07T12:20:35: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:20:45.871784050Z 2026-10-07T12:20:45: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:21:08.241216992Z 2026-10-07T12:21:08: New connection from 127.0.0.1:43100 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:21:08.448168528Z 2026-10-07T12:21:08: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:21:40.561558166Z 2026-10-07T12:21:40: New connection from 127.0.0.1:47524 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:21:40.801496438Z 2026-10-07T12:21:40: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:21:49.235263654Z 2026-10-07T12:21:49: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:22:12.928637636Z 2026-10-07T12:22:12: New connection from 127.0.0.1:58576 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:22:13.184845892Z 2026-10-07T12:22:13: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:22:44.148653349Z 2026-10-07T12:22:44: New connection from 127.0.0.1:57268 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:22:44.440637496Z 2026-10-07T12:22:44: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:22:51.394663495Z 2026-10-07T12:22:51: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:23:16.522354387Z 2026-10-07T12:23:16: New connection from 127.0.0.1:46708 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:23:16.792224755Z 2026-10-07T12:23:16: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:23:48.515965805Z 2026-10-07T12:23:48: New connection from 127.0.0.1:40480 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:23:48.763691453Z 2026-10-07T12:23:48: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:23:54.434899869Z 2026-10-07T12:23:54: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:24:20.482669150Z 2026-10-07T12:24:20: New connection from 127.0.0.1:49074 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:24:20.767434846Z 2026-10-07T12:24:20: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:24:27.444155710Z 2026-10-07T12:24:27: Client egw-simulator-controller_restart-r04 disconnected.
+[2Kmosquitto-1  | 2026-10-07T12:24:52.412956575Z 2026-10-07T12:24:52: New connection from 127.0.0.1:49398 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:24:52.674855695Z 2026-10-07T12:24:52: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:24:57.204427631Z 2026-10-07T12:24:57: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:25:24.268156450Z 2026-10-07T12:25:24: New connection from 127.0.0.1:47972 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:25:24.463483250Z 2026-10-07T12:25:24: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:25:56.362182451Z 2026-10-07T12:25:56: New connection from 127.0.0.1:51766 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:25:56.651830995Z 2026-10-07T12:25:56: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:25:59.832336099Z 2026-10-07T12:25:59: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:26:28.184914592Z 2026-10-07T12:26:28: New connection from 127.0.0.1:33612 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:26:28.429356832Z 2026-10-07T12:26:28: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:26:59.497056672Z 2026-10-07T12:26:59: New connection from 127.0.0.1:53828 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:26:59.847192256Z 2026-10-07T12:26:59: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:27:01.614990760Z 2026-10-07T12:27:01: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:27:30.639423803Z 2026-10-07T12:27:30: New connection from 127.0.0.1:59366 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:27:30.833463025Z 2026-10-07T12:27:30: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:28:03.168662700Z 2026-10-07T12:28:03: New connection from 127.0.0.1:58982 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:28:03.404448892Z 2026-10-07T12:28:03: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:28:03.558598204Z 2026-10-07T12:28:03: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:28:34.274990626Z 2026-10-07T12:28:34: New connection from 127.0.0.1:55080 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:28:34.484195009Z 2026-10-07T12:28:34: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:29:05.427350192Z 2026-10-07T12:29:05: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:29:06.162996560Z 2026-10-07T12:29:06: New connection from 127.0.0.1:56932 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:29:06.432404096Z 2026-10-07T12:29:06: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:29:37.912198619Z 2026-10-07T12:29:37: New connection from 127.0.0.1:37788 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:29:38.096494187Z 2026-10-07T12:29:38: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:30:07.905270132Z 2026-10-07T12:30:07: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:30:09.518826468Z 2026-10-07T12:30:09: New connection from 127.0.0.1:59042 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:30:09.707379204Z 2026-10-07T12:30:09: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:30:40.826362253Z 2026-10-07T12:30:40: New connection from 127.0.0.1:36970 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:30:40.983283613Z 2026-10-07T12:30:40: Client egw-healthcheck disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-07T12:31:09.915980710Z 2026-10-07T12:31:09: Saving in-memory database to /mosquitto/data//mosquitto.db.
+[2Kmosquitto-1  | 2026-10-07T12:31:12.348942886Z 2026-10-07T12:31:12: New connection from 127.0.0.1:41074 on port 8883.
+[2Kmosquitto-1  | 2026-10-07T12:31:12.557641286Z 2026-10-07T12:31:12: Client egw-healthcheck disconnected, not authorised.

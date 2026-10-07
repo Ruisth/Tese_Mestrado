@@ -1,0 +1,78 @@
+## 2026-10-04T21:19:48Z g3_rows_dryrun.sh (sha256 fbbca2f638f8a7b7364efcdd7756203504227c989708874c570c5339c48503e3) with g3_check_rows.sh (sha256 2f1863b0f3b85f7ab2b8db65745f2d7a5d802ed0031fbcdb94e5cd666b64b11d) and the blob <S>/g3/s3prep/runbook.8e49261.md
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## test 8, lines b to f, each in a new shell WITHOUT the carrier (T8 empty): each must refuse with one STOP: line and call nothing
+STOP: test 8: the reboot was not issued by the line above (T8='') or /tmp/g3-s3-dry-rows.RChuRZ/home/egw-tcg/itest/itest-reboot-q2.boot_id.pre is missing or empty - nothing was read
+[step t8-b-wait-boot-id.sh ended with status 1]
+refused: t8-b-wait-boot-id.sh printed one STOP: line and called no helper and no command
+STOP: test 8: the reboot is not shown by the line above (T8=''), or /tmp/g3-s3-dry-rows.RChuRZ/home/egw-tcg/itest/itest-reboot-q2.containers.pre, /tmp/g3-s3-dry-rows.RChuRZ/home/egw-tcg/itest/itest-reboot-q2.events.pre or /tmp/g3-
+[step t8-c-unaided.sh ended with status 1]
+refused: t8-c-unaided.sh printed one STOP: line and called no helper and no command
+STOP: test 8: tunnel NOT reopened (tunnel_down/tunnel_up of 5.7; only this project's control socket is touched), or the containers' return is not shown by the line above (T8='')
+[step t8-d-tunnel.sh ended with status 1]
+refused: t8-d-tunnel.sh printed one STOP: line and called no helper and no command
+STOP: test 8: persistence across the reboot NOT verified (the tunnel line above did not succeed: T8=''; stack not ready within 3600 s; the post-reboot /metrics reading or twin snapshot failed, or exists already - write-once: a rep
+[step t8-e-state.sh ended with status 1]
+refused: t8-e-state.sh printed one STOP: line and called no helper and no command
+STOP: test 8: the post-reboot smoke is NOT started (T8='': only ok = reboot shown, containers returned unaided, tunnel reopened, stack ready, twins identical and a new controller process)
+[step t8-f-smoke.sh ended with status 1]
+refused: t8-f-smoke.sh printed one STOP: line and called no helper and no command
+
+## t8-f-smoke.sh WITH the carrier T8=ok (set before the file is sourced, as the steps script does) and a stub run_test
+if [ "$T8" = ok ]; then R=itest-post-reboot-01-q2; run_test $R 42 --scenario smoke --duration 30; else stop "test 8: the post-reboot smoke is NOT started (T8='$T8': only ok = reboot shown, containers returned unaided, tunnel reopened, stack ready, twins identical and a new controller process)"; fi
+CALLED: run_test itest-post-reboot-01-q2 42 --scenario smoke --duration 30
+[step t8-f-smoke.sh ended with status 0]
+started: run_test was called once with the smoke id itest-post-reboot-01-q2, and no STOP: was printed
+
+## t9-exposure.sh with stub ssh and ss
+# G3 battery, row t9, step 5 of 5: PROSE-ONLY step. No fenced runbook line exists for it.
+# Written by g3_extract_rows.py from a constant of that script; nothing is extracted and no id is substituted.
+# It derives from docs/setup/qemu_integrated_gateway.md at 8e49261 (sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db), line 1537 (the last sentence of test 9's Expected), which says:
+#   "Also keep `ssh -p 2222 root@127.0.0.1` refused and `nmap`-free port evidence: `ss -ltn` on the host shows only 2222 and 8883 forwarded by QEMU; inside the guest `docker ps` shows `127.0.0.1:8080` and `127.0.0.1:8000` bindings and MongoDB with no published port (work order item 5)."
+# Decision packet of 2026-10-01 (revision 2), execution choice "Prose-only steps": T9's three exposure checks
+# are run and recorded, read-only. Operator procedure, T9: `ssh -n -o BatchMode=yes ... -p 2222 root@127.0.0.1 true`, where only "Permission denied" counts; `ss -ltnp`; the guest's `docker ps` ports.
+# The three commands only read, each prints what it read and its exit status, and none judges.
+# (1) root over ssh on the forwarded port 2222. BatchMode: no prompt, so no password is ever asked or typed;
+#     the host key is checked against the runbook's pinned file and nothing is added to it; the one key the
+#     guest accepts for 'egw' is the key offered. Only "Permission denied" counts as the refusal: "Host key
+#     verification failed", a timeout or "Connection refused" is no evidence, and exit 0 is a root login.
+ssh -n -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o UserKnownHostsFile="$HOME/.ssh/known_hosts_egw_tcg" -o IdentitiesOnly=yes -i "$HOME/.ssh/egw_campaign" -p 2222 root@127.0.0.1 true; echo "root ssh exit=$?"
+STUB ssh argc=19: [-n] [-o] [BatchMode=yes] [-o] [ConnectTimeout=20] [-o] [StrictHostKeyChecking=yes] [-o] [UpdateHostKeys=no] [-o] [UserKnownHostsFile=/tmp/g3-s3-dry-rows.RChuRZ/home/.ssh/known_hosts_egw_tcg] [-o] [IdentitiesOnly=yes] [-i] [/tmp/g3-s3-dry-rows.RChuRZ/home/.ssh/egw_campaign] [-p] [2222] [root@127.0.0.1] [true]
+STUB ssh: stdin is not a terminal
+root@127.0.0.1: Permission denied (publickey,password).
+root ssh exit=255
+# (2) the host's listening TCP sockets with their owning process. Expected: 2222 and 8883 forwarded by QEMU;
+#     8000 and 8080 belong to this project's own ssh tunnel master (runbook 5.7), not to QEMU.
+ss -ltnp; echo "ss exit=$?"
+STUB ss: [-ltnp]
+ss exit=0
+# (3) the guest's published container ports, read over ssh. Expected: bindings on 127.0.0.1:8080 and
+#     127.0.0.1:8000, and MongoDB with no published port.
+ssh -n egw-tcg 'docker ps --format "{{.Names}} {{.Ports}}"'; echo "docker ps exit=$?"
+STUB ssh argc=3: [-n] [egw-tcg] [docker ps --format "{{.Names}} {{.Ports}}"]
+STUB ssh: stdin is not a terminal
+egw-controller-1 127.0.0.1:8000->8000/tcp
+egw-mongodb-1 
+docker ps exit=0
+[step t9-exposure.sh ended with status 0]
+read: the three reads ran in order and each printed its exit status (255 from the stub's refusal of root, 0, 0)
+
+## self-test of the checker in blob mode: each altered copy must be refused
+detected: an id left without its suffix (t8-f-smoke.sh) -> 7 FAIL line(s), first: FAIL  t8-f-smoke.sh: itest-post-reboot-01-q2 stands 0 time(s), expected 1
+detected: one of line c's 32 literals not substituted (t8-c-unaided.sh) -> 7 FAIL line(s), first: FAIL  t8-c-unaided.sh: itest-reboot-q2 stands 31 time(s), expected 32
+detected: a changed character outside the ids (t8-b-wait-boot-id.sh: timeout 20 -> timeout 21) -> 4 FAIL line(s), first: FAIL  t8-b-wait-boot-id.sh: differs from the blob's lines
+detected: a comment line of line a removed (t8-a-reboot.sh) -> 3 FAIL line(s), first: FAIL  t8-a-reboot.sh: differs from the blob's lines
+detected: an id that must not change was changed (t9-de.sh) -> 5 FAIL line(s), first: FAIL  t9-de.sh: 1 '-q2', expected 0
+detected: a carriage return (t9-a.sh) -> 4 FAIL line(s), first: FAIL  t9-a.sh holds a carriage return
+detected: a suffix added where no id stands (t9-c.sh) -> 4 FAIL line(s), first: FAIL  t9-c.sh: 4 '-q2', expected 3
+detected: an id of the battery in place of S3's (t9-b.sh: -q1) -> 9 FAIL line(s), first: FAIL  t9-b.sh: differs from the blob's lines
+detected: the exposure step's header naming the battery's commit (t9-exposure.sh) -> 3 FAIL line(s), first: FAIL  t9-exposure.sh: line 3 does not name the commit, the sha256 and line 1537
+detected: the manifest naming session S2 for row t8 (rows.manifest.json) -> 2 FAIL line(s), first: FAIL  the manifest's rows are not t8 and t9 of session S3
+detected: a step file of the battery's names left in the directory (t8-b-return.sh) -> 1 FAIL line(s), first: FAIL  directory listing
+the unaltered copy passes
+detected: a blob file that does not exist (the unaltered copy) -> 1 FAIL line(s), first: FAIL  the blob file is not a readable regular file
+detected: a blob file with one line appended (the unaltered copy) -> 2 FAIL line(s), first: FAIL  runbook blob sha256
+git calls made by the checker in blob mode: 0 (no clone is read)
+
+DRY RUN AS EXPECTED (0 unexpected outcomes)
+dryrun exit=0
+left under /tmp by the dry run: 0 directory(ies) (0 expected)

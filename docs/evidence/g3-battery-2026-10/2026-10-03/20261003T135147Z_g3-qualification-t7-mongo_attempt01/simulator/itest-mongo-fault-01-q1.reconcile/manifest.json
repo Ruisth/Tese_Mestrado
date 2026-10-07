@@ -1,0 +1,23 @@
+{
+  "manifest_kind": "itest-adhoc-reconcile (NOT a harness run)",
+  "run_id": "itest-mongo-fault-01-q1",
+  "scenario": "nominal",
+  "seed": 42,
+  "confirmation_window_s": 60,
+  "controller_marker": {
+    "url": "http://127.0.0.1:8000/metrics",
+    "polled_utc": "2026-10-03T13:59:10.060Z",
+    "ok": true,
+    "monotonic_ns": 2225575590950,
+    "wall_utc": "2026-10-03T13:59:10.650Z",
+    "error": null,
+    "confirmation_window_s": 60,
+    "confirmation_deadline_monotonic_ns": 2285575590950,
+    "poll_returned_utc": "2026-10-03T13:59:10.122Z",
+    "lag_s": 0.138,
+    "lag_tolerance_s": 2.0
+  },
+  "controller_monotonic_at_run_end_ns": 2225575590950,
+  "confirmation_deadline_monotonic_ns": 2285575590950,
+  "confirmation_deadline_clock_domain": "controller"
+}

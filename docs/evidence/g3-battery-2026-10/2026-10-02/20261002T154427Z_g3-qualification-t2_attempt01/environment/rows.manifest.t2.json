@@ -1,0 +1,156 @@
+{
+  "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "6940366cca642d8f824092278e82e500112d8a3f9df36ed6d32cbc6595ead304",
+  "runbook": {
+    "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae",
+    "lines": 1614
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "da8d31ddeb4f53c057d279a01964ef6464152660368cd08ef5c8ab6767700489",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for each of the ten headings"
+  },
+  "substitution_rule": {
+    "suffix": "-q1",
+    "ids": [
+      {
+        "old": "itest-smoke-$i",
+        "new": "itest-smoke-$i-q1",
+        "occurrences": 2
+      },
+      {
+        "old": "itest-3dev-01",
+        "new": "itest-3dev-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-invalid-01",
+        "new": "itest-invalid-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-01",
+        "new": "itest-dup-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-02",
+        "new": "itest-dup-02-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dropout-01",
+        "new": "itest-dropout-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-mongo-fault-01",
+        "new": "itest-mongo-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-ditto-fault-01",
+        "new": "itest-ditto-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-reboot",
+        "new": "itest-reboot-q1",
+        "occurrences": 8
+      },
+      {
+        "old": "itest-post-reboot-01",
+        "new": "itest-post-reboot-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-tls-wrongca",
+        "new": "itest-tls-wrongca-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-auth-wrongpw",
+        "new": "itest-auth-wrongpw-q1",
+        "occurrences": 4
+      },
+      {
+        "old": "itest-notls",
+        "new": "itest-notls-q1",
+        "occurrences": 3
+      }
+    ],
+    "unchanged": [
+      "nominal-r02",
+      "controller_restart-r03",
+      "itest-acl-$T",
+      "itest-replay"
+    ],
+    "token": "an id not preceded by [A-Za-z0-9_] and not followed by [A-Za-z0-9_-]; every occurrence of each id as a plain string is such a token (asserted), so none is left behind and none is matched inside a longer id",
+    "asserted": "per file the count of each id; the text after the substitution with every '-q1' removed is the extracted text; the unchanged literals are untouched; the extracted text held no '-q1'"
+  },
+  "row": {
+    "row": "t2",
+    "session": "S1",
+    "steps": [
+      "t2.sh"
+    ]
+  },
+  "files": {
+    "t2.sh": {
+      "row": "t2",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 2"
+      ],
+      "source_line_numbers": [
+        1325,
+        1326,
+        1327,
+        1328,
+        1329,
+        1330,
+        1331,
+        1332,
+        1333,
+        1334,
+        1335,
+        1336,
+        1337
+      ],
+      "source_line_ranges": "1325-1337",
+      "host_command_starts": [
+        1325,
+        1326,
+        1327
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 13,
+      "sha256_before": "0526d9691e25d570809309a9543417aed5c242d771251398c67faa9421430ef0",
+      "sha256_after": "43fa83f2fc17b52dd41cb6d4f902ce2276ee2a0fae1e104b8692fe044f59e3b6",
+      "bytes_before": 1367,
+      "bytes_after": 1370,
+      "substitutions": [
+        {
+          "old": "itest-3dev-01",
+          "new": "itest-3dev-01-q1",
+          "count": 1,
+          "source_lines": [
+            1325
+          ]
+        }
+      ],
+      "diff": "t2.sh.diff",
+      "diff_sha256": "b75f7b9b52913104e590af3c8dd5445177cac06777faf13898680e5b174d97e6",
+      "diff_bytes": 257,
+      "bash_n": "ok",
+      "range_note": "Commands start on lines 1325-1327; the third carries its here-document, lines 1328-1337, kept as continuation lines by the rule: the text is lines 1325-1337."
+    }
+  }
+}

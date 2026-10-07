@@ -1,0 +1,45 @@
+script run: the FINAL bytes, <scratchpad>/g3/s3prep/g3_battery.sh, sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2
+## 2026-10-05T09:09:28Z scenario s2iii; host uptime 13.59 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh 087742a50a4bfe6b, bs3_setup.sh eb3bbc6c0a5c74d2, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=0 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: the guest never answers after the reboot: every poll ends 255 at once, one poll every 10 s, for 900 s of /proc/uptime from the end of step a; the last polls are bounded to what is left (below 20 s, never 0); then HALT 'reboot not shown within the wait', line b not run, QEMU not signalled; 'row t9' refused; 'close' halts because the guest does not answer.
+
+=== g3_battery.sh open S3
+-> exit 2
+## 2026-10-05T09:09:29Z up=14 open S3: steps script <scratchpad>/g3/s3prep/g3_battery.sh sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2
+## 2026-10-05T09:09:29Z up=14 candidate identities
+## 2026-10-05T09:09:29Z up=14 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:09:29Z up=14 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:09:29Z up=14 guest root file system before the boot
+## 2026-10-05T09:09:29Z up=14 keepalive
+REFUSED: the keepalive client is not attached (see above); nothing was started
+CHECK FAILED: exit status 2, expected 0: open S3
+CHECK FAILED: the session is open - no line matches: ^## .* session S3 is open
+--- the fake process that stands for QEMU after the open: pid none not running
+
+=== g3_battery.sh row t8
+-> exit 2
+## 2026-10-05T09:09:29Z up=14 row t8 (session S3): steps script sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2
+REFUSED: session S3 was not opened by this script (<bench>/state/session-S3.env is absent)
+CHECK FAILED: exit status 2, expected 1: row t8 (a halt)
+CHECK FAILED: the halt of row t8 - no line matches: ^HALT: row t8: reboot not shown within the wait: in the 900 s after step a ended, none of the [0-9]+ poll\(s\) both ended with exit status 0 and answered
+recorded steps of row t8, in order: <none>
+CHECK FAILED: the steps of row t8 are not: ^guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh x[0-9]+ t8-qemu-after guest-state-after gate-healthy gate-units gate-tunnel-check$
+CHECK ok: the fake QEMU process after the row: pid none not running
+CHECK ok: commands that start, restart or bring up anything, sent to the stub guest (the test module's own pattern): 0
+CHECK ok: pkill or killall calls: 0
+CHECK FAILED: the halt says it is not by itself a failure of the system - no line matches: inconclusive / not demonstrated, not by itself a failure of the system
+CHECK FAILED: the halt says line b was not run and nothing was signalled or started - no line matches: Line b was NOT run, nor steps c to f, and T9 is not run\. QEMU was NOT signalled
+CHECK FAILED: the QEMU reading after the wait: the same process - no line matches: ^QEMU PROCESS UNCHANGED
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/commands.jsonl'
+
+<scratchpad>/g3/s3prep/bench/bs3_run.sh: line 369: $1: unbound variable

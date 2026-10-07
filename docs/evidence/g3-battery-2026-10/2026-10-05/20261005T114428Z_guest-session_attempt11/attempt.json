@@ -1,0 +1,29 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-05T11:44:28.357109Z",
+  "emulated": true,
+  "ended_utc": "2026-10-05T12:12:44.290014Z",
+  "expected_artefacts": [],
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "8e492613d36490a560ae56beabd6d5c2c01a8696",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "not-applicable",
+  "next_action": "none",
+  "pid": 34407,
+  "purpose": "engineering",
+  "reason": "session closed: stack stopped before power-off, journal and final state kept",
+  "run_id": "20261005T114428Z_guest-session_attempt11",
+  "scenario": "guest session",
+  "seed": null,
+  "started_utc": "2026-10-05T11:44:28.476216Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "kind": "guest session: boot, stack start, the attempts that reference this session, controlled stop and power-off"
+  }
+}

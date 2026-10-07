@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-05T12:10:32.867587Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-auth-wrongpw-q2.sut",
+      "role": "T9: the bounded broker log of itest-auth-wrongpw-q2 and its fetch record (no simulator directory exists: the connection was refused)",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-05T12:10:32.909690Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-notls-q2.sut",
+      "role": "T9: the bounded broker log of itest-notls-q2 and its fetch record (no simulator directory exists: the connection was refused)",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-05T12:10:32.955186Z",
+      "kind": "other",
+      "path": "/home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z",
+      "role": "T9 (d)+(e): the ACL probe's evidence copied from the guest, or its /metrics reading before or after the probe",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-05T12:10:32.998348Z",
+      "kind": "other",
+      "path": "/home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z.metrics.after.json",
+      "role": "T9 (d)+(e): the ACL probe's evidence copied from the guest, or its /metrics reading before or after the probe",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-05T12:10:33.040601Z",
+      "kind": "other",
+      "path": "/home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z.metrics.before.json",
+      "role": "T9 (d)+(e): the ACL probe's evidence copied from the guest, or its /metrics reading before or after the probe",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-05T12:10:33.086603Z",
+      "kind": "other",
+      "path": "/tmp/wrong.crt",
+      "role": "T9 (a): the throwaway wrong CA certificate this row generated (its private key /tmp/wrong.key is NOT exported)",
+      "siblings_glob": null
+    }
+  ]
+}

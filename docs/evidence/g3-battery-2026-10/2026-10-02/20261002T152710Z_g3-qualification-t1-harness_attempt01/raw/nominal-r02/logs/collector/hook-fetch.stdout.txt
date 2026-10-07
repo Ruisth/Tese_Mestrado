@@ -1,0 +1,5 @@
+fetch: resources-nominal-r02.csv present sha256=9eb107a6ffe338e8b4bf777140fe72cd7e695ba266c50934ae0f9df9a50dc15e verified
+fetch: resources-nominal-r02.csv.diagnostics.log present sha256=c59ffb99dd51b25e24a31fe96fdecc6c77dcdb259039c01593246ca39a67f007 verified
+fetch: resources-nominal-r02.csv.lifecycle.csv present sha256=ddfc7f72e0e089b5406083428f9f4cf6592165f226b7a0f9773b383d63d2a030 verified
+fetch: resources-nominal-r02.csv.self-test absent (optional)
+fetch: result exit=0 (every mandatory file present and verified)

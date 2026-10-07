@@ -1,0 +1,26 @@
+--- base/ops/g3_go.sh
++++ ops/g3_go.sh
+@@ -1,19 +1,19 @@
+ #!/bin/bash
+-# Operator's launcher for session S3 (G3, tests 8 and 9): starts ONE long
++# Operator's launcher for session S4 (G3, test 6 only): starts ONE long
+ # subcommand of g3_battery.sh detached (as its README prescribes: setsid, no
+ # terminal), then waits read-only for it to end and prints the end of its
+ # console and the status. It decides nothing.
+-# Usage (WSL login shell): g3_go.sh <open S3|row <t8|t9>|close> [max minutes]
++# Usage (WSL login shell): g3_go.sh <open S4|row t6|close> [max minutes]
+ set -u
+ OPS=$(cd "$(dirname "$0")" && pwd)
+ P=$(cd "$OPS/.." && pwd)     # S3: the steps script is in the folder that holds ops/
+ KIND=${1:?} NAME=${2:-} MAX=${3:-170}
+ case $KIND in
+-    open | row) [ -n "$NAME" ] || { echo "usage: g3_go.sh <open S3|row <t8|t9>|close> [max minutes]"; exit 2; }
++    open | row) [ -n "$NAME" ] || { echo "usage: g3_go.sh <open S4|row t6|close> [max minutes]"; exit 2; }
+         EGW_EXEC_REPO=$HOME/egw-exec/repo setsid bash "$P/g3_battery.sh" "$KIND" "$NAME" > /dev/null 2>&1 < /dev/null & ;;
+     close) NAME=${NAME:-session}
+         EGW_EXEC_REPO=$HOME/egw-exec/repo setsid bash "$P/g3_battery.sh" close > /dev/null 2>&1 < /dev/null & ;;
+-    *) echo "usage: g3_go.sh <open S3|row <t8|t9>|close> [max minutes]"; exit 2 ;;
++    *) echo "usage: g3_go.sh <open S4|row t6|close> [max minutes]"; exit 2 ;;
+ esac
+ echo "launched '$KIND $NAME' detached at $(date -u +%FT%TZ)"
+ exec bash "$OPS/g3_wait.sh" "$KIND" "$NAME" "$MAX"

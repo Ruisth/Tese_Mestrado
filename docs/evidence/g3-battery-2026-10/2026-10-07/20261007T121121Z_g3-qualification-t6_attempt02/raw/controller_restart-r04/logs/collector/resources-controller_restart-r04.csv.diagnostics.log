@@ -1,0 +1,61 @@
+2026-10-07T12:14:04Z start: collector_sha256=9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97 host=egw-qemu-integrated source=auto interval=1s duration=1020s uptime_s=578.91 boot_id=85783f36-2a51-42bc-998b-294cc51510db pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
+2026-10-07T12:14:05Z sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+2026-10-07T12:14:06Z calibrated: wall second 1791375246 began at uptime 579.97 s (calibration 1)
+2026-10-07T12:14:15Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:14:13Z)
+2026-10-07T12:14:15Z clock phase: aimed at second 2026-10-07T12:14:14Z and sampled in 2026-10-07T12:14:15Z; recalibrating
+2026-10-07T12:14:16Z clock phase: aimed at second 2026-10-07T12:14:15Z and sampled in 2026-10-07T12:14:16Z; recalibrating
+2026-10-07T12:14:17Z clock phase: aimed at second 2026-10-07T12:14:16Z and sampled in 2026-10-07T12:14:17Z; recalibrating
+2026-10-07T12:14:18Z calibrated: wall second 1791375258 began at uptime 590.74 s (calibration 2)
+2026-10-07T12:14:49Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:14:47Z)
+2026-10-07T12:14:49Z clock phase: aimed at second 2026-10-07T12:14:48Z and sampled in 2026-10-07T12:14:49Z; recalibrating
+2026-10-07T12:14:50Z calibrated: wall second 1791375290 began at uptime 621.60 s (calibration 3)
+2026-10-07T12:15:22Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:15:20Z)
+2026-10-07T12:15:22Z clock phase: aimed at second 2026-10-07T12:15:21Z and sampled in 2026-10-07T12:15:22Z; recalibrating
+2026-10-07T12:15:23Z calibrated: wall second 1791375323 began at uptime 653.51 s (calibration 4)
+2026-10-07T12:15:55Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:15:53Z)
+2026-10-07T12:15:55Z clock phase: aimed at second 2026-10-07T12:15:54Z and sampled in 2026-10-07T12:15:55Z; recalibrating
+2026-10-07T12:15:56Z calibrated: wall second 1791375356 began at uptime 685.33 s (calibration 5)
+2026-10-07T12:16:29Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:16:27Z)
+2026-10-07T12:16:29Z clock phase: aimed at second 2026-10-07T12:16:28Z and sampled in 2026-10-07T12:16:29Z; recalibrating
+2026-10-07T12:16:30Z calibrated: wall second 1791375390 began at uptime 718.19 s (calibration 6)
+2026-10-07T12:17:02Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:17:00Z)
+2026-10-07T12:17:02Z clock phase: aimed at second 2026-10-07T12:17:01Z and sampled in 2026-10-07T12:17:02Z; recalibrating
+2026-10-07T12:17:03Z calibrated: wall second 1791375423 began at uptime 750.05 s (calibration 7)
+2026-10-07T12:17:35Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:17:33Z)
+2026-10-07T12:17:35Z clock phase: aimed at second 2026-10-07T12:17:34Z and sampled in 2026-10-07T12:17:35Z; recalibrating
+2026-10-07T12:17:36Z calibrated: wall second 1791375456 began at uptime 781.92 s (calibration 8)
+2026-10-07T12:18:09Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:18:07Z)
+2026-10-07T12:18:09Z clock phase: aimed at second 2026-10-07T12:18:08Z and sampled in 2026-10-07T12:18:09Z; recalibrating
+2026-10-07T12:18:10Z calibrated: wall second 1791375490 began at uptime 814.95 s (calibration 9)
+2026-10-07T12:18:42Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:18:40Z)
+2026-10-07T12:18:42Z clock phase: aimed at second 2026-10-07T12:18:41Z and sampled in 2026-10-07T12:18:42Z; recalibrating
+2026-10-07T12:18:43Z calibrated: wall second 1791375523 began at uptime 846.68 s (calibration 10)
+2026-10-07T12:19:16Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:19:14Z)
+2026-10-07T12:19:16Z clock phase: aimed at second 2026-10-07T12:19:15Z and sampled in 2026-10-07T12:19:16Z; recalibrating
+2026-10-07T12:19:17Z calibrated: wall second 1791375557 began at uptime 879.53 s (calibration 11)
+2026-10-07T12:19:49Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:19:47Z)
+2026-10-07T12:19:49Z clock phase: aimed at second 2026-10-07T12:19:48Z and sampled in 2026-10-07T12:19:49Z; recalibrating
+2026-10-07T12:19:50Z calibrated: wall second 1791375590 began at uptime 911.35 s (calibration 12)
+2026-10-07T12:20:22Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:20:20Z)
+2026-10-07T12:20:22Z clock phase: aimed at second 2026-10-07T12:20:21Z and sampled in 2026-10-07T12:20:22Z; recalibrating
+2026-10-07T12:20:23Z calibrated: wall second 1791375623 began at uptime 943.20 s (calibration 13)
+2026-10-07T12:20:56Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:20:54Z)
+2026-10-07T12:20:56Z clock phase: aimed at second 2026-10-07T12:20:55Z and sampled in 2026-10-07T12:20:56Z; recalibrating
+2026-10-07T12:20:57Z calibrated: wall second 1791375657 began at uptime 976.01 s (calibration 14)
+2026-10-07T12:21:29Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:21:27Z)
+2026-10-07T12:21:29Z clock phase: aimed at second 2026-10-07T12:21:28Z and sampled in 2026-10-07T12:21:29Z; recalibrating
+2026-10-07T12:21:30Z calibrated: wall second 1791375690 began at uptime 1007.83 s (calibration 15)
+2026-10-07T12:22:03Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:22:01Z)
+2026-10-07T12:22:03Z clock phase: aimed at second 2026-10-07T12:22:02Z and sampled in 2026-10-07T12:22:03Z; recalibrating
+2026-10-07T12:22:04Z calibrated: wall second 1791375724 began at uptime 1040.66 s (calibration 16)
+2026-10-07T12:23:08Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:23:06Z)
+2026-10-07T12:23:08Z clock phase: aimed at second 2026-10-07T12:23:07Z and sampled in 2026-10-07T12:23:08Z; recalibrating
+2026-10-07T12:23:09Z calibrated: wall second 1791375789 began at uptime 1104.45 s (calibration 17)
+2026-10-07T12:23:42Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:23:40Z)
+2026-10-07T12:23:42Z clock phase: aimed at second 2026-10-07T12:23:41Z and sampled in 2026-10-07T12:23:42Z; recalibrating
+2026-10-07T12:23:43Z calibrated: wall second 1791375823 began at uptime 1137.59 s (calibration 18)
+2026-10-07T12:24:15Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:24:13Z)
+2026-10-07T12:24:15Z clock phase: aimed at second 2026-10-07T12:24:14Z and sampled in 2026-10-07T12:24:15Z; recalibrating
+2026-10-07T12:24:16Z calibrated: wall second 1791375856 began at uptime 1169.65 s (calibration 19)
+2026-10-07T12:24:28Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0
+2026-10-07T12:24:29Z stop: samples=606 utc_gap_seconds=18 withheld_samples=0 withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=19 pacing=wall-clock uptime_s=1182.66 boot_id=85783f36-2a51-42bc-998b-294cc51510db

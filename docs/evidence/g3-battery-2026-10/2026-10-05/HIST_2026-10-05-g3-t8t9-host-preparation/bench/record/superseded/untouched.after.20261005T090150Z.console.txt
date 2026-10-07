@@ -1,0 +1,11 @@
+## 2026-10-04T23:19:00Z bs3_untouched.sh after (HOME=/home/ruisth)
+entries of ~/egw-exec and ~/egw-tcg: 18681; sha256 of the listing: 028de9d12b699427316549664f6f712864a9a23c54af97d501ffa1b0ec642aba
+listing (path, modification time, size of every entry): IDENTICAL before and after
+entries newer than the marker (2026-10-04T22:09:28Z): 0
+clone HEAD: 80e833f44f647fe9cd8f5e99d3abf3c444de95aa (unchanged)
+/tmp entries that were not there before: 
+/tmp/wrong.key or /tmp/wrong.crt: neither exists
+the S3 state directory ~/egw-exec/g3-t8t9-s3: does not exist
+processes whose command line names a scenario's bench (/tmp/g3-s3-bench/s<number>...): 0
+processes named qemu-system-aarch64 on this host (real pgrep, the frozen drivers' pattern): 0; bash loops that stood for QEMU: 0
+keepalive client (not started and not ended by this stream): pid 290, running for 8518 s

@@ -1,0 +1,10 @@
+recorder_sha256=1afdce8ca9baaca1bb8d7af840dba4cd2d90069aaa7689227831ac92df0e6480
+start_fact_boot_id=b35d0fa2-7979-4e8c-ad2e-4223327528f3
+start_fact_MainPID=298
+start_fact_ExecMainStartTimestampMonotonic=12669859
+recorder_since_guest_epoch=1790954850
+Running as unit: egw-events-nominal-r02.service; invocation ID: 39796431b5334698a47f2e648ebc2ad4
+start epoch=1790954971 pid=11114 since=1790954850
+cli-start epoch=1790954971 cli_pid=11126
+ready epoch=1790954972 events_bytes=134511 unit=active
+run_guest_t0=1790954972

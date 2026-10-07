@@ -1,0 +1,1 @@
+if [ "$T8" = ok ]; then R=itest-post-reboot-01-q2; run_test $R 42 --scenario smoke --duration 30; else stop "test 8: the post-reboot smoke is NOT started (T8='$T8': only ok = reboot shown, containers returned unaided, tunnel reopened, stack ready, twins identical and a new controller process)"; fi

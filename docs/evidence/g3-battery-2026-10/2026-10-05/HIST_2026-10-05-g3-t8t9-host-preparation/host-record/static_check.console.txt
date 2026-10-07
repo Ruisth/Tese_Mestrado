@@ -1,0 +1,106 @@
+g3_hostprep.sh sha256 6613f15286f272150cdfba9fa508fadf2f89762ac795686218c143f079d7570e
+same      TOOLS                    8e492613d36490a560ae56beabd6d5c2c01a8696
+          source: decision summary (the merge of PR #54)
+same      TOOLS in the origin      8e492613d36490a560ae56beabd6d5c2c01a8696
+          source: git rev-parse in the Windows repository
+          the Windows repository's refs/remotes/origin/dev (8e492613d36490a560ae56beabd6d5c2c01a8696) holds it (what the script fetches)
+same      TREE                     2f0514837f267d8975f7071041aad14a5c18dcab
+          source: git rev-parse TOOLS^{tree}; also in the decision summary: 1 line(s)
+same      BATTERY                  80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+          source: first parent of the merge; S2's record names it as the execution clone: 1 line(s)
+same      REVIEWED                 7c371e3f3382319b223d0a17dd8fd4d33aae8938
+          source: second parent of the merge (the head of PR #54)
+same      REVIEWED tree            2f0514837f267d8975f7071041aad14a5c18dcab
+          source: git rev-parse REVIEWED^{tree}
+same      IMAGE                    489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+          source: S2's record, controller image record: source_commit
+same      IMAGE (Yocto checkout)   489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+          source: S2's record, OS build source (the Yocto checkout's HEAD)
+same      ROOTFS_SHA               22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd
+          source: session-S2.env, rootfs_after_close
+same      ROOTFS_SHA today         22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd
+          source: ro_look.console.txt
+same      HELPER_SHA               e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb
+          source: the section 6.1 heredoc of the runbook blob at TOOLS
+same      HELPER_LINES             545
+          source: the same heredoc, lines
+same      helper today             e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb
+          source: ro_look.console.txt
+same      runbook                  4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+          source: git show TOOLS:docs/setup/qemu_integrated_gateway.md
+same      runbook lines            1623
+          source: the same blob, lines
+same      extraction-rule-source   fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1
+          source: git show TOOLS:src/tests/test_runbook_itest_helpers.py
+same      local_export             544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b
+          source: git show TOOLS:src/egw_experiments/local_export.py
+same      fetch_started_at         9c6dc824c885ce6d2edacdfb5fe4a4db4a96b6e0b6454f93300ee1b007421827
+          source: git show TOOLS:tools/session/fetch_started_at.sh
+same      images.lock.env          8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648
+          source: git show TOOLS:src/deployment/images.lock.env
+same      compose.yaml             1a32f6c2bd9e24eee075ef569828aa41ad6a7a7b260d4436e588dc9ca74d5982
+          source: git show TOOLS:src/deployment/compose.yaml
+same      mosquitto.conf           ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615
+          source: git show TOOLS:src/deployment/mosquitto/config/mosquitto.conf
+same      CONTRACTS                247e3b02a1ffc8e30da3f9df701db5f851f018505ecb9f907b54562b9cf095c9
+          source: git show TOOLS:src/CONTRACTS.md
+same      src/deployment tree      e056d389f7dd640c142bf714bb8ceb389ec460c2
+          source: git rev-parse TOOLS:src/deployment
+same      src/schemas tree         1d5284cf28bbabc5c7ea554d5a5366faec5fcf95
+          source: git rev-parse TOOLS:src/schemas
+same      drivers_sha256           4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5
+          source: the blobs of tools/session/*.sh, *.py and guest/*.sh at TOOLS, concatenated in the order of common.sh's driver_files
+same      export_tool_sha256       544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b
+          source: git show TOOLS:src/egw_experiments/local_export.py
+same      tunnel.sh                38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1
+          source: S2's record, host helpers; today: 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1
+same      ca.crt                   556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff
+          source: S2's record, host helpers; today: 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff
+same      controller-archive       9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d
+          source: S2's record, controller image record
+same      controller-record        79e7d2105be035911e9fe596f609a77775b578f0578cab1bde77f0d610aa2022
+          source: the first preparation's sealed record; today: 79e7d2105be035911e9fe596f609a77775b578f0578cab1bde77f0d610aa2022
+same      controller image id      image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+          source: S2's record, controller image record
+same      run-qemu-integrated      67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1
+          source: S2's record, OS build source; today: 67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1
+same      kernel (added)           4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
+          source: S2's record, OS build artefacts; today: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
+same      qemuboot.conf (added)    7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4
+          source: S2's record, OS build artefacts; today: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4
+same      QEMU binary (added)      5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061
+          source: S2's record, QEMU; today: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061
+same      QEMU path under BUILD    /tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+          source: guest_session_open.sh line 117 (the frozen open driver)
+same      T8_ADMITTED              20261003T142310Z_g3-qualification-t8_attempt01
+          source: output_test/runs/2026-10-03 (S2's halted attempt)
+same      identifier               itest-reboot-q2
+          source: decision summary, identifiers
+same      identifier               itest-post-reboot-01-q2
+          source: decision summary, identifiers
+same      identifier               itest-tls-wrongca-q2
+          source: decision summary, identifiers
+same      identifier               itest-auth-wrongpw-q2
+          source: decision summary, identifiers
+same      identifier               itest-notls-q2
+          source: decision summary, identifiers
+
+the copies the revision started from (P/base):
+same      base/g3_hostprep.sh      a7a6e15cd263117706caea1d80eda23adfe0c66343d32501eef0c3222a8e6ca0
+          source: the first preparation's sealed package
+same      base/seal_prep.sh        96ae81a61fc21d4c0430ab3fa14a1d1fdd73b177825d4564f2d524510862bc10
+          source: S/g3/battery/prep (the first preparation's working folder; the script was not sealed in its own package)
+same      base/ops/g3_go.sh        b75aa7266d5840c23ee9d5b8f20250cfcd2bce2bbf15676efd51689fd0c951b3
+          source: S2's sealed operator records, operator/
+same      base/ops/g3_wait.sh      f866e469c0c2ac0b280da78e7eabcb25d8ad35fb14f1c69b7170b61e0f8bd203
+          source: S2's sealed operator records, operator/
+same      base/ops/seal_ops.sh     c6a82cc9985c618c5349442b48cbb94306b0ffcd63a77ff39a8534321f32c029
+          source: S2's sealed operator records, operator/
+same      base/ops/seal_ops_finish.sh 655b529a0a85179d316dc4bad2dd93ceac08f192982c6b47d4ac53d3fd19fc6e
+          source: S2's sealed operator records, operator/
+same      base/g3_battery.sh       2221ff2f5e2c2671f22e3f5b13455457eb3516f46ea156fe8e55f2fab98d3f3b
+          source: S/g3/post (the draft of 2026-10-03)
+same      base/g3_battery.README.md 814a96a5c4f3db7c3c2d1b8da53e816310b53d5ec26d9b763ffd238b4ceda96f
+          source: S/g3/post (the draft of 2026-10-03)
+
+constants that differ from their source: 0

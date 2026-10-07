@@ -1,0 +1,15 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# (c) plaintext against the TLS listener
+if T0_9C=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-notls-q2 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --no-tls --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD"; echo "exit=$?"; else stop "test 9(c): the lower bound of (c)'s evidence was NOT read - the probe was NOT run"; fi
+egw_simulator: scenario=smoke seed=42 run_id=itest-notls-q2 broker=127.0.0.1:8883 tls=False qos=1 duration=10.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: connection failed: MQTT connect to 127.0.0.1:8883 not acknowledged within 15 s
+exit=1
+sut_log broker itest-notls-q2 "$T0_9C" && cat ~/egw-tcg/itest/itest-notls-q2.sut/broker.log || stop "test 9(c): the broker log bounded to (c) was NOT read - (c) has no evidence (a read that failed shows no refusal)"
+proof_fetch_sut_log: broker: bounds since_guest_epoch=1791201976 (2026-10-05T12:06:16Z) until_guest_epoch=1791201993 (2026-10-05T12:06:33Z) first=2026-10-05T12:06:19.215355407Z last=2026-10-05T12:06:31.242180463Z excluded_before_since_lines=2667 excluded_sha256=ba3770b5095b3c91b32c4d7cf0cc4caa2b75c01c8e5843dd44c2d8eff57b2d49 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: broker: 6 line(s), 893 bytes, sha256 1ae4220e69959f0cd11a63273262633a92da8d72aabeb4285e8e54a89748f9cd, written to /home/ruisth/egw-tcg/itest/itest-notls-q2.sut/broker.log
+[2Kmosquitto-1  | 2026-10-05T12:06:19.215355407Z 2026-10-05T12:06:19: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:20.225679583Z 2026-10-05T12:06:20: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:22.230218831Z 2026-10-05T12:06:22: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:26.249561279Z 2026-10-05T12:06:26: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:30.892873087Z 2026-10-05T12:06:30: New connection from 127.0.0.1:34736 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:06:31.242180463Z 2026-10-05T12:06:31: Client egw-healthcheck disconnected, not authorised.

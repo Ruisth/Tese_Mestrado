@@ -1,0 +1,49 @@
+{
+  "protocol_version": "1.0",
+  "simulator_version": "0.1.0",
+  "scenario": "nominal",
+  "seed": 42,
+  "run_id": "itest-mongo-fault-01-q1",
+  "egw_id": "egw-01",
+  "devices": [
+    {
+      "device_type": "smartwatch",
+      "device_uuid": "5689c879-5f50-49ed-8303-0d42c4898beb"
+    },
+    {
+      "device_type": "smart_ring",
+      "device_uuid": "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9"
+    },
+    {
+      "device_type": "smart_clothing",
+      "device_uuid": "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0"
+    }
+  ],
+  "rates_hz": {
+    "aggregate": 11.2,
+    "per_device": {
+      "smartwatch": 1.0,
+      "smart_ring": 0.19999999999999998,
+      "smart_clothing": 10.0
+    }
+  },
+  "duration_s": 300.0,
+  "qos": 1,
+  "broker": {
+    "host": "127.0.0.1",
+    "port": 8883,
+    "tls": true,
+    "ca_cert": "/home/ruisth/egw-tcg/ca.crt"
+  },
+  "git_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+  "started_utc": "2026-10-03T13:54:18.750Z",
+  "finished_utc": "2026-10-03T13:59:09.984Z",
+  "completed": true,
+  "totals": {
+    "sent": 3360,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "note": null
+}

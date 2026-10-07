@@ -1,0 +1,202 @@
+--- base/seal_prep.sh
++++ seal_prep.sh
+@@ -1,79 +1,152 @@
+ #!/bin/bash
+-# Seal the G3 battery host-preparation package (WSL). Copies the preparation
+-# records from the scratchpad into output_test, sweeps them for the values of
+-# the secret variables of ~/egw-tcg/.env (names only are printed, never a
+-# value), writes the README and SHA256SUMS. Never overwrites a package.
+-# Usage: seal_prep.sh <prep dir> <operator-procedure.md> <package dir>
++# Seal the host-preparation package of session S3 (G3, tests 8 and 9) (WSL).
++# Copies the preparation records from the scratchpad into output_test, sweeps
++# them for the values of the secret variables of ~/egw-tcg/.env (names only are
++# printed, never a value, and no value is put on a command line) and for
++# private-key headers, writes the README and SHA256SUMS. Never overwrites a
++# package; a missing input is a stop before anything is created.
++# Usage: seal_prep.sh <prep dir> <operator-procedure.md> <package dir> [<record dir>]
++#   <package dir>: .../<UTC date>/HIST_<UTC date>-g3-t8t9-host-preparation (a later
++#   sealing of the same date takes the suffix -attemptNN); <record dir>: the record
++#   directory that was given to g3_hostprep.sh (default <prep dir>/record).
++# Exit: 0 sealed, and the record's outcome is 'prepared'; 3 sealed, but the record's
++# outcome is not 'prepared' (the README's title says so); 1 a STOP after the copy
++# began (the directory is left unsealed, without SHA256SUMS); 2 refused, nothing created.
+ set -u
+ SRC=${1:?} PROC=${2:?} PKG=${3:?}
++REC=${4:-$SRC/record}
++ENVF=$HOME/egw-tcg/.env
++refuse() { echo "STOP: $* - nothing was created"; exit 2; }
+ [ ! -e "$PKG" ] || { echo "STOP: $PKG exists - never overwritten"; exit 2; }
++B=$(basename "$PKG"); D=$(basename "$(dirname "$PKG")")
++case $B in
++    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t8t9-host-preparation) ;;
++    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t8t9-host-preparation-attempt[0-9][0-9]) ;;
++    *) refuse "the package must be named HIST_<UTC date>-g3-t8t9-host-preparation[-attemptNN], not $B" ;;
++esac
++case $B in "HIST_$D-g3-t8t9-host-preparation"*) ;; *) refuse "$B is not under a directory named after its own date (it is under $D)" ;; esac
++
++# The S3 file set: every input is looked for before anything is created.
++SCRIPTS="g3_hostprep.sh g3_extract_rows.py g3_check_rows.sh g3_rows_dryrun.sh g3_battery.sh g3_battery.README.md"
++OPS="ops/g3_go.sh ops/g3_wait.sh ops/seal_ops.sh ops/seal_ops_finish.sh"
++NOTES="rows-notes.md operator-notes.md host-notes.md bench-notes.md"
++for f in $SCRIPTS $OPS $NOTES seal_prep.sh brief.md rows/rows.manifest.json rows-record bench/record host-record; do
++    [ -e "$SRC/$f" ] || refuse "$SRC/$f is missing"
++done
++for f in $SCRIPTS $OPS seal_prep.sh; do [ -f "$SRC/base/$f" ] || refuse "$SRC/base/$f (the copy the revision started from) is missing"; done
++[ -f "$PROC" ] || refuse "$PROC is missing"
++[ -f "$REC/console.txt" ] || refuse "$REC/console.txt (the record of g3_hostprep.sh) is missing"
++cmp -s "$0" "$SRC/seal_prep.sh" || refuse "the sealing script being run is not $SRC/seal_prep.sh"
++OUTCOME=$(grep -E '^outcome=' "$REC/console.txt" | tail -n 1)
++[ -n "$OUTCOME" ] || refuse "$REC/console.txt holds no outcome= line: the host preparation did not end"
++[ -r "$ENVF" ] || refuse "$ENVF could not be read: the secret sweep cannot be made"
++NSEC=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ENVF" | cut -d= -f1 | grep -cE 'PASS|SECRET|TOKEN|KEY|CREDENTIAL')
++[ "$NSEC" -gt 0 ] || refuse "$ENVF names no secret variable: the sweep would be empty"
++LEFT=""   # what the preparation folder holds beyond the file set: named, not copied
++for f in "$SRC"/* "$SRC"/.[!.]*; do
++    [ -e "$f" ] || continue
++    b=$(basename "$f")
++    case $b in *.md | *-record | rows | bench | ops | seal_prep.sh) continue ;; esac
++    case " $SCRIPTS " in *" $b "*) continue ;; esac
++    [ ! "$f" -ef "$REC" ] || continue
++    LEFT="$LEFT $b"
++done
++LEFT="operator-procedure.battery.md$LEFT"
++echo "of the preparation folder, not copied: $LEFT; of ops/, only the four scripts are copied"
++
+ mkdir -p "$PKG" || exit 2
+-cp -r "$SRC/record" "$PKG/part1-record" || exit 1
+-cp -r "$SRC/record-rows" "$PKG/rows-record" || exit 1
++cp -r "$REC" "$PKG/part1-record" || exit 1
+ cp -r "$SRC/rows" "$PKG/rows" || exit 1
+-mkdir -p "$PKG/verification" "$PKG/bench-records" || exit 1
+-cp "$SRC/g3_hostprep.sh" "$SRC/g3_extract_rows.py" "$SRC/g3_check_rows.sh" "$SRC/g3_rows_dryrun.sh" \
+-   "$SRC/g3_battery.sh" "$SRC/g3_battery.README.md" "$SRC/prep_brief.md" "$PROC" "$PKG/" || exit 1
+-cp "$SRC/verify-rows.md" "$SRC/verify-iface.md" "$SRC/verify-safety.md" "$SRC/fix-notes.md" "$PKG/verification/" || exit 1
+-cp "$SRC/fix/g3_battery.diff" "$SRC/fix/g3_battery.README.diff" "$SRC/fix/g3_extract_rows.diff" "$PKG/verification/" || exit 1
+-cp "$SRC/dry/record/dryrun.console.txt" "$PKG/bench-records/dryrun-before-fixes.console.txt" || exit 1
+-cp "$SRC"/fix/record/* "$PKG/bench-records/" || exit 1
++cp -r "$SRC/bench" "$PKG/bench" || exit 1
++for d in "$SRC"/*-record; do   # rows-record, host-record and any other record folder of a stream
++    [ -d "$d" ] && [ ! "$d" -ef "$REC" ] || continue
++    cp -r "$d" "$PKG/$(basename "$d")" || exit 1
++done
++mkdir -p "$PKG/verification/diffs" "$PKG/ops" || exit 1
++for f in $SCRIPTS seal_prep.sh; do cp "$SRC/$f" "$PKG/" || exit 1; done
++for f in $OPS; do cp "$SRC/$f" "$PKG/ops/" || exit 1; done
++cp "$SRC/brief.md" "$PKG/prep_brief.md" || exit 1
++cp "$PROC" "$PKG/operator-procedure.md" || exit 1
++[ ! -f "$SRC/runbook.8e49261.md" ] || cp "$SRC/runbook.8e49261.md" "$PKG/" || exit 1
++for f in "$SRC"/*.md; do   # the streams' notes and any other note of the preparation
++    case $(basename "$f") in
++        brief.md | g3_battery.README.md | runbook.8e49261.md | operator-procedure.md | operator-procedure.battery.md) ;;
++        *) cp "$f" "$PKG/verification/" || exit 1 ;;
++    esac
++done
++for f in $SCRIPTS $OPS seal_prep.sh; do   # each revised file against the copy its revision started from
++    diff -u --label "base/$f" --label "$f" "$SRC/base/$f" "$SRC/$f" > "$PKG/verification/diffs/$(echo "$f" | tr / _).diff"
++    [ $? -le 1 ] || { echo "STOP: diff failed on $f"; exit 1; }
++done
+ 
+-# Secret sweep: the values of the secret-named variables of the real .env.
+-hits=0
++# Secret sweep: the values of the secret-named variables of the real .env. A
++# value reaches grep through a file descriptor, never through its command line.
++hits=0 swept=0
+ while IFS='=' read -r name value; do
+     case "$name" in *PASS*|*SECRET*|*TOKEN*|*KEY*|*CREDENTIAL*) ;; *) continue ;; esac
+     value=${value%\"}; value=${value#\"}; value=${value%\'}; value=${value#\'}
+     [ "${#value}" -ge 4 ] || continue
+-    n=$(grep -rlF -- "$value" "$PKG" 2> /dev/null | wc -l)
++    n=$(grep -rlF -f <(printf '%s\n' "$value") -- "$PKG" 2> /dev/null | wc -l)
+     echo "secret sweep: $name -> $n file(s)"
+-    hits=$((hits + n))
+-done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$HOME/egw-tcg/.env")
+-pem=$(grep -rl -- '-----BEGIN .*PRIVATE KEY-----' "$PKG" 2> /dev/null | wc -l)
+-echo "secret sweep: PEM private keys -> $pem file(s)"
++    hits=$((hits + n)); swept=$((swept + 1))
++done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ENVF")
++[ "$swept" -gt 0 ] || { echo "STOP: no secret-named variable was read from $ENVF: the sweep would be empty - NOT sealed"; exit 1; }
++# The header pattern is written so that it does not match its own text (in this
++# script, in its copy inside the package, or in a diff of either): the bracket
++# after BEGIN is not a capital letter or a space, and the quotes split the tail.
++PAT='-----BEGIN [A-Z ]*PRIVATE KEY''-----'
++pem=$(grep -rlE -- "$PAT" "$PKG" 2> /dev/null | wc -l)
++echo "secret sweep: PEM private-key headers -> $pem file(s)"
+ [ "$hits" -eq 0 ] && [ "$pem" -eq 0 ] || { echo "STOP: a secret value is in the package - NOT sealed"; exit 1; }
+-[ "$(grep -rlU $'\r' "$PKG"/rows "$PKG"/*.sh "$PKG"/*.py 2> /dev/null | wc -l)" -eq 0 ] || { echo "STOP: CR bytes in a script or row file"; exit 1; }
++[ "$(grep -rlU $'\r' "$PKG"/rows "$PKG"/*.sh "$PKG"/*.py "$PKG"/ops/*.sh 2> /dev/null | wc -l)" -eq 0 ] || { echo "STOP: CR bytes in a script or row file"; exit 1; }
+ 
++case $OUTCOME in "outcome=prepared "*) TITLE="host preparation" RC=0 ;; *) TITLE="host preparation that did NOT end 'prepared'" RC=3 ;; esac
++CON=$PKG/part1-record/console.txt
+ {
+-echo "# G3 qualifying battery: host preparation (2026-10-02)"
++echo "# G3, session S3 (tests 8 and 9): $TITLE (sealed $(date -u +%FT%TZ))"
++echo
++echo "Authority: the decision summary of 2026-10-04 (output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md)"
++echo "on the request of the same date (2026-10-04_g3-t8-t9-session-request.md). This package authorises nothing and is"
++echo "not a G3 result: session S3 starts only on Rui's explicit authorisation and his go in the attended window."
++echo "The host-preparation script starts no guest and does not touch the controller image, the guest deployment or"
++echo "the data disk."
++echo
++echo "## Part 1 - identities and freshness (part1-record/console.txt)"
+ echo
+-echo "Authority: Rui's authorisation of 2026-10-02 (output_test/decisions/2026-10-02_g3-freeze-and-battery-authorisation.md)"
+-echo "under the decision packet of 2026-10-01, revision 2. Host only: no guest was started, the controller image,"
+-echo "the guest deployment and the data disk were not touched. Nothing here is a G3 result."
++echo "Outcome line of the record: \`$OUTCOME\`. STOP lines in the record: $(grep -c '^STOP:' "$CON")."
++echo "Lines of the record, verbatim (the HEAD= line that carries tree= is the clone after the checkout):"
+ echo
+-echo "## Part 1 - identities and freshness (part1-record/console.txt, outcome=prepared)"
++grep -E '^(HEAD=|FETCH_HEAD=|runbook: |repo_identity: |helper sha256=|kernel: |qemuboot.conf: |qemu-system-aarch64: |yocto checkout|run-qemu-integrated: |rootfs-ext4|row t8: |row t9: |STOP: )' "$CON" | sed 's/^/    /'
+ echo
+-echo "- The clean WSL clone ~/egw-exec/repo moved to 80e833f44f647fe9cd8f5e99d3abf3c444de95aa (tree dad725d0...), every branch unchanged."
+-echo "- Helper file regenerated: sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb, 545 lines, HELPERS OK (the previous one kept as itest-helpers.sh.39403ead5a81)."
+-echo "- Every identity of the packet's section 1 that the host holds matches (runbook, export tool, drivers_sha256, deployment files, CONTRACTS, tunnel.sh, ca.crt, plan, controller record and archive, launcher, root file system c49500a9...)."
+-echo "- The fifteen -q1 ids and the plan entries nominal-r02 and controller_restart-r03 are unused on the host and, read offline with debugfs -c, on the guest root file system."
++echo "Identifiers reported fresh on the host: $(grep -c '^fresh on the host: ' "$CON"); on the guest root file system"
++echo "(read offline with debugfs -c): $(grep -c '^fresh on the guest: ' "$CON")."
+ echo
+-echo "## Part 2 - the row files and the operator's steps script"
++echo "## Part 2 - the row files, the operator's steps script and the session tools"
+ echo
+ echo "| File | sha256 |"
+ echo "|---|---|"
+-for f in g3_battery.sh g3_battery.README.md g3_extract_rows.py rows/rows.manifest.json g3_hostprep.sh operator-procedure.md; do
++for f in g3_battery.sh g3_battery.README.md operator-procedure.md rows/rows.manifest.json g3_extract_rows.py g3_check_rows.sh g3_rows_dryrun.sh g3_hostprep.sh seal_prep.sh $OPS; do
+     echo "| \`$f\` | \`$(sha256sum "$PKG/$f" | cut -d' ' -f1)\` |"
+ done
+ echo
+-echo "Row and step files (rows/; extracted from the runbook blob c55a2d3b... of 80e833f with the frozen test's own"
+-echo "extraction rule; only the run ids changed, with asserted counts; ids-only diffs beside them):"
++echo "Step files (rows/; rows.manifest.json and verification/rows-notes.md say how each was made from the runbook"
++echo "blob 4acf8de6... of 8e49261 and checked; the identifiers carry the suffix -q2):"
+ echo
+ echo "| Step file | sha256 |"
+ echo "|---|---|"
+ for f in "$PKG"/rows/*.sh; do echo "| \`rows/$(basename "$f")\` | \`$(sha256sum "$f" | cut -d' ' -f1)\` |"; done
+ echo
+-echo "Verification (verification/): three independent verifications (row text identity; the steps script against the"
+-echo "frozen interfaces with a stub dry run; safety and packet fidelity), the corrections (fix-notes.md and the diffs)"
+-echo "and one recheck. Two material defects were found in the first version of the steps script and corrected (a"
+-echo "process listing that showed the simulator password; two concurrent 'row' invocations both running the row);"
+-echo "eight minor ones corrected. bench-records/ holds the isolated stub-bench consoles. Nothing in the steps script"
+-echo "or the row files has run against the guest: the battery is their first real use."
+-echo
+-echo "Choices made in preparation, for Rui's information: T9's exposure check offers the campaign key to root"
+-echo "(a stronger test of the refusal: only 'Permission denied' counts); the steps script records every halt and"
+-echo "refuses the next row, and S2, until Rui's words are given to it; 'close' with no QEMU process left runs the"
+-echo "frozen close driver so that the session attempt is exported as it stands."
++echo "verification/: the notes of the preparation (what changed in each script and why, what was benched and what"
++echo "was not) and diffs/, each revised file against the copy its revision started from (the scripts sealed in the"
++echo "first preparation's package; the four ops scripts as sealed in S2's operator records; seal_prep.sh as the first"
++echo "preparation used it, never sealed; for g3_battery.sh and its README, the draft of 2026-10-03). The folders named *-record/ and"
++echo "bench/ hold the consoles of the extraction, of the checks and of the stub benches; ops/ holds the launcher,"
++echo "the waiter and the two scripts that seal the operator records after the session. prep_brief.md is the brief"
++echo "the scripts were revised to. Of the preparation folder, not copied: $LEFT (base/ holds the copies"
++echo "the diffs were made against; the battery's operator procedure is sealed in the first preparation's package)."
++echo "The steps script's flow for the corrected test 8 and that test's corrected lines ran against stubs only:"
++echo "S3 is their first use on the guest."
+ } > "$PKG/README.md"
+ ( cd "$PKG" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
+-echo "sealed $(wc -l < "$PKG/SHA256SUMS") files; seal $(sha256sum "$PKG/SHA256SUMS" | cut -c1-12)"
++echo "sealed $(wc -l < "$PKG/SHA256SUMS") files; seal $(sha256sum "$PKG/SHA256SUMS" | cut -c1-12); record outcome: $OUTCOME"
++exit "$RC"

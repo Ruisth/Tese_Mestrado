@@ -1,0 +1,26 @@
+/home/ruisth/egw-exec/attempts/20261002T150829Z_g3-qualification-t1-smokes_attempt01
+/home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01
+/home/ruisth/egw-exec/attempts/20261002T154427Z_g3-qualification-t2_attempt01
+/home/ruisth/egw-exec/attempts/20261002T155313Z_g3-qualification-t3_attempt01
+/home/ruisth/egw-exec/attempts/20261002T160154Z_g3-qualification-t4-replay_attempt01
+/home/ruisth/egw-exec/attempts/20261002T161432Z_g3-qualification-t4-reset_attempt01
+/home/ruisth/egw-exec/attempts/20261002T162159Z_g3-qualification-t5_attempt01
+/home/ruisth/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+/home/ruisth/egw-exec/attempts/20261003T135147Z_g3-qualification-t7-mongo_attempt01
+/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01
+/home/ruisth/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+/home/ruisth/egw-exec/attempts/20261005T115131Z_g3-qualification-t8_attempt02
+/home/ruisth/egw-exec/attempts/20261005T120537Z_g3-qualification-t9_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T150829Z_g3-qualification-t1-smokes_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T152710Z_g3-qualification-t1-harness_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T154427Z_g3-qualification-t2_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T155313Z_g3-qualification-t3_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T160154Z_g3-qualification-t4-replay_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T161432Z_g3-qualification-t4-reset_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T162159Z_g3-qualification-t5_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T135147Z_g3-qualification-t7-mongo_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T140639Z_g3-qualification-t7-ditto_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-05/20261005T115131Z_g3-qualification-t8_attempt02
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-05/20261005T120537Z_g3-qualification-t9_attempt01

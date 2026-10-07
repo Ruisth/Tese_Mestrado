@@ -1,0 +1,3 @@
+22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-rw-r--r-- 1 ruisth ruisth 34359738368 Oct  3 15:39 /home/ruisth/yocto/egw-integrated/egw-data.img
+no qemu process left

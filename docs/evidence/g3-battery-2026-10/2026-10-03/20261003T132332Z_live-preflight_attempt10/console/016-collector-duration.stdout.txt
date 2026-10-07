@@ -1,0 +1,1 @@
+the collector held 44 s of the duration=45s its 'start:' line declares, 1 s short: within the 1 s tolerated for the interval=1s round it was in when the stop hook reached it

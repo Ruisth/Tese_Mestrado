@@ -1,0 +1,54 @@
+## 2026-10-04T21:44:05Z script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+state directory before: 
+--- g3_battery.sh open S1
+REFUSED: session S1 is a session of the battery of 2026-10-02/03, whose authority is consumed (request of 2026-10-04): nothing of S1 or S2 is re-run or replaced. This script opens S3 only: g3_battery.sh open S3
+-> exit 2
+--- g3_battery.sh open S2
+REFUSED: session S2 is a session of the battery of 2026-10-02/03, whose authority is consumed (request of 2026-10-04): nothing of S1 or S2 is re-run or replaced. This script opens S3 only: g3_battery.sh open S3
+-> exit 2
+--- g3_battery.sh open S4
+REFUSED: usage: g3_battery.sh open S3
+-> exit 2
+--- g3_battery.sh open
+REFUSED: usage: g3_battery.sh open S3
+-> exit 2
+--- g3_battery.sh row t6
+REFUSED: unknown row 't6' (S3: t8 t9, in that order; the rows of the battery's S1 and S2 are not run again)
+-> exit 2
+--- g3_battery.sh row t1-smokes
+REFUSED: unknown row 't1-smokes' (S3: t8 t9, in that order; the rows of the battery's S1 and S2 are not run again)
+-> exit 2
+--- g3_battery.sh classify t7-ditto finished valid pass reason next
+REFUSED: unknown row 't7-ditto'
+-> exit 2
+--- g3_battery.sh term t6
+REFUSED: unknown row 't6'
+-> exit 2
+--- g3_battery.sh row t8
+## 2026-10-04T21:44:06Z up=2825 row t8 (session S3): steps script sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+REFUSED: session S3 was not opened by this script (state/session-S3.env is absent)
+-> exit 2
+--- g3_battery.sh row t9
+## 2026-10-04T21:44:06Z up=2826 row t9 (session S3): steps script sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+REFUSED: session S3 was not opened by this script (state/session-S3.env is absent)
+-> exit 2
+--- g3_battery.sh classify t8 finished valid pass reason next
+REFUSED: row t8 was not started
+-> exit 2
+--- g3_battery.sh term t8
+REFUSED: row t8 was not started
+-> exit 2
+--- g3_battery.sh restart
+usage: EGW_EXEC_REPO=$HOME/egw-exec/repo bash g3_battery.sh open S3 | row <t8|t9> | classify <slug> <status> <validity> <outcome> <reason> <next-action> | term <slug> | close | status
+-> exit 2
+--- g3_battery.sh status
+state directory: state
+latest console of this script: state/console/004-term-t8.txt
+open session (current_session): none; host uptime now: 2826 s; WSL boot a3554b82-fdf8-4a4d-9122-024f6040bd4e
+qemu pgrep exit=1 (0 running, 1 none)
+turn of the changing subcommands: last taken by 'classify t8' (pid 84220, 2026-10-04T21:44:06Z); that invocation: ended
+session S3: not opened
+-> exit 0
+state directory after: console turn.env turn.lock 
+session or row state files written: 0
+## 2026-10-04T21:44:06Z ended

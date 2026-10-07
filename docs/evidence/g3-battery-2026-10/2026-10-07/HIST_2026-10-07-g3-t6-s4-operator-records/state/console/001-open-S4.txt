@@ -1,0 +1,584 @@
+## 2026-10-07T12:03:48Z up=3315 open S4: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6prep/g3_battery.sh sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+EGW_EXEC_REPO=/home/ruisth/egw-exec/repo EXEC=/home/ruisth/egw-exec SESSION=<none> (the three values of the operator procedure); STATE=/home/ruisth/egw-exec/g3-t6-s4 ROWS=/mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6prep/rows OUT=/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test
+## 2026-10-07T12:03:48Z up=3315 candidate identities
+clone /home/ruisth/egw-exec/repo: HEAD=1fd9792bb76f02c6948f33887207dba4837202db tree=14f89c4d3692aea8ef4f8f1fe29c333a9a7192ec
+clone: clean (0 porcelain lines)
+repo_identity: {"repo_commit": "1fd9792bb76f02c6948f33887207dba4837202db", "repo_dirty_lines": 0, "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b", "drivers_sha256": "2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed"}
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  /home/ruisth/egw-exec/repo/src/deployment/scripts/collect-resources.sh
+helpers: e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  /home/ruisth/egw-tcg/itest-helpers.sh
+helpers: 545 lines, bash -n clean
+tunnel.sh: 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+ca.crt: 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+Yocto checkout /home/ruisth/yocto/egw: HEAD=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+Yocto checkout: clean (0 porcelain lines)
+guest-state command: identical to GUEST_STATE of /home/ruisth/egw-exec/repo/tools/session/nominal.sh (adcce8a49055345a1abb4dc55c367848ddd4658739b94d9bdc9bd0637f42da6e)
+## 2026-10-07T12:03:48Z up=3315 row files of S4 against /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6prep/rows/rows.manifest.json
+row file t6.sh: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377 = sha256_after of the manifest (row t6, step 1, 12167 bytes)
+rows.manifest.json sha256: 7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47
+## 2026-10-07T12:03:48Z up=3315 run ids of S4 unused on the host
+plan entry controller_restart-r04: status=planned seed=1715385812 condition=controller_restart duration_s=600 warmup_s=0
+fresh on the host: controller_restart-r04 (planned, no raw directory, no /home/ruisth/egw-tcg/itest/controller_restart-r04.*)
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): /home/ruisth/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+## 2026-10-07T12:03:48Z up=3315 guest root file system before the boot
+rootfs ext4: 6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4 (the value the close of S3's second opening recorded)
+## 2026-10-07T12:03:51Z up=3318 keepalive
+keepalive: pid 318 'sleep 43200', parent 317 (Relay(318)), running for 3313 s, about 39887 s left
+keepalive: pid 20048 'sleep 43200', parent 20043 (Relay(20048)), running for 9 s, about 43191 s left
+keepalive: attached, about 43191 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-07T12:03:51Z up=3318 UP0=3318 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-07T12:03:51Z up=3318 guest_session_open.sh (frozen driver, /home/ruisth/egw-exec/repo/tools/session/guest_session_open.sh; console /home/ruisth/egw-exec/g3-t6-s4/S4-guest_session_open.console.txt)
+## host
+Linux Ruisth-Desktop 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544) (gcc (GCC) 11.2.0, GNU ld (GNU Binutils) 2.37) #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025
+16
+               total        used        free      shared  buff/cache   available
+Mem:           31798         731       28582           3        2803       31066
+Swap:           8192           0        8192
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd       1007G  171G  785G  18% /
+C:\             1.7T  1.2T  514G  70% /mnt/c
+## ports (2222 8883 8000 8080 must be free)
+none listening
+## OS build artefacts (/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64)
+4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  Image-qemuarm64.bin
+d4569c0e845f3a7e36d292953de64dde76b6e81b7482206d0f0f385bcf805fc7  egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+9f554f3bdd4bbb73c196afba4050bcded7a0ceaba41278cbb0622f6f1adf8940  egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+## data disk
+-rw-r--r-- 1 ruisth ruisth 34359738368 Oct  5 13:12 /home/ruisth/yocto/egw-integrated/egw-data.img
+Last mounted on:          /var/lib/docker
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Mon Oct  5 12:54:33 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## rootfs ext4 state
+Last mounted on:          /
+Filesystem features:      has_journal ext_attr resize_inode dir_index orphan_file filetype extent 64bit flex_bg metadata_csum_seed sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Mon Oct  5 12:54:28 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## QEMU
+5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+QEMU emulator version 8.2.7
+## OS build source (Yocto checkout, launcher and kas)
+489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+0
+67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1  scripts/run-qemu-integrated.sh
+48eb8e9e493d9ac3ce48e82795ac2b200145212b15e0c60f84a6b7d6deeebb83  kas/egw-qemuarm64-integrated.yml
+63c09f156f806b1c5bc7dcd7a782f2deee9424e5323eb4be4913b962d95ef3bf  kas/egw-qemuarm64-integrated.lock.yml
+## execution clone
+1fd9792bb76f02c6948f33887207dba4837202db
+0
+9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  deployment/scripts/collect-resources.sh
+8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648  deployment/images.lock.env
+1a32f6c2bd9e24eee075ef569828aa41ad6a7a7b260d4436e588dc9ca74d5982  deployment/compose.yaml
+## host helpers
+e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  /home/ruisth/egw-tcg/itest-helpers.sh
+38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+## controller image record
+9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d  /home/ruisth/egw-images/egw-controller-0.1.0-arm64.tar
+identity_format=1
+image_ref=egw-controller:0.1.0
+image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+image_architecture=arm64
+image_os=linux
+builder_image_id=sha256:6af29d05d7fb2759233dcf028706a49d453732b80d8774f2f73e4d746e13446c
+source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+source_tree_state=clean
+source_tree_scope=src/ (the build context); files changed outside it: 0
+image_revision_label=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+dockerfile_base_image=docker.io/library/python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+dockerfile_sha256=6e419f5490e658684e6ee2089694f09a35a5b84ab7b6f0a45e94c0930e78069c
+archive_file=egw-controller-0.1.0-arm64.tar
+archive_sha256=9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d
+archive_size_bytes=53423616
+python_version=Python 3.12.13
+python_dependencies=LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 c43c761a646c09b086c9b05efeac5d2b6bb2d9b9ea08a37a709c175c16c2eb45)
+pip_freeze_sha256=f3c8754232b35da04611aeb9bd551f6d70bcbff4c18a48e9594e1084bfee0edd
+docker_client_version=29.8.0
+docker_server_version=29.8.0
+buildx_version=github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6
+build_host=MINGW64_NT-10.0-26200 3.6.3-7674c51e.x86_64 x86_64
+built_utc=2026-09-26T17:30:30Z
+pip_freeze=annotated-doc==0.0.5
+pip_freeze=annotated-types==0.8.0
+pip_freeze=anyio==4.15.1
+pip_freeze=attrs==26.1.0
+pip_freeze=certifi==2026.7.22
+pip_freeze=click==8.5.0
+pip_freeze=egw @ file:///app
+pip_freeze=fastapi==0.141.1
+pip_freeze=h11==0.16.0
+pip_freeze=httpcore==1.0.9
+pip_freeze=httpx==0.28.1
+pip_freeze=idna==3.20
+pip_freeze=jsonschema==4.26.0
+pip_freeze=jsonschema-specifications==2025.9.1
+pip_freeze=paho-mqtt==2.1.0
+pip_freeze=pip==25.0.1
+pip_freeze=pydantic==2.13.5
+pip_freeze=pydantic_core==2.46.5
+pip_freeze=referencing==0.37.0
+pip_freeze=rpds-py==2026.6.3
+pip_freeze=setuptools==84.0.0
+pip_freeze=starlette==1.7.0
+pip_freeze=typing-inspection==0.4.4
+pip_freeze=typing_extensions==4.16.0
+pip_freeze=uvicorn==0.53.0
+[2026-10-07T12:03:58Z] opening session s1
+[2026-10-07T12:04:33Z] s1: guest up, is-system-running=running, uptime=12:04:33 up 0 min,  load average: 0.46, 0.11, 0.03
+[2026-10-07T12:04:33Z] s1: the guest stays up. Watch it with: tail -F /home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/boot/s1.log   |   ssh into it with: /home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/gssh.sh
+running
+ 12:04:34 up 0 min,  load average: 0.46, 0.11, 0.03
+              total        used        free      shared  buff/cache   available
+Mem:           8012         113        7730           4         169        7825
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    463.2M      1.6G  22% /
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G         0      3.9G   0% /tmp
+## journal replay / fsck
+Oct 07 12:04:08 egw-qemu-integrated kernel: raid6: using neon recovery algorithm
+Oct 07 12:04:08 egw-qemu-integrated kernel: EXT4-fs (vda): mounted filesystem 6e01c895-f44f-4183-92f5-b61569f9bef8 r/w with ordered data mode. Quota mode: disabled.
+Oct 07 12:04:08 egw-qemu-integrated kernel: EXT4-fs (vda): re-mounted 6e01c895-f44f-4183-92f5-b61569f9bef8.
+Oct 07 12:04:10 egw-qemu-integrated kernel: EXT4-fs (vdb): mounted filesystem 5244d70e-07de-4875-8dea-8291b0a03bf2 r/w with ordered data mode. Quota mode: disabled.
+Oct 07 12:04:10 egw-qemu-integrated kernel: EXT4-fs (vdb): resizing filesystem from 8388608 to 8388608 blocks
+Oct 07 12:04:17 egw-qemu-integrated containerd[244]: time="2026-10-07T12:04:17.304718438Z" level=info msg="Start recovering state"
+## docker
+egw-controller-1 Exited (0) 2 days ago egw-controller:0.1.0
+egw-ditto-things-1 Exited (143) 2 days ago eclipse/ditto-things:3.9.4
+egw-ditto-gateway-1 Exited (143) 2 days ago eclipse/ditto-gateway:3.9.4
+egw-ditto-policies-1 Exited (143) 2 days ago eclipse/ditto-policies:3.9.4
+egw-mongodb-1 Exited (0) 2 days ago mongo:7.0.39
+egw-mosquitto-1 Exited (0) 2 days ago eclipse-mosquitto:2.0.22
+## clock
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Wed 2026-10-07 12:04:37 UTC
+RTCTimeUSec=Wed 2026-10-07 12:04:38 UTC
+2026-10-07T12:04:37Z
+## OOM so far this boot
+0
+session open: /home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12 (qemu pid 20568)
+DRIVER RESULT 20261007T120357Z_guest-session_attempt12: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+guest_session_open.sh exit=0
+## 2026-10-07T12:04:37Z up=3363 preflight.sh (frozen driver, /home/ruisth/egw-exec/repo/tools/session/preflight.sh; console /home/ruisth/egw-exec/g3-t6-s4/S4-preflight.console.txt)
+1000:1000 data/events
+OK: image id sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+OK: architecture arm64
+OK: os linux
+OK: revision label 489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+OK: source commit 489bc9e5b5b0660026ea2630b8d1d124049ba2ce, clean build context
+INFO: archive sha256 in the record: 9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d; built 2026-09-26T17:30:30Z
+INFO: python dependencies: LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 c43c761a646c09b086c9b05efeac5d2b6bb2d9b9ea08a37a709c175c16c2eb45)
+CONTROLLER IMAGE IDENTITY: verified (egw-controller:0.1.0 = sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46)
+OK: .env present, no placeholders
+OK: TLS material present (ca.crt, server.crt, server.key)
+OK: Mosquitto password file present
+OK: passwd closed to others (1883:1883 600)
+OK: certs/server.key closed to others (1883:1883 600)
+OK: certs/ca.key closed to others (1000:1000 600)
+Read test as uid:gid 1883:1883 in a one-shot container of: docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+OK: 1883:1883 is the image user "mosquitto" (uid:gid)
+OK: uid 1883 reads mosquitto.conf
+OK: uid 1883 reads acl
+OK: uid 1883 reads passwd
+OK: uid 1883 reads certs/ca.crt
+OK: uid 1883 reads certs/server.crt
+OK: uid 1883 reads certs/server.key
+
+OK: the broker user (1883:1883) can read its key, certificates, password file and ACL;
+    no secret is open to others.
+OK: broker user can read its secrets; none is open to others
+OK: all 5 image(s) in images.lock.env pinned by @sha256 digest
+OK: data/events directory ready (bind mount for events.jsonl)
+OK: docker compose config accepted
+OK: controller image egw-controller:0.1.0 present (identity: scripts/verify-controller-image.sh)
+
+OK: configuration is complete and consistent. Safe to run:
+    docker compose --env-file .env --env-file images.lock.env up -d
+ Container egw-mosquitto-1  Created
+ Container egw-mongodb-1  Created
+ Container egw-ditto-policies-1  Created
+ Container egw-ditto-gateway-1  Created
+ Container egw-controller-1  Created
+ Container egw-ditto-things-1  Created
+ Container egw-mongodb-1  Starting
+ Container egw-mosquitto-1  Starting
+ Container egw-mongodb-1  Started
+ Container egw-ditto-policies-1  Starting
+ Container egw-mosquitto-1  Started
+ Container egw-ditto-policies-1  Started
+ Container egw-ditto-gateway-1  Starting
+ Container egw-ditto-things-1  Starting
+ Container egw-ditto-things-1  Started
+ Container egw-ditto-gateway-1  Started
+ Container egw-mosquitto-1  Waiting
+ Container egw-ditto-gateway-1  Waiting
+ Container egw-mosquitto-1  Healthy
+ Container egw-ditto-gateway-1  Healthy
+ Container egw-controller-1  Starting
+ Container egw-controller-1  Started
+up exit=0
+previous=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6
+9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  /opt/egw/deployment/scripts/collect-resources.sh
+e974bf5c4dc7d618db7cc3eac3dc0739bc16a3ef288c18bc5953b0a9ba0ebbf6  ./.env.example
+fa6f2c2e6c18ac02a9dc1b831636da110d4e8ed187d0d400c619b8873c72574e  ./.gitignore
+3fafbae52fbe7ce5c04e9d5839185a4be9ad4c4f7411c6ee7a7b3a0aeb40ff4d  ./README.md
+1a32f6c2bd9e24eee075ef569828aa41ad6a7a7b260d4436e588dc9ca74d5982  ./compose.yaml
+8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648  ./images.lock.env
+76804469c3181f1942d02f9c4e54b339f7889d0a0219ef69530f7b46529bb273  ./mosquitto/config/acl
+ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615  ./mosquitto/config/mosquitto.conf
+eb46b22fbacdb953ee1f2612a41fbbd0055db00a720c857d8b2c727692a0b4a6  ./scripts/build-controller-image.sh
+056699b117c4a1d954ab0b504f981ed99361a9030e05fe0b2b887990d7c85ded  ./scripts/capture-sut-environment.sh
+9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  ./scripts/collect-resources.sh
+9ae07b0c5e4b03385053d270e379b0bf767f34156839ad2c7a53a9aee2f3c7d4  ./scripts/fetch-collector-output.sh
+2c5cd153722fac7a40a280b9303612d82482a17f249b7b9fc1236edc60ef6ea9  ./scripts/generate-dev-auth.sh
+91560e10c7909f8af58189f29874d33b8c0ff4f53a693ec2f16c88fee895190b  ./scripts/generate-dev-tls.sh
+48b6e66c38c8e06000b73fadf86e5023d903c5a78d56e1e3f2e888ed86c3182b  ./scripts/generate-runtime-lock.sh
+2787b60c652a3ade6baa0462db7f6290741677f1fe6874ba0b27ec25f8d2a5ee  ./scripts/measure-cold-start.sh
+c73502b299035c58f2d36d52f367e48ba17772bdb28bf4c5eee3368d3e576d9d  ./scripts/prepare-broker-secrets.sh
+b1be37a10a1c8c2566607896715e902222787128758d9ea58b9a47d03f6f63c1  ./scripts/probe-acl.sh
+514c820c103e355639527b79bc5cad90b57b5eb55e41ba46c563163bd2e4d822  ./scripts/resolve-image-lock.sh
+f58f49182c8f749200007aa35949ba0f448c207c25c926e9e798cf7299b9e392  ./scripts/validate-config.sh
+7e0f32348da4de6e66619179817d4da0eec5e2596253dda88ca4b1d7e5678b7b  ./scripts/verify-controller-image.sh
+DIFFERS        README.md  guest=3fafbae52fbe clone=5a6cbb4b1166  (allowed)
+deployed files equal to the clean clone: 19; different: 0; only on the guest: 0; only in the clone: 0; allowed differences: 1; unreadable lines: 0
+tunnel: no control socket at /home/ruisth/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+health: 000
+cat: /tmp/egw-pf-health.json: No such file or directory
+
+ready: 000
+cat: /tmp/egw-pf-ready.json: No such file or directory
+
+metrics: 000
+cat: /tmp/egw-pf-metrics.json: No such file or directory
+
+READY
+egw-controller-1 running starting
+egw-ditto-gateway-1 running healthy
+egw-ditto-policies-1 running healthy
+egw-ditto-things-1 running healthy
+egw-mongodb-1 running healthy
+egw-mosquitto-1 running healthy
+## the six expected services
+egw-mosquitto-1 status=running health=healthy OOMKilled=false restarts=0
+egw-mongodb-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-policies-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-things-1 status=running health=healthy OOMKilled=false restarts=0
+egw-ditto-gateway-1 status=running health=healthy OOMKilled=false restarts=0
+egw-controller-1 status=running health=healthy OOMKilled=false restarts=0
+## every container
+egw-controller-1 OOMKilled=false restarts=0
+egw-ditto-things-1 OOMKilled=false restarts=0
+egw-ditto-gateway-1 OOMKilled=false restarts=0
+egw-ditto-policies-1 OOMKilled=false restarts=0
+egw-mongodb-1 OOMKilled=false restarts=0
+egw-mosquitto-1 OOMKilled=false restarts=0
+## memory-cgroup OOM lines this boot
+memory-cgroup OOM lines: 0
+## storage
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    463.2M      1.6G  22% /
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G     56.0K      3.9G   0% /tmp
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1719        5473           5         819        6214
+Swap:             0           0           0
+## docker stats (one sample; slow under TCG)
+egw-controller-1 46.74MiB / 256MiB 18.26% 1.15%
+egw-ditto-things-1 526.7MiB / 768MiB 68.57% 19.79%
+egw-ditto-gateway-1 499.5MiB / 768MiB 65.04% 15.77%
+egw-ditto-policies-1 480.4MiB / 768MiB 62.55% 21.72%
+egw-mongodb-1 388.1MiB / 512MiB 75.81% 104.98%
+egw-mosquitto-1 4.141MiB / 128MiB 3.23% 0.16%
+OK: passwd closed to others (1883:1883 600)
+OK: certs/server.key closed to others (1883:1883 600)
+OK: certs/ca.key closed to others (1000:1000 600)
+Read test as uid:gid 1883:1883 in a one-shot container of: docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+OK: 1883:1883 is the image user "mosquitto" (uid:gid)
+OK: uid 1883 reads mosquitto.conf
+OK: uid 1883 reads acl
+OK: uid 1883 reads passwd
+OK: uid 1883 reads certs/ca.crt
+OK: uid 1883 reads certs/server.crt
+OK: uid 1883 reads certs/server.key
+
+OK: the broker user (1883:1883) can read its key, certificates, password file and ACL;
+    no secret is open to others.
+check exit=0
+host_before=1791374899.298257224 guest=1791374900 host_after=1791374899.940792775
+host_before=1791374899.941798170 guest=1791374900 host_after=1791374900.597241552
+host_before=1791374900.598092799 guest=1791374901 host_after=1791374901.243482599
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Wed 2026-10-07 12:08:22 UTC
+RTCTimeUSec=Wed 2026-10-07 12:08:23 UTC
+Wed Oct  7 12:08:22 UTC 2026
+wrote /opt/egw/evidence/sut_environment.json
+{
+  "role": "sut",
+  "captured_utc": "2026-10-07T12:08:26Z",
+  "node": "egw-qemu-integrated",
+  "uname_a": "Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux",
+  "os_pretty_name": "Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)",
+  "nproc": 4,
+  "cpu_model": "0xd0b",
+  "mem_total_kb": 8204356,
+  "docker_version": "Docker version 25.0.9, build 43987fca48",
+  "docker_compose_version": "Docker Compose version v2.26.0",
+  "provider": "QEMU 8.2.7 TCG (qemu-system-native) on WSL2 Ubuntu-24.04, Windows 11 x86-64",
+  "region": "local-workstation",
+  "instance_type": "qemu -machine virt -cpu cortex-a76 -smp 4 -m 8192; ARM64 EMULATED",
+  "shared_vcpu_note": "TCG emulation on a shared x86-64 host; load generator co-located; never native ARM64"
+}
+Running as unit: egw-resources-preflight-20261007T120444Z.service; invocation ID: 22c75b80405f4c40aea09514a27a6e68
+inactive
+Oct 07 12:08:28 egw-qemu-integrated systemd[1]: Started /usr/bin/sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-preflight-20261007T120444Z.csv --duration 45 --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1.
+Oct 07 12:08:28 egw-qemu-integrated sh[2972]: collecting container resources into /tmp/resources-preflight-20261007T120444Z.csv (source: auto, one sample every 1s, duration: 45s, 0 = until SIGTERM)
+Oct 07 12:08:28 egw-qemu-integrated sh[2972]: pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; diagnostics: /tmp/resources-preflight-20261007T120444Z.csv.diagnostics.log; lifecycle: /tmp/resources-preflight-20261007T120444Z.csv.lifecycle.csv
+Oct 07 12:08:28 egw-qemu-integrated sh[2972]: sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+Oct 07 12:08:41 egw-qemu-integrated sh[2972]: diagnostics (first lines; all of them are in /tmp/resources-preflight-20261007T120444Z.csv.diagnostics.log):
+Oct 07 12:08:41 egw-qemu-integrated sh[3070]: 2026-10-07T12:08:41Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-07T12:08:39Z)
+Oct 07 12:08:41 egw-qemu-integrated sh[3070]: 2026-10-07T12:08:41Z clock phase: aimed at second 2026-10-07T12:08:40Z and sampled in 2026-10-07T12:08:41Z; recalibrating
+Oct 07 12:09:16 egw-qemu-integrated sh[2972]: collector stopped after 46 samples (forward UTC gaps: 2 s; withheld: 0 sample(s), with 0.00 s of elapsed time without an accepted sample beyond one interval and the UTC gaps, 0 run(s) of them unmeasured and 0 still withheld at stop; 11 diagnostic line(s) in /tmp/resources-preflight-20261007T120444Z.csv.diagnostics.log); output: /tmp/resources-preflight-20261007T120444Z.csv
+Oct 07 12:09:16 egw-qemu-integrated systemd[1]: egw-resources-preflight-20261007T120444Z.service: Deactivated successfully.
+Oct 07 12:09:16 egw-qemu-integrated systemd[1]: egw-resources-preflight-20261007T120444Z.service: Consumed 6.474s CPU time.
+-rw-r--r--    1 root     root         21581 Oct  7 12:09 /tmp/resources-preflight-20261007T120444Z.csv
+-rw-r--r--    1 root     root          1915 Oct  7 12:09 /tmp/resources-preflight-20261007T120444Z.csv.diagnostics.log
+-rw-r--r--    1 root     root           708 Oct  7 12:08 /tmp/resources-preflight-20261007T120444Z.csv.lifecycle.csv
+fetch: resources-preflight-20261007T120444Z.csv present sha256=bbbd7f5301531760a9aa6bf7b92ca46a957a34c87e7d55c2a5ff4ad3b7ae3c5d verified
+fetch: resources-preflight-20261007T120444Z.csv.diagnostics.log present sha256=5038f72c6fb8e8f5c20a96fcb40406578d0c58270bfd88c1f7303f9bb5d737f6 verified
+fetch: resources-preflight-20261007T120444Z.csv.lifecycle.csv present sha256=9f3041e509a6891fbf2759c8745c8ef0584279ec7ce48eb5730d614e5f9865fc verified
+fetch: resources-preflight-20261007T120444Z.csv.self-test absent (optional)
+fetch: result exit=0 (every mandatory file present and verified)
+{
+  "run": "preflight-20261007T120444Z",
+  "deployed_sha256": "9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97",
+  "rows_per_service": {
+    "egw-mosquitto-1": 45,
+    "egw-ditto-things-1": 45,
+    "egw-ditto-policies-1": 45,
+    "egw-mongodb-1": 45,
+    "egw-ditto-gateway-1": 45,
+    "egw-controller-1": 45
+  },
+  "unexpected_names": [],
+  "distinct_instants": 45,
+  "distinct_instants_in_window": 45,
+  "window": [
+    "2026-10-07T12:08:28Z",
+    "2026-10-07T12:09:16Z"
+  ],
+  "window_seconds": 48,
+  "start_line": "2026-10-07T12:08:28Z start: collector_sha256=9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97 host=egw-qemu-integrated source=auto interval=1s duration=45s uptime_s=254.44 boot_id=85783f36-2a51-42bc-998b-294cc51510db pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "stop_line": "2026-10-07T12:09:16Z stop: samples=46 utc_gap_seconds=2 withheld_samples=0 withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=3 pacing=wall-clock uptime_s=299.98 boot_id=85783f36-2a51-42bc-998b-294cc51510db",
+  "inventory": "2026-10-07T12:09:16Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0",
+  "declared_expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "declared_interval_s": 1.0,
+  "declared_duration_s": 45.0,
+  "declared_duration_shortfall_s": null,
+  "monotonic_bounds": {
+    "start_uptime_s": "254.44",
+    "stop_uptime_s": "299.98",
+    "start_boot_id": "85783f36-2a51-42bc-998b-294cc51510db",
+    "stop_boot_id": "85783f36-2a51-42bc-998b-294cc51510db"
+  },
+  "rounds_the_declared_interval_implies": 49,
+  "samples": 46,
+  "closing_counters": {
+    "utc_gap_seconds": "2",
+    "withheld_samples": "0",
+    "withheld_elapsed_s": "0.00",
+    "withheld_runs_unmeasured": "0",
+    "withheld_open_at_stop": "0"
+  },
+  "closing_record_reconciliation": "run",
+  "resource_validation": "run",
+  "observations": [
+    "the collector reports utc_gap_seconds=2: 2 second(s) of UTC, beyond one interval, in which no sample was stamped. A wall clock stepped forward adds to it although no time passed unsampled (collect-resources.sh), so it is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it"
+  ],
+  "problems": []
+}
+the collector held its whole window: 45.54 s on the guest's monotonic clock (uptime 254.44 s to 299.98 s, boot 85783f36-2a51-42bc-998b-294cc51510db) of the duration=45s its 'start:' line declares; its UTC window, kept for coverage and diagnosis, reads 48 s
+exported 20261007T120444Z_live-preflight_attempt13: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-07\20261007T120444Z_live-preflight_attempt13 (verified, 40 files, 0 excluded)
+DRIVER RESULT 20261007T120444Z_live-preflight_attempt13: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+preflight.sh exit=0
+## environment input (PM condition 2 of 2026-10-01)
+  captured_utc: 2026-10-07T12:08:26Z
+  node: egw-qemu-integrated
+  provider: QEMU 8.2.7 TCG (qemu-system-native) on WSL2 Ubuntu-24.04, Windows 11 x86-64
+  region: local-workstation
+  instance_type: qemu -machine virt -cpu cortex-a76 -smp 4 -m 8192; ARM64 EMULATED
+  shared_vcpu_note: TCG emulation on a shared x86-64 host; load generator co-located; never native ARM64
+labels: QEMU/TCG and ARM64 EMULATED are present
+previous input kept: /home/ruisth/egw-tcg/sut_environment.json.52401d0b7a9c (52401d0b7a9c0c13cc186befeda560c6fde2160580054f63e34b3347df606020)
+harness input now: /home/ruisth/egw-tcg/sut_environment.json sha256 e932c9aa1734bffd6d71f71808b8ddf4f4ff23e370c46de57a5c26dd04dab7fb
+source: /home/ruisth/egw-exec/attempts/20261007T120444Z_live-preflight_attempt13/environment/sut_environment.json (preflight package 20261007T120444Z_live-preflight_attempt13)
+## 2026-10-07T12:10:00Z up=3674 gate_health.sh (frozen driver, /home/ruisth/egw-exec/repo/tools/session/gate_health.sh; console /home/ruisth/egw-exec/g3-t6-s4/S4-gate_health.console.txt)
+2026-10-07T12:10:07Z sample 1: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/healthy
+2026-10-07T12:10:12Z completed (sample 1)
+ALL HEALTHY: the 6 expected services are running and healthy (sample 1)
+--- health (http 200, curl exit 0) ---
+{"status":"ok"}
+--- ready (http 200, curl exit 0) ---
+{"status":"ready","mqtt_connected":true,"ditto_ready":true}
+--- metrics (http 200, curl exit 0) ---
+{"accepted":0,"rejected":0,"duplicate":0,"failed":0,"dropped":0,"received":0,"in_progress":0,"processing_errors":0,"started_at":"2026-10-07T12:07:39.173Z","uptime_s":149.24350495999997,"monotonic_ns":355104567216,"wall_utc":"2026-10-07T12:10:13.021Z","mqtt_subscribed":true,"mqtt_connection":1,"unacked":0,"queue_depth":0}
+http codes: {'health': '200', 'ready': '200', 'metrics': '200'}
+curl exit statuses: {'health': '0', 'ready': '0', 'metrics': '0'}
+/health body status: ok
+ENDPOINTS AT THE GATE: /health 200 with status ok, /ready 200
+controller process started_at: 2026-10-07T12:07:39.173Z
+{
+  "accepted": 0,
+  "rejected": 0,
+  "duplicate": 0,
+  "failed": 0,
+  "dropped": 0,
+  "queue_depth": 0
+}
+COUNTER BASELINE AT ZERO: every counter and queue_depth is 0 for the process started at 2026-10-07T12:07:39.173Z
+identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c image_id=sha256:5fef2509a20f85341b1e5c4dd7864e1a4a15fba155b88afa025cbcd5b5611ce9 repo_digest=eclipse-mosquitto@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c container_id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-10-07T12:04:58.773243055Z
+identity egw-mongodb-1 image=docker.io/library/mongo:7.0.39@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d image_id=sha256:d58a07b4b2ecaff800c05ed786685d18dcbb5b31a801fdc57bdfb819a9f46c8f repo_digest=mongo@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d container_id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-10-07T12:04:58.149873071Z
+identity egw-ditto-policies-1 image=docker.io/eclipse/ditto-policies:3.9.4@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb image_id=sha256:0e93f53bed2734b7ef83a59054b61077612cc40bbe47c4b6753d12eaefa3e99c repo_digest=eclipse/ditto-policies@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb container_id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-10-07T12:05:01.136170671Z
+identity egw-ditto-things-1 image=docker.io/eclipse/ditto-things:3.9.4@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0 image_id=sha256:38fef6b7598be0513532c227271c124437a54eb759c2a05f34305832d91b7122 repo_digest=eclipse/ditto-things@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0 container_id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-10-07T12:05:05.388664607Z
+identity egw-ditto-gateway-1 image=docker.io/eclipse/ditto-gateway:3.9.4@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b image_id=sha256:aeb24de31e2de444e767afe7bfbb8a70928c0527d8e6736bcb4813a5407fec7a repo_digest=eclipse/ditto-gateway@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b container_id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-10-07T12:05:06.100377599Z
+identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 repo_digest=none container_id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-10-07T12:07:24.822501345Z
+## the controller build identity recorded on the guest
+identity_format=1
+image_ref=egw-controller:0.1.0
+image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+image_architecture=arm64
+image_os=linux
+builder_image_id=sha256:6af29d05d7fb2759233dcf028706a49d453732b80d8774f2f73e4d746e13446c
+source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+source_tree_state=clean
+source_tree_scope=src/ (the build context); files changed outside it: 0
+image_revision_label=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+dockerfile_base_image=docker.io/library/python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+dockerfile_sha256=6e419f5490e658684e6ee2089694f09a35a5b84ab7b6f0a45e94c0930e78069c
+archive_file=egw-controller-0.1.0-arm64.tar
+archive_sha256=9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d
+archive_size_bytes=53423616
+python_version=Python 3.12.13
+python_dependencies=LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 c43c761a646c09b086c9b05efeac5d2b6bb2d9b9ea08a37a709c175c16c2eb45)
+pip_freeze_sha256=f3c8754232b35da04611aeb9bd551f6d70bcbff4c18a48e9594e1084bfee0edd
+docker_client_version=29.8.0
+docker_server_version=29.8.0
+buildx_version=github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6
+build_host=MINGW64_NT-10.0-26200 3.6.3-7674c51e.x86_64 x86_64
+built_utc=2026-09-26T17:30:30Z
+pip_freeze=annotated-doc==0.0.5
+pip_freeze=annotated-types==0.8.0
+pip_freeze=anyio==4.15.1
+pip_freeze=attrs==26.1.0
+pip_freeze=certifi==2026.7.22
+pip_freeze=click==8.5.0
+pip_freeze=egw @ file:///app
+pip_freeze=fastapi==0.141.1
+pip_freeze=h11==0.16.0
+pip_freeze=httpcore==1.0.9
+pip_freeze=httpx==0.28.1
+pip_freeze=idna==3.20
+pip_freeze=jsonschema==4.26.0
+pip_freeze=jsonschema-specifications==2025.9.1
+pip_freeze=paho-mqtt==2.1.0
+pip_freeze=pip==25.0.1
+pip_freeze=pydantic==2.13.5
+pip_freeze=pydantic_core==2.46.5
+pip_freeze=referencing==0.37.0
+pip_freeze=rpds-py==2026.6.3
+pip_freeze=setuptools==84.0.0
+pip_freeze=starlette==1.7.0
+pip_freeze=typing-inspection==0.4.4
+pip_freeze=typing_extensions==4.16.0
+pip_freeze=uvicorn==0.53.0
+## broker listener and TLS material, from mosquitto.conf (configuration, never secrets)
+listener 8883 0.0.0.0
+protocol mqtt
+cafile /mosquitto/config/certs/ca.crt
+certfile /mosquitto/config/certs/server.crt
+keyfile /mosquitto/config/certs/server.key
+require_certificate false
+tls_version tlsv1.2
+allow_anonymous false
+password_file /mosquitto/config/passwd
+acl_file /mosquitto/config/acl
+## the files the broker itself names, translated into the deployed tree
+cafile /mosquitto/config/certs/ca.crt -> mosquitto/config/certs/ca.crt
+certfile /mosquitto/config/certs/server.crt -> mosquitto/config/certs/server.crt
+keyfile /mosquitto/config/certs/server.key -> mosquitto/config/certs/server.key
+password_file /mosquitto/config/passwd -> mosquitto/config/passwd
+acl_file /mosquitto/config/acl -> mosquitto/config/acl
+## the certificate authority the broker itself names (never its private material)
+subject=O=C2DTA EGW dev, CN=EGW Dev Root CA
+notAfter=Dec 21 18:56:14 2028 GMT
+sha256 Fingerprint=AA:34:ED:1E:B4:15:2D:1A:F3:A5:B1:9C:89:37:C6:C1:F9:00:E5:A6:CB:56:C4:BD:5B:E3:A2:A1:B0:B3:E6:DF
+## modes and ownership of the material the broker names (never a byte of it)
+644 egw:egw 1911 mosquitto/config/certs/ca.crt
+644 egw:egw 1631 mosquitto/config/certs/server.crt
+600 UNKNOWN:UNKNOWN 1708 mosquitto/config/certs/server.key
+600 UNKNOWN:UNKNOWN 255 mosquitto/config/passwd
+640 UNKNOWN:UNKNOWN 472 mosquitto/config/acl
+TLS AT THE GATE: the broker listens on 8883 with tlsv1.2 and names a certificate authority, a certificate and a key that are in the deployed tree; allow_anonymous is false, which is the configuration and not an exercised refusal
+exported 20261007T121006Z_g2-gate-preconditions_attempt08: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-07\20261007T121006Z_g2-gate-preconditions_attempt08 (verified, 24 files, 0 excluded)
+DRIVER RESULT 20261007T121006Z_g2-gate-preconditions_attempt08: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="the gate's preconditions hold: the six expected services are running and healthy and the controller is at the gate"
+gate_health.sh exit=0
+## 2026-10-07T12:10:51Z up=3722 run ids of S4 unused on the guest (read-only listing)
+controller_restart-r01
+controller_restart-r02
+controller_restart-r03
+itest-3dev-01
+itest-3dev-01-q1
+itest-ditto-fault-01-q1
+itest-dropout-01
+itest-dropout-01-q1
+itest-dup-01
+itest-dup-01-q1
+itest-dup-02-q1
+itest-flow-02
+itest-g2-01
+itest-invalid-01
+itest-invalid-01-q1
+itest-mongo-fault-01
+itest-mongo-fault-01-q1
+itest-post-reboot-01
+itest-post-reboot-01-q2
+itest-preflight-02
+itest-slice-01
+itest-smoke-01
+itest-smoke-01-q1
+itest-smoke-02
+itest-smoke-02-q1
+itest-smoke-03
+itest-smoke-03-q1
+nominal-r01
+nominal-r01.warmup
+nominal-r02
+nominal-r02.warmup
+proof-adr0011-r01
+proof-adr0011-r02
+proof-adr0011-r03
+smoke_sequence-r01
+smoke_sequence-r02
+fresh on the guest: controller_restart-r04
+## 2026-10-07T12:10:52Z up=3723 session S4 is open: /home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.

@@ -1,0 +1,110 @@
+--- first-preparation/g3_battery.sh
++++ g3_battery.sh
+@@ -1,5 +1,8 @@
+ #!/bin/bash
+ # G3 qualification, session S3 (test 8 and test 9 only) - the operator's steps script.
++# Second opening (authorisation of 2026-10-05, output_test/decisions/2026-10-05_g3-s3b-exception-authorisation.md):
++# a new copy of the sealed S3 script with three changes only, each marked 'S3, second opening': the expected
++# root file system, a fresh state directory, and the authorised exception for collector-duration at open.
+ #
+ # S3: this is the battery's steps script (sessions S1 and S2 of 2026-10-02/03) finished
+ # for ONE further session. Each change of behaviour made for S3 stands under a comment
+@@ -44,7 +47,7 @@
+ #   EGW_EXEC_REPO=$HOME/egw-exec/repo bash g3_battery.sh <subcommand> [arguments]
+ # Exit: 0 done; 1 a HALT; 2 refused (nothing was started or changed); 130 (or the
+ # code driver_status.py derives) after an interrupt.
+-# State: ${EGW_G3_STATE:-$EXEC/g3-t8t9-s3} (session-S3.env, row-<slug>.env, the
++# State: ${EGW_G3_STATE:-$EXEC/g3-t8t9-s3-attempt02} (session-S3.env, row-<slug>.env, the
+ # consoles of every invocation and of the four drivers); the battery's own state
+ # directory, $EXEC/g3-battery, is never written. Row files: the rows/ folder
+ # beside this script, checked against rows/rows.manifest.json before anything runs.
+@@ -82,10 +85,13 @@
+ HELPER_LINES=545
+ TUNNEL_SHA=38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1
+ CA_SHA=556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff
+-# S3 (point 2): the guest root file system expected before S3's boot is the value S2's
+-# close recorded (rootfs_after_close of session-S2.env, in the sealed S2 operator records
+-# output_test/runs/2026-10-03/HIST_2026-10-03-g3-battery-s2-operator-records/state/).
+-ROOTFS_BEFORE_S3=22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd
++# S3, second opening: the guest root file system expected before the boot is the value the
++# close of S3's first opening recorded (rootfs_after_close of session-S3.env, in the sealed
++# operator records output_test/runs/2026-10-05/HIST_2026-10-05-g3-t8t9-s3-operator-records/state/).
++ROOTFS_BEFORE_S3=b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093
++# S3, second opening: the read-only checker of the authorised exception for collector-duration
++# (beside this script), and its sha256: another checker is a halt, never a pass.
++EXCEPTION_SHA=ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95
+ # S3 (point 3): four identities the frozen open driver only records (guest_session_open.sh
+ # lines 112-119), compared here with what S2's open recorded (console
+ # 001-identities-before-boot of 20261003T132249Z_guest-session_attempt09): the kernel,
+@@ -104,7 +110,9 @@
+ 
+ # --- paths ----------------------------------------------------------------------------
+ # S3 (point 1): a state directory of its own; the battery's ($EXEC/g3-battery) is never written.
+-STATE=${EGW_G3_STATE:-$EXEC/g3-t8t9-s3}
++# S3, second opening: a fresh state directory; the first opening's ($EXEC/g3-t8t9-s3) is kept as it is.
++STATE=${EGW_G3_STATE:-$EXEC/g3-t8t9-s3-attempt02}
++EXCEPTION_PY=$SELF_DIR/s3b_preflight_exception.py
+ ROWS_DIR=${EGW_G3_ROWS:-$SELF_DIR/rows}
+ MANIFEST=$ROWS_DIR/rows.manifest.json
+ HELPER=$HOME/egw-tcg/itest-helpers.sh
+@@ -401,7 +409,7 @@
+     (slug, session, label, ceiling, up0, now, steps_sha, helper_sha, clone, ids, harness, note) = sys.argv[4:16]
+     names = sys.argv[16:]
+     # S3 (point 2): the authority of this session, in the field that named the battery (the key is kept).
+-    w = {"battery": "G3 qualification, session S3: tests 8 and 9 only (request of 2026-10-04; decision summary output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md)",
++    w = {"battery": "G3 qualification, session S3 (second opening): tests 8 and 9 only (request of 2026-10-04; decision summary output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md; authorisation of 2026-10-05 with the prospective exception for collector-duration, output_test/decisions/2026-10-05_g3-s3b-exception-authorisation.md)",
+          "row": slug, "session": session, "session_label": label,
+          "itest_run_ids": [i for i in ids.split(",") if i], "harness_run_id": harness or None,
+          "ids_note": note or None,
+@@ -955,11 +963,11 @@
+     done
+     [ "$bad" -eq 0 ] || { echo "HALT: an id of $LABEL is not fresh on the host; nothing was started"; exit 1; }
+     say "guest root file system before the boot"
+-    # S3 (point 2): the expected value is the one S2's close recorded (ROOTFS_BEFORE_S3).
++    # S3, second opening: the expected value is the one the first opening's close recorded.
+     expect=$ROOTFS_BEFORE_S3
+     rootfs=$(sha_of "$ROOTFS_EXT4") || rootfs=unreadable
+     echo "rootfs ext4: $rootfs  $ROOTFS_EXT4"
+-    echo "expected:    ${expect:-<not recorded>} (the value S2's close recorded)"
++    echo "expected:    ${expect:-<not recorded>} (the value the close of S3's first opening recorded)"
+     [ -n "$expect" ] && [ "$rootfs" = "$expect" ] || { echo "HALT: the guest root file system is not the expected one, or the expected value is not recorded (packet section 4, halt 6); nothing was started"; exit 1; }
+     say "keepalive"
+     keepalive_check "$KEEPALIVE_OPEN_S" || refuse "the keepalive client is not attached (see above); nothing was started"
+@@ -999,7 +1007,27 @@
+     pre_id=$(driver_run_id "$DRIVER_CONSOLE")
+     pre=$ATTEMPTS/$pre_id
+     state_set "$SESSION_FILE" preflight_attempt "$pre"
+-    [ "$rc" -eq 0 ] || open_halt "preflight.sh exited $rc; see $DRIVER_CONSOLE"
++    # S3, second opening (authorisation of 2026-10-05, on the Project Manager's terms of the
++    # register entry "2026-10-05 12:09 WEST"): a preflight that ended exit 3 lets this session go
++    # on ONLY when the read-only checker shows the actual attempt identified and complete, the
++    # fifteen other steps ended 0, collector-check with no problem, and the sole failure the
++    # numeric duration judgement of collector-duration. Anything else is the halt it always was.
++    # The preflight stays failed and invalid; nothing it recorded is changed; the session records
++    # 'proceeded under the authorised T8/T9 exception', never 'preflight passed'. The environment
++    # copy, the fresh gate, the identity checks and the units' absence below stay mandatory.
++    excepted=no
++    if [ "$rc" -eq 3 ] && [ -n "$pre_id" ] && [ -d "$pre" ]; then
++        say "preflight.sh exited 3: the authorised T8/T9 exception for collector-duration is examined (read-only)"
++        [ "$(sha_of "$EXCEPTION_PY")" = "$EXCEPTION_SHA" ] \
++            || open_halt "preflight.sh exited 3, and the exception's checker $EXCEPTION_PY is not the prepared one (sha256 $EXCEPTION_SHA): the exception was NOT examined; see $DRIVER_CONSOLE"
++        "$PY" "$EXCEPTION_PY" "$pre" "$DRIVER_CONSOLE" 2>&1 | tee_safe "$STATE/$LABEL-preflight-exception.txt"
++        erc=${PIPESTATUS[0]}
++        [ "$erc" -eq 0 ] || open_halt "preflight.sh exited 3 and the authorised exception does NOT apply (checker exit $erc; see $STATE/$LABEL-preflight-exception.txt and $DRIVER_CONSOLE)"
++        excepted=yes
++        state_set "$SESSION_FILE" preflight_exception "proceeded under the authorised T8/T9 exception (collector-duration only; preflight $pre_id stays failed and invalid)"
++        echo "PROCEEDED UNDER THE AUTHORISED T8/T9 EXCEPTION: preflight $pre_id stays failed and invalid (collector-duration only); the environment copy, the gate and every identity check below stay mandatory"
++    fi
++    [ "$rc" -eq 0 ] || [ "$excepted" = yes ] || open_halt "preflight.sh exited $rc; see $DRIVER_CONSOLE"
+     [ -n "$pre_id" ] && [ -d "$pre" ] || open_halt "the preflight's attempt could not be named from its DRIVER RESULT line"
+ 
+     environment_copy "$pre" 2>&1 | tee_safe "$STATE/$LABEL-environment-copy.txt"
+@@ -2203,7 +2231,7 @@
+     fi
+     echo "What remains for the operator:"
+     # S3 (point 1): the names of S3's operator records and of its result note.
+-    echo "  1. verify every export (the export tool's own verification, then 'sha256sum -c' in each package), then seal the operator records ($STATE: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<UTC date>-g3-t8t9-s3-operator-records;"
++    echo "  1. verify every export (the export tool's own verification, then 'sha256sum -c' in each package), then seal the operator records ($STATE: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<UTC date>-g3-t8t9-s3-operator-records (with -attempt02 when sealed on 2026-10-05, beside the first opening's);"
+     echo "  2. write output_test/decisions/<date>_g3-t8-t9-results.md (each row's validity, functional outcome and timed delivery stated apart; no G3 claim);"
+     echo "  3. release the keepalive client and the Windows keep-awake."
+     [ "$HALTED" -eq 0 ] || exit 1

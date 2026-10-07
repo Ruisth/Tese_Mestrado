@@ -1,0 +1,5 @@
+## 2026-10-03T14:06:12Z up=2698 classify t7-mongo: pass (finished, valid/pass)
+exported 20261003T135147Z_g3-qualification-t7-mongo_attempt01: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-03\20261003T135147Z_g3-qualification-t7-mongo_attempt01 (verified, 50 files, 0 excluded)
+DRIVER RESULT 20261003T135147Z_g3-qualification-t7-mongo_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-mongo: pass. PASS (packet section 5; T7 not timed). itest-mongo-fault-01-q1 (seed 42, scenario nominal, 300 s, 3360 messages; egw-mongodb-1 stopped by the fault job at +90 s for..."
+row t7-mongo: classified 'pass'; driver code 0; export: verified -> /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T135147Z_g3-qualification-t7-mongo_attempt01
+Next: the next row of session S2, or 'close' after the last one.

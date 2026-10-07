@@ -1,0 +1,500 @@
+{
+  "allow_missing_controller_marker": false,
+  "allow_missing_resources": false,
+  "allow_missing_sut_env": false,
+  "allow_protocol_deviation": false,
+  "allow_warmup_failure": false,
+  "collector": {
+    "closing_record_reconciliation": "run",
+    "declared_duration_s": 1020.0,
+    "declared_duration_shortfall_s": 395.0,
+    "declared_expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+    "declared_interval_s": 1.0,
+    "deployed_sha256": "9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97",
+    "distinct_instants": 605,
+    "distinct_instants_in_window": 605,
+    "expected_services": [
+      "egw-mosquitto-1",
+      "egw-mongodb-1",
+      "egw-ditto-policies-1",
+      "egw-ditto-things-1",
+      "egw-ditto-gateway-1",
+      "egw-controller-1"
+    ],
+    "fetch_helper_path": "/home/ruisth/egw-exec/repo/src/deployment/scripts/fetch-collector-output.sh",
+    "fetch_helper_sha256": "9ae07b0c5e4b03385053d270e379b0bf767f34156839ad2c7a53a9aee2f3c7d4",
+    "files": {
+      "csv": {
+        "path": "logs/collector/resources-controller_restart-r04.csv",
+        "present": true,
+        "sha256": "210487daf122b45d565c5d031458865e3a6e6f2b5e1131426aaf3e58ac4b977b",
+        "size": 290022
+      },
+      "diagnostics": {
+        "path": "logs/collector/resources-controller_restart-r04.csv.diagnostics.log",
+        "present": true,
+        "sha256": "119abac60bdeb4b5f7efc7a89ab8948d2cfb06b70d0df26dcd75348213e5f8cf",
+        "size": 7812
+      },
+      "lifecycle": {
+        "path": "logs/collector/resources-controller_restart-r04.csv.lifecycle.csv",
+        "present": true,
+        "sha256": "3b3b7b1132a5d364984bb331b0c6b3cb74a8b62b31fbac677def788bd6f5690c",
+        "size": 935
+      },
+      "self_test": {
+        "path": "logs/collector/resources-controller_restart-r04.csv.self-test",
+        "present": false,
+        "sha256": null,
+        "size": null
+      }
+    },
+    "hooks_in_use": true,
+    "inventory": "2026-10-07T12:24:28Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0",
+    "inventory_line_count": 1,
+    "inventory_missing": [],
+    "observations": [
+      "the collector reports utc_gap_seconds=18: 18 second(s) of UTC, beyond one interval, in which no sample was stamped. A wall clock stepped forward adds to it although no time passed unsampled (collect-resources.sh), so it is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it",
+      "the collector's window is 625 s, 395 s shorter than the duration=1020s the 'start:' line declares: the stop hook ends the collector with SIGTERM after the measured run, before its declared duration, so this is recorded, not judged here (the coverage is judged by validate_resources_csv over the window it is given, which in the preflight check is the collector's own)"
+    ],
+    "problems": [],
+    "rounds_the_declared_interval_implies": 626,
+    "rows_per_expected_service": {
+      "egw-controller-1": 601,
+      "egw-ditto-gateway-1": 605,
+      "egw-ditto-policies-1": 605,
+      "egw-ditto-things-1": 605,
+      "egw-mongodb-1": 605,
+      "egw-mosquitto-1": 605
+    },
+    "samples": 606,
+    "self_test_present": false,
+    "source": "--collector-fetch-cmd",
+    "start_line_count": 1,
+    "stop_counters": {
+      "utc_gap_seconds": "18",
+      "withheld_elapsed_s": "0.00",
+      "withheld_open_at_stop": "0",
+      "withheld_runs_unmeasured": "0",
+      "withheld_samples": "0"
+    },
+    "stop_line": "2026-10-07T12:24:29Z stop: samples=606 utc_gap_seconds=18 withheld_samples=0 withheld_elapsed_s=0.00 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=19 pacing=wall-clock uptime_s=1182.66 boot_id=85783f36-2a51-42bc-998b-294cc51510db",
+    "stop_line_count": 1,
+    "unexpected_services": [],
+    "window": [
+      "2026-10-07T12:14:04Z",
+      "2026-10-07T12:24:29Z"
+    ],
+    "window_seconds": 625
+  },
+  "collector_hooks": [
+    {
+      "command": "ssh egw-tcg 'sudo systemd-run --unit egw-resources-controller_restart-r04 --collect sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-controller_restart-r04.csv --duration 1020 --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1'",
+      "finished_utc": "2026-10-07T12:14:04.477Z",
+      "flag": "--collector-start-cmd",
+      "hook": "start",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:14:03.551Z",
+      "stderr_file": "logs/collector/hook-start.stderr.txt",
+      "stderr_tail": "Running as unit: egw-resources-controller_restart-r04.service; invocation ID: 6f11994b23234f1281d84312b82686da",
+      "stdout_file": "logs/collector/hook-start.stdout.txt",
+      "template": "ssh egw-tcg 'sudo systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s} --expect-services {expect_services}'"
+    },
+    {
+      "command": "ssh egw-tcg 'sudo systemctl stop egw-resources-controller_restart-r04'",
+      "finished_utc": "2026-10-07T12:24:29.421Z",
+      "flag": "--collector-stop-cmd",
+      "hook": "stop",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:24:27.638Z",
+      "stderr_file": "logs/collector/hook-stop.stderr.txt",
+      "stdout_file": "logs/collector/hook-stop.stdout.txt",
+      "template": "ssh egw-tcg 'sudo systemctl stop egw-resources-{run_id}'"
+    },
+    {
+      "command": "sh \"/home/ruisth/egw-exec/repo/src/deployment/scripts/fetch-collector-output.sh\" egw-tcg /tmp/resources-controller_restart-r04.csv \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/logs/collector/resources-controller_restart-r04.csv\"",
+      "finished_utc": "2026-10-07T12:25:40.391Z",
+      "flag": "--collector-fetch-cmd",
+      "hook": "fetch",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:25:30.265Z",
+      "stderr_file": "logs/collector/hook-fetch.stderr.txt",
+      "stdout_file": "logs/collector/hook-fetch.stdout.txt",
+      "template": "sh \"/home/ruisth/egw-exec/repo/src/deployment/scripts/fetch-collector-output.sh\" egw-tcg /tmp/resources-{run_id}.csv \"{dest}\""
+    }
+  ],
+  "commit": "1fd9792bb76f02c6948f33887207dba4837202db",
+  "condition_id": "controller_restart",
+  "config": {
+    "cli": {
+      "allow_missing_controller_marker": false,
+      "allow_missing_resources": false,
+      "allow_missing_sut_env": false,
+      "allow_protocol_deviation": false,
+      "allow_warmup_failure": false,
+      "broker": "127.0.0.1",
+      "ca_cert": "/home/ruisth/egw-tcg/ca.crt",
+      "collector_fetch_cmd": "sh \"/home/ruisth/egw-exec/repo/src/deployment/scripts/fetch-collector-output.sh\" egw-tcg /tmp/resources-{run_id}.csv \"{dest}\"",
+      "collector_start_cmd": "ssh egw-tcg 'sudo systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s} --expect-services {expect_services}'",
+      "collector_stop_cmd": "ssh egw-tcg 'sudo systemctl stop egw-resources-{run_id}'",
+      "config_identity_from": "/home/ruisth/egw-tcg/itest/controller_restart-r04.config_identity.json",
+      "controller_url": "http://127.0.0.1:8000",
+      "drain_cmd": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_drained.sh\" {run_id}",
+      "drain_transcript_from": null,
+      "egw_id": "egw-01",
+      "event_log_dir": "data/events",
+      "expect_services": [
+        "egw-mosquitto-1",
+        "egw-mongodb-1",
+        "egw-ditto-policies-1",
+        "egw-ditto-things-1",
+        "egw-ditto-gateway-1",
+        "egw-controller-1"
+      ],
+      "fetch_broker_log_cmd": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" broker \"{dest}\" 1791375243",
+      "fetch_controller_log_cmd": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" controller \"{dest}\" 1791375243",
+      "fetch_docker_events_cmd": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" docker-events \"{dest}\" 1791375243 {run_id} die,start",
+      "fetch_events_cmd": "scp egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"",
+      "fetch_started_at_cmd": "bash \"/home/ruisth/egw-exec/repo/tools/session/fetch_started_at.sh\" \"{dest}\"",
+      "local_resources": false,
+      "no_tls": false,
+      "password": "<redacted>",
+      "port": 8883,
+      "post_drain_events_from": null,
+      "post_drain_fetch_cmd": "scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"",
+      "post_run_wait_s": 60.0,
+      "qos": 1,
+      "resources_from": null,
+      "restart_at_s": 300.0,
+      "restart_cmd": "ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'",
+      "restart_transition_rule": "1a-option-a-2026-10-05",
+      "skip_cooldown": false,
+      "skip_warmup": false,
+      "sut_env_from": "/home/ruisth/egw-tcg/sut_environment.json",
+      "twin_snapshot_cmd": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_twins.sh\" {run_id} \"{dest}\" 1715385812",
+      "twins_after_from": null,
+      "twins_before_from": null,
+      "username": "egw-simulator"
+    },
+    "plan_entry": {
+      "condition_id": "controller_restart",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 96,
+      "rate_msg_s": 11.2,
+      "repetition": 4,
+      "run_id": "controller_restart-r04",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 1715385812,
+      "status": "planned",
+      "supplement": "g3-t6",
+      "warmup_s": 0
+    }
+  },
+  "configuration_identity": {
+    "a3_choice": "a",
+    "broker_conf_sha256": "ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615",
+    "broker_conf_values": {
+      "max_inflight_bytes": 0,
+      "max_inflight_messages": 4999,
+      "max_queued_bytes": 0,
+      "max_queued_messages": 1000,
+      "persistent_client_expiration": "1h",
+      "sys_interval": 10
+    },
+    "broker_reloaded": false,
+    "controller_image_id": "sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46",
+    "controller_source_commit": "489bc9e5b5b0660026ea2630b8d1d124049ba2ce",
+    "paho_version": "2.1.0",
+    "stop_grace_period": "130s"
+  },
+  "configuration_identity_file": "configuration_identity.json",
+  "confirmation_deadline_clock_domain": "controller",
+  "confirmation_deadline_monotonic_ns": 1241171734458,
+  "confirmation_window_s": 60,
+  "controller_marker": {
+    "error": null,
+    "lag_s": 0.031275,
+    "lag_tolerance_s": 2.0,
+    "monotonic_ns": 1181171734458,
+    "ok": true,
+    "polled_utc": "2026-10-07T12:24:27.607Z",
+    "url": "http://127.0.0.1:8000/metrics",
+    "wall_utc": "2026-10-07T12:24:27.491Z"
+  },
+  "controller_metrics": {
+    "invalid_values": 0,
+    "last_error": "Remote end closed connection without response",
+    "last_invalid_value": null,
+    "poll_errors": 16,
+    "samples_written": 586,
+    "url": "http://127.0.0.1:8000",
+    "write_error": null,
+    "write_errors": []
+  },
+  "controller_monotonic_at_run_end_ns": 1181171734458,
+  "cooldown_s": 0,
+  "deviations": [],
+  "drain": {
+    "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_drained.sh\" controller_restart-r04",
+    "finished_utc": "2026-10-07T12:31:31.644Z",
+    "flag": "--drain-cmd",
+    "hook": "drain",
+    "outcome": "quiet",
+    "returncode": 0,
+    "source": "hook",
+    "started_utc": "2026-10-07T12:25:41.498Z",
+    "stderr_file": "logs/sut/hook-drain.stderr.txt",
+    "stdout_file": "logs/sut/hook-drain.stdout.txt",
+    "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_drained.sh\" {run_id}",
+    "verified": true
+  },
+  "duration_s": 600,
+  "environment_refs": {
+    "loadgen": "loadgen_environment.json",
+    "sut": "sut_environment.json"
+  },
+  "events_fetch": {
+    "attempts": [
+      {
+        "attempt": 1,
+        "dest_exists": true,
+        "returncode": 0,
+        "started_utc": "2026-10-07T12:25:40.397Z"
+      }
+    ],
+    "command": "scp egw-tcg:/opt/egw/deployment/data/events/controller_restart-r04/events.jsonl \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/events.jsonl\"",
+    "ok": true,
+    "template": "scp egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\""
+  },
+  "events_post_drain_fetch": {
+    "attempts": [
+      {
+        "attempt": 1,
+        "dest_exists": true,
+        "returncode": 0,
+        "started_utc": "2026-10-07T12:31:31.644Z"
+      }
+    ],
+    "command": "scp -q egw-tcg:/opt/egw/deployment/data/events/controller_restart-r04/events.jsonl \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/events.post-drain.jsonl\"",
+    "file": "events.post-drain.jsonl",
+    "ok": true,
+    "problems": [],
+    "source": "hook",
+    "template": "scp -q egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl \"{dest}\"",
+    "verified": true
+  },
+  "events_source": "fetch-cmd: scp egw-tcg:/opt/egw/deployment/data/events/controller_restart-r04/events.jsonl \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/events.jsonl\"",
+  "exclusion": null,
+  "finished_monotonic_ns": 4512582352300,
+  "finished_utc": "2026-10-07T12:24:27.607Z",
+  "image_digests": {
+    "IMAGE_DITTO_GATEWAY": "docker.io/eclipse/ditto-gateway:3.9.4@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b",
+    "IMAGE_DITTO_POLICIES": "docker.io/eclipse/ditto-policies:3.9.4@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb",
+    "IMAGE_DITTO_THINGS": "docker.io/eclipse/ditto-things:3.9.4@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0",
+    "IMAGE_MONGODB": "docker.io/library/mongo:7.0.39@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d",
+    "IMAGE_MOSQUITTO": "docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c"
+  },
+  "manifest_version": "1.4",
+  "measured_started_monotonic_ns": 3912444526546,
+  "measured_window_clock": "harness-host wall clock; assumes NTP-synchronized clocks between the harness host and the SUT VM. Used ONLY to window 1 Hz resource and controller-metrics samples (sub-second NTP error is negligible against the >=300 s measured windows); NEVER used for latency (CONTRACTS 5: latency is monotonic, single-host, in the controller).",
+  "measured_window_utc": {
+    "end": "2026-10-07T12:24:27.607Z",
+    "start": "2026-10-07T12:14:06.656Z"
+  },
+  "missing_mandatory_artifacts": [],
+  "plan_master_seed": 42,
+  "protocol_version": "1.0.0",
+  "rate_msg_s": 11.2,
+  "repetition": 4,
+  "resource_samples_written": null,
+  "resource_sampling_error": null,
+  "resource_source": "sut-collector",
+  "resources_proved_down": {
+    "applies": true,
+    "capped": false,
+    "capture_since_guest_epoch": 1791375243,
+    "capture_until_guest_epoch": 1791376324,
+    "container": "egw-controller-1",
+    "container_id": "a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787",
+    "die_events_in_window": 1,
+    "die_exit_code": "0",
+    "die_ns": 1791375563587485961,
+    "die_utc": "2026-10-07T12:19:23.587485961Z",
+    "edge_gap_after_s": 1.0,
+    "edge_gap_before_s": 2.0,
+    "effective_end_ns": 1791375567320270377,
+    "effective_end_utc": "2026-10-07T12:19:27.320270377Z",
+    "exempt_s": 3.732784416,
+    "first_row_after_start": "2026-10-07T12:19:28+00:00",
+    "interval_s": 3.732784416,
+    "last_row_before_die": "2026-10-07T12:19:21+00:00",
+    "rejected_rows": [],
+    "resources_ingested": true,
+    "rows_between": [
+      "2026-10-07T12:19:26+00:00"
+    ],
+    "rows_in_start_second": [
+      "2026-10-07T12:19:27+00:00"
+    ],
+    "start_events_in_window": 1,
+    "start_minus_started_at_s": 0.125733488,
+    "start_ns": 1791375567320270377,
+    "start_utc": "2026-10-07T12:19:27.320270377Z",
+    "started_at": "2026-10-07T12:19:27.194536889Z",
+    "started_at_ns": 1791375567194536889,
+    "started_at_read_guest_epoch": 1791376329,
+    "why_not": null
+  },
+  "resources_transition_rows": {
+    "admitted": true,
+    "after_second_utc": "2026-10-07T12:19:23+00:00",
+    "appeared_utc": "2026-10-07T12:19:25+00:00",
+    "container": "egw-controller-1",
+    "container_id": "a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787",
+    "count": 2,
+    "disappeared_utc": "2026-10-07T12:19:22+00:00",
+    "instants": [
+      "2026-10-07T12:19:26+00:00",
+      "2026-10-07T12:19:27+00:00"
+    ],
+    "lifecycle_file": "logs/collector/resources-controller_restart-r04.csv.lifecycle.csv",
+    "lifecycle_sha256": "3b3b7b1132a5d364984bb331b0c6b3cb74a8b62b31fbac677def788bd6f5690c",
+    "note": "cgroup readings of the restarted container during its restart transition, kept byte for byte: once admitted they count for the distinct sample instants, take part in the existing coverage calculations and enter the existing CPU/RAM aggregates, like every other row; they are not evidence that the application was ready, the outage is not declared measured, no row is added, filled or removed, and the lifecycle witness is the collector's own record (the same instrument), not independent proof",
+    "resources_ingested": true,
+    "rows": [
+      {
+        "cpu_pct": "9.43",
+        "line": 1863,
+        "mem_bytes": "3481600",
+        "mem_pct": "1.30",
+        "ts_utc": "2026-10-07T12:19:26Z"
+      },
+      {
+        "cpu_pct": "49.64",
+        "line": 1869,
+        "mem_bytes": "6598656",
+        "mem_pct": "2.46",
+        "ts_utc": "2026-10-07T12:19:27Z"
+      }
+    ],
+    "rule": "1a-option-a-2026-10-05",
+    "through_second_utc": "2026-10-07T12:19:27+00:00",
+    "why_not": null
+  },
+  "restart": {
+    "command": "ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'",
+    "executed": true,
+    "finished_utc": "2026-10-07T12:19:27.510Z",
+    "requested_at_s": 300.0,
+    "returncode": 0,
+    "started_monotonic_ns": 4212444835026,
+    "started_utc": "2026-10-07T12:19:18.243Z",
+    "stderr_tail": "Container egw-controller-1  Restarting\n Container egw-controller-1  Started",
+    "template": "ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'"
+  },
+  "run_id": "controller_restart-r04",
+  "runner": "simulator",
+  "scenario": "nominal",
+  "seed": 1715385812,
+  "simulator_returncode": 0,
+  "started_utc": "2026-10-07T12:14:03.550Z",
+  "sut_environment_missing_fields": [],
+  "sut_environment_present": true,
+  "sut_log_fetches": [
+    {
+      "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" broker \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/logs/sut/broker.log\" 1791375243",
+      "dest_exists": true,
+      "dest_file": "logs/sut/broker.log",
+      "finished_utc": "2026-10-07T12:31:42.862Z",
+      "flag": "--fetch-broker-log-cmd",
+      "hook": "broker_log",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:31:34.431Z",
+      "stderr_file": "logs/sut/hook-broker_log.stderr.txt",
+      "stdout_file": "logs/sut/hook-broker_log.stdout.txt",
+      "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" broker \"{dest}\" 1791375243"
+    },
+    {
+      "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" controller \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/logs/sut/controller.log\" 1791375243",
+      "dest_exists": true,
+      "dest_file": "logs/sut/controller.log",
+      "finished_utc": "2026-10-07T12:32:03.443Z",
+      "flag": "--fetch-controller-log-cmd",
+      "hook": "controller_log",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:31:42.862Z",
+      "stderr_file": "logs/sut/hook-controller_log.stderr.txt",
+      "stdout_file": "logs/sut/hook-controller_log.stdout.txt",
+      "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" controller \"{dest}\" 1791375243"
+    },
+    {
+      "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" docker-events \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/logs/sut/docker-events.log\" 1791375243 controller_restart-r04 die,start",
+      "dest_exists": true,
+      "dest_file": "logs/sut/docker-events.log",
+      "finished_utc": "2026-10-07T12:32:08.960Z",
+      "flag": "--fetch-docker-events-cmd",
+      "hook": "docker_events",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:32:03.443Z",
+      "stderr_file": "logs/sut/hook-docker_events.stderr.txt",
+      "stdout_file": "logs/sut/hook-docker_events.stdout.txt",
+      "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_fetch_sut_log.sh\" docker-events \"{dest}\" 1791375243 {run_id} die,start"
+    },
+    {
+      "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/fetch_started_at.sh\" \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/logs/sut/controller-started-at.txt\"",
+      "dest_exists": true,
+      "dest_file": "logs/sut/controller-started-at.txt",
+      "finished_utc": "2026-10-07T12:32:10.528Z",
+      "flag": "--fetch-started-at-cmd",
+      "hook": "started_at",
+      "returncode": 0,
+      "started_utc": "2026-10-07T12:32:08.960Z",
+      "stderr_file": "logs/sut/hook-started_at.stderr.txt",
+      "stdout_file": "logs/sut/hook-started_at.stdout.txt",
+      "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/fetch_started_at.sh\" \"{dest}\""
+    }
+  ],
+  "twin_snapshots": [
+    {
+      "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_twins.sh\" controller_restart-r04 \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/twins.before.json\" 1715385812",
+      "dest_exists": true,
+      "file": "twins.before.json",
+      "finished_utc": "2026-10-07T12:14:06.655Z",
+      "flag": "--twin-snapshot-cmd",
+      "hook": "twin_snapshot_before",
+      "problems": [],
+      "returncode": 0,
+      "source": "hook",
+      "started_utc": "2026-10-07T12:14:04.634Z",
+      "stderr_file": "logs/sut/hook-twin_snapshot_before.stderr.txt",
+      "stdout_file": "logs/sut/hook-twin_snapshot_before.stdout.txt",
+      "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_twins.sh\" {run_id} \"{dest}\" 1715385812",
+      "verified": true
+    },
+    {
+      "command": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_twins.sh\" controller_restart-r04 \"/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/twins.after.json\" 1715385812",
+      "dest_exists": true,
+      "file": "twins.after.json",
+      "finished_utc": "2026-10-07T12:31:34.430Z",
+      "flag": "--twin-snapshot-cmd",
+      "hook": "twin_snapshot_after",
+      "problems": [],
+      "returncode": 0,
+      "source": "hook",
+      "started_utc": "2026-10-07T12:31:32.444Z",
+      "stderr_file": "logs/sut/hook-twin_snapshot_after.stderr.txt",
+      "stdout_file": "logs/sut/hook-twin_snapshot_after.stdout.txt",
+      "template": "bash \"/home/ruisth/egw-exec/repo/tools/session/proof_hook_twins.sh\" {run_id} \"{dest}\" 1715385812",
+      "verified": true
+    }
+  ],
+  "validity": "valid",
+  "validity_reasons": [],
+  "warmup_returncode": null,
+  "warmup_s": 0,
+  "warnings": [
+    "controller metrics sampler had 16 failed poll(s); last error: Remote end closed connection without response"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "fb141468-a681-4b5e-84f7-29037643a43b": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01-q1",
+        "last_seq": 59,
+        "last_message_id": "7d19df97-e3d8-5dbf-a6c1-6cefb9382361",
+        "last_ts": "2026-10-02T15:48:52.565Z",
+        "accepted_count": 120
+      }
+    },
+    "22c38e26-6f93-4ea5-b855-8ed9767a2b88": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01-q1",
+        "last_seq": 11,
+        "last_message_id": "2917b941-2c5f-570c-af77-aec030f5845e",
+        "last_ts": "2026-10-02T15:48:48.566Z",
+        "accepted_count": 24
+      }
+    },
+    "115ade0d-d60f-4f97-8c12-f42c298e8286": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01-q1",
+        "last_seq": 599,
+        "last_message_id": "ef401b97-4d88-5973-be0d-b69c70e2cc9c",
+        "last_ts": "2026-10-02T15:48:53.465Z",
+        "accepted_count": 1200
+      }
+    }
+  }
+}

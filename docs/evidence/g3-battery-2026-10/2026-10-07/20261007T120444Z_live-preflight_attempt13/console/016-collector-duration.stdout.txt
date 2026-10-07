@@ -1,0 +1,1 @@
+the collector held its whole window: 45.54 s on the guest's monotonic clock (uptime 254.44 s to 299.98 s, boot 85783f36-2a51-42bc-998b-294cc51510db) of the duration=45s its 'start:' line declares; its UTC window, kept for coverage and diagnosis, reads 48 s

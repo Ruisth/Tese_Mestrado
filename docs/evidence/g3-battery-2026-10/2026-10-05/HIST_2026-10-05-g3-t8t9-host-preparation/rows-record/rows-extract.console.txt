@@ -1,0 +1,64 @@
+## 2026-10-04T21:19:44Z g3_extract_rows.py (sha256 11c19af75faf43994c6f68f1ca7b6bdfc1aa7c0e56e1939b7c8dc52173604598) --replace; Python 3.12.3, bash 5.2.21(1)-release; HOME=/tmp/g3-s3-rows-record.550RXr/home
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## runbook blob <S>/g3/s3prep/runbook.8e49261.md (sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db); rule source <S>/pb/src/tests/test_runbook_itest_helpers.py (sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1)
+runbook docs/setup/qemu_integrated_gateway.md at 8e49261: sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db, 1623 lines
+rule checked against the frozen _host_commands: True
+t8-a-reboot.sh           t8         S3 step 1  lines 1486-1495                    before 9798ae61f69f after 00ff23db999e  subs: itest-reboot-q2 x15
+t8-b-wait-boot-id.sh     t8         S3 step 2  lines 1496                         before f42e3fcb3715 after f38f7fad4098  subs: itest-reboot-q2 x8
+t8-c-unaided.sh          t8         S3 step 3  lines 1497                         before 92826e477d8b after df4ff611057b  subs: itest-reboot-q2 x32
+t8-d-tunnel.sh           t8         S3 step 4  lines 1498                         before dbffd3defbdf after dbffd3defbdf  subs: -
+t8-e-state.sh            t8         S3 step 5  lines 1499                         before ba95574eaa7d after 00d100f7232b  subs: itest-reboot-q2 x5
+t8-f-smoke.sh            t8         S3 step 6  lines 1500                         before 3ebdac904a7f after 874ef658228e  subs: itest-post-reboot-01-q2 x1
+t9-a.sh                  t9         S3 step 1  lines 1509-1510                    before e431473a5ccb after 34be9077366b  subs: itest-tls-wrongca-q2 x1
+t9-b.sh                  t9         S3 step 2  lines 1511-1524                    before bc4335f91592 after 29e7e98099e9  subs: itest-auth-wrongpw-q2 x4
+t9-c.sh                  t9         S3 step 3  lines 1525-1527                    before 8a8da5b548f4 after e95f9f153a76  subs: itest-notls-q2 x3
+t9-de.sh                 t9         S3 step 4  lines 1528-1534                    before 4ad835244e06 after 4ad835244e06  subs: -
+t9-exposure.sh           t9         S3 step 5  lines prose-only, runbook line 1537 before - after ec18b22a6432  subs: -
+written: 22 files in <S>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+extract exit=0
+
+## the same inputs again with --check (nothing written): what would be written against what is there
+check: 22 files compared, 0 differ or are missing, 0 other files in <S>/g3/s3prep/rows
+check-mode exit=0
+
+## the runbook on stdin, without --rule-source, with --check
+DIFFERS or missing: rows.manifest.json
+check: 22 files compared, 1 differ or are missing, 0 other files in <S>/g3/s3prep/rows
+check-mode (no rule source) exit=1 (1 expected: the manifest then says the rule was not checked, so it differs)
+
+## a wrong blob is refused (the blob with one byte appended, on stdin)
+STOP: the runbook is 212a3b8bf20db121f4347b785c0ccd01a5c3bf869afe3965c78ca0cc10d7238c, not the frozen blob 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+wrong-blob exit=1 (1 expected)
+
+## a wrong rule source is refused (the test module with one byte appended)
+STOP: the rule source is 7bf9b92fe85c4f01d5352b1158549a95dff2210fe3b6d07fb139ea1a5ab5fa7f, not src/tests/test_runbook_itest_helpers.py at 8e49261
+wrong-rule exit=1 (1 expected)
+  nothing was written by the two refusals: /tmp/g3-s3-rows-record.550RXr/never does not exist
+
+## forbidden output directories are refused before anything is written (made-up paths inside the temporary directory: the guard is by path component and under $HOME)
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/egw-exec/repo/rows is inside a 'egw-exec' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/egw-tcg/itest/rows is inside a 'egw-tcg' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/egw-images/x is inside a 'egw-images' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/yocto/x is inside a 'yocto' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/output_test/x is inside a 'output_test' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/ChatGPT/x is inside a 'ChatGPT' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/cand/rows is inside a 'cand' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/guard/pb/rows is inside a 'pb' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/home/egw-exec/rows is inside /tmp/g3-s3-rows-record.550RXr/home/egw-exec: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+
+## a directory that holds the battery's row files (a copy of the sealed first preparation's rows) is never overwritten, --replace or not
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/old/rows is not written: it holds the row files of another commit (80e833f44f647fe9cd8f5e99d3abf3c444de95aa)
+other-commit (--replace) exit=1 (1 expected)
+STOP: the output directory /tmp/g3-s3-rows-record.550RXr/old/rows is not written: it holds the row files of another commit (80e833f44f647fe9cd8f5e99d3abf3c444de95aa)
+other-commit (no --replace) exit=1 (1 expected)
+  the copy's 39 files before and after: 1f36bac6e8e94054f1e9bd3db6013b5de4dcafb07fdb9e7918a7894f369450a6 / 1f36bac6e8e94054f1e9bd3db6013b5de4dcafb07fdb9e7918a7894f369450a6 (unchanged)
+  --check against it writes nothing and reports the differences: check: 22 files compared, 20 differ or are missing, 27 other files in /tmp/g3-s3-rows-record.550RXr/old/rows

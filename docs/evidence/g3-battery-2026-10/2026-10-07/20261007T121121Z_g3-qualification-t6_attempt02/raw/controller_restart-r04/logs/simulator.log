@@ -1,0 +1,3 @@
+egw_simulator: scenario=nominal seed=1715385812 run_id=controller_restart-r04 broker=127.0.0.1:8883 tls=True qos=1 duration=600.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=6720 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/logs/simulator/controller_restart-r04

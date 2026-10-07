@@ -1,0 +1,274 @@
+{
+  "condition_id": "controller_restart",
+  "criterion": {
+    "detail": "1/4 controller_restart run(s) recovery_observed (4 planned)",
+    "name": "restart_recovery_observed_every_run",
+    "not_qualified": [
+      {
+        "qualification": "not_evidenced",
+        "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+        "run_id": "controller_restart-r01"
+      },
+      {
+        "qualification": "not_evidenced",
+        "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+        "run_id": "controller_restart-r02"
+      },
+      {
+        "qualification": "not_evidenced",
+        "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+        "run_id": "controller_restart-r03"
+      }
+    ],
+    "passed": false
+  },
+  "plan": "/home/ruisth/egw-tcg/pilot/campaign_plan.json",
+  "plan_problem": null,
+  "runs": [
+    {
+      "captured_utc": null,
+      "drain_outcome": "absent",
+      "drain_source": null,
+      "duplicate_only_unexplained": 0,
+      "excluded": false,
+      "integrity": "unsealed",
+      "n1": {
+        "accepted_lines_without_device": 0,
+        "devices": {},
+        "duplicate_only_unexplained": [],
+        "events_copy": "events.jsonl",
+        "n1_applied_unconfirmed": [],
+        "note": "explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim",
+        "notes": [],
+        "run_id": "controller_restart-r01",
+        "sources": {
+          "a3_ends": 0,
+          "controller_log_note": "the manifest records no controller_log fetch",
+          "controller_log_read": false,
+          "deaths": [],
+          "deaths_note": "the manifest records no docker_events fetch",
+          "deaths_read": false
+        },
+        "twin_evidence_problem": "the run's recovery qualification is 'not_evidenced' (validity 'invalid'; integrity 'unsealed': the run is not evidence)"
+      },
+      "n1_applied_unconfirmed": 0,
+      "planned": true,
+      "post_drain_present": false,
+      "post_drain_verified": false,
+      "qualification": "not_evidenced",
+      "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+      "run_id": "controller_restart-r01",
+      "twins_after_present": false,
+      "twins_after_verified": false,
+      "twins_before_present": false,
+      "twins_before_verified": false,
+      "validity": "invalid"
+    },
+    {
+      "captured_utc": null,
+      "drain_outcome": "absent",
+      "drain_source": null,
+      "duplicate_only_unexplained": 0,
+      "excluded": false,
+      "integrity": "unsealed",
+      "n1": {
+        "accepted_lines_without_device": 0,
+        "devices": {},
+        "duplicate_only_unexplained": [],
+        "events_copy": "events.jsonl",
+        "n1_applied_unconfirmed": [],
+        "note": "explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim",
+        "notes": [],
+        "run_id": "controller_restart-r02",
+        "sources": {
+          "a3_ends": 0,
+          "controller_log_note": "the manifest records no controller_log fetch",
+          "controller_log_read": false,
+          "deaths": [],
+          "deaths_note": "the manifest records no docker_events fetch",
+          "deaths_read": false
+        },
+        "twin_evidence_problem": "the run's recovery qualification is 'not_evidenced' (validity 'invalid'; integrity 'unsealed': the run is not evidence)"
+      },
+      "n1_applied_unconfirmed": 0,
+      "planned": true,
+      "post_drain_present": false,
+      "post_drain_verified": false,
+      "qualification": "not_evidenced",
+      "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+      "run_id": "controller_restart-r02",
+      "twins_after_present": false,
+      "twins_after_verified": false,
+      "twins_before_present": false,
+      "twins_before_verified": false,
+      "validity": "invalid"
+    },
+    {
+      "captured_utc": null,
+      "drain_outcome": "quiet",
+      "drain_source": "hook",
+      "duplicate_only_unexplained": 0,
+      "excluded": false,
+      "integrity": "unsealed",
+      "n1": {
+        "accepted_lines_without_device": 0,
+        "devices": {
+          "1bde193c-cd41-4b8b-88da-f58d9e39d677": {
+            "accepted_lines": 600,
+            "delta": 600,
+            "duplicate_only": 0,
+            "excess": 0,
+            "other_run_duplicate_only": 0,
+            "reported": 0,
+            "unplaced_duplicate_only": 0
+          },
+          "4b733039-455b-46c4-bd7d-6875e1ce4a63": {
+            "accepted_lines": 6000,
+            "delta": 6000,
+            "duplicate_only": 0,
+            "excess": 0,
+            "other_run_duplicate_only": 0,
+            "reported": 0,
+            "unplaced_duplicate_only": 0
+          },
+          "ed57e265-500f-4c90-aa83-95dec01a54b5": {
+            "accepted_lines": 120,
+            "delta": 120,
+            "duplicate_only": 0,
+            "excess": 0,
+            "other_run_duplicate_only": 0,
+            "reported": 0,
+            "unplaced_duplicate_only": 0
+          }
+        },
+        "duplicate_only_unexplained": [],
+        "events_copy": "events.post-drain.jsonl",
+        "n1_applied_unconfirmed": [],
+        "note": "explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim",
+        "notes": [],
+        "run_id": "controller_restart-r03",
+        "sources": {
+          "a3_ends": 0,
+          "controller_log_note": null,
+          "controller_log_read": true,
+          "deaths": [
+            {
+              "container": "egw-controller-1",
+              "die_line": 248,
+              "die_time_nano": 1791034634060050589,
+              "dies_in_window": 1,
+              "order_note": null,
+              "process_change": {
+                "new_process_first_monotonic_ns": 890289830950,
+                "new_process_first_reading": 307,
+                "old_process_last_monotonic_ns": 869879508470,
+                "old_process_last_reading": 306
+              },
+              "restart_started_utc": "2026-10-03T13:37:06.169Z",
+              "source": "controller-death"
+            }
+          ],
+          "deaths_note": null,
+          "deaths_read": true
+        },
+        "twin_evidence_problem": "the run's recovery qualification is 'not_evidenced' (validity 'invalid'; integrity 'unsealed': the run is not evidence)"
+      },
+      "n1_applied_unconfirmed": 0,
+      "planned": true,
+      "post_drain_present": true,
+      "post_drain_verified": true,
+      "qualification": "not_evidenced",
+      "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+      "run_id": "controller_restart-r03",
+      "twins_after_present": true,
+      "twins_after_verified": true,
+      "twins_before_present": true,
+      "twins_before_verified": true,
+      "validity": "invalid"
+    },
+    {
+      "captured_utc": null,
+      "drain_outcome": "quiet",
+      "drain_source": "hook",
+      "duplicate_only_unexplained": 0,
+      "excluded": false,
+      "integrity": "ok",
+      "n1": {
+        "accepted_lines_without_device": 0,
+        "devices": {
+          "841605f3-df2b-46e5-afde-41c480ec938c": {
+            "accepted_lines": 120,
+            "delta": 120,
+            "duplicate_only": 0,
+            "excess": 0,
+            "other_run_duplicate_only": 0,
+            "reported": 0,
+            "unplaced_duplicate_only": 0
+          },
+          "99ba765b-fdd6-47c7-92f6-275a902de683": {
+            "accepted_lines": 600,
+            "delta": 600,
+            "duplicate_only": 0,
+            "excess": 0,
+            "other_run_duplicate_only": 0,
+            "reported": 0,
+            "unplaced_duplicate_only": 0
+          },
+          "e1734197-9f33-41fe-811c-7f6d40cb61d4": {
+            "accepted_lines": 6000,
+            "delta": 6000,
+            "duplicate_only": 0,
+            "excess": 0,
+            "other_run_duplicate_only": 0,
+            "reported": 0,
+            "unplaced_duplicate_only": 0
+          }
+        },
+        "duplicate_only_unexplained": [],
+        "events_copy": "events.post-drain.jsonl",
+        "n1_applied_unconfirmed": [],
+        "note": "explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim",
+        "notes": [],
+        "run_id": "controller_restart-r04",
+        "sources": {
+          "a3_ends": 0,
+          "controller_log_note": null,
+          "controller_log_read": true,
+          "deaths": [
+            {
+              "container": "egw-controller-1",
+              "die_line": 242,
+              "die_time_nano": 1791375563587485961,
+              "dies_in_window": 1,
+              "order_note": null,
+              "process_change": {
+                "new_process_first_monotonic_ns": 902138496944,
+                "new_process_first_reading": 308,
+                "old_process_last_monotonic_ns": 883817601184,
+                "old_process_last_reading": 307
+              },
+              "restart_started_utc": "2026-10-07T12:19:18.243Z",
+              "source": "controller-death"
+            }
+          ],
+          "deaths_note": null,
+          "deaths_read": true
+        },
+        "twin_evidence_problem": null
+      },
+      "n1_applied_unconfirmed": 0,
+      "planned": true,
+      "post_drain_present": true,
+      "post_drain_verified": true,
+      "qualification": "recovery_observed",
+      "reason": "",
+      "run_id": "controller_restart-r04",
+      "twins_after_present": true,
+      "twins_after_verified": true,
+      "twins_before_present": true,
+      "twins_before_verified": true,
+      "validity": "valid"
+    }
+  ],
+  "statement": "This layer changes no count of lost, late or N1 messages and adds nothing to the analyser's acceptance table (acceptance_by_condition.csv): every figure of the analysis comes from egw_experiments.analyze, unchanged (ADR 0011); the N1 columns are this layer's report of identities read from the run's files and change no figure; the qualification is read from the sealed manifests' restart evidence records alone."
+}

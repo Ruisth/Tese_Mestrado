@@ -1,0 +1,81 @@
+g3_hostprep.sh sha256 ad214aeba54f6ede31dc3bbb8272cc55ff3e3645583e062ca0277a20292845ec (the bytes the check was cut from)
+plan copy: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+PASS P0 the copy is the plan of today (c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60)
+module copy: plan_gen.py sha256 3fbce6c4557db27002d11d1318f5d1e45dff62b24d3c394edf335bfdae107146, cli.py sha256 a4a388704aea9ee9249a9a0654244af8964fba16784fd0766e9613d8d96471f4
+content check cut out: 57 lines, sha256 2f32635008dce31c8ce2d876a067e87ce909246200eed00f024a2f32518080cf
+
+## P1 the plan of today plus the entry, with the predecessor kept
+    | added controller_restart-r04 (supplement g3-t6: condition controller_restart, repetition 4, seed 1715385812, order 96) to <bench>/cases/p1/campaign_plan.json; every entry it held is unchanged
+plan-supplement exit=0; plan-supplement on the copy: sha256 61d55940fcccdb942ff508ab6fc920b0fa163837ef7459438d789a1879b1eaac
+PASS P1a plan-supplement adds the entry: sha256 61d55940fcccdb942ff508ab6fc920b0fa163837ef7459438d789a1879b1eaac
+PASS P1b the folder holds the same names before and after (its temporary file is gone)
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+    | plan check: the kept predecessor's first 39404 bytes (all but its closing) are the plan's first 39404 bytes
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: OK (96 entries; the first 95 equal to the predecessor's, as JSON and as bytes; the other fields unchanged; the last entry exactly controller_restart-r04, planned)
+PASS P1c the content check passes with the predecessor
+PASS P1d the check says OK
+PASS P1e the predecessor copy is unchanged by the check
+
+## P2 a re-run: the plan already holds the entry
+    | <bench>/cases/p1/campaign_plan.json already holds controller_restart-r04 (supplement g3-t6: condition controller_restart, repetition 4, seed 1715385812, order 96); unchanged
+PASS P2a plan-supplement leaves a plan that holds the entry unchanged (exit 0, 'already holds')
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: OK (96 entries; the first 95 equal to the predecessor's, as JSON and as bytes; the other fields unchanged; the last entry exactly controller_restart-r04, planned)
+PASS P2b the content check passes without a predecessor (bytes proved by the sha256)
+PASS P2c it says that no predecessor was compared
+
+## P3 what the check must refuse
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 079fd8fffbc24a0d79d4ca3eed984cd8bf3b92353c2669a51bae36de600b71de
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: NOT OK: the plan without its last entry is 079fd8fffbc24a0d79d4ca3eed984cd8bf3b92353c2669a51bae36de600b71de, not the predecessor c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+PASS P3a an earlier entry's status changed: refused
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385813, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: NOT OK: the last entry is not exactly controller_restart-r04 as the request gives it
+PASS P3b the new entry's seed changed: refused
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "extra": 1, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: NOT OK: the last entry is not exactly controller_restart-r04 as the request gives it
+PASS P3c a field added to the new entry: refused
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 fffab7bef5e6b140b37277193cb470869afa43dea2f0ddbcf4a0136725ccd065
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: NOT OK: the plan without its last entry is fffab7bef5e6b140b37277193cb470869afa43dea2f0ddbcf4a0136725ccd065, not the predecessor c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+PASS P3d a field outside 'runs' changed: refused
+    | plan check: the plan does not end with an entry of its 'runs' list in the canonical form
+PASS P3e a plan not in the canonical form: refused
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 b17e16643edd4ffd05882707a51ac24cf9db95ce1de678e6b30c724c11db3e11
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: NOT OK: the plan without its last entry is b17e16643edd4ffd05882707a51ac24cf9db95ce1de678e6b30c724c11db3e11, not the predecessor c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+PASS P3f an entry after controller_restart-r04: refused
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+    | plan check: 95 entries before, 96 after
+    | plan entry {"condition_id": "controller_restart", "cooldown_s": 0, "duration_s": 600, "order": 96, "rate_msg_s": 11.2, "repetition": 4, "run_id": "controller_restart-r04", "runner": "simulator", "scenario": "nominal", "seed": 1715385812, "status": "planned", "supplement": "g3-t6", "warmup_s": 0}
+    | plan check: NOT OK: the kept predecessor is not the plan without its last entry, byte for byte
+PASS P3g a kept predecessor that is not the plan without its last entry: refused
+    | plan check: the plan up to the comma before its last entry, closed as the predecessor is: sha256 89e6ef549c84ab74dfbf2c58d561337703d9ac344abd0df882e0d2aa142e705c
+    | plan check: no predecessor in this record (a re-run): the bytes are proved by the sha256 above
+    | plan check: 94 entries before, 95 after
+    | plan entry {"condition_id": "soak", "cooldown_s": 0, "duration_s": 86400, "order": 95, "rate_msg_s": 11.2, "repetition": 1, "run_id": "soak-r01", "runner": "simulator", "scenario": "soak", "seed": 3599467358, "status": "planned", "warmup_s": 0}
+    | plan check: NOT OK: the plan without its last entry is 89e6ef549c84ab74dfbf2c58d561337703d9ac344abd0df882e0d2aa142e705c, not the predecessor c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60
+    | plan check: NOT OK: the entries are 94 before and 95 after, not 95 and 96
+    | plan check: NOT OK: the last entry is not exactly controller_restart-r04 as the request gives it
+    | plan check: NOT OK: controller_restart-r04 is not held exactly once
+PASS P3h the plan of today itself (no entry added): refused
+
+summary: 17 PASS, 0 FAIL
+exit=0

@@ -1,0 +1,37 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+python -m egw_experiments plan --master-seed 42 --output ~/egw-tcg/pilot/campaign_plan.json
+error: /home/ruisth/egw-tcg/pilot/campaign_plan.json already exists; it contains run statuses. Use --force to overwrite deliberately.
+python3 -c "import json;p=json.load(open('$HOME/egw-tcg/pilot/campaign_plan.json'));print([r['run_id'] for r in p['runs'] if r.get('condition_id')=='nominal'][:3])"   # plan entries carry condition_id (plan_gen.py _run_entry); expected ['nominal-r01', 'nominal-r02', 'nominal-r03']
+['nominal-r01', 'nominal-r02', 'nominal-r03']
+RID=nominal-r02; T1H=stop; if [ -e ~/egw-tcg/pilot/results/raw/$RID ] || [ -e $P/$RID.sut ]; then stop "test 1 (harness): $RID was already used (~/egw-tcg/pilot/results/raw/$RID or $P/$RID.sut exists) - an entry already used is never reused and the harness was NOT started: take the next nominal entry of the pilot plan never used on the guest and record the choice"; else T1H=ok; fi     # the first nominal entry never used on the guest on the evidence held (nominal-r01 ran on 2026-09-19); run ids are deterministic: '{condition_id}-rNN' (plan_gen.py line 93), so the literal is safe; the plan's 600 s and 120 s warm-up are not changed (about 13 minutes of guest time (warm-up, measured run and confirmation window), plus a drain of at least 130 s before it); harness_cmd refuses the raw directory too
+[ "$T1H" = ok ] && wait_ready && drained && harness_run $RID || stop "test 1 (harness): $RID refused as already used (T1H='$T1H'), not ready, not drained, or harness_run ended non-zero (its STOP above says which: the harness exited non-zero, or the recorder's cleanup after it failed and the procedure is incomplete)"
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 1008 1008 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 1655.16 s, end 1786.24 s, elapsed 131.08 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T15:27:26Z -> 2026-10-02T15:29:30Z and bash SECONDS elapsed 124 s, recorded only
+recorder_sha256=1afdce8ca9baaca1bb8d7af840dba4cd2d90069aaa7689227831ac92df0e6480
+start_fact_boot_id=b35d0fa2-7979-4e8c-ad2e-4223327528f3
+start_fact_MainPID=298
+start_fact_ExecMainStartTimestampMonotonic=12669859
+recorder_since_guest_epoch=1790954850
+Running as unit: egw-events-nominal-r02.service; invocation ID: 39796431b5334698a47f2e648ebc2ad4
+start epoch=1790954971 pid=11114 since=1790954850
+cli-start epoch=1790954971 cli_pid=11126
+ready epoch=1790954972 events_bytes=134511 unit=active
+run_guest_t0=1790954972
+[harness] run nominal-r02: created /home/ruisth/egw-tcg/pilot/results/raw/nominal-r02
+[harness] collector hook --collector-start-cmd
+[harness] warm-up: 120 s
+[harness] measured run: 600 s at 11.2 msg/s
+[harness] collector hook --collector-stop-cmd
+[harness] waiting 60 s confirmation window
+[harness] collector hook --collector-fetch-cmd
+[harness] --fetch-broker-log-cmd
+[harness] --fetch-controller-log-cmd
+[harness] --fetch-docker-events-cmd
+[harness] run nominal-r02 completed
+unit_state_before_cleanup=inactive
+--- the recorder's lifecycle record (/tmp/egw-events-nominal-r02/lifecycle.txt; its capture stays in /tmp/egw-events-nominal-r02)
+start epoch=1790954971 pid=11114 since=1790954850
+cli-start epoch=1790954971 cli_pid=11126
+ready epoch=1790954972 events_bytes=134511 unit=active
+cli-exit epoch=1790955749 rc=143 stop_requested=yes
+events_lines=519
+cli_stderr_bytes=0

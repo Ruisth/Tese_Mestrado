@@ -1,0 +1,101 @@
+## 2026-10-04T21:44:33Z g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745, 2261 lines, 0 line(s) with a carriage return
+bash -n: clean (bash 5.2.21(1)-release)
+shellcheck 0.11.0 -S error: exit 0
+shellcheck -S warning: exit 0 (four SC2043 directives stand above the one-label loops)
+
+--- diff against base/g3_battery.sh (the draft, sha256 2221ff2f5e2c2671f22e3f5b13455457eb3516f46ea156fe8e55f2fab98d3f3b)
+lines removed or changed (<): 133
+lines added or changed (>): 412
+
+--- comments that name S3, by point
+  4:# S3:
+  36:S3 (point 12)
+  73:S3 (point 2)
+  85:S3 (point 2)
+  89:S3 (point 3)
+  101:S3 (point 6)
+  106:S3 (point 1)
+  117:S3 (point 3)
+  124:S3 (point 1)
+  176:S3 (point 2)
+  179:S3 (point 2)
+  183:S3 (point 9)
+  276:S3 (point 5)
+  403:S3 (point 2)
+  603:S3 (point 1)
+  659:S3 (point 3)
+  674:S3 (point 4)
+  770:S3 (point 9)
+  912:S3 (point 1)
+  924:S3 (point 1)
+  958:S3 (point 2)
+  1011:S3 (point 4)
+  1181:S3 (point 8)
+  1185:S3 (condition B of the decision summary)
+  1193:S3 (point 6)
+  1299:S3 (point 5)
+  1340:S3 (point 6)
+  1351:S3 (point 5)
+  1361:S3 (point 6)
+  1375:S3 (point 6)
+  1392:S3 (point 7)
+  1425:S3 (point 8; request of 2026-10-04, section 5 item 5)
+  1450:S3 (point 10)
+  1627:S3 (point 1)
+  1707:S3 (point 4)
+  1724:S3 (point 9)
+  1741:S3 (point 9)
+  1909:S3 (point 11)
+  2023:S3 (point 1)
+  2063:S3 (point 1)
+  2178:S3 (point 1)
+  2201:S3 (point 1)
+
+--- point 12: every line that holds 'compose', 'docker start', 'restart' or 'session_open.sh' outside a comment
+  189:row_harness_id() { case $1 in t1-harness) echo nominal-r02 ;; t6) echo controller_restart-r03 ;; esac; }
+  192:row_restarted() {
+  229:    echo \"container \$c oomkilled=\${oom:-unknown} restarts=\${res:-unknown} id=\${cid:-unknown} started=\${sat:-unknown}\"
+  994:    [ "$rc" -eq 0 ] || open_halt "guest_session_open.sh exited $rc (0 is the only status that opens the session for the battery); see $DRIVER_CONSOLE"
+  995:    [ -n "$SESSION" ] && [ -d "$SESSION" ] || open_halt "guest_session_open.sh ended 0 but $EXEC/current_session names no session directory"
+  1378:        halt "row t8: $T8_WAIT_WHY. Line b was NOT run, nor steps c to f, and T9 is not run. QEMU was NOT signalled and is NOT killed, and nothing is re-launched, started or restarted (a re-launc
+  1402:        halt "row t8: step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - $missing (the six container objects running before the reboot are not all running
+  1511:    local rc after restarted counts args
+  1523:        restarted=$(row_restarted "$ROW_SLUG")
+  1524:        [ -z "$restarted" ] || args+=(--expect-restarted "$restarted")
+  1530:            0:* | 1:* | 2:*) GATE_BAD+=("guest-state-delta exit $rc (faults and problems: ${counts:-no summary line}): an OOM kill, an unexpected restart or replacement, an expected restart the p
+  1680:        halt "WSL was restarted since session $LABEL was opened (its /proc/uptime baseline is gone, and so is the guest): row $ROW_SLUG was NOT started (packet section 4, halt 6)"
+  2153:        gx "$S" stack-stop-130 "cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env stop -t 130; rc=\$?; echo \"stop exit=\$rc\"; docker ps -a --format '{{.Names}}
+
+--- every 'kill' outside a comment
+  551:    while kill -0 "$TEE_PID" 2> /dev/null && [ "$n" -lt 50 ]; do
+  1953:    kill -TERM -- "-$pgid"
+  2175:        halt "guest_session_close.sh exited $rc and $EXEC/current_session is kept: the session is NOT closed. Read $DRIVER_CONSOLE; check for a qemu-system-aarch64 process by hand, never kill it"
+
+--- every 'timeout' as a command word outside a comment
+  1252:        ex "$A" t8-wait-ssh timeout "$d" env E="$SESSION" bash -c "$T8_POLL_SH" _ "cat /proc/sys/kernel/random/boot_id"
+  1342:    if ! command -v timeout > /dev/null 2>&1; then
+
+--- identifiers: -q2 on lines that are not comments
+  176:        t8) echo "itest-post-reboot-01-q2" ;;      # S3 (point 2): the fresh smoke run id
+  181:T8_PREFIX=itest-reboot-q2
+  182:T9_IDS="itest-tls-wrongca-q2 itest-auth-wrongpw-q2 itest-notls-q2"
+--- identifiers: -q1 on lines that are not comments (the battery's rows, reached by no row of S3)
+  168:        t1-smokes) echo "itest-smoke-01-q1 itest-smoke-02-q1 itest-smoke-03-q1" ;;
+  169:        t2) echo "itest-3dev-01-q1" ;;
+  170:        t3) echo "itest-invalid-01-q1" ;;
+  171:        t4-replay) echo "itest-dup-01-q1" ;;
+  172:        t4-reset) echo "itest-dup-02-q1" ;;
+  173:        t5) echo "itest-dropout-01-q1" ;;
+  174:        t7-mongo) echo "itest-mongo-fault-01-q1" ;;
+  175:        t7-ditto) echo "itest-ditto-fault-01-q1" ;;
+  1087:            add_src other "$REPLAY/itest-dup-01-q1" "" "the replay's own output directory (sent_events.jsonl, manifest.json): replay-check reads it, no hel
+
+--- labels: every 'for l in' and every use of the row lists
+  128:ROWS_S3="t8 t9"
+  130:session_rows() { case $1 in S3) echo "$ROWS_S3" ;; esac; }
+  133:    case " $ROWS_S3 " in *" $1 "*) echo S3; return 0 ;; esac
+  605:    for l in S3; do
+  930:    for l in S3; do
+  1628:    LABEL=$(row_session "$ROW_SLUG") || refuse "unknown row '$ROW_SLUG' (S3: $ROWS_S3, in that order; the rows of the battery's S1 and S2 are not run again
+  2069:    for l in S3; do
+  2203:    for l in S3; do

@@ -1,0 +1,44 @@
+read-only look at the real host, 2026-10-05T18:35:00Z (stream HOST, S4 preparation): reads only; the one write is a copy of the plan into /tmp/g3-s4-host-plan
+## guest and session
+no qemu-system-aarch64 process
+no current_session
+## execution clone
+HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696 tree=2f0514837f267d8975f7071041aad14a5c18dcab porcelain lines=0
+cf6bc62f730aad58a0fa4301d0740cf00ca6eec6 refs/heads/docs/integrated-yocto-plan-20260916
+fb1690d669eef89a835a1e158baf47f6e554e0d9 refs/heads/exec-dev
+origin (the Windows repository), its refs/remotes/origin/dev: 1fd9792bb76f02c6948f33887207dba4837202db	refs/remotes/origin/dev
+1fd9792 not in the clone yet (the preparation fetches it)
+## venv import (cwd /tmp, no bytecode)
+/home/ruisth/egw-exec/repo/src/egw_experiments/__init__.py
+## plan
+c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60  /home/ruisth/egw-tcg/pilot/campaign_plan.json
+pilot/ top level:
+  campaign_plan.json
+  results
+## r04 on the host
+absent /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04
+absent /home/ruisth/egw-tcg/itest/controller_restart-r04
+absent /home/ruisth/egw-tcg/itest/controller_restart-r04.*
+absent /home/ruisth/egw-tcg/itest-replay/controller_restart-r04
+absent /home/ruisth/egw-tcg/itest-replay/controller_restart-r04.*
+directory: /home/ruisth/egw-exec/attempts
+directory: /home/ruisth/egw-tcg/itest
+directory: /home/ruisth/egw-tcg/itest-replay
+directory: /home/ruisth/egw-tcg/pilot/results
+names holding controller_restart-r04 under attempts, itest, itest-replay, pilot/results: 0 (find status 0)
+t6 attempts in the attempts directory:
+  /home/ruisth/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+state directory g3-t6-s4: absent
+## disks (read-only)
+6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-rw-r--r-- 1 ruisth ruisth 34359738368 Oct  5 13:12 /home/ruisth/yocto/egw-integrated/egw-data.img
+data disk size: 34359738368
+Last mounted on:          /var/lib/docker
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Mon Oct  5 12:54:33 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+dumpe2fs status 0
+## plan copy for the bench
+c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60  /tmp/g3-s4-host-plan/campaign_plan.json

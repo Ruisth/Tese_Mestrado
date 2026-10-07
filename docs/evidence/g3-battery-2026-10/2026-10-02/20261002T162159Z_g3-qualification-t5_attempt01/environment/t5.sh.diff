@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1407-1409 (prompt removed)
++++ b/rows/t5.sh
+@@ -1 +1 @@
+-R=itest-dropout-01; T0_5=$(guest_epoch) && run_test $R 42 --scenario dropout-reconnect --duration 180; RT=$?     # the guest epoch before the test's first action bounds its broker log (third line)
++R=itest-dropout-01-q1; T0_5=$(guest_epoch) && run_test $R 42 --scenario dropout-reconnect --duration 180; RT=$?     # the guest epoch before the test's first action bounds its broker log (third line)

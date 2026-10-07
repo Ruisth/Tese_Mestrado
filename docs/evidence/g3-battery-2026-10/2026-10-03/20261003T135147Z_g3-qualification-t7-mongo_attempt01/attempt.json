@@ -1,0 +1,58 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-03T13:51:47.723820Z",
+  "emulated": true,
+  "ended_utc": "2026-10-03T14:06:12.978191Z",
+  "expected_artefacts": [],
+  "headline": "G3 qualification t7-mongo: pass. PASS (packet section 5; T7 not timed). itest-mongo-fault-01-q1 (seed 42, scenario nominal, 300 s, 3360 messages; egw-mongodb-1 stopped by the fault job at +90 s for...",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "row t7-ditto",
+  "pid": 4075,
+  "purpose": "official",
+  "reason": "PASS (packet section 5; T7 not timed). itest-mongo-fault-01-q1 (seed 42, scenario nominal, 300 s, 3360 messages; egw-mongodb-1 stopped by the fault job at +90 s for 45 s): PROCEDURE COMPLETE, no STOP, empty stderr; T7 = 0 (run complete, interruption shown, recovery shown, instrumentation complete). INTERRUPTION SHOWN: mongodb stop exit 0, running -> exited at 13:56:13Z; RECOVERY SHOWN: start exit 0, exited -> running at 13:57:14Z; the /ready poller was still running when stopped. The Docker events capture is complete with the expected die, stop and start of egw-mongodb-1; the controller log (4165 lines) and broker log (56 lines) bounded to this run were read (outside 0, unstamped 0, excluded_read_rc 0,0); the recorder unit was inactive before its cleanup. Outcomes: accepted 3316 (3315 at the first attempt, 1 at the third), failed 44, each failed after 3 attempts with HTTP 500 from Ditto while MongoDB was down (a 5xx, as expected); accepted resumed after the recovery; every delta line OK (twins +297/+60/+2959; /metrics accepted +3316, failed +44). The optional N1 report: n1_applied_unconfirmed 0, duplicate_only_unexplained 0. Reported beside, deciding nothing (T7 is not timed): lost 1209, of which 1165 late confirmations and 44 failed, double_accepted 0. Gate after the row: pass (MongoDB restarted in place as expected; no OOM; six services healthy).",
+  "run_id": "20261003T135147Z_g3-qualification-t7-mongo_attempt01",
+  "scenario": "G3 qualification t7-mongo",
+  "seed": null,
+  "started_utc": "2026-10-03T13:51:48.010040Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {
+    "battery": "G3 qualifying battery (decision packet of 2026-10-01, revision 2; authorised 2026-10-02)",
+    "egw_clone": "/home/ruisth/egw-exec/repo",
+    "harness_run_id": null,
+    "helper_sha256": "e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb",
+    "host_uptime_at_row_start_s": 1804,
+    "host_uptime_baseline_s": 25,
+    "ids_note": null,
+    "itest_run_ids": [
+      "itest-mongo-fault-01-q1"
+    ],
+    "row": "t7-mongo",
+    "row_ceiling_min": 41,
+    "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+    "runbook": {
+      "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+      "lines": 1614,
+      "path": "docs/setup/qemu_integrated_gateway.md",
+      "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae"
+    },
+    "session": "20261003T132249Z_guest-session_attempt09",
+    "session_elapsed_at_row_start_s": 1779,
+    "session_label": "S2",
+    "step_files": {
+      "t7-mongo.sh": "dd4545c3538a137acfc2a33eb99a749cf037e1ae18242773e4faf963b56d67c7"
+    },
+    "step_source_lines": {
+      "t7-mongo.sh": "1439-1461"
+    },
+    "steps_script_sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1"
+  }
+}

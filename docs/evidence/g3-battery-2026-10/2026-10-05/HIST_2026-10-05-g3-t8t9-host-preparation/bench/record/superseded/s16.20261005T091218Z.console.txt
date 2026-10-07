@@ -1,0 +1,90 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+  it differs from the final bytes (g3_battery.sh, sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-05T09:09:31Z scenario s16; host uptime 16.27 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh 087742a50a4bfe6b, bs3_setup.sh eb3bbc6c0a5c74d2, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED (O2 c of 2026-10-05): row t8 completes and passes its gate and is classified pass; in row t9 the host's tunnel master ends after (a) and before (b): the preamble of (b) reopens it and prints TUNNEL UP; HALT naming t9-b; (c), (d)+(e) and the exposure step are not run.
+
+=== g3_battery.sh open S3
+-> exit 2
+## 2026-10-05T09:09:32Z up=17 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+## 2026-10-05T09:09:32Z up=17 candidate identities
+## 2026-10-05T09:09:32Z up=17 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:09:32Z up=17 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:09:32Z up=17 guest root file system before the boot
+## 2026-10-05T09:09:32Z up=17 keepalive
+REFUSED: the keepalive client is not attached (see above); nothing was started
+CHECK FAILED: exit status 2, expected 0: open S3
+CHECK FAILED: the session is open - no line matches: ^## .* session S3 is open
+--- the fake process that stands for QEMU after the open: pid none not running
+
+=== g3_battery.sh row t8
+-> exit 2
+## 2026-10-05T09:09:32Z up=17 row t8 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: session S3 was not opened by this script (<bench>/state/session-S3.env is absent)
+CHECK FAILED: exit status 2, expected 0: row t8
+CHECK ok: no halt was recorded by row t8
+recorded steps of row t8, in order: <none>
+CHECK FAILED: the steps of row t8 are not: ^guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh( x[0-9]+)? t8-qemu-after t8-b-wait-boot-id t8-c-unaided t8-d-tunnel t8-tunnel-check t8-e-state t8-f-smoke t8-previous-boot-journal t8-previous-boot-oom guest-state-after gate-healthy gate-units gate-tunnel-check$
+CHECK FAILED: step b: REBOOT SHOWN - no line matches: ^REBOOT SHOWN: boot id aaaaaaaa-0000-4000-8000-00000000000a -> bbbbbbbb-0000-4000-8000-00000000000b
+CHECK FAILED: step c: CONTAINERS RETURNED UNAIDED - no line matches: ^CONTAINERS RETURNED UNAIDED: the 6 container ids
+CHECK FAILED: step c: PERSISTENCE SHOWN - no line matches: ^PERSISTENCE SHOWN: 3 event directories intact; /var/lib/docker on /dev/vdb
+CHECK FAILED: step e: CONTROLLER PROCESS NEW - no line matches: ^CONTROLLER PROCESS NEW: started_at 
+CHECK FAILED: step f: the smoke's status line of a completed procedure - no line matches: ^TEST STATUS itest-post-reboot-01-q2: simulator exit=0 transcript \(tee\) exit=0 post=0 -> PROCEDURE COMPLETE\.
+CHECK FAILED: the QEMU process after the wait is the one recorded before step a - no line matches: ^QEMU PROCESS UNCHANGED: the same process as before step a
+CHECK FAILED: the gate of row t8 passed - no line matches: ^## .* GATE t8: pass
+CHECK FAILED: the name of the new attempt ends _g3-qualification-t8_attempt02: '', expected '_g3-qualification-t8_attempt02'
+CHECK FAILED: reboot commands sent to the stub guest: '', expected '1'
+CHECK ok: the fake QEMU process after the row: pid none not running
+
+=== g3_battery.sh classify t8 finished valid pass bench: scenario s16 bench: none
+-> exit 2
+REFUSED: row t8 was not started
+CHECK FAILED: exit status 2, expected 0: classify t8
+--- bench: from here on the stub simulator leaves no directory and exits 1 (a refused connection)
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-05T09:09:33Z up=18 row t9 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: session S3 was not opened by this script (<bench>/state/session-S3.env is absent)
+CHECK FAILED: exit status 2, expected 1: row t9 (a halt)
+CHECK FAILED: the halt of row t9 - no line matches: ^HALT: row t9: the preamble of hx reopened a lost tunnel before step t9-b \(TUNNEL UP in its console; request, section 5, items 7 and 9\): every later step of T9 was NOT run
+recorded steps of row t9, in order: <none>
+CHECK FAILED: the steps of row t9 are not: ^guest-state-before t9-a t9-b guest-state-after guest-state-delta gate-healthy gate-units gate-tunnel-check$
+CHECK FAILED: the bench hook ran before the step t9-b was recorded (the master ended there): '', expected '1'
+CHECK ok: no TUNNEL UP in the console of t9-a (the master was up then)
+CHECK FAILED: the preamble of t9-b found the master gone (the socket stale) - no line matches: ^tunnel: connection refused on .*tunnel\.ctl \(no process listens on it\) - stale socket file removed
+CHECK FAILED: the preamble of t9-b reopened the tunnel (TUNNEL UP at the start of a line) - no line matches: ^TUNNEL UP$
+CHECK FAILED: simulator calls of (c), itest-notls-q2 ((c) was not run): '', expected '0'
+grep: /tmp/g3-s3-bench/s16/mod/state/ssh.log: No such file or directory
+CHECK FAILED: ACL probe calls ((d)+(e) was not run): '', expected '0'
+CHECK ok: the exposure step was run: no
+grep: /tmp/g3-s3-bench/s16/state/row-t9.env: No such file or directory
+CHECK ok: the halt is not the rule for a STOP: (no step_not_run line)
+CHECK ok: the gate found no lost tunnel (the preamble of t9-b had reopened it)
+CHECK FAILED: the gate of row t9 passed: the halt is the step's alone - no line matches: ^## .* GATE t9: pass
+CHECK FAILED: the row ends with the halt's next steps - no line matches: ^HALT recorded for session S3: classify this row, then 'close'
+CHECK FAILED: halts recorded for the session: '', expected '1'
+
+=== g3_battery.sh classify t9 failed unknown inconclusive bench: scenario s16 bench: none
+-> exit 2
+REFUSED: row t9 was not started
+CHECK FAILED: exit status 2, expected 0: classify t9
+
+=== g3_battery.sh close
+-> exit 2
+REFUSED: no open session
+CHECK FAILED: exit status 2, expected 0: close
+CHECK FAILED: the session is closed - no line matches: ^## .* session S3 closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-05T09:09:34Z SCENARIO s16: FAIL (28 of 35 checks failed)

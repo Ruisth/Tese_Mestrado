@@ -1,0 +1,142 @@
+{
+  "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "6940366cca642d8f824092278e82e500112d8a3f9df36ed6d32cbc6595ead304",
+  "runbook": {
+    "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae",
+    "lines": 1614
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "da8d31ddeb4f53c057d279a01964ef6464152660368cd08ef5c8ab6767700489",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for each of the ten headings"
+  },
+  "substitution_rule": {
+    "suffix": "-q1",
+    "ids": [
+      {
+        "old": "itest-smoke-$i",
+        "new": "itest-smoke-$i-q1",
+        "occurrences": 2
+      },
+      {
+        "old": "itest-3dev-01",
+        "new": "itest-3dev-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-invalid-01",
+        "new": "itest-invalid-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-01",
+        "new": "itest-dup-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-02",
+        "new": "itest-dup-02-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dropout-01",
+        "new": "itest-dropout-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-mongo-fault-01",
+        "new": "itest-mongo-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-ditto-fault-01",
+        "new": "itest-ditto-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-reboot",
+        "new": "itest-reboot-q1",
+        "occurrences": 8
+      },
+      {
+        "old": "itest-post-reboot-01",
+        "new": "itest-post-reboot-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-tls-wrongca",
+        "new": "itest-tls-wrongca-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-auth-wrongpw",
+        "new": "itest-auth-wrongpw-q1",
+        "occurrences": 4
+      },
+      {
+        "old": "itest-notls",
+        "new": "itest-notls-q1",
+        "occurrences": 3
+      }
+    ],
+    "unchanged": [
+      "nominal-r02",
+      "controller_restart-r03",
+      "itest-acl-$T",
+      "itest-replay"
+    ],
+    "token": "an id not preceded by [A-Za-z0-9_] and not followed by [A-Za-z0-9_-]; every occurrence of each id as a plain string is such a token (asserted), so none is left behind and none is matched inside a longer id",
+    "asserted": "per file the count of each id; the text after the substitution with every '-q1' removed is the extracted text; the unchanged literals are untouched; the extracted text held no '-q1'"
+  },
+  "row": {
+    "row": "t4-reset",
+    "session": "S1",
+    "steps": [
+      "t4-reset.sh"
+    ]
+  },
+  "files": {
+    "t4-reset.sh": {
+      "row": "t4-reset",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 4"
+      ],
+      "source_line_numbers": [
+        1399
+      ],
+      "source_line_ranges": "1399",
+      "host_command_starts": [
+        1399
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "f36d92baf1dbb01e610052e3e599d108b06d48417b8502cbd510ebf11b7295f1",
+      "sha256_after": "3c5d4ec05701e41517762814f9e7207d5956394496a00c839f0b41596d020681",
+      "bytes_before": 56,
+      "bytes_after": 59,
+      "substitutions": [
+        {
+          "old": "itest-dup-02",
+          "new": "itest-dup-02-q1",
+          "count": 1,
+          "source_lines": [
+            1399
+          ]
+        }
+      ],
+      "diff": "t4-reset.sh.diff",
+      "diff_sha256": "c139b745fefffe8050bf94615dae0219692743c24cc46cddbd800460ab258308",
+      "diff_bytes": 232,
+      "bash_n": "ok",
+      "range_note": "Line 1399, the sequence reset's own fenced block."
+    }
+  }
+}

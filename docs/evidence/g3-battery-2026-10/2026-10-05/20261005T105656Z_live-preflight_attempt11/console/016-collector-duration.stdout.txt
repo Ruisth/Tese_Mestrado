@@ -1,0 +1,1 @@
+the collector stopped 2 s before the duration=45s its 'start:' line declares (its own window is 43 s): the samples, the coverage and the gaps were checked against that shorter window, not against the declared one

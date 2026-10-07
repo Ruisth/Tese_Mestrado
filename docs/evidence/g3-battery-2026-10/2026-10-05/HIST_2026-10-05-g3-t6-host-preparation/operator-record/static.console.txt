@@ -1,0 +1,28 @@
+## static checks of the S4 operator script (WSL, 2026-10-05T18:52:23Z); paths relative to the preparation folder <P>
+$ sha256sum g3_battery.sh base/g3_battery.sh
+7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c  g3_battery.sh
+42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034  base/g3_battery.sh
+$ wc -l g3_battery.sh base/g3_battery.sh
+  2356 g3_battery.sh
+  2316 base/g3_battery.sh
+  4672 total
+$ carriage returns (bytes 0x0d) in g3_battery.sh: 0; first bytes: #!/bin/bash
+$ GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)
+bash -n g3_battery.sh: clean
+$ shellcheck --version: 0.11.0 (the execution venv, read-only)
+shellcheck -S error g3_battery.sh: exit 0
+shellcheck -S warning g3_battery.sh: exit 0
+shellcheck info-level codes, base/g3_battery.sh:  6 SC2012  4 SC2015  7 SC2016  5 SC2329 
+shellcheck info-level codes, g3_battery.sh:  6 SC2012  4 SC2015  7 SC2016  5 SC2329 
+$ git diff --no-index --stat base/g3_battery.sh g3_battery.sh
+ base/g3_battery.sh => g3_battery.sh | 230 +++++++++++++++++++++---------------
+ 1 file changed, 135 insertions(+), 95 deletions(-)
+$ bash -n operator-record/bs4_op.sh
+clean
+shellcheck -S warning operator-record/bs4_op.sh: exit 0
+$ after the benches: no bench process left, nothing newer than the bench source under ~/egw-exec, ~/egw-tcg, ~/yocto/egw-integrated or output_test (depth 3)
+your 131072x1 screen size is bogus. expect trouble
+0
+0
+0
+execution clone HEAD: 8e492613d36490a560ae56beabd6d5c2c01a8696; ~/egw-exec/g3-t6-s4: absent

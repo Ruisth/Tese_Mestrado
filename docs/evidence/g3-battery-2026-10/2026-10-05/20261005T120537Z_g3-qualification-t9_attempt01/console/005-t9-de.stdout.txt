@@ -1,0 +1,48 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# (d)+(e) ACL proven in both directions with concurrent known traffic, and anonymous refusal. Runs in the guest, inside the
+# broker container (mosquitto_pub/mosquitto_sub of the image; nothing to install on the host; no 'timeout' applet needed).
+# Precondition, enforced by the next line: controller ready and 'drained' (no simulator/harness run may be in progress: the operator's rule).
+T=$(date -u +%Y%m%dT%H%M%SZ); PR=stop; if wait_ready && drained && metrics itest-acl-$T before; then ssh egw-tcg "sh /opt/egw/deployment/scripts/probe-acl.sh $T"; PR=$?; echo "probe exit=$PR (0 PASS, 1 FAIL, 3 INCONCLUSIVE, 2 usage/precondition: nothing was run and there is no verdict.txt, 255 ssh failed: nothing is known; about 100 s)"; metrics itest-acl-$T after; [ "$PR" = 0 ] || stop "test 9(d): probe exit=$PR - NOT a pass (1 FAIL, 3 INCONCLUSIVE, anything else: the probe did not run to its end)"; else stop "test 9(d): precondition failed - the probe was NOT run"; fi
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-05T11:55:23.920Z 1 336 336 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 2727.90 s, end 2859.31 s, elapsed 131.41 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-05T12:06:43Z -> 2026-10-05T12:08:49Z and bash SECONDS elapsed 126 s, recorded only
+tag=20261005T120642Z topic=c2dt/acl-probe/20261005T120642Z window_s=90 subscribe_lines_before_publish: ctl-sub=1 sim-sub=1; whole run: ctl-sub=1 sim-sub=1 (broker log rc=0)
+authorised subscriber (egw-controller):   P1=1 P2=0 P3=0 P4=1 rc=27
+unauthorised subscriber (egw-simulator):  deliveries=0 stdout_bytes=0 rc=27
+liveness: covered=yes clock=uptime sub_start=901 p1_start=916 p4_end=931 earliest_timeout=991 (sub_start+window; p4_end+2 must not exceed it) exec_end: ctl-sub=997 sim-sub=997 (each must exceed p4_end)
+publishers rc: P1=0 P2=0 P3=0 P4=0; v5 'Not authorized' lines=1
+anonymous: refused rc=5 refusal_lines=1 deliveries=0 stdout_bytes=0 accepted_in_broker_log=0 broker_lines=1 stderr=Connection error: Connection Refused: not authorised. 
+evidence: broker_log=complete checked: anchor_rc=0 collection_rc=0 collection_lines=400 tail=400 anchor_found=1 (must be 1) grep_rc=0 tagged_lines: collection=15 broker.txt=15; write_check (write and read back in the evidence directory): before_run=ok after_collection=ok
+verdict=PASS
+probe exit=0 (0 PASS, 1 FAIL, 3 INCONCLUSIVE, 2 usage/precondition: nothing was run and there is no verdict.txt, 255 ssh failed: nothing is known; about 100 s)
+[ "${PR:-stop}" != stop ] && scp -r egw-tcg:/opt/egw/evidence/itest-acl-$T ~/egw-tcg/itest/ || stop "test 9(d): probe not run (PR='$PR') or scp failed - no evidence was copied"
+B=~/egw-tcg/itest/itest-acl-$T.metrics.before.json; A=~/egw-tcg/itest/itest-acl-$T.metrics.after.json; if [ "${PR:-stop}" != stop ] && [ -s $B ] && [ -s $A ] && [ -s ~/egw-tcg/itest/itest-acl-$T/verdict.txt ]; then python3 -c 'import json,sys; b,a=(json.load(open(p)) for p in sys.argv[1:3]); d=[k for k in ("started_at","accepted","rejected","duplicate","failed","dropped") if a[k]!=b[k]]; print("changed fields:", d); sys.exit(1 if d else 0)' $B $A && echo "controller untouched by the probe" || stop "test 9(d): controller counters or started_at changed during the probe, or a snapshot is not valid /metrics JSON"; else stop "test 9(d): probe not run (PR='$PR'), or a metrics snapshot or verdict.txt is missing or empty - NOTHING was compared"; fi
+changed fields: []
+controller untouched by the probe
+[ "${PR:-stop}" != stop ] && { cat ~/egw-tcg/itest/itest-acl-$T/verdict.txt ~/egw-tcg/itest/itest-acl-$T/ctl-sub.out && wc -c ~/egw-tcg/itest/itest-acl-$T/sim-sub.out ~/egw-tcg/itest/itest-acl-$T/anon.out && cat ~/egw-tcg/itest/itest-acl-$T/broker.txt; } || stop "test 9(d): nothing to show (PR='$PR') or an evidence file is missing"
+tag=20261005T120642Z topic=c2dt/acl-probe/20261005T120642Z window_s=90 subscribe_lines_before_publish: ctl-sub=1 sim-sub=1; whole run: ctl-sub=1 sim-sub=1 (broker log rc=0)
+authorised subscriber (egw-controller):   P1=1 P2=0 P3=0 P4=1 rc=27
+unauthorised subscriber (egw-simulator):  deliveries=0 stdout_bytes=0 rc=27
+liveness: covered=yes clock=uptime sub_start=901 p1_start=916 p4_end=931 earliest_timeout=991 (sub_start+window; p4_end+2 must not exceed it) exec_end: ctl-sub=997 sim-sub=997 (each must exceed p4_end)
+publishers rc: P1=0 P2=0 P3=0 P4=0; v5 'Not authorized' lines=1
+anonymous: refused rc=5 refusal_lines=1 deliveries=0 stdout_bytes=0 accepted_in_broker_log=0 broker_lines=1 stderr=Connection error: Connection Refused: not authorised. 
+evidence: broker_log=complete checked: anchor_rc=0 collection_rc=0 collection_lines=400 tail=400 anchor_found=1 (must be 1) grep_rc=0 tagged_lines: collection=15 broker.txt=15; write_check (write and read back in the evidence directory): before_run=ok after_collection=ok
+verdict=PASS
+c2dt/acl-probe/20261005T120642Z acl-probe 20261005T120642Z P1 user=egw-simulator
+c2dt/acl-probe/20261005T120642Z acl-probe 20261005T120642Z P4 user=egw-simulator
+0 /home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z/sim-sub.out
+0 /home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z/anon.out
+0 total
+[2Kmosquitto-1  | 2026-10-05T12:08:58.520022097Z 2026-10-05T12:08:58: New client connected from 127.0.0.1:39976 as egw-acl-20261005T120642Z-ctl-sub (p2, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:08:58.522495761Z 2026-10-05T12:08:58: egw-acl-20261005T120642Z-ctl-sub 1 c2dt/#
+[2Kmosquitto-1  | 2026-10-05T12:08:58.546267281Z 2026-10-05T12:08:58: New client connected from 127.0.0.1:39992 as egw-acl-20261005T120642Z-sim-sub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:08:58.553270513Z 2026-10-05T12:08:58: egw-acl-20261005T120642Z-sim-sub 1 c2dt/#
+[2Kmosquitto-1  | 2026-10-05T12:09:09.529992612Z 2026-10-05T12:09:09: New client connected from 127.0.0.1:56318 as egw-acl-20261005T120642Z-p1-sim-pub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:09:09.544732004Z 2026-10-05T12:09:09: Client egw-acl-20261005T120642Z-p1-sim-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:12.285106436Z 2026-10-05T12:09:12: New client connected from 127.0.0.1:52300 as egw-acl-20261005T120642Z-p2-ctl-pub (p2, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:09:12.336373412Z 2026-10-05T12:09:12: Client egw-acl-20261005T120642Z-p2-ctl-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:18.058230932Z 2026-10-05T12:09:18: New client connected from 127.0.0.1:52304 as egw-acl-20261005T120642Z-p3-ctl-pub-v5 (p5, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:09:18.081400868Z 2026-10-05T12:09:18: Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:21.682280052Z 2026-10-05T12:09:21: New client connected from 127.0.0.1:45692 as egw-acl-20261005T120642Z-p4-sim-pub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:09:21.737202676Z 2026-10-05T12:09:21: Client egw-acl-20261005T120642Z-p4-sim-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:24.842049844Z 2026-10-05T12:09:24: Client egw-acl-20261005T120642Z-anon disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:10:24.260235558Z 2026-10-05T12:10:24: Client egw-acl-20261005T120642Z-ctl-sub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:10:24.285513974Z 2026-10-05T12:10:24: Client egw-acl-20261005T120642Z-sim-sub disconnected.
