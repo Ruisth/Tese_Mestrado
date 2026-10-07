@@ -391,23 +391,85 @@ A criterion that needs a series with fewer than
 covered duration, FAILS — it never silently passes. (The ingest-time
 counterpart lives in ``egw_experiments.resources``.)
 
+Execution mode (G4 core provenance, plan 655-661)
+-------------------------------------------------
+
+Execution modes are never pooled into one statistic or aggregate (plan
+429-432). Each run is classified from its OWN files, never from a label
+and never with a default:
+
+- ``unrecorded``   : the manifest has no ``provenance`` record — it
+  predates the field (manifest 1.4 and older, external runs, a missing or
+  unreadable manifest). Nothing is read into such a run and nothing is
+  written for it: ``raw/`` is never touched, and the word ``unrecorded``
+  exists only in ``processed/`` as a status and a group;
+- ``recorded``     : a provenance record, a declared ``execution_mode`` in
+  ``environment.EXECUTION_MODES``, and no failed check when
+  :func:`environment.provenance_checks` is applied AGAIN to the run's
+  sealed ``sut``/``hypervisor``/``loadgen`` environment records, with the
+  generator's broker and port echoed in the manifest's ``config.cli`` (the
+  same function the harness and ``collect`` use; the hypervisor is never
+  captured again). The manifest's own record of the checks is not
+  trusted;
+- ``unset`` / ``unknown`` / ``inconsistent`` : a provenance record whose
+  declared mode is null, outside the vocabulary, or not borne out by the
+  run's records (or named differently by the manifest's top level and its
+  provenance record). These are PROVENANCE FAILURES: listed in
+  ``per_run.csv`` with the reasons in ``warnings`` and a loud stdout
+  notice, never aggregated, whatever the manifest's ``validity`` says.
+
+The aggregation groups are the recorded modes and ``unrecorded`` (its own
+group, labelled "execution mode NOT RECORDED (manifests predate the
+field)", so a legacy tree yields the numbers it always did). Every
+aggregator — summaries, external durations, acceptance, saturation and
+figures — is run once per group and refuses mixed input itself
+(:class:`MixedExecutionModeError`); with no included run, acceptance and
+saturation are evaluated once with no group, as before. The group stamps
+every output: the leading ``execution_mode`` column of each table, one
+saturation document per group, and each figure (file name, title, footer
+and PNG text). No mode is ever set, overridden or filtered from the
+command line, and no rule of validity changes: the provenance gate is
+added, for the runs that carry the record.
+
 Outputs
 -------
 
-- ``processed/per_run.csv``              one row per raw message run;
+- ``processed/per_run.csv``              one row per raw message run, with
+                                         the execution-mode columns
+                                         ``execution_mode`` (verbatim),
+                                         ``execution_mode_status``,
+                                         ``execution_mode_group``,
+                                         ``image_identity`` (short form),
+                                         ``environment_records`` and
+                                         ``provenance_ok``;
 - ``processed/resources_by_run.csv``     per-run, per-container resource
                                          aggregates (measured window only);
 - ``processed/summary_by_condition.csv`` cross-run statistics, long format,
-                                         including external cold_start /
-                                         twin_creation durations;
+                                         per group, including external
+                                         cold_start / twin_creation
+                                         durations;
 - ``processed/external_runs.csv``        per-sample listing of external
                                          runs (incl. qemu boot pass/fail);
-- ``processed/acceptance_by_condition.csv`` acceptance evaluation above;
-- ``processed/saturation.json``          saturation evaluation per load;
-- ``figures/*.png``                      only when matplotlib is importable
+- ``processed/acceptance_by_condition.csv`` acceptance evaluation above,
+                                         one full set per group;
+- ``processed/saturation.json``          ``{generated_by, protocol_version,
+                                         execution_modes, by_execution_mode}``:
+                                         one saturation evaluation per load
+                                         for each group, with its
+                                         ``execution_mode`` and
+                                         ``execution_mode_label``;
+- ``processed/figures_index.csv``        one row per figure: file, figure,
+                                         group, label, title and the runs
+                                         drawn;
+- ``figures/<stem>.<group>.png``         only when matplotlib is importable
                                          (optional dependency); otherwise a
                                          clear notice is printed and the
                                          exit code stays 0.
+
+``resources_by_run.csv``, ``summary_by_condition.csv``,
+``external_runs.csv`` and ``acceptance_by_condition.csv`` lead with
+``execution_mode``: the group of the row (blank for a run outside every
+group, and for the evaluation of a tree with no included run).
 """
 
 from __future__ import annotations
@@ -420,10 +482,20 @@ import statistics
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .checksums import SUMS_FILENAME, verify_sha256sums
-from .environment import read_sut_environment, sut_nproc
+from .environment import (
+    EXECUTION_MODE_LABELS,
+    EXECUTION_MODES,
+    HYPERVISOR_ENVIRONMENT_FILENAME,
+    LOADGEN_ENVIRONMENT_FILENAME,
+    SUT_ENVIRONMENT_FILENAME,
+    provenance_checks,
+    provenance_problems,
+    read_environment_record,
+    sut_nproc,
+)
 from .protocol import (
     CONDITION_CLAIMS,
     CONDITION_ORDER,
@@ -1068,6 +1140,232 @@ def sampling_stats(
 
 
 # ---------------------------------------------------------------------------
+# Execution mode (G4 core provenance, plan 655-661)
+# ---------------------------------------------------------------------------
+
+#: The group of the runs whose manifest predates the provenance record.
+EXECUTION_MODE_UNRECORDED = "unrecorded"
+
+#: Values of the per-run ``execution_mode_status`` column (per_run.csv).
+MODE_STATUS_RECORDED = "recorded"
+MODE_STATUS_UNRECORDED = "unrecorded"
+MODE_STATUS_UNSET = "unset"
+MODE_STATUS_UNKNOWN = "unknown"
+MODE_STATUS_INCONSISTENT = "inconsistent"
+
+#: The statuses of a PROVENANCE FAILURE: listed in per_run.csv, in no
+#: group, never aggregated.
+PROVENANCE_BLOCKING_STATUSES = frozenset(
+    {MODE_STATUS_UNSET, MODE_STATUS_UNKNOWN, MODE_STATUS_INCONSISTENT}
+)
+
+#: The label of the ``unrecorded`` group, and of an evaluation that holds
+#: no run at all (a tree with no included run).
+UNRECORDED_LABEL = "execution mode NOT RECORDED (manifests predate the field)"
+NO_GROUP_LABEL = "no execution mode (no run in this evaluation)"
+
+#: The environment records a run directory may hold, in the order the
+#: ``environment_records`` column names them.
+ENVIRONMENT_RECORD_FILES: tuple[tuple[str, str], ...] = (
+    ("sut", SUT_ENVIRONMENT_FILENAME),
+    ("hypervisor", HYPERVISOR_ENVIRONMENT_FILENAME),
+    ("loadgen", LOADGEN_ENVIRONMENT_FILENAME),
+)
+
+
+class MixedExecutionModeError(ValueError):
+    """An aggregate was given runs of more than one execution-mode group.
+
+    Execution modes are never pooled into one statistic or aggregate (plan
+    429-432), so every aggregator refuses such input itself instead of
+    relying on its caller to have partitioned it.
+    """
+
+
+def execution_mode_label(group: str | None) -> str:
+    """The label stamped beside a group: the plan's wording for a recorded
+    mode (environment.EXECUTION_MODE_LABELS), the NOT RECORDED label for
+    ``unrecorded``, and NO_GROUP_LABEL for an evaluation with no run."""
+    if group is None:
+        return NO_GROUP_LABEL
+    if group == EXECUTION_MODE_UNRECORDED:
+        return UNRECORDED_LABEL
+    return EXECUTION_MODE_LABELS.get(group, group)
+
+
+def _group_order(group: str | None) -> tuple[int, str]:
+    """Groups in the order of EXECUTION_MODES, then ``unrecorded``."""
+    if group in EXECUTION_MODES:
+        return (EXECUTION_MODES.index(group), group)
+    if group == EXECUTION_MODE_UNRECORDED:
+        return (len(EXECUTION_MODES), group)
+    return (len(EXECUTION_MODES) + 1, str(group))
+
+
+def require_single_execution_mode(
+    rows: Iterable[dict[str, Any]],
+    *,
+    what: str,
+    execution_mode: str | None = None,
+) -> str | None:
+    """The single execution-mode group of ``rows`` (their
+    ``execution_mode_group``; a row without the key belongs to the group
+    None), or ``execution_mode`` when it is named and ``rows`` agree.
+
+    Raises :class:`MixedExecutionModeError` when the rows hold more than
+    one group, or a group other than the one named: ``what`` names the
+    aggregate that refused.
+    """
+    groups = {row.get("execution_mode_group") for row in rows}
+    if execution_mode is not None:
+        groups.add(execution_mode)
+    if len(groups) > 1:
+        named = ", ".join(sorted(repr(group) for group in groups))
+        raise MixedExecutionModeError(
+            f"{what}: refusing to pool runs of more than one execution-mode "
+            f"group ({named}); execution modes are never pooled into one "
+            "statistic or aggregate (plan 429-432)"
+        )
+    return next(iter(groups), None)
+
+
+def read_environment_records(run_dir: str | Path) -> dict[str, dict[str, Any] | None]:
+    """The run's ``sut``, ``hypervisor`` and ``loadgen`` environment
+    records (None for a record that is absent or unreadable)."""
+    return {
+        name: read_environment_record(run_dir, filename)
+        for name, filename in ENVIRONMENT_RECORD_FILES
+    }
+
+
+def _image_identity_short(identity: Any) -> str | None:
+    """``<rootfs image name> kernel <12 hex> qemu <12 hex>`` from the
+    manifest's ``image_identity`` (``?`` for a part it lacks); None when
+    the manifest has none."""
+    if not isinstance(identity, dict):
+        return None
+
+    def text(key: str) -> str | None:
+        value = identity.get(key)
+        return value if isinstance(value, str) and value.strip() else None
+
+    kernel, qemu = text("kernel_sha256"), text("qemu_exe_sha256")
+    return " ".join(
+        (
+            text("rootfs_image_name") or "rootfs ?",
+            f"kernel {kernel[:12]}" if kernel else "kernel ?",
+            f"qemu {qemu[:12]}" if qemu else "qemu ?",
+        )
+    )
+
+
+def classify_execution_mode(
+    manifest: dict[str, Any], records: dict[str, dict[str, Any] | None]
+) -> dict[str, Any]:
+    """Classify one run's execution mode from its own sealed files.
+
+    ``records`` are the run's environment records
+    (:func:`read_environment_records`). The gate is the manifest's
+    ``provenance`` record, the one ``collect`` uses: without it the run
+    predates the field and is ``unrecorded``, and nothing is read into it.
+    With it, :func:`environment.provenance_checks` is applied again to the
+    sealed records, with the generator's broker and port echoed in the
+    manifest's ``config.cli`` (the hypervisor is never captured again):
+    ``recorded`` when the declared mode is one of EXECUTION_MODES and no
+    check fails; otherwise ``unset`` (no mode), ``unknown`` (a value
+    outside the vocabulary) or ``inconsistent`` (a failed check, or a
+    provenance record that names another mode than the manifest's top
+    level, which would make the group ambiguous). The mode is the
+    manifest's declaration, verbatim; it is never inferred.
+
+    Returns ``execution_mode`` (verbatim; None when absent),
+    ``execution_mode_status``, ``execution_mode_group`` (the recorded
+    mode, ``unrecorded``, or None for a provenance failure),
+    ``provenance_ok`` (None when unrecorded), ``image_identity`` (short
+    form), ``qemu_version_line`` (from the manifest's image identity) and
+    ``problems`` (``provenance: <check>: <detail>`` per failure).
+    """
+    declared = manifest.get("execution_mode")
+    identity = manifest.get("image_identity")
+    version = identity.get("qemu_version_line") if isinstance(identity, dict) else None
+    result: dict[str, Any] = {
+        "execution_mode": declared,
+        "execution_mode_status": MODE_STATUS_UNRECORDED,
+        "execution_mode_group": EXECUTION_MODE_UNRECORDED,
+        "provenance_ok": None,
+        "image_identity": _image_identity_short(identity),
+        "qemu_version_line": (
+            version if isinstance(version, str) and version.strip() else None
+        ),
+        "problems": [],
+    }
+    provenance = manifest.get("provenance")
+    if not isinstance(provenance, dict):
+        return result
+
+    config = manifest.get("config")
+    cli = config.get("cli") if isinstance(config, dict) else None
+    cli = cli if isinstance(cli, dict) else {}
+    broker, port = cli.get("broker"), cli.get("port")
+    checks = provenance_checks(
+        execution_mode=declared,
+        sut_env=records.get("sut"),
+        loadgen_env=records.get("loadgen"),
+        hypervisor_env=records.get("hypervisor"),
+        broker=broker if isinstance(broker, str) else None,
+        port=port if isinstance(port, int) and not isinstance(port, bool) else None,
+    )
+    problems = provenance_problems(checks)
+    copied = provenance.get("execution_mode")
+    if copied != declared:
+        problems.append(
+            f"provenance: manifest: the top-level execution_mode {declared!r} "
+            f"differs from the provenance record's {copied!r}"
+        )
+    if declared is None:
+        status = MODE_STATUS_UNSET
+    elif declared not in EXECUTION_MODES:
+        status = MODE_STATUS_UNKNOWN
+    elif problems:
+        status = MODE_STATUS_INCONSISTENT
+    else:
+        status = MODE_STATUS_RECORDED
+    result.update(
+        execution_mode_status=status,
+        execution_mode_group=declared if status == MODE_STATUS_RECORDED else None,
+        provenance_ok=status == MODE_STATUS_RECORDED,
+        problems=problems,
+    )
+    return result
+
+
+def _execution_mode_text(value: Any) -> str | None:
+    """The manifest's ``execution_mode`` as per_run.csv shows it: verbatim
+    (JSON for a value that is not a string), blank when absent."""
+    if value is None or isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _environment_records_text(records: dict[str, dict[str, Any] | None]) -> str:
+    """``sut+hypervisor+loadgen``: the records the run directory holds."""
+    return "+".join(
+        name for name, _ in ENVIRONMENT_RECORD_FILES if records.get(name) is not None
+    )
+
+
+def _provenance_warning(mode: dict[str, Any]) -> str | None:
+    """The per-run warning of a provenance failure, None otherwise."""
+    if mode["execution_mode_status"] not in PROVENANCE_BLOCKING_STATUSES:
+        return None
+    return (
+        f"EXECUTION-MODE PROVENANCE FAILURE ({mode['execution_mode_status']}): "
+        f"{'; '.join(mode['problems'])}; the run is excluded from every "
+        "aggregate (G4 core provenance, plan 655-661)"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Per-run metrics
 # ---------------------------------------------------------------------------
 
@@ -1084,6 +1382,14 @@ PER_RUN_COLUMNS = [
     "exclusion_reason",
     "integrity_ok",
     "resource_source",
+    # G4 core provenance (plan 655-661): the declaration verbatim, the
+    # analysis's classification and group, and what it rests on.
+    "execution_mode",
+    "execution_mode_status",
+    "execution_mode_group",
+    "image_identity",
+    "environment_records",
+    "provenance_ok",
     "confirmation_deadline_source",
     "sent_total",
     "sent_valid",
@@ -1148,6 +1454,7 @@ PER_RUN_COLUMNS = [
 ]
 
 RESOURCES_BY_RUN_COLUMNS = [
+    "execution_mode",
     "run_id",
     "container",
     "samples",
@@ -1592,7 +1899,9 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     ``timings.json`` separately (audit 9.6).
 
     The returned dict has the PER_RUN_COLUMNS keys plus ``"_resources"``:
-    the rows destined for ``resources_by_run.csv``.
+    the rows destined for ``resources_by_run.csv``, and
+    ``"_qemu_version_line"``: the QEMU version the figures' footers name.
+    ``execution_mode_group`` is the run's group (:func:`classify_execution_mode`).
     """
     run_dir = Path(run_dir)
     warnings: list[str] = []
@@ -1635,6 +1944,17 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         return None
 
     run_id = manifest.get("run_id") or run_dir.name
+
+    # --- execution mode (G4 core provenance, plan 655-661) -----------------
+    # The three environment records are read once: the SUT record also
+    # gives nproc below. The classification re-applies the provenance
+    # checks to these sealed files; a failure keeps the run listed here
+    # and out of every aggregate (analyze()).
+    env_records = read_environment_records(run_dir)
+    mode = classify_execution_mode(manifest, env_records)
+    provenance_warning = _provenance_warning(mode)
+    if provenance_warning:
+        warnings.append(provenance_warning)
 
     # --- sent side (simulator, CONTRACTS 7) -------------------------------
     sent_records = _read_jsonl(sent_path)
@@ -1843,7 +2163,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
     cpu_max_overall: float | None = None
     mem_max_overall: int | None = None
     cpu_sustained_max = 0.0
-    nproc = sut_nproc(read_sut_environment(run_dir))
+    nproc = sut_nproc(env_records["sut"])
     host_util_max: float | None = None
     host_sustained: float | None = None
     # Sampling coverage of the measured window (work order P1b): exposed in
@@ -1921,6 +2241,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
             sustained = sustained_cpu_seconds(samples)
             resources_rows.append(
                 {
+                    "execution_mode": mode["execution_mode_group"],
                     "run_id": run_id,
                     "container": container,
                     "samples": len(samples),
@@ -2151,6 +2472,12 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         ),
         "integrity_ok": integrity_ok,
         "resource_source": resource_source,
+        "execution_mode": _execution_mode_text(mode["execution_mode"]),
+        "execution_mode_status": mode["execution_mode_status"],
+        "execution_mode_group": mode["execution_mode_group"],
+        "image_identity": mode["image_identity"],
+        "environment_records": _environment_records_text(env_records),
+        "provenance_ok": mode["provenance_ok"],
         "confirmation_deadline_source": deadline_source,
         "sent_total": sent_total,
         "sent_valid": sent_valid,
@@ -2214,6 +2541,8 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
         "restart_accepted_progress": recovery["accepted_progress"],
         "warnings": " | ".join(warnings),
         "_resources": resources_rows,
+        # For the figure footers (not a per_run.csv column).
+        "_qemu_version_line": mode["qemu_version_line"],
     }
 
 
@@ -2222,6 +2551,7 @@ def compute_run_metrics(run_dir: str | Path) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 EXTERNAL_RUNS_COLUMNS = [
+    "execution_mode",
     "run_id",
     "condition_id",
     "integrity_ok",
@@ -2242,10 +2572,16 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
     """Read one external run (``timings.json`` ingested by the runner).
 
     Returns ``{run_id, condition_id, integrity_ok, excluded, sample_rows,
-    duration_mean_s}`` or None when timings.json is absent/unreadable
+    duration_mean_s, execution_mode_status, execution_mode_group,
+    provenance_problems}`` or None when timings.json is absent/unreadable
     (notice on stderr). ``duration_mean_s`` is the per-run value used as
     the unit of analysis (mean of the run's samples; normally one sample
     per run).
+
+    The execution mode is classified as for a message run
+    (:func:`classify_execution_mode`). External runs carry no provenance
+    record today (``run --external-timings`` writes none), so they are
+    ``unrecorded``; every sample row carries the group.
 
     ``integrity_ok`` is the SHA256SUMS verdict of the run directory
     (report 5.4); only a run with a VERIFIED seal (``INTEGRITY_OK``) feeds
@@ -2297,6 +2633,7 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
             "statistics (report 5.4)",
             file=sys.stderr,
         )
+    mode = classify_execution_mode(manifest, read_environment_records(run_dir))
     samples = timings.get("samples")
     if not isinstance(samples, list):
         samples = []
@@ -2316,6 +2653,7 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
         outcome = sample.get("outcome")
         sample_rows.append(
             {
+                "execution_mode": mode["execution_mode_group"],
                 "run_id": run_id,
                 "condition_id": condition_id,
                 "integrity_ok": integrity_ok,
@@ -2334,11 +2672,14 @@ def compute_external_run(run_dir: str | Path) -> dict[str, Any] | None:
         "excluded": manifest.get("exclusion") is not None,
         "sample_rows": sample_rows,
         "duration_mean_s": statistics.fmean(durations) if durations else None,
+        "execution_mode_status": mode["execution_mode_status"],
+        "execution_mode_group": mode["execution_mode_group"],
+        "provenance_problems": mode["problems"],
     }
 
 
 def summarize_external_durations(
-    external_rows: list[dict[str, Any]]
+    external_rows: list[dict[str, Any]], *, execution_mode: str | None = None
 ) -> list[dict[str, Any]]:
     """Cross-run duration statistics for cold_start and twin_creation.
 
@@ -2355,7 +2696,18 @@ def summarize_external_durations(
     rule excluded only the former, letting an unverifiable external run set
     the statistics. Excluded runs stay listed in ``external_runs.csv`` with
     their flag.
+
+    The rows must belong to ONE execution-mode group (G4, P6): mixed input
+    raises :class:`MixedExecutionModeError`, a run with a provenance
+    failure is left out defensively, and every record carries the group
+    in ``execution_mode`` (``execution_mode`` names it when ``rows`` are
+    empty).
     """
+    group = require_single_execution_mode(
+        external_rows,
+        what="summarize_external_durations",
+        execution_mode=execution_mode,
+    )
     out: list[dict[str, Any]] = []
     for condition_id in EXTERNAL_DURATION_CONDITIONS:
         values = [
@@ -2364,12 +2716,14 @@ def summarize_external_durations(
             if r.get("condition_id") == condition_id
             and not r.get("excluded")
             and r.get("integrity_ok") == INTEGRITY_OK
+            and r.get("execution_mode_status") not in PROVENANCE_BLOCKING_STATUSES
             and r.get("duration_mean_s") is not None
         ]
         if not values:
             continue
         mean, stdev, half = ci95(values)
         record: dict[str, Any] = {
+            "execution_mode": group,
             "condition_id": condition_id,
             "rate_msg_s": None,
             "metric": "duration_s",
@@ -2409,6 +2763,7 @@ SUMMARY_METRICS = [
 ]
 
 SUMMARY_COLUMNS = [
+    "execution_mode",
     "condition_id",
     "rate_msg_s",
     "metric",
@@ -2425,13 +2780,20 @@ SUMMARY_COLUMNS = [
 ]
 
 
-def summarize_by_condition(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def summarize_by_condition(
+    rows: list[dict[str, Any]], *, execution_mode: str | None = None
+) -> list[dict[str, Any]]:
     """Long-format cross-run statistics grouped by (condition, rate).
 
     Excluded runs must already be filtered out by the caller. The soak
     condition is summarized descriptively: its CI columns stay empty
-    (plan 7.3).
+    (plan 7.3). The rows must belong to ONE execution-mode group (G4, P6):
+    mixed input raises :class:`MixedExecutionModeError`, and every record
+    carries the group in ``execution_mode``.
     """
+    mode_group = require_single_execution_mode(
+        rows, what="summarize_by_condition", execution_mode=execution_mode
+    )
     groups: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
     for row in rows:
         groups.setdefault((row.get("condition_id"), row.get("rate_msg_s")), []).append(row)
@@ -2457,6 +2819,7 @@ def summarize_by_condition(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             mean, stdev, half = ci95(values)
             record: dict[str, Any] = {
+                "execution_mode": mode_group,
                 "condition_id": condition_id,
                 "rate_msg_s": rate,
                 "metric": metric,
@@ -2483,6 +2846,7 @@ def summarize_by_condition(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 ACCEPTANCE_COLUMNS = [
+    "execution_mode",
     "condition_id",
     "claims",
     "criterion",
@@ -2513,7 +2877,10 @@ def _metrics_reconciled(row: dict[str, Any]) -> bool:
 
 
 def evaluate_acceptance(
-    rows: list[dict[str, Any]], plan: dict[str, Any] | None = None
+    rows: list[dict[str, Any]],
+    plan: dict[str, Any] | None = None,
+    *,
+    execution_mode: str | None = None,
 ) -> list[dict[str, Any]]:
     """Acceptance evaluation for ALL planned simulator conditions.
 
@@ -2536,7 +2903,16 @@ def evaluate_acceptance(
     offending ids. Without a plan the legacy count check (n_valid ==
     planned repetitions; repetitions x rates for the sweep) is kept and
     the detail states that identity checking was not performed.
+
+    The rows must belong to ONE execution-mode group (G4, P6): mixed input
+    raises :class:`MixedExecutionModeError`, so a group is complete only
+    on its own runs. Every row carries the group in ``execution_mode``
+    (``execution_mode`` names it when ``rows`` are empty; None is the
+    evaluation of a tree with no included run).
     """
+    mode_group = require_single_execution_mode(
+        rows, what="evaluate_acceptance", execution_mode=execution_mode
+    )
     plan_identities = plan_identities_by_condition(plan)
     by_condition: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
@@ -2556,11 +2932,14 @@ def evaluate_acceptance(
         claims = " ".join(CONDITION_CLAIMS.get(cid, ()))
         members = by_condition.get(cid, [])
         # Defensive re-filter (the caller already passes included rows):
-        # only valid, non-excluded runs may satisfy acceptance criteria.
+        # only valid, non-excluded runs without a provenance failure may
+        # satisfy acceptance criteria.
         valid = [
             r
             for r in members
-            if not r.get("excluded") and r.get("validity") in (None, "valid")
+            if not r.get("excluded")
+            and r.get("validity") in (None, "valid")
+            and r.get("execution_mode_status") not in PROVENANCE_BLOCKING_STATUSES
         ]
         not_counted = len(members) - len(valid)
         expected = condition.repetitions * (
@@ -2601,6 +2980,7 @@ def evaluate_acceptance(
         def add(criterion: str, observed: str, passed: bool | None) -> None:
             out.append(
                 {
+                    "execution_mode": mode_group,
                     "condition_id": cid,
                     "claims": claims,
                     "criterion": criterion,
@@ -2974,7 +3354,9 @@ def evaluate_acceptance(
 # ---------------------------------------------------------------------------
 
 
-def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def detect_saturation(
+    rows: list[dict[str, Any]], *, execution_mode: str | None = None
+) -> dict[str, Any]:
     """Evaluate the plan 7.3 saturation criteria on load-sweep runs.
 
     ``rows`` are non-excluded per-run rows; only ``condition_id ==
@@ -3000,7 +3382,16 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     the raw threshold-crossing outcome over the available runs
     (stop-condition rule: the statistical criteria are unchanged beyond
     completeness).
+
+    The rows must belong to ONE execution-mode group (G4, P6): mixed input
+    raises :class:`MixedExecutionModeError`. The document names its group
+    (``execution_mode``, ``execution_mode_label``); ``analyze()`` writes
+    one such document per group into ``saturation.json``
+    (:func:`saturation_document`).
     """
+    mode_group = require_single_execution_mode(
+        rows, what="detect_saturation", execution_mode=execution_mode
+    )
     sweep_condition = CONDITIONS_BY_ID.get("load_sweep")
     expected_per_load = (
         sweep_condition.repetitions if sweep_condition is not None else 0
@@ -3020,9 +3411,10 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if r.get("condition_id") == "load_sweep"
         and isinstance(r.get("rate_msg_s"), (int, float))
         # Defensive re-filter (work order P1b): saturation may only ever
-        # see valid, non-excluded runs.
+        # see valid, non-excluded runs without a provenance failure.
         and not r.get("excluded")
         and r.get("validity") in (None, "valid")
+        and r.get("execution_mode_status") not in PROVENANCE_BLOCKING_STATUSES
     ]
     by_rate: dict[float, list[dict[str, Any]]] = {}
     for row in sweep:
@@ -3172,6 +3564,8 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "generated_by": "egw_experiments.analyze",
         "protocol_version": PROTOCOL_VERSION,
+        "execution_mode": mode_group,
+        "execution_mode_label": execution_mode_label(mode_group),
         "criteria": {
             "loss_rate_gt": SATURATION_LOSS_RATE,
             "latency_ms_p95_gt": SATURATION_P95_MS,
@@ -3227,6 +3621,19 @@ def detect_saturation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def saturation_document(docs: list[dict[str, Any]]) -> dict[str, Any]:
+    """The content of ``saturation.json``: one :func:`detect_saturation`
+    document per execution-mode group, in group order, under
+    ``by_execution_mode``; ``execution_modes`` lists their groups in the
+    same order (``[null]`` for a tree with no included run)."""
+    return {
+        "generated_by": "egw_experiments.analyze",
+        "protocol_version": PROTOCOL_VERSION,
+        "execution_modes": [doc.get("execution_mode") for doc in docs],
+        "by_execution_mode": docs,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Output writing
 # ---------------------------------------------------------------------------
@@ -3273,9 +3680,11 @@ def _run_sort_key(row: dict[str, Any]) -> tuple[int, float, int, str]:
     )
 
 
-def _summary_sort_key(row: dict[str, Any]) -> tuple[int, float]:
+def _summary_sort_key(row: dict[str, Any]) -> tuple[tuple[int, str], int, float]:
+    # Groups first, so each execution mode's rows are contiguous.
     rate = row.get("rate_msg_s")
     return (
+        _group_order(row.get("execution_mode")),
         CONDITION_ORDER.get(row.get("condition_id"), len(CONDITION_ORDER)),
         float(rate) if isinstance(rate, (int, float)) else -1.0,
     )
@@ -3307,15 +3716,54 @@ def admissible_resource_rows(row: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def generate_figures(
-    figures_dir: Path, rows: list[dict[str, Any]]
-) -> list[Path]:
-    """Generate the campaign figures from non-excluded per-run rows.
+#: Columns of ``processed/figures_index.csv``: one row per written figure.
+FIGURES_INDEX_COLUMNS = [
+    "figure_file",
+    "figure",
+    "execution_mode",
+    "execution_mode_label",
+    "title",
+    "n_runs",
+    "run_ids",
+]
 
-    Returns the list of written files. Prints a clear notice and returns an
-    empty list when matplotlib is unavailable (optional dependency) or when
-    there is no load-sweep data yet.
+#: The file-name token of a figure drawn from rows that carry no group
+#: (a direct call with unclassified rows; never the case in analyze()).
+UNCLASSIFIED_FIGURE_TOKEN = "unclassified"
+
+
+def _ascii(text: str) -> str:
+    """``text`` with every non-ASCII character replaced, so that the PNG
+    text chunks hold it verbatim (tEXt is Latin-1)."""
+    return text.encode("ascii", errors="replace").decode("ascii")
+
+
+def generate_figures(
+    figures_dir: Path,
+    rows: list[dict[str, Any]],
+    *,
+    execution_mode: str | None = None,
+) -> list[dict[str, Any]]:
+    """Generate the campaign figures of ONE execution-mode group from its
+    non-excluded per-run rows.
+
+    Rows of more than one group raise :class:`MixedExecutionModeError`
+    before anything is drawn. Every figure is stamped with its group (G4,
+    plan 655-661): the file is ``<stem>.<group>.png``, the title's second
+    line reads ``Execution mode: <group> - <label>``, a footer gives the
+    number of runs drawn and the QEMU version line(s) their manifests
+    record, and the PNG carries ``Title`` and ``Description`` text (ASCII).
+
+    Returns one ``figures_index.csv`` record per written figure
+    (FIGURES_INDEX_COLUMNS). Prints a clear notice and returns an empty
+    list when matplotlib is unavailable (optional dependency) or when the
+    group has no load-sweep data yet.
     """
+    group = require_single_execution_mode(
+        rows, what="generate_figures", execution_mode=execution_mode
+    )
+    label = execution_mode_label(group)
+    token = group if group is not None else UNCLASSIFIED_FIGURE_TOKEN
     try:
         import matplotlib  # type: ignore[import-not-found]
 
@@ -3333,7 +3781,8 @@ def generate_figures(
     ]
     if not sweep:
         print(
-            "notice: no load_sweep runs in results/raw yet; figures skipped"
+            f"notice: no load_sweep runs in execution-mode group {token} in "
+            "results/raw yet; its figures skipped"
         )
         return []
 
@@ -3348,26 +3797,66 @@ def generate_figures(
         ]
         return statistics.fmean(values) if values else None
 
-    written: list[Path] = []
+    mode_line = _ascii(f"Execution mode: {token} - {label}")
+    written: list[dict[str, Any]] = []
+
+    def _stamp_and_save(
+        fig: Any, ax: Any, stem: str, title: str, drawn: list[dict[str, Any]]
+    ) -> None:
+        """Title, footer and PNG text of one figure; save it and index it."""
+        run_ids = sorted({str(r.get("run_id")) for r in drawn})
+        versions = sorted(
+            {str(r["_qemu_version_line"]) for r in drawn if r.get("_qemu_version_line")}
+        )
+        qemu = f"QEMU: {'; '.join(versions)}" if versions else "QEMU version not recorded"
+        footer = _ascii(f"{len(run_ids)} run(s); {qemu}")
+        ax.set_title(f"{title}\n{mode_line}")
+        fig.text(0.01, -0.02, footer, ha="left", va="top", fontsize="small")
+        path = figures_dir / f"{stem}.{token}.png"
+        fig.savefig(
+            path,
+            dpi=150,
+            bbox_inches="tight",
+            metadata={
+                "Title": _ascii(f"{title} / {mode_line}"),
+                "Description": _ascii(
+                    f"{mode_line}; {footer}; runs: {' '.join(run_ids)}"
+                ),
+            },
+        )
+        plt.close(fig)
+        written.append(
+            {
+                "figure_file": path.name,
+                "figure": stem,
+                "execution_mode": group,
+                "execution_mode_label": label,
+                "title": title,
+                "n_runs": len(run_ids),
+                "run_ids": " ".join(run_ids),
+            }
+        )
 
     # 1. Latency percentiles vs load.
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    for metric, label in (
+    for metric, series_label in (
         ("latency_ms_p50", "p50"),
         ("latency_ms_p95", "p95"),
         ("latency_ms_p99", "p99"),
     ):
         ys = [_mean_of(metric, rate) for rate in rates]
-        ax.plot(rates, ys, marker="o", label=label)
+        ax.plot(rates, ys, marker="o", label=series_label)
     ax.set_xlabel("Offered load (msg/s)")
     ax.set_ylabel("Latency (ms), mean of per-run percentiles")
-    ax.set_title("MQTT-to-Ditto latency percentiles vs load")
     ax.legend()
     ax.grid(True, alpha=0.3)
-    path = figures_dir / "latency_percentiles_vs_load.png"
-    fig.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    written.append(path)
+    _stamp_and_save(
+        fig,
+        ax,
+        "latency_percentiles_vs_load",
+        "MQTT-to-Ditto latency percentiles vs load",
+        sweep,
+    )
 
     # 2. Delivery rate vs load (with CI95 error bars when defined).
     fig, ax = plt.subplots(figsize=(7, 4.5))
@@ -3385,23 +3874,30 @@ def generate_figures(
     ax.errorbar(rates, means, yerr=errors, marker="o", capsize=4)
     ax.set_xlabel("Offered load (msg/s)")
     ax.set_ylabel("Delivery rate (unique confirmations / valid sent)")
-    ax.set_title("Delivery rate vs load (mean across runs, CI95)")
     ax.grid(True, alpha=0.3)
-    path = figures_dir / "delivery_rate_vs_load.png"
-    fig.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    written.append(path)
+    _stamp_and_save(
+        fig,
+        ax,
+        "delivery_rate_vs_load",
+        "Delivery rate vs load (mean across runs, CI95)",
+        sweep,
+    )
 
     # 3. Resource usage vs load (per-container mean CPU across runs).
     containers: dict[str, dict[float, list[float]]] = {}
+    resource_runs: list[dict[str, Any]] = []
     for row in sweep:
         rate = float(row["rate_msg_s"])
+        drawn = False
         for res in admissible_resource_rows(row):
             if res.get("cpu_pct_mean") is None:
                 continue
             containers.setdefault(res["container"], {}).setdefault(rate, []).append(
                 float(res["cpu_pct_mean"])
             )
+            drawn = True
+        if drawn:
+            resource_runs.append(row)
     if containers:
         fig, ax = plt.subplots(figsize=(7, 4.5))
         for container in sorted(containers):
@@ -3414,13 +3910,15 @@ def generate_figures(
             ax.plot(rates, ys, marker="o", label=container)
         ax.set_xlabel("Offered load (msg/s)")
         ax.set_ylabel("CPU (%, single-CPU basis, mean across runs)")
-        ax.set_title("Container CPU usage vs load")
         ax.legend(fontsize="small")
         ax.grid(True, alpha=0.3)
-        path = figures_dir / "resource_usage_vs_load.png"
-        fig.savefig(path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
-        written.append(path)
+        _stamp_and_save(
+            fig,
+            ax,
+            "resource_usage_vs_load",
+            "Container CPU usage vs load",
+            resource_runs,
+        )
 
     return written
 
@@ -3442,6 +3940,10 @@ def analyze(
     run identities against the plan instead of counting runs (report 5.4).
     An unreadable or malformed plan degrades to the legacy count check
     with a loud warning; it never aborts the analysis.
+
+    Every aggregate is evaluated once per execution-mode group and never
+    across groups (module docstring, "Execution mode"); a run with a
+    provenance failure is listed and never aggregated, with a loud notice.
 
     Returns 0 on success (including when matplotlib is absent and figures
     are skipped with a notice) and 2 when ``results/raw`` does not exist.
@@ -3518,6 +4020,14 @@ def analyze(
             and row.get("condition_id") in TIMED_CONDITION_IDS
         )
 
+    # Execution-mode provenance gate (G4 core provenance, plan 655-661): a
+    # run whose provenance record declares no mode, an unknown one, or one
+    # its own sealed records do not bear out belongs to no group and never
+    # aggregates, whatever its manifest's validity says. A run without the
+    # record (it predates the field) is 'unrecorded': its own group.
+    def _provenance_blocks(row: dict[str, Any]) -> bool:
+        return row.get("execution_mode_status") in PROVENANCE_BLOCKING_STATUSES
+
     invalid_rows = [r for r in rows if _invalid_validity(r)]
     tampered_rows = [r for r in rows if r.get("integrity_ok") == INTEGRITY_FAILED]
     unsealed_rows = [
@@ -3525,13 +4035,21 @@ def analyze(
         for r in rows
         if r.get("integrity_ok") == INTEGRITY_UNSEALED and _integrity_blocks(r)
     ]
+    provenance_failed = [r for r in rows + external_rows if _provenance_blocks(r)]
+    unrecorded_runs = [
+        r
+        for r in rows + external_rows
+        if r.get("execution_mode_status") == MODE_STATUS_UNRECORDED
+    ]
     included = [
         r
         for r in rows
         if not r["excluded"]
         and not _invalid_validity(r)
         and not _integrity_blocks(r)
+        and not _provenance_blocks(r)
     ]
+    external_included = [e for e in external_rows if not _provenance_blocks(e)]
     excluded_count = sum(1 for r in rows if r["excluded"])
     if excluded_count:
         print(
@@ -3563,6 +4081,28 @@ def analyze(
             "directory, so nothing can be verified; these runs are removed "
             "from summaries, saturation, acceptance and figures (report 5.4)."
         )
+    if provenance_failed:
+        failed_ids = ", ".join(
+            f"{r.get('run_id')} ({r.get('execution_mode_status')})"
+            for r in provenance_failed
+        )
+        print(
+            f"[analyze] EXECUTION-MODE PROVENANCE FAILURE in "
+            f"{len(provenance_failed)} run(s): {failed_ids}. The declared "
+            "execution mode is unset, unknown or not borne out by the run's "
+            "own sealed records (G4 core provenance, plan 655-661); these "
+            "runs belong to no execution-mode group and are removed from "
+            "summaries, saturation, acceptance and figures; they remain "
+            "listed, with the reasons in per_run.csv's warnings."
+        )
+    if unrecorded_runs:
+        unrecorded_ids = ", ".join(str(r.get("run_id")) for r in unrecorded_runs)
+        print(
+            f"[analyze] {len(unrecorded_runs)} run(s) with the execution mode "
+            "NOT RECORDED (manifests predate the field): analysed in their own "
+            f"'{EXECUTION_MODE_UNRECORDED}' group, never pooled with a recorded "
+            f"mode: {unrecorded_ids}"
+        )
 
     _write_csv(processed_dir / "per_run.csv", PER_RUN_COLUMNS, rows)
     _write_csv(
@@ -3571,8 +4111,33 @@ def analyze(
         resources_rows,
     )
 
-    summary_rows = summarize_by_condition(included)
-    summary_rows.extend(summarize_external_durations(external_rows))
+    # One evaluation per execution-mode group (plan 429-432: never pooled).
+    # With no included message run, acceptance and saturation are evaluated
+    # once with no group, as before; the external durations are summarised
+    # per group of the external runs.
+    def _in_group(
+        members: list[dict[str, Any]], group: str | None
+    ) -> list[dict[str, Any]]:
+        return [r for r in members if r.get("execution_mode_group") == group]
+
+    groups: list[str | None] = sorted(
+        {r.get("execution_mode_group") for r in included}, key=_group_order
+    ) or [None]
+    external_groups = sorted(
+        {e.get("execution_mode_group") for e in external_included}, key=_group_order
+    )
+
+    summary_rows: list[dict[str, Any]] = []
+    for group in groups:
+        summary_rows.extend(
+            summarize_by_condition(_in_group(included, group), execution_mode=group)
+        )
+    for group in external_groups:
+        summary_rows.extend(
+            summarize_external_durations(
+                _in_group(external_included, group), execution_mode=group
+            )
+        )
     summary_rows.sort(key=_summary_sort_key)
     _write_csv(
         processed_dir / "summary_by_condition.csv", SUMMARY_COLUMNS, summary_rows
@@ -3587,24 +4152,41 @@ def analyze(
         external_sample_rows,
     )
 
+    acceptance_rows: list[dict[str, Any]] = []
+    saturation_docs: list[dict[str, Any]] = []
+    figures: list[dict[str, Any]] = []
+    for group in groups:
+        members = _in_group(included, group)
+        acceptance_rows.extend(evaluate_acceptance(members, plan, execution_mode=group))
+        saturation_docs.append(detect_saturation(members, execution_mode=group))
+        figures.extend(generate_figures(figures_dir, members, execution_mode=group))
+
     _write_csv(
         processed_dir / "acceptance_by_condition.csv",
         ACCEPTANCE_COLUMNS,
-        evaluate_acceptance(included, plan),
+        acceptance_rows,
     )
 
     (processed_dir / "saturation.json").write_text(
-        json.dumps(detect_saturation(included), indent=2, sort_keys=True) + "\n",
+        json.dumps(saturation_document(saturation_docs), indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
 
-    figures = generate_figures(figures_dir, included)
+    _write_csv(processed_dir / "figures_index.csv", FIGURES_INDEX_COLUMNS, figures)
 
+    group_counts = ", ".join(
+        f"{group} {len(_in_group(included, group))}"
+        for group in groups
+        if group is not None
+    )
     print(
         f"[analyze] {len(rows)} message run(s) processed "
         f"({len(included)} included, {excluded_count} excluded, "
         f"{len(invalid_rows)} invalid, {len(tampered_rows)} integrity "
-        f"failure(s), {len(unsealed_rows)} unsealed timed run(s)); "
+        f"failure(s), {len(unsealed_rows)} unsealed timed run(s), "
+        f"{len(provenance_failed)} execution-mode provenance failure(s)); "
+        f"execution-mode group(s): {group_counts or 'none'}; "
         f"{len(external_rows)} external run(s); "
         f"{len(figures)} figure(s) written to {figures_dir}"
     )

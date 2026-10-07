@@ -9,11 +9,17 @@ import csv
 import json
 import math
 import statistics
+import struct
+import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Callable
+
+import pytest
 
 from egw_experiments import analyze
-from egw_experiments.checksums import write_sha256sums
+from egw_experiments import environment as env_mod
+from egw_experiments.checksums import verify_sha256sums, write_sha256sums
 from egw_experiments.plan_gen import generate_campaign_plan
 
 # Confirmation-deadline rule (CONTRACTS 5, sprint P5): the deadline lives
@@ -90,13 +96,17 @@ def make_run(
     sut_env: dict | None = None,
     sim_totals: dict | None = None,
     seal: bool = True,
+    hypervisor_env: dict | None = None,
+    loadgen_env: dict | None = None,
 ) -> Path:
     """Build one synthetic raw run directory.
 
     ``seal`` writes SHA256SUMS over the finished directory, exactly as
     ``run``/``collect`` do: since sprint P5 the analysis refuses to
     aggregate unsealed TIMED runs (report 5.4), so a fixture that is not
-    sealed is a fixture of an unverifiable run.
+    sealed is a fixture of an unverifiable run. ``hypervisor_env`` and
+    ``loadgen_env`` are the other two environment records of the G4 core
+    provenance, written (like ``sut_env``) before the seal.
     """
     run_dir = base / "raw" / run_id
     run_dir.mkdir(parents=True)
@@ -148,6 +158,14 @@ def make_run(
     if sut_env is not None:
         (run_dir / "sut_environment.json").write_text(
             json.dumps(sut_env) + "\n", "utf-8"
+        )
+    if hypervisor_env is not None:
+        (run_dir / "hypervisor_environment.json").write_text(
+            json.dumps(hypervisor_env) + "\n", "utf-8"
+        )
+    if loadgen_env is not None:
+        (run_dir / "loadgen_environment.json").write_text(
+            json.dumps(loadgen_env) + "\n", "utf-8"
         )
     if seal:
         write_sha256sums(run_dir)
@@ -1655,9 +1673,14 @@ def test_analyze_end_to_end_regenerates_processed_outputs(tmp_path, capsys) -> N
     assert delivery[0]["stdev"] == ""
     assert delivery[0]["ci95_lo"] == ""
 
-    saturation = json.loads(
+    saturation_file = json.loads(
         (base / "processed" / "saturation.json").read_text("utf-8")
     )
+    # One evaluation per execution-mode group (G4, P6): this legacy tree is
+    # the single 'unrecorded' group.
+    assert saturation_file["execution_modes"] == ["unrecorded"]
+    (saturation,) = saturation_file["by_execution_mode"]
+    assert saturation["execution_mode"] == "unrecorded"
     assert saturation["first_saturated_load_msg_s"] is None
     # No load_sweep runs in this fixture: every PLANNED load is listed as
     # insufficient-evidence (work order P1b), never as decided.
@@ -1787,7 +1810,7 @@ def test_invalid_runs_excluded_from_aggregation_but_listed(tmp_path, capsys) -> 
     # planned load stays insufficient-evidence with zero valid runs (P1b).
     saturation = json.loads(
         (base / "processed" / "saturation.json").read_text("utf-8")
-    )
+    )["by_execution_mode"][0]
     assert all(
         load["n_runs"] == 0 and load["verdict"] == "insufficient-evidence"
         for load in saturation["loads"]
@@ -3813,3 +3836,735 @@ def test_per_run_csv_records_confirmation_deadline_source(tmp_path) -> None:
     )
     assert "LEGACY/UNVERIFIABLE" in per_run["nominal-r02"]["warnings"]
     assert "LEGACY/UNVERIFIABLE" not in per_run["nominal-r01"]["warnings"]
+
+
+# ---------------------------------------------------------------------------
+# Execution mode (G4 core provenance, plan 655-661): each run classified from
+# its own sealed records, the modes never pooled, every table and figure
+# stamped
+# ---------------------------------------------------------------------------
+
+MODE_BOOT_ID = "6f1b8d0e-2c55-4c43-9a0e-3f4a5b6c7d8e"
+MODE_QEMU_PID = 4242
+MODE_QEMU_START_UTC = "2026-10-07T11:20:34.560Z"
+MODE_QEMU_VERSION = "QEMU emulator version 8.2.7"
+MODE_ROOTFS = "egw-gateway-image-qemuarm64.rootfs-20260918120819"
+MODE_BROKER = "127.0.0.1"
+MODE_PORT = 8883
+TCG_LABEL = "ARM64 emulated by QEMU/TCG on an x86-64 host"
+UNRECORDED_LABEL = "execution mode NOT RECORDED (manifests predate the field)"
+MODE_COLUMNS = [
+    "execution_mode",
+    "execution_mode_status",
+    "execution_mode_group",
+    "image_identity",
+    "environment_records",
+    "provenance_ok",
+]
+
+
+def _mode_hypervisor_snapshot() -> dict:
+    """One snapshot of hypervisor_environment.json in the shape
+    environment.capture_hypervisor_snapshot writes: the single TCG guest,
+    forwarding the generator's port, beside the load generator."""
+    rootfs_path = f"/images/{MODE_ROOTFS}.ext4"
+    argv = [
+        "/usr/bin/qemu-system-aarch64", "-machine", "virt", "-cpu", "cortex-a76",
+        "-smp", "4", "-m", "8192", "-kernel", "/images/Image",
+        "-drive", f"file={rootfs_path},if=virtio,format=raw",
+        "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{MODE_PORT}-:8883",
+    ]
+    return {
+        "captured_utc": "2026-10-07T12:00:00.000Z",
+        "captured_monotonic_ns": 1_000,
+        "host": {
+            "node": "workstation",
+            "kernel_release": "6.6.87.2-microsoft-standard-WSL2",
+            "machine": "x86_64",
+            "boot_id": MODE_BOOT_ID,
+            "cpu_count": 16,
+            "cpu_affinity_count": 16,
+            "mem_total_kb": 32_000_000,
+            "cpu_model": "x86-64 workstation CPU",
+            "wsl": True,
+        },
+        "qemu": {
+            "found": 1,
+            "pids": [MODE_QEMU_PID],
+            "error": None,
+            "pid": MODE_QEMU_PID,
+            "starttime_ticks": 123_456,
+            "start_utc": MODE_QEMU_START_UTC,
+            "exe_path": "/usr/bin/qemu-system-aarch64",
+            "exe_sha256": "cd" * 32,
+            "version_line": MODE_QEMU_VERSION,
+            "argv": argv,
+            "argv_sha256": "ef" * 32,
+            "parsed": env_mod.parse_qemu_argv(argv),
+            "kernel_sha256": "ab" * 32,
+            "rootfs_path": rootfs_path,
+            "rootfs_image_name": MODE_ROOTFS,
+            "kvm_device_open": False,
+            "accelerator": "tcg",
+            "accelerator_basis": ["KVM is not requested in the argv"],
+            "target_arch": "aarch64",
+        },
+        "colocated_with_loadgen": True,
+        "generator_target_is_this_guest": True,
+        "problems": [],
+    }
+
+
+def _mode_records() -> dict[str, dict | None]:
+    """The three environment records of a consistent tcg-emulated run."""
+    return {
+        "sut": {
+            "role": "sut",
+            "captured_utc": "2026-10-07T12:08:26Z",
+            "node": "egw-qemu-integrated",
+            "uname_a": "Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP "
+                       "PREEMPT aarch64 GNU/Linux",
+            "os_pretty_name": "Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)",
+            "nproc": 4,
+            "provider": "QEMU 8.2.7 TCG on WSL2 Ubuntu-24.04, x86-64 workstation",
+            "region": "local-workstation",
+            "instance_type": "qemu -machine virt -smp 4 -m 8192; ARM64 EMULATED",
+            "shared_vcpu_note": "TCG emulation on a shared x86-64 host",
+        },
+        "hypervisor": {
+            "role": "hypervisor",
+            "record_version": 1,
+            "capture": "harness /proc read on the load-generator host",
+            "start": _mode_hypervisor_snapshot(),
+            "end": _mode_hypervisor_snapshot(),
+        },
+        "loadgen": {
+            "role": "loadgen",
+            "captured_utc": "2026-10-07T12:00:00.000Z",
+            "node": "workstation",
+            "machine": "x86_64",
+            "boot_id": MODE_BOOT_ID,
+        },
+    }
+
+
+def _mode_run(
+    base: Path,
+    run_id: str,
+    mode: Any,
+    *,
+    change: Callable[[dict], None] | None = None,
+    omit_mode_key: bool = False,
+    manifest_extra: dict | None = None,
+    **kwargs: Any,
+) -> Path:
+    """A sealed run whose manifest carries the G4 core provenance (manifest
+    1.5): the declared ``mode``, the three environment refs and records,
+    the image identity and the provenance record computed from those
+    records by environment.provenance_checks, as the harness writes them.
+
+    ``change`` edits the records (``sut``, ``hypervisor``, ``loadgen``; a
+    record set to None is not written) before anything is computed or
+    sealed. The manifest says 'valid' whatever the checks found, so a test
+    sees the analysis apply the checks itself."""
+    records = _mode_records()
+    if change is not None:
+        change(records)
+    checks = env_mod.provenance_checks(
+        execution_mode=mode,
+        sut_env=records["sut"],
+        loadgen_env=records["loadgen"],
+        hypervisor_env=records["hypervisor"],
+        broker=MODE_BROKER,
+        port=MODE_PORT,
+    )
+    manifest = {
+        "manifest_version": "1.5",
+        "execution_mode": mode,
+        "environment_refs": {
+            "loadgen": "loadgen_environment.json",
+            "sut": "sut_environment.json",
+            "hypervisor": "hypervisor_environment.json",
+        },
+        "image_identity": env_mod.image_identity_record(records["hypervisor"]),
+        "provenance": {
+            "rule": env_mod.PROVENANCE_RULE,
+            "declared_by": "--execution-mode",
+            "execution_mode": mode,
+            "checks": checks,
+            "problems": env_mod.provenance_problems(checks),
+        },
+        "config": {
+            "cli": {"broker": MODE_BROKER, "port": MODE_PORT, "execution_mode": mode}
+        },
+        "validity": "valid",
+        "validity_reasons": [],
+    }
+    if omit_mode_key:
+        del manifest["execution_mode"]
+    manifest.update(manifest_extra or {})
+    return make_run(
+        base,
+        run_id,
+        sent=kwargs.pop("sent", [sent_record("m0")]),
+        events=kwargs.pop("events", [event_record("m0", "accepted")]),
+        manifest_extra=manifest,
+        sut_env=records["sut"],
+        hypervisor_env=records["hypervisor"],
+        loadgen_env=records["loadgen"],
+        **kwargs,
+    )
+
+
+def _per_run(base: Path) -> dict[str, dict]:
+    return {r["run_id"]: r for r in _read_csv(base / "processed" / "per_run.csv")}
+
+
+def _csv_header(path: Path) -> list[str]:
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        return next(csv.reader(fh))
+
+
+def _summary_rows(base: Path, condition_id: str, metric: str) -> list[dict]:
+    return [
+        r
+        for r in _read_csv(base / "processed" / "summary_by_condition.csv")
+        if r["condition_id"] == condition_id and r["metric"] == metric
+    ]
+
+
+def test_execution_mode_read_from_manifest_into_per_run(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    _mode_run(
+        base,
+        "nominal-r01",
+        "tcg-emulated",
+        resources_rows=[["2026-09-07T10:00:00.000Z", "egw-controller", 12.5, 1_048_576, 1.2]],
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "PROVENANCE FAILURE" not in out
+
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode"] == "tcg-emulated"
+    assert row["execution_mode_status"] == "recorded"
+    assert row["execution_mode_group"] == "tcg-emulated"
+    assert row["provenance_ok"] == "true"
+    assert row["environment_records"] == "sut+hypervisor+loadgen"
+    assert MODE_ROOTFS in row["image_identity"]
+    assert "provenance:" not in row["warnings"]
+    # The new columns stand beside the run's other provenance column.
+    start = analyze.PER_RUN_COLUMNS.index("resource_source") + 1
+    assert analyze.PER_RUN_COLUMNS[start:start + len(MODE_COLUMNS)] == MODE_COLUMNS
+
+    # Every other table leads with the group of the row.
+    processed = base / "processed"
+    for name in (
+        "resources_by_run.csv",
+        "summary_by_condition.csv",
+        "external_runs.csv",
+        "acceptance_by_condition.csv",
+    ):
+        assert _csv_header(processed / name)[0] == "execution_mode", name
+    for name in (
+        "resources_by_run.csv",
+        "summary_by_condition.csv",
+        "acceptance_by_condition.csv",
+    ):
+        rows = _read_csv(processed / name)
+        assert rows and {r["execution_mode"] for r in rows} == {"tcg-emulated"}, name
+
+
+def test_legacy_run_without_mode_is_unrecorded_and_not_fabricated(
+    tmp_path, capsys
+) -> None:
+    """A run sealed before the field existed keeps its bytes and its seal;
+    the analysis writes no mode for it, only its status and group."""
+    base = tmp_path / "results"
+    run_dir = make_run(
+        base,
+        "nominal-r01",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        sut_env={"role": "sut", "node": "vm", "nproc": 2, "uname_a": "Linux vm aarch64"},
+    )
+    manifest_bytes = (run_dir / "manifest.json").read_bytes()
+    sums_bytes = (run_dir / "SHA256SUMS").read_bytes()
+    files_before = sorted(str(p.relative_to(run_dir)) for p in run_dir.rglob("*"))
+
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+
+    assert (run_dir / "manifest.json").read_bytes() == manifest_bytes
+    assert (run_dir / "SHA256SUMS").read_bytes() == sums_bytes
+    assert sorted(str(p.relative_to(run_dir)) for p in run_dir.rglob("*")) == files_before
+    assert verify_sha256sums(run_dir) == []
+    assert "execution_mode" not in json.loads(manifest_bytes)
+
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode"] == ""
+    assert row["execution_mode_status"] == "unrecorded"
+    assert row["execution_mode_group"] == "unrecorded"
+    assert row["provenance_ok"] == ""
+    assert row["image_identity"] == ""
+    assert row["environment_records"] == "sut"
+    assert "provenance:" not in row["warnings"]
+    # Aggregated as before, but only in its own labelled group.
+    (delivery,) = _summary_rows(base, "nominal", "delivery_rate")
+    assert delivery["execution_mode"] == "unrecorded"
+    assert delivery["n_runs"] == "1"
+    assert "NOT RECORDED" in out and "nominal-r01" in out
+    assert "PROVENANCE FAILURE" not in out
+
+
+@pytest.mark.parametrize("omit_key", [False, True], ids=["null", "absent"])
+def test_new_manifest_with_unset_mode_is_excluded_even_if_valid(
+    tmp_path, capsys, omit_key
+) -> None:
+    base = tmp_path / "results"
+    _mode_run(
+        base,
+        "nominal-r01",
+        "tcg-emulated",
+        events=[event_record("m0", "accepted", latency_ms=10.0)],
+    )
+    _mode_run(
+        base,
+        "nominal-r02",
+        None,
+        omit_mode_key=omit_key,
+        manifest_extra={"repetition": 2},
+        events=[event_record("m0", "accepted", latency_ms=99.0)],
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "PROVENANCE FAILURE" in out and "nominal-r02" in out
+
+    row = _per_run(base)["nominal-r02"]
+    assert row["validity"] == "valid"  # the manifest's own verdict, kept
+    assert row["execution_mode"] == ""
+    assert row["execution_mode_status"] == "unset"
+    assert row["execution_mode_group"] == ""
+    assert row["provenance_ok"] == "false"
+    assert "provenance: P0: " in row["warnings"]
+    # Only the recorded run is aggregated.
+    (latency,) = _summary_rows(base, "nominal", "latency_ms_mean")
+    assert latency["execution_mode"] == "tcg-emulated"
+    assert latency["n_runs"] == "1" and float(latency["mean"]) == 10.0
+
+
+def test_unknown_mode_value_is_excluded(tmp_path, capsys) -> None:
+    base = tmp_path / "results"
+    _mode_run(base, "nominal-r01", "kvm")
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "PROVENANCE FAILURE" in out and "nominal-r01" in out
+
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode"] == "kvm"  # verbatim, never corrected
+    assert row["execution_mode_status"] == "unknown"
+    assert row["execution_mode_group"] == ""
+    assert row["provenance_ok"] == "false"
+    assert "provenance: P0: " in row["warnings"] and "'kvm'" in row["warnings"]
+    assert _summary_rows(base, "nominal", "delivery_rate") == []
+
+
+def test_wrong_provenance_native_manifest_with_emulated_guest_is_rejected(
+    tmp_path, capsys
+) -> None:
+    """The wrong-provenance regression (runbook section 9, item 4): a run
+    declared native-kvm whose guest record states emulation and whose local
+    QEMU takes the generator's port is listed, never aggregated."""
+    base = tmp_path / "results"
+    _mode_run(base, "nominal-r01", "native-kvm")
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "PROVENANCE FAILURE" in out and "nominal-r01" in out
+
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode"] == "native-kvm"
+    assert row["execution_mode_status"] == "inconsistent"
+    assert row["execution_mode_group"] == ""
+    assert row["provenance_ok"] == "false"
+    for check in ("N0", "N1", "N2", "N3"):
+        assert f"provenance: {check}: " in row["warnings"], check
+    assert "no native provenance capture exists in this harness" in row["warnings"]
+    assert _summary_rows(base, "nominal", "delivery_rate") == []
+    saturation = json.loads((base / "processed" / "saturation.json").read_text("utf-8"))
+    assert "native-kvm" not in saturation["execution_modes"]
+
+
+def test_wrong_image_provenance_is_rejected(tmp_path, capsys) -> None:
+    def no_kernel_identity(records: dict) -> None:
+        records["hypervisor"]["start"]["qemu"]["kernel_sha256"] = None
+
+    base = tmp_path / "results"
+    _mode_run(base, "nominal-r01", "tcg-emulated", change=no_kernel_identity)
+    assert analyze.analyze(base_dir=base) == 0
+    assert "PROVENANCE FAILURE" in capsys.readouterr().out
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode_status"] == "inconsistent"
+    assert "provenance: I1: " in row["warnings"] and "kernel_sha256" in row["warnings"]
+    assert _summary_rows(base, "nominal", "delivery_rate") == []
+
+
+def test_emulated_run_missing_hypervisor_record_is_rejected(tmp_path, capsys) -> None:
+    def no_hypervisor_record(records: dict) -> None:
+        records["hypervisor"] = None
+
+    base = tmp_path / "results"
+    _mode_run(base, "nominal-r01", "tcg-emulated", change=no_hypervisor_record)
+    assert analyze.analyze(base_dir=base) == 0
+    assert "PROVENANCE FAILURE" in capsys.readouterr().out
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode_status"] == "inconsistent"
+    assert row["environment_records"] == "sut+loadgen"
+    assert "provenance: H1: " in row["warnings"]
+    assert _summary_rows(base, "nominal", "delivery_rate") == []
+
+
+def test_tcg_mode_with_kvm_accel_is_rejected(tmp_path, capsys) -> None:
+    def kvm_guest(records: dict) -> None:
+        for snapshot in ("start", "end"):
+            qemu = records["hypervisor"][snapshot]["qemu"]
+            qemu["parsed"]["accel_requests"] = ["kvm"]
+            qemu["parsed"]["kvm_requested"] = True
+            qemu["kvm_device_open"] = True
+            qemu["accelerator"] = "kvm"
+
+    base = tmp_path / "results"
+    _mode_run(base, "nominal-r01", "tcg-emulated", change=kvm_guest)
+    assert analyze.analyze(base_dir=base) == 0
+    assert "PROVENANCE FAILURE" in capsys.readouterr().out
+    row = _per_run(base)["nominal-r01"]
+    assert row["execution_mode_status"] == "inconsistent"
+    assert "provenance: H3: " in row["warnings"]
+    assert _summary_rows(base, "nominal", "delivery_rate") == []
+
+
+def test_the_checks_are_re_applied_to_the_sealed_records(tmp_path) -> None:
+    """The manifest's own provenance record is never trusted: a run whose
+    manifest records clean checks but whose sealed guest record says x86-64
+    is inconsistent."""
+    clean = json.loads(
+        (_mode_run(tmp_path / "a", "nominal-r01", "tcg-emulated") / "manifest.json")
+        .read_text("utf-8")
+    )["provenance"]
+    assert clean["problems"] == []
+
+    def x86_guest(records: dict) -> None:
+        records["sut"]["uname_a"] = "Linux box 6.6.87 #1 SMP x86_64 GNU/Linux"
+
+    run_dir = _mode_run(
+        tmp_path / "b",
+        "nominal-r01",
+        "tcg-emulated",
+        change=x86_guest,
+        manifest_extra={"provenance": clean},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["execution_mode_status"] == "inconsistent"
+    assert row["provenance_ok"] is False
+    assert "provenance: G2: " in row["warnings"]
+
+
+def test_a_manifest_naming_two_modes_is_inconsistent(tmp_path) -> None:
+    """The group key must be unambiguous: the top-level declaration and the
+    provenance record's copy of it must agree."""
+    provenance = json.loads(
+        (_mode_run(tmp_path / "a", "nominal-r01", "tcg-emulated") / "manifest.json")
+        .read_text("utf-8")
+    )["provenance"]
+    provenance["execution_mode"] = "native-kvm"
+    run_dir = _mode_run(
+        tmp_path / "b",
+        "nominal-r01",
+        "tcg-emulated",
+        manifest_extra={"provenance": provenance},
+    )
+    row = analyze.compute_run_metrics(run_dir)
+    assert row["execution_mode_status"] == "inconsistent"
+    assert row["execution_mode_group"] is None
+    assert "differs from the provenance record" in row["warnings"]
+
+
+def _two_group_rows(name: str) -> list[dict]:
+    groups = ("tcg-emulated", "unrecorded")
+    if name == "summarize_external_durations":
+        return [
+            {
+                "run_id": f"cold_start-r0{i}",
+                "condition_id": "cold_start",
+                "integrity_ok": analyze.INTEGRITY_OK,
+                "excluded": False,
+                "duration_mean_s": 30.0,
+                "execution_mode_group": group,
+            }
+            for i, group in enumerate(groups, start=1)
+        ]
+    if name in ("detect_saturation", "generate_figures"):
+        return [_sweep_row(10.0, 0.0, 100.0, execution_mode_group=g) for g in groups]
+    return [_acc_row("nominal", execution_mode_group=g) for g in groups]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "summarize_by_condition",
+        "summarize_external_durations",
+        "evaluate_acceptance",
+        "detect_saturation",
+        "generate_figures",
+    ],
+)
+def test_aggregators_refuse_mixed_execution_modes(tmp_path, name) -> None:
+    calls = {
+        "summarize_by_condition": analyze.summarize_by_condition,
+        "summarize_external_durations": analyze.summarize_external_durations,
+        "evaluate_acceptance": analyze.evaluate_acceptance,
+        "detect_saturation": analyze.detect_saturation,
+        "generate_figures": lambda rows: analyze.generate_figures(tmp_path, rows),
+    }
+    rows = _two_group_rows(name)
+    with pytest.raises(analyze.MixedExecutionModeError, match="tcg-emulated"):
+        calls[name](rows)
+    # A run outside every group (a provenance failure) mixed with a group is
+    # refused as well: the caller must leave it out.
+    blocked = dict(rows[0], execution_mode_group=None)
+    with pytest.raises(analyze.MixedExecutionModeError):
+        calls[name]([rows[0], blocked])
+    assert issubclass(analyze.MixedExecutionModeError, ValueError)
+
+
+def test_each_aggregator_stamps_its_single_group() -> None:
+    rows = [_sweep_row(10.0, 0.0, 100.0, execution_mode_group="tcg-emulated")]
+    summary = analyze.summarize_by_condition(rows)
+    assert summary and {r["execution_mode"] for r in summary} == {"tcg-emulated"}
+    acceptance = analyze.evaluate_acceptance(rows)
+    assert {r["execution_mode"] for r in acceptance} == {"tcg-emulated"}
+    saturation = analyze.detect_saturation(rows)
+    assert saturation["execution_mode"] == "tcg-emulated"
+    assert saturation["execution_mode_label"] == TCG_LABEL
+    external = analyze.summarize_external_durations(
+        [
+            {
+                "condition_id": "cold_start",
+                "integrity_ok": analyze.INTEGRITY_OK,
+                "excluded": False,
+                "duration_mean_s": 30.0,
+                "execution_mode_group": "unrecorded",
+            }
+        ]
+    )
+    assert [r["execution_mode"] for r in external] == ["unrecorded"]
+    # With no row the group is the one named, or None (the evaluation of an
+    # empty tree, as before).
+    named = analyze.evaluate_acceptance([], execution_mode="unrecorded")
+    assert {r["execution_mode"] for r in named} == {"unrecorded"}
+    assert {r["execution_mode"] for r in analyze.evaluate_acceptance([])} == {None}
+    assert analyze.detect_saturation([])["execution_mode"] is None
+    assert analyze.detect_saturation([], execution_mode="unrecorded")[
+        "execution_mode_label"
+    ] == UNRECORDED_LABEL
+    # A named group must be the rows' group.
+    with pytest.raises(analyze.MixedExecutionModeError):
+        analyze.detect_saturation(rows, execution_mode="unrecorded")
+
+
+def test_analyze_never_pools_modes_end_to_end(tmp_path, capsys, monkeypatch) -> None:
+    """One nominal run per group, each with its own delivery rate: three
+    groups, each evaluated on its own run only, every table row stamped."""
+    real_checks = analyze.provenance_checks
+
+    def with_a_native_capture(**kwargs: Any) -> list[dict]:
+        # This harness has no native capture (N0 always fails); a stand-in
+        # lets one native-kvm run be 'recorded' so that three groups exist.
+        if kwargs["execution_mode"] == "native-kvm":
+            return [{"check": "P0", "ok": True, "detail": "stand-in native capture"}]
+        return real_checks(**kwargs)
+
+    monkeypatch.setattr(analyze, "provenance_checks", with_a_native_capture)
+    base = tmp_path / "results"
+    mids = [f"m{i}" for i in range(5)]
+    sent = [sent_record(m, i) for i, m in enumerate(mids)]
+    _mode_run(
+        base,
+        "nominal-r01",
+        "tcg-emulated",
+        sent=sent,
+        events=[event_record(m, "accepted") for m in mids],
+    )
+    _mode_run(
+        base,
+        "nominal-r02",
+        "native-kvm",
+        sent=sent,
+        events=[event_record(m, "accepted") for m in mids[:1]],
+        manifest_extra={"repetition": 2},
+    )
+    make_run(
+        base,
+        "nominal-r03",
+        sent=sent,
+        events=[event_record(m, "accepted") for m in mids[:3]],
+        manifest_extra={"repetition": 3},
+        resources_rows=[["2026-09-07T10:00:00.000Z", "egw-controller", 12.5, 1_048_576, 1.2]],
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    out = capsys.readouterr().out
+    assert "PROVENANCE FAILURE" not in out
+    order = ["tcg-emulated", "native-kvm", "unrecorded"]
+
+    per_run = _per_run(base)
+    assert [per_run[f"nominal-r0{i}"]["execution_mode_group"] for i in (1, 2, 3)] == order
+
+    processed = base / "processed"
+    delivery = _summary_rows(base, "nominal", "delivery_rate")
+    assert [(r["execution_mode"], r["n_runs"], float(r["mean"])) for r in delivery] == [
+        ("tcg-emulated", "1", 1.0),
+        ("native-kvm", "1", 0.2),
+        ("unrecorded", "1", 0.6),
+    ]
+    assert {r["execution_mode"] for r in _read_csv(processed / "summary_by_condition.csv")} == set(order)
+
+    # A full acceptance evaluation per group, in group order.
+    acceptance = _read_csv(processed / "acceptance_by_condition.csv")
+    per_group = len(acceptance) // len(order)
+    assert [r["execution_mode"] for r in acceptance] == [g for g in order for _ in range(per_group)]
+    for group in order:
+        complete = next(
+            r
+            for r in acceptance
+            if r["execution_mode"] == group
+            and r["condition_id"] == "nominal"
+            and r["criterion"] == "runs_complete"
+        )
+        assert complete["n_runs"] == "1", group
+
+    saturation = json.loads((processed / "saturation.json").read_text("utf-8"))
+    assert set(saturation) == {
+        "generated_by",
+        "protocol_version",
+        "execution_modes",
+        "by_execution_mode",
+    }
+    assert saturation["execution_modes"] == order
+    docs = saturation["by_execution_mode"]
+    assert [d["execution_mode"] for d in docs] == order
+    assert [d["execution_mode_label"] for d in docs] == [
+        TCG_LABEL,
+        "ARM64 native under KVM",
+        UNRECORDED_LABEL,
+    ]
+    assert all(load["n_runs"] == 0 for d in docs for load in d["loads"])
+
+    assert {r["execution_mode"] for r in _read_csv(processed / "resources_by_run.csv")} == {
+        "unrecorded"
+    }
+    # No load-sweep run: no figure, and an index that says so.
+    assert _csv_header(processed / "figures_index.csv") == [
+        "figure_file",
+        "figure",
+        "execution_mode",
+        "execution_mode_label",
+        "title",
+        "n_runs",
+        "run_ids",
+    ]
+    assert _read_csv(processed / "figures_index.csv") == []
+
+
+def test_external_runs_are_unrecorded_and_stamped(tmp_path, capsys) -> None:
+    """External runs carry no provenance record (out of scope for the run
+    side): they are 'unrecorded' and stamped as such."""
+    base = tmp_path / "results"
+    make_external_run(
+        base,
+        "cold_start-r01",
+        "cold_start",
+        [{"label": "c1", "duration_s": 30.0}],
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    capsys.readouterr()
+    listing = _read_csv(base / "processed" / "external_runs.csv")
+    assert [r["execution_mode"] for r in listing] == ["unrecorded"]
+    (duration,) = _summary_rows(base, "cold_start", "duration_s")
+    assert duration["execution_mode"] == "unrecorded"
+
+
+def _png_text(path: Path) -> dict[str, str]:
+    """The text chunks (tEXt, zTXt, iTXt) of a PNG file, by keyword."""
+    data = path.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    texts: dict[str, str] = {}
+    pos = 8
+    while pos + 8 <= len(data):
+        (length,) = struct.unpack(">I", data[pos:pos + 4])
+        kind = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if kind == b"tEXt":
+            key, _, value = body.partition(b"\0")
+            texts[key.decode("latin-1")] = value.decode("latin-1")
+        elif kind == b"zTXt":
+            key, _, rest = body.partition(b"\0")
+            texts[key.decode("latin-1")] = zlib.decompress(rest[1:]).decode("latin-1")
+        elif kind == b"iTXt":
+            key, _, rest = body.partition(b"\0")
+            compressed, rest = rest[0], rest[2:]
+            _language, _, rest = rest.partition(b"\0")
+            _translated, _, value = rest.partition(b"\0")
+            texts[key.decode("latin-1")] = (
+                zlib.decompress(value) if compressed else value
+            ).decode("utf-8")
+        elif kind == b"IEND":
+            break
+    return texts
+
+
+def test_figures_are_stamped_with_execution_mode(tmp_path, capsys) -> None:
+    pytest.importorskip("matplotlib")
+    base = tmp_path / "results"
+    sweep = {"condition_id": "load_sweep", "scenario": "load-sweep", "rate_msg_s": 10.0}
+    _mode_run(base, "load_sweep-010mps-r01", "tcg-emulated", manifest_extra=sweep)
+    make_run(
+        base,
+        "load_sweep-010mps-r02",
+        sent=[sent_record("m0")],
+        events=[event_record("m0", "accepted")],
+        manifest_extra={**sweep, "repetition": 2},
+    )
+    assert analyze.analyze(base_dir=base) == 0
+    capsys.readouterr()
+
+    figures = base / "figures"
+    names = sorted(p.name for p in figures.glob("*.png"))
+    assert names == [
+        "delivery_rate_vs_load.tcg-emulated.png",
+        "delivery_rate_vs_load.unrecorded.png",
+        "latency_percentiles_vs_load.tcg-emulated.png",
+        "latency_percentiles_vs_load.unrecorded.png",
+    ]
+    index = _read_csv(base / "processed" / "figures_index.csv")
+    assert sorted(entry["figure_file"] for entry in index) == names
+    groups = {rid: r["execution_mode_group"] for rid, r in _per_run(base).items()}
+    for entry in index:
+        run_ids = entry["run_ids"].split()
+        # No figure draws on runs of two groups.
+        assert run_ids and {groups[rid] for rid in run_ids} == {entry["execution_mode"]}
+        assert entry["n_runs"] == str(len(run_ids))
+        assert entry["figure_file"] == f"{entry['figure']}.{entry['execution_mode']}.png"
+        text = _png_text(figures / entry["figure_file"])
+        stamp = f"Execution mode: {entry['execution_mode']} - {entry['execution_mode_label']}"
+        assert entry["title"] in text["Title"] and stamp in text["Title"]
+        assert stamp in text["Description"]
+        assert f"{entry['n_runs']} run(s)" in text["Description"]
+
+    by_file = {entry["figure_file"]: entry for entry in index}
+    emulated = by_file["latency_percentiles_vs_load.tcg-emulated.png"]
+    assert emulated["execution_mode_label"] == TCG_LABEL
+    assert emulated["run_ids"] == "load_sweep-010mps-r01"
+    assert MODE_QEMU_VERSION in _png_text(figures / emulated["figure_file"])["Description"]
+    legacy = by_file["latency_percentiles_vs_load.unrecorded.png"]
+    assert legacy["execution_mode_label"] == UNRECORDED_LABEL
+    assert "QEMU version not recorded" in _png_text(figures / legacy["figure_file"])["Description"]

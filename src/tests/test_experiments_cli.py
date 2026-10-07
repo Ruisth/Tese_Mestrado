@@ -436,6 +436,15 @@ def test_analyze_usage_and_help_document_plan_and_env_fallback(capsys) -> None:
     assert "IDENTITY-based" in help_text
 
 
+def test_analyze_takes_no_execution_mode_option(capsys) -> None:
+    """The execution mode comes from each run's own records, with no
+    default: the analysis has no option that sets, overrides or filters it
+    (G4 core provenance, plan 655-661)."""
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["analyze", "--execution-mode", "tcg-emulated"])
+    capsys.readouterr()
+
+
 def _empty_results_tree(tmp_path: Path) -> Path:
     base = tmp_path / "results"
     (base / "raw").mkdir(parents=True)

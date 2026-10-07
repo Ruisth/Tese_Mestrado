@@ -1020,6 +1020,46 @@ count and run_ids is printed. They remain fully listed in `per_run.csv`
 with their validity flag (visibility without contamination). Manifests
 WITHOUT a validity key (legacy raw runs) are treated as valid.
 
+### Execution mode in the analysis (G4 core provenance, plan 655-661)
+
+Execution modes are never pooled into one statistic or aggregate (plan
+429-432). `analyze` classifies every run from its own sealed files, never
+from a label and never with a default (`execution_mode_status` in
+`per_run.csv`):
+
+- `unrecorded` — the manifest carries no `provenance` record: it predates
+  the field (manifest 1.4 and older), or it is an external run
+  (`run --external-timings` writes no provenance record). Such a run is
+  analysed in its own group, labelled "execution mode NOT RECORDED
+  (manifests predate the field)", so a legacy tree yields the numbers it
+  always did. Nothing is fabricated for it: `raw/` is never touched, its
+  `execution_mode` cell stays blank, and its bytes and seal are unchanged;
+- `recorded` — a provenance record, a declared mode in
+  `tcg-emulated`/`native-kvm`/`native-metal`, and no failed check when the
+  provenance checks (`egw_experiments.environment.provenance_checks`, the
+  same function the harness and `collect` use) are applied again to the
+  run's sealed `sut_environment.json`, `hypervisor_environment.json` and
+  `loadgen_environment.json`, with the broker and port echoed in the
+  manifest's `config.cli`. The manifest's own record of the checks is not
+  trusted;
+- `unset`, `unknown`, `inconsistent` — a provenance record whose declared
+  mode is null, outside the vocabulary, or not borne out by the run's
+  records (or named differently by the manifest's top level and its
+  provenance record). These are provenance failures: listed in
+  `per_run.csv` with the reasons in `warnings`, announced by an
+  `EXECUTION-MODE PROVENANCE FAILURE` line, and never aggregated, even when
+  the manifest says `valid`. A run declared `native-kvm` or `native-metal`
+  is always `inconsistent` here: this harness has no native provenance
+  capture (check N0).
+
+Every aggregate — summaries, external durations, acceptance, saturation
+and figures — is evaluated once per group (a recorded mode, or
+`unrecorded`) and refuses mixed input itself (`MixedExecutionModeError`).
+A tree with no included run is evaluated once with no group, as before.
+There is no option to set, override or filter the mode, no
+`processed/<mode>/` directory, and no change to any validity rule: the
+provenance gate is added, for the runs that carry the record.
+
 ## Measured window (audit 9.4)
 
 The manifest records `measured_window_utc` {start, end} — harness
@@ -1055,12 +1095,18 @@ everything from `results/raw/` alone:
   (`events_accepted_total`, `metrics_accepted_delta`), the simulator
   totals `dropout_disconnects`/`buffered_dropout` (read from the
   simulator's own manifest under `logs/simulator/`) and
-  `restart_hook_ok`;
+  `restart_hook_ok`; and the execution-mode columns (see "Execution mode
+  in the analysis" above): `execution_mode` (the manifest value verbatim,
+  blank when absent), `execution_mode_status`, `execution_mode_group`
+  (blank for a provenance failure), `image_identity` (short form: rootfs
+  image name, kernel and QEMU executable digests), `environment_records`
+  (for example `sut+hypervisor+loadgen`) and `provenance_ok`;
 - `processed/resources_by_run.csv` — per-container CPU/memory aggregates
   over the measured window;
 - `processed/summary_by_condition.csv` — cross-run statistics (unit of
-  analysis = run): mean, stdev, 95% CI via Student t (hardcoded t-table,
-  documented in `analyze.py`; no scipy), median, p25/p75, min, max. The
+  analysis = run) per execution-mode group: mean, stdev, 95% CI via
+  Student t (hardcoded t-table, documented in `analyze.py`; no scipy),
+  median, p25/p75, min, max. The
   soak run is summarized descriptively without a CI (plan 7.3). Includes
   `duration_s` statistics for the external `cold_start` and
   `twin_creation` conditions; `qemu_boots` deliberately gets NO
@@ -1076,17 +1122,38 @@ everything from `results/raw/` alone:
   and buffered events in every run, metrics reconciliation),
   `controller_restart` (executed restart hook in every run, delivery
   across the restart, zero double-accepted message_ids) and the `soak`
-  Definition of Done;
-- `processed/saturation.json` — the plan 7.3 saturation evaluation per
-  load, including the queue-growth criterion (persistent `queue_depth`
+  Definition of Done — one full set per execution-mode group;
+- `processed/saturation.json` — `{generated_by, protocol_version,
+  execution_modes, by_execution_mode}`: `by_execution_mode` holds one
+  document per execution-mode group (in the order of `execution_modes`;
+  a single document with `execution_mode` null for a tree with no
+  included run), each the plan 7.3 saturation evaluation per load with
+  its `execution_mode` and `execution_mode_label`, including the
+  queue-growth criterion (persistent `queue_depth`
   growth: strictly increasing over a >= 60 s window with every sample
   above the floor of 100) and the host-level CPU criterion — both marked
   PENDING ADVISOR SIGN-OFF before `exp-v1`. Every PLANNED sweep load is
   listed with a `verdict`: `saturated`, `not-saturated` or
   `insufficient-evidence` (see "Saturation evidence sufficiency" below);
-- `figures/*.png` — generated only when `matplotlib` is importable
+- `processed/figures_index.csv` — one row per figure: `figure_file`,
+  `figure`, `execution_mode`, `execution_mode_label`, `title`, `n_runs`
+  and `run_ids`, so every figure's group and source runs can be checked
+  without opening it;
+- `figures/<stem>.<group>.png` (for example
+  `latency_percentiles_vs_load.tcg-emulated.png`) — one set per
+  execution-mode group, each stamped with a second title line
+  `Execution mode: <group> - <label>`, a footer with the number of runs
+  drawn and their QEMU version line(s), and PNG `Title`/`Description`
+  text; generated only when `matplotlib` is importable
   (install with `pip install -e src[analysis]`); without it the command
   prints a notice, still regenerates all tables, and exits 0.
+
+`resources_by_run.csv`, `summary_by_condition.csv`, `external_runs.csv`
+and `acceptance_by_condition.csv` lead with an `execution_mode` column:
+the group of the row (blank for a provenance failure, and for the
+evaluation of a tree with no included run). The label of
+`tcg-emulated` is the plan's wording, "ARM64 emulated by QEMU/TCG on an
+x86-64 host" (plan 590-591).
 
 CPU semantics (audit 9.7): docker-stats `cpu_pct` is single-CPU based;
 per-container values are reported raw, and host-level utilization is
@@ -1158,7 +1225,8 @@ sample or for at most 5 s; time before the first sample is uncovered).
 
 ### Saturation evidence sufficiency (work order P1b)
 
-`saturation.json` lists every PLANNED sweep load (10/50/100/250 msg/s). A
+Each execution-mode group's document in `saturation.json` lists every
+PLANNED sweep load (10/50/100/250 msg/s), counting that group's runs only. A
 load's `verdict` is decided ONLY when the planned 10 valid runs exist at
 that load AND every run carries the required instrumentation: host-CPU
 criterion evaluable (nproc + SUT resources), resources coverage >= 90% of
