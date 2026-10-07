@@ -197,8 +197,9 @@ process, read from ``/proc`` before the collector start hook and again after
 the collector stop hook, never between the run-end stamp and the controller
 marker). The declaration is checked against them
 (:func:`egw_experiments.environment.provenance_checks`, on the run's own
-files); an unset mode and every failed check is a validity reason of the run,
-timed or not, with no override, and the run is still sealed. The manifest
+files); an unset mode and every failed check except the advisory G5 is a
+validity reason of the run, timed or not, with no override, and the run is
+still sealed. The manifest
 records ``execution_mode``, ``image_identity`` and ``provenance``. ``collect``
 re-checks a run that carries the ``provenance`` record, on its sealed files
 (the hypervisor is never captured after the fact), and leaves every other run
@@ -417,7 +418,8 @@ SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
 # hypervisor record's start snapshot, a reference to 'image_digests' and the
 # controller image id of the configuration identity, each null when not
 # read), 'provenance' ({rule, declared_by, execution_mode, checks: [{check,
-# ok, detail}], problems}) and 'config.cli.execution_mode';
+# ok, detail}, the advisory G5 with 'advisory': true], problems}) and
+# 'config.cli.execution_mode';
 # loadgen_environment.json gains the boot id, the CPU affinity, MemTotal, the
 # CPU model, the Python executable and both simulator invocations (password
 # redacted). Every 'provenance.problems' entry is a validity reason of the

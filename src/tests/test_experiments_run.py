@@ -630,12 +630,15 @@ def test_allow_missing_flags_record_deliberate_decision(
     manifest = _manifest(base, "smoke_sequence-r01")
     # The allow flags suppress their own reasons and nothing else: the G4
     # core provenance (plan 655-661) has no allow flag, and a TCG run without
-    # its guest record cannot show which guest it measured.
+    # its guest record cannot show which guest it measured. G5 fails too but
+    # is advisory: recorded in the checks, never a validity reason.
     assert rc == 1
     assert manifest["validity"] == "invalid"
     assert [r.split(":")[1].strip() for r in manifest["validity_reasons"]] == [
-        "G1", "G2", "G3", "G4", "G5",
+        "G1", "G2", "G3", "G4",
     ]
+    g5 = next(c for c in manifest["provenance"]["checks"] if c["check"] == "G5")
+    assert g5["ok"] is False and g5["advisory"] is True
     assert all(r.startswith("provenance: G") for r in manifest["validity_reasons"])
     assert (base / "raw" / "smoke_sequence-r01" / "SHA256SUMS").is_file()
     assert manifest["allow_missing_sut_env"] is True
@@ -8737,15 +8740,21 @@ def test_a_load_generator_record_given_as_the_guest_record_fails_g1_and_g2(
     assert "provenance: G1: the guest record's role is 'loadgen', not 'sut'" in manifest["validity_reasons"]
 
 
-def test_a_guest_record_older_than_the_qemu_process_fails_g5(tmp_path, plan_path, fast_run) -> None:
-    """A guest record captured before this QEMU process started describes
-    another guest instance (the Package D finding)."""
+def test_a_guest_record_older_than_the_qemu_process_is_an_advisory_g5(tmp_path, plan_path, fast_run) -> None:
+    """A guest record captured before the QEMU start is recorded as a failed
+    G5, which is advisory: the start is derived from the host's btime at the
+    snapshot and moves with the host's wall-clock steps, so G5 can fail a
+    good run. The guard against a stale record is the session procedure (the
+    preflight captures the guest record after the boot), not this check."""
     rc, _run_dir, manifest = _provenance_run(
         tmp_path, plan_path, sut_env_from=_sut_env_file(tmp_path, captured_utc="2026-09-07T08:59:59Z")
     )
-    assert rc == 1
+    assert rc == 0
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
     assert _failed_checks(manifest) == ["G5"]
-    assert "predates this QEMU process" in manifest["validity_reasons"][0]
+    g5 = next(c for c in manifest["provenance"]["checks"] if c["check"] == "G5")
+    assert g5["advisory"] is True and "predates this QEMU process" in g5["detail"]
+    assert manifest["provenance"]["problems"] == []
 
 
 def test_an_unknown_execution_mode_is_refused_before_anything_is_written(

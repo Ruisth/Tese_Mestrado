@@ -1104,6 +1104,25 @@ def test_campaign_passes_the_declared_execution_mode_to_every_run(
     assert seen == {rid: ["native-kvm", None] for rid in SIM_RUN_IDS}
 
 
+@pytest.mark.parametrize("mode", ["TCG-emulated", "emulated-qemu-tcg"])
+def test_campaign_refuses_an_unknown_execution_mode_before_writing_anything(
+    plan_path, fake_env, capsys, mode
+) -> None:
+    """An API caller's token outside EXECUTION_MODES is a usage error, refused
+    with exit 2 before the campaign log or any run directory is written, as
+    execute_run refuses it (spec 2.2)."""
+    kwargs = {k: v for k, v in fake_env.kwargs.items() if k != "execution_mode"}
+    plan_before = plan_path.read_bytes()
+    rc = campaign_mod.run_campaign(plan_path, execution_mode=mode, **kwargs)
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert repr(mode) in err and "--execution-mode has no default" in err
+    assert fake_env.calls == []
+    assert not (fake_env.base / campaign_mod.CAMPAIGN_LOG_FILENAME).exists()
+    assert not (fake_env.base / "raw").exists()
+    assert plan_path.read_bytes() == plan_before
+
+
 def test_a_campaign_run_without_an_execution_mode_is_recorded_invalid(
     plan_path, fake_env
 ) -> None:
