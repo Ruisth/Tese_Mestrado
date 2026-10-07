@@ -2,6 +2,13 @@
 
 **Written:** 2026-10-07.
 **Status: PROPOSED — for the student's decision, not adopted.**
+*(Marker added 2026-10-07: the student accepted G3 on that date, as the
+functional P0 freeze on the documented emulated candidate, with the
+qualifications of the Project Manager's opinion. The decision is the
+student's approval, transcribed in the
+[decision record](../decisions/2026-10-07-g3-closure.md); it is not this
+proposal, which is kept as written; the accepted row drafted in section 8 is not itself
+the adoption.)*
 
 > **A proposal, not a decision. G3 stays `Not decided`** in the
 > [gate-decision log](../gate_decision_log.md) until the student (Rui Duarte)
