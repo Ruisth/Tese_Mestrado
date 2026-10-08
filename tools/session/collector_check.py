@@ -70,7 +70,11 @@ from collections import Counter
 from pathlib import Path
 
 from egw_experiments.resources import parse_csv_timestamp, validate_resources_csv
-from egw_experiments.run import reconcile_closing_record
+from egw_experiments.run import (
+    judge_open_run_at_stop,
+    open_run_observation,
+    reconcile_closing_record,
+)
 
 USAGE = ("usage: collector_check.py <dir> <run> <expected,services> <wanted sha256> "
          "<sut_environment.json>")
@@ -104,9 +108,10 @@ ABSENT = {
 # really means the evidence cannot be accounted for is a problem:
 #   - a figure the collector could not compute ('unknown') or does not state:
 #     its closing record cannot be read;
-#   - withheld_runs_unmeasured and withheld_open_at_stop above zero
-#     (UNMEASURED_COUNTERS): elapsed time in NEITHER count, i.e. withheld
-#     samples whose cost no accepted sample has measured;
+#   - withheld_runs_unmeasured above zero (UNMEASURED_COUNTERS): elapsed time
+#     in NEITHER count, i.e. withheld samples whose cost no accepted sample
+#     has measured; and withheld_open_at_stop above zero unless the
+#     collector's own line measures it (judge_open_run_at_stop, 2026-10-08);
 #   - withheld_elapsed_s above zero while withheld_samples reads zero: the
 #     record contradicts itself (see the fabricated zeros below).
 # utc_gap_seconds and withheld_samples above zero are recorded and reported,
@@ -148,8 +153,12 @@ CLOSING_COUNTERS = {
 }
 #: Written as a decimal figure of seconds, not as a count.
 DECIMAL_COUNTERS = ("withheld_elapsed_s",)
-#: Above zero, these are elapsed time in neither count: a problem of their own.
-UNMEASURED_COUNTERS = ("withheld_runs_unmeasured", "withheld_open_at_stop")
+#: Above zero, elapsed time in neither count: a problem of its own.
+UNMEASURED_COUNTERS = ("withheld_runs_unmeasured",)
+#: Above zero, accounted for only when the collector's own line measures it
+#: (egw_experiments.run.judge_open_run_at_stop, 2026-10-08, the one rule both
+#: halves call); otherwise a problem, as it always was.
+OPEN_RUN_COUNTER = "withheld_open_at_stop"
 #: What the protocol, not this check, judges about the two counters above zero.
 JUDGED_ELSEWHERE = (
     "the spacing of the real instants is judged by validate_resources_csv against the "
@@ -214,6 +223,16 @@ def one_record(kind, found, problems):
             f"(YYYY-MM-DDTHH:MM:SSZ): {record['token']!r}")
         ok = False
     return record, ok
+
+
+def from_keyword(record):
+    """A record's text from its keyword on, the text egw_experiments.run reads,
+    so both halves give judge_open_run_at_stop the same words."""
+    if record is None:
+        return None
+    line = record["line"].strip()
+    match = RECORD_RE.match(line)
+    return line[match.start(2):] if match else None
 
 
 def field(record, name):
@@ -341,6 +360,29 @@ def check(d, rid, expect, want_sha, sut, report):
                     f"the collector reports {name}={counters[name]}: "
                     f"{counters[name]} {CLOSING_COUNTERS[name]}, so that time is "
                     "accounted for nowhere and the evidence cannot be added up")
+        if read.get(OPEN_RUN_COUNTER):
+            judged = judge_open_run_at_stop(
+                open_at_stop=int(read[OPEN_RUN_COUNTER]),
+                withheld_samples=(None if read.get("withheld_samples") is None
+                                  else int(read["withheld_samples"])),
+                lines=lines,
+                start_record=from_keyword(start),
+                stop_record=from_keyword(stop),
+                window=(start["token"] if start and start["stamp"] else None,
+                        stop["token"] if stop["stamp"] else None),
+                record_lines=(start["line_no"] if start else None,
+                              inventory["line_no"] if inventory else None,
+                              stop["line_no"]),
+            )
+            head = (f"the collector reports {OPEN_RUN_COUNTER}={counters[OPEN_RUN_COUNTER]}: "
+                    f"{counters[OPEN_RUN_COUNTER]} {CLOSING_COUNTERS[OPEN_RUN_COUNTER]}")
+            if judged["reason"] is not None:
+                problems.append(f"{head}, so that time is accounted for nowhere and "
+                                "the evidence cannot be added up: "
+                                f"{judged['reason']}")
+            else:
+                observations.append(
+                    open_run_observation(head, judged["measured"], JUDGED_ELSEWHERE))
         if read.get("utc_gap_seconds"):
             observations.append(
                 f"the collector reports utc_gap_seconds={counters['utc_gap_seconds']}: "
