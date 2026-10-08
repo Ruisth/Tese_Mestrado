@@ -296,6 +296,13 @@ before any execution authorisation. The numbers come from the harness code and f
 operator records and packages in `docs/evidence/g3-battery-2026-10/`). They are engineering estimates, not pilot
 results.
 
+**Generator tolerances (profile A, proposed).** Zero relative overruns, a maximum relative lateness of 20 ms and an
+absolute first-to-last span deviation of 20 ms, the same for every pilot condition (`generator-check`, see
+`experiments/README.md`). Overruns and lateness are relative to the origin the check infers, so a constant offset
+common to every event is unobservable. The profile does not mean zero late publish calls or deliveries, and it sets
+no limit of its own on each inter-publish interval. A `NOT_SUSTAINED` run is a pilot finding: not a licence to repeat
+the run, and not by itself an instrumentation failure.
+
 **Clock.** Every budget is counted in whole seconds of the host's `/proc/uptime`, from `UP0`, read when the open
 command starts. UTC is never used: over the G3 sessions it moved by between -5.1 % and +3.0 % against `/proc/uptime`.
 

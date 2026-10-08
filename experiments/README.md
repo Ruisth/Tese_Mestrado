@@ -729,18 +729,43 @@ reads only. Each section names its clock:
   is `NOT_SHOWN` with every seal problem named: an edit made the same way to
   both copies of `sent_events.jsonl` passes every other check. The harness
   manifest, when present, must be a readable JSON object, or the run is
-  `NOT_SHOWN`; a missing one only empties the elapsed section. Both manifests
+  `NOT_SHOWN`; a missing one empties the elapsed section and leaves the
+  requested load unrecorded, so the report does not certify. Both manifests
   are read as strict JSON: NaN, Infinity and numbers beyond the range of a
   float are `NOT_SHOWN`, and so is a schedule with no event. A bare simulator
-  directory (`--sim-dir`) has no seal of its own, and none is verified.
+  directory (`--sim-dir`) has no seal of its own, and none is verified. A
+  harness run's own simulator output (`<run>/logs/simulator/<run_id>/` or
+  `logs/warmup/<run_id>.warmup/`, beside the run's `manifest.json` or
+  `SHA256SUMS`) is refused as `--sim-dir` (exit 2) rather than reconciled in
+  place: it is checked with `--run-dir` (and `--warmup`), so a
+  bare-directory `SUSTAINED` never stands for a harness run.
+- **Requested load** (exact, no tolerance; `--run-dir` only). The harness
+  manifest's top-level `scenario`, `seed`, `rate_msg_s` and `duration_s`,
+  the values from which `run.py` builds the simulator invocations
+  (`warmup_s` for the warm-up, which runs with the measured run's
+  scenario, seed and rate), must equal the simulator manifest's
+  `scenario`, `seed`, `rates_hz.aggregate` and `duration_s`. A matching
+  `run_id` alone does not show that the records are the requested load.
+  A contradiction, or a value no request can hold, is `NOT_SHOWN`. A field
+  the harness manifest does not record (absent or null, or no harness
+  manifest at all) is reported, and the report does not certify.
+  `config.plan_entry` is the plan's echo and is not read: under
+  `--skip-warmup` its `warmup_s` is not the one run. A bare simulator
+  directory has no harness request; its manifest is the only record of
+  the load.
 - **Identity and count** (exact, no tolerance). The manifest must agree with
   `make_devices` and with `split_rate` (exact floats). Every line must be a
   JSON object with exactly the record fields and types. Every record must be
   a scheduled identity of this run, present once, with its UUID v5
   `message_id`. The counts must equal the schedule and `totals`, the
   invalid-event flags must be the injector's, and `publish_monotonic_ns`
-  must never decrease. The run root's `sent_events.jsonl` must be byte for
-  byte the simulator's.
+  must never decrease. A non-null `puback_monotonic_ns` must be neither
+  earlier than its own `publish_monotonic_ns` nor later than the next
+  record's: the run loop publishes, waits and records one event at a time,
+  and the end-of-run drain never rewrites a record, so any other order is
+  an input defect. A null stays an absent observation, never loss, and no
+  acknowledgement stamp enters the cadence verdict. The run root's
+  `sent_events.jsonl` must be byte for byte the simulator's.
 - **Generator timing** (host monotonic clock). `publish_monotonic_ns` is
   taken just before the client's publish call. It measures **the client's
   publish-call cadence, not broker ingress**: paho keeps at most 20 QoS 1
@@ -749,10 +774,11 @@ reads only. Each section names its clock:
   `min(publish - scheduled offset)`. Lateness is therefore **relative**: it
   omits one constant `c >= 0`, which the harness's start stamp bounds. The
   section reports lateness percentiles and **overruns**: events published at
-  or after the next scheduled instant, which start a catch-up. It also
-  reports catch-up bursts, publish gaps, the span against the scheduled span,
-  and per-window counts (`--window-s`, at least 0.1 s, a reporting resolution
-  outside the verdict).
+  or after the next scheduled instant, both placed by the inferred origin,
+  which start a catch-up. A delay common to every event is invisible to
+  the section. It also reports catch-up bursts, publish gaps, the span
+  against the scheduled span, and per-window counts (`--window-s`, at least
+  0.1 s, a reporting resolution outside the verdict).
 - **PUBACK observations** (host clock; never in the verdict). Nulls are split
   into structural (zero wait budget), overrun and other. A **null puback is
   not loss**: it was not observed within the wait budget.
@@ -770,14 +796,15 @@ Verdicts and exit codes:
 
 | exit | verdict | when |
 |---|---|---|
-| 0 | `SUSTAINED` | identity exact, `completed` true, every tolerance of an **approved** profile entry met |
-| 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, the root copy differs, a run directory whose `SHA256SUMS` is missing or does not verify, an unreadable harness manifest, NaN or Infinity in a manifest, or an empty schedule. Nothing is judged as passed |
-| 2 | usage | bad arguments, a `--window-s` below 0.1 s, an invalid tolerance file, or an `--out` that exists, lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS`, or cannot be written (then no report is written and no verdict is given) |
-| 3 | `NOT_CERTIFIED` | metrics computed, but no profile, a profile not `approved`, no entry for the condition, or timing not applicable (`dropout-reconnect`) |
+| 0 | `SUSTAINED` | identity exact, `completed` true, the requested load reconciled (with `--run-dir`), every tolerance of an **approved** profile entry met |
+| 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, the root copy differs, a run directory whose `SHA256SUMS` is missing or does not verify, an unreadable harness manifest, a harness request the simulator manifest contradicts (scenario, seed, rate or duration, the warm-up's included), an acknowledgement stamp before its own publish or after the next one, NaN or Infinity in a manifest, or an empty schedule. Nothing is judged as passed, and an input defect is never `NOT_SUSTAINED` |
+| 2 | usage | bad arguments, a `--window-s` below 0.1 s, a `--sim-dir` that is a harness run's own simulator output, an invalid tolerance file, or an `--out` that exists, lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS`, or cannot be written (then no report is written and no verdict is given) |
+| 3 | `NOT_CERTIFIED` | metrics computed, but no profile, a profile not `approved`, no entry for the condition, timing not applicable (`dropout-reconnect`), or a load field the harness manifest does not record (no harness manifest included) |
 | 4 | `NOT_SUSTAINED` | an approved tolerance exceeded, or a whole run with `completed` false |
 
 Exit 1 only ever means a `NOT_SHOWN` evaluation, and with `--out` its report
-is written.
+is written. A `NOT_SUSTAINED` run is a pilot finding: not a licence to
+repeat it, and not by itself an instrumentation failure.
 
 **No tolerance is adopted.** The check has no built-in tolerance. A profile
 (`--tolerances`) is a JSON object with exactly these keys: `profile_id`,
@@ -789,10 +816,19 @@ rate by exact float equality, and holds `max_relative_lateness_ms`,
 `max_overrun_events` and `max_span_deviation_ms`. Only an `approved` profile
 certifies. A `proposed` one is evaluated and labelled non-certifying.
 [`g4-pilot/generator_tolerances.proposed.json`](g4-pilot/generator_tolerances.proposed.json)
-holds proposal A, `status: "proposed"`, with its basis (0 overruns, 20 ms
-relative lateness, 20 ms span deviation). Its baseline is an engineering
-basis only and is non-citable. Approval is the student's act, through a
-decision record.
+holds proposal A, `status: "proposed"`, with its basis: zero relative
+overruns, a maximum relative lateness of 20 ms and an absolute
+first-to-last span deviation of 20 ms. Overruns and lateness are relative
+to the inferred origin, so a constant offset common to every event is
+unobservable; the span deviation needs no origin. Profile A does not mean
+zero late publish calls or deliveries, and it sets no limit of its own on
+each inter-publish interval: two consecutive calls may be up to 20 ms
+closer together or further apart than scheduled. Relative to the inferred
+origin and within the check's resolution, a `SUSTAINED` under it states
+that no catch-up was detected and that the lateness and the span stayed
+within 20 ms, not that the broker received the messages. Its baseline is
+an engineering basis only and is non-citable.
+Approval is the student's act, through a decision record.
 
 `--warmup` checks the warm-up (`logs/warmup/<run_id>.warmup/`); that report
 is labelled and never stands for the measured run. The `execution_mode` is

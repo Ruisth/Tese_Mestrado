@@ -831,11 +831,14 @@ def build_parser() -> argparse.ArgumentParser:
     # generator-check (G4 pilot prerequisite P5) ------------------------------
     p_gen = sub.add_parser(
         "generator-check",
-        help="check that the load generator kept its schedule in one run: "
+        help="check, relative to the inferred schedule origin, whether the load "
+        "generator kept its schedule in one run: "
+        "the harness's requested load against the simulator manifest; "
         "identity and count against the exact schedule rebuilt from the "
         "simulator manifest; relative lateness, overruns and catch-up bursts "
-        "of the client publish calls (host clock; not broker ingress); PUBACK "
-        "observations (a null is not loss); with --events the controller's "
+        "of the client publish calls, placed by the inferred schedule origin "
+        "(host clock; not broker ingress); PUBACK observations (a null is not "
+        "loss); with --events the controller's "
         "acceptance on the guest clock, never subtracted from host stamps. "
         "Exit 0 SUSTAINED, 1 NOT_SHOWN, 2 usage, 3 NOT_CERTIFIED, 4 "
         "NOT_SUSTAINED. Reads only; no tolerance is built in",
@@ -850,16 +853,21 @@ def build_parser() -> argparse.ArgumentParser:
         "readable JSON object (otherwise NOT_SHOWN); the simulator output is "
         "read from logs/simulator/<run_id>/ and compared byte for byte with the "
         "root copy of sent_events.jsonl; the harness manifest gives the "
-        "elapsed-time stamps and the execution_mode it recorded (copied, never "
-        "inferred)",
+        "requested load (scenario, seed, rate_msg_s, duration_s; warmup_s for "
+        "the warm-up: one the simulator manifest contradicts is NOT_SHOWN, one "
+        "not recorded keeps the report from certifying), the elapsed-time "
+        "stamps and the execution_mode it recorded (copied, never inferred)",
     )
     p_gen_input.add_argument(
         "--sim-dir",
         type=Path,
         default=None,
         help="a bare simulator output directory (<output>/<run_id>/ with "
-        "manifest.json and sent_events.jsonl): no seal, no root-copy check and "
-        "no elapsed-time section",
+        "manifest.json and sent_events.jsonl): no seal, no root-copy check, no "
+        "harness request to reconcile and no elapsed-time section. A harness "
+        "run's own logs/simulator/<run_id>/ or logs/warmup/<run_id>.warmup/ "
+        "(beside its manifest.json or SHA256SUMS) is refused (exit 2): check "
+        "it with --run-dir",
     )
     p_gen.add_argument(
         "--events",

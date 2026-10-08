@@ -229,7 +229,10 @@ def simulate(root: Path, *, run_id: str = RUN_ID, scenario: str = "smoke",
     """Run the real run loop into a harness-shaped run directory and return
     it: logs/simulator/<run_id>/, the root copy of sent_events.jsonl, a
     harness manifest whose stamps bracket the run on the same fake clock and
-    the SHA256SUMS seal over all of it."""
+    the SHA256SUMS seal over all of it. The harness manifest records the
+    requested load in the top-level fields run.py writes (``scenario``,
+    ``seed``, ``rate_msg_s``, ``duration_s`` and ``warmup_s``, 0 here: no
+    warm-up); ``harness_extra`` overrides any of them."""
     clock = clock if clock is not None else FakeClock()
     pub = publisher(clock) if publisher is not None else InMemoryPublisher(clock=clock)
     run_dir = root / "raw" / run_id
@@ -243,6 +246,10 @@ def simulate(root: Path, *, run_id: str = RUN_ID, scenario: str = "smoke",
     write_json(run_dir / "manifest.json", {
         "run_id": run_id,
         "scenario": scenario,
+        "seed": seed,
+        "rate_msg_s": rate,
+        "duration_s": duration_s,
+        "warmup_s": 0,
         "measured_started_monotonic_ns": started_ns,
         "finished_monotonic_ns": clock.monotonic_ns() + int(FINISHED_AFTER_S * 1e9),
         "simulator_returncode": 0,
@@ -253,6 +260,25 @@ def simulate(root: Path, *, run_id: str = RUN_ID, scenario: str = "smoke",
 
 def sim_dir(run_dir: Path, run_id: str = RUN_ID) -> Path:
     return run_dir / "logs" / "simulator" / run_id
+
+
+def bare_copy(run_dir: Path) -> Path:
+    """A copy of the run's simulator directory outside any harness run
+    (<root>/bare/<run_id>/): a bare simulator directory, read alone. The
+    run's own logs/simulator/<run_id>/ is checked through --run-dir."""
+    return Path(shutil.copytree(sim_dir(run_dir, run_dir.name),
+                                run_dir.parents[1] / "bare" / run_dir.name))
+
+
+def warm_up(run_dir: Path, *, duration_s: float = 2.0, **load) -> Path:
+    """Run the real run loop as the harness's warm-up of ``run_dir``
+    (logs/warmup/<run_id>.warmup/, the measured run's scenario, seed and
+    rate unless ``load`` says otherwise) and re-seal the run directory."""
+    clock = FakeClock()
+    run(config(run_dir / "logs" / "warmup", run_id=f"{RUN_ID}.warmup",
+               duration_s=duration_s, **load),
+        InMemoryPublisher(clock=clock), clock=clock, validator=_validator())
+    return seal(run_dir)
 
 
 def expected_events(rate: float, duration_s: float) -> int:
@@ -863,8 +889,7 @@ def test_a_run_dir_without_a_verified_seal_is_not_shown(tmp_path, mutate, state,
 
 def test_a_bare_simulator_directory_has_no_seal_to_verify(tmp_path) -> None:
     run_dir = simulate(tmp_path, duration_s=2.0)
-    (run_dir / "SHA256SUMS").unlink()
-    rc, rep = check(tmp_path, "--sim-dir", sim_dir(run_dir), "--tolerances", approved(tmp_path))
+    rc, rep = check(tmp_path, "--sim-dir", bare_copy(run_dir), "--tolerances", approved(tmp_path))
     assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
     assert rep["inputs"]["seal"]["applicable"] is False
 
@@ -915,14 +940,307 @@ def test_an_impossible_stamp_counts_as_no_stamp_in_non_certifying_sections(tmp_p
     assert acceptance["received"]["n"] == acceptance["accepted_ack"]["n"] == 2
 
 
-def test_a_missing_harness_manifest_only_empties_the_elapsed_section(tmp_path) -> None:
+# ---------------------------------------------------------------------------
+# 4c. The simulator's records must be the load the harness requested (F1)
+# ---------------------------------------------------------------------------
+
+LOAD_KEYS = ("scenario", "seed", "rate_msg_s", "duration_s")
+
+
+def _load_states(rep: dict) -> dict:
+    return {row["harness_key"]: row["state"] for row in rep["load_reconciliation"]["fields"]}
+
+
+def _harness_without(*keys: str):
+    def mutate(run_dir: Path) -> None:
+        doc = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+        for key in keys:
+            del doc[key]
+        write_json(run_dir / "manifest.json", doc)
+    return mutate
+
+
+def test_the_reported_load_counterexample_is_not_shown(tmp_path, capsys) -> None:
+    """A harness request for load-sweep, seed 8, 50 msg/s, 300 s, with
+    same-id simulator records of nominal, seed 7, 11.2 msg/s, 1 s: certified
+    SUSTAINED when only the run_id was compared."""
+    run_dir = simulate(tmp_path, scenario="nominal", duration_s=1.0, harness_extra={
+        "scenario": "load-sweep", "seed": 8, "rate_msg_s": 50.0, "duration_s": 300})
+    profile = approved(tmp_path, conditions={"nominal@11.2": PROFILE_A,
+                                             "load-sweep@50.0": PROFILE_A})
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", profile)
+    assert rc == gc.EXIT_NOT_SHOWN == 1
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_SHOWN" and evaluation["certifying"] is False
+    assert evaluation["per_tolerance"] == []
+    assert _load_states(rep) == dict.fromkeys(LOAD_KEYS, "contradicts")
+    assert rep["load_reconciliation"]["reconciled"] is False
+    for key in LOAD_KEYS:
+        assert any(f"harness manifest requested {key}" in r for r in evaluation["reasons"]), key
+    assert "requested load" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("changes,key", [
+    pytest.param({"scenario": "nominal"}, "scenario", id="scenario"),
+    pytest.param({"seed": 8}, "seed", id="seed"),
+    pytest.param({"rate_msg_s": 50.0}, "rate_msg_s", id="rate"),
+    pytest.param({"duration_s": 300}, "duration_s", id="duration"),
+])
+def test_a_measured_load_the_harness_did_not_request_is_not_shown(tmp_path, changes, key) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0, harness_extra=changes)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 1 and rep["evaluation"]["verdict"] == "NOT_SHOWN"
+    assert rep["evaluation"]["certifying"] is False and rep["evaluation"]["per_tolerance"] == []
+    states = _load_states(rep)
+    assert states.pop(key) == "contradicts"
+    assert set(states.values()) == {"agrees"}
+    assert any(f"harness manifest requested {key}" in r for r in rep["evaluation"]["reasons"])
+
+
+def test_a_measured_load_as_run_py_records_it_is_reconciled(tmp_path) -> None:
+    # run.py records duration_s as an integer and rate_msg_s as a float; the
+    # simulator records duration_s as a float: equal numbers agree.
+    run_dir = simulate(tmp_path, duration_s=3.0, harness_extra={"duration_s": 3})
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    load = rep["load_reconciliation"]
+    assert load["applicable"] is True and load["reconciled"] is True
+    assert load["not_recorded"] == []
+    assert _load_states(rep) == dict.fromkeys(LOAD_KEYS, "agrees")
+    rows = {row["harness_key"]: row for row in load["fields"]}
+    assert rows["duration_s"]["requested"] == 3 and rows["duration_s"]["simulator"] == 3.0
+
+
+@pytest.mark.parametrize("warmup_s,load,key", [
+    pytest.param(5, {}, "warmup_s", id="duration"),
+    pytest.param(2, {"seed": 8}, "seed", id="seed"),
+    pytest.param(2, {"rate": 10.0}, "rate_msg_s", id="rate"),
+    pytest.param(2, {"scenario": "nominal"}, "scenario", id="scenario"),
+])
+def test_a_warm_up_load_the_harness_did_not_request_is_not_shown(
+    tmp_path, warmup_s, load, key
+) -> None:
+    run_dir = warm_up(simulate(tmp_path, duration_s=3.0, harness_extra={"warmup_s": warmup_s}),
+                      **load)
+    profile = approved(tmp_path)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--warmup", "--tolerances", profile)
+    assert rc == 1 and rep["evaluation"]["verdict"] == "NOT_SHOWN"
+    assert rep["run"]["warmup"] is True
+    states = _load_states(rep)
+    assert states.pop(key) == "contradicts"
+    assert set(states.values()) == {"agrees"}
+    # The measured run is read against duration_s, never against warmup_s.
+    rc, measured = check(tmp_path, "--run-dir", run_dir, "--tolerances", profile)
+    assert rc == 0 and measured["load_reconciliation"]["reconciled"] is True
+
+
+def test_a_warm_up_load_as_the_harness_requested_it_is_reconciled(tmp_path) -> None:
+    run_dir = warm_up(simulate(tmp_path, duration_s=3.0, harness_extra={"warmup_s": 2}))
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--warmup", "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    assert rep["run"]["warmup"] is True and rep["load_reconciliation"]["reconciled"] is True
+    assert _load_states(rep) == {"scenario": "agrees", "seed": "agrees",
+                                 "rate_msg_s": "agrees", "warmup_s": "agrees"}
+
+
+@pytest.mark.parametrize("mutate,key,warmup", [
+    pytest.param(_harness_without("scenario"), "scenario", False, id="scenario"),
+    pytest.param(_harness_without("seed"), "seed", False, id="seed"),
+    pytest.param(_harness_without("rate_msg_s"), "rate_msg_s", False, id="rate"),
+    pytest.param(_harness_without("duration_s"), "duration_s", False, id="duration"),
+    pytest.param(_harness(seed=None), "seed", False, id="seed-null"),
+    pytest.param(_harness_without("warmup_s"), "warmup_s", True, id="warm-up-duration"),
+])
+def test_a_load_field_the_harness_did_not_record_never_certifies(
+    tmp_path, capsys, mutate, key, warmup
+) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0, harness_extra={"warmup_s": 2})
+    warm_up(run_dir)
+    mutate(run_dir)
+    seal(run_dir)
+    argv = ["--run-dir", run_dir, *(["--warmup"] if warmup else []),
+            "--tolerances", approved(tmp_path)]
+    rc, rep = check(tmp_path, *argv)
+    assert rc == gc.EXIT_NOT_CERTIFIED == 3
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_CERTIFIED" and evaluation["certifying"] is False
+    # The tolerances are evaluated and labelled, as with a proposed profile.
+    assert [row["within"] for row in evaluation["per_tolerance"]] == [True, True, True]
+    assert any("records no" in r and key in r for r in evaluation["reasons"]), evaluation["reasons"]
+    load = rep["load_reconciliation"]
+    assert load["reconciled"] is False and load["not_recorded"] == [key]
+    assert _load_states(rep)[key] == "not recorded"
+    assert "(non-certifying)" in capsys.readouterr().out
+
+
+def test_an_unrecorded_load_field_is_reported_on_an_incomplete_run(tmp_path) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0)
+    _sim_manifest(lambda d: d.update(completed=False))(run_dir)
+    _harness_without("seed")(run_dir)
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 4 and rep["evaluation"]["verdict"] == "NOT_SUSTAINED"
+    assert rep["evaluation"]["certifying"] is False
+    assert any("records no seed" in r for r in rep["evaluation"]["reasons"])
+
+
+def test_a_missing_harness_manifest_empties_the_elapsed_section_and_never_certifies(tmp_path) -> None:
     run_dir = simulate(tmp_path, duration_s=2.0)
     (run_dir / "manifest.json").unlink()
     seal(run_dir)
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
-    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    assert rc == 3 and rep["evaluation"]["verdict"] == "NOT_CERTIFIED"
+    assert rep["evaluation"]["certifying"] is False
     assert rep["elapsed"] is None
     assert rep["run"]["execution_mode_source"] == "no harness manifest"
+    assert rep["load_reconciliation"]["not_recorded"] == list(LOAD_KEYS)
+
+
+@pytest.mark.parametrize("changes,seed", [
+    pytest.param({"seed": "7"}, 7, id="seed-as-a-string"),
+    pytest.param({"seed": True}, 1, id="seed-as-a-boolean"),  # True == 1 in Python
+    pytest.param({"rate_msg_s": "11.2"}, 7, id="rate-as-a-string"),
+])
+def test_a_load_field_the_harness_recorded_as_no_number_is_not_shown(tmp_path, changes, seed) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0, seed=seed, harness_extra=changes)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 1 and rep["evaluation"]["verdict"] == "NOT_SHOWN"
+    key = next(iter(changes))
+    assert _load_states(rep)[key] == "unreadable"
+
+
+def test_a_bare_simulator_directory_has_no_harness_request_to_reconcile(tmp_path) -> None:
+    # Copied out of its harness run, a simulator directory is read alone: its
+    # manifest is its only record of the load, so its SUSTAINED never stands
+    # for the harness run, whose request (seed 8) the records contradict.
+    run_dir = simulate(tmp_path, duration_s=2.0, harness_extra={"seed": 8})
+    rc, rep = check(tmp_path, "--sim-dir", bare_copy(run_dir), "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    load = rep["load_reconciliation"]
+    assert load["applicable"] is False and "bare simulator directory" in load["reason"]
+    # Under a logs/simulator/ folder whose parent holds neither a harness
+    # manifest nor a seal, it is a bare directory all the same.
+    elsewhere = tmp_path / "copy"
+    shutil.copytree(sim_dir(run_dir), sim_dir(elsewhere))
+    rc, rep = check(tmp_path, "--sim-dir", sim_dir(elsewhere), "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["load_reconciliation"]["applicable"] is False
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 1 and rep["evaluation"]["verdict"] == "NOT_SHOWN"
+
+
+@pytest.mark.parametrize("kept", ["manifest-and-seal", "manifest-only", "seal-only"])
+@pytest.mark.parametrize("layout", ["simulator", "warmup"])
+def test_a_harness_runs_own_simulator_output_is_refused_as_a_bare_directory(
+        tmp_path, capsys, layout, kept) -> None:
+    # Read alone, the run's own simulator output would skip the seal and the
+    # requested-load reconciliation: the harness asks for seed 8, the records
+    # are seed 7, and an approved profile would certify them. It is a usage
+    # error that names --run-dir; nothing is evaluated and no report written.
+    run_dir = simulate(tmp_path, duration_s=2.0, harness_extra={"seed": 8, "warmup_s": 2})
+    if layout == "warmup":
+        warm_up(run_dir)
+        target = run_dir / "logs" / "warmup" / f"{RUN_ID}.warmup"
+    else:
+        target = sim_dir(run_dir)
+    if kept == "manifest-only":
+        (run_dir / "SHA256SUMS").unlink()
+    elif kept == "seal-only":
+        (run_dir / "manifest.json").unlink()
+    profile = approved(tmp_path)
+    out = tmp_path / "checks" / "refused.json"
+    capsys.readouterr()
+    rc = cli.main(["generator-check", "--sim-dir", str(target), "--tolerances", str(profile),
+                   "--out", str(out)])
+    assert rc == gc.EXIT_USAGE == 2
+    captured = capsys.readouterr()
+    assert f"--run-dir {run_dir.resolve()}" in captured.err, captured.err
+    assert captured.out == "" and not out.exists()
+    with pytest.raises(ValueError, match="run_dir"):
+        gc.check_generator(sim_dir=target)
+
+
+# ---------------------------------------------------------------------------
+# 4d. An impossible acknowledgement chronology is an input defect (F2)
+# ---------------------------------------------------------------------------
+
+
+def _puback_at(index: int, *, of: str, delta_ns: int = 0):
+    """Set record ``index``'s puback stamp to the publish stamp of the same
+    record (``of='own'``) or of the next one (``of='next'``), plus ``delta_ns``."""
+    def edit(lines):
+        record = json.loads(lines[index])
+        base = json.loads(lines[index + 1] if of == "next" else lines[index])
+        record["puback_monotonic_ns"] = base["publish_monotonic_ns"] + delta_ns
+        lines[index] = json.dumps(record, separators=(",", ":")) + "\n"
+        return lines
+    return edit
+
+
+# Record 2 closes the coincident group at offset 0; record 3 is due 100 ms later.
+@pytest.mark.parametrize("edit,expected,field", [
+    pytest.param(_puback_at(2, of="own", delta_ns=-1),
+                 "earlier than their own publish_monotonic_ns", "before_own_publish",
+                 id="ack-before-its-own-publish"),
+    pytest.param(_puback_at(2, of="next", delta_ns=1),
+                 "later than the next record's publish_monotonic_ns", "after_next_publish",
+                 id="ack-after-the-next-publish"),
+])
+def test_an_impossible_ack_chronology_is_not_shown(tmp_path, capsys, edit, expected, field) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0)
+    _edit_lines(edit)(run_dir)
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == gc.EXIT_NOT_SHOWN == 1
+    evaluation = rep["evaluation"]
+    assert evaluation["verdict"] == "NOT_SHOWN" and evaluation["certifying"] is False
+    assert evaluation["per_tolerance"] == []
+    assert any(expected in r and "line 3" in r for r in evaluation["reasons"]), evaluation["reasons"]
+    chronology = rep["identity"]["puback_chronology"]
+    assert chronology["consistent"] is False and chronology[field] == 1
+    assert expected in capsys.readouterr().out
+
+
+def test_an_ack_equal_to_its_own_publish_is_a_possible_chronology(tmp_path) -> None:
+    # The in-memory publisher acknowledges at its own publish stamp, so the
+    # equality is built on a run whose ACKs come later: record 2's puback is
+    # moved down to its own publish stamp, and the edit changes the bytes.
+    run_dir = simulate(tmp_path, duration_s=3.0,
+                       publisher=lambda clock: DelayedAckPublisher(clock, ack_delay_s=0.01))
+    before = [read_jsonl(path)[2] for path in _both_copies(run_dir)]
+    assert all(r["puback_monotonic_ns"] > r["publish_monotonic_ns"] for r in before), before
+    _edit_lines(_puback_at(2, of="own"))(run_dir)
+    after = [read_jsonl(path)[2] for path in _both_copies(run_dir)]
+    assert all(r["puback_monotonic_ns"] == r["publish_monotonic_ns"] for r in after)
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    chronology = rep["identity"]["puback_chronology"]
+    assert chronology == {"before_own_publish": 0, "after_next_publish": 0, "consistent": True}
+
+
+@pytest.mark.parametrize("edit", [
+    pytest.param(_puback_at(2, of="next"), id="ack-equal-to-the-next-publish"),
+    pytest.param(_puback_at(3, of="own", delta_ns=50_000_000), id="ack-between-the-publishes"),
+    pytest.param(_set(2, puback_monotonic_ns=None), id="ack-null"),
+    # The run's last record has no next publish: the drain may follow it.
+    pytest.param(_puback_at(-1, of="own", delta_ns=5 * NS), id="last-ack-after-the-run"),
+])
+def test_a_possible_ack_chronology_leaves_the_verdict_unchanged(tmp_path, edit) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0)
+    _edit_lines(edit)(run_dir)
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    chronology = rep["identity"]["puback_chronology"]
+    assert chronology == {"before_own_publish": 0, "after_next_publish": 0, "consistent": True}
+
+
+def test_null_acks_are_absent_observations_not_chronology_defects(tmp_path) -> None:
+    run_dir = simulate(tmp_path, duration_s=3.0,
+                       publisher=lambda clock: DelayedAckPublisher(clock, ack_delay_s=5.0))
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["identity"]["puback_chronology"]["consistent"] is True
+    assert rep["puback_observations"]["observed"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1014,6 +1332,11 @@ def test_the_shipped_proposal_is_proposed_and_never_certifies(tmp_path) -> None:
     basis = profile.basis
     assert "NOT adopted" in basis
     assert "engineering basis only" in basis and "non-citable" in basis
+    # Profile A as described: relative overruns and lateness, an absolute span
+    # deviation; no claim that 20 ms cannot move a 1 Hz sample or bin.
+    assert "zero relative overruns" in basis and "absolute first-to-last span" in basis
+    assert "not a licence to repeat" in basis
+    assert "shifts no sampled observation" not in basis
 
     run_dir = simulate(tmp_path, scenario="nominal", duration_s=2.0)
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", PROPOSED_PROFILE)
@@ -1262,9 +1585,16 @@ def test_the_report_is_write_once_and_never_inside_the_run(tmp_path, capsys) -> 
                          "--out", str(inside)]) == 2
         assert "inside" in capsys.readouterr().err
     for inside in (sim_dir(run_dir) / "check.json", run_dir / "check.json"):
-        # Given as a bare simulator directory, the harness run around it is
-        # protected all the same.
+        # The run's own simulator output is never read as a bare directory.
         assert cli.main(["generator-check", "--sim-dir", str(sim_dir(run_dir)),
+                         "--out", str(inside)]) == 2
+        assert "--run-dir" in capsys.readouterr().err
+    copy = tmp_path / "copy"
+    shutil.copytree(sim_dir(run_dir), sim_dir(copy))
+    for inside in (sim_dir(copy) / "check.json", copy / "check.json"):
+        # Given as a bare simulator directory under logs/simulator/, the
+        # directory around it is protected all the same.
+        assert cli.main(["generator-check", "--sim-dir", str(sim_dir(copy)),
                          "--out", str(inside)]) == 2
         assert "inside" in capsys.readouterr().err
     assert tree(run_dir) == before  # the run was never written to
@@ -1296,17 +1626,14 @@ def test_the_execution_mode_is_copied_from_the_harness_manifest_never_inferred(t
     assert rep["run"]["execution_mode"] is None
     assert "not recorded" in rep["run"]["execution_mode_source"]
 
-    rc, rep = check(tmp_path, "--sim-dir", sim_dir(old))
+    rc, rep = check(tmp_path, "--sim-dir", bare_copy(old))
     assert rep["run"]["execution_mode"] is None
     assert rep["run"]["execution_mode_source"] == "no harness manifest"
 
 
 def test_the_warm_up_is_checked_on_request_and_labelled(tmp_path, capsys) -> None:
-    run_dir = simulate(tmp_path, duration_s=3.0)
-    clock = FakeClock()
-    run(config(run_dir / "logs" / "warmup", run_id=f"{RUN_ID}.warmup", duration_s=2.0),
-        InMemoryPublisher(clock=clock), clock=clock, validator=_validator())
-    seal(run_dir)
+    run_dir = simulate(tmp_path, duration_s=3.0, harness_extra={"warmup_s": 2})
+    warm_up(run_dir)
     capsys.readouterr()
     rc, rep = check(tmp_path, "--run-dir", run_dir, "--warmup")
     assert rc == 3
@@ -1336,7 +1663,7 @@ def test_the_elapsed_section_uses_the_harness_stamps(tmp_path) -> None:
     assert elapsed["simulator_returncode"] == 0
     anchor = rep["generator_timing"]["anchor"]
     assert anchor["c_upper_bound_s"] == pytest.approx(STARTED_BEFORE_S, abs=1e-6)
-    rc, bare = check(tmp_path, "--sim-dir", sim_dir(run_dir))
+    rc, bare = check(tmp_path, "--sim-dir", bare_copy(run_dir))
     assert bare["elapsed"] is None and bare["generator_timing"]["anchor"]["c_upper_bound_s"] is None
     assert bare["inputs"]["root_copy"]["applicable"] is False
 
