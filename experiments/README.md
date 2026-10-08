@@ -582,8 +582,16 @@ python -m egw_experiments run --run-id <run_id> ... \
   takes) is not read; a non-loopback broker against an every-address
   forward cannot be decided (whether it is an address of this host is not
   recorded), nor can the unspecified broker `0.0.0.0` against any forward
-  (Linux connects it to a local address, which is not recorded): none of
-  these passes H5, and each fails N1.
+  (Linux connects it to a local address, which is not recorded). Against a
+  forward of the generator's port, none of these passes H5, and each fails
+  N1; with no forward on that port, a host-name or `0.0.0.0` broker still
+  fails H5 but passes N1, since no recorded QEMU forwards the port (N0
+  still fails every native declaration). When several forwards share the
+  port, one that takes the connection decides, whatever the others are: the
+  snapshot's flag is true, H5 can pass, and N1 fails naming it. Without one,
+  a forward that cannot be decided leaves the flag null, fails H5 and fails
+  N1 as undecided. N1 passes only when every forward of the port is shown
+  not to take the connection, or the port has none.
 - **G5 is advisory (2026-10-07).** It compares the guest's own wall clock
   with a QEMU start derived on the host as `btime` + start ticks / tick
   rate, and `btime` is read at the start snapshot: every step of the host's

@@ -1038,8 +1038,10 @@ def capture_hypervisor_snapshot(
     generator's ``port`` takes a connection to ``broker``: the address and
     its family matched to the forward's host address, a wildcard taking any
     IPv4 loopback address, :func:`_forward_takes`; a host name such as
-    ``localhost`` is never matched). A value that cannot be read or derived
-    is None, with the reason in ``problems``.
+    ``localhost`` is never matched; one forward that takes it makes the flag
+    true whatever the port's other forwards are, and without one a forward
+    that cannot be decided leaves it None). A value that cannot be read or
+    derived is None, with the reason in ``problems``.
     """
     problems: list[str] = []
     captured_utc = utc_now_iso()
@@ -1398,7 +1400,8 @@ def _native_checks(
     ]
     # N1: a local QEMU takes the generator's traffic, by the same match of
     # the destination to a forward as H5 (_forward_takes); N1 passes only
-    # when every forward of the port is shown not to take it.
+    # when every forward of the port is shown not to take it. A forward that
+    # takes it is named; without one, an undecided forward fails N1 as such.
     hv = _as_dict(hypervisor_env)
     forwards: list[str] = []
     undecided: list[str] = []
@@ -1475,7 +1478,8 @@ def provenance_checks(
       line) at the end; H3 the accelerator is TCG and KVM is not requested;
       H4 the load generator is co-located (the flag is true and the two
       boot ids are equal); H5 the generator's target is an IPv4 loopback
-      address that a TCP forward of this QEMU on its port takes: the same
+      address that a TCP forward of this QEMU on its port takes (one is
+      enough, whatever the port's other forwards are): the same
       address as the forward's host address, or any IPv4 loopback address
       for an empty or ``0.0.0.0`` one; never an IPv6 address (QEMU's
       ``hostfwd`` is IPv4 only) or a host name such as ``localhost``
@@ -1491,10 +1495,13 @@ def provenance_checks(
       identified.
     - ``native-kvm``/``native-metal``: N0 always fails (no native capture
       exists here), and N1 (a local QEMU takes the generator's traffic, by
-      H5's match of the destination to a forward; N1 also fails when that
-      cannot be decided, a host name for instance), N2 (a guest label states
-      emulation) and N3 (the guest is the emulated integrated guest) name
-      each contradiction found.
+      H5's match of the destination to a forward; N1 passes only when every
+      forward of the generator's port is shown not to take it, or the port
+      has none: a forward that takes it fails N1 and is named, and without
+      one a forward that cannot be decided fails it too, a host-name or
+      ``0.0.0.0`` broker against any forward of that port for instance),
+      N2 (a guest label states emulation) and N3 (the guest is the emulated
+      integrated guest) name each contradiction found.
     """
     if execution_mode is None:
         return [_check(

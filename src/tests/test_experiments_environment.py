@@ -1019,6 +1019,89 @@ def test_f3_n1_passes_only_when_no_forward_can_take_the_traffic(records, case, b
     assert _by_id(checks)["N0"]["ok"] is False
 
 
+#: Several forwards of the generator's port (F3.1, delta check of the F3
+#: correction, 2026-10-08): (case, the forwards' host addresses, the
+#: snapshot's flag, whether H5 passes, how N1 fails or None when it passes,
+#: the forward named). The broker is 127.0.0.1 throughout. A forward that
+#: takes the connection decides the snapshot's flag and H5 whatever the
+#: others are; without one, a forward that cannot be decided leaves the flag
+#: null and fails H5. N1 passes only when every forward of the port is shown
+#: not to take it: one that takes it fails N1 and is named, and otherwise one
+#: that cannot be decided fails N1 as undecided. Each row runs with the
+#: forwards in both orders: their order on the command line decides nothing.
+F3_SEVERAL_FORWARDS = [
+    ("one takes it, one cannot be decided", ("127.0.0.1", "127.2"), True, True, "takes", "127.0.0.1"),
+    ("one does not take it, one cannot be decided", ("127.0.0.2", "127.1"), None, False, "cannot be decided", "127.1"),
+    ("one takes it, one does not", ("127.0.0.1", "127.0.0.2"), True, True, "takes", "127.0.0.1"),
+    ("neither takes it", ("127.0.0.2", "127.0.0.3"), False, False, None, None),
+]
+F3_SEVERAL_IDS = [case for case, *_ in F3_SEVERAL_FORWARDS]
+F3_SEVERAL_FIELDS = ("case", "binds", "flag", "h5", "n1", "named")
+F3_ORDERS = pytest.mark.parametrize("reverse", [False, True], ids=["as-listed", "reversed"])
+
+
+def _several_rules(binds: tuple[str, ...], reverse: bool) -> list[str]:
+    return [f"tcp:{bind}:{PORT}-:8883" for bind in (tuple(reversed(binds)) if reverse else binds)]
+
+
+def _several_forwarding(records: dict[str, Any], binds: tuple[str, ...], reverse: bool, mode: str) -> dict[str, Any]:
+    """The records with the broker 127.0.0.1 and the forwards ``binds`` of
+    its port in both snapshots; the recorded flag stays true, as in
+    :func:`_forwarding`."""
+    rec = copy.deepcopy(records)
+    rec["execution_mode"] = mode
+    rec["broker"] = BROKER
+    for snapshot in ("start", "end"):
+        rules = [env_mod._parse_hostfwd(rule) for rule in _several_rules(binds, reverse)]
+        rec["hypervisor_env"][snapshot]["qemu"]["parsed"]["hostfwd"] = rules
+        rec["hypervisor_env"][snapshot]["generator_target_is_this_guest"] = True
+    return rec
+
+
+@F3_ORDERS
+@pytest.mark.parametrize(F3_SEVERAL_FIELDS, F3_SEVERAL_FORWARDS, ids=F3_SEVERAL_IDS)
+def test_f3_several_forwards_of_the_port_in_the_snapshot(host, case, binds, flag, h5, n1, named, reverse) -> None:
+    hostfwd = ",".join(f"hostfwd={rule}" for rule in _several_rules(binds, reverse))
+    add_qemu(host, argv=qemu_argv(host.images, hostfwd=hostfwd))  # type: ignore[attr-defined]
+    snap = _snapshot(host, broker=BROKER)
+    assert snap["generator_target_is_this_guest"] is flag, (case, snap["problems"])
+    # A forward that takes the connection leaves nothing undecided to report.
+    undecided = [p for p in snap["problems"] if p.startswith("generator_target_is_this_guest:")]
+    assert bool(undecided) is (flag is None), (case, snap["problems"])
+    if flag is None:
+        assert f"tcp:{named}:{PORT}-:8883" in undecided[0], undecided
+
+
+@F3_ORDERS
+@pytest.mark.parametrize(F3_SEVERAL_FIELDS, F3_SEVERAL_FORWARDS, ids=F3_SEVERAL_IDS)
+def test_f3_several_forwards_of_the_port_in_h5(records, case, binds, flag, h5, n1, named, reverse) -> None:
+    checks = env_mod.provenance_checks(**_several_forwarding(records, binds, reverse, "tcg-emulated"))
+    check = _by_id(checks)["H5"]
+    assert check["ok"] is h5, (case, check)
+    assert [c["check"] for c in checks if not c["ok"]] == ([] if h5 else ["H5"])
+    if h5:
+        assert f"tcp:{named}:{PORT}-:8883" in check["detail"], check
+    else:
+        for rule in _several_rules(binds, reverse):
+            assert rule in check["detail"], (rule, check)
+
+
+@F3_ORDERS
+@pytest.mark.parametrize(F3_SEVERAL_FIELDS, F3_SEVERAL_FORWARDS, ids=F3_SEVERAL_IDS)
+def test_f3_several_forwards_of_the_port_in_n1(records, case, binds, flag, h5, n1, named, reverse) -> None:
+    checks = env_mod.provenance_checks(**_several_forwarding(records, binds, reverse, "native-kvm"))
+    check = _by_id(checks)["N1"]
+    assert check["ok"] is (n1 is None), (case, check)
+    if n1 == "takes":
+        assert check["detail"].startswith(f"a local {env_mod.QEMU_EXECUTABLE} takes"), check
+        assert "cannot be decided" not in check["detail"], check
+    elif n1 == "cannot be decided":
+        assert "cannot be decided" in check["detail"], check
+    if named is not None:
+        assert f"tcp:{named}:{PORT}-:8883" in check["detail"] and str(QEMU_PID) in check["detail"], check
+    assert _by_id(checks)["N0"]["ok"] is False
+
+
 def test_provenance_problems_format() -> None:
     checks = [
         {"check": "P0", "ok": True, "detail": "declared"},
