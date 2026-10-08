@@ -1765,6 +1765,8 @@ def test_an_open_run_the_collector_measured_is_accounted_for(tmp_path, kwargs: d
         ({"start_bounds": ""}, "do not both carry a readable uptime_s="),
         ({"stop_bounds": f" uptime_s=unknown boot_id={OPEN_RUN_BOOT}"},
          "do not both carry a readable uptime_s="),
+        # Beyond Python's 4,300-digit int() limit: refused, never an exception.
+        ({"measuring": [_open_run_line("4" * 5000 + ".87", "428.06", "1.19")]}, "is absent"),
     ],
 )
 def test_an_open_run_the_collector_did_not_measure_soundly_stays_a_problem(

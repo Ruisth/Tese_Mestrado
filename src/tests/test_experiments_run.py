@@ -9060,9 +9060,14 @@ def test_inspection_accounts_for_an_open_run_the_collector_measured(tmp_path) ->
          "exceeds the protocol's MAX_SAMPLE_GAP_S"),
         ({"stop_bounds": " uptime_s=428.15 boot_id=unavailable"}, "do not carry one boot id"),
         ({"withheld_samples": 0}, "the closing record contradicts itself"),
-        # A 400-digit endpoint: refused by the rule, never an arithmetic error.
-        ({"measuring": OPEN_RUN_LINE.replace("426.87 s to 428.06 s", "4" * 400 + ".87 s to 428.06 s")},
-         "not in order"),
+        # Endpoints and a count beyond Python's 4,300-digit int() limit: not the
+        # collector's grammar, refused, never an exception (PR #61 review).
+        ({"measuring": OPEN_RUN_LINE.replace("426.87 s to 428.06 s", "4" * 5000 + ".87 s to 428.06 s")},
+         "is absent"),
+        ({"measuring": OPEN_RUN_LINE.replace("ended 1 withheld", "ended " + "1" * 5000 + " withheld")},
+         "is absent"),
+        ({"stop_bounds": " uptime_s=" + "4" * 5000 + f".15 boot_id={OPEN_RUN_BOOT}"},
+         "do not both carry a readable uptime_s="),
     ],
 )
 def test_inspection_still_refuses_an_open_run_not_soundly_measured(

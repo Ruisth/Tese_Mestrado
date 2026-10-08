@@ -2416,10 +2416,13 @@ _UNSTAMPED_RECORD = (
 #: then the closing awk's (AWK_SUMMARY) words, with the two /proc/uptime
 #: readings as read (two decimals) and their difference through %.2f
 #: (2026-10-08: the line G4 session B's preflight wrote and neither half read).
+#: Every number is bounded to nine whole digits (an uptime of 31 years, a count
+#: of a billion): a longer field is not the collector's and never reaches int(),
+#: which refuses strings above 4,300 digits (PR #61 review).
 _OPEN_RUN_MEASURED_RE = re.compile(
-    r"^(\S+) the run ended (\d+) withheld sample\(s\) after the last accepted "
-    r"one: (\d+\.\d\d) s of elapsed time since it \(uptime (\d+\.\d\d) s to "
-    r"(\d+\.\d\d) s\), in neither total$"
+    r"^(\S+) the run ended (\d{1,9}) withheld sample\(s\) after the last "
+    r"accepted one: (\d{1,9}\.\d\d) s of elapsed time since it \(uptime "
+    r"(\d{1,9}\.\d\d) s to (\d{1,9}\.\d\d) s\), in neither total$"
 )
 #: The same line when the collector could not read an elapsed-time endpoint.
 _OPEN_RUN_UNKNOWN_RE = re.compile(
@@ -2427,7 +2430,7 @@ _OPEN_RUN_UNKNOWN_RE = re.compile(
     r"accepted one; the elapsed time since it is unknown$"
 )
 #: The collector's monotonic bounds on its start and stop records (2026-10-05).
-_RECORD_UPTIME_RE = re.compile(r"\buptime_s=(\d+\.\d\d)(?=\s|$)")
+_RECORD_UPTIME_RE = re.compile(r"\buptime_s=(\d{1,9}\.\d\d)(?=\s|$)")
 _RECORD_BOOT_RE = re.compile(
     r"\bboot_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=\s|$)"
 )

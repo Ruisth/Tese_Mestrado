@@ -5291,7 +5291,9 @@ is unchanged.
   replay below is a comparison, not a new verdict.
 - **Evidence** (`output_test/runs/2026-10-08/HIST_2026-10-08-g4-collector-open-run-proposal`,
   `SHA256SUMS` `936161de…`; the final diff `0661da72…` is this PR's code and
-  tests). The final new tests: 33 of 37 fail on the unchanged code at
+  tests, plus one change from the pull request's review: every number of the
+  collector's line and of the records' `uptime_s` is bounded to nine whole
+  digits, so an oversized field is refused instead of raising in `int()`). The final new tests: 33 of 37 fail on the unchanged code at
   `5108f44` (session B's case refused in both halves), 37 of 37 pass with the
   rule. The six related test files in full: 1,088 passed, 55 skipped and one
   failed (`test_session_drivers.py::test_session_open_leaves_the_session_open`);
