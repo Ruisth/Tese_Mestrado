@@ -66,6 +66,8 @@ FIXTURE_QEMU_ARGV = [
     "-kernel", "/images/Image", "-append", "root=/dev/vda rw",
 ]
 TCG_CHECKS = ["P0", "H1", "H2", "H3", "H4", "H5", "G1", "G2", "G3", "G4", "G5", "L1", "I1"]
+#: The generator's target: the address of the fixture's broker forward.
+FIXTURE_BROKER = "127.0.0.1"
 
 
 def _hypervisor_snapshot(
@@ -232,6 +234,10 @@ def fast_run(monkeypatch, tmp_path: Path):
 
     def execute_run(*args, **kwargs):
         kwargs.setdefault("execution_mode", "tcg-emulated")
+        # The address the fixture's QEMU forward takes (127.0.0.1:8883); the
+        # harness default, the host name localhost, is never matched to a
+        # forward (F3, review of PR #60, 2026-10-08).
+        kwargs.setdefault("broker", FIXTURE_BROKER)
         return real_execute_run(*args, **kwargs)
 
     monkeypatch.setattr(run_mod, "_run_subprocess", fake_subprocess)
@@ -8657,7 +8663,7 @@ def test_a_consistent_tcg_emulated_run_is_valid_with_three_sealed_environment_re
     loadgen = json.loads((run_dir / "loadgen_environment.json").read_text("utf-8"))
     assert len(fast_run.snapshot_calls) == 2
     for call in fast_run.snapshot_calls:
-        assert call == {"loadgen_env": loadgen, "broker": "localhost", "port": 8883}
+        assert call == {"loadgen_env": loadgen, "broker": FIXTURE_BROKER, "port": 8883}
     # The load-generator record is handed the argv the measured run executes
     # (built once); a smoke run has no warm-up.
     assert fast_run.loadgen_argv == (fast_run.calls[0], None)
@@ -8692,6 +8698,21 @@ def test_a_tcg_declaration_with_kvm_in_the_command_line_fails_h3(
     assert _failed_checks(manifest) == ["H3"]
     assert _provenance_reasons(manifest) == manifest["validity_reasons"]
     assert "accelerator 'kvm', kvm_requested True" in manifest["validity_reasons"][0]
+
+
+@pytest.mark.parametrize("broker", ["localhost", "127.0.0.2", "::1"])
+def test_f3_a_target_the_qemu_forward_does_not_take_fails_h5(tmp_path, plan_path, fast_run, broker) -> None:
+    """F3 (review of PR #60, 2026-10-08): the fixture's QEMU forwards
+    127.0.0.1:8883 only. The harness default (the host name localhost),
+    another loopback address and IPv6 are not shown to enter it: the run is
+    invalid on H5 alone, although the snapshots' flag says true."""
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path, broker=broker)
+    assert rc == 1
+    assert manifest["validity"] == "invalid"
+    assert _failed_checks(manifest) == ["H5"]
+    assert _provenance_reasons(manifest) == manifest["validity_reasons"]
+    assert f"the generator's target {broker}:8883 is not shown to enter" in manifest["validity_reasons"][0]
+    assert checksums.verify_sha256sums(run_dir) == []
 
 
 @pytest.mark.parametrize("pids", [[], [4000, 5000]], ids=["no-qemu", "two-qemu"])

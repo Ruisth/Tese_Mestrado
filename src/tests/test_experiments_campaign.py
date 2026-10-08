@@ -266,6 +266,10 @@ def fake_env(monkeypatch, tmp_path: Path) -> SimpleNamespace:
         # The mode the fixture's records evidence; without it every run is
         # recorded invalid (G4 core provenance, plan 655-661).
         execution_mode="tcg-emulated",
+        # The address the fixture's QEMU forward takes (127.0.0.1:8883); the
+        # default, the host name localhost, is never matched to a forward
+        # (F3, review of PR #60, 2026-10-08).
+        broker="127.0.0.1",
     )
     return SimpleNamespace(
         calls=calls, sleeps=sleeps, base=base, kwargs=kwargs, tmp_path=tmp_path
