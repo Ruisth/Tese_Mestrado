@@ -20,13 +20,21 @@ evaluates, and ``seq`` is k.
 Sections, each on ONE clock; no figure subtracts a stamp of one clock from a
 stamp of another:
 
+- requested load (exact, no tolerance; ``--run-dir`` only): the harness
+  manifest's top-level ``scenario``, ``seed``, ``rate_msg_s`` and
+  ``duration_s`` (``warmup_s`` for the warm-up) equal the simulator
+  manifest's ``scenario``, ``seed``, ``rates_hz.aggregate`` and
+  ``duration_s`` (:func:`reconcile_load`): a matching ``run_id`` alone does
+  not show that the records are the requested load.
 - identity and count (exact, no tolerance): the manifest agrees with
   ``make_devices`` / ``split_rate``; every line is a JSON object with exactly
   the record contract's fields and types; every identity is a scheduled one
   of this run, once, with its UUID v5 ``message_id``; the counts equal the
   schedule and ``totals``; the invalid-event flags are the injector's;
-  ``publish_monotonic_ns`` never decreases; the run root's copy is byte for
-  byte the simulator's.
+  ``publish_monotonic_ns`` never decreases; a non-null
+  ``puback_monotonic_ns`` is neither before its own publish stamp nor after
+  the next record's (the writer is sequential: :func:`puback_chronology`);
+  the run root's copy is byte for byte the simulator's.
 - generator timing (host monotonic clock): ``publish_monotonic_ns`` is taken
   immediately before the client's publish call, so it measures the client's
   publish-call cadence, NOT the wire send, broker ingress or delivery (paho
@@ -36,12 +44,14 @@ stamp of another:
   offset)`` and the lateness is RELATIVE: it omits one unknown constant
   ``c >= 0`` common to every event, which a stall, a ramp or a shortfall
   cannot hide because each of them makes the lateness vary. Reported: the
-  relative lateness percentiles, overruns (an event published at or after
-  the next scheduled instant, the state in which the loop skips its sleep),
-  catch-up bursts (maximal chains of consecutive overrunning instants), the
-  publish gaps, per-window counts (a reporting resolution outside the
-  verdict), the span against the scheduled span, and the mean rates as a
-  summary that cannot detect a mid-run stall.
+  relative lateness percentiles, relative overruns (an event published at or
+  after the next scheduled instant, both placed by the inferred origin: the
+  state in which the loop skips its sleep), catch-up bursts (maximal chains
+  of consecutive overrunning instants), the publish gaps, per-window counts
+  (a reporting resolution outside the verdict), the span against the
+  scheduled span, and the mean rates as a summary that cannot detect a
+  mid-run stall. A delay common to every event (the unknown ``c``) is
+  invisible to all of them; the span needs no origin.
 - PUBACK observations (host clock; never in the verdict): a null puback
   means "not observed within the wait budget", never loss; nulls are split
   into structural (the zero budget of every event but the last of a
@@ -58,22 +68,30 @@ are strict JSON (NaN, infinities and numbers beyond a float are refused), a
 schedule with no event is not a schedule, and with ``--run-dir`` the run
 directory's ``SHA256SUMS`` must exist and verify (the harness's own
 ``egw_experiments.checksums`` verification) and its harness manifest, when
-present, must be a readable JSON object. A bare simulator directory
-(``--sim-dir``) carries no seal of its own and none is verified.
+present, must be a readable JSON object; without it the requested load is
+not shown and the report does not certify. A bare simulator directory
+(``--sim-dir``) carries no seal of its own and none is verified, and no
+harness request: its manifest is the only record of the load.
 
-Verdicts and exit codes: SUSTAINED 0 (identity exact, ``completed`` true and
-every tolerance of an APPROVED profile entry for the run's scenario and
-aggregate rate met); NOT_SHOWN 1 (an input defect: missing, unreadable or
-inconsistent files, a seal that is missing or does not verify; never judged
-as passed); 2 usage (bad arguments, a ``--window-s`` below
+Verdicts and exit codes: SUSTAINED 0 (identity exact, ``completed`` true,
+the requested load reconciled when there is a harness run, and every
+tolerance of an APPROVED profile entry for the run's scenario and aggregate
+rate met); NOT_SHOWN 1 (an input defect: missing, unreadable or
+inconsistent files, a seal that is missing or does not verify, a harness
+request the simulator's records contradict, an acknowledgement stamp in an
+order the writer cannot produce; never judged as passed, never
+NOT_SUSTAINED); 2 usage (bad arguments, a ``--window-s`` below
 :data:`MIN_WINDOW_S`, an invalid tolerance file, an output that exists, lies
 inside the run or a sealed directory, or cannot be written: then no report
 is written and no verdict is given);
 NOT_CERTIFIED 3 (metrics computed but no profile, a profile that is not
-approved, no entry for the condition, or timing not applicable, as for
-dropout-reconnect); NOT_SUSTAINED 4 (an approved tolerance exceeded, or a
-whole run that did not complete its schedule). Exit 1 only ever means a
-NOT_SHOWN evaluation, written to its report.
+approved, no entry for the condition, timing not applicable, as for
+dropout-reconnect, or a load field the harness manifest does not record,
+the manifest itself included); NOT_SUSTAINED 4 (an approved tolerance
+exceeded, or a whole run that did not complete its schedule). Exit 1 only
+ever means a NOT_SHOWN evaluation, written to its report. A NOT_SUSTAINED
+run is a pilot finding: not a licence to repeat it, and not by itself an
+instrumentation failure.
 
 No tolerance is built in. A profile is a JSON file (:func:`load_tolerances`);
 only one whose ``status`` is ``approved`` and whose ``approval`` names who
@@ -926,6 +944,23 @@ def check_identity(
             f"publish_monotonic_ns decreases {decreases} time(s) in file order "
             f"(first at line {first_at}); the writer appends in publish order"
         )
+    chronology = puback_chronology(sent)
+    if chronology["before_own_publish"]:
+        problems.append(
+            f"{chronology['before_own_publish']} record(s) carry a "
+            "puback_monotonic_ns earlier than their own publish_monotonic_ns "
+            f"(first at line {chronology['first_before_own_line']}): the "
+            "acknowledgement stamp is taken after the publish call returns"
+        )
+    if chronology["after_next_publish"]:
+        problems.append(
+            f"{chronology['after_next_publish']} record(s) carry a "
+            "puback_monotonic_ns later than the next record's "
+            f"publish_monotonic_ns (first at line "
+            f"{chronology['first_after_next_line']}): the run loop publishes, "
+            "waits and records one event at a time, so an acknowledgement "
+            "observed for a record precedes the next publish call"
+        )
 
     recorded_per_device = Counter(event.device_uuid for _record, event in usable)
     identity = {
@@ -963,8 +998,55 @@ def check_identity(
             "disconnects_recorded": totals.get("dropout_disconnects"),
         },
         "publish_order_nondecreasing": decreases == 0,
+        "puback_chronology": {
+            "before_own_publish": chronology["before_own_publish"],
+            "after_next_publish": chronology["after_next_publish"],
+            "consistent": not (
+                chronology["before_own_publish"] or chronology["after_next_publish"]
+            ),
+        },
     }
     return identity, problems, usable
+
+
+def puback_chronology(sent: SentRead) -> dict:
+    """Records whose non-null ``puback_monotonic_ns`` no run of this writer
+    can produce, counted in file order.
+
+    The run loop (``egw_simulator.runner.run``) is sequential: for each
+    event, live or flushed after a dropout-reconnect window, it calls
+    ``publisher.publish``, which stamps ``publish_monotonic_ns``, publishes,
+    waits at most the event's budget and stamps ``puback_monotonic_ns`` only
+    when the acknowledgement was observed (``egw_simulator.publisher``); the
+    record is written before the next event is published, in publish order,
+    and the end-of-run drain never revisits a written record. So a
+    non-null stamp is at or after its own publish stamp and at or before the
+    next record's (equality is possible on a coarse clock); the run's last
+    record has no upper bound. A null stamp is an absent observation, never
+    loss and never a defect; no stamp here enters the cadence verdict.
+    """
+    before = after = 0
+    first_before = first_after = None
+    records = sent.records
+    for position, (number, record) in enumerate(records):
+        puback = record["puback_monotonic_ns"]
+        if puback is None:
+            continue
+        if puback < record["publish_monotonic_ns"]:
+            before += 1
+            first_before = first_before or number
+        if (
+            position + 1 < len(records)
+            and puback > records[position + 1][1]["publish_monotonic_ns"]
+        ):
+            after += 1
+            first_after = first_after or number
+    return {
+        "before_own_publish": before,
+        "first_before_own_line": first_before,
+        "after_next_publish": after,
+        "first_after_next_line": first_after,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1327,6 +1409,110 @@ def harness_elapsed(
 
 
 # ---------------------------------------------------------------------------
+# The requested load: the harness manifest against the simulator manifest
+# ---------------------------------------------------------------------------
+
+
+def _simulator_load(manifest: dict) -> dict[str, Any]:
+    rates = manifest.get("rates_hz")
+    return {
+        "scenario": manifest.get("scenario"),
+        "seed": manifest.get("seed"),
+        "aggregate_rate_hz": rates.get("aggregate") if isinstance(rates, dict) else None,
+        "duration_s": manifest.get("duration_s"),
+    }
+
+
+def _load_value(field: str, value: Any) -> bool:
+    """A value the field can hold: a string scenario, an integer seed (a
+    boolean is not one), a finite rate or duration."""
+    if field == "scenario":
+        return isinstance(value, str)
+    if field == "seed":
+        return _is_int(value)
+    return _finite(value)
+
+
+def reconcile_load(
+    harness: dict | None,
+    sim_manifest: dict | None,
+    *,
+    warmup: bool,
+    unusable: str | None = None,
+) -> tuple[dict, list[str]]:
+    """(the load section, problems): is the simulator's record the load the
+    harness run requested?
+
+    The request is the harness manifest's top-level ``scenario``, ``seed``,
+    ``rate_msg_s`` and ``duration_s`` (``warmup_s`` for the warm-up, which
+    run.py runs with the measured run's scenario, seed and rate): the values
+    from which run.py builds both simulator invocations. ``config.plan_entry``
+    is the plan's echo, not the request (under --skip-warmup its
+    ``warmup_s`` is not the one run). Each is compared with the simulator
+    manifest's ``scenario``, ``seed``, ``rates_hz.aggregate`` and
+    ``duration_s``, numbers by numeric equality (the harness passes them on
+    the command line in a form that reads back exactly). A contradiction,
+    or a value no request can hold, is a problem (NOT_SHOWN), never a
+    tolerance result. A field the harness manifest does not record (absent
+    or null; every field when the manifest itself is missing) is recorded
+    as such and keeps the report from certifying. ``unusable`` names why a
+    harness manifest that is present could not be read (a NOT_SHOWN problem
+    of its own).
+    """
+    sim = _simulator_load(sim_manifest if isinstance(sim_manifest, dict) else {})
+    which = "the warm-up's simulator manifest" if warmup else "the simulator manifest"
+    rows: list[dict[str, Any]] = []
+    problems: list[str] = []
+    for field, key, sim_key in (
+        ("scenario", "scenario", "scenario"),
+        ("seed", "seed", "seed"),
+        ("aggregate_rate_hz", "rate_msg_s", "rates_hz.aggregate"),
+        ("duration_s", "warmup_s" if warmup else "duration_s", "duration_s"),
+    ):
+        requested = harness.get(key) if harness is not None else None
+        observed = sim[field]
+        if requested is None:
+            state = "not recorded"
+        elif not _load_value(field, requested):
+            state = "unreadable"
+            problems.append(
+                f"the harness manifest records {key} {_brief(requested)}, which no "
+                "request can hold: the requested load is not shown"
+            )
+        elif not _load_value(field, observed):
+            # The simulator manifest's own problem is named with its schedule.
+            state = "not compared"
+        elif requested != observed:
+            state = "contradicts"
+            problems.append(
+                f"the harness manifest requested {key} {_brief(requested)} but "
+                f"{which} records {sim_key} {_brief(observed)}: its records are "
+                "not shown to be the requested load"
+            )
+        else:
+            state = "agrees"
+        rows.append({
+            "field": field,
+            "harness_key": key,
+            "simulator_key": sim_key,
+            "requested": requested,
+            "simulator": observed,
+            "state": state,
+        })
+    return {
+        "applicable": True,
+        "source": "harness manifest (top-level fields)"
+        if harness is not None
+        else f"harness manifest not usable: {unusable}"
+        if unusable
+        else "no harness manifest: nothing recorded",
+        "fields": rows,
+        "reconciled": all(row["state"] == "agrees" for row in rows),
+        "not_recorded": [row["harness_key"] for row in rows if row["state"] == "not recorded"],
+    }, problems
+
+
+# ---------------------------------------------------------------------------
 # Evaluation: the verdict (sections C, D and E never change it)
 # ---------------------------------------------------------------------------
 
@@ -1352,10 +1538,26 @@ def evaluate(report: dict, profile: ToleranceProfile | None) -> dict:
         "verdict": None,
         "reasons": [],
     }
+    # A load field the harness manifest does not record: the records are not
+    # shown to be the requested load, so no verdict below certifies.
+    load = report.get("load_reconciliation") or {}
+    unrecorded = load.get("not_recorded") if load.get("applicable") else None
+    load_note = None
+    if unrecorded:
+        if load.get("source", "").startswith("no harness manifest"):
+            what = "there is no harness manifest"
+        else:
+            what = f"the harness manifest records no {', '.join(unrecorded)}"
+        load_note = (
+            f"{what}: the simulator's records are not shown to be the load "
+            "this harness run requested, so this report does not certify"
+        )
 
     def done(verdict: str, *reasons: str) -> dict:
         result["verdict"] = verdict
         result["reasons"] = list(reasons)
+        if load_note and verdict != NOT_SHOWN:
+            result["reasons"].append(load_note)
         return result
 
     if inputs["problem_count"]:
@@ -1416,6 +1618,11 @@ def evaluate(report: dict, profile: ToleranceProfile | None) -> dict:
             "the per-tolerance results are reported, labelled non-certifying; "
             "only a profile with status 'approved' that names its decision "
             "record certifies",
+        )
+    if load_note:
+        return done(
+            NOT_CERTIFIED,
+            "the per-tolerance results are reported, labelled non-certifying",
         )
     result["certifying"] = True
     outside = [row for row in rows if not row["within"]]
@@ -1562,7 +1769,8 @@ def check_generator(
         if harness_problem is not None and harness_present:
             # Present but unreadable, not strict JSON or not an object: the
             # run directory is not what a harness run must be. A MISSING
-            # harness manifest only empties the elapsed section (and a sealed
+            # harness manifest empties the elapsed section and leaves the
+            # requested load unrecorded, so nothing certifies (and a sealed
             # run that lost it fails its seal above).
             problems.append(f"harness manifest: {harness_problem}")
         harness_info = {
@@ -1597,6 +1805,18 @@ def check_generator(
             f"simulator manifest run_id {_brief(manifest.get('run_id'))} is not the "
             f"harness run's ({expected_run_id!r})"
         )
+    if run_dir is not None:
+        load, load_problems = reconcile_load(
+            harness, sim_manifest, warmup=warmup,
+            unusable=harness_problem if harness_info["present"] else None,
+        )
+        problems.extend(load_problems)
+    else:
+        load = {
+            "applicable": False,
+            "reason": "a bare simulator directory carries no harness request; its "
+            "manifest is the only record of the load",
+        }
     if harness is not None and "execution_mode" in harness:
         execution_mode, mode_source = harness["execution_mode"], "harness manifest"
     elif harness is not None:
@@ -1725,6 +1945,7 @@ def check_generator(
             "problems": problems[:PROBLEM_LIMIT],
         },
         "run": run_section,
+        "load_reconciliation": load,
         "schedule": {
             "events_expected": len(schedule.events),
             "per_device_expected": {
@@ -1800,6 +2021,16 @@ def console_lines(report: dict) -> list[str]:
         lines.append(
             f"seal [{SUMS_FILENAME}]: {seal['state'].upper()}: the files are not "
             "shown to be the run's record"
+        )
+    load = report["load_reconciliation"]
+    if not load["applicable"]:
+        lines.append(f"requested load: not applicable: {load['reason']}")
+    else:
+        states = ", ".join(f"{row['harness_key']} {row['state']}" for row in load["fields"])
+        lines.append(
+            f"requested load [{load['source']}]: "
+            + ("reconciled" if load["reconciled"] else "NOT reconciled")
+            + f" ({states})"
         )
     identity = report["identity"]
     if identity is not None:
