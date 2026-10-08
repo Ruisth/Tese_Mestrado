@@ -528,9 +528,10 @@ python -m egw_experiments run --run-id <run_id> ... \
   rootfs drive and its image name, whether `/dev/kvm` is open
   and the accelerator derived from these; and two derived facts,
   `colocated_with_loadgen` (that process is in this host's table and the
-  boot id is the load generator's) and `generator_target_is_this_guest` (the
-  broker is a loopback address and a forward of that QEMU on a loopback,
-  empty or `0.0.0.0` host address takes the port).
+  boot id is the load generator's) and `generator_target_is_this_guest` (a
+  TCP forward of that QEMU on the generator's port takes a connection to the
+  broker, by the address rule under "The checks"; null, with the reason,
+  when that cannot be decided).
   Whatever cannot be read is null, with its reason in the snapshot's
   `problems`; nothing is guessed. The start snapshot is taken before the
   collector start hook and the end snapshot after the collector stop hook,
@@ -551,18 +552,46 @@ python -m egw_experiments run --run-id <run_id> ... \
   end; H3 the accelerator is TCG and KVM is not requested; H4 the load
   generator is co-located (the flag is true and the two boot ids are
   equal; a record saying it was not co-located fails); H5 the generator's
-  target enters that QEMU (a loopback broker, and a forward of the port on a
-  loopback, empty or `0.0.0.0` host address); G1 the guest record's role is
+  target enters that QEMU (an IPv4 loopback broker that a TCP forward of the
+  recorded command line on the port takes, by the address rule below; the
+  recorded flag alone never passes it); G1 the guest record's role is
   `sut`; G2 its `uname_a` states aarch64; G3 its `nproc` equals `-smp`; G4
   one of its labels states emulation; G5 (advisory, below) its
   `captured_utc` is not earlier than the QEMU start; L1 the load generator
   runs on the hypervisor's host machine; I1 the QEMU executable, the kernel
   and the rootfs image are identified. For `native-kvm` and `native-metal`,
   N0 always fails (no native provenance capture exists in this harness),
-  and N1 (a local QEMU takes the generator's port, on the same addresses as
-  H5), N2 (a guest label states emulation) and N3 (the guest is
-  `egw-qemu-integrated`) name each contradiction found: the
-  wrong-provenance regression. No check has a tolerance.
+  and N1 (a local QEMU takes the generator's traffic, by the same address
+  rule; N1 also fails when that cannot be decided), N2 (a guest label
+  states emulation) and N3 (the guest is `egw-qemu-integrated`) name each
+  contradiction found: the wrong-provenance regression. No check has a
+  tolerance.
+- **The address rule of H5 and N1 (F3, review of PR #60, 2026-10-08).**
+  QEMU 8.2.7 reads a forward's host address with `inet_aton`
+  (`net/slirp.c`, `slirp_hostfwd`): IPv4 only, an empty address meaning
+  every address. The generator's broker is matched to that host address by
+  address and family (`environment._forward_takes`): a forward bound to one
+  dotted-quad IPv4 address takes only that address (`127.0.0.1` does not
+  take `127.0.0.2`); an empty or `0.0.0.0` one takes any IPv4 loopback
+  address; an IPv6 broker (`::1`) never enters a forward, and an
+  IPv4-mapped one cannot be decided; a host name is not an address and is
+  never matched, `localhost` included, so the harness default
+  `--broker localhost` fails H5: give the address, `--broker 127.0.0.1` on
+  the integrated guest. A forward whose host address is neither empty,
+  `0.0.0.0` nor a dotted-quad IPv4 address (`127.1`, which `inet_aton` also
+  takes) is not read; a non-loopback broker against an every-address
+  forward cannot be decided (whether it is an address of this host is not
+  recorded), nor can the unspecified broker `0.0.0.0` against any forward
+  (Linux connects it to a local address, which is not recorded). Against a
+  forward of the generator's port, none of these passes H5, and each fails
+  N1; with no forward on that port, a host-name or `0.0.0.0` broker still
+  fails H5 but passes N1, since no recorded QEMU forwards the port (N0
+  still fails every native declaration). When several forwards share the
+  port, one that takes the connection decides, whatever the others are: the
+  snapshot's flag is true, H5 can pass, and N1 fails naming it. Without one,
+  a forward that cannot be decided leaves the flag null, fails H5 and fails
+  N1 as undecided. N1 passes only when every forward of the port is shown
+  not to take the connection, or the port has none.
 - **G5 is advisory (2026-10-07).** It compares the guest's own wall clock
   with a QEMU start derived on the host as `btime` + start ticks / tick
   rate, and `btime` is read at the start snapshot: every step of the host's

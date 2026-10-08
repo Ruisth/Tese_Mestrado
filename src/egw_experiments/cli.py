@@ -436,7 +436,12 @@ def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
         "--broker",
         default="localhost",
         help="MQTT broker host: the ARM VM's address (the harness and the "
-        "simulator run off the VM during benchmarks, plan 5.1)",
+        "simulator run off the VM during benchmarks, plan 5.1). Give an IP "
+        "address: a host name, such as the default 'localhost', cannot be "
+        "matched to the QEMU forward (provenance check H5), so a "
+        "tcg-emulated run or campaign must pass the address, "
+        "--broker 127.0.0.1 on the integrated guest, or each of its runs "
+        "fails H5 and is recorded as invalid",
     )
     parser.add_argument(
         "--port", type=int, default=8883, help="MQTT port (default 8883, TLS)"

@@ -55,7 +55,11 @@ Behaviour:
 - G4 core provenance (plan 655-661): ``--execution-mode`` reaches every
   executed run; it has no default, so a campaign without it records each run
   as invalid, and a value outside the three tokens (an API caller's) is
-  refused with exit 2 before anything is written;
+  refused with exit 2 before anything is written. ``--broker`` reaches every
+  run as well, and its default ``localhost`` is a host name, which cannot be
+  matched to the QEMU forward (check H5): a ``tcg-emulated`` campaign must
+  pass the address, ``--broker 127.0.0.1`` on the integrated guest, or each
+  run it executes fails H5 and is recorded as invalid;
 - cooldowns: the plan's ``cooldown_s`` is honored by the run wiring itself
   (``execute_run`` sleeps the remaining cooldown after the confirmation
   window). ``--no-cooldown`` suppresses it and records a protocol

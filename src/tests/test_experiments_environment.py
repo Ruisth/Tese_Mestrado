@@ -545,12 +545,13 @@ def test_snapshot_records_co_location_from_the_boot_ids(host) -> None:
     ("broker", "port", "hostfwd", "expected"),
     [
         ("127.0.0.1", PORT, None, True),
-        ("localhost", PORT, None, True),
         ("127.0.0.1", PORT, f"hostfwd=tcp::{PORT}-:8883", True),
         # 0.0.0.0 is every address, as the empty host address is: QEMU's
         # slirp listens on loopback too, so the generator's connection enters.
         ("127.0.0.1", PORT, f"hostfwd=tcp:0.0.0.0:{PORT}-:8883", True),
-        ("localhost", PORT, f"hostfwd=tcp:0.0.0.0:{PORT}-:8883", True),
+        # A host name (localhost included) is never matched to a forward:
+        # F3_DESTINATIONS below. Without a forward of the port it enters none.
+        ("localhost", PORT, f"hostfwd=tcp:127.0.0.1:{PORT + 1}-:8883", False),
         ("127.0.0.1", 1883, None, False),
         ("10.0.0.5", PORT, None, False),
         ("127.0.0.1", PORT, f"hostfwd=tcp:192.168.1.2:{PORT}-:8883", False),
@@ -922,6 +923,183 @@ def test_each_native_contradiction_rests_on_its_own_fact(records, check, change)
     by_id = _by_id(env_mod.provenance_checks(**rec))
     assert by_id[check]["ok"] is True
     assert by_id["N0"]["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# F3 (review of PR #60, 2026-10-08): the generator's destination is matched to
+# the forward's bind, address and family; a wildcard only where it applies
+# ---------------------------------------------------------------------------
+
+#: (case, the generator's broker, the forward's host address, whether the
+#: generator's connection is shown to enter that forward: True, False, or
+#: None when the records cannot decide it). QEMU 8.2.7 reads the host address
+#: with inet_aton (net/slirp.c, slirp_hostfwd): IPv4 only, the empty address
+#: keeping INADDR_ANY; it cannot express an IPv6 address or a host name.
+F3_DESTINATIONS = [
+    # The canonical route and the two wildcards.
+    ("127.0.0.1 to a 127.0.0.1 bind", "127.0.0.1", "127.0.0.1", True),
+    ("127.0.0.1 to the empty wildcard", "127.0.0.1", "", True),
+    ("127.0.0.1 to the 0.0.0.0 wildcard", "127.0.0.1", "0.0.0.0", True),
+    # Another loopback address, or the IPv6 family, against an exact bind.
+    ("127.0.0.2 to a 127.0.0.1 bind", "127.0.0.2", "127.0.0.1", False),
+    ("::1 to a 127.0.0.1 bind", "::1", "127.0.0.1", False),
+    # An IPv4 wildcard takes every IPv4 loopback address, never IPv6.
+    ("127.0.0.2 to the empty wildcard", "127.0.0.2", "", True),
+    ("127.0.0.2 to the 0.0.0.0 wildcard", "127.0.0.2", "0.0.0.0", True),
+    ("::1 to the empty wildcard", "::1", "", False),
+    ("::1 to the 0.0.0.0 wildcard", "::1", "0.0.0.0", False),
+    # A host name is not an address: it is never matched to a bind.
+    ("localhost to a 127.0.0.1 bind", "localhost", "127.0.0.1", None),
+    ("localhost to the empty wildcard", "localhost", "", None),
+    ("localhost to the 0.0.0.0 wildcard", "localhost", "0.0.0.0", None),
+    ("a bracketed [::1]", "[::1]", "127.0.0.1", None),
+    # A dual-stack socket may carry an IPv4-mapped address to an IPv4 forward.
+    ("an IPv4-mapped ::ffff:127.0.0.1", "::ffff:127.0.0.1", "127.0.0.1", None),
+    # A bind that is not a dotted-quad IPv4 address, nor a wildcard, is not read.
+    ("a bind written 127.1", "127.0.0.1", "127.1", None),
+    ("an IPv6 bind QEMU cannot express", "::1", "[::1]", None),
+    # Whether another IPv4 address is this host's is not recorded.
+    ("a non-loopback address to the wildcard", "10.0.0.5", "0.0.0.0", None),
+    ("a non-loopback address to its own bind", "192.168.1.2", "192.168.1.2", True),
+    # 0.0.0.0 is not a destination: Linux connects it to a local address (the
+    # loopback one when no source is bound), which is not recorded; so an
+    # exact bind is not shown to refuse it, nor a wildcard to take it.
+    ("the unspecified 0.0.0.0 to a 127.0.0.1 bind", "0.0.0.0", "127.0.0.1", None),
+    ("the unspecified 0.0.0.0 to the 0.0.0.0 wildcard", "0.0.0.0", "0.0.0.0", None),
+]
+F3_IDS = [case for case, *_ in F3_DESTINATIONS]
+
+
+@pytest.mark.parametrize(("case", "broker", "bind", "takes"), F3_DESTINATIONS, ids=F3_IDS)
+def test_f3_the_snapshot_matches_the_destination_to_the_bind(host, case, broker, bind, takes) -> None:
+    add_qemu(host, argv=qemu_argv(host.images, hostfwd=f"hostfwd=tcp:{bind}:{PORT}-:8883"))  # type: ignore[attr-defined]
+    snap = _snapshot(host, broker=broker)
+    assert snap["generator_target_is_this_guest"] is takes, (case, snap["problems"])
+    undecided = [p for p in snap["problems"] if p.startswith("generator_target_is_this_guest:")]
+    assert bool(undecided) is (takes is None), (case, snap["problems"])
+
+
+def _forwarding(records: dict[str, Any], broker: str, bind: str, mode: str) -> dict[str, Any]:
+    """The records with ``broker`` as the generator's target and one forward
+    of the port bound to ``bind`` in both snapshots. The recorded flag stays
+    true, as a record of the earlier rule could hold it: the checks match the
+    destination to the recorded command line themselves."""
+    rec = copy.deepcopy(records)
+    rec["execution_mode"] = mode
+    rec["broker"] = broker
+    rule = env_mod._parse_hostfwd(f"tcp:{bind}:{PORT}-:8883")
+    for snapshot in ("start", "end"):
+        rec["hypervisor_env"][snapshot]["qemu"]["parsed"]["hostfwd"] = [rule]
+        rec["hypervisor_env"][snapshot]["generator_target_is_this_guest"] = True
+    return rec
+
+
+@pytest.mark.parametrize(("case", "broker", "bind", "takes"), F3_DESTINATIONS, ids=F3_IDS)
+def test_f3_h5_needs_a_forward_that_takes_the_loopback_destination(records, case, broker, bind, takes) -> None:
+    checks = env_mod.provenance_checks(**_forwarding(records, broker, bind, "tcg-emulated"))
+    h5 = _by_id(checks)["H5"]
+    # H5 keeps its IPv4 loopback target: a forward that takes another address
+    # (its own exact bind) still fails it.
+    assert h5["ok"] is (takes is True and broker.startswith("127.")), (case, h5)
+    # The destination is H5's fact alone.
+    assert [c["check"] for c in checks if not c["ok"]] == ([] if h5["ok"] else ["H5"])
+    if not h5["ok"]:
+        assert f"{broker}:{PORT}" in h5["detail"]
+
+
+@pytest.mark.parametrize(("case", "broker", "bind", "takes"), F3_DESTINATIONS, ids=F3_IDS)
+def test_f3_n1_passes_only_when_no_forward_can_take_the_traffic(records, case, broker, bind, takes) -> None:
+    checks = env_mod.provenance_checks(**_forwarding(records, broker, bind, "native-kvm"))
+    n1 = _by_id(checks)["N1"]
+    assert n1["ok"] is (takes is False), (case, n1)
+    if takes is None:
+        assert "cannot be decided" in n1["detail"], n1
+    if takes is not False:
+        assert f"tcp:{bind}:{PORT}-:8883" in n1["detail"] and str(QEMU_PID) in n1["detail"]
+    assert _by_id(checks)["N0"]["ok"] is False
+
+
+#: Several forwards of the generator's port (F3.1, delta check of the F3
+#: correction, 2026-10-08): (case, the forwards' host addresses, the
+#: snapshot's flag, whether H5 passes, how N1 fails or None when it passes,
+#: the forward named). The broker is 127.0.0.1 throughout. A forward that
+#: takes the connection decides the snapshot's flag and H5 whatever the
+#: others are; without one, a forward that cannot be decided leaves the flag
+#: null and fails H5. N1 passes only when every forward of the port is shown
+#: not to take it: one that takes it fails N1 and is named, and otherwise one
+#: that cannot be decided fails N1 as undecided. Each row runs with the
+#: forwards in both orders: their order on the command line decides nothing.
+F3_SEVERAL_FORWARDS = [
+    ("one takes it, one cannot be decided", ("127.0.0.1", "127.2"), True, True, "takes", "127.0.0.1"),
+    ("one does not take it, one cannot be decided", ("127.0.0.2", "127.1"), None, False, "cannot be decided", "127.1"),
+    ("one takes it, one does not", ("127.0.0.1", "127.0.0.2"), True, True, "takes", "127.0.0.1"),
+    ("neither takes it", ("127.0.0.2", "127.0.0.3"), False, False, None, None),
+]
+F3_SEVERAL_IDS = [case for case, *_ in F3_SEVERAL_FORWARDS]
+F3_SEVERAL_FIELDS = ("case", "binds", "flag", "h5", "n1", "named")
+F3_ORDERS = pytest.mark.parametrize("reverse", [False, True], ids=["as-listed", "reversed"])
+
+
+def _several_rules(binds: tuple[str, ...], reverse: bool) -> list[str]:
+    return [f"tcp:{bind}:{PORT}-:8883" for bind in (tuple(reversed(binds)) if reverse else binds)]
+
+
+def _several_forwarding(records: dict[str, Any], binds: tuple[str, ...], reverse: bool, mode: str) -> dict[str, Any]:
+    """The records with the broker 127.0.0.1 and the forwards ``binds`` of
+    its port in both snapshots; the recorded flag stays true, as in
+    :func:`_forwarding`."""
+    rec = copy.deepcopy(records)
+    rec["execution_mode"] = mode
+    rec["broker"] = BROKER
+    for snapshot in ("start", "end"):
+        rules = [env_mod._parse_hostfwd(rule) for rule in _several_rules(binds, reverse)]
+        rec["hypervisor_env"][snapshot]["qemu"]["parsed"]["hostfwd"] = rules
+        rec["hypervisor_env"][snapshot]["generator_target_is_this_guest"] = True
+    return rec
+
+
+@F3_ORDERS
+@pytest.mark.parametrize(F3_SEVERAL_FIELDS, F3_SEVERAL_FORWARDS, ids=F3_SEVERAL_IDS)
+def test_f3_several_forwards_of_the_port_in_the_snapshot(host, case, binds, flag, h5, n1, named, reverse) -> None:
+    hostfwd = ",".join(f"hostfwd={rule}" for rule in _several_rules(binds, reverse))
+    add_qemu(host, argv=qemu_argv(host.images, hostfwd=hostfwd))  # type: ignore[attr-defined]
+    snap = _snapshot(host, broker=BROKER)
+    assert snap["generator_target_is_this_guest"] is flag, (case, snap["problems"])
+    # A forward that takes the connection leaves nothing undecided to report.
+    undecided = [p for p in snap["problems"] if p.startswith("generator_target_is_this_guest:")]
+    assert bool(undecided) is (flag is None), (case, snap["problems"])
+    if flag is None:
+        assert f"tcp:{named}:{PORT}-:8883" in undecided[0], undecided
+
+
+@F3_ORDERS
+@pytest.mark.parametrize(F3_SEVERAL_FIELDS, F3_SEVERAL_FORWARDS, ids=F3_SEVERAL_IDS)
+def test_f3_several_forwards_of_the_port_in_h5(records, case, binds, flag, h5, n1, named, reverse) -> None:
+    checks = env_mod.provenance_checks(**_several_forwarding(records, binds, reverse, "tcg-emulated"))
+    check = _by_id(checks)["H5"]
+    assert check["ok"] is h5, (case, check)
+    assert [c["check"] for c in checks if not c["ok"]] == ([] if h5 else ["H5"])
+    if h5:
+        assert f"tcp:{named}:{PORT}-:8883" in check["detail"], check
+    else:
+        for rule in _several_rules(binds, reverse):
+            assert rule in check["detail"], (rule, check)
+
+
+@F3_ORDERS
+@pytest.mark.parametrize(F3_SEVERAL_FIELDS, F3_SEVERAL_FORWARDS, ids=F3_SEVERAL_IDS)
+def test_f3_several_forwards_of_the_port_in_n1(records, case, binds, flag, h5, n1, named, reverse) -> None:
+    checks = env_mod.provenance_checks(**_several_forwarding(records, binds, reverse, "native-kvm"))
+    check = _by_id(checks)["N1"]
+    assert check["ok"] is (n1 is None), (case, check)
+    if n1 == "takes":
+        assert check["detail"].startswith(f"a local {env_mod.QEMU_EXECUTABLE} takes"), check
+        assert "cannot be decided" not in check["detail"], check
+    elif n1 == "cannot be decided":
+        assert "cannot be decided" in check["detail"], check
+    if named is not None:
+        assert f"tcp:{named}:{PORT}-:8883" in check["detail"] and str(QEMU_PID) in check["detail"], check
+    assert _by_id(checks)["N0"]["ok"] is False
 
 
 def test_provenance_problems_format() -> None:

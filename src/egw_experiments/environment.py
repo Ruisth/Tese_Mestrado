@@ -33,6 +33,11 @@ that bind the three together:
   co-located and whether the generator's target is this guest. One snapshot
   at the start of the run and one at its end
   (:func:`capture_hypervisor_snapshot`, :func:`write_hypervisor_environment`).
+- The generator's target is matched to a QEMU forward by address and family
+  (:func:`_forward_takes`; H5 and N1): a forward bound to one IPv4 address
+  takes only that address, an empty or ``0.0.0.0`` one any IPv4 loopback
+  address; QEMU's ``hostfwd`` cannot express an IPv6 address, so ``::1``
+  never enters it, and a host name such as ``localhost`` is never matched.
 - The execution mode is DECLARED by the operator and never inferred:
   :func:`provenance_checks` compares the declaration with the three records,
   and :func:`provenance_problems` turns each failed check, except an
@@ -903,39 +908,115 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _is_loopback(host: Any) -> bool:
-    if not isinstance(host, str) or not host:
-        return False
-    if host.lower() == "localhost":  # RFC 6761: always a loopback address
-        return True
+def _ip_address(text: Any) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """``text`` as an IP address, or None: a host name (``localhost``
+    included), a bracketed or otherwise decorated form, or no text."""
+    if not isinstance(text, str):
+        return None
     try:
-        return ipaddress.ip_address(host.strip("[]")).is_loopback
+        return ipaddress.ip_address(text)
     except ValueError:
-        return False
+        return None
 
 
-#: Host addresses of a hostfwd rule that mean every address: QEMU's slirp
-#: starts from INADDR_ANY and keeps it for an empty address, and 0.0.0.0
-#: parses to the same value, so a loopback connection enters either.
+def _is_ipv4_loopback(host: Any) -> bool:
+    address = _ip_address(host)
+    return isinstance(address, ipaddress.IPv4Address) and address.is_loopback
+
+
+#: Host addresses of a hostfwd rule that mean every IPv4 address: QEMU's
+#: slirp starts from INADDR_ANY and keeps it for an empty address, and
+#: 0.0.0.0 parses to the same value.
 EVERY_ADDRESS_HOSTFWD: tuple[str, ...] = ("", "0.0.0.0")
 
 
-def _forwarded_rules(hostfwd: Any, port: Any) -> list[str]:
-    """The TCP forwards of ``hostfwd`` that a connection to a loopback
-    address on ``port`` enters: host address loopback, or empty or
-    ``0.0.0.0`` (every address)."""
+def _forward_takes(host_addr: Any, broker: Any) -> tuple[bool | None, str]:
+    """Whether the generator's TCP connection to ``broker`` enters a forward
+    whose host address is ``host_addr`` (the ports being equal): True,
+    False, or None when the records cannot decide it, with the reason for
+    None (F3, review of PR #60, 2026-10-08).
+
+    QEMU 8.2.7 reads a forward's host address with ``inet_aton``
+    (``net/slirp.c``, ``slirp_hostfwd``): IPv4 only, the empty address
+    keeping ``INADDR_ANY``; an IPv6 address or a host name cannot be
+    expressed. Hence:
+
+    - ``broker`` must be an IP address: a host name, ``localhost``
+      included, resolves outside the records and is never matched (None).
+      The unspecified ``0.0.0.0`` is not a destination either: Linux
+      connects it to a local address (the loopback one when no source is
+      bound), which is not recorded (None).
+    - ``host_addr`` is read only when it is empty or ``0.0.0.0`` (every
+      IPv4 address) or a dotted-quad IPv4 address; any other text, such as
+      ``127.1`` (which ``inet_aton`` also takes) or an IPv6 address, is not
+      read (None).
+    - An IPv6 ``broker`` never enters an IPv4 forward (False), unless it is
+      IPv4-mapped, which a dual-stack socket may carry to one (None).
+    - A dotted-quad ``host_addr`` takes only the same address.
+    - Every address takes any IPv4 loopback ``broker``; another IPv4
+      ``broker`` enters it only if it is an address of this host, which is
+      not recorded (None).
+    """
+    target = _ip_address(broker)
+    if target is None:
+        return None, (
+            f"{broker!r} is not an IP address, and a host name is never "
+            "matched to a forward"
+        )
+    if isinstance(target, ipaddress.IPv4Address) and target.is_unspecified:
+        return None, (
+            f"{broker} is not a destination: the address it is connected to "
+            "is not recorded"
+        )
+    bind: ipaddress.IPv4Address | None = None
+    if host_addr not in EVERY_ADDRESS_HOSTFWD:
+        address = _ip_address(host_addr)
+        if not isinstance(address, ipaddress.IPv4Address):
+            return None, (
+                f"its host address {host_addr!r} is not read: only an empty one, "
+                "0.0.0.0 or a dotted-quad IPv4 address is"
+            )
+        bind = address
+    if isinstance(target, ipaddress.IPv6Address):
+        if target.ipv4_mapped is not None:
+            return None, (
+                f"{broker} is IPv4-mapped, which a dual-stack socket may "
+                "carry to an IPv4 forward"
+            )
+        return False, ""
+    if bind is not None:
+        return target == bind, ""
+    if target.is_loopback:
+        return True, ""
+    return None, f"whether {broker} is an address of this host is not recorded"
+
+
+def _port_forwards(
+    hostfwd: Any, broker: Any, port: Any
+) -> tuple[list[str], list[str], list[str]]:
+    """The TCP forwards of ``hostfwd`` on ``port``, by whether the
+    generator's connection to ``broker`` is shown to enter them
+    (:func:`_forward_takes`): those that take it, those that do not, and
+    those the records cannot decide (each with the reason)."""
+    taken: list[str] = []
+    not_taken: list[str] = []
+    undecided: list[str] = []
     if not isinstance(hostfwd, list) or not _is_int(port):
-        return []
-    rules: list[str] = []
+        return taken, not_taken, undecided
     for rule in hostfwd:
         if not isinstance(rule, dict) or rule.get("protocol") not in ("tcp", ""):
             continue
         if not _is_int(rule.get("host_port")) or rule.get("host_port") != port:
             continue
-        addr = rule.get("host_addr")
-        if addr in EVERY_ADDRESS_HOSTFWD or _is_loopback(addr):
-            rules.append(str(rule.get("rule")))
-    return rules
+        takes, reason = _forward_takes(rule.get("host_addr"), broker)
+        text = str(rule.get("rule"))
+        if takes is True:
+            taken.append(text)
+        elif takes is False:
+            not_taken.append(text)
+        else:
+            undecided.append(f"{text} ({reason})")
+    return taken, not_taken, undecided
 
 
 def capture_hypervisor_snapshot(
@@ -953,9 +1034,14 @@ def capture_hypervisor_snapshot(
     derived, never assumed: ``colocated_with_loadgen`` (the QEMU process is
     in this host's process table, and this host's boot id equals the boot id
     of ``loadgen_env``, captured by the same harness) and
-    ``generator_target_is_this_guest`` (``broker`` is a loopback address and
-    a forward of this QEMU takes the generator's ``port``). A value that
-    cannot be read or derived is None, with the reason in ``problems``.
+    ``generator_target_is_this_guest`` (a TCP forward of this QEMU on the
+    generator's ``port`` takes a connection to ``broker``: the address and
+    its family matched to the forward's host address, a wildcard taking any
+    IPv4 loopback address, :func:`_forward_takes`; a host name such as
+    ``localhost`` is never matched; one forward that takes it makes the flag
+    true whatever the port's other forwards are, and without one a forward
+    that cannot be decided leaves it None). A value that cannot be read or
+    derived is None, with the reason in ``problems``.
     """
     problems: list[str] = []
     captured_utc = utc_now_iso()
@@ -990,9 +1076,17 @@ def capture_hypervisor_snapshot(
             "broker or port is not given"
         )
     else:
-        target = _is_loopback(broker) and bool(
-            _forwarded_rules(qemu["parsed"]["hostfwd"], port)
-        )
+        taken, _, undecided = _port_forwards(qemu["parsed"]["hostfwd"], broker, port)
+        if taken:
+            target = True
+        elif undecided:
+            problems.append(
+                "generator_target_is_this_guest: not determined: no forward of "
+                "the port is shown to take the generator's connection, and "
+                "these cannot be decided: " + "; ".join(undecided)
+            )
+        else:
+            target = False
 
     return {
         "captured_utc": captured_utc,
@@ -1183,19 +1277,25 @@ def _emulated_checks(
     else:
         add("H4", True, "colocated_with_loadgen is true, and the boot ids are equal")
 
-    # H5: the generator's traffic enters this QEMU.
+    # H5: the generator's traffic enters this QEMU: an IPv4 loopback target
+    # that a forward of the recorded command line takes, the address and its
+    # family matched to the forward's host address (_forward_takes); the
+    # recorded flag alone never passes it.
     flag = start.get("generator_target_is_this_guest")
-    rules = _forwarded_rules(parsed.get("hostfwd"), port)
+    taken, not_taken, undecided = _port_forwards(parsed.get("hostfwd"), broker, port)
     target = f"{broker}:{port}"
-    if flag is True and _is_loopback(broker) and rules:
-        add("H5", True, f"the generator's target {target} is forwarded by {rules[0]}")
+    loopback = _is_ipv4_loopback(broker)
+    if flag is True and loopback and taken:
+        add("H5", True, f"the generator's target {target} is forwarded by {taken[0]}")
     else:
         add(
             "H5",
             False,
             f"the generator's target {target} is not shown to enter the recorded "
-            f"QEMU (loopback broker: {_is_loopback(broker)}; forwards of the port: "
-            f"{', '.join(rules) or 'none'}; recorded flag: {flag!r})",
+            f"QEMU (IPv4 loopback broker: {loopback}; forwards of the port that "
+            f"take it: {', '.join(taken) or 'none'}; that do not: "
+            f"{', '.join(not_taken) or 'none'}; undecided: "
+            f"{'; '.join(undecided) or 'none'}; recorded flag: {flag!r})",
         )
 
     # G1-G5: the guest record describes this guest.
@@ -1298,21 +1398,36 @@ def _native_checks(
     checks = [
         _check("N0", False, f"{NO_NATIVE_CAPTURE}; {execution_mode!r} is declared")
     ]
-    # N1: a local QEMU takes the generator's traffic.
+    # N1: a local QEMU takes the generator's traffic, by the same match of
+    # the destination to a forward as H5 (_forward_takes); N1 passes only
+    # when every forward of the port is shown not to take it. A forward that
+    # takes it is named; without one, an undecided forward fails N1 as such.
     hv = _as_dict(hypervisor_env)
     forwards: list[str] = []
-    if _is_loopback(broker):
-        for label in ("start", "end"):
-            qemu = _as_dict(_as_dict(hv.get(label)).get("qemu"))
-            rules = _forwarded_rules(_as_dict(qemu.get("parsed")).get("hostfwd"), port)
-            if rules:
-                forwards.append(f"{label}: pid {qemu.get('pid')} " + ", ".join(rules))
+    undecided: list[str] = []
+    for label in ("start", "end"):
+        qemu = _as_dict(_as_dict(hv.get(label)).get("qemu"))
+        taken, _, unsure = _port_forwards(
+            _as_dict(qemu.get("parsed")).get("hostfwd"), broker, port
+        )
+        if taken:
+            forwards.append(f"{label}: pid {qemu.get('pid')} " + ", ".join(taken))
+        if unsure:
+            undecided.append(f"{label}: pid {qemu.get('pid')} " + "; ".join(unsure))
     if forwards:
         checks.append(_check(
             "N1",
             False,
             f"a local {QEMU_EXECUTABLE} takes the generator's traffic to "
             f"{broker}:{port} ({'; '.join(forwards)}), {declared}",
+        ))
+    elif undecided:
+        checks.append(_check(
+            "N1",
+            False,
+            f"whether a local {QEMU_EXECUTABLE} takes the generator's traffic to "
+            f"{broker}:{port} cannot be decided ({' | '.join(undecided)}): it is "
+            f"not shown that none does, as the declared {execution_mode!r} requires",
         ))
     else:
         checks.append(_check(
@@ -1362,10 +1477,14 @@ def provenance_checks(
       the start; H2 the same process (pid, start time, boot id, command
       line) at the end; H3 the accelerator is TCG and KVM is not requested;
       H4 the load generator is co-located (the flag is true and the two
-      boot ids are equal); H5 the generator's target is a loopback address forwarded into
-      this QEMU (a forward on a loopback, empty or ``0.0.0.0`` host
-      address); G1 the guest record's role is ``sut``; G2 its uname states
-      aarch64; G3 its nproc equals ``-smp``; G4 a guest label states
+      boot ids are equal); H5 the generator's target is an IPv4 loopback
+      address that a TCP forward of this QEMU on its port takes (one is
+      enough, whatever the port's other forwards are): the same
+      address as the forward's host address, or any IPv4 loopback address
+      for an empty or ``0.0.0.0`` one; never an IPv6 address (QEMU's
+      ``hostfwd`` is IPv4 only) or a host name such as ``localhost``
+      (:func:`_forward_takes`); G1 the guest record's role is ``sut``; G2
+      its uname states aarch64; G3 its nproc equals ``-smp``; G4 a guest label states
       emulation; G5 (advisory) the guest record's clock reads no earlier
       than the QEMU start derived from the host's btime at the snapshot,
       which moves with the host's wall-clock steps, so G5 can fail a good
@@ -1375,8 +1494,13 @@ def provenance_checks(
       I1 the QEMU executable, the kernel and the rootfs image are
       identified.
     - ``native-kvm``/``native-metal``: N0 always fails (no native capture
-      exists here), and N1 (a local QEMU takes the generator's port), N2 (a
-      guest label states emulation) and N3 (the guest is the emulated
+      exists here), and N1 (a local QEMU takes the generator's traffic, by
+      H5's match of the destination to a forward; N1 passes only when every
+      forward of the generator's port is shown not to take it, or the port
+      has none: a forward that takes it fails N1 and is named, and without
+      one a forward that cannot be decided fails it too, a host-name or
+      ``0.0.0.0`` broker against any forward of that port for instance),
+      N2 (a guest label states emulation) and N3 (the guest is the emulated
       integrated guest) name each contradiction found.
     """
     if execution_mode is None:
