@@ -831,7 +831,8 @@ def build_parser() -> argparse.ArgumentParser:
     # generator-check (G4 pilot prerequisite P5) ------------------------------
     p_gen = sub.add_parser(
         "generator-check",
-        help="check that the load generator kept its schedule in one run: "
+        help="check, relative to the inferred schedule origin, whether the load "
+        "generator kept its schedule in one run: "
         "the harness's requested load against the simulator manifest; "
         "identity and count against the exact schedule rebuilt from the "
         "simulator manifest; relative lateness, overruns and catch-up bursts "
@@ -863,7 +864,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="a bare simulator output directory (<output>/<run_id>/ with "
         "manifest.json and sent_events.jsonl): no seal, no root-copy check, no "
-        "harness request to reconcile and no elapsed-time section",
+        "harness request to reconcile and no elapsed-time section. A harness "
+        "run's own logs/simulator/<run_id>/ or logs/warmup/<run_id>.warmup/ "
+        "(beside its manifest.json or SHA256SUMS) is refused (exit 2): check "
+        "it with --run-dir",
     )
     p_gen.add_argument(
         "--events",

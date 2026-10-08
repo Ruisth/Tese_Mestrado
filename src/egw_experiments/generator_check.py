@@ -71,7 +71,12 @@ directory's ``SHA256SUMS`` must exist and verify (the harness's own
 present, must be a readable JSON object; without it the requested load is
 not shown and the report does not certify. A bare simulator directory
 (``--sim-dir``) carries no seal of its own and none is verified, and no
-harness request: its manifest is the only record of the load.
+harness request: its manifest is the only record of the load. A harness
+run's own simulator output (``<run>/logs/simulator/<id>/`` or
+``logs/warmup/<id>/`` beside a harness manifest or ``SHA256SUMS``,
+:func:`harness_run_of`) is refused as ``--sim-dir`` (exit 2) rather than
+reconciled in place: it is checked with ``--run-dir``, so a bare-directory
+SUSTAINED never stands for a harness run.
 
 Verdicts and exit codes: SUSTAINED 0 (identity exact, ``completed`` true,
 the requested load reconciled when there is a harness run, and every
@@ -81,7 +86,8 @@ inconsistent files, a seal that is missing or does not verify, a harness
 request the simulator's records contradict, an acknowledgement stamp in an
 order the writer cannot produce; never judged as passed, never
 NOT_SUSTAINED); 2 usage (bad arguments, a ``--window-s`` below
-:data:`MIN_WINDOW_S`, an invalid tolerance file, an output that exists, lies
+:data:`MIN_WINDOW_S`, a ``--sim-dir`` that is a harness run's own simulator
+output, an invalid tolerance file, an output that exists, lies
 inside the run or a sealed directory, or cannot be written: then no report
 is written and no verdict is given);
 NOT_CERTIFIED 3 (metrics computed but no profile, a profile that is not
@@ -1721,6 +1727,29 @@ def _seal_state(run_dir: Path) -> tuple[dict, list[str]]:
     return section, [f"{SUMS_FILENAME} does not verify: {problem}" for problem in found]
 
 
+def harness_run_of(sim_dir: Path) -> Path | None:
+    """The harness run directory whose own simulator output ``sim_dir`` is,
+    or None.
+
+    A directory at ``<dir>/logs/simulator/<id>/`` or ``<dir>/logs/warmup/<id>/``
+    whose ``<dir>`` holds a harness manifest or a ``SHA256SUMS`` seal is a
+    harness run's own simulator output. Read as a bare directory it would
+    skip the seal and the requested-load reconciliation, so it is refused
+    as one and checked through the run directory instead.
+    """
+    resolved = Path(sim_dir).resolve()
+    if len(resolved.parents) < 3:
+        return None
+    if Path(resolved.parents[1].name, resolved.parents[0].name) not in (
+        SIMULATOR_LOGS, WARMUP_LOGS,
+    ):
+        return None
+    run_dir = resolved.parents[2]
+    if (run_dir / MANIFEST_FILENAME).exists() or (run_dir / SUMS_FILENAME).exists():
+        return run_dir
+    return None
+
+
 def check_generator(
     *,
     sim_dir: Path | None = None,
@@ -1736,13 +1765,18 @@ def check_generator(
     and verify, and the simulator output is read from
     ``logs/simulator/<run_id>/`` (or the warm-up's), where ``run_id`` is the
     harness manifest's (the directory's name without one). ``sim_dir`` is a
-    bare simulator output directory, with no seal of its own. Exactly one is
-    given. ``window_s`` is at least :data:`MIN_WINDOW_S`.
+    bare simulator output directory, with no seal of its own, and never a
+    harness run's own (:func:`harness_run_of`). Exactly one is given.
+    ``window_s`` is at least :data:`MIN_WINDOW_S`.
     """
     if (sim_dir is None) == (run_dir is None):
         raise ValueError("give exactly one of sim_dir and run_dir")
     if warmup and run_dir is None:
         raise ValueError("the warm-up is read from a harness run directory")
+    if sim_dir is not None and harness_run_of(sim_dir) is not None:
+        raise ValueError(
+            "a harness run's own simulator output is checked through run_dir"
+        )
     if not (_finite(window_s) and window_s >= MIN_WINDOW_S):
         raise ValueError(
             f"the window must be a finite number of seconds of at least "
@@ -2184,6 +2218,15 @@ def run_from_args(args: argparse.Namespace) -> int:
         )
     if args.warmup and args.run_dir is None:
         return _usage("--warmup reads the warm-up of a harness run: it needs --run-dir")
+    enclosing = harness_run_of(args.sim_dir) if args.sim_dir is not None else None
+    if enclosing is not None:
+        in_warmup = Path(args.sim_dir).resolve().parent == enclosing / WARMUP_LOGS
+        warm = " --warmup" if in_warmup else ""
+        return _usage(
+            f"--sim-dir {args.sim_dir} is the simulator output of the harness run "
+            f"{enclosing}: check it with --run-dir {enclosing}{warm}, which verifies "
+            "the seal and reconciles the requested load"
+        )
     profile = None
     if args.tolerances is not None:
         try:

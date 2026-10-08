@@ -262,6 +262,14 @@ def sim_dir(run_dir: Path, run_id: str = RUN_ID) -> Path:
     return run_dir / "logs" / "simulator" / run_id
 
 
+def bare_copy(run_dir: Path) -> Path:
+    """A copy of the run's simulator directory outside any harness run
+    (<root>/bare/<run_id>/): a bare simulator directory, read alone. The
+    run's own logs/simulator/<run_id>/ is checked through --run-dir."""
+    return Path(shutil.copytree(sim_dir(run_dir, run_dir.name),
+                                run_dir.parents[1] / "bare" / run_dir.name))
+
+
 def warm_up(run_dir: Path, *, duration_s: float = 2.0, **load) -> Path:
     """Run the real run loop as the harness's warm-up of ``run_dir``
     (logs/warmup/<run_id>.warmup/, the measured run's scenario, seed and
@@ -881,8 +889,7 @@ def test_a_run_dir_without_a_verified_seal_is_not_shown(tmp_path, mutate, state,
 
 def test_a_bare_simulator_directory_has_no_seal_to_verify(tmp_path) -> None:
     run_dir = simulate(tmp_path, duration_s=2.0)
-    (run_dir / "SHA256SUMS").unlink()
-    rc, rep = check(tmp_path, "--sim-dir", sim_dir(run_dir), "--tolerances", approved(tmp_path))
+    rc, rep = check(tmp_path, "--sim-dir", bare_copy(run_dir), "--tolerances", approved(tmp_path))
     assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
     assert rep["inputs"]["seal"]["applicable"] is False
 
@@ -1103,13 +1110,53 @@ def test_a_load_field_the_harness_recorded_as_no_number_is_not_shown(tmp_path, c
 
 
 def test_a_bare_simulator_directory_has_no_harness_request_to_reconcile(tmp_path) -> None:
-    # The harness manifest beside it contradicts the simulator, but a bare
-    # simulator directory is read alone: its manifest is its only record.
+    # Copied out of its harness run, a simulator directory is read alone: its
+    # manifest is its only record of the load, so its SUSTAINED never stands
+    # for the harness run, whose request (seed 8) the records contradict.
     run_dir = simulate(tmp_path, duration_s=2.0, harness_extra={"seed": 8})
-    rc, rep = check(tmp_path, "--sim-dir", sim_dir(run_dir), "--tolerances", approved(tmp_path))
+    rc, rep = check(tmp_path, "--sim-dir", bare_copy(run_dir), "--tolerances", approved(tmp_path))
     assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
     load = rep["load_reconciliation"]
     assert load["applicable"] is False and "bare simulator directory" in load["reason"]
+    # Under a logs/simulator/ folder whose parent holds neither a harness
+    # manifest nor a seal, it is a bare directory all the same.
+    elsewhere = tmp_path / "copy"
+    shutil.copytree(sim_dir(run_dir), sim_dir(elsewhere))
+    rc, rep = check(tmp_path, "--sim-dir", sim_dir(elsewhere), "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["load_reconciliation"]["applicable"] is False
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 1 and rep["evaluation"]["verdict"] == "NOT_SHOWN"
+
+
+@pytest.mark.parametrize("kept", ["manifest-and-seal", "manifest-only", "seal-only"])
+@pytest.mark.parametrize("layout", ["simulator", "warmup"])
+def test_a_harness_runs_own_simulator_output_is_refused_as_a_bare_directory(
+        tmp_path, capsys, layout, kept) -> None:
+    # Read alone, the run's own simulator output would skip the seal and the
+    # requested-load reconciliation: the harness asks for seed 8, the records
+    # are seed 7, and an approved profile would certify them. It is a usage
+    # error that names --run-dir; nothing is evaluated and no report written.
+    run_dir = simulate(tmp_path, duration_s=2.0, harness_extra={"seed": 8, "warmup_s": 2})
+    if layout == "warmup":
+        warm_up(run_dir)
+        target = run_dir / "logs" / "warmup" / f"{RUN_ID}.warmup"
+    else:
+        target = sim_dir(run_dir)
+    if kept == "manifest-only":
+        (run_dir / "SHA256SUMS").unlink()
+    elif kept == "seal-only":
+        (run_dir / "manifest.json").unlink()
+    profile = approved(tmp_path)
+    out = tmp_path / "checks" / "refused.json"
+    capsys.readouterr()
+    rc = cli.main(["generator-check", "--sim-dir", str(target), "--tolerances", str(profile),
+                   "--out", str(out)])
+    assert rc == gc.EXIT_USAGE == 2
+    captured = capsys.readouterr()
+    assert f"--run-dir {run_dir.resolve()}" in captured.err, captured.err
+    assert captured.out == "" and not out.exists()
+    with pytest.raises(ValueError, match="run_dir"):
+        gc.check_generator(sim_dir=target)
 
 
 # ---------------------------------------------------------------------------
@@ -1153,8 +1200,25 @@ def test_an_impossible_ack_chronology_is_not_shown(tmp_path, capsys, edit, expec
     assert expected in capsys.readouterr().out
 
 
+def test_an_ack_equal_to_its_own_publish_is_a_possible_chronology(tmp_path) -> None:
+    # The in-memory publisher acknowledges at its own publish stamp, so the
+    # equality is built on a run whose ACKs come later: record 2's puback is
+    # moved down to its own publish stamp, and the edit changes the bytes.
+    run_dir = simulate(tmp_path, duration_s=3.0,
+                       publisher=lambda clock: DelayedAckPublisher(clock, ack_delay_s=0.01))
+    before = [read_jsonl(path)[2] for path in _both_copies(run_dir)]
+    assert all(r["puback_monotonic_ns"] > r["publish_monotonic_ns"] for r in before), before
+    _edit_lines(_puback_at(2, of="own"))(run_dir)
+    after = [read_jsonl(path)[2] for path in _both_copies(run_dir)]
+    assert all(r["puback_monotonic_ns"] == r["publish_monotonic_ns"] for r in after)
+    seal(run_dir)
+    rc, rep = check(tmp_path, "--run-dir", run_dir, "--tolerances", approved(tmp_path))
+    assert rc == 0 and rep["evaluation"]["verdict"] == "SUSTAINED"
+    chronology = rep["identity"]["puback_chronology"]
+    assert chronology == {"before_own_publish": 0, "after_next_publish": 0, "consistent": True}
+
+
 @pytest.mark.parametrize("edit", [
-    pytest.param(_puback_at(2, of="own"), id="ack-equal-to-its-own-publish"),
     pytest.param(_puback_at(2, of="next"), id="ack-equal-to-the-next-publish"),
     pytest.param(_puback_at(3, of="own", delta_ns=50_000_000), id="ack-between-the-publishes"),
     pytest.param(_set(2, puback_monotonic_ns=None), id="ack-null"),
@@ -1521,9 +1585,16 @@ def test_the_report_is_write_once_and_never_inside_the_run(tmp_path, capsys) -> 
                          "--out", str(inside)]) == 2
         assert "inside" in capsys.readouterr().err
     for inside in (sim_dir(run_dir) / "check.json", run_dir / "check.json"):
-        # Given as a bare simulator directory, the harness run around it is
-        # protected all the same.
+        # The run's own simulator output is never read as a bare directory.
         assert cli.main(["generator-check", "--sim-dir", str(sim_dir(run_dir)),
+                         "--out", str(inside)]) == 2
+        assert "--run-dir" in capsys.readouterr().err
+    copy = tmp_path / "copy"
+    shutil.copytree(sim_dir(run_dir), sim_dir(copy))
+    for inside in (sim_dir(copy) / "check.json", copy / "check.json"):
+        # Given as a bare simulator directory under logs/simulator/, the
+        # directory around it is protected all the same.
+        assert cli.main(["generator-check", "--sim-dir", str(sim_dir(copy)),
                          "--out", str(inside)]) == 2
         assert "inside" in capsys.readouterr().err
     assert tree(run_dir) == before  # the run was never written to
@@ -1555,7 +1626,7 @@ def test_the_execution_mode_is_copied_from_the_harness_manifest_never_inferred(t
     assert rep["run"]["execution_mode"] is None
     assert "not recorded" in rep["run"]["execution_mode_source"]
 
-    rc, rep = check(tmp_path, "--sim-dir", sim_dir(old))
+    rc, rep = check(tmp_path, "--sim-dir", bare_copy(old))
     assert rep["run"]["execution_mode"] is None
     assert rep["run"]["execution_mode_source"] == "no harness manifest"
 
@@ -1592,7 +1663,7 @@ def test_the_elapsed_section_uses_the_harness_stamps(tmp_path) -> None:
     assert elapsed["simulator_returncode"] == 0
     anchor = rep["generator_timing"]["anchor"]
     assert anchor["c_upper_bound_s"] == pytest.approx(STARTED_BEFORE_S, abs=1e-6)
-    rc, bare = check(tmp_path, "--sim-dir", sim_dir(run_dir))
+    rc, bare = check(tmp_path, "--sim-dir", bare_copy(run_dir))
     assert bare["elapsed"] is None and bare["generator_timing"]["anchor"]["c_upper_bound_s"] is None
     assert bare["inputs"]["root_copy"]["applicable"] is False
 

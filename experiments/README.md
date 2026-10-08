@@ -733,7 +733,12 @@ reads only. Each section names its clock:
   requested load unrecorded, so the report does not certify. Both manifests
   are read as strict JSON: NaN, Infinity and numbers beyond the range of a
   float are `NOT_SHOWN`, and so is a schedule with no event. A bare simulator
-  directory (`--sim-dir`) has no seal of its own, and none is verified.
+  directory (`--sim-dir`) has no seal of its own, and none is verified. A
+  harness run's own simulator output (`<run>/logs/simulator/<run_id>/` or
+  `logs/warmup/<run_id>.warmup/`, beside the run's `manifest.json` or
+  `SHA256SUMS`) is refused as `--sim-dir` (exit 2) rather than reconciled in
+  place: it is checked with `--run-dir` (and `--warmup`), so a
+  bare-directory `SUSTAINED` never stands for a harness run.
 - **Requested load** (exact, no tolerance; `--run-dir` only). The harness
   manifest's top-level `scenario`, `seed`, `rate_msg_s` and `duration_s`,
   the values from which `run.py` builds the simulator invocations
@@ -793,7 +798,7 @@ Verdicts and exit codes:
 |---|---|---|
 | 0 | `SUSTAINED` | identity exact, `completed` true, the requested load reconciled (with `--run-dir`), every tolerance of an **approved** profile entry met |
 | 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, the root copy differs, a run directory whose `SHA256SUMS` is missing or does not verify, an unreadable harness manifest, a harness request the simulator manifest contradicts (scenario, seed, rate or duration, the warm-up's included), an acknowledgement stamp before its own publish or after the next one, NaN or Infinity in a manifest, or an empty schedule. Nothing is judged as passed, and an input defect is never `NOT_SUSTAINED` |
-| 2 | usage | bad arguments, a `--window-s` below 0.1 s, an invalid tolerance file, or an `--out` that exists, lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS`, or cannot be written (then no report is written and no verdict is given) |
+| 2 | usage | bad arguments, a `--window-s` below 0.1 s, a `--sim-dir` that is a harness run's own simulator output, an invalid tolerance file, or an `--out` that exists, lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS`, or cannot be written (then no report is written and no verdict is given) |
 | 3 | `NOT_CERTIFIED` | metrics computed, but no profile, a profile not `approved`, no entry for the condition, timing not applicable (`dropout-reconnect`), or a load field the harness manifest does not record (no harness manifest included) |
 | 4 | `NOT_SUSTAINED` | an approved tolerance exceeded, or a whole run with `completed` false |
 
