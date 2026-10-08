@@ -961,6 +961,11 @@ F3_DESTINATIONS = [
     # Whether another IPv4 address is this host's is not recorded.
     ("a non-loopback address to the wildcard", "10.0.0.5", "0.0.0.0", None),
     ("a non-loopback address to its own bind", "192.168.1.2", "192.168.1.2", True),
+    # 0.0.0.0 is not a destination: Linux connects it to a local address (the
+    # loopback one when no source is bound), which is not recorded; so an
+    # exact bind is not shown to refuse it, nor a wildcard to take it.
+    ("the unspecified 0.0.0.0 to a 127.0.0.1 bind", "0.0.0.0", "127.0.0.1", None),
+    ("the unspecified 0.0.0.0 to the 0.0.0.0 wildcard", "0.0.0.0", "0.0.0.0", None),
 ]
 F3_IDS = [case for case, *_ in F3_DESTINATIONS]
 

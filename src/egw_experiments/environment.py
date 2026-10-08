@@ -943,6 +943,9 @@ def _forward_takes(host_addr: Any, broker: Any) -> tuple[bool | None, str]:
 
     - ``broker`` must be an IP address: a host name, ``localhost``
       included, resolves outside the records and is never matched (None).
+      The unspecified ``0.0.0.0`` is not a destination either: Linux
+      connects it to a local address (the loopback one when no source is
+      bound), which is not recorded (None).
     - ``host_addr`` is read only when it is empty or ``0.0.0.0`` (every
       IPv4 address) or a dotted-quad IPv4 address; any other text, such as
       ``127.1`` (which ``inet_aton`` also takes) or an IPv6 address, is not
@@ -959,6 +962,11 @@ def _forward_takes(host_addr: Any, broker: Any) -> tuple[bool | None, str]:
         return None, (
             f"{broker!r} is not an IP address, and a host name is never "
             "matched to a forward"
+        )
+    if isinstance(target, ipaddress.IPv4Address) and target.is_unspecified:
+        return None, (
+            f"{broker} is not a destination: the address it is connected to "
+            "is not recorded"
         )
     bind: ipaddress.IPv4Address | None = None
     if host_addr not in EVERY_ADDRESS_HOSTFWD:

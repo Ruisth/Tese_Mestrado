@@ -579,9 +579,11 @@ python -m egw_experiments run --run-id <run_id> ... \
   `--broker localhost` fails H5: give the address, `--broker 127.0.0.1` on
   the integrated guest. A forward whose host address is neither empty,
   `0.0.0.0` nor a dotted-quad IPv4 address (`127.1`, which `inet_aton` also
-  takes) is not read, and a non-loopback broker against an every-address
+  takes) is not read; a non-loopback broker against an every-address
   forward cannot be decided (whether it is an address of this host is not
-  recorded): neither passes H5, and both fail N1.
+  recorded), nor can the unspecified broker `0.0.0.0` against any forward
+  (Linux connects it to a local address, which is not recorded): none of
+  these passes H5, and each fails N1.
 - **G5 is advisory (2026-10-07).** It compares the guest's own wall clock
   with a QEMU start derived on the host as `btime` + start ticks / tick
   rate, and `btime` is read at the start snapshot: every step of the host's
