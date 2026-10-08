@@ -5175,3 +5175,74 @@ is unchanged.
   floors, the master seed and the stage 1 warm-up. The step files are then
   sealed, and a one-page session request follows. Each session needs its
   own authorisation and attendance.
+
+## Entry #C057 — PR #60's bounded corrections F1-F5: the generator check reconciles the requested load and the ACK order, the provenance check matches the destination, the step-file draft preserves evidence and keeps its budget
+
+- **Date:** 2026-10-08. **Scope:** one bounded correction round on pull
+  request #60. No new feature, no session, no guest, no build, and no change
+  to the controller, the image, the simulator, a G3 verdict, a campaign
+  criterion or the retry rules. G4 stays `Not decided`.
+- **Authority.** The Project Manager's opinion registered as "2026-10-08
+  01:53 WEST — PR60 bounded review and pilot choices", relayed by the student,
+  found three false-positive evidence checks in the pull request (F1-F3),
+  which block its favourable merge recommendation, and two defects in the
+  step-file draft (F4-F5), which block the scripts' use.
+- **F1.** `generator-check` reconciles scenario, seed, aggregate rate and
+  duration between the harness manifest and the simulator manifest (the
+  warm-up's duration for `--warmup`). Any contradiction is `NOT_SHOWN`. A
+  field that is not recorded never certifies. A simulator folder inside a
+  harness run cannot bypass the reconciliation.
+- **F2.** An ACK stamp earlier than its own publish, or later than the next
+  publish of this sequential writer, is an input defect (`NOT_SHOWN`). A
+  null ACK stays an absent observation, not loss.
+- **F3.** H5 and N1 match the generator's destination address and family to
+  the QEMU forward: an exact bind takes only its own address, an IPv4
+  wildcard takes IPv4 loopback addresses, and a host name cannot be matched.
+  QEMU 8.2.7's `hostfwd` cannot express an IPv6 bind. The `--broker` default
+  `localhost` is unchanged; a `tcg-emulated` run passes the address.
+- **Profile A wording.** The proposal now reads zero relative overruns,
+  relative lateness of at most 20 ms, and a first-to-last span deviation of
+  at most 20 ms, all relative to the inferred origin. It does not mean zero
+  late publish calls or deliveries. The rationale about 1 Hz samples is
+  removed. The numbers and the `proposed` status are unchanged. Entry
+  #C056's shorter description ("no overrun") is read with this
+  qualification.
+- **F4, F5 (step-file draft v2).**
+  - F4: the recovery before close is decided by demonstrated preservation of
+    the artefacts, whatever the harness answered. A partial Docker-events
+    capture never counts as preserved. What the guest no longer holds is
+    judged against the host's own records, so being absent now is not the
+    same as never made. A failure to preserve is stop-and-ask, never a
+    forced close.
+  - F5: the classification is bounded by its 300 s term and by what is left
+    of `R_max` and of `B - reserve`. The time is read again before the
+    export, and expiry is stop-and-ask with no export dispatched.
+  - The sealed draft of 2026-10-07 is unchanged. The corrected draft is a
+    new sealed package.
+- **Interruption.** The round started at 00:56Z, was stopped at about 01:15Z
+  when the computer had to be switched off, and resumed at 11:02Z. The saved
+  state is `output_test/runs/2026-10-08/HIST_2026-10-08-g4-pr60-round-interrupted/`.
+- **Verification.**
+  - Every counterexample was shown red, then green; the profile wording, not
+    being a counterexample, has no red record.
+  - One bounded adversarial delta check per point closed F1, F2, F3, F5 and
+    the wording. It left F4 open on a material point: the partial capture
+    was taken as preserved.
+  - The residuals were applied, and F4 needed two more passes, the second
+    on absence judged as never made. The last re-check closed F4, leaving
+    only conservative stop-and-ask cases and wording.
+  - The whole suite ran once on the merged code head `643591c` (tree
+    `1864756`): 4,044 passed, 12 skipped, none failed. Eleven of the skips
+    are Windows-only and the twelfth needs the git history CI has. The
+    evidence is
+    `output_test/runs/2026-10-08/HIST_2026-10-08-g4-pr60-corrections-integrated-attempt01/`.
+  - The only later commit is this LOG entry. CI runs on the final head.
+- **Records.** The corrected step-file draft is
+  `HIST_2026-10-08-g4-pilot-step-files-draft-v2` (seal `803fd408…`; whole
+  bench 45 of 45 scenarios, 844 checks). The round's records are
+  `HIST_2026-10-08-g4-pr60-corrections-records` (seal `4b39f0e7…`). The
+  proposed profile file is now `92fe9adb…`.
+- **Not adopted.** The student has not yet decided on the pilot choices
+  (profile A, budgets and reserve, floors, master seed, stage 1's zero
+  warm-up) or on the transient exposure of the broker password on the
+  harness's command line. No host preparation or session is authorised.

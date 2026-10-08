@@ -650,7 +650,8 @@ new first paragraph as history.*
   check, the core provenance (execution mode with no default, the hypervisor
   record, mode-separated analysis), the five-entry pilot plan, and an
   operational contract and generator tolerances that are proposed, not
-  adopted. No session is authorised; LOG #C056.)*
+  adopted. No session is authorised; LOG #C056. The Project Manager's
+  bounded corrections F1-F5 are applied, 2026-10-08; LOG #C057.)*
 - **G5 — Not decided.** No frozen emulated functional campaign;
   `experiments/results/raw/` is empty. Since 2026-09-19 the 95-run composition,
   the 24-hour soak included, is the quantity the campaign **attempts to reach**
