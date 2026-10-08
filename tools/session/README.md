@@ -178,6 +178,18 @@ and `nominal_account.py` belong to the collector and the accounting, the second
 of which is told by the driver whether the post-drain log was fetched, because
 a transfer that died mid-way leaves a file that is not a complete tail.
 
+`g4_pilot_plan.py` (the five-entry input plan of the G4 bounded pilot, built by
+`plan_gen`'s own entry function from reviewed constants — the stages of runbook
+section 8 item 1, no default master seed — and refusing a campaign run id and
+any run id, seed or device that G3's plan (the campaign plan of master seed
+42), the finite proof, the `run_test` seeds or a named plan holds) is not
+called by a driver yet: `write` writes the sealed copy once, and
+`check`, which writes nothing, checks the working copy the harness is given
+against it before each run. Like every `*.py` of this folder it counts in
+`drivers_sha256`. The plan, the source of each of its fields, its departures
+from the frozen conditions and how `analyze` reads it are in
+[`experiments/g4-pilot/README.md`](../../experiments/g4-pilot/README.md).
+
 Every attempt records the identity of the clean clone (`repo_identity` in
 `common.sh`): the commit, how many lines are dirty, the export tool's sha256
 and the sha256 of every driver file. When git cannot read the clone — a

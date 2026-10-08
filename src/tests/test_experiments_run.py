@@ -9,6 +9,8 @@ real subprocesses running tiny recorded python scripts.
 """
 from __future__ import annotations
 
+import copy
+import hashlib
 import http.client
 import json
 import os
@@ -26,6 +28,7 @@ import pytest
 
 from egw_experiments import checksums, plan_gen
 from egw_experiments import controller_metrics as metrics_mod
+from egw_experiments import environment as env_mod
 from egw_experiments import resources as resources_mod
 from egw_experiments import run as run_mod
 from egw_simulator.devices import DEVICE_TYPES, device_uuid_for
@@ -45,6 +48,98 @@ def plan_path(tmp_path: Path) -> Path:
     return path
 
 
+#: The guest the fast_run fixture's hypervisor snapshots describe (G4 core
+#: provenance, plan 655-661): one QEMU/TCG process on an x86-64 host, with the
+#: S10 command line's shape (-smp 4, the forward of the fixture's broker port
+#: 8883), started before the guest record of _sut_env_file was captured, on
+#: the boot the fixture's load-generator record names.
+FIXTURE_BOOT_ID = "6f1b8d0e-2c55-4c43-9a0e-3f4a5b6c7d8e"
+FIXTURE_QEMU_PID = 4242
+FIXTURE_QEMU_START_UTC = "2026-09-07T09:00:00.000Z"
+FIXTURE_SUT_CAPTURED_UTC = "2026-09-07T09:50:00Z"
+FIXTURE_ROOTFS = "egw-gateway-image-qemuarm64.rootfs-20260918120819"
+FIXTURE_QEMU_ARGV = [
+    "/opt/qemu/usr/bin/qemu-system-aarch64",
+    "-netdev", "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8883-:8883",
+    "-drive", f"id=disk0,file=/images/{FIXTURE_ROOTFS}.ext4,if=none,format=raw",
+    "-machine", "virt", "-cpu", "cortex-a76", "-smp", "4", "-m", "8192",
+    "-kernel", "/images/Image", "-append", "root=/dev/vda rw",
+]
+TCG_CHECKS = ["P0", "H1", "H2", "H3", "H4", "H5", "G1", "G2", "G3", "G4", "G5", "L1", "I1"]
+#: The generator's target: the address of the fixture's broker forward.
+FIXTURE_BROKER = "127.0.0.1"
+
+
+def _hypervisor_snapshot(
+    argv: list[str] | None = None,
+    *,
+    pid: int = FIXTURE_QEMU_PID,
+    starttime_ticks: int = 123456,
+    accelerator: str | None = "tcg",
+    kvm_device_open: bool | None = False,
+) -> dict[str, Any]:
+    """One snapshot shaped as environment.capture_hypervisor_snapshot writes
+    it, of a single QEMU process running ``argv`` (default: the fixture's
+    TCG guest); the command line is parsed by the harness's own parser."""
+    argv = list(argv or FIXTURE_QEMU_ARGV)
+    raw = b"".join(arg.encode() + b"\0" for arg in argv)
+    return {
+        "captured_utc": "2026-09-07T10:00:00.000Z",
+        "captured_monotonic_ns": 1,
+        "host": {
+            "node": "harness-host",
+            "kernel_release": "6.6.87.2-microsoft-standard-WSL2",
+            "machine": "x86_64",
+            "boot_id": FIXTURE_BOOT_ID,
+            "cpu_count": 16,
+            "cpu_affinity_count": 16,
+            "mem_total_kb": 16323456,
+            "cpu_model": "fixture CPU",
+            "wsl": True,
+        },
+        "qemu": {
+            "found": 1,
+            "pids": [pid],
+            "error": None,
+            "pid": pid,
+            "starttime_ticks": starttime_ticks,
+            "start_utc": FIXTURE_QEMU_START_UTC,
+            "exe_path": argv[0],
+            "exe_sha256": "5d" * 32,
+            "version_line": "QEMU emulator version 8.2.7",
+            "argv": argv,
+            "argv_sha256": hashlib.sha256(raw).hexdigest(),
+            "parsed": env_mod.parse_qemu_argv(argv),
+            "kernel_sha256": "44" * 32,
+            "rootfs_path": f"/images/{FIXTURE_ROOTFS}.ext4",
+            "rootfs_image_name": FIXTURE_ROOTFS,
+            "kvm_device_open": kvm_device_open,
+            "accelerator": accelerator,
+            "accelerator_basis": ["fixture"] if accelerator else [],
+            "target_arch": "aarch64",
+        },
+        "colocated_with_loadgen": True,
+        "generator_target_is_this_guest": True,
+        "problems": [],
+    }
+
+
+def _no_single_qemu_snapshot(pids: list[int]) -> dict[str, Any]:
+    """A snapshot that found no QEMU process, or several: nothing chosen."""
+    snapshot = _hypervisor_snapshot()
+    snapshot["qemu"] = {key: None for key in snapshot["qemu"]}
+    snapshot["qemu"].update(
+        found=len(pids),
+        pids=pids,
+        error=f"{len(pids)} qemu-system-aarch64 processes found; none is chosen",
+        accelerator_basis=[],
+    )
+    snapshot["colocated_with_loadgen"] = None
+    snapshot["generator_target_is_this_guest"] = None
+    snapshot["problems"] = [f"qemu: {snapshot['qemu']['error']}"]
+    return snapshot
+
+
 @pytest.fixture
 def fast_run(monkeypatch, tmp_path: Path):
     """Fake simulator subprocess + fast environment/commit capture.
@@ -55,6 +150,13 @@ def fast_run(monkeypatch, tmp_path: Path):
     sent_events.jsonl under ``<output>/<run_id>/`` (deliberately hardcoded
     here as ``out_dir / run_id``, mirroring the runner, so a harness-side
     layout regression cannot hide behind a shared helper — P1c fix F0).
+
+    G4 core provenance (plan 655-661): the hypervisor snapshots are the
+    fixture's TCG guest (:func:`_hypervisor_snapshot`; a test queues others
+    in ``fast_run.snapshots``, consumed start first), the load-generator
+    record names the same boot and machine, and ``run_mod.execute_run``
+    declares ``execution_mode="tcg-emulated"`` unless the call gives one
+    (``None`` included), so the existing call sites stay valid runs.
     """
     calls: list[list[str]] = []
 
@@ -104,12 +206,44 @@ def fast_run(monkeypatch, tmp_path: Path):
             return rc_list.pop(0)
         return getattr(fake_subprocess, "returncode", 0)
 
+    def fake_loadgen_environment(path, *, simulator_argv=None, warmup_argv=None):
+        # The argv as handed over (before redaction) and the record as the
+        # harness's writer shapes the fields the checks read.
+        fake_subprocess.loadgen_argv = (simulator_argv, warmup_argv)
+        record = {
+            "role": "loadgen",
+            "machine": "x86_64",
+            "boot_id": FIXTURE_BOOT_ID,
+            "simulator_argv": (
+                env_mod.redact_argv(simulator_argv) if simulator_argv is not None else None
+            ),
+            "warmup_argv": (
+                env_mod.redact_argv(warmup_argv) if warmup_argv is not None else None
+            ),
+        }
+        Path(path).write_text(json.dumps(record) + "\n", "utf-8")
+
+    snapshot_calls: list[dict[str, Any]] = []
+
+    def fake_hypervisor_snapshot(**kwargs):
+        snapshot_calls.append(kwargs)
+        queued = getattr(fake_subprocess, "snapshots", None)
+        return copy.deepcopy(queued.pop(0)) if queued else _hypervisor_snapshot()
+
+    real_execute_run = run_mod.execute_run
+
+    def execute_run(*args, **kwargs):
+        kwargs.setdefault("execution_mode", "tcg-emulated")
+        # The address the fixture's QEMU forward takes (127.0.0.1:8883); the
+        # harness default, the host name localhost, is never matched to a
+        # forward (F3, review of PR #60, 2026-10-08).
+        kwargs.setdefault("broker", FIXTURE_BROKER)
+        return real_execute_run(*args, **kwargs)
+
     monkeypatch.setattr(run_mod, "_run_subprocess", fake_subprocess)
-    monkeypatch.setattr(
-        run_mod,
-        "write_loadgen_environment",
-        lambda path: Path(path).write_text('{"role": "loadgen"}\n', "utf-8"),
-    )
+    monkeypatch.setattr(run_mod, "write_loadgen_environment", fake_loadgen_environment)
+    monkeypatch.setattr(run_mod, "capture_hypervisor_snapshot", fake_hypervisor_snapshot)
+    monkeypatch.setattr(run_mod, "execute_run", execute_run)
     monkeypatch.setattr(run_mod, "read_git_commit", lambda *a, **k: "test-commit")
     monkeypatch.setattr(run_mod, "FETCH_BACKOFF_BASE_S", 0.0)
     # Keep the real measured-window bounds deterministic and aligned with the
@@ -130,6 +264,7 @@ def fast_run(monkeypatch, tmp_path: Path):
     monkeypatch.delenv(run_mod.FETCH_EVENTS_CMD_ENV, raising=False)
     monkeypatch.delenv(run_mod.SUT_ENV_FILE_ENV, raising=False)
     fake_subprocess.calls = calls
+    fake_subprocess.snapshot_calls = snapshot_calls
     return fake_subprocess
 
 
@@ -145,13 +280,17 @@ RESOURCES_HEADER = "ts_utc,container,cpu_pct,mem_bytes,mem_pct,host"
 
 
 def _sut_env_file(tmp_path: Path, **overrides) -> Path:
-    """A sut_environment.json satisfying REQUIRED_SUT_FIELDS (fix 4)."""
+    """A sut_environment.json satisfying REQUIRED_SUT_FIELDS (fix 4), captured
+    on the fixture's TCG guest after its QEMU process started and labelled as
+    emulated, as capture-sut-environment.sh writes it (G4 core provenance)."""
     env = {
         "role": "sut",
+        "captured_utc": FIXTURE_SUT_CAPTURED_UTC,
         "node": SUT_NODE,
         "nproc": 4,
         "uname_a": "Linux sut-vm 6.8.0 aarch64",
         "os_pretty_name": "fixture",
+        "shared_vcpu_note": "TCG emulation on the fixture host; ARM64 EMULATED",
     }
     env.update(overrides)
     env = {k: v for k, v in env.items() if v is not None}
@@ -452,13 +591,16 @@ def test_timed_run_with_ingested_sut_evidence_is_valid(
     assert manifest["validity"] == "valid"
     assert manifest["validity_reasons"] == []
     assert manifest["resource_source"] == "sut-collector"
-    # Two environments referenced by the manifest (audit 9.2).
+    # Three environments referenced by the manifest (audit 9.2; the
+    # hypervisor's since the G4 core provenance, plan 655-661).
     assert manifest["environment_refs"] == {
         "loadgen": "loadgen_environment.json",
         "sut": "sut_environment.json",
+        "hypervisor": "hypervisor_environment.json",
     }
     assert (run_dir / "sut_environment.json").is_file()
     assert (run_dir / "loadgen_environment.json").is_file()
+    assert (run_dir / "hypervisor_environment.json").is_file()
     assert (run_dir / "resources.csv").is_file()
     # Measured window recorded (audit 9.4).
     window = manifest["measured_window_utc"]
@@ -469,7 +611,7 @@ def test_timed_run_with_ingested_sut_evidence_is_valid(
     sums = (run_dir / "SHA256SUMS").read_text(encoding="utf-8")
     for name in ("events.jsonl", "sent_events.jsonl", "resources.csv",
                  "sut_environment.json", "loadgen_environment.json",
-                 "manifest.json"):
+                 "hypervisor_environment.json", "manifest.json"):
         assert name in sums
     plan = plan_gen.load_campaign_plan(plan_path)
     entry = next(r for r in plan["runs"] if r["run_id"] == "smoke_sequence-r01")
@@ -491,9 +633,20 @@ def test_allow_missing_flags_record_deliberate_decision(
         allow_missing_resources=True,
         allow_missing_controller_marker=True,
     )
-    assert rc == 0
     manifest = _manifest(base, "smoke_sequence-r01")
-    assert manifest["validity"] == "valid"
+    # The allow flags suppress their own reasons and nothing else: the G4
+    # core provenance (plan 655-661) has no allow flag, and a TCG run without
+    # its guest record cannot show which guest it measured. G5 fails too but
+    # is advisory: recorded in the checks, never a validity reason.
+    assert rc == 1
+    assert manifest["validity"] == "invalid"
+    assert [r.split(":")[1].strip() for r in manifest["validity_reasons"]] == [
+        "G1", "G2", "G3", "G4",
+    ]
+    g5 = next(c for c in manifest["provenance"]["checks"] if c["check"] == "G5")
+    assert g5["ok"] is False and g5["advisory"] is True
+    assert all(r.startswith("provenance: G") for r in manifest["validity_reasons"])
+    assert (base / "raw" / "smoke_sequence-r01" / "SHA256SUMS").is_file()
     assert manifest["allow_missing_sut_env"] is True
     assert manifest["allow_missing_resources"] is True
     # Work order P1 fix 5: the overrides are valid ONLY together with an
@@ -752,7 +905,9 @@ def test_sut_env_missing_fields_override_records_deviation(
         no_tls=True,
         post_run_wait_s=0.0,
         event_log_dir=_local_events(tmp_path, "smoke_sequence-r01"),
-        sut_env_from=_sut_env_file(tmp_path, node=None, nproc=None),
+        # The node is missing; nproc is kept, as the provenance check G3
+        # compares it with QEMU's -smp and no allow flag excuses that.
+        sut_env_from=_sut_env_file(tmp_path, node=None),
         resources_from=_resources_file(tmp_path),
         expect_services=FIXTURE_SERVICES,
         allow_missing_sut_env=True,
@@ -2132,7 +2287,7 @@ def test_collector_hooks_run_in_order_and_produce_ingested_resources(
     assert rc == 0
     assert _hook_labels(record) == ["start", "stop", "fetch"]
     manifest = _manifest(base, "nominal-r01")
-    assert manifest["manifest_version"] == run_mod.MANIFEST_VERSION == "1.4"
+    assert manifest["manifest_version"] == run_mod.MANIFEST_VERSION == "1.5"
     hooks = manifest["collector_hooks"]
     assert [h["hook"] for h in hooks] == ["start", "stop", "fetch"]
     for hook in hooks:
@@ -5154,7 +5309,7 @@ def test_sut_log_fetch_hooks_run_after_the_events_fetch_into_logs_sut_and_are_se
     ]
     run_dir = base / "raw" / "smoke_sequence-r01"
     manifest = _manifest(base, "smoke_sequence-r01")
-    assert manifest["manifest_version"] == run_mod.MANIFEST_VERSION == "1.4"
+    assert manifest["manifest_version"] == run_mod.MANIFEST_VERSION == "1.5"
     assert manifest["validity"] == "valid"
     fetches = manifest["sut_log_fetches"]
     assert [f["hook"] for f in fetches] == list(SUT_LOG_FILES)
@@ -5258,7 +5413,7 @@ def test_controller_restart_evidence_steps_run_in_order_and_are_sealed(
     ]
     base = run_dir.parent.parent
     manifest = _manifest(base, "controller_restart-r01")
-    assert manifest["manifest_version"] == "1.4"
+    assert manifest["manifest_version"] == "1.5"
     assert manifest["validity"] == "valid"
     assert manifest["restart"]["executed"] is True
     sealed = _sealed_names(run_dir)
@@ -8355,3 +8510,495 @@ def test_a_manifest_that_cannot_be_written_is_said_so_and_the_run_does_not_pass(
     err = capsys.readouterr().err
     assert "manifest.json could not be written" in err and "NOT saved" in err
     assert not (run_dir / "manifest.json").exists() and not (run_dir / "SHA256SUMS").exists()
+
+
+# ---------------------------------------------------------------------------
+# G4 core provenance (plan 655-661): the declared execution mode, the
+# hypervisor record and the provenance checks of every new simulator run
+# ---------------------------------------------------------------------------
+
+
+def _provenance_run(
+    tmp_path: Path, plan_path: Path, run_id: str = "smoke_sequence-r01", **kwargs: Any
+) -> tuple[int, Path, dict[str, Any]]:
+    """One run whose other evidence is in order (the guest record, the
+    collector output, an authorised missing marker), so that only what a
+    test changes in the provenance decides its validity. Returns (exit code,
+    run directory, manifest)."""
+    base = tmp_path / "results"
+    if "sut_env_from" not in kwargs:
+        kwargs["sut_env_from"] = _sut_env_file(tmp_path)
+    if "resources_from" not in kwargs:
+        kwargs["resources_from"] = _resources_file(tmp_path)
+    options: dict[str, Any] = dict(
+        base_dir=base,
+        no_tls=True,
+        post_run_wait_s=0.0,
+        event_log_dir=_local_events(tmp_path, run_id),
+        expect_services=FIXTURE_SERVICES,
+        allow_missing_controller_marker=True,
+    )
+    options.update(kwargs)
+    rc = run_mod.execute_run(plan_path, run_id, **options)
+    return rc, base / "raw" / run_id, _manifest(base, run_id)
+
+
+def _failed_checks(manifest: dict[str, Any]) -> list[str]:
+    return [c["check"] for c in manifest["provenance"]["checks"] if not c["ok"]]
+
+
+def _provenance_reasons(manifest: dict[str, Any]) -> list[str]:
+    return [r for r in manifest["validity_reasons"] if r.startswith("provenance: ")]
+
+
+def test_compute_validity_applies_provenance_problems_to_every_run_without_an_allow_flag() -> None:
+    """None: the rule does not apply (a manifest without the provenance
+    record); a list: one reason per entry, timed or not, whatever the allow
+    flags say."""
+    common = dict(
+        sut_env_present=True,
+        allow_missing_sut_env=True,
+        resource_source="sut-collector",
+        allow_missing_resources=True,
+        restart_required=False,
+        restart_ok=False,
+        allow_warmup_failure=True,
+        allow_protocol_deviation=True,
+        allow_missing_controller_marker=True,
+    )
+    problems = [
+        "provenance: P0: execution_mode is not set",
+        "provenance: H1: no hypervisor record (hypervisor_environment.json)",
+    ]
+    for timed in (True, False):
+        assert run_mod.compute_validity(
+            timed=timed, provenance_problems=problems, **common
+        ) == ("invalid", problems)
+        assert run_mod.compute_validity(timed=timed, provenance_problems=[], **common) == ("valid", [])
+        assert run_mod.compute_validity(timed=timed, provenance_problems=None, **common) == ("valid", [])
+        assert run_mod.compute_validity(timed=timed, **common) == ("valid", [])
+
+
+def test_a_run_without_an_execution_mode_is_recorded_sealed_and_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The mode has no default: omitted, the run is still recorded and sealed
+    with its three environment records (plan 656-657, "an unset value
+    invalidates the run"), its mode null and P0 its one reason; nothing is
+    inferred from the guest's labels."""
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path, execution_mode=None)
+    assert rc == 1
+    assert manifest["manifest_version"] == "1.5"
+    assert manifest["execution_mode"] is None
+    assert manifest["config"]["cli"]["execution_mode"] is None
+    provenance = manifest["provenance"]
+    assert provenance["rule"] == env_mod.PROVENANCE_RULE == "G4 core provenance (plan 655-661)"
+    assert provenance["declared_by"] == "--execution-mode"
+    assert provenance["execution_mode"] is None
+    assert [c["check"] for c in provenance["checks"]] == ["P0"]
+    assert manifest["validity"] == "invalid"
+    assert manifest["validity_reasons"] == provenance["problems"]
+    assert len(manifest["validity_reasons"]) == 1
+    assert manifest["validity_reasons"][0].startswith("provenance: P0: execution_mode is not set")
+    assert manifest["environment_refs"] == {
+        "loadgen": "loadgen_environment.json",
+        "sut": "sut_environment.json",
+        "hypervisor": "hypervisor_environment.json",
+    }
+    assert {
+        "manifest.json", "loadgen_environment.json", "sut_environment.json", "hypervisor_environment.json",
+    } <= _sealed_names(run_dir)
+    assert checksums.verify_sha256sums(run_dir) == []
+    plan = plan_gen.load_campaign_plan(plan_path)
+    entry = next(r for r in plan["runs"] if r["run_id"] == "smoke_sequence-r01")
+    assert entry["status"] == "failed" and entry["validity"] == "invalid"
+
+
+def test_a_consistent_tcg_emulated_run_is_valid_with_three_sealed_environment_records(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, manifest = _provenance_run(
+        tmp_path,
+        plan_path,
+        execution_mode="tcg-emulated",
+        config_identity_from=_config_identity_file(tmp_path),
+    )
+    assert rc == 0
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    assert manifest["execution_mode"] == "tcg-emulated"
+    assert manifest["config"]["cli"]["execution_mode"] == "tcg-emulated"
+    assert manifest["environment_refs"] == {
+        "loadgen": "loadgen_environment.json",
+        "sut": "sut_environment.json",
+        "hypervisor": "hypervisor_environment.json",
+    }
+    provenance = manifest["provenance"]
+    assert set(provenance) == {"rule", "declared_by", "execution_mode", "checks", "problems"}
+    assert provenance["execution_mode"] == "tcg-emulated"
+    assert [c["check"] for c in provenance["checks"]] == TCG_CHECKS
+    assert all(c["ok"] for c in provenance["checks"]) and provenance["problems"] == []
+    # The image identity comes from the start snapshot and the configuration
+    # identity; the five pulled images stay in image_digests.
+    assert manifest["image_identity"] == {
+        "qemu_exe_sha256": "5d" * 32,
+        "qemu_version_line": "QEMU emulator version 8.2.7",
+        "kernel_sha256": "44" * 32,
+        "rootfs_path": f"/images/{FIXTURE_ROOTFS}.ext4",
+        "rootfs_image_name": FIXTURE_ROOTFS,
+        "image_digests_ref": "image_digests",
+        "controller_image_id": CONFIG_IDENTITY["controller_image_id"],
+    }
+    # The hypervisor record: written once, the start and end snapshots, sealed.
+    record = json.loads((run_dir / "hypervisor_environment.json").read_text("utf-8"))
+    assert record == {
+        "role": "hypervisor",
+        "record_version": 1,
+        "capture": "harness /proc read on the load-generator host",
+        "start": _hypervisor_snapshot(),
+        "end": _hypervisor_snapshot(),
+    }
+    assert "hypervisor_environment.json" in _sealed_names(run_dir)
+    assert checksums.verify_sha256sums(run_dir) == []
+    # Both snapshots read the load-generator record and the generator's target.
+    loadgen = json.loads((run_dir / "loadgen_environment.json").read_text("utf-8"))
+    assert len(fast_run.snapshot_calls) == 2
+    for call in fast_run.snapshot_calls:
+        assert call == {"loadgen_env": loadgen, "broker": FIXTURE_BROKER, "port": 8883}
+    # The load-generator record is handed the argv the measured run executes
+    # (built once); a smoke run has no warm-up.
+    assert fast_run.loadgen_argv == (fast_run.calls[0], None)
+
+
+def test_the_wrong_provenance_regression_native_declared_on_the_emulated_guest_is_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """The runbook's regression (section 9): a run declared native-kvm whose
+    guest record states emulation, beside a local QEMU that takes the
+    generator's port, is rejected, and its reasons say why (N0, N1, N2)."""
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path, execution_mode="native-kvm")
+    assert rc == 1
+    assert manifest["execution_mode"] == "native-kvm"
+    assert manifest["validity"] == "invalid"
+    assert _failed_checks(manifest) == ["N0", "N1", "N2"]
+    assert manifest["validity_reasons"] == manifest["provenance"]["problems"]
+    reasons = manifest["validity_reasons"]
+    assert reasons[0].startswith("provenance: N0: no native provenance capture exists in this harness")
+    assert reasons[1].startswith("provenance: N1: ") and str(FIXTURE_QEMU_PID) in reasons[1]
+    assert reasons[2].startswith("provenance: N2: ") and "shared_vcpu_note" in reasons[2]
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_a_tcg_declaration_with_kvm_in_the_command_line_fails_h3(
+    tmp_path, plan_path, fast_run
+) -> None:
+    kvm = _hypervisor_snapshot(FIXTURE_QEMU_ARGV + ["-enable-kvm"], accelerator="kvm", kvm_device_open=True)
+    fast_run.snapshots = [kvm, copy.deepcopy(kvm)]
+    rc, _run_dir, manifest = _provenance_run(tmp_path, plan_path)
+    assert rc == 1
+    assert _failed_checks(manifest) == ["H3"]
+    assert _provenance_reasons(manifest) == manifest["validity_reasons"]
+    assert "accelerator 'kvm', kvm_requested True" in manifest["validity_reasons"][0]
+
+
+@pytest.mark.parametrize("broker", ["localhost", "127.0.0.2", "::1"])
+def test_f3_a_target_the_qemu_forward_does_not_take_fails_h5(tmp_path, plan_path, fast_run, broker) -> None:
+    """F3 (review of PR #60, 2026-10-08): the fixture's QEMU forwards
+    127.0.0.1:8883 only. The harness default (the host name localhost),
+    another loopback address and IPv6 are not shown to enter it: the run is
+    invalid on H5 alone, although the snapshots' flag says true."""
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path, broker=broker)
+    assert rc == 1
+    assert manifest["validity"] == "invalid"
+    assert _failed_checks(manifest) == ["H5"]
+    assert _provenance_reasons(manifest) == manifest["validity_reasons"]
+    assert f"the generator's target {broker}:8883 is not shown to enter" in manifest["validity_reasons"][0]
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+@pytest.mark.parametrize("pids", [[], [4000, 5000]], ids=["no-qemu", "two-qemu"])
+def test_a_snapshot_without_exactly_one_qemu_fails_h1(tmp_path, plan_path, fast_run, pids) -> None:
+    fast_run.snapshots = [_no_single_qemu_snapshot(pids), _no_single_qemu_snapshot(pids)]
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path)
+    assert rc == 1
+    assert "H1" in _failed_checks(manifest)
+    h1 = next(r for r in manifest["validity_reasons"] if r.startswith("provenance: H1: "))
+    assert f"{len(pids)} qemu-system-aarch64 processes found" in h1
+    assert manifest["image_identity"]["qemu_exe_sha256"] is None
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_a_qemu_relaunched_between_the_snapshots_fails_h2(tmp_path, plan_path, fast_run) -> None:
+    fast_run.snapshots = [_hypervisor_snapshot(), _hypervisor_snapshot(pid=5151, starttime_ticks=999999)]
+    rc, _run_dir, manifest = _provenance_run(tmp_path, plan_path)
+    assert rc == 1
+    assert _failed_checks(manifest) == ["H2"]
+    assert "pid 4242 -> 5151" in manifest["validity_reasons"][0]
+    assert "starttime_ticks 123456 -> 999999" in manifest["validity_reasons"][0]
+
+
+def test_a_load_generator_record_given_as_the_guest_record_fails_g1_and_g2(
+    tmp_path, plan_path, fast_run
+) -> None:
+    wrong = tmp_path / "loadgen-as-sut.json"
+    wrong.write_text(
+        json.dumps(
+            {
+                "role": "loadgen",
+                "captured_utc": "2026-09-07T09:55:00.000Z",
+                "node": SUT_NODE,
+                "kernel_release": "6.6.87.2-microsoft-standard-WSL2",
+                "machine": "x86_64",
+                "cpu_count": 16,
+            }
+        )
+        + "\n",
+        "utf-8",
+    )
+    rc, _run_dir, manifest = _provenance_run(tmp_path, plan_path, sut_env_from=wrong)
+    assert rc == 1
+    failed = _failed_checks(manifest)
+    assert {"G1", "G2"} <= set(failed)
+    assert "provenance: G1: the guest record's role is 'loadgen', not 'sut'" in manifest["validity_reasons"]
+
+
+def test_a_guest_record_older_than_the_qemu_process_is_an_advisory_g5(tmp_path, plan_path, fast_run) -> None:
+    """A guest record captured before the QEMU start is recorded as a failed
+    G5, which is advisory: the start is derived from the host's btime at the
+    snapshot and moves with the host's wall-clock steps, so G5 can fail a
+    good run. The guard against a stale record is the session procedure (the
+    preflight captures the guest record after the boot), not this check."""
+    rc, _run_dir, manifest = _provenance_run(
+        tmp_path, plan_path, sut_env_from=_sut_env_file(tmp_path, captured_utc="2026-09-07T08:59:59Z")
+    )
+    assert rc == 0
+    assert manifest["validity"] == "valid" and manifest["validity_reasons"] == []
+    assert _failed_checks(manifest) == ["G5"]
+    g5 = next(c for c in manifest["provenance"]["checks"] if c["check"] == "G5")
+    assert g5["advisory"] is True and "predates this QEMU process" in g5["detail"]
+    assert manifest["provenance"]["problems"] == []
+
+
+def test_an_unknown_execution_mode_is_refused_before_anything_is_written(
+    tmp_path, plan_path, fast_run, capsys
+) -> None:
+    base = tmp_path / "results"
+    plan_before = plan_path.read_bytes()
+    rc = run_mod.execute_run(
+        plan_path,
+        "smoke_sequence-r01",
+        base_dir=base,
+        no_tls=True,
+        execution_mode="emulated-qemu-tcg",
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "'emulated-qemu-tcg'" in err
+    for mode in env_mod.EXECUTION_MODES:
+        assert mode in err
+    assert not base.exists()
+    assert plan_path.read_bytes() == plan_before
+    assert fast_run.calls == [] and fast_run.snapshot_calls == []
+
+
+def test_the_load_generator_record_holds_the_argv_run_with_the_password_redacted(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The harness's own writer records the simulator invocations the run
+    executes, built once, with the MQTT password replaced (plan 9.2); the
+    password reaches the simulator and no file of the run."""
+    monkeypatch.setattr(env_mod, "_run_capture", lambda *a, **k: None)  # no docker CLI
+    monkeypatch.setattr(run_mod, "write_loadgen_environment", env_mod.write_loadgen_environment)
+    base = tmp_path / "results"
+    run_mod.execute_run(
+        plan_path,
+        "nominal-r01",
+        base_dir=base,
+        post_run_wait_s=0.0,
+        username="egw-simulator",
+        password="s3cret-pw",
+        ca_cert="ca.crt",
+        event_log_dir=_local_events(tmp_path, "nominal-r01"),
+        sut_env_from=_sut_env_file(tmp_path),
+        allow_missing_controller_marker=True,
+    )
+    run_dir = base / "raw" / "nominal-r01"
+    raw = (run_dir / "loadgen_environment.json").read_bytes()
+    assert b"s3cret-pw" not in raw
+    record = json.loads(raw.decode("utf-8"))
+    warmup_call, measured_call = fast_run.calls
+    assert "s3cret-pw" in measured_call and "s3cret-pw" in warmup_call
+
+    def redacted(argv: list[str]) -> list[str]:
+        out = list(argv)
+        out[out.index("--password") + 1] = "<redacted>"
+        return out
+
+    assert record["simulator_argv"] == redacted(measured_call)
+    assert record["warmup_argv"] == redacted(warmup_call)
+    assert record["role"] == "loadgen" and record["python_executable"] == sys.executable
+    for path in run_dir.rglob("*"):
+        if path.is_file():
+            assert b"s3cret-pw" not in path.read_bytes(), path
+
+
+def test_the_snapshots_bracket_the_collector_and_never_delay_the_marker(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The start snapshot precedes the collector start hook; the end
+    snapshot follows the collector stop hook, so nothing comes between the
+    run-end stamp and the controller marker."""
+    timeline: list[str] = []
+
+    def traced(label: str, function):
+        def call(*args, **kwargs):
+            timeline.append(label if label != "hook" else f"hook:{args[0]}")
+            return function(*args, **kwargs)
+        return call
+
+    monkeypatch.setattr(run_mod, "execute_collector_hook", traced("hook", run_mod.execute_collector_hook))
+    monkeypatch.setattr(run_mod, "poll_controller_marker", traced("marker", run_mod.poll_controller_marker))
+    monkeypatch.setattr(run_mod, "_run_subprocess", traced("simulator", run_mod._run_subprocess))
+    monkeypatch.setattr(
+        run_mod, "capture_hypervisor_snapshot", traced("snapshot", run_mod.capture_hypervisor_snapshot)
+    )
+    rc, run_dir, _record = _hooked_run(tmp_path, plan_path)
+    assert rc == 0
+    assert timeline == [
+        "snapshot", "hook:start", "simulator", "simulator", "marker", "hook:stop", "snapshot", "hook:fetch",
+    ]
+    assert _manifest(run_dir.parent.parent, "nominal-r01")["validity"] == "valid"
+
+
+def test_a_hypervisor_record_that_cannot_be_written_is_named_and_fails_h1(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    def refuse(path, start, end):
+        raise OSError(28, "No space left on device (injected)")
+
+    monkeypatch.setattr(run_mod, "write_hypervisor_environment", refuse)
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path)
+    assert rc == 1
+    assert manifest["environment_refs"]["hypervisor"] is None
+    assert not (run_dir / "hypervisor_environment.json").exists()
+    assert any(
+        "hypervisor_environment.json could not be written" in w and "No space left" in w
+        for w in manifest["warnings"]
+    )
+    assert "H1" in _failed_checks(manifest)
+    assert all(v is None for k, v in manifest["image_identity"].items() if k != "image_digests_ref")
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+#: What a 1.5 manifest adds for the G4 core provenance; a 1.4 manifest has none.
+PROVENANCE_KEYS = ("execution_mode", "image_identity", "provenance")
+
+
+def _as_a_1_4_run(run_dir: Path) -> dict[str, Any]:
+    """Turn a sealed run into one sealed before the G4 core provenance: no
+    hypervisor record, none of its keys, a guest record of the old kind (no
+    capture time, no emulation label); resealed. Returns its manifest."""
+    manifest = json.loads((run_dir / "manifest.json").read_text("utf-8"))
+    for key in PROVENANCE_KEYS:
+        del manifest[key]
+    del manifest["environment_refs"]["hypervisor"]
+    del manifest["config"]["cli"]["execution_mode"]
+    manifest["manifest_version"] = "1.4"
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", "utf-8")
+    (run_dir / "hypervisor_environment.json").unlink()
+    sut = json.loads((run_dir / "sut_environment.json").read_text("utf-8"))
+    del sut["captured_utc"], sut["shared_vcpu_note"]
+    (run_dir / "sut_environment.json").write_text(json.dumps(sut) + "\n", "utf-8")
+    checksums.write_sha256sums(run_dir)
+    return manifest
+
+
+def test_collect_leaves_a_sealed_1_4_run_its_verdict_and_adds_no_key_or_file(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """Old sealed runs keep their verdicts: the provenance rule applies only
+    to a run that carries its record, and 'collect' never adds the mode, the
+    record, the image identity or the hypervisor file to one that lacks them;
+    nothing is fabricated and the hypervisor is never captured after the
+    fact."""
+    base = _sealed_valid_run(tmp_path, plan_path)
+    run_dir = base / "raw" / "smoke_sequence-r01"
+    before = _as_a_1_4_run(run_dir)
+    files_before = _run_files(run_dir)
+    snapshots = len(fast_run.snapshot_calls)
+    assert run_mod.collect_run("smoke_sequence-r01", base_dir=base, plan_path=plan_path) == 0
+    after = _manifest(base, "smoke_sequence-r01")
+    assert after["validity"] == "valid" and after["validity_reasons"] == []
+    assert set(after) - set(before) == {"collect_history"}
+    for key in PROVENANCE_KEYS:
+        assert key not in after
+    assert after["manifest_version"] == "1.4"
+    assert after["environment_refs"] == before["environment_refs"] == {
+        "loadgen": "loadgen_environment.json",
+        "sut": "sut_environment.json",
+    }
+    assert after["config"]["cli"] == before["config"]["cli"]
+    assert _run_files(run_dir) == files_before
+    assert len(fast_run.snapshot_calls) == snapshots
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_collect_keeps_a_new_run_without_an_execution_mode_invalid(
+    tmp_path, plan_path, fast_run
+) -> None:
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path, execution_mode=None)
+    assert rc == 1
+    snapshots = len(fast_run.snapshot_calls)
+    assert run_mod.collect_run("smoke_sequence-r01", base_dir=tmp_path / "results", plan_path=plan_path) == 1
+    after = _manifest(tmp_path / "results", "smoke_sequence-r01")
+    assert after["validity"] == "invalid"
+    assert after["validity_reasons"] == manifest["validity_reasons"]
+    assert after["execution_mode"] is None
+    assert after["provenance"] == manifest["provenance"]
+    assert len(fast_run.snapshot_calls) == snapshots
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_collect_rechecks_the_provenance_on_the_runs_own_sealed_files(
+    tmp_path, plan_path, fast_run
+) -> None:
+    """A run sealed without its guest record fails G1-G5; the record ingested
+    later by 'collect' is checked against the hypervisor record the run
+    sealed (never a new capture), and the run becomes valid."""
+    rc, run_dir, manifest = _provenance_run(tmp_path, plan_path, sut_env_from=None)
+    assert rc == 1
+    assert _failed_checks(manifest) == ["G1", "G2", "G3", "G4", "G5"]
+    hypervisor = (run_dir / "hypervisor_environment.json").read_bytes()
+    snapshots = len(fast_run.snapshot_calls)
+    rc = run_mod.collect_run(
+        "smoke_sequence-r01",
+        base_dir=tmp_path / "results",
+        plan_path=plan_path,
+        sut_env_from=_sut_env_file(tmp_path),
+    )
+    assert rc == 0
+    after = _manifest(tmp_path / "results", "smoke_sequence-r01")
+    assert after["validity"] == "valid" and after["validity_reasons"] == []
+    assert [c["check"] for c in after["provenance"]["checks"]] == TCG_CHECKS
+    assert all(c["ok"] for c in after["provenance"]["checks"]) and after["provenance"]["problems"] == []
+    assert (run_dir / "hypervisor_environment.json").read_bytes() == hypervisor
+    assert len(fast_run.snapshot_calls) == snapshots
+    assert checksums.verify_sha256sums(run_dir) == []
+
+
+def test_an_external_run_carries_no_provenance_record(tmp_path, plan_path, fast_run) -> None:
+    """External runs are out of the G4 core provenance: no mode, no checks,
+    no hypervisor record; the analysis reads them as unrecorded."""
+    base = tmp_path / "results"
+    rc = run_mod.execute_run(
+        plan_path,
+        "cold_start-r01",
+        base_dir=base,
+        external_timings=_timings_file(tmp_path, "cold_start-r01", "cold_start"),
+    )
+    assert rc == 0
+    manifest = _manifest(base, "cold_start-r01")
+    for key in PROVENANCE_KEYS:
+        assert key not in manifest
+    assert "hypervisor" not in manifest["environment_refs"]
+    assert not (base / "raw" / "cold_start-r01" / "hypervisor_environment.json").exists()
+    assert fast_run.snapshot_calls == []

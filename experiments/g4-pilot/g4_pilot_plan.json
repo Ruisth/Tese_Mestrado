@@ -1,0 +1,402 @@
+{
+  "conditions": [
+    {
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "id": "nominal",
+      "metrics": [
+        "latency_ms_p50_p95_p99",
+        "delivery_counts",
+        "delivery_rate",
+        "cpu_pct_per_container",
+        "mem_bytes_per_container"
+      ],
+      "notes": "Ten nominal runs of ten minutes after two minutes of warm-up (plan 7.1).",
+      "performance_claims_allowed": true,
+      "rate_msg_s": 11.2,
+      "rates_msg_s": null,
+      "repetitions": 10,
+      "runner": "simulator",
+      "scenario": "nominal",
+      "warmup_s": 120
+    },
+    {
+      "cooldown_s": 120,
+      "duration_s": 300,
+      "id": "load_sweep",
+      "metrics": [
+        "latency_ms_p50_p95_p99",
+        "delivery_counts",
+        "delivery_rate",
+        "sustainable_throughput",
+        "saturation",
+        "cpu_pct_per_container",
+        "mem_bytes_per_container"
+      ],
+      "notes": "10/50/100/250 msg/s, ten five-minute runs per load, randomized execution order from the campaign master seed, 120 s cooldown between runs (plan 7.1).",
+      "performance_claims_allowed": true,
+      "rate_msg_s": null,
+      "rates_msg_s": [
+        10.0,
+        50.0,
+        100.0,
+        250.0
+      ],
+      "repetitions": 10,
+      "runner": "simulator",
+      "scenario": "load-sweep",
+      "warmup_s": 0
+    },
+    {
+      "cooldown_s": 0,
+      "duration_s": 86400,
+      "id": "soak",
+      "metrics": [
+        "stability_descriptive",
+        "latency_ms_p50_p95_p99",
+        "delivery_counts",
+        "delivery_rate",
+        "cpu_pct_per_container",
+        "mem_bytes_per_container"
+      ],
+      "notes": "One 24 h nominal soak; analyzed descriptively, no confidence interval of its own (plan 7.1/7.3).",
+      "performance_claims_allowed": true,
+      "rate_msg_s": 11.2,
+      "rates_msg_s": null,
+      "repetitions": 1,
+      "runner": "simulator",
+      "scenario": "soak",
+      "warmup_s": 0
+    }
+  ],
+  "master_seed": 20261007,
+  "pilot": {
+    "deviations_from_protocol": [
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "qemu_boots",
+        "frozen_rates_msg_s": [],
+        "frozen_runs": 5,
+        "note": "operator-measured (runner external); not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "cold_start",
+        "frozen_rates_msg_s": [],
+        "frozen_runs": 10,
+        "note": "operator-measured (runner external); not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "twin_creation",
+        "frozen_rates_msg_s": [],
+        "frozen_runs": 10,
+        "note": "operator-measured (runner external); not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "smoke_sequence",
+        "frozen_rates_msg_s": [
+          11.2
+        ],
+        "frozen_runs": 10,
+        "note": "not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/setup/qemu_integrated_gateway.md:1544; docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643-645",
+        "condition_id": "nominal",
+        "frozen_rates_msg_s": [
+          11.2
+        ],
+        "frozen_runs": 10,
+        "note": "two runs of different shape: 120 s with no warm-up (stage 1) and 600 s after a 120 s warm-up (stage 2)",
+        "pilot_rates_msg_s": [
+          11.2
+        ],
+        "pilot_runs": 2
+      },
+      {
+        "basis": "docs/setup/qemu_integrated_gateway.md:1544; src/egw_experiments/protocol.py:300, 304",
+        "condition_id": "load_sweep",
+        "frozen_order": "randomised from the master seed (src/egw_experiments/protocol.py:21-24; src/egw_experiments/plan_gen.py:84-98)",
+        "frozen_rates_msg_s": [
+          10.0,
+          50.0,
+          100.0,
+          250.0
+        ],
+        "frozen_runs": 40,
+        "note": "one run at each of 10 and 50 msg/s, 50 msg/s after 10; 100 and 250 msg/s not run",
+        "pilot_order_msg_s": [
+          10.0,
+          50.0
+        ],
+        "pilot_rates_msg_s": [
+          10.0,
+          50.0
+        ],
+        "pilot_runs": 2
+      },
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "invalid_payload",
+        "frozen_rates_msg_s": [
+          11.2
+        ],
+        "frozen_runs": 3,
+        "note": "not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "dropout_reconnect",
+        "frozen_rates_msg_s": [
+          11.2
+        ],
+        "frozen_runs": 3,
+        "note": "not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:958",
+        "condition_id": "controller_restart",
+        "frozen_rates_msg_s": [
+          11.2
+        ],
+        "frozen_runs": 3,
+        "note": "not run in this pilot: recorded, not waived",
+        "pilot_rates_msg_s": [],
+        "pilot_runs": 0
+      },
+      {
+        "basis": "docs/setup/qemu_integrated_gateway.md:1544; docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:645; docs/claim_evidence_matrix.md:174",
+        "condition_id": "soak",
+        "frozen_rates_msg_s": [
+          11.2
+        ],
+        "frozen_runs": 1,
+        "note": "one run of 3,600 s in place of 86,400 s (its entry declares the duration); a bounded run is no C13 evidence",
+        "pilot_rates_msg_s": [
+          11.2
+        ],
+        "pilot_runs": 1
+      }
+    ],
+    "label": "PILOT - NON-CITABLE",
+    "non_citable": true,
+    "not_campaign_attempts": true,
+    "purpose": "Input of the bounded pilot of gate G4: a short nominal run, the plan's nominal duration, the load sweep and one bounded soak, in order, one run per stage and per sweep level (docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643-645; docs/setup/qemu_integrated_gateway.md:1544). The pilot checks the feasibility of the campaign's attempt target; it is not the frozen protocol, which is chosen prospectively after it.",
+    "sources": {
+      "plan": {
+        "conditions": "src/egw_experiments/protocol.py:276-295, 296-321 and 397-420, verbatim (the reference the entries' departures are stated against)",
+        "master_seed": "no default: the student's decision; every seed is derived from it (src/egw_experiments/plan_gen.py:43-50)",
+        "non_citable": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:654-655 (pilot data is non-citable; no pilot number enters the dissertation)",
+        "not_campaign_attempts": "the project-management scope judgement of 2026-10-07 (neither these five runs nor G3's data are campaign attempts; kept outside the repository); docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:650-651 (the attempt target is not the frozen set)",
+        "plan_version": "src/egw_experiments/plan_gen.py:35",
+        "protocol_version": "src/egw_experiments/protocol.py:49 (unchanged: the frozen protocol is not changed)"
+      },
+      "runs": {
+        "g4pilot-s1-nominal-0120s-11p2mps-a01": {
+          "condition_id": "src/egw_experiments/protocol.py:277; docs/setup/qemu_integrated_gateway.md:1544 (--scenario nominal)",
+          "cooldown_s": "src/egw_experiments/protocol.py:283",
+          "duration_s": "docs/setup/qemu_integrated_gateway.md:1544 (--duration 120); docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:644 (a short nominal run)",
+          "order": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643 (in order); docs/setup/qemu_integrated_gateway.md:1544",
+          "rate_msg_s": "src/egw_experiments/protocol.py:285 (NOMINAL_RATE_MSG_S, :54); src/egw_simulator/scenarios.py:91-96",
+          "repetition": "docs/setup/qemu_integrated_gateway.md:1544 (one short nominal run)",
+          "run_id": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:959-960 (a predeclared identity; a repeat takes a new one and its lineage); never an id the campaign generator emits (src/egw_experiments/plan_gen.py:96-105)",
+          "runner": "src/egw_experiments/protocol.py:278",
+          "scenario": "src/egw_experiments/protocol.py:279; src/egw_simulator/scenarios.py:91-96",
+          "seed": "src/egw_experiments/plan_gen.py:43-50 (derive_run_seed of the master seed and the run id)",
+          "status": "src/egw_experiments/plan_gen.py:71",
+          "warmup_s": "output_test/decisions/2026-10-07_g4-pilot-request-annex.md:153 (recommendation P2, kept outside the repository); docs/setup/qemu_integrated_gateway.md:1544 names no warm-up"
+        },
+        "g4pilot-s2-nominal-0600s-11p2mps-a01": {
+          "condition_id": "src/egw_experiments/protocol.py:277; docs/setup/qemu_integrated_gateway.md:1544 (--scenario nominal)",
+          "cooldown_s": "src/egw_experiments/protocol.py:283",
+          "duration_s": "src/egw_experiments/protocol.py:281; docs/setup/qemu_integrated_gateway.md:1544 (the plan's nominal duration (600 s)); docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:644-645",
+          "order": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643 (in order); docs/setup/qemu_integrated_gateway.md:1544",
+          "rate_msg_s": "src/egw_experiments/protocol.py:285 (NOMINAL_RATE_MSG_S, :54); src/egw_simulator/scenarios.py:91-96",
+          "repetition": "docs/setup/qemu_integrated_gateway.md:1544 (then the plan's nominal duration)",
+          "run_id": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:959-960 (a predeclared identity; a repeat takes a new one and its lineage); never an id the campaign generator emits (src/egw_experiments/plan_gen.py:96-105)",
+          "runner": "src/egw_experiments/protocol.py:278",
+          "scenario": "src/egw_experiments/protocol.py:279; src/egw_simulator/scenarios.py:91-96",
+          "seed": "src/egw_experiments/plan_gen.py:43-50 (derive_run_seed of the master seed and the run id)",
+          "status": "src/egw_experiments/plan_gen.py:71",
+          "warmup_s": "src/egw_experiments/protocol.py:282 (after 120 s warm-up, :18-20); run as '<run id>.warmup' with the same seed (src/egw_experiments/run.py:5033-5054)"
+        },
+        "g4pilot-s3-loadsweep-0300s-010mps-a01": {
+          "condition_id": "src/egw_experiments/protocol.py:297; docs/setup/qemu_integrated_gateway.md:1544 (load-sweep)",
+          "cooldown_s": "src/egw_experiments/protocol.py:303 (what is left of it after the confirmation window is slept after the run: src/egw_experiments/run.py:5968-5973)",
+          "duration_s": "src/egw_experiments/protocol.py:301; docs/setup/qemu_integrated_gateway.md:1544 (300 s each)",
+          "order": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643 (in order); docs/setup/qemu_integrated_gateway.md:1544",
+          "rate_msg_s": "src/egw_experiments/protocol.py:304 (the first of the four levels); docs/setup/qemu_integrated_gateway.md:1544 (load-sweep at 10 and 50 msg/s)",
+          "repetition": "docs/setup/qemu_integrated_gateway.md:1544 (one run at each level)",
+          "run_id": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:959-960 (a predeclared identity; a repeat takes a new one and its lineage); never an id the campaign generator emits (src/egw_experiments/plan_gen.py:96-105)",
+          "runner": "src/egw_experiments/protocol.py:298",
+          "scenario": "src/egw_experiments/protocol.py:299; src/egw_simulator/scenarios.py:97-103",
+          "seed": "src/egw_experiments/plan_gen.py:43-50 (derive_run_seed of the master seed and the run id)",
+          "status": "src/egw_experiments/plan_gen.py:71",
+          "warmup_s": "src/egw_experiments/protocol.py:302"
+        },
+        "g4pilot-s3-loadsweep-0300s-050mps-a01": {
+          "condition_id": "src/egw_experiments/protocol.py:297; docs/setup/qemu_integrated_gateway.md:1544 (load-sweep)",
+          "cooldown_s": "src/egw_experiments/protocol.py:303 (what is left of it after the confirmation window is slept after the run: src/egw_experiments/run.py:5968-5973)",
+          "duration_s": "src/egw_experiments/protocol.py:301; docs/setup/qemu_integrated_gateway.md:1544 (300 s each)",
+          "order": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643 (in order); docs/setup/qemu_integrated_gateway.md:1544",
+          "rate_msg_s": "src/egw_experiments/protocol.py:304 (the second of the four levels); docs/setup/qemu_integrated_gateway.md:1544 (load-sweep at 10 and 50 msg/s)",
+          "repetition": "docs/setup/qemu_integrated_gateway.md:1544 (one run at each level)",
+          "run_id": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:959-960 (a predeclared identity; a repeat takes a new one and its lineage); never an id the campaign generator emits (src/egw_experiments/plan_gen.py:96-105)",
+          "runner": "src/egw_experiments/protocol.py:298",
+          "scenario": "src/egw_experiments/protocol.py:299; src/egw_simulator/scenarios.py:97-103",
+          "seed": "src/egw_experiments/plan_gen.py:43-50 (derive_run_seed of the master seed and the run id)",
+          "status": "src/egw_experiments/plan_gen.py:71",
+          "warmup_s": "src/egw_experiments/protocol.py:302"
+        },
+        "g4pilot-s4-soak-3600s-11p2mps-a01": {
+          "condition_id": "src/egw_experiments/protocol.py:398; docs/setup/qemu_integrated_gateway.md:1544 (--scenario soak)",
+          "cooldown_s": "src/egw_experiments/protocol.py:404",
+          "duration_s": "docs/setup/qemu_integrated_gateway.md:1544 (--duration 3600); docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:645 (one bounded soak)",
+          "order": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:643 (in order); docs/setup/qemu_integrated_gateway.md:1544",
+          "rate_msg_s": "src/egw_experiments/protocol.py:406; src/egw_simulator/scenarios.py:120-125 (NOMINAL_AGGREGATE_RATE_HZ, src/egw_simulator/devices.py:27)",
+          "repetition": "src/egw_experiments/protocol.py:401; docs/setup/qemu_integrated_gateway.md:1544 (a short soak)",
+          "run_id": "docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:959-960 (a predeclared identity; a repeat takes a new one and its lineage); never an id the campaign generator emits (src/egw_experiments/plan_gen.py:96-105)",
+          "runner": "src/egw_experiments/protocol.py:399",
+          "scenario": "src/egw_experiments/protocol.py:400; src/egw_simulator/scenarios.py:120-125",
+          "seed": "src/egw_experiments/plan_gen.py:43-50 (derive_run_seed of the master seed and the run id)",
+          "status": "src/egw_experiments/plan_gen.py:71",
+          "warmup_s": "src/egw_experiments/protocol.py:403"
+        }
+      }
+    },
+    "sources_at_commit": "e59cd9e36036a8ed86351b1bd9f93b2aadc1ec94"
+  },
+  "plan_version": "1.0",
+  "protocol_version": "1.0.0",
+  "runs": [
+    {
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 120,
+      "order": 1,
+      "pilot": {
+        "deviations": [
+          {
+            "basis": "docs/setup/qemu_integrated_gateway.md:1544 (--scenario nominal --duration 120); docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:644 (a short nominal run)",
+            "field": "duration_s",
+            "frozen": 600,
+            "pilot": 120
+          },
+          {
+            "basis": "output_test/decisions/2026-10-07_g4-pilot-request-annex.md:153 (recommendation P2: warm-up 0 written into the entry, rather than a warm-up skipped; kept outside the repository); docs/setup/qemu_integrated_gateway.md:1544 names no warm-up; a working choice for the student, the alternative being the frozen 120 s",
+            "field": "warmup_s",
+            "frozen": 120,
+            "pilot": 0
+          }
+        ],
+        "label": "PILOT - NON-CITABLE",
+        "stage": 1
+      },
+      "rate_msg_s": 11.2,
+      "repetition": 1,
+      "run_id": "g4pilot-s1-nominal-0120s-11p2mps-a01",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 3340462373,
+      "status": "planned",
+      "warmup_s": 0
+    },
+    {
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 2,
+      "pilot": {
+        "deviations": [],
+        "label": "PILOT - NON-CITABLE",
+        "stage": 2
+      },
+      "rate_msg_s": 11.2,
+      "repetition": 1,
+      "run_id": "g4pilot-s2-nominal-0600s-11p2mps-a01",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2626471893,
+      "status": "planned",
+      "warmup_s": 120
+    },
+    {
+      "condition_id": "load_sweep",
+      "cooldown_s": 120,
+      "duration_s": 300,
+      "order": 3,
+      "pilot": {
+        "deviations": [],
+        "label": "PILOT - NON-CITABLE",
+        "stage": 3
+      },
+      "rate_msg_s": 10.0,
+      "repetition": 1,
+      "run_id": "g4pilot-s3-loadsweep-0300s-010mps-a01",
+      "runner": "simulator",
+      "scenario": "load-sweep",
+      "seed": 3694409732,
+      "status": "planned",
+      "warmup_s": 0
+    },
+    {
+      "condition_id": "load_sweep",
+      "cooldown_s": 120,
+      "duration_s": 300,
+      "order": 4,
+      "pilot": {
+        "deviations": [],
+        "label": "PILOT - NON-CITABLE",
+        "stage": 3
+      },
+      "rate_msg_s": 50.0,
+      "repetition": 1,
+      "run_id": "g4pilot-s3-loadsweep-0300s-050mps-a01",
+      "runner": "simulator",
+      "scenario": "load-sweep",
+      "seed": 174127109,
+      "status": "planned",
+      "warmup_s": 0
+    },
+    {
+      "condition_id": "soak",
+      "cooldown_s": 0,
+      "duration_s": 3600,
+      "order": 5,
+      "pilot": {
+        "deviations": [
+          {
+            "basis": "docs/setup/qemu_integrated_gateway.md:1544 (a short soak, --scenario soak --duration 3600); docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:645 (one bounded soak); a bounded run is no C13 evidence (docs/claim_evidence_matrix.md:174)",
+            "field": "duration_s",
+            "frozen": 86400,
+            "pilot": 3600
+          }
+        ],
+        "label": "PILOT - NON-CITABLE",
+        "stage": 4
+      },
+      "rate_msg_s": 11.2,
+      "repetition": 1,
+      "run_id": "g4pilot-s4-soak-3600s-11p2mps-a01",
+      "runner": "simulator",
+      "scenario": "soak",
+      "seed": 2294608585,
+      "status": "planned",
+      "warmup_s": 0
+    }
+  ]
+}

@@ -392,6 +392,63 @@ def test_run_passes_the_restart_transition_rule_through_and_names_only_the_adopt
         assert "--restart-transition-rule" in capsys.readouterr().err
 
 
+def test_run_and_campaign_forward_the_declared_execution_mode(monkeypatch) -> None:
+    """G4 core provenance (plan 655-661): --execution-mode is a run-level
+    option of 'run' and 'campaign'; absent, the harness gets None (no default,
+    no environment fallback) and records the run as invalid."""
+    seen: dict[str, list[object]] = {"run": [], "campaign": []}
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen["run"].append(kwargs.get("execution_mode", "missing"))
+        return 0
+
+    def fake_run_campaign(plan, **kwargs):
+        seen["campaign"].append(kwargs.get("execution_mode", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    monkeypatch.setattr(cli, "run_campaign", fake_run_campaign)
+    monkeypatch.setenv("EGW_EXECUTION_MODE", "tcg-emulated")
+    for mode in ("tcg-emulated", "native-kvm", "native-metal"):
+        assert cli.main(["run", "--run-id", "nominal-r01", "--execution-mode", mode]) == 0
+        assert cli.main(["campaign", "--execution-mode", mode]) == 0
+    assert cli.main(["run", "--run-id", "nominal-r01"]) == 0
+    assert cli.main(["campaign"]) == 0
+    expected = ["tcg-emulated", "native-kvm", "native-metal", None]
+    assert seen == {"run": expected, "campaign": expected}
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["run", "--run-id", "nominal-r01", "--execution-mode", "emulated-qemu-tcg"],
+        ["campaign", "--execution-mode", "TCG-EMULATED"],
+        ["run", "--run-id", "nominal-r01", "--execution-mode", ""],
+        ["collect", "--run-id", "nominal-r01", "--execution-mode", "tcg-emulated"],
+    ],
+    ids=["run-unknown", "campaign-case", "run-empty", "collect"],
+)
+def test_execution_mode_takes_only_the_three_tokens_and_collect_has_none(argv, capsys) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(argv)
+    assert exc.value.code == 2
+    assert "--execution-mode" in capsys.readouterr().err
+
+
+def test_execution_mode_help_states_no_default_and_no_environment_fallback(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("COLUMNS", "10000")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    for command in (["run", "--help"], ["campaign", "--help"]):
+        with pytest.raises(SystemExit) as exc:
+            cli.main(command)
+        assert exc.value.code == 0
+        flat = " ".join(capsys.readouterr().out.split())
+        assert "--execution-mode {tcg-emulated,native-kvm,native-metal}" in flat
+        assert "no default and no environment fallback" in flat
+        assert "invalid" in flat
+
+
 def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:
     # A wide terminal keeps argparse from wrapping inside hyphenated paths;
     # no colour codes (argparse >= 3.14 may colour its help).
@@ -434,6 +491,15 @@ def test_analyze_usage_and_help_document_plan_and_env_fallback(capsys) -> None:
     # where the operator looks for it.
     assert CAMPAIGN_PLAN_ENV_VAR in help_text
     assert "IDENTITY-based" in help_text
+
+
+def test_analyze_takes_no_execution_mode_option(capsys) -> None:
+    """The execution mode comes from each run's own records, with no
+    default: the analysis has no option that sets, overrides or filters it
+    (G4 core provenance, plan 655-661)."""
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["analyze", "--execution-mode", "tcg-emulated"])
+    capsys.readouterr()
 
 
 def _empty_results_tree(tmp_path: Path) -> Path:

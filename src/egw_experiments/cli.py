@@ -96,17 +96,26 @@ controller's transition rows are then admitted on the collector's own
 lifecycle pair and recorded as ``resources_transition_rows``. Absent, every
 run is as before.
 
+G4 core provenance (plan 655-661): ``run`` and ``campaign`` take
+``--execution-mode {tcg-emulated,native-kvm,native-metal}``, with no default
+and no environment fallback. The harness checks the declaration against the
+run's three environment records (guest, load generator, hypervisor); omitted,
+the run is recorded and sealed as invalid. ``collect`` takes no such option:
+it re-checks a run that recorded one and leaves every other run as it was.
+
 Recovery qualification (review finding F2): the analyser never reads
 ``drain.outcome``, so ``analyze`` runs ``egw_experiments.recovery_qualification``
 after the analysis, which writes ``processed/recovery_qualification.json``
 and ``.csv`` (one record per ``controller_restart`` run of the plan: its
 validity, drain outcome and source, the presence and verification of the
 after snapshot and the post-drain events, and its qualification —
-``recovery_observed``, ``recovery_failed`` or ``not_evidenced`` — plus the
-criterion ``restart_recovery_observed_every_run``) and prints one
-``[recovery]`` summary line; ``recovery`` runs that layer alone. The layer
-changes no count and adds nothing to the acceptance table (ADR 0011 leaves
-``analyze.py`` unchanged).
+``recovery_observed``, ``recovery_failed`` or ``not_evidenced`` — and its
+execution-mode group, plus the criterion
+``restart_recovery_observed_every_run``, evaluated once per execution-mode
+group and never across groups) and prints one ``[recovery]`` summary line
+(and one per group when the runs span several); ``recovery`` runs that
+layer alone. The layer changes no count and adds nothing to the acceptance
+table (ADR 0011 leaves ``analyze.py`` unchanged).
 """
 
 from __future__ import annotations
@@ -118,6 +127,7 @@ from pathlib import Path
 from .analyze import CAMPAIGN_PLAN_ENV_VAR, analyze
 from .campaign import run_campaign
 from .checksums import verify_sha256sums
+from .environment import EXECUTION_MODES
 from .plan_gen import (
     SUPPLEMENTS,
     PlanSupplementError,
@@ -411,10 +421,27 @@ def _add_sut_log_fetch_arguments(parser: argparse.ArgumentParser) -> None:
 def _add_run_level_arguments(parser: argparse.ArgumentParser) -> None:
     """Run-level flags shared by ``run`` and ``campaign`` (same wiring)."""
     parser.add_argument(
+        "--execution-mode",
+        default=None,
+        choices=list(EXECUTION_MODES),
+        help="G4 core provenance (plan 655-661): the execution mode the "
+        "operator declares for the run, checked against its three environment "
+        "records (guest, load generator, hypervisor). There is no default and "
+        "no environment fallback: omitted, the run is still executed, recorded "
+        "and sealed with execution_mode null, and marked validity 'invalid'. "
+        "This harness can evidence only tcg-emulated (the QEMU/TCG guest on "
+        "this host); a native declaration is always invalid here",
+    )
+    parser.add_argument(
         "--broker",
         default="localhost",
         help="MQTT broker host: the ARM VM's address (the harness and the "
-        "simulator run off the VM during benchmarks, plan 5.1)",
+        "simulator run off the VM during benchmarks, plan 5.1). Give an IP "
+        "address: a host name, such as the default 'localhost', cannot be "
+        "matched to the QEMU forward (provenance check H5), so a "
+        "tcg-emulated run or campaign must pass the address, "
+        "--broker 127.0.0.1 on the integrated guest, or each of its runs "
+        "fails H5 and is recorded as invalid",
     )
     parser.add_argument(
         "--port", type=int, default=8883, help="MQTT port (default 8883, TLS)"
@@ -806,6 +833,94 @@ def build_parser() -> argparse.ArgumentParser:
         "--run-id", default=None, help="verify only this run directory"
     )
 
+    # generator-check (G4 pilot prerequisite P5) ------------------------------
+    p_gen = sub.add_parser(
+        "generator-check",
+        help="check, relative to the inferred schedule origin, whether the load "
+        "generator kept its schedule in one run: "
+        "the harness's requested load against the simulator manifest; "
+        "identity and count against the exact schedule rebuilt from the "
+        "simulator manifest; relative lateness, overruns and catch-up bursts "
+        "of the client publish calls, placed by the inferred schedule origin "
+        "(host clock; not broker ingress); PUBACK observations (a null is not "
+        "loss); with --events the controller's "
+        "acceptance on the guest clock, never subtracted from host stamps. "
+        "Exit 0 SUSTAINED, 1 NOT_SHOWN, 2 usage, 3 NOT_CERTIFIED, 4 "
+        "NOT_SUSTAINED. Reads only; no tolerance is built in",
+    )
+    p_gen_input = p_gen.add_mutually_exclusive_group(required=True)
+    p_gen_input.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="a harness run directory (raw/<run_id>/): its SHA256SUMS must "
+        "exist and verify, and its harness manifest, when present, must be a "
+        "readable JSON object (otherwise NOT_SHOWN); the simulator output is "
+        "read from logs/simulator/<run_id>/ and compared byte for byte with the "
+        "root copy of sent_events.jsonl; the harness manifest gives the "
+        "requested load (scenario, seed, rate_msg_s, duration_s; warmup_s for "
+        "the warm-up: one the simulator manifest contradicts is NOT_SHOWN, one "
+        "not recorded keeps the report from certifying), the elapsed-time "
+        "stamps and the execution_mode it recorded (copied, never inferred)",
+    )
+    p_gen_input.add_argument(
+        "--sim-dir",
+        type=Path,
+        default=None,
+        help="a bare simulator output directory (<output>/<run_id>/ with "
+        "manifest.json and sent_events.jsonl): no seal, no root-copy check, no "
+        "harness request to reconcile and no elapsed-time section. A harness "
+        "run's own logs/simulator/<run_id>/ or logs/warmup/<run_id>.warmup/ "
+        "(beside its manifest.json or SHA256SUMS) is refused (exit 2): check "
+        "it with --run-dir",
+    )
+    p_gen.add_argument(
+        "--events",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="a copy of the controller's events.jsonl of the run (the sealed "
+        "copy or the post-drain copy), read for the acceptance section only; "
+        "it never changes the verdict",
+    )
+    p_gen.add_argument(
+        "--tolerances",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="a tolerance profile (JSON; see experiments/README.md). Without a "
+        "profile whose status is 'approved' and whose approval names its "
+        "decision record no report certifies (exit 3); a 'proposed' profile is "
+        "evaluated and labelled non-certifying; an invalid one exits 2",
+    )
+    p_gen.add_argument(
+        "--window-s",
+        type=float,
+        default=1.0,
+        help="width of the per-window count comparison, a reporting resolution "
+        "outside the verdict (default 1.0 s, the period of the 1 Hz samplers; "
+        "at least 0.1 s, a smaller value exits 2)",
+    )
+    p_gen.add_argument(
+        "--warmup",
+        action="store_true",
+        help="with --run-dir: check the warm-up's simulator output "
+        "(logs/warmup/<run_id>.warmup/) instead; the report is labelled "
+        "warm-up and never stands for the measured run",
+    )
+    p_gen.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="write the JSON report to FILE once (an existing file is never "
+        "replaced); refused inside the run or simulator directory and inside "
+        "any directory sealed by SHA256SUMS; a FILE that cannot be written "
+        "exits 2 with no report and no verdict. Suggested: "
+        "<base>/checks/generator/<run_id>.json, beside raw/ (analyze cleans "
+        "processed/ and figures/)",
+    )
+
     return parser
 
 
@@ -897,6 +1012,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         external_timings=args.external_timings,
         external_logs=args.external_logs,
         metrics_fast_retry=args.metrics_fast_retry,
+        execution_mode=args.execution_mode,
     )
 
 
@@ -956,6 +1072,7 @@ def _cmd_campaign(args: argparse.Namespace) -> int:
         allow_warmup_failure=args.allow_warmup_failure,
         allow_protocol_deviation=args.allow_protocol_deviation,
         allow_missing_controller_marker=args.allow_missing_controller_marker,
+        execution_mode=args.execution_mode,
     )
 
 
@@ -1093,4 +1210,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_recovery(args)
     if args.command == "verify-checksums":
         return _cmd_verify(args)
+    if args.command == "generator-check":
+        # Imported on use: the check loads the simulator's run loop, which
+        # no other subcommand needs.
+        from .generator_check import run_from_args
+
+        return run_from_args(args)
     raise AssertionError(f"unhandled command {args.command!r}")

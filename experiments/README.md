@@ -30,6 +30,8 @@ experiments/
     │   │                     # window, validity, protocol version, exclusion
     │   ├── sut_environment.json     # captured ON the VM (SUT)
     │   ├── loadgen_environment.json # captured on the harness host
+    │   ├── hypervisor_environment.json # the QEMU process on the harness
+    │   │                     # host (G4 core provenance; simulator runs)
     │   ├── timings.json      # external runs only (operator timings)
     │   ├── logs/             # simulator stdout/stderr, warm-up artifacts,
     │   │                     # collector/ (raw CSV fetched by the hook)
@@ -52,6 +54,9 @@ experiments/
   `src/deployment/scripts/capture-sut-environment.sh`, then ingested.
 - The harness's own host is documented as the LOAD GENERATOR
   (`loadgen_environment.json`), never as the system under test.
+- The QEMU process that emulates the guest runs on that same host; the
+  harness records it as the HYPERVISOR (`hypervisor_environment.json`, see
+  "Execution mode and core provenance" below).
 
 ## Condition → claim map (audit 9.5)
 
@@ -153,6 +158,22 @@ python -m egw_experiments campaign \
     --collector-stop-cmd  "ssh vm 'systemctl stop egw-resources-{run_id}'" \
     --collector-fetch-cmd 'sh src/deployment/scripts/fetch-collector-output.sh vm /tmp/resources-{run_id}.csv "{dest}"' \
     --restart-cmd 'ssh vm docker compose -f /opt/egw/src/deployment/compose.yaml restart controller'
+```
+
+*(Note 2026-10-07, execution mode.)* This invocation and the `run` example
+in 2a target a native ARM VM. This harness has no native provenance
+capture, so a run declared `--execution-mode native-kvm` or `native-metal`
+is recorded and sealed but invalid (check N0), and a run without
+`--execution-mode` is invalid too (check P0); no native procedure is
+documented here. For the emulated system, the integrated QEMU guest, the
+declaration is `tcg-emulated` and the generator's target is the loopback
+forward, as in the runbook's `harness_cmd`
+([`docs/setup/qemu_integrated_gateway.md`](../docs/setup/qemu_integrated_gateway.md),
+6.1; see "Execution mode and core provenance" below):
+
+```bash
+python -m egw_experiments campaign ... \
+    --execution-mode tcg-emulated --broker 127.0.0.1 --port 8883
 ```
 
 Behaviour:
@@ -271,6 +292,12 @@ python -m egw_experiments run --run-id nominal-r01 \
     --collector-fetch-cmd 'sh src/deployment/scripts/fetch-collector-output.sh vm /tmp/resources-{run_id}.csv "{dest}"'
 ```
 
+Like the `campaign` example in 2, this one targets a native ARM VM, where
+no declaration can give a valid run (N0, or P0 without the flag: see the
+note there). On the integrated QEMU guest add `--execution-mode
+tcg-emulated` with `--broker 127.0.0.1 --port 8883`, as the runbook's
+`harness_cmd` does.
+
 The manual equivalent (no hooks) still works, and is held to the same
 accounting — start the collector by hand, with the same service list,
 before the run; fetch its CSV WITH the companions after it; ingest them
@@ -306,14 +333,18 @@ invalid. The run records the expected services; `collect` may supply them
 that recorded none, and never changes them. `--local-resources` (dev only)
 has no collector output to account for.
 
-What `run` does, in order: captures `loadgen_environment.json`; ingests
-`sut_environment.json`; executes `--collector-start-cmd`; runs the planned
+What `run` does, in order: refuses an `--execution-mode` outside the three
+tokens (exit 2, nothing written); ingests `sut_environment.json`; builds the
+two simulator invocations once and captures `loadgen_environment.json` with
+them (password redacted); takes the hypervisor's start snapshot; executes
+`--collector-start-cmd`; runs the planned
 warm-up (same seed, run_id `<run_id>.warmup`); stamps the measured window;
 runs the measured simulator invocation (CONTRACTS 7) while sampling the
 controller's `GET /metrics` at 1 Hz into `controller_metrics.csv`; stamps
 the run end and IMMEDIATELY polls the controller's confirmation marker
 (below) — before the samplers are stopped and before any hook; stops the
-samplers; executes `--collector-stop-cmd`; waits the 60 s confirmation
+samplers; executes `--collector-stop-cmd`; takes the hypervisor's end
+snapshot and writes `hypervisor_environment.json`; waits the 60 s confirmation
 window (plan 7.3);
 executes `--collector-fetch-cmd` (or copies the `--resources-from` file and
 its companions) and records the collector output in the manifest's
@@ -323,6 +354,7 @@ rows per expected service, problems); fetches `events.jsonl` via the
 with exponential backoff; env fallback `EGW_FETCH_EVENTS_CMD`; without a
 template, a LOCAL `--event-log-dir` lookup for dev only); ingests the
 fetched (or `--resources-from`) collector CSV through the validated ingest;
+checks the declared execution mode against the three environment records;
 writes `manifest.json`; writes `SHA256SUMS` ONLY when every mandatory
 artefact of the condition kind is present.
 
@@ -455,6 +487,138 @@ whose `rejected_rows` then lists only what is still rejected; the rows are
 not evidence that the controller was ready. Without the option nothing of
 this runs or is recorded, and `collect` never applies it.
 
+### Execution mode and core provenance (G4, plan 655-661)
+
+G4 requires an `execution_mode` with no default, the image identity, three
+environment records per run (guest, host hypervisor, load generator) and a
+wrong-provenance regression. `run` and `campaign` take the declaration; on
+the integrated QEMU guest the generator's target is the loopback forward:
+
+```bash
+python -m egw_experiments run --run-id <run_id> ... \
+    --execution-mode tcg-emulated --broker 127.0.0.1 --port 8883
+```
+
+- **The declaration.** `--execution-mode {tcg-emulated,native-kvm,native-metal}`
+  (`environment.EXECUTION_MODES`). There is no default and no
+  environment-variable fallback: omitted, the run is still executed, recorded
+  and sealed with `execution_mode: null`, and it is invalid ("an unset value
+  invalidates the run"). Any other value from an API caller is refused with
+  exit 2 before anything is written, by `run` and by `campaign` alike (no
+  campaign log line, no run directory). `collect` takes no such option. The mode
+  is never inferred, from the guest's labels or from anything else.
+- **Three environment records** per simulator run. `sut_environment.json`
+  (the guest's, ingested, unchanged). `loadgen_environment.json` (the
+  harness host's), which also records `boot_id`, `cpu_affinity_count`,
+  `mem_total_kb`, `cpu_model`, `python_executable` and the two invocations
+  the run executes, `simulator_argv` and `warmup_argv` (null without a
+  warm-up), with the value after `--password` replaced by `<redacted>`.
+  `hypervisor_environment.json` (`{role: "hypervisor", record_version: 1,
+  capture, start, end}`), two snapshots read from the harness host's `/proc`:
+  the host (uname, boot id, CPUs, `MemTotal`, CPU model, WSL); the single
+  process whose `argv[0]` is `qemu-system-aarch64` (none or several: none is
+  chosen), with its pid, start time (in ticks after the boot, and in UTC as
+  the host's `btime` read at that snapshot plus those ticks, with the `btime`
+  and `clock_ticks_per_second` used), exact command line and its sha256, the
+  executable's sha256 and `--version` line, the parsed options, the kernel's
+  sha256 (`kernel_hash_basis: "file on disk at capture"`: the `-kernel` file
+  as it is when the snapshot is taken; QEMU reads it only at its start, so a
+  kernel replaced on disk since then, by a rebuilt deploy directory for
+  instance, would be hashed in its place, and no check detects that), the
+  rootfs drive and its image name, whether `/dev/kvm` is open
+  and the accelerator derived from these; and two derived facts,
+  `colocated_with_loadgen` (that process is in this host's table and the
+  boot id is the load generator's) and `generator_target_is_this_guest` (a
+  TCP forward of that QEMU on the generator's port takes a connection to the
+  broker, by the address rule under "The checks"; null, with the reason,
+  when that cannot be decided).
+  Whatever cannot be read is null, with its reason in the snapshot's
+  `problems`; nothing is guessed. The start snapshot is taken before the
+  collector start hook and the end snapshot after the collector stop hook,
+  so neither comes between the run-end stamp and the controller marker.
+- **The manifest (version 1.5)** gains `execution_mode`,
+  `environment_refs.hypervisor` (null only when the record could not be
+  written, with a warning), `image_identity` (`qemu_exe_sha256`,
+  `qemu_version_line`, `kernel_sha256`, `rootfs_path` and
+  `rootfs_image_name` from the start snapshot, `image_digests_ref:
+  "image_digests"` and the configuration identity's `controller_image_id`,
+  each null when not read), `provenance` (`{rule: "G4 core provenance (plan
+  655-661)", declared_by: "--execution-mode", execution_mode, checks:
+  [{check, ok, detail}], problems}`, the advisory G5 also carrying
+  `advisory: true`) and `config.cli.execution_mode`.
+- **The checks** (`environment.provenance_checks`, on the run's own files).
+  P0: the mode is set and known. For `tcg-emulated`: H1 one QEMU process at
+  the start; H2 the same pid, start time, boot id and command line at the
+  end; H3 the accelerator is TCG and KVM is not requested; H4 the load
+  generator is co-located (the flag is true and the two boot ids are
+  equal; a record saying it was not co-located fails); H5 the generator's
+  target enters that QEMU (an IPv4 loopback broker that a TCP forward of the
+  recorded command line on the port takes, by the address rule below; the
+  recorded flag alone never passes it); G1 the guest record's role is
+  `sut`; G2 its `uname_a` states aarch64; G3 its `nproc` equals `-smp`; G4
+  one of its labels states emulation; G5 (advisory, below) its
+  `captured_utc` is not earlier than the QEMU start; L1 the load generator
+  runs on the hypervisor's host machine; I1 the QEMU executable, the kernel
+  and the rootfs image are identified. For `native-kvm` and `native-metal`,
+  N0 always fails (no native provenance capture exists in this harness),
+  and N1 (a local QEMU takes the generator's traffic, by the same address
+  rule; N1 also fails when that cannot be decided), N2 (a guest label
+  states emulation) and N3 (the guest is `egw-qemu-integrated`) name each
+  contradiction found: the wrong-provenance regression. No check has a
+  tolerance.
+- **The address rule of H5 and N1 (F3, review of PR #60, 2026-10-08).**
+  QEMU 8.2.7 reads a forward's host address with `inet_aton`
+  (`net/slirp.c`, `slirp_hostfwd`): IPv4 only, an empty address meaning
+  every address. The generator's broker is matched to that host address by
+  address and family (`environment._forward_takes`): a forward bound to one
+  dotted-quad IPv4 address takes only that address (`127.0.0.1` does not
+  take `127.0.0.2`); an empty or `0.0.0.0` one takes any IPv4 loopback
+  address; an IPv6 broker (`::1`) never enters a forward, and an
+  IPv4-mapped one cannot be decided; a host name is not an address and is
+  never matched, `localhost` included, so the harness default
+  `--broker localhost` fails H5: give the address, `--broker 127.0.0.1` on
+  the integrated guest. A forward whose host address is neither empty,
+  `0.0.0.0` nor a dotted-quad IPv4 address (`127.1`, which `inet_aton` also
+  takes) is not read; a non-loopback broker against an every-address
+  forward cannot be decided (whether it is an address of this host is not
+  recorded), nor can the unspecified broker `0.0.0.0` against any forward
+  (Linux connects it to a local address, which is not recorded). Against a
+  forward of the generator's port, none of these passes H5, and each fails
+  N1; with no forward on that port, a host-name or `0.0.0.0` broker still
+  fails H5 but passes N1, since no recorded QEMU forwards the port (N0
+  still fails every native declaration). When several forwards share the
+  port, one that takes the connection decides, whatever the others are: the
+  snapshot's flag is true, H5 can pass, and N1 fails naming it. Without one,
+  a forward that cannot be decided leaves the flag null, fails H5 and fails
+  N1 as undecided. N1 passes only when every forward of the port is shown
+  not to take the connection, or the port has none.
+- **G5 is advisory (2026-10-07).** It compares the guest's own wall clock
+  with a QEMU start derived on the host as `btime` + start ticks / tick
+  rate, and `btime` is read at the start snapshot: every step of the host's
+  wall clock since QEMU started moves the derived start, and WSL2's wall
+  clock drifted by -5.1 % to +3.0 % against uptime over the G3 sessions. G5
+  can therefore fail a good run late in a long session, and it has no upper
+  bound: a guest record captured in a later session passes it. Its verdict
+  is recorded with `advisory: true` and a detail naming the `btime` used,
+  and it is never a validity reason (`environment.provenance_problems` skips
+  it, for `run`, `collect` and the analysis alike). G5 does not show that the
+  guest record belongs to the run's session. The guard against a stale
+  record is the session procedure: the preflight
+  (`tools/session/preflight.sh`) captures the guest record after the boot,
+  and that capture, not one from an earlier boot, is the one passed with
+  `--sut-env-from` (runbook 5.8 and its `harness_cmd`).
+- **The rule.** Each failed check, except the advisory G5, is one validity
+  reason, `provenance: <check>: <detail>`, on every simulator run, timed or
+  not. No allow flag suppresses it and no deviation is recorded; the run is
+  still sealed, so the evidence of an invalid run stays verifiable. The rule
+  is gated by the `provenance` record, never by the version string.
+- **Old and external runs.** A manifest without the `provenance` record
+  (every run sealed before 1.5) keeps its bytes, seal and verdict: `collect`
+  judges it as before and adds no key and no file to it. External runs
+  (`--external-timings`) carry no mode, no checks and no hypervisor record (a
+  given `--execution-mode` is noted on the console and not recorded); the
+  analysis reads them as unrecorded.
+
 ### 2b. Recovery: the `collect` subcommand (audit 9.3)
 
 If post-run collection failed (VM unreachable, missing fetch template,
@@ -475,6 +639,15 @@ With `--resources-from`, the companions beside the file are copied and
 inspected as in `run` (above); the new collector record replaces the run's
 one, which is kept in the `collect_history` entry. Without it, the collector
 problems recorded at run time are re-applied unchanged.
+
+A run whose manifest carries the `provenance` record (manifest 1.5) is
+checked again on its own sealed files, a `--sut-env-from` given here
+included; the hypervisor record is a run-time measurement and is never
+captured after the fact. No check shows that a guest record given here was
+captured in the run's session (G5 is advisory and has no upper bound): only
+the capture of the run's own session belongs here. A run without the record
+is judged as before and gains no key and no file (see "Execution mode and
+core provenance" above).
 
 Raw evidence already present is never overwritten. After the data freeze
 (`data-v1`) raw directories are immutable and `collect` must not be used.
@@ -539,6 +712,10 @@ python -m egw_experiments run --run-id cold_start-r01 \
     [--external-logs <dir>] [--sut-env-from sut_environment.json]
 ```
 
+An external run carries no execution mode, no provenance record and no
+hypervisor record (G4 core provenance covers simulator runs only); the
+analysis reads it as unrecorded.
+
 ### 3. Freeze raw (data freeze `data-v1`, gate G5)
 
 After the freeze, everything under `results/raw/` is immutable. No file in
@@ -552,6 +729,145 @@ python -m egw_experiments verify-checksums
 Bulky raw data stays out of normal Git history but is preserved in a
 versioned archive with SHA-256 checksums and its location recorded in the
 manifest/release (plan 5.8).
+
+### Generator check: `generator-check` (G4 pilot prerequisite P5)
+
+The plan checks generator delivery on every pilot run: a run whose generator
+could not sustain the requested rate is a pilot finding, not a measurement. A
+mean rate cannot show that. The simulator catches up after a stall, so a run
+with a mid-run stall has the count, identity set, first-to-last span and mean
+rate of a perfect run. `N / duration` and `(N - 1) / span` are reported only
+as a summary.
+
+```bash
+python -m egw_experiments generator-check --run-dir results/raw/<run_id> \
+    [--events results/raw/<run_id>/events.jsonl] [--tolerances FILE] \
+    [--window-s 1.0] [--warmup] [--out <base>/checks/generator/<run_id>.json]
+python -m egw_experiments generator-check --sim-dir <output>/<run_id> ...
+```
+
+The check rebuilds the run's exact schedule from the simulator manifest,
+using the run loop's own functions (`scheduled_times`, `make_devices`,
+`split_rate`, `make_message_id`, the scenario's injector and windows). It
+reads only. Each section names its clock:
+
+- **Seal and inputs** (before anything is judged). With `--run-dir`, the run
+  directory's `SHA256SUMS` must exist and verify, checked with the harness's
+  own verification (`egw_experiments.checksums`, as `verify-checksums` and
+  `analyze` use it). A run that is unsealed, or whose seal does not verify,
+  is `NOT_SHOWN` with every seal problem named: an edit made the same way to
+  both copies of `sent_events.jsonl` passes every other check. The harness
+  manifest, when present, must be a readable JSON object, or the run is
+  `NOT_SHOWN`; a missing one empties the elapsed section and leaves the
+  requested load unrecorded, so the report does not certify. Both manifests
+  are read as strict JSON: NaN, Infinity and numbers beyond the range of a
+  float are `NOT_SHOWN`, and so is a schedule with no event. A bare simulator
+  directory (`--sim-dir`) has no seal of its own, and none is verified. A
+  harness run's own simulator output (`<run>/logs/simulator/<run_id>/` or
+  `logs/warmup/<run_id>.warmup/`, beside the run's `manifest.json` or
+  `SHA256SUMS`) is refused as `--sim-dir` (exit 2) rather than reconciled in
+  place: it is checked with `--run-dir` (and `--warmup`), so a
+  bare-directory `SUSTAINED` never stands for a harness run.
+- **Requested load** (exact, no tolerance; `--run-dir` only). The harness
+  manifest's top-level `scenario`, `seed`, `rate_msg_s` and `duration_s`,
+  the values from which `run.py` builds the simulator invocations
+  (`warmup_s` for the warm-up, which runs with the measured run's
+  scenario, seed and rate), must equal the simulator manifest's
+  `scenario`, `seed`, `rates_hz.aggregate` and `duration_s`. A matching
+  `run_id` alone does not show that the records are the requested load.
+  A contradiction, or a value no request can hold, is `NOT_SHOWN`. A field
+  the harness manifest does not record (absent or null, or no harness
+  manifest at all) is reported, and the report does not certify.
+  `config.plan_entry` is the plan's echo and is not read: under
+  `--skip-warmup` its `warmup_s` is not the one run. A bare simulator
+  directory has no harness request; its manifest is the only record of
+  the load.
+- **Identity and count** (exact, no tolerance). The manifest must agree with
+  `make_devices` and with `split_rate` (exact floats). Every line must be a
+  JSON object with exactly the record fields and types. Every record must be
+  a scheduled identity of this run, present once, with its UUID v5
+  `message_id`. The counts must equal the schedule and `totals`, the
+  invalid-event flags must be the injector's, and `publish_monotonic_ns`
+  must never decrease. A non-null `puback_monotonic_ns` must be neither
+  earlier than its own `publish_monotonic_ns` nor later than the next
+  record's: the run loop publishes, waits and records one event at a time,
+  and the end-of-run drain never rewrites a record, so any other order is
+  an input defect. A null stays an absent observation, never loss, and no
+  acknowledgement stamp enters the cadence verdict. The run root's
+  `sent_events.jsonl` must be byte for byte the simulator's.
+- **Generator timing** (host monotonic clock). `publish_monotonic_ns` is
+  taken just before the client's publish call. It measures **the client's
+  publish-call cadence, not broker ingress**: paho keeps at most 20 QoS 1
+  messages in flight and queues the rest locally. The simulator does not
+  record its schedule origin, so the origin is inferred as
+  `min(publish - scheduled offset)`. Lateness is therefore **relative**: it
+  omits one constant `c >= 0`, which the harness's start stamp bounds. The
+  section reports lateness percentiles and **overruns**: events published at
+  or after the next scheduled instant, both placed by the inferred origin,
+  which start a catch-up. A delay common to every event is invisible to
+  the section. It also reports catch-up bursts, publish gaps, the span
+  against the scheduled span, and per-window counts (`--window-s`, at least
+  0.1 s, a reporting resolution outside the verdict).
+- **PUBACK observations** (host clock; never in the verdict). Nulls are split
+  into structural (zero wait budget), overrun and other. A **null puback is
+  not loss**: it was not observed within the wait budget.
+- **Controller acceptance** (guest monotonic clock; only with `--events`;
+  never in the verdict). This covers arrival and acknowledgement cadence,
+  unreadable lines and lines of other runs. **The controller's stamps are on
+  the guest clock and are never subtracted from or compared with host
+  stamps.** A served rate below the offered rate is a system observation,
+  not a generator shortfall.
+- **Elapsed** (harness stamps, host clock; non-certifying). This covers the
+  first publish after the measured start, the end after the last publish,
+  and the process time against the kill bound.
+
+Verdicts and exit codes:
+
+| exit | verdict | when |
+|---|---|---|
+| 0 | `SUSTAINED` | identity exact, `completed` true, the requested load reconciled (with `--run-dir`), every tolerance of an **approved** profile entry met |
+| 1 | `NOT_SHOWN` | an input defect: missing, unreadable, truncated or inconsistent files, the root copy differs, a run directory whose `SHA256SUMS` is missing or does not verify, an unreadable harness manifest, a harness request the simulator manifest contradicts (scenario, seed, rate or duration, the warm-up's included), an acknowledgement stamp before its own publish or after the next one, NaN or Infinity in a manifest, or an empty schedule. Nothing is judged as passed, and an input defect is never `NOT_SUSTAINED` |
+| 2 | usage | bad arguments, a `--window-s` below 0.1 s, a `--sim-dir` that is a harness run's own simulator output, an invalid tolerance file, or an `--out` that exists, lies inside the run, the simulator directory or a directory sealed by `SHA256SUMS`, or cannot be written (then no report is written and no verdict is given) |
+| 3 | `NOT_CERTIFIED` | metrics computed, but no profile, a profile not `approved`, no entry for the condition, timing not applicable (`dropout-reconnect`), or a load field the harness manifest does not record (no harness manifest included) |
+| 4 | `NOT_SUSTAINED` | an approved tolerance exceeded, or a whole run with `completed` false |
+
+Exit 1 only ever means a `NOT_SHOWN` evaluation, and with `--out` its report
+is written. A `NOT_SUSTAINED` run is a pilot finding: not a licence to
+repeat it, and not by itself an instrumentation failure.
+
+**No tolerance is adopted.** The check has no built-in tolerance. A profile
+(`--tolerances`) is a JSON object with exactly these keys: `profile_id`,
+`status` (`proposed` or `approved`), `approval` (null when proposed;
+`{approved_by, decision_record, date}` when approved), `rate_key` (the
+literal `"<scenario>@<aggregate rate>"`), `basis` and `conditions`. Each key
+of `conditions` is `<scenario>@<aggregate rate>`, matched to the manifest's
+rate by exact float equality, and holds `max_relative_lateness_ms`,
+`max_overrun_events` and `max_span_deviation_ms`. Only an `approved` profile
+certifies. A `proposed` one is evaluated and labelled non-certifying.
+[`g4-pilot/generator_tolerances.proposed.json`](g4-pilot/generator_tolerances.proposed.json)
+holds proposal A, `status: "proposed"`, with its basis: zero relative
+overruns, a maximum relative lateness of 20 ms and an absolute
+first-to-last span deviation of 20 ms. Overruns and lateness are relative
+to the inferred origin, so a constant offset common to every event is
+unobservable; the span deviation needs no origin. Profile A does not mean
+zero late publish calls or deliveries, and it sets no limit of its own on
+each inter-publish interval: two consecutive calls may be up to 20 ms
+closer together or further apart than scheduled. Relative to the inferred
+origin and within the check's resolution, a `SUSTAINED` under it states
+that no catch-up was detected and that the lateness and the span stayed
+within 20 ms, not that the broker received the messages. Its baseline is
+an engineering basis only and is non-citable.
+Approval is the student's act, through a decision record.
+
+`--warmup` checks the warm-up (`logs/warmup/<run_id>.warmup/`); that report
+is labelled and never stands for the measured run. The `execution_mode` is
+copied from the harness manifest when it records one, and never inferred.
+The JSON report (`--out`) is written once, before the console summary. It is
+refused inside the run or simulator directory and inside any directory sealed
+by `SHA256SUMS`; an `--out` that cannot be written exits 2, leaves no partial
+file and prints no verdict. Keep it beside `raw/`, never under `processed/`
+or `figures/`, which `analyze` cleans. The check changes no validity rule and
+no run's validity.
 
 ### 4. Analyze (any number of times, reproducibly)
 
@@ -576,7 +892,23 @@ true only when every controller_restart run of the plan is
 summary line is printed; the exit code stays the analyser's. `python -m
 egw_experiments recovery [--base-dir DIR] [--plan PATH]` runs the layer
 alone. It changes no count of lost, late or N1 and adds no row to the
-acceptance table. Two related rules of the ingestion (finding F6a): a twin
+acceptance table. The layer never pools execution modes (see "Execution
+mode in the analysis" below): each run carries its execution-mode group,
+classified exactly as `analyze` classifies it (the leading
+`execution_mode` column of the CSV and the `execution_mode`,
+`execution_mode_status` and `execution_mode_problems` keys of its JSON
+record; blank or null for a planned run without a directory and for a
+provenance failure, which is never `recovery_observed`), and the criterion
+is evaluated once per group against the whole plan
+(`criteria_by_execution_mode` in the JSON, each with its `execution_mode`
+and `execution_mode_label`): a planned run of another group is
+`not_evidenced` for the group, naming its own group, and a run in no group
+keeps its own qualification. A tree of one group keeps the values it
+always had, with the group named beside them (the JSON's `criterion` is
+that group's evaluation, and the summary line names the group, `none`
+when no run has one); for runs of several groups the JSON's `criterion`
+never passes and names the groups, and one more `[recovery]` line is
+printed per group. Two related rules of the ingestion (finding F6a): a twin
 snapshot handed to `--twins-before-from` must name exactly the devices the
 plan entry's seed determines, with the entries `snap` writes (an absent
 twin, `exists` false, is legitimate), the after snapshot exactly the verified
@@ -959,6 +1291,12 @@ Timed runs (every simulator-driven condition) REQUIRE, in the run dir:
 - the mandatory artefacts of the condition kind (see above): a missing one
   marks the run invalid AND withholds `SHA256SUMS`.
 
+Every simulator run whose manifest carries the `provenance` record (manifest
+1.5), timed or not, also REQUIRES a declared execution mode that its three
+environment records bear out (see "Execution mode and core provenance"): an
+unset mode and each failed check, except the advisory G5, is a reason, with
+NO override, and the run is still sealed.
+
 A failed requirement marks the manifest `validity: "invalid"` with
 explicit reasons — it never degrades to a warning, because CPU/RAM
 measured on the wrong host would silently invalidate RQ3. The overrides
@@ -1020,6 +1358,51 @@ count and run_ids is printed. They remain fully listed in `per_run.csv`
 with their validity flag (visibility without contamination). Manifests
 WITHOUT a validity key (legacy raw runs) are treated as valid.
 
+### Execution mode in the analysis (G4 core provenance, plan 655-661)
+
+Execution modes are never pooled into one statistic or aggregate (plan
+429-432). `analyze` classifies every run from its own sealed files, never
+from a label and never with a default (`execution_mode_status` in
+`per_run.csv`):
+
+- `unrecorded` — the manifest carries no `provenance` record: it predates
+  the field (manifest 1.4 and older), or it is an external run
+  (`run --external-timings` writes no provenance record, whatever its
+  manifest version). Such a run is analysed in its own group, labelled
+  "execution mode NOT RECORDED (no provenance record: a run older than the
+  field, or an external run)", so a legacy tree yields the numbers it
+  always did. Nothing is fabricated for it: `raw/` is never touched, its
+  `execution_mode` cell stays blank, and its bytes and seal are unchanged;
+- `recorded` — a provenance record, a declared mode in
+  `tcg-emulated`/`native-kvm`/`native-metal`, and no failed check (the
+  advisory G5 aside) when the
+  provenance checks (`egw_experiments.environment.provenance_checks`, the
+  same function the harness and `collect` use) are applied again to the
+  run's sealed `sut_environment.json`, `hypervisor_environment.json` and
+  `loadgen_environment.json`, with the broker and port echoed in the
+  manifest's `config.cli`. The manifest's own record of the checks is not
+  trusted;
+- `unset`, `unknown`, `inconsistent` — a provenance record whose declared
+  mode is null, outside the vocabulary, or not borne out by the run's
+  records (or named differently by the manifest's top level and its
+  provenance record). These are provenance failures: listed in
+  `per_run.csv` with the reasons in `warnings`, announced by an
+  `EXECUTION-MODE PROVENANCE FAILURE` line, and never aggregated, even when
+  the manifest says `valid`. A run declared `native-kvm` or `native-metal`
+  is always `inconsistent` here: this harness has no native provenance
+  capture (check N0).
+
+Every aggregate — summaries, external durations, acceptance, saturation,
+figures and the recovery qualification's criterion
+(`processed/recovery_qualification.json`, see "4. Analyze" above) — is
+evaluated once per group (a recorded mode, or `unrecorded`) and refuses
+mixed input itself (`MixedExecutionModeError`). A tree with no included
+run is evaluated once with no group, as before; its notices name that
+group `none`.
+There is no option to set, override or filter the mode, no
+`processed/<mode>/` directory, and no change to any validity rule: the
+provenance gate is added, for the runs that carry the record.
+
 ## Measured window (audit 9.4)
 
 The manifest records `measured_window_utc` {start, end} — harness
@@ -1055,12 +1438,18 @@ everything from `results/raw/` alone:
   (`events_accepted_total`, `metrics_accepted_delta`), the simulator
   totals `dropout_disconnects`/`buffered_dropout` (read from the
   simulator's own manifest under `logs/simulator/`) and
-  `restart_hook_ok`;
+  `restart_hook_ok`; and the execution-mode columns (see "Execution mode
+  in the analysis" above): `execution_mode` (the manifest value verbatim,
+  blank when absent), `execution_mode_status`, `execution_mode_group`
+  (blank for a provenance failure), `image_identity` (short form: rootfs
+  image name, kernel and QEMU executable digests), `environment_records`
+  (for example `sut+hypervisor+loadgen`) and `provenance_ok`;
 - `processed/resources_by_run.csv` — per-container CPU/memory aggregates
   over the measured window;
 - `processed/summary_by_condition.csv` — cross-run statistics (unit of
-  analysis = run): mean, stdev, 95% CI via Student t (hardcoded t-table,
-  documented in `analyze.py`; no scipy), median, p25/p75, min, max. The
+  analysis = run) per execution-mode group: mean, stdev, 95% CI via
+  Student t (hardcoded t-table, documented in `analyze.py`; no scipy),
+  median, p25/p75, min, max. The
   soak run is summarized descriptively without a CI (plan 7.3). Includes
   `duration_s` statistics for the external `cold_start` and
   `twin_creation` conditions; `qemu_boots` deliberately gets NO
@@ -1076,17 +1465,42 @@ everything from `results/raw/` alone:
   and buffered events in every run, metrics reconciliation),
   `controller_restart` (executed restart hook in every run, delivery
   across the restart, zero double-accepted message_ids) and the `soak`
-  Definition of Done;
-- `processed/saturation.json` — the plan 7.3 saturation evaluation per
-  load, including the queue-growth criterion (persistent `queue_depth`
+  Definition of Done — one full set per execution-mode group;
+- `processed/saturation.json` — `{generated_by, protocol_version,
+  execution_modes, by_execution_mode}`: `by_execution_mode` holds one
+  document per execution-mode group (in the order of `execution_modes`;
+  a single document with `execution_mode` null for a tree with no
+  included run), each the plan 7.3 saturation evaluation per load with
+  its `execution_mode` and `execution_mode_label`, including the
+  queue-growth criterion (persistent `queue_depth`
   growth: strictly increasing over a >= 60 s window with every sample
   above the floor of 100) and the host-level CPU criterion — both marked
   PENDING ADVISOR SIGN-OFF before `exp-v1`. Every PLANNED sweep load is
   listed with a `verdict`: `saturated`, `not-saturated` or
   `insufficient-evidence` (see "Saturation evidence sufficiency" below);
-- `figures/*.png` — generated only when `matplotlib` is importable
+- `processed/figures_index.csv` — one row per figure: `figure_file`,
+  `figure`, `execution_mode`, `execution_mode_label`, `title`, `n_runs`
+  and `run_ids`, so every figure's group and source runs can be checked
+  without opening it;
+- `figures/<stem>.<group>.png` (for example
+  `latency_percentiles_vs_load.tcg-emulated.png`) — one set per
+  execution-mode group, each stamped with a second title line
+  `Execution mode: <group> - <label>`, a footer with the number of runs
+  drawn and, for each QEMU version line their manifests record, how many
+  runs recorded it, plus how many recorded none (for example
+  `2 run(s); QEMU: QEMU emulator version 8.2.7 (1 run); version not
+  recorded (1 run)`), and PNG `Title`/`Description`
+  text; generated only when `matplotlib` is importable
   (install with `pip install -e src[analysis]`); without it the command
   prints a notice, still regenerates all tables, and exits 0.
+
+`resources_by_run.csv`, `summary_by_condition.csv`, `external_runs.csv`,
+`acceptance_by_condition.csv` and `recovery_qualification.csv` lead with an
+`execution_mode` column: the group of the row (blank for a provenance
+failure, for the evaluation of a tree with no included run, and for a
+planned restart run without a directory). The label of
+`tcg-emulated` is the plan's wording, "ARM64 emulated by QEMU/TCG on an
+x86-64 host" (plan 590-591).
 
 CPU semantics (audit 9.7): docker-stats `cpu_pct` is single-CPU based;
 per-container values are reported raw, and host-level utilization is
@@ -1158,7 +1572,8 @@ sample or for at most 5 s; time before the first sample is uncovered).
 
 ### Saturation evidence sufficiency (work order P1b)
 
-`saturation.json` lists every PLANNED sweep load (10/50/100/250 msg/s). A
+Each execution-mode group's document in `saturation.json` lists every
+PLANNED sweep load (10/50/100/250 msg/s), counting that group's runs only. A
 load's `verdict` is decided ONLY when the planned 10 valid runs exist at
 that load AND every run carries the required instrumentation: host-CPU
 criterion evaluable (nproc + SUT resources), resources coverage >= 90% of

@@ -52,6 +52,14 @@ Behaviour:
   ``--post-drain-events-from``, ``--drain-transcript-from``, each with a
   ``{run_id}`` placeholder substituted per run), reach ONLY the
   ``controller_restart`` runs, as ``--restart-cmd`` does;
+- G4 core provenance (plan 655-661): ``--execution-mode`` reaches every
+  executed run; it has no default, so a campaign without it records each run
+  as invalid, and a value outside the three tokens (an API caller's) is
+  refused with exit 2 before anything is written. ``--broker`` reaches every
+  run as well, and its default ``localhost`` is a host name, which cannot be
+  matched to the QEMU forward (check H5): a ``tcg-emulated`` campaign must
+  pass the address, ``--broker 127.0.0.1`` on the integrated guest, or each
+  run it executes fails H5 and is recorded as invalid;
 - cooldowns: the plan's ``cooldown_s`` is honored by the run wiring itself
   (``execute_run`` sleeps the remaining cooldown after the confirmation
   window). ``--no-cooldown`` suppresses it and records a protocol
@@ -84,7 +92,7 @@ from pathlib import Path
 from typing import Any
 
 from .checksums import SUMS_FILENAME, verify_sha256sums
-from .environment import utc_now_iso
+from .environment import EXECUTION_MODES, utc_now_iso
 from .plan_gen import load_campaign_plan
 from .run import (
     DEFAULT_RESULTS_BASE,
@@ -244,6 +252,7 @@ def run_campaign(
     allow_warmup_failure: bool = False,
     allow_protocol_deviation: bool = False,
     allow_missing_controller_marker: bool = False,
+    execution_mode: str | None = None,
 ) -> int:
     """Execute the frozen campaign plan in order. Returns an exit code."""
     plan_path = Path(plan_path)
@@ -259,6 +268,16 @@ def run_campaign(
     if not isinstance(entries, list) or not entries:
         print(
             f"error: campaign plan {plan_path} has no runs", file=sys.stderr
+        )
+        return 2
+    # The declared execution mode (G4 core provenance): a documented token or
+    # None; anything else is a usage error, refused here with execute_run's
+    # message before the campaign log or any run directory is written.
+    if execution_mode is not None and execution_mode not in EXECUTION_MODES:
+        print(
+            f"error: execution mode {execution_mode!r} is not one of "
+            f"{', '.join(EXECUTION_MODES)} (--execution-mode has no default).",
+            file=sys.stderr,
         )
         return 2
 
@@ -523,6 +542,9 @@ def run_campaign(
                 drain_transcript_from, run_id, condition
             ),
             extra_deviations=pending_deviation,
+            # G4 core provenance: the one declaration reaches every run; None
+            # records each run as invalid (no default, plan 655-661).
+            execution_mode=execution_mode,
         )
         finished_utc = utc_now_iso()
         pending_deviation = None

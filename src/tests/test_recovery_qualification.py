@@ -24,6 +24,7 @@ from egw_experiments import run as run_mod
 from egw_experiments.checksums import write_sha256sums
 from test_experiments_run import (  # noqa: F401  (fixtures registered by import)
     DRAIN_GAVE_UP_LINE,
+    _as_a_1_4_run,
     _bare_restart_run,
     _external_evidence,
     _item18_run,
@@ -92,6 +93,15 @@ def _facts(**changes) -> dict:
         ({"integrity": "unsealed"}, "not_evidenced", "integrity 'unsealed'"),
         ({"integrity": "failed"}, "not_evidenced", "integrity 'failed'"),
         ({"excluded": True}, "not_evidenced", "excluded"),
+        # The analyser's provenance gate (G4 core provenance): a run whose
+        # execution mode is unset, unknown or not borne out by its records
+        # is never evidence, whatever its validity says.
+        ({"execution_mode_status": "inconsistent"}, "not_evidenced",
+         "execution-mode provenance failure ('inconsistent')"),
+        ({"execution_mode_status": "unset"}, "not_evidenced", "execution-mode provenance failure ('unset')"),
+        ({"execution_mode_status": "unknown"}, "not_evidenced", "execution-mode provenance failure ('unknown')"),
+        ({"execution_mode_status": "recorded"}, "recovery_observed", ""),
+        ({"execution_mode_status": "unrecorded"}, "recovery_observed", ""),
     ],
 )
 def test_qualification_rule(changes, expected, reason) -> None:
@@ -131,6 +141,12 @@ def test_a_quiet_drain_with_verified_after_evidence_is_recovery_observed(
     assert [n["run_id"] for n in criterion["not_qualified"]] == [R02, R03]
     assert all(n["qualification"] == "not_evidenced" for n in criterion["not_qualified"])
     assert "1/3" in criterion["detail"]
+    # One execution-mode group: the run's, named beside the criterion; the
+    # planned runs without a directory belong to no group.
+    assert row["execution_mode"] == "tcg-emulated" and row["execution_mode_status"] == "recorded"
+    assert all(_row(doc, run_id)["execution_mode"] is None for run_id in (R02, R03))
+    assert criterion["execution_mode"] == "tcg-emulated"
+    assert doc["criteria_by_execution_mode"] == [criterion]
     assert doc["statement"] == rq.STATEMENT
     for word in ("lost", "late", "N1", "acceptance"):
         assert word in doc["statement"]
@@ -758,3 +774,155 @@ def test_recovery_subcommand_is_documented_with_the_analyze_defaults() -> None:
     assert "recovery [--base-dir PATH] [--plan PATH]" in (cli.__doc__ or "")
     with pytest.raises(SystemExit):
         cli.build_parser().parse_args(["recovery", "--help"])
+
+
+# review of the G4 tooling, finding 8: execution modes never pooled ------------
+
+
+def test_the_recovery_layer_never_pools_execution_modes(
+    tmp_path, plan_path, fast_run, monkeypatch, capsys
+) -> None:
+    """r01 sealed before the G4 core provenance (unrecorded), r02 and r03
+    recorded tcg-emulated, all three recovery_observed. The analyser keeps
+    the two groups apart, and so does this layer: each group is evaluated
+    on its own against the plan, a planned run of the other group is not
+    evidence for it, and no criterion passes across the groups."""
+    for run_id in (R01, R02, R03):
+        base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch, run_id=run_id)
+    _as_a_1_4_run(base / "raw" / R01)
+    capsys.readouterr()
+    assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+    out = capsys.readouterr().out
+    doc, rows = _files(base)
+
+    groups = {R01: "unrecorded", R02: "tcg-emulated", R03: "tcg-emulated"}
+    per_run = {
+        r["run_id"]: r
+        for r in csv.DictReader((base / "processed" / "per_run.csv").read_text(encoding="utf-8").splitlines())
+    }
+    for run_id, group in groups.items():
+        assert per_run[run_id]["execution_mode_group"] == group  # the analyser's own classification
+        record = _row(doc, run_id)
+        assert record["execution_mode"] == group and record["qualification"] == "recovery_observed"
+    assert list(rows[0])[0] == "execution_mode"
+    assert {r["run_id"]: r["execution_mode"] for r in rows} == groups
+
+    assert [c["execution_mode"] for c in doc["criteria_by_execution_mode"]] == ["tcg-emulated", "unrecorded"]
+    emulated, legacy = doc["criteria_by_execution_mode"]
+    assert emulated["execution_mode_label"] == analyze_mod.execution_mode_label("tcg-emulated")
+    assert legacy["execution_mode_label"] == analyze_mod.UNRECORDED_LABEL
+    assert emulated["passed"] is False
+    assert emulated["detail"] == "2/3 controller_restart run(s) recovery_observed (3 planned)"
+    (other,) = emulated["not_qualified"]
+    assert other["run_id"] == R01 and other["qualification"] == "not_evidenced"
+    assert "execution-mode group 'unrecorded'" in other["reason"] and "never pooled" in other["reason"]
+    assert legacy["passed"] is False
+    assert legacy["detail"] == "1/3 controller_restart run(s) recovery_observed (3 planned)"
+    assert [n["run_id"] for n in legacy["not_qualified"]] == [R02, R03]
+    assert all("execution-mode group 'tcg-emulated'" in n["reason"] for n in legacy["not_qualified"])
+
+    # No criterion passes across the groups.
+    criterion = doc["criterion"]
+    assert criterion["passed"] is False and criterion["execution_mode"] is None
+    assert criterion["not_qualified"] == []
+    assert "2 execution-mode groups (tcg-emulated, unrecorded)" in criterion["detail"]
+    lines = [ln for ln in out.splitlines() if ln.startswith("[recovery] ")]
+    assert "\n".join(lines) == rq.summary_line(doc)
+    assert len(lines) == 3 and not any("PASSED" in ln for ln in lines)
+    assert "; execution-mode group tcg-emulated; " in lines[1]
+    assert "; execution-mode group unrecorded; " in lines[2]
+
+
+def test_a_tree_of_one_mode_keeps_its_values_and_names_its_group(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """One group, recorded or not: the criterion's values are those of the
+    layer before the execution modes, with the group beside them."""
+    for run_id in (R01, R02, R03):
+        base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch, run_id=run_id)
+    emulated = rq.qualify_recovery(base, plan_path)
+    for run_id in (R01, R02, R03):
+        _as_a_1_4_run(base / "raw" / run_id)
+    legacy = rq.qualify_recovery(base, plan_path)
+    for doc, group in ((emulated, "tcg-emulated"), (legacy, "unrecorded")):
+        criterion = doc["criterion"]
+        assert doc["criteria_by_execution_mode"] == [criterion]
+        assert {key: criterion[key] for key in ("name", "passed", "detail", "not_qualified")} == {
+            "name": rq.CRITERION,
+            "passed": True,
+            "detail": "3/3 controller_restart run(s) recovery_observed (3 planned)",
+            "not_qualified": [],
+        }
+        assert criterion["execution_mode"] == group
+        assert criterion["execution_mode_label"] == analyze_mod.execution_mode_label(group)
+        assert [r["execution_mode"] for r in doc["runs"]] == [group] * 3
+        assert rq.summary_line(doc).startswith(
+            f"[recovery] {rq.CRITERION}: PASSED - 3/3 controller_restart run(s) "
+            f"recovery_observed (3 planned); execution-mode group {group}; written to "
+        )
+
+
+def test_a_run_with_a_provenance_failure_is_in_no_group_and_never_evidence(
+    tmp_path, plan_path, fast_run, monkeypatch
+) -> None:
+    """The analyser's gate: a recorded run whose own sealed guest record
+    does not bear out its declared mode belongs to no group and is never
+    aggregated, whatever its manifest's validity says."""
+    base = _restart_run(tmp_path, plan_path, fast_run, monkeypatch)
+    run_dir = base / "raw" / R01
+    sut = json.loads((run_dir / "sut_environment.json").read_text(encoding="utf-8"))
+    sut["uname_a"] = "Linux box 6.6.87 #1 SMP x86_64 GNU/Linux"
+    (run_dir / "sut_environment.json").write_text(json.dumps(sut) + "\n", encoding="utf-8")
+    write_sha256sums(run_dir)
+    assert _manifest(base, R01)["validity"] == "valid"
+    doc = rq.qualify_recovery(base, plan_path)
+    row = _row(doc, R01)
+    assert row["execution_mode"] is None and row["execution_mode_status"] == "inconsistent"
+    assert any(p.startswith("provenance: G2: ") for p in row["execution_mode_problems"])
+    assert row["qualification"] == "not_evidenced"
+    assert "execution-mode provenance failure ('inconsistent')" in row["reason"]
+    # No run in any group: one evaluation with no group, naming every run.
+    criterion = doc["criterion"]
+    assert doc["criteria_by_execution_mode"] == [criterion]
+    assert criterion["execution_mode"] is None
+    assert criterion["execution_mode_label"] == analyze_mod.NO_GROUP_LABEL
+    assert criterion["passed"] is False
+    assert [n["run_id"] for n in criterion["not_qualified"]] == [R01, R02, R03]
+    assert "; execution-mode group none; " in rq.summary_line(doc)
+
+
+def _record(run_id: str, group: str | None) -> dict:
+    return dict(
+        _facts(), run_id=run_id, planned=True, qualification="recovery_observed", reason="",
+        execution_mode=group,
+    )
+
+
+def test_the_recovery_criterion_refuses_mixed_execution_modes() -> None:
+    """The aggregate refuses runs of more than one group itself, as the
+    analyser's aggregators do (MixedExecutionModeError); its caller
+    partitions them."""
+    planned = [R01, R02]
+    with pytest.raises(analyze_mod.MixedExecutionModeError, match="tcg-emulated"):
+        rq.evaluate_criterion(
+            [_record(R01, "unrecorded"), _record(R02, "tcg-emulated")], planned_ids=planned
+        )
+    with pytest.raises(analyze_mod.MixedExecutionModeError):
+        rq.evaluate_criterion([_record(R01, "tcg-emulated"), _record(R02, None)], planned_ids=planned)
+    with pytest.raises(analyze_mod.MixedExecutionModeError):
+        rq.evaluate_criterion(
+            [_record(R01, "tcg-emulated")], execution_mode="unrecorded", planned_ids=planned
+        )
+    # One group: evaluated; a planned run of another group is not evidence
+    # for it, and a run in no group keeps its own qualification.
+    criterion = rq.evaluate_criterion(
+        [_record(R01, "tcg-emulated")],
+        execution_mode="tcg-emulated",
+        elsewhere=[_record(R02, "unrecorded")],
+        planned_ids=planned,
+    )
+    assert criterion["execution_mode"] == "tcg-emulated" and criterion["passed"] is False
+    assert criterion["detail"] == "1/2 controller_restart run(s) recovery_observed (2 planned)"
+    (other,) = criterion["not_qualified"]
+    assert other["run_id"] == R02 and other["qualification"] == "not_evidenced"
+    assert issubclass(analyze_mod.MixedExecutionModeError, ValueError)

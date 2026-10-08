@@ -1825,7 +1825,7 @@ proof_harness_args() {
     # shellcheck disable=SC2034,SC2054  # used by the step's shell; the service list is one comma-separated argument
     HARNESS_ARGS=(--run-id "$1" --plan "$2" --base-dir "$3"
         --broker 127.0.0.1 --port "$MQTT_PORT" --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert ~/egw-tcg/ca.crt
-        --controller-url "$CTRL" --sut-env-from "$4"
+        --controller-url "$CTRL" --sut-env-from "$4" --execution-mode tcg-emulated
         --fetch-events-cmd 'scp egw-tcg:/opt/egw/deployment/data/events/{run_id}/events.jsonl "{dest}"'
         --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
         --collector-start-cmd "ssh egw-tcg 'sudo systemd-run --unit egw-resources-{run_id} --collect sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-{run_id}.csv --duration {duration_s} --expect-services {expect_services}'"
