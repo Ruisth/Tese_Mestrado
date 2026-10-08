@@ -5246,3 +5246,68 @@ is unchanged.
   (profile A, budgets and reserve, floors, master seed, stage 1's zero
   warm-up) or on the transient exposure of the broker password on the
   harness's command line. No host preparation or session is authorised.
+
+## Entry #C058 — A run of withheld samples still open at the collector's stop: the collector's own measurement admitted prospectively, by one rule for both halves
+
+- **Date:** 2026-10-08. **Scope:** one bounded rule change in the evidence
+  checks, its regressions and this record. No change to the controller, the
+  collector, the image, the simulator, the load, the limits, the helper, a G3
+  verdict or a campaign criterion. G4 stays `Not decided`.
+- **The case.** G4 session B's open halted on 2026-10-08: its preflight's 45 s
+  resource capture accepted its last sample at guest uptime 426.87 s, the next
+  sample was stamped with the same wall-clock second and withheld, and the
+  capture then reached its duration and stopped. The collector measured that
+  run itself, on the guest's monotonic clock, and wrote it between its
+  inventory and stop records ("1.19 s of elapsed time since it (uptime 426.87 s
+  to 428.06 s)"). Neither `tools/session/collector_check.py` nor
+  `inspect_collector_outputs` read that line: both refused any
+  `withheld_open_at_stop` above zero as time accounted for nowhere. Equal
+  stamps show a repeated second or a backward step; the records do not say
+  which.
+- **Authority.** The Project Manager's opinions registered as "2026-10-08
+  20:23 WEST" (a bounded offline reproduction and the smallest remedy) and
+  "2026-10-08 21:52 WEST" (favourable to the final rule; prospective adoption,
+  one bounded PR), and the student's approval of 2026-10-08 ("Autorizo as
+  respostas do PM": the rule adopted prospectively, this PR authorised).
+- **The rule.** `judge_open_run_at_stop` in `src/egw_experiments/run.py`,
+  called by both halves with the same text, one observation wording
+  (`open_run_observation`). An open run is admitted as elapsed time WITHOUT
+  recorded readings, never as samples, only when: the closing record does not
+  contradict itself (`withheld_samples` readable and not below the open count);
+  no line says the time is unknown; exactly one line in the collector's
+  grammar measures it, with a valid UTC stamp inside the collector's window,
+  between the inventory and the stop records; it counts what the closing record
+  counts; its endpoints are in order and its figure is their difference in
+  whole centiseconds; the endpoints lie inside the start and stop records'
+  `uptime_s` bounds of one boot; and the last accepted sample is at most
+  `MAX_SAMPLE_GAP_S` (5 s) before the stop record's `uptime_s`. Otherwise it is
+  a problem, as before, with the reason. No row, sample or instant is made;
+  the minimum of samples, the coverage, the 5 s gap and the duration checks are
+  unchanged. This changes evidence admissibility in both the preflight and the
+  timed runs.
+- **Not retroactive.** Records made before this rule stay judged by the rule
+  they ran with: session B's first preflight
+  (`20261008T190655Z_live-preflight_attempt15`) stays invalid. The offline
+  replay below is a comparison, not a new verdict.
+- **Evidence** (`output_test/runs/2026-10-08/HIST_2026-10-08-g4-collector-open-run-proposal`,
+  `SHA256SUMS` `936161de…`; the final diff `0661da72…` is this PR's code and
+  tests). The final new tests: 33 of 37 fail on the unchanged code at
+  `5108f44` (session B's case refused in both halves), 37 of 37 pass with the
+  rule. The six related test files in full: 1,088 passed, 55 skipped and one
+  failed (`test_session_drivers.py::test_session_open_leaves_the_session_open`);
+  that test later passed alone on both trees and its whole module reran
+  329 of 329. The original selection is therefore not reported as green, and
+  no cause is claimed for the failure. Replay of the 25 distinct preserved
+  collector captures (14 preflights, 11 timed runs) by the old and the new
+  rule: only session B's preflight changes; nothing accepted before is
+  refused. One consolidated adversarial review of the first version found one
+  major and seven minor points; all are fixed here.
+- **Identities.** Change: the tools commit and tree, the drivers' sha256
+  (`tools/session/collector_check.py`) and the runbook's sha256 (one
+  sentence). Unchanged: the collector `9e678b02…`, the helper `aeef43d8…`, the
+  image, the controller, the plan and the pilot's limits and tolerances.
+- **Next, each on its own authority.** After this PR's merge, the identified
+  preparation of `B-open-attempt02` in a new state root (`EGW_G4_STATE`),
+  preserving the first B, inheriting the closed A with provenance and binding
+  the new identities and the root file system `3367c3af…`; a new session needs
+  the student's separate approval and presence.
