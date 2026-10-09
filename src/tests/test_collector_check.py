@@ -1643,3 +1643,186 @@ def test_no_arguments_at_all_exit_1_with_the_usage(tmp_path) -> None:
     )
     assert result.returncode == 1
     assert "usage: collector_check.py" in result.stderr
+
+
+# --- A run of withheld samples still open at the collector's stop (2026-10-08) ---
+# G4 session B's preflight: the last accepted sample at uptime 426.87 s, the
+# next one stamped in the same wall-clock second and withheld, then the stop.
+# The collector measured that time itself on the guest's monotonic clock and
+# wrote it between its inventory and its closing record; neither half read it.
+OPEN_RUN_BOOT = "e5c6791e-c735-4a53-833a-3474f3ed8348"
+OPEN_RUN_LINE = (
+    f"{WINDOW_END} the run ended 1 withheld sample(s) after the last accepted "
+    "one: 1.19 s of elapsed time since it (uptime 426.87 s to 428.06 s), in "
+    "neither total"
+)
+
+
+def _open_run_line(first: str, last: str, elapsed: str, *, count: int = 1,
+                   token: str = WINDOW_END) -> str:
+    return (f"{token} the run ended {count} withheld sample(s) after the last "
+            f"accepted one: {elapsed} s of elapsed time since it (uptime {first} s "
+            f"to {last} s), in neither total")
+
+
+def _open_run_records(
+    *,
+    measuring: list[str] | None = None,
+    before_inventory: list[str] | None = None,
+    after_stop: list[str] | None = None,
+    open_at_stop: int = 1,
+    withheld_samples: int | None = None,
+    start_bounds: str = f" uptime_s=382.31 boot_id={OPEN_RUN_BOOT}",
+    stop_bounds: str = f" uptime_s=428.15 boot_id={OPEN_RUN_BOOT}",
+) -> list[str]:
+    """The diagnostics of a collector whose last sample was withheld: its
+    start and stop records carry its bounds on the monotonic clock, as the
+    collector writes them since 2026-10-05, and ``measuring`` holds the
+    line(s) its closing awk wrote between the inventory and the stop. Every
+    withheld sample is a sampling round (``samples=`` counts it), so the
+    count rises with ``withheld_samples``."""
+    withheld = open_at_stop if withheld_samples is None else withheld_samples
+    start = RECORDS["start"].replace(" pacing:", f"{start_bounds} pacing:")
+    stop = _stop(samples=len(SAMPLE_SECONDS) + withheld, withheld_samples=withheld,
+                 withheld_open_at_stop=open_at_stop) + stop_bounds
+    lines = [start] + (before_inventory or []) + ["inventory"]
+    lines += [OPEN_RUN_LINE] if measuring is None else measuring
+    lines.append(stop)
+    return lines + (after_stop or [])
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {},
+        # The tail to the end of the window exactly MAX_SAMPLE_GAP_S: 428.15 - 423.15.
+        {"measuring": [_open_run_line("423.15", "424.00", "0.85")]},
+    ],
+)
+def test_an_open_run_the_collector_measured_is_accounted_for(tmp_path, kwargs: dict) -> None:
+    """The case that halted G4 session B's open: the time since the last
+    accepted sample is measured by the collector itself, inside its own
+    window, on one boot, and the window ends within MAX_SAMPLE_GAP_S of that
+    sample, so it is recorded as elapsed time without readings -- no row or
+    sample is made -- and the capture is not refused for it."""
+    directory = tmp_path / "analysis" / "collector"
+    sut = _capsule(directory, records=_open_run_records(**kwargs))
+    code, report = _check(directory, sut)
+    assert code == 0, _problems(report)
+    assert report["problems"] == []
+    observed = " | ".join(report["observations"])
+    assert "The collector measured that time on the guest's monotonic clock:" in observed
+    assert "no rows were written for those samples and none is made here" in observed
+    if not kwargs:
+        assert ("1.19 s since the last accepted sample (uptime 426.87 s to 428.06 s, one "
+                "boot); its window ends at uptime 428.15 s, 1.28 s after that sample") in observed
+    assert report["closing_counters"]["withheld_open_at_stop"] == "1"
+    assert report["rows_per_service"] == {name: len(SAMPLE_SECONDS) for name in SERVICES}
+
+
+@pytest.mark.parametrize(
+    "kwargs, reason",
+    [
+        ({"measuring": []}, "is absent"),
+        ({"measuring": [OPEN_RUN_LINE.replace("426.87 s to 428.06 s", "426.870 s to 428.060 s")]},
+         "is absent"),
+        ({"measuring": [f"{WINDOW_END} the run ended 1 withheld sample(s) after the "
+                        "last accepted one; the elapsed time since it is unknown"]},
+         "the elapsed time since its last accepted sample is unknown"),
+        ({"measuring": [OPEN_RUN_LINE, f"{WINDOW_END} the run ended 1 withheld sample(s) "
+                        "after the last accepted one; the elapsed time since it is unknown"]},
+         "the elapsed time since its last accepted sample is unknown"),
+        ({"measuring": [OPEN_RUN_LINE, OPEN_RUN_LINE]}, "ambiguous"),
+        ({"measuring": [], "after_stop": [OPEN_RUN_LINE]}, "is not between the collector's inventory"),
+        ({"measuring": [], "before_inventory": [OPEN_RUN_LINE]},
+         "is not between the collector's inventory"),
+        ({"measuring": [OPEN_RUN_LINE.replace(WINDOW_END, "NOT-A-STAMP", 1)]},
+         "is not the collector's UTC timestamp"),
+        ({"measuring": [OPEN_RUN_LINE.replace(WINDOW_END, "1999-01-01T00:00:00Z", 1)]},
+         "lies outside the collector's window ("),
+        ({"open_at_stop": 2, "withheld_samples": 2}, "its line counts 1 withheld sample(s), the closing record 2"),
+        ({"withheld_samples": 0}, "the closing record contradicts itself"),
+        ({"open_at_stop": 2, "withheld_samples": 1,
+          "measuring": [_open_run_line("426.87", "428.06", "1.19", count=2)]},
+         "the closing record contradicts itself"),
+        ({"measuring": [_open_run_line("428.06", "426.87", "1.19")]}, "not in order"),
+        ({"measuring": [_open_run_line("426.87", "426.87", "0.00")]}, "not in order"),
+        ({"measuring": [_open_run_line("426.87", "428.06", "0.50")]},
+         "is not the difference of its endpoints"),
+        ({"measuring": [_open_run_line("426.87", "429.06", "2.19")]},
+         "outside the collector's own window"),
+        ({"measuring": [_open_run_line("380.00", "384.00", "4.00")]},
+         "outside the collector's own window"),
+        ({"measuring": [_open_run_line("420.00", "428.06", "8.06")]},
+         "exceeds the protocol's MAX_SAMPLE_GAP_S"),
+        # The awk's own reading within 5 s, the window's end beyond it: 428.15 - 423.14.
+        ({"measuring": [_open_run_line("423.14", "424.00", "0.86")]},
+         "5.01 s from the last accepted sample (uptime 423.14 s) to the end of the "
+         "collector's window (uptime 428.15 s)"),
+        ({"stop_bounds": " uptime_s=428.15 boot_id=0b1d1f2e-0000-4000-8000-000000000000"},
+         "do not carry one boot id"),
+        ({"stop_bounds": " uptime_s=428.15 boot_id=unavailable"}, "do not carry one boot id"),
+        ({"start_bounds": ""}, "do not both carry a readable uptime_s="),
+        ({"stop_bounds": f" uptime_s=unknown boot_id={OPEN_RUN_BOOT}"},
+         "do not both carry a readable uptime_s="),
+        # Beyond Python's 4,300-digit int() limit: refused, never an exception.
+        ({"measuring": [_open_run_line("4" * 5000 + ".87", "428.06", "1.19")]}, "is absent"),
+    ],
+)
+def test_an_open_run_the_collector_did_not_measure_soundly_stays_a_problem(
+    tmp_path, kwargs: dict, reason: str
+) -> None:
+    """A self-contradicting closing record, a line not in the collector's
+    grammar, missing, ambiguous, misplaced, mis-stamped, reversed,
+    inconsistent, out-of-window or cross-boot endpoints, a count that is not
+    the closing record's, and a tail without a reading longer than
+    MAX_SAMPLE_GAP_S to the window's end: the time is still accounted for
+    nowhere, and the capture is refused as before."""
+    directory = tmp_path / "analysis" / "collector"
+    sut = _capsule(directory, records=_open_run_records(**kwargs))
+    code, report = _check(directory, sut)
+    assert code == 1
+    problems = _problems(report)
+    count = kwargs.get("open_at_stop", 1)
+    head = (f"the collector reports withheld_open_at_stop={count}: {count} withheld "
+            "sample(s) of a run still open when the collector stopped")
+    assert head in problems, problems
+    assert reason in problems, problems
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {},
+        {"stop_bounds": " uptime_s=428.15 boot_id=unavailable"},
+        {"withheld_samples": 0},
+        {"measuring": [_open_run_line("420.00", "428.06", "8.06")]},
+    ],
+)
+def test_both_halves_judge_an_open_run_alike(tmp_path, kwargs: dict) -> None:
+    """The same capsule through the preflight check and the harness's
+    inspection: the same problems and the same observations about the
+    closing record, accepted or refused."""
+    directory = tmp_path / "analysis" / "collector"
+    sut = _capsule(directory, records=_open_run_records(**kwargs))
+    _code, report = _check(directory, sut)
+    harness = run_mod.inspect_collector_outputs(
+        directory / f"resources-{RUN}.csv", list(SERVICES)
+    )
+    assert _about_the_closing_record(harness["problems"]) == (
+        _about_the_closing_record(report["problems"])
+    )
+    assert _about_the_closing_record(harness["observations"]) == (
+        _about_the_closing_record(report["observations"])
+    )
+    assert harness["stop_counters"] == report["closing_counters"]
+
+
+def test_both_halves_call_one_open_run_rule() -> None:
+    spec = importlib.util.spec_from_file_location("collector_check_open_run", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.OPEN_RUN_COUNTER == run_mod._OPEN_RUN_COUNTER
+    assert module.UNMEASURED_COUNTERS == run_mod._UNMEASURED_COUNTERS
+    assert module.judge_open_run_at_stop is run_mod.judge_open_run_at_stop
+    assert module.open_run_observation is run_mod.open_run_observation

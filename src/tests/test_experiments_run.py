@@ -9002,3 +9002,83 @@ def test_an_external_run_carries_no_provenance_record(tmp_path, plan_path, fast_
     assert "hypervisor" not in manifest["environment_refs"]
     assert not (base / "raw" / "cold_start-r01" / "hypervisor_environment.json").exists()
     assert fast_run.snapshot_calls == []
+
+
+# --- A run of withheld samples still open at the collector's stop (2026-10-08) ---
+# The timed-run half of the rule tools/session/collector_check.py applies to
+# the preflight: one function, egw_experiments.run.judge_open_run_at_stop.
+OPEN_RUN_BOOT = "e5c6791e-c735-4a53-833a-3474f3ed8348"
+OPEN_RUN_LINE = (
+    f"{INSPECTION_STOP} the run ended 1 withheld sample(s) after the last "
+    "accepted one: 1.19 s of elapsed time since it (uptime 426.87 s to "
+    "428.06 s), in neither total\n"
+)
+
+
+def _open_run_diagnostics(
+    *,
+    measuring: str = OPEN_RUN_LINE,
+    withheld_samples: int = 1,
+    stop_bounds: str = f" uptime_s=428.15 boot_id={OPEN_RUN_BOOT}",
+) -> str:
+    start = INSPECTION_START_LINE.replace(
+        " pacing:", f" uptime_s=386.15 boot_id={OPEN_RUN_BOOT} pacing:"
+    )
+    stop = (
+        f"{INSPECTION_STOP} stop: samples={41 + withheld_samples} utc_gap_seconds=0 "
+        f"withheld_samples={withheld_samples} withheld_elapsed_s=0.00 "
+        "withheld_runs_unmeasured=0 withheld_open_at_stop=1 calibrations=1 "
+        f"pacing=wall-clock{stop_bounds}\n"
+    )
+    return start + INSPECTION_INVENTORY_LINE + measuring + stop
+
+
+def test_inspection_accounts_for_an_open_run_the_collector_measured(tmp_path) -> None:
+    """A timed run whose collector's last sample was withheld: the collector's
+    own measurement of the time since its last accepted sample, inside its
+    window, on one boot, with the window ending within MAX_SAMPLE_GAP_S of
+    that sample, is recorded as elapsed time without readings, and the run is
+    not invalidated for it."""
+    csv_path = _write_collector_files(tmp_path / "open-run", _open_run_diagnostics())
+    inspection = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    assert inspection["problems"] == [], inspection["problems"]
+    assert run_mod.collector_problem_reasons(inspection["problems"]) == []
+    observed = " | ".join(inspection["observations"])
+    assert ("1.19 s since the last accepted sample (uptime 426.87 s to 428.06 s, one "
+            "boot); its window ends at uptime 428.15 s, 1.28 s after that sample") in observed
+    assert inspection["stop_counters"]["withheld_open_at_stop"] == "1"
+
+
+@pytest.mark.parametrize(
+    "kwargs, reason",
+    [
+        ({"measuring": ""}, "is absent"),
+        ({"measuring": OPEN_RUN_LINE.replace("426.87 s to 428.06 s", "428.06 s to 426.87 s")},
+         "not in order"),
+        ({"measuring": OPEN_RUN_LINE.replace("1.19 s of", "8.06 s of").replace(
+            "uptime 426.87 s", "uptime 420.00 s")},
+         "exceeds the protocol's MAX_SAMPLE_GAP_S"),
+        ({"stop_bounds": " uptime_s=428.15 boot_id=unavailable"}, "do not carry one boot id"),
+        ({"withheld_samples": 0}, "the closing record contradicts itself"),
+        # Endpoints and a count beyond Python's 4,300-digit int() limit: not the
+        # collector's grammar, refused, never an exception (PR #61 review).
+        ({"measuring": OPEN_RUN_LINE.replace("426.87 s to 428.06 s", "4" * 5000 + ".87 s to 428.06 s")},
+         "is absent"),
+        ({"measuring": OPEN_RUN_LINE.replace("ended 1 withheld", "ended " + "1" * 5000 + " withheld")},
+         "is absent"),
+        ({"stop_bounds": " uptime_s=" + "4" * 5000 + f".15 boot_id={OPEN_RUN_BOOT}"},
+         "do not both carry a readable uptime_s="),
+    ],
+)
+def test_inspection_still_refuses_an_open_run_not_soundly_measured(
+    tmp_path, kwargs: dict, reason: str
+) -> None:
+    csv_path = _write_collector_files(
+        tmp_path / "open-run-refused", _open_run_diagnostics(**kwargs)
+    )
+    inspection = run_mod.inspect_collector_outputs(csv_path, ["a"])
+    problems = " | ".join(inspection["problems"])
+    assert ("the collector reports withheld_open_at_stop=1: 1 withheld sample(s) of a "
+            "run still open when the collector stopped") in problems, problems
+    assert reason in problems, problems
+    assert run_mod.collector_problem_reasons(inspection["problems"]) != []

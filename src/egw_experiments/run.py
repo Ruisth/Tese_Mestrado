@@ -362,6 +362,7 @@ from .plan_gen import load_campaign_plan, plan_to_json
 from .protocol import (
     CONDITIONS,
     CONFIRMATION_WINDOW_S,
+    MAX_SAMPLE_GAP_S,
     PROTOCOL_VERSION,
     TIMED_CONDITION_IDS,
 )
@@ -2342,8 +2343,11 @@ _CLOSING_COUNTERS = {
 }
 #: Written as a decimal figure of seconds, not as a count.
 _DECIMAL_COUNTERS = ("withheld_elapsed_s",)
-#: Above zero, these are elapsed time in neither count: a problem of their own.
-_UNMEASURED_COUNTERS = ("withheld_runs_unmeasured", "withheld_open_at_stop")
+#: Above zero, elapsed time in neither count: a problem of its own.
+_UNMEASURED_COUNTERS = ("withheld_runs_unmeasured",)
+#: Above zero, accounted for only when the collector's own line measures it
+#: (:func:`judge_open_run_at_stop`, 2026-10-08); otherwise a problem as before.
+_OPEN_RUN_COUNTER = "withheld_open_at_stop"
 #: What the protocol, not this inspection, judges about the two counters above
 #: zero. The same sentence is in ``tools/session/collector_check.py``, which
 #: applies this rule to the preflight's collector output: the two halves must
@@ -2405,6 +2409,216 @@ _UNSTAMPED_RECORD = (
     "the '{kind}:' line carries no strictly valid leading UTC timestamp "
     "(YYYY-MM-DDTHH:MM:SSZ): {token!r}"
 )
+
+
+#: The collector's own measurement of a run of withheld samples still open at
+#: its stop, in the grammar collect-resources.sh writes it: diag()'s UTC stamp,
+#: then the closing awk's (AWK_SUMMARY) words, with the two /proc/uptime
+#: readings as read (two decimals) and their difference through %.2f
+#: (2026-10-08: the line G4 session B's preflight wrote and neither half read).
+#: Every number is bounded to nine whole digits (an uptime of 31 years, a count
+#: of a billion): a longer field is not the collector's and never reaches int(),
+#: which refuses strings above 4,300 digits (PR #61 review).
+_OPEN_RUN_MEASURED_RE = re.compile(
+    r"^(\S+) the run ended (\d{1,9}) withheld sample\(s\) after the last "
+    r"accepted one: (\d{1,9}\.\d\d) s of elapsed time since it \(uptime "
+    r"(\d{1,9}\.\d\d) s to (\d{1,9}\.\d\d) s\), in neither total$"
+)
+#: The same line when the collector could not read an elapsed-time endpoint.
+_OPEN_RUN_UNKNOWN_RE = re.compile(
+    r"^(?:\S+ )?the run ended \d+ withheld sample\(s\) after the last "
+    r"accepted one; the elapsed time since it is unknown$"
+)
+#: The collector's monotonic bounds on its start and stop records (2026-10-05).
+_RECORD_UPTIME_RE = re.compile(r"\buptime_s=(\d{1,9}\.\d\d)(?=\s|$)")
+_RECORD_BOOT_RE = re.compile(
+    r"\bboot_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=\s|$)"
+)
+
+
+def _centiseconds(text: str) -> int:
+    """An uptime written with exactly two decimals, as whole centiseconds."""
+    whole, _, cents = text.partition(".")
+    return int(whole) * 100 + int(cents)
+
+
+def judge_open_run_at_stop(
+    *,
+    open_at_stop: int,
+    withheld_samples: int | None,
+    lines: list[str],
+    start_record: str | None,
+    stop_record: str | None,
+    window: tuple[str | None, str | None],
+    record_lines: tuple[int | None, int | None, int | None],
+    max_gap_s: float = MAX_SAMPLE_GAP_S,
+) -> dict[str, Any]:
+    """Whether the collector's own line measures a run of withheld samples
+    still open at its stop, on the guest's monotonic clock.
+
+    ``withheld_open_at_stop`` counts samples that fell in a wall-clock second
+    not after the last stamped one and were followed by the stop instead of an
+    accepted sample, so no accepted sample measured their elapsed time. The
+    collector measures it itself as it stops ("the run ended N withheld
+    sample(s) after the last accepted one: X s of elapsed time since it (uptime
+    A s to B s)"). That time is accounted for -- as elapsed time WITHOUT
+    recorded readings, never as samples -- only when: the closing record does
+    not contradict itself (``withheld_samples``, which counts every withheld
+    sample, the open run's included, is readable and not below N); the
+    collector did not also write that the time is unknown; exactly one line in
+    the collector's grammar is there, stamped inside the collector's window and
+    written between the inventory and the stop records; it counts N; its two
+    endpoints are in order and X is their difference, in whole centiseconds;
+    they lie inside the uptime_s bounds of the start and stop records, which
+    carry ONE boot id; and the time from the last accepted sample to the end of
+    the collector's window (the stop record's uptime_s, not the awk's own
+    reading) is not longer than the protocol's MAX_SAMPLE_GAP_S, since a longer
+    tail without a reading is a real gap that UTC stamps that stepped back
+    could hide from validate_resources_csv. Otherwise ``reason`` says why not,
+    and the counter stays a problem. No row, sample or instant is made.
+
+    One rule for both halves, given the same text: the records from their
+    keyword on and their validated stamps. tools/session/collector_check.py
+    (the preflight) and :func:`inspect_collector_outputs` (a timed run) call it.
+
+    Returns ``{"measured": {...} | None, "reason": str | None}``.
+    """
+    result: dict[str, Any] = {"measured": None, "reason": None}
+    if not open_at_stop:
+        return result
+
+    def refused(reason: str) -> dict[str, Any]:
+        result["reason"] = reason
+        return result
+
+    if withheld_samples is None or open_at_stop > withheld_samples:
+        return refused(
+            f"the closing record contradicts itself: withheld_open_at_stop={open_at_stop}"
+            f" exceeds withheld_samples={withheld_samples}, which counts every "
+            "withheld sample, the open run's included (a zero there is what the "
+            "closing awk writes when it cannot read the count, collect-resources.sh "
+            "AWK_SUMMARY)"
+        )
+    texts = [line.rstrip("\r").strip() for line in lines]
+    if any(_OPEN_RUN_UNKNOWN_RE.match(text) for text in texts):
+        return refused(
+            "the collector wrote that the elapsed time since its last accepted "
+            "sample is unknown"
+        )
+    found = [
+        (index, match)
+        for index, match in (
+            (index, _OPEN_RUN_MEASURED_RE.match(text))
+            for index, text in enumerate(texts, start=1)
+        )
+        if match is not None
+    ]
+    if not found:
+        return refused(
+            "the collector's line measuring it ('<UTC stamp> the run ended ... "
+            "withheld sample(s) after the last accepted one: ... s of elapsed time "
+            "since it (uptime ... s to ... s), in neither total') is absent"
+        )
+    if len(found) > 1:
+        return refused(
+            f"{len(found)} lines of the collector measure it (lines "
+            f"{', '.join(str(index) for index, _ in found)}): ambiguous"
+        )
+    index, match = found[0]
+    token, count, elapsed, first, last = match.groups()
+    result["measured"] = {
+        "samples": int(count),
+        "elapsed_s": elapsed,
+        "from_uptime_s": first,
+        "to_uptime_s": last,
+        "line": index,
+    }
+    if _diagnostic_stamp(token) is None:
+        return refused(
+            f"its leading token {token!r} is not the collector's UTC timestamp "
+            "(YYYY-MM-DDTHH:MM:SSZ)"
+        )
+    window_start, window_end = window
+    if window_start is None or window_end is None:
+        return refused(
+            "the collector's start and stop records carry no usable stamps, so its "
+            "line cannot be placed in the collector's window"
+        )
+    if not window_start <= token <= window_end:
+        return refused(
+            f"its stamp {token} lies outside the collector's window "
+            f"({window_start} to {window_end})"
+        )
+    _start_at, inventory_at, stop_at = record_lines
+    if inventory_at is None or stop_at is None or not inventory_at < index < stop_at:
+        return refused(
+            f"its line (line {index}) is not between the collector's inventory "
+            f"(line {inventory_at}) and stop (line {stop_at}) records, where its "
+            "closing awk writes it"
+        )
+    if int(count) != open_at_stop:
+        return refused(
+            f"its line counts {count} withheld sample(s), the closing record "
+            f"{open_at_stop}"
+        )
+    first_cs, last_cs, elapsed_cs = (
+        _centiseconds(value) for value in (first, last, elapsed)
+    )
+    if last_cs <= first_cs:
+        return refused(f"its endpoints are not in order (uptime {first} s to {last} s)")
+    if last_cs - first_cs != elapsed_cs:
+        return refused(
+            f"its {elapsed} s is not the difference of its endpoints (uptime "
+            f"{first} s to {last} s)"
+        )
+    bounds = []
+    for record in (start_record, stop_record):
+        uptime = _RECORD_UPTIME_RE.search(record or "")
+        boot = _RECORD_BOOT_RE.search(record or "")
+        bounds.append((uptime.group(1) if uptime else None, boot.group(1) if boot else None))
+    (start_uptime, start_boot), (stop_uptime, stop_boot) = bounds
+    if start_uptime is None or stop_uptime is None:
+        return refused(
+            "the collector's start and stop records do not both carry a readable "
+            "uptime_s=, so its endpoints cannot be placed in the collector's "
+            "window on the monotonic clock"
+        )
+    if start_boot is None or stop_boot is None or start_boot != stop_boot:
+        return refused(
+            "the start and stop records do not carry one boot id "
+            f"({start_boot or 'none'} and {stop_boot or 'none'}): the monotonic "
+            "endpoints may span a reboot"
+        )
+    start_cs, stop_cs = _centiseconds(start_uptime), _centiseconds(stop_uptime)
+    if first_cs < start_cs or last_cs > stop_cs:
+        return refused(
+            f"its endpoints (uptime {first} s to {last} s) lie outside the "
+            f"collector's own window (uptime {start_uptime} s to {stop_uptime} s)"
+        )
+    tail_cs = stop_cs - first_cs
+    result["measured"]["window_end_uptime_s"] = stop_uptime
+    result["measured"]["tail_s"] = f"{tail_cs // 100}.{tail_cs % 100:02d}"
+    if tail_cs > round(max_gap_s * 100):
+        return refused(
+            f"{result['measured']['tail_s']} s from the last accepted sample (uptime "
+            f"{first} s) to the end of the collector's window (uptime {stop_uptime} s)"
+            f" without a recorded reading exceeds the protocol's MAX_SAMPLE_GAP_S "
+            f"({max_gap_s:g} s): a real gap"
+        )
+    return result
+
+
+def open_run_observation(head: str, measured: dict[str, Any], judged_elsewhere: str) -> str:
+    """The words both halves record for an open run the collector measured."""
+    return (
+        f"{head}. The collector measured that time on the guest's monotonic clock: "
+        f"{measured['elapsed_s']} s since the last accepted sample (uptime "
+        f"{measured['from_uptime_s']} s to {measured['to_uptime_s']} s, one boot); "
+        f"its window ends at uptime {measured['window_end_uptime_s']} s, "
+        f"{measured['tail_s']} s after that sample, not above the protocol's "
+        "MAX_SAMPLE_GAP_S. It is elapsed time WITHOUT recorded readings: no rows "
+        f"were written for those samples and none is made here, and {judged_elsewhere}"
+    )
 
 
 def reconcile_closing_record(
@@ -2879,6 +3093,9 @@ def inspect_collector_outputs(
     stop_at: int | None = None
     if files["diagnostics"]["present"]:
         diag_path = collector_dest.with_name(csv_name + ".diagnostics.log")
+        diag_lines = diag_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
         first_start: str | None = None
         stop_message: str | None = None
         # The leading token of each record as it was written, so a record
@@ -2894,12 +3111,7 @@ def inspect_collector_outputs(
         # collectors gave the two halves two different windows for the same
         # bytes (both refuse such a capsule over the duplicate count, but the
         # figures they reported about it disagreed).
-        for index, raw in enumerate(
-            diag_path.read_text(
-                encoding="utf-8", errors="replace"
-            ).splitlines(),
-            start=1,
-        ):
+        for index, raw in enumerate(diag_lines, start=1):
             line = raw.rstrip("\r").strip()
             match = _DIAG_RECORD_RE.match(line)
             if match is None:
@@ -3065,6 +3277,37 @@ def inspect_collector_outputs(
                         f" {stop_counters[name]} {_CLOSING_COUNTERS[name]}, "
                         "so that time is accounted for nowhere and the "
                         "evidence cannot be added up"
+                    )
+            if read.get(_OPEN_RUN_COUNTER):
+                withheld_read = read.get("withheld_samples")
+                judged = judge_open_run_at_stop(
+                    open_at_stop=int(read[_OPEN_RUN_COUNTER]),
+                    withheld_samples=(
+                        None if withheld_read is None else int(withheld_read)
+                    ),
+                    lines=diag_lines,
+                    start_record=first_start,
+                    stop_record=stop_message,
+                    window=(start_stamp, stop_stamp),
+                    record_lines=(start_at, inventory_at, stop_at),
+                )
+                head = (
+                    f"the collector reports {_OPEN_RUN_COUNTER}="
+                    f"{stop_counters[_OPEN_RUN_COUNTER]}: "
+                    f"{stop_counters[_OPEN_RUN_COUNTER]} "
+                    f"{_CLOSING_COUNTERS[_OPEN_RUN_COUNTER]}"
+                )
+                if judged["reason"] is not None:
+                    problems.append(
+                        f"{head}, so that time is accounted for nowhere "
+                        "and the evidence cannot be added up: "
+                        f"{judged['reason']}"
+                    )
+                else:
+                    observations.append(
+                        open_run_observation(
+                            head, judged["measured"], _JUDGED_ELSEWHERE
+                        )
                     )
             if read.get("utc_gap_seconds"):
                 observations.append(
@@ -3955,7 +4198,9 @@ def compute_validity(
     absent, duplicated, misplaced or without its sample count. Of the
     closing record's other figures (2026-09-20): one the collector could not
     compute (``unknown``) or does not state, elapsed time in neither count
-    (``withheld_runs_unmeasured``, ``withheld_open_at_stop`` above zero), a
+    (``withheld_runs_unmeasured`` above zero, or ``withheld_open_at_stop``
+    above zero unless :func:`judge_open_run_at_stop` accepts the
+    collector's own line measuring it), a
     ``withheld_elapsed_s`` above zero while ``withheld_samples`` reads zero,
     a record whose leading token is not a strictly valid UTC timestamp, a
     reconciliation with the CSV that could not be made (its bounds unusable,
