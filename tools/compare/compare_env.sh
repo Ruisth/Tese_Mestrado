@@ -311,7 +311,14 @@ cmd_start() {
         log_line "$S_LOG" "start FAILED: see logs/start-$s.log"
         DIE_CODE=5 die "QEMU did not start; see $S_DIR/logs/start-$s.log"
     fi
-    if ! pid=$(own_pid); then
+    # The daemonised QEMU writes its pid file before the parent returns; allow a short settling
+    # window anyway before reading the live pid back.
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+        pid=$(own_pid) && break
+        sleep 0.25
+    done
+    if [ -z "${pid:-}" ]; then
         lock_release
         DIE_CODE=5 die "QEMU returned but left no live pid in $S_PIDFILE; see $S_DIR/logs/start-$s.log"
     fi
