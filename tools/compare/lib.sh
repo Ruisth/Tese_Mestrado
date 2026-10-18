@@ -184,15 +184,16 @@ guest_fetch_file() {
 
 # guest_fetch_live REMOTE LOCAL: copy a guest file that may still be growing (an events log the
 # controller appends to), then verify the COPIED PREFIX: the guest hashes exactly the copy's length
-# of the file, read into a temporary file so that a failed read is a failed status, never an empty
-# hash. The guest's size at that moment is reported beside the copy's; a copy with no bytes is a
-# failure (an empty log is reported by the caller as what it is, never silently verified).
+# of the file (dd bs=<length> count=1: the image's busybox head has no -c), read into a temporary
+# file so that a failed read is a failed status, never an empty hash. The guest's size at that
+# moment is reported beside the copy's; a copy with no bytes is a failure (an empty log is
+# reported by the caller as what it is, never silently verified).
 guest_fetch_live() {
     local remote=$1 local=$2 size out rsize rsum lsum
     gscp -q "egw@127.0.0.1:$remote" "$local" || { echo "fetch-live: copy of $remote failed"; return 1; }
     size=$(stat -c %s "$local")
     [ "$size" -gt 0 ] || { echo "fetch-live: the copy of $remote is empty (0 bytes)"; return 1; }
-    out=$(gssh "t=/tmp/prefix.\$\$; head -c $size '$remote' > \"\$t\" && wc -c < '$remote' && sha256sum \"\$t\"; rc=\$?; rm -f \"\$t\"; exit \$rc" 2> /dev/null) \
+    out=$(gssh "t=/tmp/prefix.\$\$; dd if='$remote' bs=$size count=1 2> /dev/null > \"\$t\" && wc -c < '$remote' && sha256sum \"\$t\"; rc=\$?; rm -f \"\$t\"; exit \$rc" 2> /dev/null) \
         || { echo "fetch-live: the guest could not read the first $size bytes of $remote"; return 1; }
     rsize=$(printf '%s\n' "$out" | sed -n '1p' | tr -dc '0-9')
     rsum=$(printf '%s\n' "$out" | sed -n '2p' | cut -d' ' -f1)

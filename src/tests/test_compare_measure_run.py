@@ -5,6 +5,7 @@ harness, a tunnel or a guest beyond the stub QEMU - the sequence itself is exerc
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,7 @@ if not Path("/proc/uptime").exists():
     pytest.skip("needs a Linux /proc", allow_module_level=True)
 
 from test_compare_env import COMPARE_DIR, Bench, _report, bench  # noqa: E402,F401
+from test_compare_meminfo_sampler import busybox_dir  # noqa: E402,F401  (the image's busybox, when available)
 
 MEASURE_RUN = COMPARE_DIR / "measure_run.sh"
 MEASURE_SERIES = COMPARE_DIR / "measure_series.sh"
@@ -206,3 +208,21 @@ def test_restore_gives_writable_work_copies_and_the_record_is_sealed_after_the_l
     assert seal.returncode == 0, seal.stdout + seal.stderr
     assert "measure.log" in (run / "SHA256SUMS").read_text(encoding="utf-8")
     assert len(bench.qemu_starts()) == 0
+
+
+def test_guest_fetch_live_under_the_image_busybox(bench, tmp_path, busybox_dir) -> None:
+    """The remote side of the live fetch runs on the guest's own shell and tools: under the gateway image's
+    busybox (head has no -c there, the reason the first series stopped), dd reads the prefix and the copy
+    verifies; the stub ssh runs the remote command with the busybox sh and applets first on PATH."""
+    directory, reason = busybox_dir
+    if directory is None:
+        pytest.skip(reason)
+    remote = tmp_path / "events.jsonl"
+    remote.write_text('{"a": 1}\n' * 300, encoding="utf-8")
+    local = tmp_path / "copy.jsonl"
+    path = f"{directory}{os.pathsep}{bench.bin}{os.pathsep}{os.environ['PATH']}"
+    result = _fetch(bench, "guest_fetch_live", remote, local, EGW_STUB_SCP_GROW_SRC="1", PATH=path)
+    assert result.returncode == 0, _report(result)
+    assert local.read_bytes() == b'{"a": 1}\n' * 300 and "prefix verified" in result.stdout
+    probe = subprocess.run(["sh", "-c", "head -c 1 /dev/null"], env={**os.environ, "PATH": path}, capture_output=True, text=True)
+    assert probe.returncode != 0, "this busybox is expected to lack head -c (otherwise the case proves less)"
