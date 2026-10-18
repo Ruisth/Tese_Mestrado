@@ -400,7 +400,7 @@ capacity, nothing about physical ARM.
 bash tools/compare/measure_base.sh yocto
 bash tools/compare/measure_base.sh debian13
 # the plan: six nominal entries, one seed per pair (equal in both distributions), write-once
-python3 tools/compare/measure_plan.py write --out ~/egw-compare/measure/plan.json --seeds S1 S2 S3
+PYTHONPATH=src ~/egw-exec/venv/bin/python tools/compare/measure_plan.py write --out ~/egw-compare/measure/plan.json --seeds S1 S2 S3
 # the six executions in the plan's order, then the harness analysis and the summary
 bash tools/compare/measure_series.sh ~/egw-compare/measure/plan.json
 # one execution by hand (the series calls exactly this)
