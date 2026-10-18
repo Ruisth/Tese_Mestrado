@@ -652,6 +652,7 @@ new first paragraph as history.*
   operational contract and generator tolerances that are proposed, not
   adopted. No session is authorised; LOG #C056. The Project Manager's
   bounded corrections F1-F5 are applied, 2026-10-08; LOG #C057.)*
+  *(2026-10-18: comparison-environment tooling for the Yocto image and Debian 13 under the same QEMU/TCG profile exists in `tools/compare/` (two commands per scenario under Terraform, provisioning, offline tests; LOG #C059); each scenario was brought up with the working stack, exercised with one synthetic event and closed by those commands once; no comparison measurement has been run or approved, and `tools/compare/PROTOCOL.md` is a proposal awaiting approval.)*
 - **G5 — Not decided.** No frozen emulated functional campaign;
   `experiments/results/raw/` is empty. Since 2026-09-19 the 95-run composition,
   the 24-hour soak included, is the quantity the campaign **attempts to reach**
