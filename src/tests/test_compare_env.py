@@ -41,8 +41,9 @@ STATUS_KEYS = {"scenario", "prepared", "running", "pid", "lock_holder", "started
 
 QEMU_STUB = r'''#!/usr/bin/env python3
 # Stub qemu-system-aarch64: answers --version; otherwise records argv, writes one console line and, as the real
-# binary does under -daemonize, leaves a process behind whose command line reads qemu-system-aarch64 (a sleeper)
-# and writes its pid to -pidfile. EGW_STUB_QEMU_FAIL=1 is a machine that could not start: error, exit 1, no pid.
+# binary does under -daemonize, leaves a process behind whose command line reads qemu-system-aarch64 followed by
+# the full argv (a sleeper) and writes its pid to -pidfile. EGW_STUB_QEMU_FAIL=1 is a machine that could not
+# start: error, exit 1, no pid.
 import json
 import os
 import shutil
@@ -80,7 +81,7 @@ if pid == 0:
     for fd in (0, 1, 2):
         os.dup2(null, fd)
     os.closerange(3, 1024)
-    os.execv(shutil.which("sleep") or "/bin/sleep", ["qemu-system-aarch64", "100000"])
+    os.execv(sys.executable, ["qemu-system-aarch64", "-c", "import time\nwhile True:\n    time.sleep(3600)", *argv])
 with open(os.environ["EGW_STUB_SLEEPERS"], "a", encoding="utf-8") as f:
     f.write(f"{pid}\n")
 with open(pidfile, "w", encoding="utf-8") as f:
@@ -430,6 +431,51 @@ def test_start_writes_pid_and_status_running(bench) -> None:
     assert status["lock_holder"] == "yocto" and float(status["started_uptime_s"]) > 0, status
     assert (bench.root / "lock" / "active" / "holder").read_text(encoding="utf-8").strip() == "yocto"
     assert (bench.s_dir / "state" / "argv.txt").is_file() and (bench.s_dir / "state" / "started").is_file()
+
+
+def test_pid_file_naming_another_qemu_is_not_claimed(bench) -> None:
+    """A pid reused by a QEMU that is not this scenario's (no -pidfile of ours in its argv) is never ours:
+    status says not running, stop touches nothing and the foreign process lives on."""
+    bench.ok("prepare", "yocto")
+    foreign = subprocess.Popen(["qemu-system-aarch64", "-c", "import time\nwhile True:\n    time.sleep(3600)",
+                                "-machine", "virt", "-pidfile", "/elsewhere/qemu.pid"], executable=sys.executable,
+                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        bench.pidfile.write_text(f"{foreign.pid}\n", encoding="utf-8")
+        assert _cmdline(foreign.pid)[0] == "qemu-system-aarch64"
+        assert bench.status()["running"] == "false"
+        result = bench.ok("stop", "yocto")
+        assert "not running" in result.stdout
+        assert "poweroff" not in bench.calls.read_text(encoding="utf-8") if bench.calls.exists() else True
+        assert foreign.poll() is None, "the tool acted on a process that is not its guest"
+    finally:
+        foreign.kill()
+        foreign.wait()
+
+
+def test_zombie_counts_as_gone(bench) -> None:
+    """A guest that exited but was not reaped (state Z) is gone: own_pid denies it and wait_gone returns at once."""
+    bench.ok("prepare", "yocto")
+    pid = os.fork()
+    if pid == 0:  # pragma: no cover - the child exits immediately and is left unreaped
+        os._exit(0)
+    try:
+        for _ in range(100):
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+            if state == "Z":
+                break
+            time.sleep(0.05)
+        assert state == "Z"
+        bench.pidfile.write_text(f"{pid}\n", encoding="utf-8")
+        assert bench.status()["running"] == "false"
+        probe = bench.bin / "wait_gone_probe.sh"
+        probe.write_text('. "$1/lib.sh"; scenario_load yocto; wait_gone "$2" 10\n', encoding="utf-8")
+        t0 = time.monotonic()
+        result = bench.run_script(probe, str(COMPARE_DIR), str(pid))
+        assert result.returncode == 0, _report(result)
+        assert time.monotonic() - t0 < 5, "wait_gone waited for a zombie"
+    finally:
+        os.waitpid(pid, 0)
 
 
 def test_start_twice_is_noop(bench) -> None:

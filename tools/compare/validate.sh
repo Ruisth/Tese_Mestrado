@@ -105,7 +105,10 @@ controlled_close() {
         echo "STOP: the guest of $scenario is still running after the controlled stop; it was not killed"
         CLOSE_RC=5
     fi
-    step close qemu-others bash -c '. "$1/lib.sh"; scenario_load "$2"; if o=$(qemu_others); then echo "other QEMU processes present:"; echo "$o"; exit 1; else echo "no qemu-system-aarch64 process left (pgrep rc $?)"; fi' _ "$HERE" "$scenario" || true
+    # Exclusivity at close: another QEMU present, or pgrep unable to answer, invalidates the run
+    # (the guest shared the host with something this tool did not control); never a kill.
+    step close qemu-others bash -c '. "$1/lib.sh"; scenario_load "$2"; o=$(qemu_others); rc=$?; case $rc in 0) echo "other QEMU processes present:"; echo "$o"; exit 1 ;; 1) echo "no qemu-system-aarch64 process left"; exit 0 ;; *) echo "pgrep could not answer (rc $rc): exclusivity unknown"; exit 2 ;; esac' _ "$HERE" "$scenario" \
+        || { FAILED=1; echo "  -> FAILED: exclusivity at close not shown; see $OUT"; }
 }
 
 seal() {

@@ -243,7 +243,9 @@ pass in the project's sense.
   `data_disk`, `base_sha256`, `manifest`, `console`, `last_provision` (the
   result of the last provisioning run on this scenario), all strings — is the
   `status` output. `running` is true only when the pid file names a live
-  process whose command line is `qemu-system-aarch64`.
+  process (a zombie counts as gone) whose command line is a
+  `qemu-system-aarch64` carrying this scenario's pid-file path — a pid reused
+  by another QEMU is never claimed.
 - **`check "live_state_matches_desired"`** re-reads `status` at plan and apply
   and emits a **warning** (never an error) when the live state disagrees: a
   guest that ended on its own, or one started by hand. Terraform does not

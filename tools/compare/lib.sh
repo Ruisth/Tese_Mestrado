@@ -74,15 +74,28 @@ scenario_load() {
 
 scenario_dirs() { mkdir -p "$S_DIR/disks" "$S_DIR/state" "$S_DIR/logs" "$S_DIR/results" "$B_DIR" "$COMPARE_ROOT/lock"; }
 
-# own_pid: print the pid of THIS scenario's live QEMU (pid file present, process alive, and its
-# command line is a qemu-system-aarch64). Prints nothing and returns 1 otherwise.
+# pid_alive PID: 0 when the process exists and is neither a zombie (Z) nor dead (X) - a QEMU that
+# exited but was not reaped yet is gone for every purpose here; 1 otherwise.
+pid_alive() {
+    local st
+    st=$(sed 's/.*) //' "/proc/$1/stat" 2> /dev/null | cut -d' ' -f1)
+    [ -n "$st" ] || return 1
+    case $st in Z | X) return 1 ;; esac
+    return 0
+}
+
+# own_pid: print the pid of THIS scenario's live QEMU: pid file present, process alive (not a
+# zombie), its command line a qemu-system-aarch64 that carries this scenario's pid-file path as
+# one of its arguments (QEMU keeps its argv when it daemonises), so that a pid reused by another
+# QEMU after an unexpected exit is never claimed. Prints nothing and returns 1 otherwise.
 own_pid() {
     local p
     [ -s "$S_PIDFILE" ] || return 1
     p=$(tr -dc '0-9' < "$S_PIDFILE")
     [ -n "$p" ] || return 1
-    kill -0 "$p" 2> /dev/null || return 1
+    pid_alive "$p" || return 1
     tr '\0' ' ' < "/proc/$p/cmdline" 2> /dev/null | grep -qE "$COMPARE_QEMU_EXE_RE" || return 1
+    grep -qzFx -- "$S_PIDFILE" "/proc/$p/cmdline" 2> /dev/null || return 1
     printf '%s\n' "$p"
 }
 
@@ -170,11 +183,12 @@ except OSError:
 PY
 }
 
-# wait_gone PID LIMIT_S: wait on the host monotonic clock until PID is gone; 0 gone, 1 still alive.
+# wait_gone PID LIMIT_S: wait on the host monotonic clock until PID is gone (exited, or a zombie
+# not reaped yet); 0 gone, 1 still alive.
 wait_gone() {
     local pid=$1 limit=$2 t0 now
     t0=$(uptime_s)
-    while kill -0 "$pid" 2> /dev/null; do
+    while pid_alive "$pid"; do
         now=$(uptime_s)
         if awk -v a="$t0" -v b="$now" -v l="$limit" 'BEGIN { exit !(b - a >= l) }'; then return 1; fi
         sleep 1
