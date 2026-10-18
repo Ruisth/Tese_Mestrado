@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """Summarise the runs of the Yocto-vs-Debian-13 comparison into one table.
 
-    measure_summary.py --measure-root DIR [--per-run-csv FILE] --out DIR
+    measure_summary.py --measure-root DIR [--per-run-csv FILE] [--plan FILE] --out DIR
+
+Which runs. Without ``--plan``, every ``DIR/runs/<run-id>/`` directory, in pair order. With
+``--plan`` (the sealed or working plan JSON), only the run ids of ``plan["runs"]`` and in the
+plan's order: a planned run without a directory is a WARNING and no row, a directory not in
+the plan is ignored and named once in a note line, and the plan's path and sha256 are recorded
+in ``summary.json`` and in the table's header line, so a table can always be tied to the
+series it summarises and never to a stray attempt left beside it.
 
 What it reads. Under ``DIR/runs/<run-id>/``: ``timeline.json``, the comparison driver's
 record of one run (scenario, pair and order within the pair, seed, probe cadences, the
@@ -55,15 +62,17 @@ Three runs per scenario under one emulated machine profile support no statistica
 the table says so before any number. A value that is not available is an empty cell and a
 ``null``, never a zero: a zero would be a measurement.
 
-Exit codes: 0 written; 2 no run directory under the root, or a timeline unreadable. A missing
-optional input (a sampler CSV, the df record, the harness manifest, metrics or event logs,
-the accounting, the per-run CSV or one of its rows) is one WARNING line on stderr naming it,
-empty cells, and exit 0.
+Exit codes: 0 written; 2 no run directory under the root (none of the planned ones, with a
+plan), a timeline unreadable, or a plan given but unreadable. A missing optional input (a
+sampler CSV, the df record, the harness manifest, metrics or event logs, the accounting, the
+per-run CSV or one of its rows, a planned run's directory) is one WARNING line on stderr
+naming it, empty cells or no row, and exit 0.
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import statistics
 import sys
@@ -813,15 +822,34 @@ def header_line(aggregates: dict[str, dict[str, Any]]) -> str:
     return f"Exploratory comparison: {n_text}, one QEMU/TCG profile, no statistical significance claimed."
 
 
+def plan_line(plan: dict[str, Any] | None) -> str:
+    if plan is None:
+        return "No plan given: every run directory under the root."
+    return f"Plan `{plan['path']}` (sha256 `{plan['sha256']}`), {len(plan['run_ids'])} planned run(s)."
+
+
+def plan_notes(plan: dict[str, Any] | None) -> list[str]:
+    if plan is None:
+        return []
+    notes_: list[str] = []
+    if plan["ignored_not_in_plan"]:
+        notes_.append("ignored, not in the plan: " + ", ".join(plan["ignored_not_in_plan"]))
+    if plan["missing_directories"]:
+        notes_.append("planned without a run directory (no row): " + ", ".join(plan["missing_directories"]))
+    return notes_
+
+
 def write_table(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, dict[str, Any]],
-                timelines: list[dict[str, Any]], generated: str) -> None:
-    by_scenario = {s: sorted((r for r in rows if r["scenario"] == s), key=sort_key) for s in SCENARIOS}
+                timelines: list[dict[str, Any]], generated: str, plan: dict[str, Any] | None) -> None:
+    # The rows arrive in their final order (the plan's, or pair order): the table keeps it.
+    by_scenario = {s: [r for r in rows if r["scenario"] == s] for s in SCENARIOS}
+    order = "plan order" if plan is not None else "pair order"
     head = ["Metric"]
     for scenario in SCENARIOS:
         label = SCENARIO_LABELS[scenario]
-        head += [f"{label}: runs in pair order", f"{label} median", f"{label} min–max"]
+        head += [f"{label}: runs in {order}", f"{label} median", f"{label} min–max"]
     lines = ["# Yocto image vs Debian 13 — measurement summary", "",
-             f"**{header_line(aggregates)}** Generated {generated} from {len(rows)} run(s).", "",
+             f"**{header_line(aggregates)}** Generated {generated} from {len(rows)} run(s). {plan_line(plan)}", "",
              "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
 
     def cells(column: str, decimals: int | None, aggregated: bool) -> list[str]:
@@ -846,24 +874,26 @@ def write_table(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, di
         lines.append("| " + " | ".join([f"{label} (`{column}`)"] + cells(column, decimals, True)) + " |")
     for column, label in CATEGORICAL:
         lines.append("| " + " | ".join([f"{label} (`{column}`)"] + cells(column, None, False)) + " |")
-    lines += ["", "Notes:", ""] + [f"- {note}" for note in notes(timelines)]
+    lines += ["", "Notes:", ""] + [f"- {note}" for note in notes(timelines) + plan_notes(plan)]
     if WARNINGS:
         lines += ["", "Warnings while summarising:", ""] + [f"- {w}" for w in WARNINGS]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def write_json(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, dict[str, Any]],
-               timelines: list[dict[str, Any]], generated: str, measure_root: Path) -> None:
+               timelines: list[dict[str, Any]], generated: str, measure_root: Path,
+               plan: dict[str, Any] | None) -> None:
     document = {
         "generated_utc": generated,
         "measure_root": str(measure_root),
         "character": header_line(aggregates),
+        "plan": plan,
         "rules": {"min_pairs": MIN_PAIRS, "pairing_tolerance_s": PAIRING_TOLERANCE_S,
                   "rate_bound_proximity_s": RATE_BOUND_PROXIMITY_S},
         "columns": COLUMNS,
         "runs": rows,
         "scenarios": aggregates,
-        "notes": notes(timelines),
+        "notes": notes(timelines) + plan_notes(plan),
         "warnings": list(WARNINGS),
     }
     path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
@@ -873,11 +903,56 @@ def write_json(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, dic
 # Entry point
 # ---------------------------------------------------------------------------
 
-def summarise(measure_root: Path, per_run_csv: Path | None, out_dir: Path) -> int:
+def read_plan(path: Path) -> dict[str, Any]:
+    """The plan's run ids in its order, with the file's path and sha256 for the record.
+
+    ``plan["runs"]`` entries are objects with a ``run_id`` (the harness plan) or plain ids."""
+    try:
+        raw = path.read_bytes()
+        plan = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SummaryError(f"{path}: unreadable plan ({exc})") from exc
+    entries = plan.get("runs") if isinstance(plan, dict) else None
+    if not isinstance(entries, list):
+        raise SummaryError(f"{path}: plan without a 'runs' list")
+    run_ids: list[str] = []
+    for entry in entries:
+        run_id = entry.get("run_id") if isinstance(entry, dict) else entry
+        if not isinstance(run_id, str) or not run_id:
+            raise SummaryError(f"{path}: a plan entry without a run_id: {entry!r}")
+        if run_id not in run_ids:
+            run_ids.append(run_id)
+    return {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "run_ids": run_ids,
+            "ignored_not_in_plan": [], "missing_directories": []}
+
+
+def select_run_dirs(runs_dir: Path, plan: dict[str, Any] | None) -> list[Path]:
+    """The run directories to summarise: every one in pair order, or the plan's in its order."""
+    present = sorted(p for p in runs_dir.iterdir() if p.is_dir()) if runs_dir.is_dir() else []
+    if plan is None:
+        return present
+    names = {p.name for p in present}
+    chosen: list[Path] = []
+    for run_id in plan["run_ids"]:
+        if run_id in names:
+            chosen.append(runs_dir / run_id)
+        else:
+            plan["missing_directories"].append(run_id)
+            warn(f"planned run {run_id}: no directory at {runs_dir / run_id}; no row")
+    plan["ignored_not_in_plan"] = [p.name for p in present if p.name not in plan["run_ids"]]
+    return chosen
+
+
+def summarise(measure_root: Path, per_run_csv: Path | None, out_dir: Path, plan_path: Path | None = None) -> int:
     runs_dir = measure_root / "runs"
-    run_dirs = sorted(p for p in runs_dir.iterdir() if p.is_dir()) if runs_dir.is_dir() else []
+    try:
+        plan = read_plan(plan_path) if plan_path is not None else None
+    except SummaryError as exc:
+        print(f"STOP: {exc}", file=sys.stderr)
+        return 2
+    run_dirs = select_run_dirs(runs_dir, plan)
     if not run_dirs:
-        print(f"STOP: no run directory under {runs_dir}", file=sys.stderr)
+        print(f"STOP: no {'planned ' if plan else ''}run directory under {runs_dir}", file=sys.stderr)
         return 2
     per_run = read_per_run(per_run_csv)
     rows: list[dict[str, Any]] = []
@@ -893,13 +968,16 @@ def summarise(measure_root: Path, per_run_csv: Path | None, out_dir: Path) -> in
     for row in rows:
         if row["scenario"] not in SCENARIOS:
             warn(f"{row['run_id']}: scenario '{row['scenario']}' is not one of {', '.join(SCENARIOS)}; listed, not aggregated")
-    rows.sort(key=sort_key)
+    if plan is None:
+        rows.sort(key=sort_key)
     aggregates = aggregate(rows)
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     out_dir.mkdir(parents=True, exist_ok=True)
     write_csv(out_dir / "summary.csv", rows)
-    write_table(out_dir / "table.md", rows, aggregates, timelines, generated)
-    write_json(out_dir / "summary.json", rows, aggregates, timelines, generated, measure_root)
+    write_table(out_dir / "table.md", rows, aggregates, timelines, generated, plan)
+    write_json(out_dir / "summary.json", rows, aggregates, timelines, generated, measure_root, plan)
+    for note in plan_notes(plan):
+        print(f"note: {note}")
     print(f"summary: {len(rows)} run(s) -> {out_dir / 'summary.csv'}, table.md, summary.json"
           + (f"; {len(WARNINGS)} warning(s)" if WARNINGS else ""))
     return 0
@@ -909,10 +987,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--measure-root", required=True, type=Path, help="directory holding runs/<run-id>/ and harness/raw/")
     parser.add_argument("--per-run-csv", type=Path, default=None, help="the harness analyser's processed/per_run.csv")
+    parser.add_argument("--plan", type=Path, default=None,
+                        help="sealed or working plan JSON: only its runs, in its order; others ignored")
     parser.add_argument("--out", required=True, type=Path, help="output directory (created)")
     args = parser.parse_args(argv)
     WARNINGS.clear()
-    return summarise(args.measure_root, args.per_run_csv, args.out)
+    return summarise(args.measure_root, args.per_run_csv, args.out, args.plan)
 
 
 if __name__ == "__main__":

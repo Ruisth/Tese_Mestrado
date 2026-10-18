@@ -62,5 +62,5 @@ done <<< "$ORDER"
 echo "== analysis of the raw runs ($HARNESS)"
 "$PY" -m egw_experiments analyze --base-dir "$HARNESS" --plan "$WORKING" > "$MEASURE/logs/analyze-$(stamp).log" 2>&1 || echo "WARNING: the analyser exited non-zero (see the analyze log); the summary uses what it wrote"
 OUT=$MEASURE/summary-$(stamp)
-python3 "$HERE/measure_summary.py" --measure-root "$MEASURE" --per-run-csv "$HARNESS/processed/per_run.csv" --out "$OUT" || { echo "STOP: the summary failed"; exit 1; }
+python3 "$HERE/measure_summary.py" --measure-root "$MEASURE" --plan "$WORKING" --per-run-csv "$HARNESS/processed/per_run.csv" --out "$OUT" || { echo "STOP: the summary failed"; exit 1; }
 echo "SERIES: done; summary in $OUT"

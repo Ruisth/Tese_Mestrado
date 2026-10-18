@@ -26,6 +26,7 @@ guest or a real measurement.
 from __future__ import annotations
 
 import csv
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -345,10 +346,12 @@ def build_root(root: Path) -> Path:
     return per_run
 
 
-def run_tool(root: Path, per_run: Path | None, out: Path) -> subprocess.CompletedProcess:
+def run_tool(root: Path, per_run: Path | None, out: Path, plan: Path | None = None) -> subprocess.CompletedProcess:
     args = [sys.executable, "-I", str(TOOL), "--measure-root", str(root), "--out", str(out)]
     if per_run is not None:
         args += ["--per-run-csv", str(per_run)]
+    if plan is not None:
+        args += ["--plan", str(plan)]
     return subprocess.run(args, capture_output=True, text=True, timeout=120)
 
 
@@ -756,6 +759,66 @@ def test_exit_codes(tmp_path: Path) -> None:
     row = summary_rows(tmp_path / "out6")["cmp-yocto-p1"]
     assert row["clock_pairing_pairs"] == "0" and "only 0 host-guest event pairs" in row["load_window_reason"]
     assert row["mem_load_samples"] == "" and row["load_duration_monotonic_s"] == "600.100"
+
+
+def plan_text(run_ids: list[Any]) -> str:
+    """A plan in the harness's shape: entries are objects with a run_id (a plain id is accepted too)."""
+    entries = [rid if isinstance(rid, str) else
+               {"run_id": rid["run_id"], "comparison": {"scenario": rid["scenario"], "pair": rid["pair"], "order_in_pair": rid["order"]},
+                "condition_id": "nominal", "duration_s": 600, "status": "planned"} for rid in run_ids]
+    return json.dumps({"plan_version": 2, "protocol_version": "2.1", "master_seed": 2026101801,
+                       "comparison": {"pairs": 3}, "conditions": [], "runs": entries}, indent=1)
+
+
+def test_plan_selects_the_runs_in_its_order_and_names_the_rest(tmp_path: Path) -> None:
+    per_run = build_root(tmp_path)
+    # The plan names four runs in its own order; one of them has no directory; the three
+    # other directories under runs/ (a stray earlier attempt among them) are not in it.
+    plan = tmp_path / "plan-a02.json"
+    write(plan, plan_text([RUNS[5], RUNS[0], {"run_id": "cmp-ghost-p9", "scenario": "yocto", "pair": 9, "order": 1},
+                           "cmp-debian13-p1"]))
+    out = tmp_path / "out"
+    proc = run_tool(tmp_path, per_run, out, plan)
+    assert proc.returncode == 0, proc.stderr
+    with (out / "summary.csv").open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert [r["run_id"] for r in rows] == ["cmp-debian13-p3", "cmp-yocto-p1", "cmp-debian13-p1"]
+    assert "planned run cmp-ghost-p9: no directory at" in proc.stderr and "no row" in proc.stderr
+    assert "cmp-ghost-p9" not in {r["run_id"] for r in rows}
+    note = "ignored, not in the plan: cmp-debian13-p2, cmp-yocto-p2, cmp-yocto-p3"
+    assert f"note: {note}" in proc.stdout
+    for name in ("cmp-debian13-p2", "cmp-yocto-p2", "cmp-yocto-p3"):
+        assert name not in proc.stderr  # ignored silently: no warning about their inputs either
+    doc = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    sha = hashlib.sha256(plan.read_bytes()).hexdigest()
+    assert doc["plan"]["path"] == str(plan) and doc["plan"]["sha256"] == sha
+    assert doc["plan"]["run_ids"] == ["cmp-debian13-p3", "cmp-yocto-p1", "cmp-ghost-p9", "cmp-debian13-p1"]
+    assert doc["plan"]["ignored_not_in_plan"] == ["cmp-debian13-p2", "cmp-yocto-p2", "cmp-yocto-p3"]
+    assert doc["plan"]["missing_directories"] == ["cmp-ghost-p9"]
+    assert [r["run_id"] for r in doc["runs"]] == ["cmp-debian13-p3", "cmp-yocto-p1", "cmp-debian13-p1"]
+    assert doc["scenarios"]["yocto"]["n_runs"] == 1 and doc["scenarios"]["debian13"]["n_runs"] == 2
+    assert note in doc["notes"] and any("cmp-ghost-p9" in w for w in doc["warnings"])
+    table = (out / "table.md").read_text(encoding="utf-8")
+    assert f"Plan `{plan}` (sha256 `{sha}`), 4 planned run(s)." in table.splitlines()[2]
+    assert "n=1 (Yocto) and n=2 (Debian 13)" in table and f"- {note}" in table
+    # The table keeps the plan's order within each scenario: Debian pair 3 before pair 1.
+    rows_md = table_rows(table)
+    assert rows_md["Guest memory used at rest, median, MiB (`mem_rest_median_mib`)"] == [
+        "410.0", "410.0", "410.0–410.0", "620.0 / 610.0", "615.0", "610.0–620.0"]
+    assert "Debian 13: runs in plan order" in table
+    # Without --plan nothing changes: six rows in pair order, no plan record.
+    proc = run_tool(tmp_path, per_run, tmp_path / "out-all")
+    assert proc.returncode == 0 and "note:" not in proc.stdout
+    doc = json.loads((tmp_path / "out-all" / "summary.json").read_text(encoding="utf-8"))
+    assert doc["plan"] is None and len(doc["runs"]) == 6
+    assert "No plan given: every run directory under the root." in (tmp_path / "out-all" / "table.md").read_text(encoding="utf-8")
+    # A plan none of whose runs has a directory, or an unreadable plan, is exit 2.
+    write(tmp_path / "plan-none.json", plan_text(["nowhere-1", "nowhere-2"]))
+    assert tool.main(["--measure-root", str(tmp_path), "--plan", str(tmp_path / "plan-none.json"), "--out", str(tmp_path / "o3")]) == 2
+    write(tmp_path / "plan-bad.json", "{not json")
+    assert tool.main(["--measure-root", str(tmp_path), "--plan", str(tmp_path / "plan-bad.json"), "--out", str(tmp_path / "o4")]) == 2
+    write(tmp_path / "plan-noruns.json", json.dumps({"plan_version": 2}))
+    assert tool.main(["--measure-root", str(tmp_path), "--plan", str(tmp_path / "plan-noruns.json"), "--out", str(tmp_path / "o5")]) == 2
 
 
 def test_in_process_entry_point_returns_the_exit_code(tmp_path: Path) -> None:
