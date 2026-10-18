@@ -1,7 +1,8 @@
 #!/bin/bash
 # tools/compare/validate.sh <scenario> - the functional validation of ONE comparison scenario, in the
-# authorised sequence and nothing more: guards, prepare and start through Terraform, guest facts,
-# provisioning of the same application stack, ONE synthetic event from one test device to its twin,
+# authorised sequence and nothing more: guards, prepare, start and the application stack through
+# Terraform (`tf.sh <scenario> apply`), guest facts, the stack confirmed healthy (the idempotent
+# provisioning run again records it), ONE synthetic event from one test device to its twin,
 # final state, controlled stop through Terraform, proof that QEMU ended, results sealed.
 #
 # It is not a measurement: no load generator campaign, no repetition, no benchmark. One attempt;
@@ -164,7 +165,7 @@ fi
 # --- 2. configuration facts ---------------------------------------------------------------------
 must config guest-facts guest_facts
 
-# --- 3. the same application stack ----------------------------------------------------------------
+# --- 3. the same application stack: brought up by the apply; this idempotent run confirms and records it
 if must stack provision bash "$HERE/provision_stack.sh" "$scenario"; then
     step stack sut-environment sut_environment
     # --- 4. one synthetic event from one test device to its twin ------------------------------------

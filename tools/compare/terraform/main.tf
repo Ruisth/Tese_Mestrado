@@ -9,6 +9,7 @@
 locals {
   tools_dir  = abspath("${path.module}/..")
   script     = "${local.tools_dir}/compare_env.sh"
+  up         = "${local.tools_dir}/up.sh"
   env_file   = "${local.tools_dir}/scenarios/${var.scenario}.env"
   env_prefix = var.compare_root == "" ? "" : "EGW_COMPARE_ROOT='${var.compare_root}' "
 }
@@ -48,8 +49,12 @@ resource "terraform_data" "prepared" {
   }
 }
 
-# Desired power state. Creating it starts the guest; destroying it (desired_state = stopped, or a
-# destroy) runs the controlled stop, which never kills a QEMU process.
+# Desired power state. Creating it runs up.sh: start the guest, wait for ssh, bring the application
+# stack up (idempotent: pinned images already on the data disk are not pulled again) and confirm it
+# healthy; the environment is then left running. Destroying it (desired_state = stopped, or a
+# destroy) runs the controlled stop, which never kills a QEMU process. A failed up leaves this
+# resource tainted and the guest running for inspection: `tf.sh <s> stop` closes it; the next
+# `apply` runs the controlled stop and then up again.
 resource "terraform_data" "power" {
   count      = var.desired_state == "running" ? 1 : 0
   depends_on = [terraform_data.prepared]
@@ -57,13 +62,14 @@ resource "terraform_data" "power" {
   input = {
     scenario   = var.scenario
     script     = local.script
+    up         = local.up
     env_prefix = local.env_prefix
   }
   triggers_replace = [terraform_data.prepared.id]
 
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
-    command     = "${local.env_prefix}bash '${local.script}' start '${var.scenario}'"
+    command     = "${local.env_prefix}bash '${local.up}' '${var.scenario}'"
   }
 
   provisioner "local-exec" {

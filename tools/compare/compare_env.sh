@@ -336,6 +336,12 @@ cmd_start() {
     echo "STARTED $SCENARIO: pid $pid console $console"
 }
 
+# provision_result: the `result` of state/provision.json (healthy, unhealthy, failed, ...), "" when none.
+provision_result() {
+    [ -s "$S_DIR/state/provision.json" ] || return 0
+    python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("result", ""))' "$S_DIR/state/provision.json" 2> /dev/null || true
+}
+
 cmd_status() {
     local pid running=false prepared=false started="" root_sha="" base
     pid=$(own_pid 2> /dev/null || true)
@@ -346,10 +352,10 @@ cmd_status() {
     base=${BASE_ROOT:-}
     [ -n "$base" ] && root_sha=$(base_sha "$(basename "$base")")
     python3 - "$SCENARIO" "$prepared" "$running" "$pid" "$(lock_holder)" "$started" \
-        "$S_ROOT_DISK" "$S_DATA_DISK" "$root_sha" "$S_MANIFEST" "$(cat "$S_DIR/state/console" 2> /dev/null || true)" << 'PY'
+        "$S_ROOT_DISK" "$S_DATA_DISK" "$root_sha" "$S_MANIFEST" "$(cat "$S_DIR/state/console" 2> /dev/null || true)" "$(provision_result)" << 'PY'
 import json, sys
 keys = ["scenario", "prepared", "running", "pid", "lock_holder", "started_uptime_s",
-        "root_disk", "data_disk", "base_sha256", "manifest", "console"]
+        "root_disk", "data_disk", "base_sha256", "manifest", "console", "last_provision"]
 print(json.dumps({k: str(v) for k, v in zip(keys, sys.argv[1:])}))
 PY
     return 0

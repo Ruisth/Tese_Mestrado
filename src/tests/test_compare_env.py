@@ -90,6 +90,7 @@ with open(pidfile, "w", encoding="utf-8") as f:
 SSH_STUB = r'''#!/usr/bin/env python3
 # Stub ssh: records the call; a command holding 'poweroff' ends the guest (the sleeper named in EGW_STUB_PIDFILE)
 # unless EGW_STUB_SSH_IGNORE_POWEROFF=1, a guest that does not act on it; anything else succeeds without effect.
+# EGW_STUB_SSH_RC, when set, is the exit code of every call (a guest whose sshd does not answer yet).
 import os
 import signal
 import sys
@@ -103,7 +104,7 @@ if any("poweroff" in a for a in args) and os.environ.get("EGW_STUB_SSH_IGNORE_PO
             os.kill(int(f.read().strip()), signal.SIGTERM)
     except (OSError, ValueError):
         pass
-sys.exit(0)
+sys.exit(int(os.environ.get("EGW_STUB_SSH_RC") or 0))
 '''
 
 QEMU_IMG_STUB = r'''#!/bin/sh
@@ -199,6 +200,10 @@ class Bench:
         (self.scenarios / "yocto.env").write_text(text, encoding="utf-8")
 
     def run(self, *args: str, **env: str) -> subprocess.CompletedProcess:
+        return self.run_script(SCRIPT, *args, **env)
+
+    def run_script(self, script: Path, *args: str, **env: str) -> subprocess.CompletedProcess:
+        """Run one of the comparison scripts against this bench's stub host and state root."""
         environment = {k: v for k, v in os.environ.items() if not k.startswith("EGW_")}
         environment.update({
             "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}",
@@ -217,11 +222,12 @@ class Bench:
             "EGW_STUB_BUSY_PORTS": "",
             "EGW_STUB_QEMU_FAIL": "",
             "EGW_STUB_SSH_IGNORE_POWEROFF": "",
+            "EGW_STUB_SSH_RC": "",
             "MOSQUITTO_SIMULATOR_PASSWORD": SECRET,
             "EGW_MQTT_PASSWORD": SECRET,
         })
         environment.update(env)
-        return subprocess.run(["bash", str(SCRIPT), *args], env=environment, stdin=subprocess.DEVNULL,
+        return subprocess.run(["bash", str(script), *args], env=environment, stdin=subprocess.DEVNULL,
                               capture_output=True, text=True, timeout=60)
 
     def ok(self, *args: str, **env: str) -> subprocess.CompletedProcess:

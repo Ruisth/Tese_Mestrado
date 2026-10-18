@@ -1,5 +1,38 @@
 # Comparison environments — the Yocto image and Debian 13 under one QEMU/TCG profile
 
+## 0. Two commands per scenario
+
+The scripts are the files of this folder, `tools/compare/` in the repository
+(branch `tools/compare-envs-terraform`); on the WSL host they run from a
+checkout such as `~/egw-exec/compare-repo`, and everything they create lives
+under `$EGW_COMPARE_ROOT` (default `~/egw-compare`, section 2). From the root
+of the clone, in a WSL login shell, one scenario at a time:
+
+```bash
+bash tools/compare/tf.sh yocto apply      # up: prepare if absent, boot, ssh, stack up, healthy; stays running
+bash tools/compare/tf.sh yocto stop       # down: stack stop, power-off, QEMU confirmed ended; disks and logs kept
+bash tools/compare/tf.sh debian13 apply   # the same for Debian 13, only after yocto is off (one guest at a time)
+bash tools/compare/tf.sh debian13 stop
+```
+
+`apply` runs, with no prompt, the whole sequence of [`up.sh`](up.sh):
+(1) work copies prepared if absent (`compare_env.sh prepare`); (2) the guest
+booted under QEMU/TCG with the fixed machine profile of section 6; (3) ssh
+awaited, up to 450 s; (4) the stack prepared where needed, reusing the pinned
+images and the configuration already on the data disk (`provision_stack.sh`,
+idempotent by markers); (5) Mosquitto, MongoDB, Ditto and the controller
+started; (6) six services `healthy` and the controller's `/ready` confirmed;
+(7) `ENVIRONMENT READY` reported and the guest left running. Repeating
+`apply` on a running environment starts no second process and reinstalls
+nothing: Terraform finds nothing to change. A failure is reported with its
+exit code and the guest is left running for inspection; `stop` closes it.
+Neither command removes a disk. `stop` stops the stack (`compose stop -t 60`),
+powers the guest off, confirms the QEMU process ended and keeps disks,
+configuration and logs. Transcripts: `scenarios/<s>/logs/up-<stamp>.log`,
+`stop-<stamp>.log`, `provision-<stamp>.log`, `console-<stamp>.log`; the live
+state at any moment: `bash tools/compare/tf.sh <s> status`. The validation
+result of each scenario is in section 9.
+
 ## 1. Purpose and status
 
 This folder prepares, starts, stops and removes two isolated ARM64 guests under
@@ -100,15 +133,16 @@ Changing `EGW_COMPARE_ROOT` afterwards needs `tf.sh <scenario> init -reconfigure
 
 ## 4. Commands
 
-Through Terraform (`apply`, `stop` and `destroy` ask for confirmation unless
-`EGW_COMPARE_AUTO_APPROVE=1`; any further arguments go to Terraform):
+Through Terraform (`apply` and `stop` run without a prompt; `destroy` asks for
+confirmation unless `EGW_COMPARE_AUTO_APPROVE=1`; `init` runs by itself the
+first time; any further arguments go to Terraform):
 
 ```bash
 bash tools/compare/tf.sh <yocto|debian13> plan      # what apply would do
-bash tools/compare/tf.sh <s> apply                  # prepare (idempotent) + start the guest
+bash tools/compare/tf.sh <s> apply                  # prepare (idempotent) + up.sh: start, ssh, stack up, healthy; stays running
 bash tools/compare/tf.sh <s> status                 # compare_env.sh status: the LIVE state, one JSON object
 bash tools/compare/tf.sh <s> output                 # terraform output -json of that workspace
-bash tools/compare/tf.sh <s> stop                   # apply -var desired_state=stopped: controlled stop
+bash tools/compare/tf.sh <s> stop                   # apply -var desired_state=stopped: stack stop, power-off, QEMU ended
 bash tools/compare/tf.sh <s> destroy                # controlled stop, then remove work disks and state only
 bash tools/compare/tf.sh <s> apply -replace='terraform_data.power[0]'   # restart a guest that ended on its own
 ```
@@ -118,6 +152,7 @@ The same by hand (what Terraform calls; `s` = `yocto` or `debian13`):
 ```bash
 bash tools/compare/compare_env.sh prepare  <s>   # 0 prepared or already prepared; 2 prerequisite; 3 integrity
 bash tools/compare/compare_env.sh start    <s>   # 0 running or already running; 2 refused by a guard; 5 failed
+bash tools/compare/up.sh <s>                     # what apply runs: start, wait for ssh, provision_stack.sh, healthy; 0 ready, 1 not ready in time, 2 refused, 3 step failed, 5 QEMU failed
 bash tools/compare/compare_env.sh status   <s>   # always 0; JSON of strings (section 5)
 bash tools/compare/compare_env.sh stop     <s>   # 0 stopped or not running; 5 still running (nothing killed)
 bash tools/compare/compare_env.sh destroy  <s>   # 0 removed; 5 refused while running
@@ -167,7 +202,8 @@ Phases, each a numbered file under `scenarios/<s>/results/validate-<stamp>/`
 (`steps.tsv` keeps rc and host-monotonic seconds): prerequisites →
 `tf.sh apply` → ssh answers (≤ 450 s) and `systemctl is-system-running` in
 `{running, degraded}` (≤ 240 s more, recorded, not fatal) → guest facts →
-`provision_stack.sh` → SUT environment record → `functional_check.sh` →
+`provision_stack.sh` (a second, idempotent run that confirms the stack the
+apply brought up) → SUT environment record → `functional_check.sh` →
 final state and journal → `tf.sh stop` → own pid gone and no other QEMU →
 `SHA256SUMS`. The close is attempted even after a failure; nothing is killed.
 
@@ -204,7 +240,8 @@ pass in the project's sense.
   state is **read, never inferred**: `data.external.status` runs
   `compare_env.sh status` after the power step, and its JSON — `scenario`,
   `prepared`, `running`, `pid`, `lock_holder`, `started_uptime_s`, `root_disk`,
-  `data_disk`, `base_sha256`, `manifest`, `console`, all strings — is the
+  `data_disk`, `base_sha256`, `manifest`, `console`, `last_provision` (the
+  result of the last provisioning run on this scenario), all strings — is the
   `status` output. `running` is true only when the pid file names a live
   process whose command line is `qemu-system-aarch64`.
 - **`check "live_state_matches_desired"`** re-reads `status` at plan and apply
@@ -216,6 +253,12 @@ pass in the project's sense.
   destroyed and no provisioner runs; only the data sources are re-read. Editing
   a script changes the recorded input in place and runs nothing; it never
   destroys disks.
+- **A failed `apply`** (no ssh within 450 s, a provisioning step failed, the
+  stack not healthy within its limit) leaves the power resource tainted and
+  the guest running for inspection: nothing is killed, no disk is touched.
+  `stop` closes it; the next `apply` runs the controlled stop and `up.sh`
+  again, and the markers on the data disk make the provisioning skip what is
+  already done.
 - **`stop`** (`desired_state = stopped`) destroys only the power resource:
   stack `compose stop -t 60` where a deployment exists, `sync; sudo poweroff`
   over ssh, else `system_powerdown` through the monitor socket, then a wait of
@@ -318,7 +361,7 @@ terraform -chdir=tools/compare/terraform validate        # after init
 python tools/ci/check_markdown_links.py
 ```
 
-## 9. Validation records — to be recorded
+## 9. Validation records
 
 One validation per scenario is authorised (the Debian provisioning first boot
 declared separately). Each record names the `results/validate-<stamp>/`
