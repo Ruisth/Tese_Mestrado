@@ -157,7 +157,11 @@ created, so both scenarios start their comparison from an empty data disk.
 
 ```bash
 bash tools/compare/validate.sh <s>              # 0 pass; 1 a phase failed (guest closed); 2 not started; 5 close failed
+bash tools/compare/validate.sh --resume <s>     # the same phases on a guest already running (no second boot)
 ```
+
+Start a driver detached from the shell that launches it (`setsid nohup bash … &`),
+otherwise it dies with that shell while the daemonised guest lives on.
 
 Phases, each a numbered file under `scenarios/<s>/results/validate-<stamp>/`
 (`steps.tsv` keeps rc and host-monotonic seconds): prerequisites →
@@ -320,10 +324,10 @@ One validation per scenario is authorised (the Debian provisioning first boot
 declared separately). Each record names the `results/validate-<stamp>/`
 directory, its `SHA256SUMS`, the manifest's `base_root_sha256`, and whether the
 run was **real** (a guest booted on the host) or only **simulated** (the stub
-tests of section 8). Until a row is filled, the answer is: not run.
+tests of section 8). The rows below are the records of 2026-10-18; a second Yocto attempt, if authorised, adds a row.
 
 | Scenario | Boot | Configuration | Stack | Functional path | Close | Results dir / seal | Real or simulated |
 |---|---|---|---|---|---|---|---|
-| `yocto` | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded |
-| `debian13` — first boot | to be recorded | to be recorded | — | — | to be recorded | to be recorded | to be recorded |
-| `debian13` | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded |
+| `yocto` (1st attempt, 2026-10-18 16:25–16:31Z) | pass: `tf.sh apply`, ssh in ~30 s, `is-system-running` = running, no failed unit | pass: 6.6.142-yocto-standard, 4 vCPU, `/var/lib/docker` on `/dev/vdb` ext4 31.2 G, Docker 25.0.9 | **not run**: the provisioning pre-check read an empty label through `findmnt -no LABEL` (a tooling defect, fixed afterwards: `lsblk`/`blkid` fallbacks) and stopped before the stack | not attempted | pass: `tf.sh stop`, QEMU ended, no other QEMU | `scenarios/yocto/results/validate-20261018T162515Z` (boot, facts; the driver was lost with its launching shell) and `validate-20261018T163102Z` (resumed on the same guest; `SHA256SUMS`); base `rootfs.ext4` sha256 `bd15040f…` | real (one boot) |
+| `debian13` — first boot (2026-10-18 16:32:39–16:36:53Z) | pass: direct kernel boot of 6.12.113, cloud-init `init-local` at +25 s | pass: packages installed from the archive (docker.io 26.1.5, docker-compose 2.26.1, …), the eight files written, user `egw` uid 1000 | — | — | pass: `reboot: Power down` after `Cloud-init … finished`; one warning: `part-001: empty cloud config` (the empty `vendor-data`) | `scenarios/debian13/logs/firstboot-*`; `base/debian13/prepared.qcow2` sha256 `4b8a0fb6…` (1,881,604,096 bytes) | real |
+| `debian13` (2026-10-18 16:37:48–16:47:44Z) | pass: `tf.sh apply`, ssh in 50 s, running, no failed unit | pass: 6.12.113+deb13-cloud-arm64, 4 vCPU, MemTotal 8,197,128 kB, `/var/lib/docker` on `/dev/vdb` ext4 31.2 G label `egw-data`, Docker 26.1.5+dfsg1, Compose 2.26.1-4, 356 packages, `apt-daily*` masked | pass: provisioned in 444 s (pull 118 s, controller load 53 s, `up -d` 166 s, six healthy at +211 s, `/ready` 200 at +222 s) | pass: one event accepted in 15.9 s, twin `features.ingestion.properties.last_run_id` = run id | pass: `tf.sh stop` in 54 s, QEMU ended, no other QEMU | `scenarios/debian13/results/validate-20261018T163748Z` (32 files, `SHA256SUMS` `cd10bf30…`) | real |

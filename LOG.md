@@ -5386,3 +5386,25 @@ is unchanged.
 - **Unchanged.** The pilot evidence and its packages, the controller image and
   its identity, the collector, the harness, the session drivers and the Yocto
   image artefacts; nothing here is a comparison result.
+- **Validation outcomes (2026-10-18, after the downloads were authorised; one
+  boot per scenario).** Terraform 1.16.6 installed with its published SHA256
+  verified; providers locked. `debian13`: the provisioning first boot ended with
+  a clean power-down (cloud-init finished; packages from the archive; one
+  harmless warning for the empty `vendor-data`) and `prepared.qcow2`
+  (sha256 `4b8a0fb6…`) was written; the validation then **passed every phase**
+  — boot (ssh in 50 s), configuration (6.12.113 cloud kernel, 356 packages,
+  Docker 26.1.5, Compose 2.26.1, data disk on `/dev/vdb`), stack (444 s to
+  provision; six healthy at +211 s and `/ready` at +222 s from `up -d`), one
+  event to its twin (accepted in 15.9 s, `last_run_id` matches), controlled
+  close (54 s, QEMU ended), 32 files sealed. `yocto`: boot (ssh in ~30 s,
+  running, no failed unit), configuration and controlled close **passed**; the
+  stack phase did **not run** because the provisioning pre-check read an empty
+  label through `findmnt -no LABEL` on the BusyBox guest and stopped before
+  touching the stack — a tooling defect, corrected afterwards (`lsblk`/`blkid`
+  fallbacks and a source-device check, with tests). Two operator lessons are
+  recorded with the fixes: a driver launched from a `wsl.exe` session dies with
+  it (drivers are now started with `setsid nohup`), and `validate.sh --resume`
+  continues on a guest already running rather than booting again. The Yocto
+  stack and functional phases remain to be validated; a second attempt needs
+  the student's word. Records: `tools/compare/README.md` section 9 and the
+  `output_test` package named there.
