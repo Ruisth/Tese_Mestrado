@@ -130,11 +130,11 @@ run_step() {
 : > "$LOG"
 log "provision_stack.sh scenario=$SCENARIO repo=$COMPARE_REPO head=$REPO_HEAD"
 [ -r "$SECRETS" ] || stop "secrets file missing or unreadable: $SECRETS"
-# Placeholders are looked for in assignments only (the header comment of .env.example names
-# CHANGE_ME too). Only names are checked here; no value is ever read into this process.
-if grep -Eq '^[A-Za-z_][A-Za-z0-9_]*=.*CHANGE_ME' "$SECRETS"; then
-    stop "secrets file still carries a CHANGE_ME placeholder: $SECRETS"
-fi
+# Placeholders are looked for outside comments (the header comment of .env.example names CHANGE_ME
+# too), fail-closed: an unreadable file does not pass. Only names are checked here; no value is ever
+# read into this process.
+placeholders=$(grep -v '^[[:space:]]*#' "$SECRETS" | grep -c CHANGE_ME)
+[ "$placeholders" = 0 ] || stop "secrets file still carries a CHANGE_ME placeholder (or is unreadable): $SECRETS"
 for name in MOSQUITTO_SIMULATOR_PASSWORD MOSQUITTO_CONTROLLER_PASSWORD EGW_MQTT_PASSWORD DITTO_DEVOPS_PASSWORD; do
     grep -Eq "^$name=.+" "$SECRETS" || stop "secrets file has no $name assignment: $SECRETS"
 done

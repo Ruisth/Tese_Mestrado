@@ -124,7 +124,8 @@ check() { if "$@" > /dev/null 2>&1; then echo "ok:   $*"; else echo "MISSING: $*
     check test -s "$IMAGES_DIR/egw-controller-0.1.0-arm64.tar"
     check test -s "$IMAGES_DIR/egw-controller-0.1.0-arm64.identity.txt"
     check "$VENV/bin/python" -c 'import egw_simulator'
-    check bash -c '! grep -Eq "^[A-Za-z_][A-Za-z0-9_]*=.*CHANGE_ME" "$1"' _ "$SECRETS"
+    # Placeholders outside comments; fail-closed (an unreadable file is not "no placeholder").
+    check bash -c 'n=$(grep -v "^[[:space:]]*#" "$1" | grep -c CHANGE_ME); [ "$n" = 0 ]' _ "$SECRETS"
     if pilot_session_open; then echo "MISSING: no pilot session must be open ($COMPARE_EXEC/current_session exists)"; pre_ok=0; else echo "ok:   no pilot session open"; fi
     if o=$(qemu_others); then echo "MISSING: no other QEMU must run:"; echo "$o"; pre_ok=0; elif [ $? -eq 2 ]; then echo "MISSING: pgrep could not answer"; pre_ok=0; else echo "ok:   no qemu-system-aarch64 running"; fi
     if b=$(ports_busy); then echo "MISSING: host ports free (busy:$b)"; pre_ok=0; else echo "ok:   host ports 2222/8883 free"; fi

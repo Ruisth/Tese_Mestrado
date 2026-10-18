@@ -62,8 +62,15 @@ import zlib
 
 raw, table = sys.argv[1], sys.argv[2]
 LINUX_FS = uuid.UUID("0FC63DAF-8483-4772-8E79-3D69D16ADBBF")
+# Debian's cloud images type their root partition by architecture (discoverable partitions
+# specification); the generic Linux filesystem type is accepted as well.
+LINUX_ROOT_ARM64 = uuid.UUID("B921B045-1DF0-41C3-AF44-4C6F280D3FAE")
+LINUX_ROOT_X86_64 = uuid.UUID("4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709")
+ROOT_TYPES = (LINUX_FS, LINUX_ROOT_ARM64, LINUX_ROOT_X86_64)
 KNOWN = {
     LINUX_FS: "Linux filesystem",
+    LINUX_ROOT_ARM64: "Linux root (ARM-64)",
+    LINUX_ROOT_X86_64: "Linux root (x86-64)",
     uuid.UUID("C12A7328-F81F-11D2-BA4B-00A0C93EC93B"): "EFI System",
     uuid.UUID("21686148-6449-6E6F-744E-656564454649"): "BIOS boot",
     uuid.UUID("0657FD6D-A4AB-43C4-84E5-0933C84B4F4F"): "Linux swap",
@@ -120,9 +127,9 @@ for i in range(count):
     rows.append((i + 1, type_guid, first, last, name))
 if not rows:
     stop(3, "GPT holds no partition")
-linux = [r for r in rows if r[1] == LINUX_FS]
+linux = [r for r in rows if r[1] in ROOT_TYPES]
 if not linux:
-    stop(3, "no Linux filesystem partition (type 0FC63DAF-8483-4772-8E79-3D69D16ADBBF) in the GPT")
+    stop(3, "no Linux root or filesystem partition (types 0FC63DAF-…, B921B045-… arm64 root, 4F68BCE3-… x86-64 root) in the GPT")
 root = max(linux, key=lambda r: r[3] - r[2])
 
 lines = [

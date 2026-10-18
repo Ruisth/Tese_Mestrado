@@ -344,6 +344,8 @@ def test_firstboot_missing_log_is_exit_2(tmp_path):
 # --------------------------------------------------------------------------
 
 LINUX_FS = uuid.UUID("0FC63DAF-8483-4772-8E79-3D69D16ADBBF")
+# Debian arm64 cloud images type the root partition this way (discoverable partitions specification).
+LINUX_ROOT_ARM64 = uuid.UUID("B921B045-1DF0-41C3-AF44-4C6F280D3FAE")
 EFI_SYSTEM = uuid.UUID("C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
 KVER = "6.12.113+deb13-cloud-arm64"
 ROOT_UUID = "8d2a7e3c-4b1f-4e6a-9c0d-1f2e3d4c5b6a"
@@ -439,7 +441,7 @@ class ExtractBench:
         self.listing.write_text(boot_listing([f"vmlinuz-{KVER}"], [f"initrd.img-{KVER}"]), encoding="utf-8", newline="\n")
         self.image = tmp_path / "debian.qcow2"
         # Debian-like: a root (the largest Linux partition), a smaller Linux partition, the ESP.
-        self.parts = [(LINUX_FS, 4096, 16000, "root"), (LINUX_FS, 2048, 4095, "spare"),
+        self.parts = [(LINUX_ROOT_ARM64, 4096, 16000, "root"), (LINUX_FS, 2048, 4095, "spare"),
                       (EFI_SYSTEM, 256, 2047, "EFI System Partition")]
         gpt_image(self.image, self.parts)
         self.out = tmp_path / "boot"
@@ -488,7 +490,7 @@ def test_extract_boot_takes_kernel_initrd_and_uuid_from_the_largest_linux_partit
     assert (out / "vmlinuz").read_bytes().startswith(b"\x1f\x8b\x08\x00")
     table = (out / "partitions.txt").read_text()
     assert "header crc ok" in table and "crc ok), protective MBR yes" in table
-    assert re.search(r"^1  0FC63DAF-8483-4772-8E79-3D69D16ADBBF  \(Linux filesystem\)  4096  16000  6095360  'root'$", table, re.M), table
+    assert re.search(r"^1  B921B045-1DF0-41C3-AF44-4C6F280D3FAE  \(Linux root \(ARM-64\)\)  4096  16000  6095360  'root'$", table, re.M), table
     assert re.search(r"^3  C12A7328-F81F-11D2-BA4B-00A0C93EC93B  \(EFI System\)  256  2047", table, re.M), table
     assert "root: index=1 first_lba=4096 start_bytes=2097152 size_bytes=6095360 name='root'" in table
     assert f"kernel=vmlinuz-{KVER} bytes=23 magic=1f8b0800 kind=gzip-compressed Image" in table
@@ -536,7 +538,7 @@ def test_extract_boot_refuses_other_than_one_kernel_with_its_initrd(bench, kerne
 def test_extract_boot_refuses_an_image_without_a_linux_partition(bench):
     gpt_image(bench.image, [(EFI_SYSTEM, 256, 2047, "EFI System Partition")])
     done = bench.run()
-    assert done.returncode == 3 and "no Linux filesystem partition" in done.stderr
+    assert done.returncode == 3 and "no Linux root or filesystem partition" in done.stderr
     assert not bench.log.exists(), "debugfs must not have been reached"
 
 
