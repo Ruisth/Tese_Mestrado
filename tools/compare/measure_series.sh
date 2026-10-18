@@ -2,7 +2,7 @@
 # tools/compare/measure_series.sh <plan.json> - the six executions of the minimal comparison, in the
 # plan's order, one guest at a time, each by measure_run.sh; then the harness analysis of the six raw
 # runs and the summary (measure_summary.py). The plan given is the SEALED one: it is copied once to
-# $EGW_COMPARE_ROOT/measure/plan.working.json (the harness rewrites entry statuses there) and its
+# $EGW_COMPARE_ROOT/measure/<plan name>.working.json (the harness rewrites entry statuses there) and its
 # sha256 is recorded. Before each execution the previous guest must be gone (no QEMU at all). The
 # series stops at the first instrumentation failure or failed stop (data preserved, nothing repeated,
 # nothing replaced); a result of the system under test never stops it. It never repeats an entry: an
@@ -17,7 +17,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 [ $# -eq 1 ] || { echo "usage: measure_series.sh <plan.json>" >&2; exit 2; }
 SEALED=$1
 MEASURE=$COMPARE_ROOT/measure
-WORKING=$MEASURE/plan.working.json
+SEALED_NAME=$(basename "$SEALED")
+WORKING=$MEASURE/${SEALED_NAME%.json}.working.json   # one working copy per sealed plan, never shared
 HARNESS=$MEASURE/harness
 VENV=${EGW_EXEC_VENV:-$COMPARE_EXEC/venv}
 PY=$VENV/bin/python

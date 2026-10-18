@@ -15,9 +15,11 @@ taken on it. The pilot figures below are planning inputs, not results, and are n
   (`images.lock.env`, the controller archive and its identity record), the same `compose.yaml`
   and memory limits, the same `.env`, the same initial data state (fresh `data.img`, fresh
   volumes), the same load: the existing nominal condition — 120 s warm-up, 600 s measured at
-  11.2 msg/s with the nominal device mix, 60 s confirmation window — with the same seed and
-  device count in every repetition, driven by the existing harness (`python -m egw_experiments
-  run`) from the host.
+  11.2 msg/s with the nominal device mix, 60 s confirmation window — with the same device
+  count in every repetition and, as the order of 2026-10-18 fixed it, one seed per pair of
+  executions, equal in both distributions (three seeds, fixed before the first boot;
+  `measure_plan.py`), driven by the existing harness (`python -m egw_experiments run`) from
+  the host.
 
 ## 2. Metrics and their clocks
 

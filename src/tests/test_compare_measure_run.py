@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,7 +41,8 @@ def _host_files(bench: Bench) -> dict[str, str]:
     venv = bench.exec_dir / "venv" / "bin"
     venv.mkdir(parents=True)
     py = venv / "python"
-    py.write_text("#!/bin/sh\n[ \"$1\" = -c ] && exit 0\nexit 1\n", encoding="utf-8")
+    # Answers every `-c` probe (imports; the seed derivation prints a number).
+    py.write_text("#!/bin/sh\n[ \"$1\" = -c ] && { echo 1234; exit 0; }\nexit 1\n", encoding="utf-8")
     py.chmod(0o755)
     secrets = bench.home / "egw.env"
     secrets.write_text("MOSQUITTO_SIMULATOR_PASSWORD=stub-secret-value\n", encoding="utf-8")
@@ -107,4 +109,100 @@ def test_series_skips_entries_already_run_and_refuses_an_unreadable_plan(bench, 
     plan = _plan(tmp_path / "plan.json", status="completed")
     result = bench.run_script(MEASURE_SERIES, str(plan))
     assert "status 'completed', skipped" in result.stdout, _report(result)
+    assert len(bench.qemu_starts()) == 0
+
+
+# --- the batch after the first measured execution: permissions, fetches, drain environment, seal ------------
+
+DRAIN_HOOK = COMPARE_DIR / "drain_hook.sh"
+FETCH_PROBE = """#!/bin/bash
+. "$1/lib.sh"; scenario_load yocto; shift
+"$@"
+"""
+
+
+def _fetch(bench: Bench, fn: str, remote: Path, local: Path, **env: str):
+    probe = bench.bin / "fetch_probe.sh"
+    probe.write_text(FETCH_PROBE, encoding="utf-8")
+    return bench.run_script(probe, str(COMPARE_DIR), fn, str(remote), str(local), EGW_STUB_SSH_EXEC="1", **env)
+
+
+def test_guest_fetch_live_verifies_the_prefix_of_a_growing_file(bench, tmp_path) -> None:
+    remote = tmp_path / "events.jsonl"
+    remote.write_text('{"a": 1}\n{"a": 2}\n', encoding="utf-8")
+    local = tmp_path / "copy.jsonl"
+    result = _fetch(bench, "guest_fetch_live", remote, local, EGW_STUB_SCP_GROW_SRC="1")
+    assert result.returncode == 0, _report(result)
+    assert local.read_text(encoding="utf-8") == '{"a": 1}\n{"a": 2}\n'
+    assert "prefix verified" in result.stdout and f"held {len(remote.read_bytes())} bytes" in result.stdout
+
+
+def test_guest_fetch_live_fails_on_an_empty_copy_and_on_a_failed_read(bench, tmp_path) -> None:
+    empty = tmp_path / "empty.jsonl"
+    empty.write_bytes(b"")
+    result = _fetch(bench, "guest_fetch_live", empty, tmp_path / "copy1")
+    assert result.returncode == 1 and "is empty (0 bytes)" in result.stdout, _report(result)
+    remote = tmp_path / "events.jsonl"
+    remote.write_text("line\n", encoding="utf-8")
+    result = _fetch(bench, "guest_fetch_live", remote, tmp_path / "copy2", EGW_STUB_SSH_RC="1")
+    assert result.returncode == 1 and "could not read the first 5 bytes" in result.stdout, _report(result)
+
+
+def test_guest_fetch_file_fails_when_the_copy_differs(bench, tmp_path) -> None:
+    remote = tmp_path / "meminfo.csv"
+    remote.write_text("ts,a\n1,2\n", encoding="utf-8")
+    ok = _fetch(bench, "guest_fetch_file", remote, tmp_path / "ok.csv")
+    assert ok.returncode == 0 and "copied and verified" in ok.stdout, _report(ok)
+    bad = _fetch(bench, "guest_fetch_file", remote, tmp_path / "bad.csv", EGW_STUB_SCP_CORRUPT="1")
+    assert bad.returncode == 1 and "sha256 differs" in bad.stdout, _report(bad)
+
+
+def test_drain_hook_runs_with_the_environment_file_exported(bench, tmp_path) -> None:
+    secrets = tmp_path / "egw.env"
+    secrets.write_text("MOSQUITTO_SIMULATOR_PASSWORD=stub-secret-value\nOTHER=1\n", encoding="utf-8")
+    hook = tmp_path / "hook.sh"
+    hook.write_text('#!/bin/sh\n[ -n "${MOSQUITTO_SIMULATOR_PASSWORD:-}" ] && echo "has_env=yes rid=$1" || echo has_env=no\n'
+                    'echo "quiet=${DRAIN_QUIET_S:-unset}"\nexit 3\n', encoding="utf-8")
+    result = bench.run_script(DRAIN_HOOK, str(secrets), str(hook), "cmp-p1-yocto", DRAIN_QUIET_S="130")
+    assert result.returncode == 3, _report(result)
+    assert "has_env=yes rid=cmp-p1-yocto" in result.stdout and "quiet=130" in result.stdout
+    assert "stub-secret-value" not in result.stdout + result.stderr
+    missing = bench.run_script(DRAIN_HOOK, str(tmp_path / "absent.env"), str(hook), "cmp-p1-yocto")
+    assert missing.returncode == 97 and "not readable" in missing.stderr
+
+
+def _measured_base_readonly(bench: Bench) -> Path:
+    base = _measured_base(bench)
+    for name in ("root.qcow2", "data.img"):
+        (base / name).chmod(0o444)
+    return base
+
+
+def test_restore_gives_writable_work_copies_and_the_record_is_sealed_after_the_log(bench, tmp_path) -> None:
+    """The integrated offline path: prerequisites pass, the disks are restored from a read-only base (new
+    destination and a stale existing one), the apply fails on this bench (no Terraform), the guest is closed,
+    the record is written and sealed AFTER the log is finished, and the seal verifies."""
+    plan = _plan(tmp_path / "plan.json")
+    base = _measured_base_readonly(bench)
+    bench.ok("prepare", "yocto")
+    root_disk = bench.disks / "egw-gateway-image-qemuarm64.rootfs.qcow2"
+    root_disk.write_bytes(b"stale overlay\n")          # an existing destination, writable
+    (bench.disks / "data.img").unlink()                 # and a destination that does not exist
+    result = bench.run_script(MEASURE_RUN, "yocto", "cmp-p1-yocto", str(plan), **_host_files(bench))
+    assert result.returncode in (1, 5), _report(result)
+    for name, disk in (("root.qcow2", root_disk), ("data.img", bench.disks / "data.img")):
+        assert disk.read_bytes() == (base / name).read_bytes(), name
+        assert disk.stat().st_mode & 0o200, f"{name} must be writable for QEMU"
+        assert not (base / name).stat().st_mode & 0o222, f"the base {name} stays read-only"
+    run = bench.root / "measure" / "runs" / "cmp-p1-yocto"
+    steps = (run / "steps.tsv").read_text(encoding="utf-8")
+    assert "\trestore-disks\t0\t" in steps and "\ttf-apply\t0\t" not in steps
+    timeline = json.loads((run / "timeline.json").read_text(encoding="utf-8"))
+    assert timeline["instrumentation_failed"] == 1 and timeline["uptime_s"]["launch"] is None
+    assert timeline["functional"]["seed"] == 1234 and timeline["stop_exit"] == 2
+    log = (run / "measure.log").read_text(encoding="utf-8")
+    assert "MEASURE yocto cmp-p1-yocto: result=apply-failed" in log, "the last lines reach the log before the seal"
+    seal = subprocess.run(["sha256sum", "-c", "--quiet", "SHA256SUMS"], cwd=run, capture_output=True, text=True)
+    assert seal.returncode == 0, seal.stdout + seal.stderr
+    assert "measure.log" in (run / "SHA256SUMS").read_text(encoding="utf-8")
     assert len(bench.qemu_starts()) == 0

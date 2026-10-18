@@ -50,16 +50,18 @@ def tool():
 
 
 def _run_tool(*argv: str) -> subprocess.CompletedProcess:
-    env = {**os.environ, "PYTHONPATH": str(SRC_DIR)}
+    # The tool's streams are read as UTF-8 whatever the host's console code page is.
+    env = {**os.environ, "PYTHONPATH": str(SRC_DIR), "PYTHONIOENCODING": "utf-8"}
     return subprocess.run([sys.executable, str(TOOL), *argv], env=env,
                           capture_output=True, text=True, encoding="utf-8")
 
 
-def _write(tmp_path: Path, *seeds: str, out: Path | None = None) -> tuple[subprocess.CompletedProcess, Path]:
+def _write(tmp_path: Path, *seeds: str, out: Path | None = None,
+           options: tuple[str, ...] = ()) -> tuple[subprocess.CompletedProcess, Path]:
     """Run the tool's ``write`` as the operator does; (its result, the plan path)."""
     out = out or tmp_path / "compare" / "plan" / "measure_plan.json"
     tokens = seeds or tuple(str(s) for s in SEEDS)
-    return _run_tool("write", "--out", str(out), "--seeds", *tokens), out
+    return _run_tool("write", "--out", str(out), "--seeds", *tokens, *options), out
 
 
 @pytest.fixture(scope="module")
@@ -192,5 +194,107 @@ def test_the_comparison_block_maps_each_run_to_its_scenario(written):
     assert "exploratory" in block["purpose"].lower()
     assert "not campaign attempts" in block["purpose"] and "no statistical significance" in block["purpose"]
     assert "S1" in block["master_seed"]
+    assert block["id_suffix"] is None and block["supersedes"] is None
     for entry in plan["runs"]:
         assert entry["comparison"] == block["runs"][entry["run_id"]]
+
+
+# --------------------------------------------------------------------------
+# a new series: --id-suffix and --supersedes
+# --------------------------------------------------------------------------
+
+SUFFIX = "a02"
+SUFFIXED = tuple(f"{rid}-{SUFFIX}" for rid in IDS)
+
+
+@pytest.fixture(scope="module")
+def series(tmp_path_factory) -> tuple[Path, Path, subprocess.CompletedProcess]:
+    """A first plan, then the second series written with a suffix against it."""
+    root = tmp_path_factory.mktemp("series")
+    first_result, first = _write(root, out=root / "first" / "measure_plan.json")
+    assert first_result.returncode == 0, (first_result.stdout, first_result.stderr)
+    result, second = _write(root, out=root / "second" / "measure_plan.json",
+                            options=("--id-suffix", SUFFIX, "--supersedes", str(first)))
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    return first, second, result
+
+
+def test_suffixed_ids_keep_the_order_and_the_block_maps_them(series):
+    _, second, result = series
+    plan = load_campaign_plan(second)
+    assert [e["run_id"] for e in plan["runs"]] == list(SUFFIXED)
+    assert [e["order"] for e in plan["runs"]] == list(range(1, 7))
+    assert all(plan_gen.RUN_ID_RE.fullmatch(rid) for rid in SUFFIXED)
+    assert [e["seed"] for e in plan["runs"]] == [SEEDS[PAIR_OF[rid] - 1] for rid in IDS]
+    block = plan["comparison"]
+    assert block["id_suffix"] == SUFFIX
+    assert block["runs"] == {
+        f"{rid}-{SUFFIX}": {"scenario": SCENARIO_OF[rid], "pair": PAIR_OF[rid], "order_in_pair": 1 + i % 2}
+        for i, rid in enumerate(IDS)
+    }
+    assert block["pair_order"] == [list(SUFFIXED[0:2]), list(SUFFIXED[2:4]), list(SUFFIXED[4:6])]
+    for entry in plan["runs"]:
+        assert entry["comparison"] == block["runs"][entry["run_id"]]
+    assert result.stdout.splitlines()[:6] == [
+        f"{rid}-{SUFFIX} {SEEDS[PAIR_OF[rid] - 1]} {SCENARIO_OF[rid]}" for rid in IDS]
+
+
+def test_supersedes_records_the_earlier_plan_with_its_sha256_and_ids(series):
+    first, second, result = series
+    raw = first.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    plan = load_campaign_plan(second)
+    assert plan["comparison"]["supersedes"] == {
+        "path": str(first.absolute()), "sha256": digest, "run_ids": list(IDS)}
+    lines = result.stdout.splitlines()
+    assert len(lines) == 8 and lines[6] == f"supersedes {first.absolute()} sha256={digest}"
+    assert lines[7].startswith("wrote ") and f"sha256={hashlib.sha256(second.read_bytes()).hexdigest()}" in lines[7]
+    assert first.read_bytes() == raw, "the superseded plan is read only"
+    assert second.read_text(encoding="utf-8") == plan_to_json(plan)
+    assert plan_to_json(plan) == plan_to_json(_load_tool().build_plan(
+        list(SEEDS), SUFFIX, {"path": str(first.absolute()), "sha256": digest, "run_ids": list(IDS)}))
+
+
+def test_a_run_id_the_superseded_plan_holds_is_refused(series, tmp_path):
+    first, _, _ = series
+    result, out = _write(tmp_path, options=("--supersedes", str(first)))
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert result.stdout == ""
+    for rid in IDS:
+        assert f"the run id {rid!r} is held by the superseded plan" in result.stderr
+    assert result.stderr.rstrip().endswith("nothing was written")
+    assert not out.exists() and not out.parent.exists()
+
+
+@pytest.mark.parametrize("content, phrase", [
+    (None, "could not be read"),
+    (b"not json\n", "could not be read"),
+    (b"\xff\xfe\x00", "could not be read"),
+    (b'{"a": 1}\n', "holds no 'runs' list"),
+    (b'{"runs": "x"}\n', "holds no 'runs' list"),
+])
+def test_an_unreadable_superseded_plan_is_refused(tmp_path, content, phrase):
+    earlier = tmp_path / "earlier.json"
+    if content is not None:
+        earlier.write_bytes(content)
+    result, out = _write(tmp_path, options=("--id-suffix", SUFFIX, "--supersedes", str(earlier)))
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert phrase in result.stderr, result.stderr
+    assert result.stderr.rstrip().endswith("nothing was written")
+    assert not out.exists() and not out.parent.exists()
+
+
+@pytest.mark.parametrize("suffix", ["", "a_02", "a.02", "a 02", "x" * 17, "é"])
+def test_an_invalid_id_suffix_is_refused(tmp_path, suffix, tool):
+    result, out = _write(tmp_path, options=("--id-suffix", suffix))
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert "id suffix" in result.stderr and result.stderr.rstrip().endswith("nothing was written")
+    assert not out.exists() and not out.parent.exists()
+    with pytest.raises(ValueError):
+        tool.build_plan(list(SEEDS), suffix)
+
+
+def test_a_sixteen_character_suffix_is_accepted(tmp_path):
+    result, out = _write(tmp_path, options=("--id-suffix", "A-1" + "z" * 13))
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert load_campaign_plan(out)["runs"][0]["run_id"] == "cmp-p1-yocto-A-1" + "z" * 13

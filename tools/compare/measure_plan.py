@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the six-entry input plan of the minimal Yocto-vs-Debian-13 comparison.
 
-    measure_plan.py write --out PATH --seeds S1 S2 S3
+    measure_plan.py write --out PATH --seeds S1 S2 S3 [--id-suffix SUFFIX] [--supersedes PLAN]
 
 The comparison runs the existing nominal condition (600 s measured at 11.2
 msg/s after a 120 s warm-up, protocol.py) six times through the existing
@@ -39,27 +39,38 @@ entry's named fields only, echoes the whole entry into the run's manifest
 (``config.plan_entry``) and rewrites the plan with the entry's keys intact
 when it updates a status (``update_plan_status``).
 
+A new series takes new identifiers with the same seeds and order:
+``--id-suffix`` appends ``-SUFFIX`` (1-16 letters, digits or hyphens) to
+every run id (``cmp-p1-yocto-a02``), and ``--supersedes`` names the earlier
+sealed plan this one replaces, recorded in the ``comparison`` block as its
+absolute path, the sha256 of its bytes and its run ids; a new run id it
+holds is refused, so two series never share an identifier. Without them,
+``id_suffix`` and ``supersedes`` are null.
+
 ``write`` refuses, with nothing written (exit 2): other than three seeds; a
 seed that is not a whole number in [0, 2**32); a seed repeated across pairs;
-an output that exists (the plan is write-once; the open itself refuses a
-target that exists). It writes the canonical serialisation
-(``plan_to_json``) and prints one line per entry (run id, seed, scenario)
+a suffix not as above; a superseded plan that cannot be read, is not JSON or
+holds no ``runs`` list, or one holding a new run id; an output that exists
+(the plan is write-once; the open itself refuses a target that exists). It
+writes the canonical serialisation (``plan_to_json``) and prints one line
+per entry (run id, seed, scenario), the superseded plan when one is named,
 and the file's sha256.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-from egw_experiments.plan_gen import PLAN_VERSION, _run_entry, plan_to_json
+from egw_experiments.plan_gen import PLAN_VERSION, RUN_ID_RE, _run_entry, plan_to_json
 from egw_experiments.protocol import CONDITIONS_BY_ID, PROTOCOL_VERSION
 
-USAGE = "measure_plan.py write --out PATH --seeds S1 S2 S3"
+USAGE = "measure_plan.py write --out PATH --seeds S1 S2 S3 [--id-suffix SUFFIX] [--supersedes PLAN]"
 CONDITION_ID = "nominal"
 YOCTO, DEBIAN = "yocto", "debian13"
 #: The three pairs in execution order, each the order of its two runs.
@@ -74,23 +85,37 @@ MASTER_SEED_NOTE = (
     "nothing from it; the seed of every entry is its pair's (pair_seeds), set by this tool."
 )
 WHOLE_NUMBER = re.compile(r"[0-9]+")
+SUFFIX_RE = re.compile(r"[A-Za-z0-9-]{1,16}")
 SEED_LIMIT = 2**32
 
 
-def run_id(pair: int, scenario: str) -> str:
-    return f"cmp-p{pair}-{scenario}"
+def run_id(pair: int, scenario: str, suffix: str | None = None) -> str:
+    base = f"cmp-p{pair}-{scenario}"
+    return base if suffix is None else f"{base}-{suffix}"
 
 
-def build_plan(seeds: Sequence[int]) -> dict[str, Any]:
+def run_ids(suffix: str | None = None) -> list[str]:
+    """The six run ids in execution order."""
+    return [run_id(pair, s, suffix) for pair, scenarios in enumerate(PAIRS, start=1) for s in scenarios]
+
+
+def build_plan(seeds: Sequence[int], id_suffix: str | None = None,
+               supersedes: dict[str, Any] | None = None) -> dict[str, Any]:
     """The plan of the pair seeds ``seeds`` (S1, S2, S3): six entries in pair
-    order, the seed of pair k being Sk in both of its runs."""
+    order, the seed of pair k being Sk in both of its runs; ``supersedes`` is
+    the record of the earlier plan (:func:`read_supersedes`) or None."""
     if len(seeds) != len(PAIRS) or len(set(seeds)) != len(seeds):
         raise ValueError(f"{len(PAIRS)} distinct pair seeds are needed, got {list(seeds)}")
+    if id_suffix is not None and not SUFFIX_RE.fullmatch(id_suffix):
+        raise ValueError(f"the id suffix {id_suffix!r} is not 1-16 letters, digits or hyphens")
     condition = CONDITIONS_BY_ID[CONDITION_ID]
     runs: list[dict[str, Any]] = []
     for pair, scenarios in enumerate(PAIRS, start=1):
         for position, scenario in enumerate(scenarios, start=1):
-            entry = _run_entry(condition, run_id(pair, scenario), pair, seeds[0], condition.rate_msg_s)
+            rid = run_id(pair, scenario, id_suffix)
+            if not RUN_ID_RE.fullmatch(rid):
+                raise ValueError(f"the run id {rid!r} falls outside CONTRACTS 2 ({RUN_ID_RE.pattern})")
+            entry = _run_entry(condition, rid, pair, seeds[0], condition.rate_msg_s)
             entry["seed"] = seeds[pair - 1]  # the pair's seed, equal in both distributions
             entry["order"] = len(runs) + 1
             entry["comparison"] = {"scenario": scenario, "pair": pair, "order_in_pair": position}
@@ -103,9 +128,12 @@ def build_plan(seeds: Sequence[int]) -> dict[str, Any]:
         "runs": runs,
         "comparison": {
             "purpose": PURPOSE,
+            "id_suffix": id_suffix,
+            "supersedes": supersedes,
             "master_seed": MASTER_SEED_NOTE,
             "pair_seeds": {str(pair): seed for pair, seed in enumerate(seeds, start=1)},
-            "pair_order": [[run_id(pair, s) for s in scenarios] for pair, scenarios in enumerate(PAIRS, start=1)],
+            "pair_order": [[run_id(pair, s, id_suffix) for s in scenarios]
+                           for pair, scenarios in enumerate(PAIRS, start=1)],
             "runs": {entry["run_id"]: dict(entry["comparison"]) for entry in runs},
         },
     }
@@ -125,6 +153,21 @@ def parse_seeds(tokens: Sequence[str]) -> tuple[list[int], list[str]]:
     if len(set(seeds)) != len(seeds):
         reasons.append(f"the pair seeds must differ: {list(tokens)}")
     return seeds, reasons
+
+
+def read_supersedes(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    """The record of the earlier plan at ``path`` (its absolute path, the
+    sha256 of its bytes, its run ids), or why it cannot be recorded."""
+    try:
+        raw = path.read_bytes()
+        plan = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, [f"the superseded plan {path} could not be read ({exc})"]
+    runs = plan.get("runs") if isinstance(plan, dict) else None
+    if not isinstance(runs, list) or not all(isinstance(e, dict) for e in runs):
+        return None, [f"the superseded plan {path} holds no 'runs' list of entries"]
+    return {"path": str(path.absolute()), "sha256": hashlib.sha256(raw).hexdigest(),
+            "run_ids": [e.get("run_id") for e in runs]}, []
 
 
 def write_plan(plan: dict[str, Any], out: Path) -> str:
@@ -153,17 +196,28 @@ def _stop(reasons: list[str]) -> int:
 
 def _write(args: argparse.Namespace) -> int:
     seeds, reasons = parse_seeds(args.seeds)
+    if args.id_suffix is not None and not SUFFIX_RE.fullmatch(args.id_suffix):
+        reasons.append(f"the id suffix {args.id_suffix!r} is not 1-16 letters, digits or hyphens")
+    supersedes = None
+    if args.supersedes is not None:
+        supersedes, problems = read_supersedes(args.supersedes)
+        reasons += problems
+    if supersedes is not None:
+        reasons += [f"the run id {rid!r} is held by the superseded plan {args.supersedes}"
+                    for rid in run_ids(args.id_suffix) if rid in supersedes["run_ids"]]
     if args.out.exists() or args.out.is_symlink():
         reasons.append(f"{args.out} exists: the plan is write-once and is not replaced")
     if reasons:
         return _stop(reasons)
-    plan = build_plan(seeds)
+    plan = build_plan(seeds, args.id_suffix, supersedes)
     try:
         digest = write_plan(plan, args.out)
     except OSError as exc:
         return _stop([f"{args.out} was not written ({exc})"])
     for entry in plan["runs"]:
         print(f"{entry['run_id']} {entry['seed']} {entry['comparison']['scenario']}")
+    if supersedes is not None:
+        print(f"supersedes {supersedes['path']} sha256={supersedes['sha256']}")
     print(f"wrote {args.out}: entries={len(plan['runs'])} sha256={digest}")
     return 0
 
@@ -175,6 +229,10 @@ def main(argv: list[str]) -> int:
     write.add_argument("--out", required=True, type=Path, help="the plan file (write-once)")
     write.add_argument("--seeds", required=True, nargs="+", metavar="S",
                        help="the three pair seeds, whole numbers in [0, 2**32), distinct; no default")
+    write.add_argument("--id-suffix", default=None, metavar="SUFFIX",
+                       help="appended as '-SUFFIX' to every run id (1-16 letters, digits or hyphens)")
+    write.add_argument("--supersedes", default=None, type=Path, metavar="PLAN",
+                       help="the earlier sealed plan this one replaces (read only; its run ids are refused)")
     args = parser.parse_args(argv)
     return _write(args)
 

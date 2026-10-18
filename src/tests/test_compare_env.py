@@ -94,6 +94,8 @@ SSH_STUB = r'''#!/usr/bin/env python3
 # Stub ssh: records the call; a command holding 'poweroff' ends the guest (the sleeper named in EGW_STUB_PIDFILE)
 # unless EGW_STUB_SSH_IGNORE_POWEROFF=1, a guest that does not act on it; anything else succeeds without effect.
 # EGW_STUB_SSH_RC, when set, is the exit code of every call (a guest whose sshd does not answer yet).
+# EGW_STUB_SSH_EXEC=1 runs the remote command (the last argument) locally with sh -c, so that the guest's
+# file system is this machine's: its stdout and exit status are the call's.
 import os
 import signal
 import sys
@@ -107,7 +109,37 @@ if any("poweroff" in a for a in args) and os.environ.get("EGW_STUB_SSH_IGNORE_PO
             os.kill(int(f.read().strip()), signal.SIGTERM)
     except (OSError, ValueError):
         pass
-sys.exit(int(os.environ.get("EGW_STUB_SSH_RC") or 0))
+if os.environ.get("EGW_STUB_SSH_RC"):
+    sys.exit(int(os.environ["EGW_STUB_SSH_RC"]))
+if os.environ.get("EGW_STUB_SSH_EXEC") == "1" and args:
+    import subprocess
+    sys.exit(subprocess.run(["sh", "-c", args[-1]]).returncode)
+sys.exit(0)
+'''
+
+SCP_STUB = r'''#!/usr/bin/env python3
+# Stub scp: copies local paths (the host part of egw@127.0.0.1:/path is dropped, the guest's file system being this
+# machine's). EGW_STUB_SCP_GROW_SRC=1 appends a line to the SOURCE after copying (a log still being written);
+# EGW_STUB_SCP_CORRUPT=1 appends a byte to the copy (a transfer that did not deliver the bytes read).
+import os
+import shutil
+import sys
+
+args = [a for a in sys.argv[1:] if not a.startswith("-")]
+with open(os.environ["EGW_STUB_CALLS"], "a", encoding="utf-8") as log:
+    log.write("scp " + " ".join(sys.argv[1:]) + "\n")
+src, dst = (a.split(":", 1)[1] if "@" in a else a for a in args[-2:])
+try:
+    shutil.copyfile(src, dst)
+except OSError as exc:
+    print(f"stub scp: {exc}", file=sys.stderr)
+    sys.exit(1)
+if os.environ.get("EGW_STUB_SCP_GROW_SRC") == "1":
+    with open(src, "a", encoding="utf-8") as f:
+        f.write("{\"late\": true}\n")
+if os.environ.get("EGW_STUB_SCP_CORRUPT") == "1":
+    with open(dst, "ab") as f:
+        f.write(b"x")
 '''
 
 QEMU_IMG_STUB = r'''#!/bin/sh
@@ -176,7 +208,7 @@ class Bench:
         self.deploy = tmp_path / "deploy"
         for directory in (self.bin, self.root, self.scenarios, self.exec_dir, self.home, self.deploy):
             directory.mkdir()
-        for name, text in (("qemu-system-aarch64", QEMU_STUB), ("ssh", SSH_STUB), ("qemu-img", QEMU_IMG_STUB),
+        for name, text in (("qemu-system-aarch64", QEMU_STUB), ("ssh", SSH_STUB), ("scp", SCP_STUB), ("qemu-img", QEMU_IMG_STUB),
                            ("mkfs.ext4", MKFS_STUB), ("blkid", BLKID_STUB), ("pgrep", PGREP_STUB), ("ss", SS_STUB)):
             path = self.bin / name
             path.write_text(text, encoding="utf-8")
@@ -226,6 +258,9 @@ class Bench:
             "EGW_STUB_QEMU_FAIL": "",
             "EGW_STUB_SSH_IGNORE_POWEROFF": "",
             "EGW_STUB_SSH_RC": "",
+            "EGW_STUB_SSH_EXEC": "",
+            "EGW_STUB_SCP_GROW_SRC": "",
+            "EGW_STUB_SCP_CORRUPT": "",
             "MOSQUITTO_SIMULATOR_PASSWORD": SECRET,
             "EGW_MQTT_PASSWORD": SECRET,
         })

@@ -85,12 +85,17 @@ printf '%s' "$SEED" | grep -Eq '^[0-9]{1,10}$' || die "plan entry '$RID' carries
 for tool in ssh scp curl ss python3 sha256sum cp git; do command -v "$tool" > /dev/null 2>&1 || die "host tool missing: $tool"; done
 [ -x "$PY" ] || die "venv python missing: $PY (EGW_EXEC_VENV)"
 "$PY" -c 'import egw_experiments, egw_simulator' > /dev/null 2>&1 || die "egw_experiments/egw_simulator are not importable from $PY"
+FUNC_RID=$RID.func
+FUNC_SEED=$("$PY" -c 'import sys; from egw_experiments.plan_gen import derive_run_seed; print(derive_run_seed(int(sys.argv[1]), sys.argv[2]))' "$SEED" "$FUNC_RID" 2> /dev/null | tr -dc '0-9')
+[ -n "$FUNC_SEED" ] || die "the functional seed could not be derived from $SEED and $FUNC_RID with $PY"
 [ -r "$SECRETS" ] || die "secrets file missing or unreadable: $SECRETS"
 n=$(grep -v "^[[:space:]]*#" "$SECRETS" | grep -c CHANGE_ME); [ "$n" = 0 ] || die "placeholders remain in $SECRETS"
 [ -r "$HELPERS" ] || die "the runbook helper file is not readable: $HELPERS (the drain helper lives there)"
 [ -s "$BASE/SHA256SUMS" ] && [ -s "$BASE/root.qcow2" ] && [ -s "$BASE/data.img" ] || die "no measured base for $SCENARIO: run measure_base.sh $SCENARIO first ($BASE)"
 [ -s "$HERE/guest_meminfo_sampler.sh" ] || die "guest_meminfo_sampler.sh missing beside this script"
 [ -s "$REPO/tools/session/proof_hook_drained.sh" ] || die "tools/session/proof_hook_drained.sh missing in $REPO"
+[ -s "$REPO/tools/session/nominal_account.py" ] || die "tools/session/nominal_account.py missing in $REPO"
+[ -s "$HERE/drain_hook.sh" ] || die "drain_hook.sh missing beside this script"
 [ -s "$REPO/src/deployment/scripts/fetch-collector-output.sh" ] || die "fetch-collector-output.sh missing in $REPO"
 [ ! -e "$RUN" ] || die "run directory exists: $RUN (never replaced)"
 [ ! -e "$HARNESS/raw/$RID" ] || die "harness raw directory exists: $HARNESS/raw/$RID (never replaced)"
@@ -105,12 +110,12 @@ mkdir -p "$RUN" "$BIN" "$HARNESS" "$MEASURE/logs" || die "cannot create $RUN"
 LOG=$RUN/measure.log
 STEPS=$RUN/steps.tsv
 printf 'n\tstep\trc\tseconds\n' > "$STEPS"
+exec 3>&1 4>&2
 exec > >(tee -a "$LOG") 2>&1
+TEE_PID=$!
 echo "MEASURE $SCENARIO $RID: $(utc_now) run dir $RUN"
 COMMIT=$(git -C "$REPO" rev-parse HEAD 2> /dev/null || echo unknown)
 DIRTY=$(git -C "$REPO" status --porcelain 2> /dev/null | wc -l)
-FUNC_RID=$RID.func
-FUNC_SEED=$("$PY" -c 'import sys; from egw_experiments.plan_gen import derive_run_seed; print(derive_run_seed(int(sys.argv[1]), sys.argv[2]))' "$SEED" "$FUNC_RID")
 echo "commit $COMMIT (dirty lines $DIRTY) seed $SEED functional run $FUNC_RID seed $FUNC_SEED pair ${PAIR:-?} order ${ORDER:-?}"
 
 # ssh/scp wrappers with this scenario's settings: single executables, as the harness hooks and the
@@ -147,24 +152,6 @@ step() {   # step NAME CMD...: run, keep rc and duration; a non-zero rc marks th
 }
 must() { step "$@" || { FAILED=1; echo "  -> instrumentation step failed: $1"; return 1; }; }
 jnum() { [ -n "${1:-}" ] && [ "$1" != null ] && printf '%s' "$1" || printf 'null'; }
-fetch_live() {   # fetch_live REMOTE LOCAL: copy a file that may still grow, then verify the copied prefix
-    local remote=$1 local=$2 size rsum lsum
-    "$GSCP" -q "egw@127.0.0.1:$remote" "$local" || return 1
-    size=$(stat -c %s "$local")
-    rsum=$("$GSSH" egw@127.0.0.1 "head -c $size '$remote' | sha256sum" 2> /dev/null | cut -d' ' -f1) || return 1
-    lsum=$(sha256sum "$local" | cut -d' ' -f1)
-    [ -n "$rsum" ] && [ "$rsum" = "$lsum" ] || { echo "fetch_live: the copied prefix of $remote does not verify"; return 1; }
-    echo "fetch_live: $remote copied ($size bytes, prefix verified; the file may have grown since)"
-}
-fetch_file() {   # fetch_file REMOTE LOCAL: copy a guest file and verify its sha256 against the guest's
-    local remote=$1 local=$2 rsum lsum
-    rsum=$("$GSSH" egw@127.0.0.1 "sha256sum '$remote'" 2> /dev/null | cut -d' ' -f1) || return 1
-    "$GSCP" -q "egw@127.0.0.1:$remote" "$local" || return 1
-    lsum=$(sha256sum "$local" | cut -d' ' -f1)
-    [ -n "$rsum" ] && [ "$rsum" = "$lsum" ] || { echo "fetch_file: sha256 differs for $remote"; return 1; }
-    return 0
-}
-
 # --- the tunnel to the guest's loopback APIs (controller 8000, Ditto 8080), as functional_check.sh ----
 TUNNEL_OPEN=0
 tunnel_ssh() { ssh -S "$TUNNEL_CTL" -O "$1" -o LogLevel=ERROR egw@127.0.0.1; }
@@ -205,7 +192,7 @@ rec = {
         "drain_start": $(jnum "${T[drain_start]:-}"), "drain_end": $(jnum "${T[drain_end]:-}"),
         "stop_requested": $(jnum "${T[stop_requested]:-}"), "qemu_gone": $(jnum "${T[qemu_gone]:-}")
     },
-    "functional": {"run_id": "$FUNC_RID", "seed": $FUNC_SEED, "result": "$FUNC_RESULT"},
+    "functional": {"run_id": "$FUNC_RID", "seed": $(jnum "$FUNC_SEED"), "result": "$FUNC_RESULT"},
     "harness": {"run_id": "$RID", "exit": $HARNESS_RC, "base_dir": "$HARNESS", "raw_dir": "$HARNESS/raw/$RID"},
     "drain": {"result": "$DRAIN_RESULT", "exit": $DRAIN_RC, "quiet_s": $DRAIN_QUIET_S, "limit_s": $DRAIN_LIMIT_S},
     "stop_exit": $STOP_RC, "instrumentation_failed": $FAILED
@@ -214,15 +201,17 @@ json.dump(rec, open("$RUN/timeline.json", "w", encoding="utf-8"), indent=2)
 open("$RUN/timeline.json", "a", encoding="utf-8").write("\n")
 PY
 }
-seal() {
-    local f
+seal() {   # after the log is finished: copies, timeline, SHA256SUMS (an earlier seal is kept, a re-seal is named)
+    local f sums=$RUN/SHA256SUMS
+    [ ! -e "$sums" ] || sums=$RUN/SHA256SUMS.reseal-$(stamp)
     for f in "$S_MANIFEST" "$S_DIR/state/argv.txt" "$S_DIR/state/provision.json" "$S_DIR/state/launch" "$S_DIR/state/ssh_ok" "$S_DIR/state/started_utc"; do
         [ -e "$f" ] && cp -p "$f" "$RUN/" 2> /dev/null
     done
     cp -p "$S_DIR"/logs/up-*.log "$S_DIR"/logs/provision-*.log "$S_DIR"/logs/stop-*.log "$RUN/" 2> /dev/null
     [ -s "$S_DIR/state/console" ] && cp -p "$(cat "$S_DIR/state/console")" "$RUN/" 2> /dev/null
-    write_timeline
-    (cd "$RUN" && find . -type f ! -name SHA256SUMS | LC_ALL=C sort | sed 's#^\./##' | xargs -d '\n' sha256sum > SHA256SUMS)
+    write_timeline && [ -s "$RUN/timeline.json" ] || { echo "STOP: timeline.json could not be written; not sealed" >&3; return 1; }
+    (cd "$RUN" && find . -type f ! -name 'SHA256SUMS*' | LC_ALL=C sort | sed 's#^\./##' | xargs -d '\n' sha256sum > "$sums" && sha256sum -c --quiet "$sums") || { echo "STOP: the seal of $RUN did not verify" >&3; return 1; }
+    echo "sealed: $(basename "$sums") $(wc -l < "$sums") files $(sha256sum "$sums" | cut -c1-16)" >&3
 }
 close_guest() {
     tunnel_close
@@ -232,10 +221,14 @@ close_guest() {
     if own_pid > /dev/null 2>&1; then STOP_RC=5; echo "STOP: the guest is still running after the controlled stop; it was not killed"; else mark qemu_gone; fi
     step qemu-others bash -c '. "$1/lib.sh"; scenario_load "$2"; o=$(qemu_others); rc=$?; case $rc in 0) echo "other QEMU present:"; echo "$o"; exit 1 ;; 1) echo "no qemu-system-aarch64 left"; exit 0 ;; *) echo "pgrep could not answer"; exit 2 ;; esac' _ "$HERE" "$SCENARIO" || FAILED=1
 }
-finish() {   # finish RESULT: seal and end with the exit code the record implies
-    seal
+finish() {   # finish RESULT: the last lines of the log, the log closed, then the seal; exit code from the record
+    local result=$1
     echo "== steps"; cat "$STEPS"
-    echo "MEASURE $SCENARIO $RID: result=$1 harness_exit=$HARNESS_RC drain=$DRAIN_RESULT stop_exit=$STOP_RC out=$RUN"
+    echo "MEASURE $SCENARIO $RID: result=$result harness_exit=$HARNESS_RC drain=$DRAIN_RESULT stop_exit=$STOP_RC out=$RUN"
+    exec 1>&3 2>&4          # nothing more reaches measure.log: tee gets EOF and exits after flushing
+    wait "$TEE_PID" 2> /dev/null || true
+    seal || FAILED=1
+    echo "MEASURE $SCENARIO $RID: result=$result harness_exit=$HARNESS_RC drain=$DRAIN_RESULT stop_exit=$STOP_RC out=$RUN"
     [ "$STOP_RC" = 0 ] || exit 5
     [ "$FAILED" = 0 ] || exit 1
     exit 0
@@ -245,6 +238,9 @@ finish() {   # finish RESULT: seal and end with the exit code the record implies
 restore_disks() {
     rm -f "$S_DIR/state/launch" "$S_DIR/state/ssh_ok" "$S_DIR/state/provision.json"
     cp --sparse=always "$BASE/root.qcow2" "$S_ROOT_DISK" && cp --sparse=always "$BASE/data.img" "$S_DATA_DISK" || return 1
+    # The base copies are read-only (0444) and cp gives a NEW destination the source's mode: the work
+    # copies must be writable for QEMU, the bases stay as they are.
+    chmod 0644 "$S_ROOT_DISK" "$S_DATA_DISK" || return 1
     local want_root want_data
     want_root=$(awk '$2 == "root.qcow2" { print $1 }' "$BASE/SHA256SUMS")
     want_data=$(awk '$2 == "data.img" { print $1 }' "$BASE/SHA256SUMS")
@@ -253,7 +249,7 @@ restore_disks() {
     cp -p "$BASE/base.json" "$RUN/base.json" 2> /dev/null
     return 0
 }
-must restore-disks restore_disks || { echo "nothing started"; FAILED=1; write_timeline; exit 2; }
+must restore-disks restore_disks || { echo "nothing started"; finish restore-failed; }
 
 # --- 2. boot and stack by the final command ----------------------------------------------------------------
 if ! must tf-apply env EGW_COMPARE_HEALTH_STEP_S="$HEALTH_STEP_S" EGW_COMPARE_SSH_STEP_S="$SSH_STEP_S" bash "$HERE/tf.sh" "$SCENARIO" apply; then
@@ -282,10 +278,27 @@ fi
 # --- 4. rest: memory of the whole guest at 1 Hz, then df and the SUT record ----------------------------------
 must tunnel-open tunnel_open || { close_guest; finish tunnel-failed; }
 must sampler-copy "$GSCP" -q "$HERE/guest_meminfo_sampler.sh" "egw@127.0.0.1:/tmp/guest_meminfo_sampler.sh" || { close_guest; finish sampler-copy-failed; }
+clock_offset() {   # guest wall clock against the host's: epoch seconds, host before/after one ssh round trip
+    local h0 g h1
+    h0=$(date -u +%s.%N); g=$(gssh 'date -u +%s') || return 1; h1=$(date -u +%s.%N)
+    python3 - "$RUN/clock_offset.json" "$h0" "$g" "$h1" "$(utc_now)" << 'PY'
+import json, sys
+path, h0, g, h1, utc = sys.argv[1:]
+h0, h1, g = float(h0), float(h1), int(g)
+mid = (h0 + h1) / 2
+rec = {"utc": utc, "host_epoch_before_s": h0, "guest_epoch_s": g, "host_epoch_after_s": h1,
+       "offset_guest_minus_host_s": round(g - mid, 3), "uncertainty_s": round((h1 - h0) / 2 + 1.0, 3),
+       "note": "guest `date +%s` has whole-second resolution (+1 s in the uncertainty); the sampler stamps guest epoch seconds"}
+json.dump(rec, open(path, "w", encoding="utf-8"), indent=2)
+open(path, "a", encoding="utf-8").write("\n")
+print(rec["offset_guest_minus_host_s"], rec["uncertainty_s"])
+PY
+}
+must clock-offset clock_offset || { close_guest; finish clock-offset-failed; }
 mark rest_start
 must rest "$GSSH" egw@127.0.0.1 "sh /tmp/guest_meminfo_sampler.sh /tmp/meminfo-$RID-rest.csv --duration $REST_S --interval 1"
 mark rest_end
-must rest-fetch fetch_file "/tmp/meminfo-$RID-rest.csv" "$RUN/meminfo-rest.csv"
+must rest-fetch guest_fetch_file "/tmp/meminfo-$RID-rest.csv" "$RUN/meminfo-rest.csv"
 df_before_load() { "$GSSH" egw@127.0.0.1 'df -P -k / /var/lib/docker' > "$RUN/df-before-load.txt"; }
 host_disks() { bash "$HERE/compare_env.sh" disks "$SCENARIO" > "$RUN/host-disks-before-load.txt"; }
 sut_capture() {   # the same labels validate.sh records: an emulated ARM64 comparison guest, never native
@@ -322,16 +335,8 @@ echo "[$(utc_now)] harness exit=$HARNESS_RC (a non-zero exit is the harness's ve
 
 # --- 6. drain by the runbook helper, then the events after it -------------------------------------------------
 mark drain_start
-(
-    # The runbook helper file loads only with the deployment's .env exported (it refuses otherwise);
-    # exported here, in this subshell, and never printed.
-    set -a
-    # shellcheck disable=SC1090
-    . "$SECRETS" > /dev/null 2>&1 || exit 97
-    set +a
-    DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$DRAIN_LIMIT_S CTRL=$CTRL EGW_CLONE=$REPO \
-        exec bash "$REPO/tools/session/proof_hook_drained.sh" "$RID"
-) > "$RUN/drain.txt" 2>&1
+DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$DRAIN_LIMIT_S CTRL=$CTRL EGW_CLONE=$REPO \
+    bash "$HERE/drain_hook.sh" "$SECRETS" "$REPO/tools/session/proof_hook_drained.sh" "$RID" > "$RUN/drain.txt" 2>&1
 DRAIN_RC=$?
 mark drain_end
 if [ "$DRAIN_RC" -eq 0 ] && grep -q '^drained: queue_depth 0' "$RUN/drain.txt"; then DRAIN_RESULT=quiet
@@ -339,12 +344,18 @@ elif grep -q '^STOP: drained: no quiet window' "$RUN/drain.txt"; then DRAIN_RESU
 else DRAIN_RESULT=error; FAILED=1; fi
 printf '%s\tdrain\t%s\t%s\n' "$((N + 1))" "$DRAIN_RC" "$(awk -v a="${T[drain_start]}" -v b="${T[drain_end]}" 'BEGIN { printf "%.1f", b - a }')" >> "$STEPS"; N=$((N + 1))
 echo "[$(utc_now)] drain $DRAIN_RESULT (exit $DRAIN_RC)"
-step post-drain-events fetch_live "/opt/egw/deployment/data/events/$RID/events.jsonl" "$RUN/events.post-drain.jsonl" || FAILED=1
-step warmup-events fetch_live "/opt/egw/deployment/data/events/$RID.warmup/events.jsonl" "$RUN/events.warmup.jsonl" || true
+POST_DRAIN_FETCH=not-fetched
+if step post-drain-events guest_fetch_live "/opt/egw/deployment/data/events/$RID/events.jsonl" "$RUN/events.post-drain.jsonl"; then POST_DRAIN_FETCH=fetched; else FAILED=1; fi
+step warmup-events guest_fetch_live "/opt/egw/deployment/data/events/$RID.warmup/events.jsonl" "$RUN/events.warmup.jsonl" || true
+# Reconciliation of every published identity at the harness fetch and after the drain (the
+# existing accounting tool; the harness row is reported unchanged).
+accounting() { "$PY" "$REPO/tools/session/nominal_account.py" "$HARNESS/raw/$RID" "$RUN/events.post-drain.jsonl" "$RUN/accounting" "$POST_DRAIN_FETCH" > "$RUN/accounting.stdout.txt" 2> "$RUN/accounting.stderr.txt"; }
+mkdir -p "$RUN/accounting"
+step accounting accounting || FAILED=1
 
 # --- 7. final state, close ---------------------------------------------------------------------------------
 step load-sampler-stop "$GSSH" egw@127.0.0.1 "sudo -n systemctl stop egw-meminfo-$RID" || FAILED=1
-step load-fetch fetch_file "/tmp/meminfo-$RID-load.csv" "$RUN/meminfo-load.csv" || FAILED=1
+step load-fetch guest_fetch_file "/tmp/meminfo-$RID-load.csv" "$RUN/meminfo-load.csv" || FAILED=1
 metrics_final() { curl -fsS --max-time 30 "$CTRL/metrics" > "$RUN/metrics.final.json"; }
 guest_final() {
     "$GSSH" egw@127.0.0.1 'df -P -k / /var/lib/docker; echo; free -k; echo; docker ps -a --format "{{.Names}} {{.Status}}"; echo; echo oom_lines=$(sudo -n dmesg 2>/dev/null | grep -ci "out of memory")' > "$RUN/guest-final.txt"
