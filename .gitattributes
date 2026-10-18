@@ -45,3 +45,8 @@ docs/evidence/finite-proof-r03/** -text whitespace=-blank-at-eol,-blank-at-eof,-
 # transcripts and the guest-session records keep their carriage returns, and
 # every file is covered by its package seal and by the capsule's outer seal.
 docs/evidence/g3-battery-2026-10/** -text whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+
+# Terraform (tools/compare)
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.hcl text eol=lf

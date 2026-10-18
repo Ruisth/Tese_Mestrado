@@ -61,3 +61,11 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# Terraform (tools/compare): working files and state never enter the repository
+.terraform/
+terraform.tfstate.d/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
