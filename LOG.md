@@ -5404,7 +5404,25 @@ is unchanged.
   fallbacks and a source-device check, with tests). Two operator lessons are
   recorded with the fixes: a driver launched from a `wsl.exe` session dies with
   it (drivers are now started with `setsid nohup`), and `validate.sh --resume`
-  continues on a guest already running rather than booting again. The Yocto
-  stack and functional phases remain to be validated; a second attempt needs
-  the student's word. Records: `tools/compare/README.md` section 9 and the
-  `output_test` package named there.
+  continues on a guest already running rather than booting again. Records:
+  `tools/compare/README.md` section 9 and the `output_test` package named
+  there.
+- **Simplified order and the final validation (2026-10-18, later the same
+  day).** The Project Manager replaced the planned demonstration menu with
+  two commands per scenario and authorised one validation of each by those
+  commands, the pending Yocto attempt included. `tf.sh <scenario> apply` now
+  runs `up.sh` behind the power resource — start, ssh within 450 s, the
+  idempotent provisioning, six healthy services and `/ready`, then
+  `ENVIRONMENT READY` with the guest left running — with no confirmation
+  prompt; `stop` is unchanged; a repeated `apply` changes nothing; a failed
+  one leaves the guest for inspection. Both scenarios then **passed every
+  phase by the final commands**: `yocto` ready 383 s after launch (ssh 22 s,
+  images 101 s, `up -d` 153 s, six healthy at +187 s, `/ready` at +195 s),
+  the second provisioning run skipped everything by marker, one event
+  accepted in 15.8 s with the twin updated, closed in 48 s; `debian13` ready
+  376 s after launch (ssh 46 s, tree and the five images already on this data disk from the afternoon run (skipped by marker), controller image present; `up -d` 194 s, six healthy at +238 s, `/ready` 503 at +250 s then 200 at +270 s), one event accepted
+  in 25.13 s, closed in 51 s. The order's completion criterion —
+  one distribution up with a working stack and down again with two
+  commands, no manual step between — holds for both, once each; nothing was
+  measured and nothing repeated. Records: README section 9; the decision
+  note and the sealed package in `output_test` (outside the repository).
