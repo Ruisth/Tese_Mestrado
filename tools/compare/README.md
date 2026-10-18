@@ -432,3 +432,25 @@ Memory is the whole gateway guest. Virtual capacity, image file size and space
 used in the guest are three different measures (`compare_env.sh disks`,
 `host-disks-before-load.txt`, `df-before-load.txt`). The validations of
 section 9 are not comparison results: their preparation differed.
+
+Two calculation rules of `measure_summary.py`, after the first measured
+execution showed the host wall clock stepping back 13 s inside a run:
+
+- **The load window is delimited on monotonic clocks only.** Its duration is
+  `finished_monotonic_ns − measured_started_monotonic_ns` of the harness
+  manifest (host clock); its position on the guest clock comes from the
+  controller marker the harness polls at the run end (`controller_marker`,
+  guest `monotonic_ns` paired with the host instant, lag within tolerance),
+  cross-checked against the message pairing `received_monotonic_ns −
+  publish_monotonic_ns` over at least 100 identities (agreement within 1 s).
+  Memory samples carry the guest's `/proc/uptime` and count only inside that
+  window. Without a demonstrable correspondence the window and every metric
+  that depends on it are left unavailable with the reason; nothing is filled
+  with zero and 600 s is never assumed. UTC stamps are reported, never used.
+- **Rates are estimates between two boundary samples.** The acceptance rate is
+  the difference of the controller's cumulative `accepted` between the last
+  metrics sample at or before each bound, both within 5 s of their bound, the
+  file ordered by the guest's monotonic clock and the counter never
+  decreasing; the covered span and both gaps are reported, and the figure is
+  named an estimate between samples, not an exact count inside the window.
+  The published rate is `sent_valid` over the monotonic load duration.

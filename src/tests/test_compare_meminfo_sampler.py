@@ -37,9 +37,18 @@ WRAPPERS = REPO_ROOT / "tools" / "test" / "make-busybox-wrappers.sh"
 if not SCRIPT.is_file():
     pytest.skip(f"{SCRIPT} is not in this tree", allow_module_level=True)
 
-HEADER = "ts_utc,epoch_s,mem_total_kb,mem_available_kb,mem_used_kb"
+HEADER = "ts_utc,epoch_s,uptime_s,mem_total_kb,mem_available_kb,mem_used_kb"
 TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+UPTIME_RE = re.compile(r"^\d+(\.\d+)?$")
 END_RE = re.compile(r"^# end epoch_s=(\d+) samples=(\d+)$")
+
+
+def host_uptime_s() -> float | None:
+    """This host's /proc/uptime first field: what every shell under test, busybox included, reads."""
+    try:
+        return float(Path("/proc/uptime").read_text(encoding="ascii").split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
 
 # The image's busybox: a ready wrapper directory, else the integrated build's rootfs and
 # qemu-aarch64 at the paths make-busybox-wrappers.sh documents (EGW_YOCTO_BUILD overrides).
@@ -125,17 +134,26 @@ def parse(path: Path) -> tuple[list[str], list[list[str]], list[str]]:
 
 def check_rows(rows: list[list[str]]) -> None:
     now = time.time()
+    host_up = host_uptime_s()
+    previous_up = None
     for row in rows:
-        assert len(row) == 5, row
-        ts, epoch, total, avail, used = row
+        assert len(row) == 6, row
+        ts, epoch, up, total, avail, used = row
         assert TS_RE.match(ts), row
         for cell in (epoch, total, avail, used):
             assert cell.isdigit(), row
+        assert UPTIME_RE.match(up), row
         assert int(used) == int(total) - int(avail), row
         assert 0 <= int(avail) <= int(total), row
         assert abs(int(epoch) - now) < 3600, row
         stamped = datetime.datetime.fromtimestamp(int(epoch), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         assert stamped == ts, f"ts_utc is not the UTC rendering of epoch_s: {row}"
+        # uptime_s is the guest's monotonic clock: it never goes back, and here it is this
+        # host's /proc/uptime, read moments ago.
+        assert previous_up is None or float(up) >= previous_up, rows
+        previous_up = float(up)
+        if host_up is not None:
+            assert 0 <= host_up - float(up) < 600, (row, host_up)
 
 
 @pytest.mark.parametrize("shell", SHELLS)

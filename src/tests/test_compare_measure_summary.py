@@ -3,25 +3,31 @@ measurement.
 
 A synthetic measurement root is built with six runs (three per scenario, in the
 Y-D-D-Y-Y-D pair order) whose inputs carry values chosen so that every derived figure
-is known in advance: the host-monotonic deltas; the KiB-to-MiB conversion; a harness
-manifest with a 600 s measured window and a controller-metrics counter that climbs by a
-known step per second across it, so the accepted count inside the window is exact; a
-non-zero (and once negative) guest-minus-host clock offset, with sampler lines placed
-before, inside and after the converted window so that only the inside ones may count;
-accounting buckets with distinct values; the two df mount points; and a per-run CSV
-written under the harness analyser's own column list (imported, so that a renamed
-column breaks these cases rather than the tool silently). Runs with a missing sampler
-file, a null `ready`, no clock offset, no harness raw directory, no per-run row, no
-accounting, or an accounting whose post-drain tail was not read must leave the cells
-concerned empty, never zero, with a WARNING naming the missing input. The tool runs
-under this interpreter on any host; nothing here touches a guest or a real measurement.
+is known in advance. The measured window is built on the two monotonic clocks the tool
+pairs: a harness manifest with host monotonic start/finish 600.1 s apart, a controller
+marker giving the guest's monotonic instant at the run end, and host/guest event logs
+whose 120 shared message ids reproduce that correspondence to 5 ms; the sampler's lines
+carry `uptime_s` values before, inside and after the window so that only the inside ones
+may count, and the controller metrics climb by a known step per second, so that the
+estimate between the boundary rows and both gaps are exact. One run has a UTC window 13 s
+shorter than the monotonic one (the host wall clock stepped back), which must leave the
+window available and be reported; one has a marker that is not ok and one a pairing
+discrepancy of 2 s (window unavailable, with the reason); one has a 20 s hole in the
+metrics before the window end (rate unavailable, memory still bounded). Further cases
+mutate a complete run for each remaining refusal: marker lag above tolerance, fewer than
+100 pairs, missing monotonic fields, a hole before the window start, unordered metrics, a
+decreasing counter. The per-run CSV is written under the harness analyser's own column
+list (imported, so that a renamed column breaks these cases rather than the tool
+silently) and the accounting buckets are checked against the names the accounting script
+writes. Missing inputs must leave the cells concerned empty, never zero, with a WARNING
+naming them. The tool runs under this interpreter on any host; nothing here touches a
+guest or a real measurement.
 """
 from __future__ import annotations
 
 import csv
 import importlib.util
 import json
-import math
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -51,14 +57,31 @@ tool = load_tool()
 MIB_KB = 1024
 MEM_TOTAL_KB = 8_012_000
 PROBES = {"ssh": 2, "ready": 5, "accept": 1}
-# The harness's measured window, harness-host UTC, 600 s.
-WINDOW_START = datetime(2026, 10, 20, 10, 2, 0, tzinfo=timezone.utc)
-WINDOW_END = datetime(2026, 10, 20, 10, 12, 0, tzinfo=timezone.utc)
-S = WINDOW_START.timestamp()
-E = WINDOW_END.timestamp()
 OUTSIDE_MIB = 2000
 PARTIAL_NOTE = ("the post-drain event log is on disk but its fetch did not succeed: what it "
                 "holds may be a partial tail, and no figure is claimed from it")
+
+# The measured window. Host CLOCK_MONOTONIC (ns): measured start and finish 600.1 s apart.
+# Guest CLOCK_MONOTONIC (ns): the controller's instant polled at the run end, 1108.0 s.
+# So the window on the guest clock is [507.9, 1108.0] s and the true guest-minus-host
+# offset is G_END - FIN = -4492.1 s.
+H0_NS = 5_000_000_000_000
+D_NS = 600_100_000_000
+FIN_NS = H0_NS + D_NS
+G_END_NS = 1_108_000_000_000
+OFFSET_NS = G_END_NS - FIN_NS
+START_GUEST_S = 507.9
+END_GUEST_S = 1108.0
+UTC_START = datetime(2026, 10, 20, 10, 2, 0, tzinfo=timezone.utc).timestamp()
+# Guest uptime_s of the seven load-phase sampler lines: two before, three inside, two after.
+LOAD_UPTIMES_BEFORE = [507.0, 507.5]
+LOAD_UPTIMES_INSIDE = [508.0, 800.0, 1107.5]
+LOAD_UPTIMES_AFTER = [1108.5, 1200.0]
+# Controller metrics: row k at guest 500.4 + k s, so the boundary rows are k=7 (507.4 s,
+# 0.5 s before the start) and k=607 (1107.4 s, 0.6 s before the end), 600.0 s apart.
+METRICS_BASE_NS = 500_400_000_000
+METRICS_ROWS = 621
+START_ROW, END_ROW = 7, 607
 
 
 def utc_ms(epoch: float) -> str:
@@ -83,89 +106,129 @@ def df_text(root_used: int, docker_used: int | None) -> str:
     return "\n".join(lines) + "\n"
 
 
-def meminfo_text(samples: list[tuple[int, int]]) -> str:
-    """The sampler's file for (guest epoch, used kB) samples, with its closing line."""
-    rows = ["ts_utc,epoch_s,mem_total_kb,mem_available_kb,mem_used_kb"]
-    for epoch, used in samples:
-        rows.append(f"{utc_s(epoch)},{epoch},{MEM_TOTAL_KB},{MEM_TOTAL_KB - used},{used}")
-    rows.append(f"# end epoch_s={samples[-1][0] + 1} samples={len(samples)}")
+def meminfo_text(samples: list[tuple[float, int]], *, with_uptime: bool = True) -> str:
+    """The sampler's file for (guest uptime_s, used kB) samples, with its closing line."""
+    header = "ts_utc,epoch_s,uptime_s,mem_total_kb,mem_available_kb,mem_used_kb"
+    rows = [header if with_uptime else header.replace("uptime_s,", "")]
+    epoch = 1_792_490_000
+    for i, (up, used) in enumerate(samples):
+        cells = [utc_s(epoch + i), str(epoch + i)] + ([f"{up:.2f}"] if with_uptime else [])
+        cells += [str(MEM_TOTAL_KB), str(MEM_TOTAL_KB - used), str(used)]
+        rows.append(",".join(cells))
+    rows.append(f"# end epoch_s={epoch + len(samples)} samples={len(samples)}")
     return "\n".join(rows) + "\n"
 
 
-def load_samples(offset: float, inside_mib: list[float]) -> tuple[list[tuple[int, int]], list[int]]:
-    """Seven guest-stamped samples: two before the converted window, three inside, two after.
-
-    Returns (samples, the three inside epochs)."""
-    lo, hi = math.ceil(S + offset), math.floor(E + offset)
-    inside = [lo, (lo + hi) // 2, hi]
-    outside_before, outside_after = [lo - 10, lo - 1], [hi + 1, hi + 10]
-    samples = [(t, OUTSIDE_MIB * MIB_KB) for t in outside_before]
-    samples += list(zip(inside, mib(inside_mib)))
-    samples += [(t, OUTSIDE_MIB * MIB_KB) for t in outside_after]
-    return samples, inside
+def load_samples(inside_mib: list[float]) -> list[tuple[float, int]]:
+    samples = [(up, OUTSIDE_MIB * MIB_KB) for up in LOAD_UPTIMES_BEFORE]
+    samples += list(zip(LOAD_UPTIMES_INSIDE, mib(inside_mib)))
+    samples += [(up, OUTSIDE_MIB * MIB_KB) for up in LOAD_UPTIMES_AFTER]
+    return samples
 
 
-def metrics_text(step: int, base: int = 100) -> str:
-    """1 Hz controller metrics whose cumulative `accepted` climbs by `step` per sample.
+def metrics_text(step: int, *, omit: frozenset[int] = frozenset(), swap: bool = False,
+                 decrease_at: int | None = None, base: int = 100) -> str:
+    """1 Hz controller metrics whose cumulative `accepted` climbs by `step` per row.
 
-    Sample k is stamped S - 10.6 + k, so the last sample at or before the window start is
-    k=10 (S - 0.6) and the last at or before its end is k=610 (S + 599.4): 600 s apart,
-    600*step accepted between them, while samples after the window keep climbing."""
+    omit drops rows (a hole); swap exchanges rows 300 and 301 (not time-ordered); decrease_at
+    forces that row's counter below the start boundary's value."""
     header = ("ts_utc,accepted,rejected,duplicate,failed,dropped,queue_depth,received,in_progress,"
               "processing_errors,unacked,mqtt_connection,mqtt_subscribed,started_at,wall_utc,uptime_s,monotonic_ns")
-    rows = [header]
-    for k in range(0, 621):
-        t = S - 10.6 + k
-        accepted = base + step * k
-        rows.append(f"{utc_ms(t)},{accepted},0,0,0,0,3,{accepted + 5},1,0,4,1,true,"
-                    f"{utc_ms(S - 300)},{utc_ms(t + 0.3)},{300 + k:.3f},{int((300 + k) * 1e9)}")
-    return "\n".join(rows) + "\n"
+    rows = []
+    for k in range(METRICS_ROWS):
+        if k in omit:
+            continue
+        mono_ns = METRICS_BASE_NS + k * 1_000_000_000
+        accepted = base + step * k if k != decrease_at else base - 1
+        rows.append(f"{utc_ms(UTC_START - 7.5 + k)},{accepted},0,0,0,0,3,{accepted + 5},1,0,4,1,true,"
+                    f"{utc_ms(UTC_START - 300)},{utc_ms(UTC_START - 7.2 + k)},{500.4 + k:.3f},{mono_ns}")
+    if swap:
+        rows[300], rows[301] = rows[301], rows[300]
+    return "\n".join([header] + rows) + "\n"
 
 
-def manifest_doc(harness_id: str) -> dict[str, Any]:
-    return {
+def manifest_doc(harness_id: str, *, utc_span_s: float = 600.1, marker_ok: bool = True, lag_s: float = 0.03,
+                 tolerance_s: float = 2.0, started_ns: int | None = H0_NS, finished_ns: int | None = FIN_NS,
+                 end_ns: int | None = G_END_NS) -> dict[str, Any]:
+    doc: dict[str, Any] = {
         "run_id": harness_id,
-        "measured_window_utc": {"start": utc_ms(S), "end": utc_ms(E)},
+        "measured_window_utc": {"start": utc_ms(UTC_START), "end": utc_ms(UTC_START + utc_span_s)},
         "measured_window_clock": "harness-host wall clock; used ONLY to window 1 Hz samples",
-        "duration_s": 600,
-        "warmup_s": 120,
-        "confirmation_window_s": 60,
-        "started_utc": utc_ms(S - 120.2),
-        "finished_utc": utc_ms(E + 60.4),
+        "duration_s": 600, "warmup_s": 120, "confirmation_window_s": 60,
+        "started_utc": utc_ms(UTC_START - 120.2), "finished_utc": utc_ms(UTC_START + utc_span_s),
+        "measured_started_monotonic_ns": started_ns, "finished_monotonic_ns": finished_ns,
+        "controller_monotonic_at_run_end_ns": end_ns,
+        "controller_marker": {"error": None, "lag_s": lag_s, "lag_tolerance_s": tolerance_s, "monotonic_ns": end_ns,
+                              "ok": marker_ok, "polled_utc": utc_ms(UTC_START + utc_span_s),
+                              "url": "http://127.0.0.1:8000/metrics", "wall_utc": utc_ms(UTC_START + utc_span_s - 0.3)},
+        "confirmation_deadline_monotonic_ns": (end_ns or 0) + 60_000_000_000,
+        "confirmation_deadline_clock_domain": "controller",
     }
+    for key in ("measured_started_monotonic_ns", "finished_monotonic_ns", "controller_monotonic_at_run_end_ns"):
+        if doc[key] is None:
+            del doc[key]
+    return doc
+
+
+def event_logs(harness_id: str, *, pairs: int = 120, extra_offset_ns: int = 0) -> tuple[str, str]:
+    """(sent_events.jsonl, events.jsonl) with `pairs` shared message ids.
+
+    The guest receives each message OFFSET_NS + extra_offset_ns + (5 + i % 7) ms after the host
+    published it, so the minimum of received − publish is the true offset plus 5 ms."""
+    sent, events = [], []
+    for i in range(pairs):
+        publish = H0_NS + i * 5_000_000_000
+        mid = f"00000000-0000-5000-8000-{i:012d}"
+        sent.append({"run_id": harness_id, "message_id": mid, "device_uuid": "dev-1", "device_type": "smartwatch",
+                     "seq": i, "publish_monotonic_ns": publish, "puback_monotonic_ns": None, "intended_invalid": False})
+        received = publish + OFFSET_NS + extra_offset_ns + 5_000_000 + (i % 7) * 1_000_000
+        events.append({"run_id": harness_id, "message_id": mid, "device_uuid": "dev-1", "device_type": "smartwatch",
+                       "seq": i, "received_monotonic_ns": received, "ditto_ack_monotonic_ns": received + 150_000_000,
+                       "latency_ms": 150.0, "outcome": "accepted", "attempts": 1, "error": None})
+    # One record of another run, which must be ignored.
+    events.append({"run_id": "warmup-other", "message_id": sent[0]["message_id"], "received_monotonic_ns": 1,
+                   "outcome": "accepted"})
+    dump = lambda records: "".join(json.dumps(r) + "\n" for r in records)  # noqa: E731
+    return dump(sent), dump(events)
 
 
 # scenario, run_id, pair, order, seed, launch, (ssh_ok, ready, func_twin) relative to launch,
 # drain seconds, rest MiB, load MiB inside the window (None = file missing), df (root, docker),
-# drain result, harness exit, harness run id (None = no per-run row), clock offset
-# (None = clock_offset.json missing) and uncertainty, metrics step (None = no harness raw
-# directory), whether the raw directory lives elsewhere and is only declared by the timeline,
+# drain result, harness exit, harness run id (None = no per-run row), metrics step (None = no
+# harness raw directory), whether the raw directory lives elsewhere and is only declared by the
+# timeline, manifest keyword overrides, metrics keyword overrides, event-log keyword overrides,
 # accounting ("full", "sparse", "tail-not-read" or None = file missing).
 RUNS: list[dict[str, Any]] = [
     dict(scenario="yocto", run_id="cmp-yocto-p1", pair=1, order=1, seed=101, launch=10.0,
          ssh=22.5, ready=383.0, func=399.0, drain=60.5, rest=[400, 410, 420], load=[1100, 1120, 1110],
          df=(352256, 2097152), drain_result="quiet", harness_exit=0, harness_id="nominal-yocto-p1",
-         offset=3.5, uncertainty=0.05, step=7, raw_elsewhere=False, accounting="full"),
+         step=7, raw_elsewhere=False, manifest={}, metrics={}, events={}, accounting="full"),
+    # The host wall clock stepped back 13 s during the run: the UTC window is 587.1 s long.
     dict(scenario="debian13", run_id="cmp-debian13-p1", pair=1, order=2, seed=101, launch=20.0,
          ssh=46.0, ready=376.0, func=401.1, drain=61.0, rest=[600, 610, 620], load=[1200, 1500.5, 1210],
          df=(1572864, 2097152), drain_result="quiet", harness_exit=0, harness_id="nominal-debian13-p1",
-         offset=-2.25, uncertainty=0.04, step=8, raw_elsewhere=False, accounting="sparse"),
+         step=8, raw_elsewhere=False, manifest={"utc_span_s": 587.1}, metrics={}, events={}, accounting="sparse"),
     dict(scenario="debian13", run_id="cmp-debian13-p2", pair=2, order=1, seed=102, launch=5.0,
          ssh=47.5, ready=380.0, func=402.0, drain=59.0, rest=[590, 600, 610], load=[1190, 1200, 1210],
          df=(1572900, 2097200), drain_result="quiet", harness_exit=0, harness_id=None,
-         offset=1.0, uncertainty=0.06, step=None, raw_elsewhere=False, accounting="full"),
+         step=None, raw_elsewhere=False, manifest={}, metrics={}, events={}, accounting="full"),
+    # The controller marker is not ok: no correspondence between the clocks.
     dict(scenario="yocto", run_id="cmp-yocto-p2", pair=2, order=2, seed=102, launch=5.0,
          ssh=23.0, ready=390.0, func=405.0, drain=60.0, rest=[420, 430, 440], load=[1000, 1020, 1010],
          df=(352300, 2097300), drain_result="quiet", harness_exit=0, harness_id="nominal-yocto-p2",
-         offset=0.5, uncertainty=0.05, step=7, raw_elsewhere=False, accounting="tail-not-read"),
+         step=7, raw_elsewhere=False, manifest={"marker_ok": False}, metrics={}, events={}, accounting="tail-not-read"),
+    # The event pairs disagree with the marker by 2 s.
     dict(scenario="yocto", run_id="cmp-yocto-p3", pair=3, order=1, seed=103, launch=7.0,
          ssh=21.0, ready=None, func=None, drain=58.0, rest=[440, 450, 460], load=None,
          df=(352400, 2097400), drain_result="gave-up", harness_exit=1, harness_id="nominal-yocto-p3",
-         offset=0.75, uncertainty=0.05, step=6, raw_elsewhere=False, accounting=None),
+         step=6, raw_elsewhere=False, manifest={}, metrics={}, events={"extra_offset_ns": 2_000_000_000},
+         accounting=None),
+    # A 20 s hole in the metrics before the window end (rows 588..607 missing).
     dict(scenario="debian13", run_id="cmp-debian13-p3", pair=3, order=2, seed=103, launch=9.0,
-         ssh=45.0, ready=378.0, func=399.5, drain=62.0, rest=[610, 620, 630], load=[1210, 1500.5, 1220],
+         ssh=45.0, ready=378.0, func=399.5, drain=62.0, rest=[610, 620, 630], load=[1210, 1230, 1220],
          df=(1573000, None), drain_result="quiet", harness_exit=0, harness_id="nominal-debian13-p3",
-         offset=None, uncertainty=None, step=8, raw_elsewhere=True, accounting="full"),
+         step=8, raw_elsewhere=True, manifest={}, metrics={"omit": frozenset(range(588, 608))}, events={},
+         accounting="full"),
 ]
 
 HARNESS_ROWS: dict[str, dict[str, Any]] = {
@@ -242,26 +305,30 @@ def timeline(root: Path, run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def write_raw(root: Path, run: dict[str, Any], *, manifest: dict[str, Any] | None = None,
+              metrics: dict[str, Any] | None = None, events: dict[str, Any] | None = None) -> None:
+    """The harness raw directory of a run: manifest, metrics and the two event logs."""
+    raw = raw_dir_of(root, run)
+    hid = harness_id_of(run)
+    write(raw / "manifest.json", json.dumps(manifest_doc(hid, **(manifest if manifest is not None else run["manifest"]))))
+    write(raw / "controller_metrics.csv", metrics_text(run["step"], **(metrics if metrics is not None else run["metrics"])))
+    sent, received = event_logs(hid, **(events if events is not None else run["events"]))
+    write(raw / "sent_events.jsonl", sent)
+    write(raw / "events.jsonl", received)
+
+
 def build_root(root: Path) -> Path:
     """The measurement root with six runs, their harness raw directories and the per-run CSV."""
     for run in RUNS:
         d = root / "runs" / run["run_id"]
         write(d / "timeline.json", json.dumps(timeline(root, run), indent=1))
-        rest = [(int(S) - 700 + i, used) for i, used in enumerate(mib(run["rest"]))]
+        rest = [(100.0 + i, used) for i, used in enumerate(mib(run["rest"]))]
         write(d / "meminfo-rest.csv", meminfo_text(rest))
         if run["load"] is not None:
-            samples, _inside = load_samples(run["offset"] or 0.0, run["load"])
-            write(d / "meminfo-load.csv", meminfo_text(samples))
+            write(d / "meminfo-load.csv", meminfo_text(load_samples(run["load"])))
         write(d / "df-before-load.txt", df_text(*run["df"]))
-        if run["offset"] is not None:
-            write(d / "clock_offset.json", json.dumps({
-                "utc": utc_ms(S - 900), "host_epoch_before_s": S - 900.01, "guest_epoch_s": int(S - 900 + run["offset"]),
-                "host_epoch_after_s": S - 899.99, "offset_guest_minus_host_s": run["offset"],
-                "uncertainty_s": run["uncertainty"], "note": "guest `date +%s` between two host readings"}))
         if run["step"] is not None:
-            raw = raw_dir_of(root, run)
-            write(raw / "manifest.json", json.dumps(manifest_doc(harness_id_of(run))))
-            write(raw / "controller_metrics.csv", metrics_text(run["step"]))
+            write_raw(root, run)
         if run["accounting"] is not None:
             doc = {"run_id": harness_id_of(run), "label": "diagnostic accounting", **ACCOUNTING[run["accounting"]]}
             write(d / "accounting" / "accounting.json", json.dumps(doc, indent=1))
@@ -283,6 +350,11 @@ def run_tool(root: Path, per_run: Path | None, out: Path) -> subprocess.Complete
     if per_run is not None:
         args += ["--per-run-csv", str(per_run)]
     return subprocess.run(args, capture_output=True, text=True, timeout=120)
+
+
+def summary_rows(out: Path) -> dict[str, dict[str, str]]:
+    with (out / "summary.csv").open(encoding="utf-8", newline="") as fh:
+        return {row["run_id"]: row for row in csv.DictReader(fh)}
 
 
 @pytest.fixture(scope="module")
@@ -307,6 +379,12 @@ def table_rows(table: str) -> dict[str, list[str]]:
             for line in table.splitlines() if line.startswith("| ") and "`" in line}
 
 
+WINDOW_COLUMNS = ("mem_load_window_start_guest_s", "mem_load_window_end_guest_s", "mem_load_median_mib",
+                  "mem_load_max_mib", "mem_load_samples")
+RATE_COLUMNS = ("accepted_between_samples", "accepted_rate_span_s", "accepted_rate_start_gap_s",
+                "accepted_rate_end_gap_s", "accepted_rate_est_msg_s")
+
+
 def test_harness_columns_exist_in_the_analyser() -> None:
     assert set(tool.HARNESS_COLUMNS.values()) <= set(PER_RUN_COLUMNS)
     assert tool.HARNESS_COLUMNS["latency_samples"] == "latency_count"
@@ -320,6 +398,10 @@ def test_accounting_buckets_are_named_as_the_accounting_script_writes_them() -> 
         assert f'"{key}"' in source, key
 
 
+def test_rule_constants() -> None:
+    assert (tool.MIN_PAIRS, tool.PAIRING_TOLERANCE_S, tool.RATE_BOUND_PROXIMITY_S) == (100, 1.0, 5.0)
+
+
 def test_summary_csv_has_one_row_per_run_in_pair_order(outputs: dict[str, Any]) -> None:
     with (outputs["out"] / "summary.csv").open(encoding="utf-8", newline="") as fh:
         header = next(csv.reader(fh))
@@ -328,14 +410,13 @@ def test_summary_csv_has_one_row_per_run_in_pair_order(outputs: dict[str, Any]) 
         "cmp-yocto-p1", "cmp-debian13-p1", "cmp-debian13-p2", "cmp-yocto-p2", "cmp-yocto-p3", "cmp-debian13-p3",
     ]
     assert {r["scenario"] for r in outputs["rows"]} == {"yocto", "debian13"}
-    # delivered_unique is no longer divided by anything; the window figures replace that column.
-    assert not hasattr(tool, "LOAD_WINDOW_S")
-    for column in ("accepted_in_window", "accepted_rate_span_s", "accepted_rate_msg_s", "published_rate_msg_s",
-                   "mem_load_window_start_utc", "mem_load_window_end_utc", "clock_offset_s",
-                   "clock_offset_uncertainty_s", "mem_loadfile_median_mib", "mem_loadfile_max_mib",
-                   "mem_loadfile_samples", "fetch_accepted_in_time", "fetch_accepted_late", "fetch_no_outcome",
-                   "drain_accepted_in_time", "drain_accepted_late", "drain_accepted_no_ack", "drain_no_outcome",
-                   "drain_fetch_claim"):
+    for gone in ("accepted_rate_msg_s", "accepted_in_window", "clock_offset_s", "clock_offset_uncertainty_s",
+                 "mem_load_window_start_utc", "mem_load_window_end_utc"):
+        assert gone not in tool.COLUMNS, gone
+    for column in ("load_duration_monotonic_s", "load_window_utc_span_s", "wall_clock_step_s",
+                   "clock_pairing_marker_lag_s", "clock_pairing_pairs", "clock_pairing_discrepancy_s",
+                   "load_window_reason", "accepted_rate_reason", "published_rate_msg_s",
+                   "mem_loadfile_median_mib", "mem_loadfile_max_mib", "mem_loadfile_samples") + WINDOW_COLUMNS + RATE_COLUMNS:
         assert column in tool.COLUMNS, column
 
 
@@ -355,36 +436,72 @@ def test_deltas_memory_df_and_harness_cells_of_a_complete_run(outputs: dict[str,
     assert (row["drain_result"], row["harness_exit"]) == ("quiet", "0")
 
 
-def test_load_memory_counts_only_the_samples_inside_the_converted_window(outputs: dict[str, Any]) -> None:
+def test_window_on_monotonic_clocks_and_memory_inside_it(outputs: dict[str, Any]) -> None:
     row = outputs["by_id"]["cmp-yocto-p1"]
-    # Offset +3.5 s: the window [S, E] on the host is [S+3.5, E+3.5] on the guest.
-    assert row["clock_offset_s"] == "3.500" and row["clock_offset_uncertainty_s"] == "0.050"
-    assert row["mem_load_window_start_utc"] == "2026-10-20T10:02:03.500Z"
-    assert row["mem_load_window_end_utc"] == "2026-10-20T10:12:03.500Z"
-    # Three of the seven samples fall inside; the four outside are 2000 MiB and never count.
+    assert row["load_duration_monotonic_s"] == "600.100"
+    assert row["load_window_utc_span_s"] == "600.100" and row["wall_clock_step_s"] == "0.000"
+    assert row["clock_pairing_marker_lag_s"] == "0.030"
+    assert row["clock_pairing_pairs"] == "120"
+    assert row["clock_pairing_discrepancy_s"] == "0.005"   # the pairs' 5 ms minimum transit
+    assert row["load_window_reason"] == ""
+    assert (row["mem_load_window_start_guest_s"], row["mem_load_window_end_guest_s"]) == ("507.900", "1108.000")
+    # Three of the seven lines have uptime_s inside [507.9, 1108.0]; the four outside are 2000 MiB.
     assert (row["mem_load_samples"], row["mem_load_median_mib"], row["mem_load_max_mib"]) == ("3", "1110.0", "1120.0")
-    # The whole file is reported apart and shows the difference.
     assert (row["mem_loadfile_samples"], row["mem_loadfile_median_mib"], row["mem_loadfile_max_mib"]) == ("7", "2000.0", "2000.0")
-    # A negative offset moves the window the other way; the inside count stays three.
+    # The fractional MiB value (1536512 kB) inside the Debian pair-1 window.
     row = outputs["by_id"]["cmp-debian13-p1"]
-    assert row["clock_offset_s"] == "-2.250" and row["clock_offset_uncertainty_s"] == "0.040"
-    assert row["mem_load_window_start_utc"] == "2026-10-20T10:01:57.750Z"
-    assert row["mem_load_window_end_utc"] == "2026-10-20T10:11:57.750Z"
-    # The fractional MiB value (1536512 kB) is inside this window and is its maximum.
     assert (row["mem_load_samples"], row["mem_load_median_mib"], row["mem_load_max_mib"]) == ("3", "1210.0", "1500.5")
-    assert (row["mem_loadfile_samples"], row["mem_loadfile_median_mib"], row["mem_loadfile_max_mib"]) == ("7", "2000.0", "2000.0")
 
 
-def test_rates_come_from_the_window_and_the_manifest_duration(outputs: dict[str, Any]) -> None:
-    row = outputs["by_id"]["cmp-yocto-p1"]
-    # Counter step 7 per second: last sample <= start is S-0.6, last <= end is S+599.4.
-    assert (row["accepted_in_window"], row["accepted_rate_span_s"], row["accepted_rate_msg_s"]) == ("4200", "600.0", "7.00")
-    assert row["published_rate_msg_s"] == "11.20"
+def test_wall_clock_step_is_reported_and_leaves_the_window_available(outputs: dict[str, Any]) -> None:
     row = outputs["by_id"]["cmp-debian13-p1"]
-    assert (row["accepted_in_window"], row["accepted_rate_span_s"], row["accepted_rate_msg_s"]) == ("4800", "600.0", "8.00")
-    # The raw directory found only through the timeline's harness.raw_dir still gives the figures.
+    assert row["load_duration_monotonic_s"] == "600.100"
+    assert row["load_window_utc_span_s"] == "587.100"
+    assert row["wall_clock_step_s"] == "-13.000"
+    assert row["load_window_reason"] == ""
+    assert (row["mem_load_window_start_guest_s"], row["mem_load_window_end_guest_s"]) == ("507.900", "1108.000")
+    assert (row["accepted_between_samples"], row["accepted_rate_span_s"], row["accepted_rate_est_msg_s"]) == ("4800", "600.000", "8.00")
+    assert row["published_rate_msg_s"] == "11.20"   # 6720 / 600.1, not / 587.1 and not / 600
+
+
+def test_rate_is_an_estimate_between_the_boundary_samples(outputs: dict[str, Any]) -> None:
+    row = outputs["by_id"]["cmp-yocto-p1"]
+    # Row 7 (507.4 s) is the last at or before 507.9; row 607 (1107.4 s) the last at or before 1108.0.
+    assert row["accepted_between_samples"] == str(7 * (END_ROW - START_ROW))
+    assert row["accepted_rate_span_s"] == "600.000"
+    assert (row["accepted_rate_start_gap_s"], row["accepted_rate_end_gap_s"]) == ("0.500", "0.600")
+    assert row["accepted_rate_est_msg_s"] == "7.00"
+    assert row["accepted_rate_reason"] == ""
+    assert row["published_rate_msg_s"] == "11.20"
+    # The raw directory found only through the timeline's harness.raw_dir: window and memory
+    # available, but a 20 s hole before the window end refuses the estimate.
     row = outputs["by_id"]["cmp-debian13-p3"]
-    assert (row["accepted_in_window"], row["accepted_rate_msg_s"], row["published_rate_msg_s"]) == ("4800", "8.00", "11.20")
+    assert row["load_window_reason"] == "" and row["mem_load_samples"] == "3"
+    for column in RATE_COLUMNS:
+        assert row[column] == "", column
+    assert "20.600 s before it" in row["accepted_rate_reason"] and "window end" in row["accepted_rate_reason"]
+    assert row["published_rate_msg_s"] == "11.20"
+    assert "cmp-debian13-p3: rate estimate unavailable" in outputs["stderr"]
+
+
+def test_window_unavailable_when_the_clocks_cannot_be_paired(outputs: dict[str, Any]) -> None:
+    # Marker not ok: the duration and the pairs are still reported, nothing window-bounded is.
+    row = outputs["by_id"]["cmp-yocto-p2"]
+    assert row["load_window_reason"] == "controller marker not ok"
+    assert row["load_duration_monotonic_s"] == "600.100" and row["clock_pairing_pairs"] == "120"
+    for column in WINDOW_COLUMNS + RATE_COLUMNS:
+        assert row[column] == "", column
+    assert row["accepted_rate_reason"] == "measured window unavailable"
+    assert (row["mem_loadfile_samples"], row["mem_loadfile_median_mib"]) == ("7", "2000.0")
+    assert row["published_rate_msg_s"] == "11.20"
+    assert "cmp-yocto-p2: measured window unavailable: controller marker not ok" in outputs["stderr"]
+    # Pairing discrepancy of 2 s: reported, and the window refused.
+    row = outputs["by_id"]["cmp-yocto-p3"]
+    assert row["clock_pairing_discrepancy_s"] == "2.005"
+    assert row["load_window_reason"] == "pairing discrepancy 2.005 s exceeds 1.0 s"
+    for column in WINDOW_COLUMNS + RATE_COLUMNS:
+        assert row[column] == "", column
+    assert row["accepted_rate_reason"] == "measured window unavailable"
 
 
 def test_reconciliation_columns_follow_the_accounting_buckets(outputs: dict[str, Any]) -> None:
@@ -393,50 +510,40 @@ def test_reconciliation_columns_follow_the_accounting_buckets(outputs: dict[str,
     assert (row["drain_accepted_in_time"], row["drain_accepted_late"], row["drain_accepted_no_ack"],
             row["drain_no_outcome"]) == ("6690", "28", "1", "1")
     assert row["drain_fetch_claim"] == "fetched"
-    # Buckets absent from the counter are zero by construction.
     row = outputs["by_id"]["cmp-debian13-p1"]
     assert (row["fetch_accepted_in_time"], row["fetch_accepted_late"], row["fetch_no_outcome"]) == ("6718", "0", "2")
     assert (row["drain_accepted_in_time"], row["drain_accepted_late"], row["drain_accepted_no_ack"],
             row["drain_no_outcome"]) == ("6718", "2", "0", "0")
     assert row["drain_fetch_claim"] == "unstated"
-    # The deadline accounting of the analyser is untouched by the reconciliation.
     assert (row["delivered_unique"], row["lost"], row["late_confirmations"]) == ("6718", "2", "0")
 
 
 def test_missing_inputs_leave_cells_empty_with_a_warning(outputs: dict[str, Any]) -> None:
     stderr = outputs["stderr"]
     assert "WARNING" in stderr
-    # No load-phase sampler file, a null `ready`, no accounting: the window bounds still exist.
+    # No load-phase sampler file, a null `ready`, no accounting.
     row = outputs["by_id"]["cmp-yocto-p3"]
     assert row["stack_ready_s"] == "" and row["gateway_functional_s"] == ""
     assert row["boot_ssh_s"] == "21.0"
     for column in ("mem_load_median_mib", "mem_load_max_mib", "mem_load_samples",
                    "mem_loadfile_median_mib", "mem_loadfile_max_mib", "mem_loadfile_samples"):
         assert row[column] == "", column
-    assert row["mem_load_window_start_utc"] == "2026-10-20T10:02:00.750Z"
     assert row["mem_rest_median_mib"] == "450.0"
-    assert (row["accepted_in_window"], row["accepted_rate_msg_s"]) == ("3600", "6.00")
     for column in list(tool.FETCH_BUCKETS) + list(tool.DRAIN_BUCKETS) + ["drain_fetch_claim"]:
         assert row[column] == "", column
     assert (row["drain_result"], row["harness_exit"]) == ("gave-up", "1")
     assert "cmp-yocto-p3" in stderr and "meminfo-load.csv" in stderr and "accounting.json" in stderr
-    # No clock offset: the whole file is reported, the window figure is NOT (no fallback).
-    row = outputs["by_id"]["cmp-debian13-p3"]
-    for column in ("mem_load_median_mib", "mem_load_max_mib", "mem_load_samples", "mem_load_window_start_utc",
-                   "mem_load_window_end_utc", "clock_offset_s", "clock_offset_uncertainty_s"):
-        assert row[column] == "", column
-    assert (row["mem_loadfile_samples"], row["mem_loadfile_median_mib"]) == ("7", "2000.0")
-    assert "cmp-debian13-p3" in stderr and "clock_offset.json" in stderr
     # No harness raw directory and no per-run row: nothing of the window or the harness, no zero.
     row = outputs["by_id"]["cmp-debian13-p2"]
-    for column in list(tool.HARNESS_COLUMNS) + ["published_rate_msg_s", "accepted_in_window", "accepted_rate_span_s",
-                                                 "accepted_rate_msg_s", "mem_load_median_mib", "mem_load_max_mib",
-                                                 "mem_load_samples", "mem_load_window_start_utc"]:
+    for column in list(tool.HARNESS_COLUMNS) + ["published_rate_msg_s", "load_duration_monotonic_s",
+                                                 "load_window_utc_span_s", "wall_clock_step_s",
+                                                 "clock_pairing_marker_lag_s", "clock_pairing_pairs",
+                                                 "clock_pairing_discrepancy_s"] + list(WINDOW_COLUMNS) + list(RATE_COLUMNS):
         assert row[column] == "", column
-    assert row["clock_offset_s"] == "1.000" and row["mem_loadfile_samples"] == "7"
-    assert row["fetch_accepted_in_time"] == "6690"
-    assert "cmp-debian13-p2: no harness raw directory" in stderr
-    assert "cmp-debian13-p2-harness" in stderr
+    assert row["load_window_reason"] == "harness manifest.json missing"
+    assert row["accepted_rate_reason"] == "measured window unavailable"
+    assert row["mem_loadfile_samples"] == "7" and row["fetch_accepted_in_time"] == "6690"
+    assert "cmp-debian13-p2: no harness raw directory" in stderr and "cmp-debian13-p2-harness" in stderr
     # The post-drain tail was not read completely: the drain buckets stay empty, the claim is shown.
     row = outputs["by_id"]["cmp-yocto-p2"]
     assert (row["fetch_accepted_in_time"], row["fetch_accepted_late"], row["fetch_no_outcome"]) == ("6705", "5", "10")
@@ -447,31 +554,105 @@ def test_missing_inputs_leave_cells_empty_with_a_warning(outputs: dict[str, Any]
     # The df record without the docker line.
     assert outputs["by_id"]["cmp-debian13-p3"]["df_docker_used_kib"] == ""
     assert "df-before-load.txt: no line for /var/lib/docker" in stderr
+    # A clock_offset.json from the earlier rule is ignored without a word.
+    assert "clock_offset" not in stderr
+
+
+@pytest.mark.parametrize("case, manifest, events, reason, duration", [
+    ("lag above tolerance", {"lag_s": 2.5}, {}, "controller marker lag 2.500 s above its tolerance 2.000 s", "600.100"),
+    ("marker not ok", {"marker_ok": False}, {}, "controller marker not ok", "600.100"),
+    ("fewer than 100 pairs", {}, {"pairs": 50}, "only 50 host-guest event pairs (fewer than 100)", "600.100"),
+    ("pairing discrepancy", {}, {"extra_offset_ns": 2_000_000_000}, "pairing discrepancy 2.005 s exceeds 1.0 s", "600.100"),
+    ("no monotonic start", {"started_ns": None}, {}, "measured_started_monotonic_ns/finished_monotonic_ns", ""),
+    ("no guest instant", {"end_ns": None}, {}, "manifest without controller_monotonic_at_run_end_ns", "600.100"),
+])
+def test_each_pairing_failure_makes_the_window_unavailable(tmp_path: Path, case: str, manifest: dict[str, Any],
+                                                            events: dict[str, Any], reason: str, duration: str) -> None:
+    per_run = build_root(tmp_path)
+    write_raw(tmp_path, RUNS[0], manifest=manifest, events=events)
+    proc = run_tool(tmp_path, per_run, tmp_path / "out")
+    assert proc.returncode == 0, proc.stderr
+    row = summary_rows(tmp_path / "out")["cmp-yocto-p1"]
+    assert reason in row["load_window_reason"], (case, row["load_window_reason"])
+    assert row["load_duration_monotonic_s"] == duration, case
+    for column in WINDOW_COLUMNS + RATE_COLUMNS:
+        assert row[column] == "", (case, column)
+    assert row["accepted_rate_reason"] == "measured window unavailable", case
+    assert row["published_rate_msg_s"] == ("11.20" if duration else ""), case
+    assert (row["mem_loadfile_samples"], row["mem_rest_median_mib"]) == ("7", "410.0"), case
+    assert "cmp-yocto-p1: measured window unavailable" in proc.stderr, case
+    # A clock_offset.json from the earlier rule changes nothing and draws no warning.
+    write(tmp_path / "runs" / "cmp-yocto-p1" / "clock_offset.json", json.dumps({"offset_guest_minus_host_s": 3.5}))
+    proc = run_tool(tmp_path, per_run, tmp_path / "out2")
+    assert proc.returncode == 0 and "clock_offset" not in proc.stderr
+    assert summary_rows(tmp_path / "out2")["cmp-yocto-p1"] == row
+
+
+@pytest.mark.parametrize("case, metrics, reason", [
+    ("hole before the start", {"omit": frozenset(range(1, 8))},
+     "last metrics sample before the window start is 7.500 s before it (more than 5.0 s)"),
+    ("hole before the end", {"omit": frozenset(range(588, 608))},
+     "last metrics sample before the window end is 20.600 s before it (more than 5.0 s)"),
+    ("metrics start after the window", {"omit": frozenset(range(0, 8))}, "no metrics sample at or before the window start"),
+    ("not time-ordered", {"swap": True}, "metrics not time-ordered"),
+    ("counter decreased", {"decrease_at": END_ROW}, "the accepted counter decreased between the boundary samples (149 -> 99)"),
+])
+def test_each_boundary_failure_makes_the_rate_unavailable(tmp_path: Path, case: str, metrics: dict[str, Any], reason: str) -> None:
+    per_run = build_root(tmp_path)
+    write_raw(tmp_path, RUNS[0], metrics=metrics)
+    proc = run_tool(tmp_path, per_run, tmp_path / "out")
+    assert proc.returncode == 0, proc.stderr
+    row = summary_rows(tmp_path / "out")["cmp-yocto-p1"]
+    assert row["accepted_rate_reason"] == reason, case
+    for column in RATE_COLUMNS:
+        assert row[column] == "", (case, column)
+    # The window itself, and the memory inside it, do not depend on the metrics.
+    assert row["load_window_reason"] == "" and row["mem_load_samples"] == "3", case
+    assert row["published_rate_msg_s"] == "11.20", case
+    assert "cmp-yocto-p1: rate estimate unavailable" in proc.stderr, case
+
+
+def test_a_sampler_file_without_uptime_leaves_the_window_memory_empty(tmp_path: Path) -> None:
+    per_run = build_root(tmp_path)
+    write(tmp_path / "runs" / "cmp-yocto-p1" / "meminfo-load.csv",
+          meminfo_text(load_samples([1100, 1120, 1110]), with_uptime=False))
+    proc = run_tool(tmp_path, per_run, tmp_path / "out")
+    assert proc.returncode == 0, proc.stderr
+    row = summary_rows(tmp_path / "out")["cmp-yocto-p1"]
+    assert (row["mem_load_samples"], row["mem_load_median_mib"]) == ("", "")
+    assert (row["mem_load_window_start_guest_s"], row["mem_loadfile_samples"]) == ("507.900", "7")
+    assert "no uptime_s column" in proc.stderr and "cmp-yocto-p1" in proc.stderr
 
 
 def test_json_rows_and_scenario_aggregates(outputs: dict[str, Any]) -> None:
     doc = outputs["json"]
     assert doc["columns"] == tool.COLUMNS
+    assert doc["rules"] == {"min_pairs": 100, "pairing_tolerance_s": 1.0, "rate_bound_proximity_s": 5.0}
     assert len(doc["runs"]) == 6 and doc["runs"][0]["run_id"] == "cmp-yocto-p1"
-    assert doc["runs"][0]["mem_load_median_mib"] == 1110.0 and doc["runs"][0]["accepted_in_window"] == 4200
-    assert doc["runs"][0]["clock_offset_s"] == 3.5 and doc["runs"][0]["pair"] == 1
+    first = doc["runs"][0]
+    assert first["mem_load_median_mib"] == 1110.0 and first["accepted_between_samples"] == 4200
+    assert first["load_duration_monotonic_s"] == 600.1 and first["clock_pairing_discrepancy_s"] == 0.005
+    assert first["mem_load_window_start_guest_s"] == 507.9 and first["load_window_reason"] is None
+    assert doc["runs"][1]["wall_clock_step_s"] == -13.0
+    assert doc["runs"][3]["load_window_reason"] == "controller marker not ok" and doc["runs"][3]["mem_load_samples"] is None
     assert doc["runs"][4]["stack_ready_s"] is None and doc["runs"][4]["mem_load_samples"] is None
-    assert doc["runs"][5]["clock_offset_s"] is None and doc["runs"][5]["mem_load_samples"] is None
     yocto, debian = doc["scenarios"]["yocto"], doc["scenarios"]["debian13"]
     assert yocto["n_runs"] == 3 and debian["n_runs"] == 3
     assert yocto["metrics"]["mem_rest_median_mib"] == {"median": 430.0, "min": 410.0, "max": 450.0, "n": 3}
     assert yocto["metrics"]["boot_ssh_s"] == {"median": 22.5, "min": 21.0, "max": 23.0, "n": 3}
     # Two values only: the median of what exists is their mean, and n says so.
     assert yocto["metrics"]["stack_ready_s"] == {"median": 386.5, "min": 383.0, "max": 390.0, "n": 2}
-    assert yocto["metrics"]["mem_load_median_mib"] == {"median": 1060.0, "min": 1010.0, "max": 1110.0, "n": 2}
-    assert yocto["metrics"]["accepted_rate_msg_s"] == {"median": 7.0, "min": 6.0, "max": 7.0, "n": 3}
-    assert yocto["metrics"]["accepted_in_window"] == {"median": 4200, "min": 3600, "max": 4200, "n": 3}
-    assert debian["metrics"]["accepted_rate_msg_s"] == {"median": 8.0, "min": 8.0, "max": 8.0, "n": 2}
-    # Pair 2 has no window (no harness raw directory) and pair 3 no offset: one value only.
-    assert debian["metrics"]["mem_load_median_mib"] == {"median": 1210.0, "min": 1210.0, "max": 1210.0, "n": 1}
-    assert debian["metrics"]["mem_load_max_mib"] == {"median": 1500.5, "min": 1500.5, "max": 1500.5, "n": 1}
+    # Only the pair-1 Yocto window is available: one value.
+    assert yocto["metrics"]["mem_load_median_mib"] == {"median": 1110.0, "min": 1110.0, "max": 1110.0, "n": 1}
+    assert yocto["metrics"]["accepted_rate_est_msg_s"] == {"median": 7.0, "min": 7.0, "max": 7.0, "n": 1}
+    assert yocto["metrics"]["load_duration_monotonic_s"] == {"median": 600.1, "min": 600.1, "max": 600.1, "n": 3}
+    assert yocto["metrics"]["clock_pairing_discrepancy_s"] == {"median": 0.005, "min": 0.005, "max": 2.005, "n": 3}
+    assert debian["metrics"]["wall_clock_step_s"] == {"median": -6.5, "min": -13.0, "max": 0.0, "n": 2}
+    assert debian["metrics"]["mem_load_median_mib"] == {"median": 1215.0, "min": 1210.0, "max": 1220.0, "n": 2}
+    # 1365.25 at one decimal, by round-half-to-even.
+    assert debian["metrics"]["mem_load_max_mib"] == {"median": 1365.2, "min": 1230.0, "max": 1500.5, "n": 2}
+    assert debian["metrics"]["accepted_rate_est_msg_s"] == {"median": 8.0, "min": 8.0, "max": 8.0, "n": 1}
     assert debian["metrics"]["mem_loadfile_max_mib"] == {"median": 2000.0, "min": 2000.0, "max": 2000.0, "n": 3}
-    assert debian["metrics"]["clock_offset_s"] == {"median": -0.625, "min": -2.25, "max": 1.0, "n": 2}
     assert debian["metrics"]["df_docker_used_kib"] == {"median": 2097176.0, "min": 2097152, "max": 2097200, "n": 2}
     assert yocto["metrics"]["drain_accepted_late"] == {"median": 28, "min": 28, "max": 28, "n": 1}
     assert yocto["metrics"]["lost"] == {"median": 20, "min": 10, "max": 30, "n": 3}
@@ -489,22 +670,30 @@ def test_table_shows_both_scenarios_runs_medians_ranges_and_notes(outputs: dict[
     assert mem_rest == ["410.0 / 430.0 / 450.0", "430.0", "410.0–450.0",
                         "610.0 / 600.0 / 620.0", "610.0", "600.0–620.0"]
     mem_load = rows["Guest memory used inside the measured window, median, MiB (`mem_load_median_mib`)"]
-    assert mem_load == ["1110.0 / 1010.0 / —", "1060.0", "1010.0–1110.0", "1210.0 / — / —", "1210.0", "1210.0–1210.0"]
-    loadfile = rows["Whole load-phase sampler file, samples (`mem_loadfile_samples`)"]
-    assert loadfile[:3] == ["7 / 7 / —", "7", "7–7"]
-    ready = rows["Launch to stack ready (/ready 200), s (`stack_ready_s`)"]
-    assert ready[:3] == ["383.0 / 390.0 / —", "386.5", "383.0–390.0"]
-    rate = rows["Accepted rate inside the measured window, msg/s (`accepted_rate_msg_s`)"]
-    assert rate == ["7.00 / 7.00 / 6.00", "7.00", "6.00–7.00", "8.00 / — / 8.00", "8.00", "8.00–8.00"]
-    assert rows["Accepted inside the measured window (counter difference) (`accepted_in_window`)"][:2] == ["4200 / 4200 / 3600", "4200"]
-    assert rows["Published rate, msg/s (sent_valid / duration_s) (`published_rate_msg_s`)"][3:] == ["11.20 / — / 11.20", "11.20", "11.20–11.20"]
-    assert rows["Clock offset guest − host, s (`clock_offset_s`)"] == ["3.500 / 0.500 / 0.750", "0.750", "0.500–3.500",
-                                                                       "-2.250 / 1.000 / —", "-0.625", "-2.250–1.000"]
+    assert mem_load == ["1110.0 / — / —", "1110.0", "1110.0–1110.0", "1210.0 / — / 1220.0", "1215.0", "1210.0–1220.0"]
+    assert rows["Whole load-phase sampler file, samples (`mem_loadfile_samples`)"][:3] == ["7 / 7 / —", "7", "7–7"]
+    assert rows["Launch to stack ready (/ready 200), s (`stack_ready_s`)"][:3] == ["383.0 / 390.0 / —", "386.5", "383.0–390.0"]
+    assert rows["Measured window on the host monotonic clock, s (`load_duration_monotonic_s`)"] == [
+        "600.100 / 600.100 / 600.100", "600.100", "600.100–600.100", "600.100 / — / 600.100", "600.100", "600.100–600.100"]
+    assert rows["Host wall-clock step inside the window: UTC span − monotonic duration, s (`wall_clock_step_s`)"][3:] == [
+        "-13.000 / — / 0.000", "-6.500", "-13.000–0.000"]
+    assert rows["Clock cross-check: window end from the pairs − from the marker, s (`clock_pairing_discrepancy_s`)"][:3] == [
+        "0.005 / 0.005 / 2.005", "0.005", "0.005–2.005"]
+    assert rows["Measured window start on the guest monotonic clock, s (`mem_load_window_start_guest_s`)"] == [
+        "507.900 / — / —", "507.900", "507.900–507.900", "507.900 / — / 507.900", "507.900", "507.900–507.900"]
+    assert rows["Estimated accepted rate between the boundary samples, msg/s (`accepted_rate_est_msg_s`)"] == [
+        "7.00 / — / —", "7.00", "7.00–7.00", "8.00 / — / —", "8.00", "8.00–8.00"]
+    assert rows["Window end − end boundary sample, s (`accepted_rate_end_gap_s`)"][:2] == ["0.600 / — / —", "0.600"]
+    assert rows["Published rate, msg/s (sent_valid / load_duration_monotonic_s) (`published_rate_msg_s`)"] == [
+        "11.20 / 11.20 / 11.20", "11.20", "11.20–11.20", "11.20 / — / 11.20", "11.20", "11.20–11.20"]
+    assert rows["Why the measured window is unavailable (`load_window_reason`)"] == [
+        "— / controller marker not ok / pairing discrepancy 2.005 s exceeds 1.0 s", "—", "—",
+        "— / harness manifest.json missing / —", "—", "—"]
+    assert rows["Why the rate estimate is unavailable (`accepted_rate_reason`)"][0] == \
+        "— / measured window unavailable / measured window unavailable"
+    assert "20.600 s before it" in rows["Why the rate estimate is unavailable (`accepted_rate_reason`)"][3]
     assert rows["After the drain: accepted late (`drain_accepted_late`)"] == ["28 / — / —", "28", "28–28", "2 / 28 / 28", "28", "2–28"]
     assert rows["Lost (no confirmation within the deadline) (`lost`)"] == ["20 / 10 / 30", "20", "10–30", "2 / — / 4", "3", "2–4"]
-    assert rows["Measured window start, guest clock (`mem_load_window_start_utc`)"] == [
-        "2026-10-20T10:02:03.500Z / 2026-10-20T10:02:00.500Z / 2026-10-20T10:02:00.750Z", "—", "—",
-        "2026-10-20T10:01:57.750Z / — / —", "—", "—"]
     assert rows["Post-drain event log fetch, as the driver said (`drain_fetch_claim`)"] == [
         "fetched / not-fetched / —", "—", "—", "unstated / fetched / fetched", "—", "—"]
     assert rows["Drain result (`drain_result`)"] == ["quiet / quiet / gave-up", "—", "—", "quiet / quiet / quiet", "—", "—"]
@@ -513,21 +702,23 @@ def test_table_shows_both_scenarios_runs_medians_ranges_and_notes(outputs: dict[
         "Probe cadences: ssh 2 s, ready 5 s, accept 1 s", "host-monotonic",
         "controller reception → Ditto confirmation", "no confirmation within the harness's deadline",
         "whole gateway guest", "latency_count", "df -P -k", "Median: the middle value of three",
-        "An empty cell is an unavailable value, never a zero",
-        # The window, the offset and its uncertainty values.
-        "bounded to the harness's measured window", "measured_window_utc", "offset_guest_minus_host_s",
-        "uncertainty_s seen: 0.040, 0.050, 0.060 s", "window start <= epoch_s <= window end",
-        "Warm-up, the confirmation window and the drain are outside it", "transparency only",
-        # The counter difference inside the window, and the publications over duration_s.
-        "difference of the controller's cumulative `accepted` counter", "`accepted_rate_span_s`",
-        "not what arrived after it", "sent_valid / the manifest's duration_s",
+        "An empty cell is an unavailable value, never a zero", "reported apart from the deadline accounting",
+        "accepted_no_ack_time", "zero by construction", "`drain_fetch_claim`", "transparency only",
+        "Warm-up, the confirmation window and the drain are outside it",
+        # Rule 1: the window on monotonic clocks.
+        "MONOTONIC clocks", "finished_monotonic_ns − measured_started_monotonic_ns",
+        "controller_monotonic_at_run_end_ns", "at least 100 message ids", "within 1.0 s of the marker",
+        "600 s is never assumed", "never used as the duration or the bounds", "`wall_clock_step_s`",
+        "CLOCK_BOOTTIME, equal to the controller's CLOCK_MONOTONIC while the guest never suspends",
+        "window start <= uptime_s <= window end",
+        # Rule 2: the estimate between boundary samples.
+        "estimated rate between the two boundary samples (gaps reported), not an exact count inside the window",
+        "within 5.0 s before its bound", "`accepted_rate_reason`",
+        "published_rate_msg_s = sent_valid / load_duration_monotonic_s",
         "the simulator's publications during the measured run",
-        # The reconciliation, apart from the deadline accounting.
-        "reported apart from the deadline accounting", "accepted_no_ack_time", "zero by construction",
-        "`drain_fetch_claim`",
     ):
         assert phrase in table, phrase
-    assert "delivered_unique / 600" not in table
+    assert "clock_offset.json" not in table and "delivered_unique / 600" not in table
     assert "Warnings while summarising:" in table
 
 
@@ -550,26 +741,21 @@ def test_exit_codes(tmp_path: Path) -> None:
     build_root(good)
     proc = run_tool(good, good / "processed" / "absent.csv", tmp_path / "out4")
     assert proc.returncode == 0 and "WARNING" in proc.stderr and "absent.csv" in proc.stderr
-    with (tmp_path / "out4" / "summary.csv").open(encoding="utf-8", newline="") as fh:
-        rows = list(csv.DictReader(fh))
-    assert len(rows) == 6 and all(r["sent_valid"] == "" and r["published_rate_msg_s"] == "" for r in rows)
-    assert all(r["boot_ssh_s"] != "" for r in rows)
-    assert rows[0]["accepted_rate_msg_s"] == "7.00"  # the window figures do not need the per-run CSV
+    rows = summary_rows(tmp_path / "out4")
+    assert len(rows) == 6 and all(r["sent_valid"] == "" and r["published_rate_msg_s"] == "" for r in rows.values())
+    assert all(r["boot_ssh_s"] != "" for r in rows.values())
+    assert rows["cmp-yocto-p1"]["accepted_rate_est_msg_s"] == "7.00"  # the window figures do not need the per-run CSV
     proc = run_tool(good, None, tmp_path / "out5")
     assert proc.returncode == 0 and "no --per-run-csv" in proc.stderr
-    # A manifest without a usable window: the window-bounded cells stay empty, the rest is written.
-    windowless = tmp_path / "windowless"
-    build_root(windowless)
-    manifest = windowless / "harness" / "raw" / "nominal-yocto-p1" / "manifest.json"
-    doc = json.loads(manifest.read_text(encoding="utf-8"))
-    doc["measured_window_utc"] = {"start": doc["measured_window_utc"]["start"]}
-    write(manifest, json.dumps(doc))
-    proc = run_tool(windowless, windowless / "processed" / "per_run.csv", tmp_path / "out6")
-    assert proc.returncode == 0 and "measured_window_utc without usable start/end" in proc.stderr
-    with (tmp_path / "out6" / "summary.csv").open(encoding="utf-8", newline="") as fh:
-        row = {r["run_id"]: r for r in csv.DictReader(fh)}["cmp-yocto-p1"]
-    assert row["mem_load_samples"] == "" and row["accepted_rate_msg_s"] == "" and row["mem_load_window_start_utc"] == ""
-    assert row["published_rate_msg_s"] == "11.20" and row["mem_loadfile_samples"] == "7" and row["clock_offset_s"] == "3.500"
+    # Event logs missing: no pairs, the window refused, everything else written.
+    unpaired = tmp_path / "unpaired"
+    build_root(unpaired)
+    (unpaired / "harness" / "raw" / "nominal-yocto-p1" / "events.jsonl").unlink()
+    proc = run_tool(unpaired, unpaired / "processed" / "per_run.csv", tmp_path / "out6")
+    assert proc.returncode == 0 and "events.jsonl: missing" in proc.stderr
+    row = summary_rows(tmp_path / "out6")["cmp-yocto-p1"]
+    assert row["clock_pairing_pairs"] == "0" and "only 0 host-guest event pairs" in row["load_window_reason"]
+    assert row["mem_load_samples"] == "" and row["load_duration_monotonic_s"] == "600.100"
 
 
 def test_in_process_entry_point_returns_the_exit_code(tmp_path: Path) -> None:
