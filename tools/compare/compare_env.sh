@@ -313,6 +313,9 @@ cmd_start() {
     qemu_argv "$S_ROOT_DISK" qcow2 "$console" "${KERNEL_APPEND//@ROOT_UUID@/$ROOT_UUID}" daemon
     printf '%q ' "${QEMU_ARGV[@]}" > "$S_DIR/state/argv.txt"
     echo >> "$S_DIR/state/argv.txt"
+    # state/launch: the host monotonic instant immediately before the exec (the origin of every
+    # boot measurement); state/started is written after the daemonised QEMU has returned.
+    uptime_s > "$S_DIR/state/launch"
     if ! "${QEMU_ARGV[@]}" > "$S_DIR/logs/start-$s.log" 2>&1; then
         lock_release
         log_line "$S_LOG" "start FAILED: see logs/start-$s.log"

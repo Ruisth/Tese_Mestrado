@@ -384,3 +384,51 @@ both scenarios.
 | `debian13` — first form of `apply` (2026-10-18 16:37:48–16:47:44Z) | pass: `tf.sh apply`, ssh in 50 s, running, no failed unit | pass: 6.12.113+deb13-cloud-arm64, 4 vCPU, MemTotal 8,197,128 kB, `/var/lib/docker` on `/dev/vdb` ext4 31.2 G label `egw-data`, Docker 26.1.5+dfsg1, Compose 2.26.1-4, 356 packages, `apt-daily*` masked | pass: provisioned in 444 s (pull 118 s, controller load 53 s, `up -d` 166 s, six healthy at +211 s, `/ready` 200 at +222 s) | pass: one event accepted in 15.9 s, twin `features.ingestion.properties.last_run_id` = run id | pass: `tf.sh stop` in 54 s, QEMU ended, no other QEMU | `scenarios/debian13/results/validate-20261018T163748Z` (32 files, `SHA256SUMS` `cd10bf30…`) | real |
 | `yocto` — **by the final commands** (2026-10-18 17:42:49–17:51:34Z, 525 s) | pass: `tf.sh yocto apply` ran prepare (nothing to recreate), start and `up.sh`: ssh in 22 s; first provisioning on this data disk — images 101 s, controller load 34 s, `up -d` 153 s, six healthy at +187 s, `/ready` 200 at +195 s; `ENVIRONMENT READY` 383 s after launch; `running`, no failed unit | pass: 6.6.142-yocto-standard, 4 vCPU, 8012 MiB, `/var/lib/docker` on `/dev/vdb` ext4 31.2 G (2.0 G used after the stack), Docker 25.0.9, Compose v2.26.0 | pass: the idempotent second run skipped every step by marker (the five images already verify), six healthy in 7 s, 53 s in all — a repeated `apply` reinstalls nothing | pass: one event (run `cmpval-yocto-20261018T175019Z`) accepted in 15.75 s, twin `last_run_id` = run id | pass: `tf.sh yocto stop` — `compose stop` exit 0, `sudo poweroff`, QEMU ended after 48 s, no other QEMU | `scenarios/yocto/results/validate-20261018T174249Z` (37 files, `SHA256SUMS` `dc9cb457…`) | real |
 | `debian13` — **by the final commands** (2026-10-18 17:51:52–18:01:27Z, 575 s) | pass: `tf.sh debian13 apply` ran prepare (nothing to recreate), start and `up.sh`: ssh in 46 s; tree and the five images already on this data disk from the afternoon run (skipped by marker), controller image present; `up -d` 194 s, six healthy at +238 s, `/ready` 503 at +250 s then 200 at +270 s; `ENVIRONMENT READY` 376 s after launch; `running`, no failed unit | pass: 6.12.113+deb13-cloud-arm64, 4 vCPU, 8005 MiB, root `/dev/vda1` 2.8 G (1.5 G used), `/var/lib/docker` on `/dev/vdb` ext4 31.2 G label `egw-data` (2.0 G used after the stack), Docker 26.1.5+dfsg1, Compose 2.26.1-4, 356 packages | pass: every step skipped or already present (tree marker, the five images verify, controller image present), six healthy in 8.8 s, `/ready` in 13.1 s, 86 s in all | pass: one event (run `cmpval-debian13-20261018T175956Z`) accepted in 25.13 s, twin `last_run_id` = run id | pass: `tf.sh debian13 stop` — `compose stop` exit 0, `sudo poweroff`, QEMU ended after 51 s, no other QEMU | `scenarios/debian13/results/validate-20261018T175152Z` (36 files, `SHA256SUMS` `132c76a9…`) | real |
+
+## 10. Minimal comparison — six measured executions
+
+The order of 2026-10-18 (after PR #62): three pairs of executions, Yocto →
+Debian, Debian → Yocto, Yocto → Debian, every metric collected in each, no
+other campaign. Everything reuses the tools above and the project's harness;
+the files under `measure_*` and `guest_meminfo_sampler.sh` are the minimal
+instrumentation that was missing. Results are **exploratory** (n = 3 per
+scenario, one QEMU/TCG profile): no statistical significance, no maximum
+capacity, nothing about physical ARM.
+
+```bash
+# once per scenario, guest off: the measured base (fresh disks, stack installed by `apply`, closed by `stop`, copied + sha256)
+bash tools/compare/measure_base.sh yocto
+bash tools/compare/measure_base.sh debian13
+# the plan: six nominal entries, one seed per pair (equal in both distributions), write-once
+python3 tools/compare/measure_plan.py write --out ~/egw-compare/measure/plan.json --seeds S1 S2 S3
+# the six executions in the plan's order, then the harness analysis and the summary
+bash tools/compare/measure_series.sh ~/egw-compare/measure/plan.json
+# one execution by hand (the series calls exactly this)
+bash tools/compare/measure_run.sh <scenario> <run-id> ~/egw-compare/measure/plan.working.json
+```
+
+Each execution (`measure_run.sh`, record under `measure/runs/<run-id>/`,
+`timeline.json` + `SHA256SUMS`): disks restored from the measured base and
+verified → `tf.sh <s> apply` (instants on the host monotonic clock: `launch`
+immediately before the QEMU exec, first ssh success, six healthy, first
+`/ready` 200; probe cadences recorded) → `functional_check.sh` with its own run
+id `<run-id>.func` (instant of the confirmed twin) → 120 s at rest with the
+whole-guest memory sampled at 1 Hz (`MemTotal − MemAvailable`), then
+`df -P -k / /var/lib/docker` and the SUT environment record → the harness run
+of the plan entry (frozen `nominal`: 120 s warm-up, 600 s at 11.2 msg/s, 60 s
+confirmation; per-container collector; memory sampled meanwhile) → the
+runbook's drain helper through `tools/session/proof_hook_drained.sh` (130 s
+quiet, cap 900 s — reaching the cap is a result) → events after the drain,
+final `/metrics` and guest state → `tf.sh <s> stop`, QEMU confirmed ended. A
+result of the system (a drain at its cap, late or lost confirmations, a failed
+harness verdict) is recorded and never stops the series; an instrumentation
+failure preserves the data, closes the guest and stops it. Nothing is repeated
+or replaced by a script.
+
+Boot times are never the duration of `terraform apply`. Latency is the
+controller's reception → Ditto confirmation. `lost` is "no confirmation within
+the deadline", not definitive loss (the post-drain events file is kept).
+Memory is the whole gateway guest. Virtual capacity, image file size and space
+used in the guest are three different measures (`compare_env.sh disks`,
+`host-disks-before-load.txt`, `df-before-load.txt`). The validations of
+section 9 are not comparison results: their preparation differed.

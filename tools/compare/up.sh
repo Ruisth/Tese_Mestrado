@@ -29,6 +29,7 @@ bash "$HERE/compare_env.sh" start "$scenario"
 rc=$?
 [ $rc -eq 0 ] || { echo "UP $scenario: start did not succeed (exit $rc); nothing more is done"; exit $rc; }
 
+SSH_STEP_S=${EGW_COMPARE_SSH_STEP_S:-5}
 t0=$(uptime_s)
 until gssh true > /dev/null 2>&1; do
     now=$(uptime_s)
@@ -36,9 +37,13 @@ until gssh true > /dev/null 2>&1; do
         echo "STOP: no ssh answer from the $scenario guest within $SSH_LIMIT_S s; it is left running - inspect with compare_env.sh status $scenario and the console log, close with tf.sh $scenario stop"
         exit 1
     fi
-    sleep 5
+    sleep "$SSH_STEP_S"
 done
-echo "UP $scenario: guest accessible by ssh after $(awk -v a="$t0" -v b="$(uptime_s)" 'BEGIN { printf "%.0f", b - a }') s"
+# state/ssh_ok: host monotonic instant of the first ssh command that succeeded (probed every
+# SSH_STEP_S s, so it is late by at most that step); state/ssh_step_s records the cadence.
+uptime_s > "$S_DIR/state/ssh_ok"
+echo "$SSH_STEP_S" > "$S_DIR/state/ssh_step_s"
+echo "UP $scenario: guest accessible by ssh after $(awk -v a="$t0" -v b="$(cat "$S_DIR/state/ssh_ok")" 'BEGIN { printf "%.0f", b - a }') s (probe step $SSH_STEP_S s)"
 
 bash "$PROVISION" "$scenario"
 rc=$?
