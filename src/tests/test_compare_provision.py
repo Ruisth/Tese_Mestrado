@@ -38,11 +38,11 @@ PASSWORDS = {
     "DITTO_DEVOPS_PASSWORD": "stub-devops-secret-0123456789",
 }
 GOOD_FACTS = (
-    "FACT uid=1000\nFACT docker=/usr/bin/docker\nFACT compose=2.26.0\nFACT label=egw-data\n"
+    "FACT uid=1000\nFACT docker=/usr/bin/docker\nFACT compose=2.26.0\nFACT source=/dev/vdb\nFACT label=egw-data\n"
     "uid=1000(egw) gid=1000(egw) groups=1000(egw),986(docker)\n/usr/bin/docker\n"
     "Docker version 25.0.9, build stub\nDocker Compose version v2.26.0\n/dev/vdb ext4 32G\n"
 )
-NO_DATA_DISK_FACTS = GOOD_FACTS.replace("FACT label=egw-data", "FACT label=").replace("/dev/vdb ext4 32G", "/dev/vda ext4 8G")
+NO_DATA_DISK_FACTS = GOOD_FACTS.replace("FACT label=egw-data", "FACT label=").replace("FACT source=/dev/vdb", "FACT source=/dev/vda").replace("/dev/vdb ext4 32G", "/dev/vda ext4 8G")
 
 SSH_STUB = """#!/bin/sh
 # Stub ssh: options are skipped; no command = the tunnel (-N) or a control request (-O) answered from a marker;

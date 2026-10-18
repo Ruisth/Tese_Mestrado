@@ -160,7 +160,12 @@ log "controller archive $CTL_TAR sha256=$tar_sha (matches the record)"
 FACTS_CMD='printf "FACT uid=%s\n" "$(id -u egw 2>/dev/null)"
 printf "FACT docker=%s\n" "$(command -v docker 2>/dev/null)"
 printf "FACT compose=%s\n" "$(docker compose version --short 2>/dev/null)"
-printf "FACT label=%s\n" "$(findmnt -no LABEL /var/lib/docker 2>/dev/null)"
+src=$(findmnt -no SOURCE /var/lib/docker 2>/dev/null)
+label=$(findmnt -no LABEL /var/lib/docker 2>/dev/null)
+[ -n "$label" ] || label=$(lsblk -no LABEL "$src" 2>/dev/null | head -n 1)
+[ -n "$label" ] || label=$(sudo -n blkid -o value -s LABEL "$src" 2>/dev/null)
+printf "FACT source=%s\n" "$src"
+printf "FACT label=%s\n" "$label"
 id egw; command -v docker; docker --version; docker compose version
 findmnt -no SOURCE,FSTYPE,SIZE /var/lib/docker
 ls -ld /opt/egw /opt/egw/deployment /opt/egw/deployment/data/events
@@ -176,15 +181,20 @@ step_guest_facts() {
     printf '%s\n' "$out" | grep -v '^FACT ' || true
     [ $rc -eq 0 ] || { say "STOP: ssh to the guest failed (exit $rc)"; return 1; }
     uid=$(fact "$out" uid); docker=$(fact "$out" docker); compose=$(fact "$out" compose); label=$(fact "$out" label)
+    local source
+    source=$(fact "$out" source)
     [ "$uid" = 1000 ] || bad="$bad; user egw is uid '${uid:-absent}', not 1000"
     [ -n "$docker" ] || bad="$bad; docker is not on the guest PATH"
     [ -n "$compose" ] || bad="$bad; docker compose does not answer"
-    [ "$label" = "$COMPARE_DATA_DISK_LABEL" ] || bad="$bad; /var/lib/docker is not mounted from a device labelled $COMPARE_DATA_DISK_LABEL (label '${label:-none}')"
+    # The label is read by findmnt, else lsblk, else blkid (findmnt's LABEL column is empty on the
+    # BusyBox guest); the source must be a block device other than the root disk.
+    [ "$label" = "$COMPARE_DATA_DISK_LABEL" ] || bad="$bad; /var/lib/docker is not mounted from a device labelled $COMPARE_DATA_DISK_LABEL (source '${source:-none}', label '${label:-none}')"
+    case $source in /dev/vd[b-z]* | /dev/sd[b-z]* | /dev/disk/*) ;; *) bad="$bad; /var/lib/docker source '${source:-none}' is not a separate block device" ;; esac
     if [ -n "$bad" ]; then
         say "STOP: guest facts${bad}"
         return 1
     fi
-    STEP_NOTE="uid=$uid docker=$docker compose=$compose label=$label"
+    STEP_NOTE="uid=$uid docker=$docker compose=$compose source=$source label=$label"
 }
 
 # --- b. deployment-tree --------------------------------------------------------------------------
