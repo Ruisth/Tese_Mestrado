@@ -10,11 +10,18 @@
 #
 # Exit: 0 every phase passed; 1 a validation phase failed (recorded; the guest was closed);
 #       2 a prerequisite was missing (nothing started); 5 the controlled stop failed (guest left as is).
+#
+# validate.sh --resume <scenario> continues on a guest that is ALREADY running (its boot phase was
+# recorded by an earlier run of this script that did not reach the close): the prerequisites then
+# require the running guest instead of its absence, the apply is skipped, and every later phase
+# runs and is recorded as usual. It never boots a second time.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=lib.sh
 . "$HERE/lib.sh"
-[ $# -eq 1 ] || { echo "usage: validate.sh <scenario>" >&2; exit 2; }
+RESUME=0
+if [ "${1:-}" = --resume ]; then RESUME=1; shift; fi
+[ $# -eq 1 ] || { echo "usage: validate.sh [--resume] <scenario>" >&2; exit 2; }
 scenario=$1
 scenario_load "$scenario"
 scenario_dirs
@@ -127,15 +134,21 @@ check() { if "$@" > /dev/null 2>&1; then echo "ok:   $*"; else echo "MISSING: $*
     # Placeholders outside comments; fail-closed (an unreadable file is not "no placeholder").
     check bash -c 'n=$(grep -v "^[[:space:]]*#" "$1" | grep -c CHANGE_ME); [ "$n" = 0 ]' _ "$SECRETS"
     if pilot_session_open; then echo "MISSING: no pilot session must be open ($COMPARE_EXEC/current_session exists)"; pre_ok=0; else echo "ok:   no pilot session open"; fi
-    if o=$(qemu_others); then echo "MISSING: no other QEMU must run:"; echo "$o"; pre_ok=0; elif [ $? -eq 2 ]; then echo "MISSING: pgrep could not answer"; pre_ok=0; else echo "ok:   no qemu-system-aarch64 running"; fi
-    if b=$(ports_busy); then echo "MISSING: host ports free (busy:$b)"; pre_ok=0; else echo "ok:   host ports 2222/8883 free"; fi
-    if own_pid > /dev/null 2>&1; then echo "MISSING: this scenario must not be running already"; pre_ok=0; fi
+    if o=$(qemu_others); then echo "MISSING: no other QEMU must run:"; echo "$o"; pre_ok=0; elif [ $? -eq 2 ]; then echo "MISSING: pgrep could not answer"; pre_ok=0; else echo "ok:   no other qemu-system-aarch64 running"; fi
+    if [ "$RESUME" = 1 ]; then
+        if p=$(own_pid); then echo "ok:   resume: this scenario's guest is running (pid $p)"; else echo "MISSING: resume needs this scenario's guest running"; pre_ok=0; fi
+    else
+        if b=$(ports_busy); then echo "MISSING: host ports free (busy:$b)"; pre_ok=0; else echo "ok:   host ports 2222/8883 free"; fi
+        if own_pid > /dev/null 2>&1; then echo "MISSING: this scenario must not be running already"; pre_ok=0; fi
+    fi
 } > "$OUT/00-prerequisites.txt" 2>&1
 cat "$OUT/00-prerequisites.txt"
 [ "$pre_ok" = 1 ] || { echo "VALIDATE $scenario: result=not-started (prerequisites) out=$OUT"; exit 2; }
 
 # --- 1. boot through Terraform (prepare is idempotent; start refuses if anything else runs) ---------
-if ! must boot tf-apply env EGW_COMPARE_AUTO_APPROVE=1 bash "$HERE/tf.sh" "$scenario" apply; then
+if [ "$RESUME" = 1 ]; then
+    echo "resume: the guest was booted by an earlier run; the apply is not repeated" | tee "$OUT/01-boot-resumed.txt"
+elif ! must boot tf-apply env EGW_COMPARE_AUTO_APPROVE=1 bash "$HERE/tf.sh" "$scenario" apply; then
     seal
     echo "VALIDATE $scenario: result=fail phase=boot out=$OUT"
     exit 1
