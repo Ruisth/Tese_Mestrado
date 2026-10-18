@@ -63,7 +63,11 @@ scenario_load() {
     [ "${SCENARIO:-}" = "$name" ] || die "$f declares SCENARIO='${SCENARIO:-}', expected '$name'"
     S_DIR=$COMPARE_ROOT/scenarios/$name
     B_DIR=$COMPARE_ROOT/base/$name
-    S_ROOT_DISK=$S_DIR/disks/root.qcow2
+    # The root overlay is named after the base image, <image>.rootfs.qcow2: the harness identifies
+    # the rootfs drive of the hypervisor it records by '.rootfs' in the drive's file name.
+    IMAGE_NAME=$(basename "${BASE_IMAGE_FILE:-${BASE_ROOTFS_SRC:-root}}")
+    IMAGE_NAME=${IMAGE_NAME%.qcow2}; IMAGE_NAME=${IMAGE_NAME%.ext4}; IMAGE_NAME=${IMAGE_NAME%.rootfs}
+    S_ROOT_DISK=$S_DIR/disks/$IMAGE_NAME.rootfs.qcow2
     S_DATA_DISK=$S_DIR/disks/data.img
     S_PIDFILE=$S_DIR/state/qemu.pid
     S_MONITOR=$S_DIR/state/monitor.sock

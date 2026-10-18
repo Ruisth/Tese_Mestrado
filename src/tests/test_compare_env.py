@@ -34,6 +34,8 @@ if not Path("/proc/self/cmdline").exists():
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPARE_DIR = REPO_ROOT / "tools" / "compare"
 SCRIPT = COMPARE_DIR / "compare_env.sh"
+#: The root overlay is named after the base image (lib.sh): <image>.rootfs.qcow2.
+ROOT_OVERLAY = "egw-gateway-image-qemuarm64.rootfs.qcow2"
 TF_DIR = COMPARE_DIR / "terraform"
 SECRET = "stub-secret-value"
 STATUS_KEYS = {"scenario", "prepared", "running", "pid", "lock_holder", "started_uptime_s", "root_disk", "data_disk",
@@ -343,7 +345,7 @@ def test_prepare_creates_layout_and_manifest(bench) -> None:
     assert _mode(bench.b_dir / "Image") == 0o444 and _mode(bench.b_dir / "rootfs.ext4") == 0o444
     assert _sha256(bench.b_dir / "rootfs.ext4") == rootfs_sha
     assert rootfs_sha in (bench.b_dir / "SHA256SUMS").read_text(encoding="utf-8")
-    for rel in ("disks/root.qcow2", "disks/data.img", "manifest.json"):
+    for rel in ("disks/" + ROOT_OVERLAY, "disks/data.img", "manifest.json"):
         assert (bench.s_dir / rel).is_file(), rel
     for rel in ("state", "logs", "results"):
         assert (bench.s_dir / rel).is_dir(), rel
@@ -351,7 +353,7 @@ def test_prepare_creates_layout_and_manifest(bench) -> None:
     # the root disk is an overlay on the immutable copy; the data disk a fresh ext4 labelled egw-data
     creates = [line.split() for line in bench.log() if line.startswith("qemu-img create")]
     assert len(creates) == 1, creates
-    for token in ("-f", "qcow2", "-b", str(bench.b_dir / "rootfs.ext4"), "-F", "raw", str(bench.disks / "root.qcow2")):
+    for token in ("-f", "qcow2", "-b", str(bench.b_dir / "rootfs.ext4"), "-F", "raw", str(bench.disks / ROOT_OVERLAY)):
         assert token in creates[0], (token, creates[0])
     mkfs = [line for line in bench.log() if line.startswith("mkfs.ext4 ")]
     assert len(mkfs) == 1 and "egw-data" in mkfs[0] and str(bench.disks / "data.img") in mkfs[0], mkfs
@@ -368,7 +370,7 @@ def test_prepare_creates_layout_and_manifest(bench) -> None:
 
 def test_prepare_is_idempotent(bench) -> None:
     bench.ok("prepare", "yocto")
-    watched = [bench.disks / "root.qcow2", bench.disks / "data.img", bench.manifest,
+    watched = [bench.disks / ROOT_OVERLAY, bench.disks / "data.img", bench.manifest,
                bench.b_dir / "Image", bench.b_dir / "rootfs.ext4"]
     files_before = bench.files()
     mtimes_before = [p.stat().st_mtime_ns for p in watched]
@@ -384,7 +386,7 @@ def test_prepare_refuses_missing_base(bench) -> None:
     result = bench.run("prepare", "yocto")
     assert result.returncode == 2, _report(result)
     assert "STOP:" in result.stderr and "missing.rootfs.ext4" in result.stderr, _report(result)
-    assert not (bench.disks / "root.qcow2").exists() and not bench.manifest.exists()
+    assert not (bench.disks / ROOT_OVERLAY).exists() and not bench.manifest.exists()
     assert not (bench.b_dir / "rootfs.ext4").exists()
     assert bench.status()["prepared"] == "false"
 
@@ -423,7 +425,7 @@ def test_start_writes_pid_and_status_running(bench) -> None:
     assert console is not None and Path(console).is_relative_to(bench.s_dir / "logs") and Path(console).is_file(), argv
     joined = " ".join(argv)
     for token in ("-cpu cortex-a76", "-smp 4", "-m 8192", "hostfwd=tcp:127.0.0.1:2222-:22",
-                  "hostfwd=tcp:127.0.0.1:8883-:8883", str(bench.disks / "root.qcow2"), str(bench.disks / "data.img"),
+                  "hostfwd=tcp:127.0.0.1:8883-:8883", str(bench.disks / ROOT_OVERLAY), str(bench.disks / "data.img"),
                   str(bench.b_dir / "Image")):
         assert token in joined, (token, joined)
     status = bench.status()
@@ -509,7 +511,7 @@ def test_status_after_prepare_names_the_artefacts(bench) -> None:
     bench.ok("prepare", "yocto")
     status = bench.status()
     assert status["prepared"] == "true" and status["running"] == "false" and status["pid"] == "", status
-    assert Path(status["root_disk"]).resolve() == (bench.disks / "root.qcow2").resolve(), status
+    assert Path(status["root_disk"]).resolve() == (bench.disks / ROOT_OVERLAY).resolve(), status
     assert Path(status["data_disk"]).resolve() == (bench.disks / "data.img").resolve(), status
     assert Path(status["manifest"]).resolve() == bench.manifest.resolve(), status
     manifest = json.loads(bench.manifest.read_text(encoding="utf-8"))
@@ -543,7 +545,7 @@ def test_stop_powers_off_and_clears(bench) -> None:
     assert status["running"] == "false" and status["pid"] == "" and status["lock_holder"] == "", status
     assert status["prepared"] == "true", status
     # a stop preserves the disks
-    assert (bench.disks / "root.qcow2").is_file() and (bench.disks / "data.img").is_file()
+    assert (bench.disks / ROOT_OVERLAY).is_file() and (bench.disks / "data.img").is_file()
 
 
 def test_stop_never_kills_when_guest_ignores_poweroff(bench) -> None:
@@ -572,7 +574,7 @@ def test_destroy_refuses_while_running(bench) -> None:
     assert result.returncode == 5, _report(result)
     assert "STOP:" in result.stderr, _report(result)
     assert _alive(pid) and bench.pid() == pid
-    for rel in ("disks/root.qcow2", "disks/data.img", "manifest.json", "state/argv.txt"):
+    for rel in ("disks/" + ROOT_OVERLAY, "disks/data.img", "manifest.json", "state/argv.txt"):
         assert (bench.s_dir / rel).is_file(), rel
     assert bench.status()["running"] == "true"
 
@@ -587,7 +589,7 @@ def test_destroy_keeps_bases_and_results(bench) -> None:
     bases = {p.name: _sha256(p) for p in bench.b_dir.iterdir()}
     logs_before = {p.name for p in (bench.s_dir / "logs").iterdir()}
     bench.ok("destroy", "yocto")
-    assert not (bench.disks / "root.qcow2").exists() and not (bench.disks / "data.img").exists()
+    assert not (bench.disks / ROOT_OVERLAY).exists() and not (bench.disks / "data.img").exists()
     state = bench.s_dir / "state"
     assert not state.exists() or [p for p in state.rglob("*") if p.is_file()] == [], "state files were kept"
     assert {p.name: _sha256(p) for p in bench.b_dir.iterdir()} == bases, "a base changed"

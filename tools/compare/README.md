@@ -59,7 +59,7 @@ the clone and outside the pilot's directories (`~/egw-tcg`, `~/egw-exec`,
 | Path | Holds | Lifetime |
 |---|---|---|
 | `base/<scenario>/` | immutable base copies, mode 0444, each listed in `SHA256SUMS` — `yocto`: `Image`, `rootfs.ext4`; `debian13`: the downloaded `.qcow2`, `vmlinuz`, `initrd.img`, `root-uuid.txt`, `partitions.txt`, `boot-files.sha256`, `prepared.qcow2` | preserved; verified with `sha256sum -c` at every `prepare` and `start` (a changed base is exit 3) |
-| `scenarios/<s>/disks/` | `root.qcow2` (overlay on the base), `data.img` (32 GiB raw ext4, label `egw-data`), `firstboot.qcow2` (Debian, transient) | disposable: removed by `destroy` |
+| `scenarios/<s>/disks/` | `<image>.rootfs.qcow2` (overlay on the base, named after the base image so the harness identifies the rootfs drive), `data.img` (32 GiB raw ext4, label `egw-data`), `firstboot.qcow2` (Debian, transient) | disposable: removed by `destroy` |
 | `scenarios/<s>/state/` | `qemu.pid`, `monitor.sock`, `known_hosts` (the guest's pinned host key), `argv.txt`, `started` (host uptime), `started_utc`, `console` (path), `seed/` (Debian), `ca.crt`, `provision.json` | removed by `destroy`, after copying `argv.txt`, `started*`, `provision.json` and the manifest to `results/destroy-<stamp>/` |
 | `scenarios/<s>/logs/` | `lifecycle.log`, `console-<stamp>.log`, `start-`, `stop-`, `provision-<stamp>.log`, `firstboot-*` | preserved |
 | `scenarios/<s>/results/` | `validate-<stamp>/` (with `SHA256SUMS`), `functional-*`, `destroy-<stamp>/` | preserved |

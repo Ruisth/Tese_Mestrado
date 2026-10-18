@@ -147,6 +147,15 @@ step() {   # step NAME CMD...: run, keep rc and duration; a non-zero rc marks th
 }
 must() { step "$@" || { FAILED=1; echo "  -> instrumentation step failed: $1"; return 1; }; }
 jnum() { [ -n "${1:-}" ] && [ "$1" != null ] && printf '%s' "$1" || printf 'null'; }
+fetch_live() {   # fetch_live REMOTE LOCAL: copy a file that may still grow, then verify the copied prefix
+    local remote=$1 local=$2 size rsum lsum
+    "$GSCP" -q "egw@127.0.0.1:$remote" "$local" || return 1
+    size=$(stat -c %s "$local")
+    rsum=$("$GSSH" egw@127.0.0.1 "head -c $size '$remote' | sha256sum" 2> /dev/null | cut -d' ' -f1) || return 1
+    lsum=$(sha256sum "$local" | cut -d' ' -f1)
+    [ -n "$rsum" ] && [ "$rsum" = "$lsum" ] || { echo "fetch_live: the copied prefix of $remote does not verify"; return 1; }
+    echo "fetch_live: $remote copied ($size bytes, prefix verified; the file may have grown since)"
+}
 fetch_file() {   # fetch_file REMOTE LOCAL: copy a guest file and verify its sha256 against the guest's
     local remote=$1 local=$2 rsum lsum
     rsum=$("$GSSH" egw@127.0.0.1 "sha256sum '$remote'" 2> /dev/null | cut -d' ' -f1) || return 1
@@ -236,7 +245,11 @@ finish() {   # finish RESULT: seal and end with the exit code the record implies
 restore_disks() {
     rm -f "$S_DIR/state/launch" "$S_DIR/state/ssh_ok" "$S_DIR/state/provision.json"
     cp --sparse=always "$BASE/root.qcow2" "$S_ROOT_DISK" && cp --sparse=always "$BASE/data.img" "$S_DATA_DISK" || return 1
-    (cd "$S_DIR/disks" && sha256sum -c --quiet "$BASE/SHA256SUMS") || { echo "restored disks do not match the measured base"; return 1; }
+    local want_root want_data
+    want_root=$(awk '$2 == "root.qcow2" { print $1 }' "$BASE/SHA256SUMS")
+    want_data=$(awk '$2 == "data.img" { print $1 }' "$BASE/SHA256SUMS")
+    [ -n "$want_root" ] && [ "$(sha256sum "$S_ROOT_DISK" | cut -d' ' -f1)" = "$want_root" ] || { echo "restored root overlay does not match the measured base"; return 1; }
+    [ -n "$want_data" ] && [ "$(sha256sum "$S_DATA_DISK" | cut -d' ' -f1)" = "$want_data" ] || { echo "restored data disk does not match the measured base"; return 1; }
     cp -p "$BASE/base.json" "$RUN/base.json" 2> /dev/null
     return 0
 }
@@ -309,8 +322,16 @@ echo "[$(utc_now)] harness exit=$HARNESS_RC (a non-zero exit is the harness's ve
 
 # --- 6. drain by the runbook helper, then the events after it -------------------------------------------------
 mark drain_start
-DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$DRAIN_LIMIT_S CTRL=$CTRL EGW_CLONE=$REPO \
-    bash "$REPO/tools/session/proof_hook_drained.sh" "$RID" > "$RUN/drain.txt" 2>&1
+(
+    # The runbook helper file loads only with the deployment's .env exported (it refuses otherwise);
+    # exported here, in this subshell, and never printed.
+    set -a
+    # shellcheck disable=SC1090
+    . "$SECRETS" > /dev/null 2>&1 || exit 97
+    set +a
+    DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$DRAIN_LIMIT_S CTRL=$CTRL EGW_CLONE=$REPO \
+        exec bash "$REPO/tools/session/proof_hook_drained.sh" "$RID"
+) > "$RUN/drain.txt" 2>&1
 DRAIN_RC=$?
 mark drain_end
 if [ "$DRAIN_RC" -eq 0 ] && grep -q '^drained: queue_depth 0' "$RUN/drain.txt"; then DRAIN_RESULT=quiet
@@ -318,8 +339,8 @@ elif grep -q '^STOP: drained: no quiet window' "$RUN/drain.txt"; then DRAIN_RESU
 else DRAIN_RESULT=error; FAILED=1; fi
 printf '%s\tdrain\t%s\t%s\n' "$((N + 1))" "$DRAIN_RC" "$(awk -v a="${T[drain_start]}" -v b="${T[drain_end]}" 'BEGIN { printf "%.1f", b - a }')" >> "$STEPS"; N=$((N + 1))
 echo "[$(utc_now)] drain $DRAIN_RESULT (exit $DRAIN_RC)"
-step post-drain-events fetch_file "/opt/egw/deployment/data/events/$RID/events.jsonl" "$RUN/events.post-drain.jsonl" || FAILED=1
-step warmup-events fetch_file "/opt/egw/deployment/data/events/$RID.warmup/events.jsonl" "$RUN/events.warmup.jsonl" || true
+step post-drain-events fetch_live "/opt/egw/deployment/data/events/$RID/events.jsonl" "$RUN/events.post-drain.jsonl" || FAILED=1
+step warmup-events fetch_live "/opt/egw/deployment/data/events/$RID.warmup/events.jsonl" "$RUN/events.warmup.jsonl" || true
 
 # --- 7. final state, close ---------------------------------------------------------------------------------
 step load-sampler-stop "$GSSH" egw@127.0.0.1 "sudo -n systemctl stop egw-meminfo-$RID" || FAILED=1
