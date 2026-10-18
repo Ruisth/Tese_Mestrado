@@ -1,0 +1,329 @@
+# Comparison environments — the Yocto image and Debian 13 under one QEMU/TCG profile
+
+## 1. Purpose and status
+
+This folder prepares, starts, stops and removes two isolated ARM64 guests under
+the **same** emulated machine: `yocto`, the project's `egw-gateway-image` as the
+pilot sessions booted it, and `debian13`, a dated Debian 13 genericcloud image
+provisioned once for the same application stack. One bash CLI
+(`compare_env.sh`) owns the lifecycle; a thin Terraform module records the
+desired state and reads the live one; `provision_stack.sh`,
+`functional_check.sh` and `validate.sh` bring the stack up, push one synthetic
+event to its twin and record the result.
+
+What it is **not**: it measures nothing and claims nothing. The pilot figures
+quoted in [`PROTOCOL.md`](PROTOCOL.md) are planning inputs and are not
+citable. A comparison measurement needs a later, separate authorisation and the
+approval of that protocol; until a record appears in section 9 below, no guest
+has been booted by this tooling.
+
+## 2. Layout on disk
+
+Everything lives under `$EGW_COMPARE_ROOT` (default `~/egw-compare`), outside
+the clone and outside the pilot's directories (`~/egw-tcg`, `~/egw-exec`,
+`~/yocto`), which these scripts never write to.
+
+| Path | Holds | Lifetime |
+|---|---|---|
+| `base/<scenario>/` | immutable base copies, mode 0444, each listed in `SHA256SUMS` — `yocto`: `Image`, `rootfs.ext4`; `debian13`: the downloaded `.qcow2`, `vmlinuz`, `initrd.img`, `root-uuid.txt`, `partitions.txt`, `boot-files.sha256`, `prepared.qcow2` | preserved; verified with `sha256sum -c` at every `prepare` and `start` (a changed base is exit 3) |
+| `scenarios/<s>/disks/` | `root.qcow2` (overlay on the base), `data.img` (32 GiB raw ext4, label `egw-data`), `firstboot.qcow2` (Debian, transient) | disposable: removed by `destroy` |
+| `scenarios/<s>/state/` | `qemu.pid`, `monitor.sock`, `known_hosts` (the guest's pinned host key), `argv.txt`, `started` (host uptime), `started_utc`, `console` (path), `seed/` (Debian), `ca.crt`, `provision.json` | removed by `destroy`, after copying `argv.txt`, `started*`, `provision.json` and the manifest to `results/destroy-<stamp>/` |
+| `scenarios/<s>/logs/` | `lifecycle.log`, `console-<stamp>.log`, `start-`, `stop-`, `provision-<stamp>.log`, `firstboot-*` | preserved |
+| `scenarios/<s>/results/` | `validate-<stamp>/` (with `SHA256SUMS`), `functional-*`, `destroy-<stamp>/` | preserved |
+| `scenarios/<s>/manifest.json` | the scenario's identity: base paths and sha256, QEMU path/version/sha256, machine arguments, disks, host, repository commit, script hashes | written by the first `prepare` and rewritten by any `prepare` that (re)creates the work disks (for example after a `destroy`); kept by `destroy`, with a copy under `results/destroy-<stamp>/` |
+| `lock/active/holder` | the one-guest lock; content = the scenario that holds the profile's ports | released by `stop`/`destroy`; a stale lock (holder without a pid file) is taken over |
+| `tfstate/<scenario>/terraform.tfstate` | Terraform state, one workspace per scenario (local backend, `workspace_dir`) | preserved |
+| `bin/terraform`, `plugin-cache/` | the pinned Terraform binary; `TF_PLUGIN_CACHE_DIR` | preserved |
+
+Inside the clone only `tools/compare/terraform/.terraform/` (provider binaries,
+backend settings) appears; it is ignored by git. The lock file
+`tools/compare/terraform/.terraform.lock.hcl` is the one generated file that
+belongs in the repository (section 3).
+
+## 3. Prerequisites
+
+- WSL2 Ubuntu-24.04 host (the scripts use GNU userland, `/proc`, `ss`,
+  `pgrep`), with `e2fsprogs` (`mkfs.ext4`, `debugfs`), `util-linux` (`blkid`),
+  `python3`, `curl`, `unzip`, `ssh`/`scp`, `tar`.
+- QEMU 8.2.7 from poky's `qemu-helper-native` sysroot:
+  `~/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64`
+  (sha256 `5d389c65…`, recorded in each manifest) and its sibling `qemu-img`
+  — overridable with `EGW_COMPARE_QEMU` / `EGW_COMPARE_QEMU_IMG`.
+- The Yocto deploy directory of the integrated build (`EGW_YOCTO_DEPLOY`,
+  default `~/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64`)
+  with `Image` and `egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4`.
+- The operator key pair `~/.ssh/egw_campaign` and `~/.ssh/egw_campaign.pub`
+  (`EGW_COMPARE_SSH_KEY`); the Debian seed carries the public half only.
+- For the stack: `~/egw-tcg/.env` with the four passwords set
+  (`EGW_COMPARE_SECRETS_ENV`), `~/egw-images/egw-controller-0.1.0-arm64.tar`
+  and its `.identity.txt` (`EGW_IMAGES_DIR`), and the virtual environment
+  `~/egw-exec/venv` with the project installed (`import egw_simulator` must
+  work; `EGW_EXEC_VENV`).
+- No pilot session open (`~/egw-exec/current_session` absent), no other
+  `qemu-system-aarch64` running, host ports 2222 and 8883 free.
+
+### Terraform 1.16.6, installed to `$EGW_COMPARE_ROOT/bin/terraform`
+
+The archive, the two providers and the Debian image are downloads; they run
+only under an authorised download.
+
+```bash
+mkdir -p ~/egw-compare/bin && cd ~/egw-compare/bin
+curl -fLO https://releases.hashicorp.com/terraform/1.16.6/terraform_1.16.6_linux_amd64.zip
+curl -fLO https://releases.hashicorp.com/terraform/1.16.6/terraform_1.16.6_SHA256SUMS
+grep ' terraform_1.16.6_linux_amd64.zip$' terraform_1.16.6_SHA256SUMS | sha256sum -c -
+# expected: terraform_1.16.6_linux_amd64.zip: OK
+#           (sha256 38034b38d03096399a7a1264a14561a8029b2b496fd1f169452656e53968f1b7)
+unzip -o terraform_1.16.6_linux_amd64.zip terraform && chmod 0755 terraform && ./terraform version
+```
+
+`tf.sh` uses `EGW_COMPARE_TERRAFORM`, else `$EGW_COMPARE_ROOT/bin/terraform`,
+else `terraform` on `PATH`.
+
+### `init` and the provider lock
+
+```bash
+cd <clone>
+bash tools/compare/tf.sh yocto init        # downloads hashicorp/local 2.9.1 and hashicorp/external 2.4.2,
+                                           # state under ~/egw-compare/tfstate, selects workspace `yocto`
+~/egw-compare/bin/terraform -chdir=tools/compare/terraform providers lock \
+    -platform=linux_amd64 -platform=linux_arm64 -platform=darwin_arm64 \
+    -platform=darwin_amd64 -platform=windows_amd64
+```
+
+`providers lock` writes `tools/compare/terraform/.terraform.lock.hcl` with the
+checksums of both providers for the five platforms; that file is committed so
+that every later `init` verifies the same bytes. A tree without it means this
+step has not been done yet. `init` is per clone; the `debian13` workspace is
+created by the first `tf.sh debian13 plan|apply` (`workspace select -or-create`).
+Changing `EGW_COMPARE_ROOT` afterwards needs `tf.sh <scenario> init -reconfigure`.
+
+## 4. Commands
+
+Through Terraform (`apply`, `stop` and `destroy` ask for confirmation unless
+`EGW_COMPARE_AUTO_APPROVE=1`; any further arguments go to Terraform):
+
+```bash
+bash tools/compare/tf.sh <yocto|debian13> plan      # what apply would do
+bash tools/compare/tf.sh <s> apply                  # prepare (idempotent) + start the guest
+bash tools/compare/tf.sh <s> status                 # compare_env.sh status: the LIVE state, one JSON object
+bash tools/compare/tf.sh <s> output                 # terraform output -json of that workspace
+bash tools/compare/tf.sh <s> stop                   # apply -var desired_state=stopped: controlled stop
+bash tools/compare/tf.sh <s> destroy                # controlled stop, then remove work disks and state only
+bash tools/compare/tf.sh <s> apply -replace='terraform_data.power[0]'   # restart a guest that ended on its own
+```
+
+The same by hand (what Terraform calls; `s` = `yocto` or `debian13`):
+
+```bash
+bash tools/compare/compare_env.sh prepare  <s>   # 0 prepared or already prepared; 2 prerequisite; 3 integrity
+bash tools/compare/compare_env.sh start    <s>   # 0 running or already running; 2 refused by a guard; 5 failed
+bash tools/compare/compare_env.sh status   <s>   # always 0; JSON of strings (section 5)
+bash tools/compare/compare_env.sh stop     <s>   # 0 stopped or not running; 5 still running (nothing killed)
+bash tools/compare/compare_env.sh destroy  <s>   # 0 removed; 5 refused while running
+bash tools/compare/compare_env.sh manifest <s>   # prints the manifest path
+```
+
+**Debian base, first `prepare` only.** The image
+`debian-13-genericcloud-arm64-20261017-2634.qcow2` is fetched from
+`cloud.debian.org` and checked against its published SHA512 only when
+`EGW_COMPARE_ALLOW_DOWNLOAD=1` is set (an authorised download); without it
+`prepare debian13` stops at exit 2 and names the URL. Then `debian/extract_boot.sh`
+takes `vmlinuz`, `initrd.img` and the root UUID out of the image with `qemu-img`,
+a GPT parser and `debugfs` (no root, nothing mounted), and the **provisioning
+first boot** runs: the seed rendered by `debian/render_seed.py`
+(`user-data`, `meta-data`, `vendor-data`) is served from `127.0.0.1:8099`
+(`EGW_COMPARE_SEED_PORT`; the guest reaches it as `http://10.0.2.2:8099/` through
+slirp, `ds=nocloud` on the kernel command line); QEMU runs in the foreground on a
+throwaway overlay under `timeout 1800` (`EGW_COMPARE_FIRSTBOOT_LIMIT_S`), with
+the same guards and lock as `start`. cloud-init creates the user `egw` (uid 1000,
+key-only, sudo), installs `docker.io docker-compose docker-cli containerd runc
+curl openssl ca-certificates e2fsprogs sudo` after `apt update` against the
+image's own sources, mounts the data disk at `/var/lib/docker` with the image's
+fstab line before docker's first start, writes the eight configuration files of
+`egw-gateway-config`/`egw-base-config` byte for byte, masks `apt-daily` and
+`apt-daily-upgrade`, records `dpkg-query -W` in `/etc/egw-buildinfo.packages`,
+writes `/etc/cloud/cloud-init.disabled` and powers off.
+`debian/firstboot_check.py` accepts the console log only when cloud-init's
+completion line precedes `reboot: Power down` and no private-key material
+appears; otherwise `prepare` exits 3 and **no** `prepared.qcow2` is written. On
+success the overlay is flattened (`qemu-img convert`) into
+`base/debian13/prepared.qcow2` (0444, sha256 in `SHA256SUMS`), and the work
+overlay is created on it. The data disk attached to that first boot (where
+Docker initialised `/var/lib/docker`) is discarded and a fresh `data.img` is
+created, so both scenarios start their comparison from an empty data disk.
+
+**The authorised functional sequence** (one attempt, no repetition, no load):
+
+```bash
+bash tools/compare/validate.sh <s>              # 0 pass; 1 a phase failed (guest closed); 2 not started; 5 close failed
+```
+
+Phases, each a numbered file under `scenarios/<s>/results/validate-<stamp>/`
+(`steps.tsv` keeps rc and host-monotonic seconds): prerequisites →
+`tf.sh apply` → ssh answers (≤ 450 s) and `systemctl is-system-running` in
+`{running, degraded}` (≤ 240 s more, recorded, not fatal) → guest facts →
+`provision_stack.sh` → SUT environment record → `functional_check.sh` →
+final state and journal → `tf.sh stop` → own pid gone and no other QEMU →
+`SHA256SUMS`. The close is attempted even after a failure; nothing is killed.
+
+`provision_stack.sh <s>` runs the runbook's 5.1–5.6 over ssh with the
+deployment's own POSIX scripts, idempotently (markers under
+`/opt/egw/evidence/provision/`): guest facts (uid 1000, docker, compose,
+`/var/lib/docker` on the `egw-data` label), deployment tree (content sha256),
+`.env`, the five pinned images pulled and checked by `RepoDigests`, the
+controller archive loaded and verified against its identity record, TLS, auth,
+broker secrets with ACL, `validate-config.sh`, `up -d`, then six
+`running/healthy` and `/ready` 200 within `EGW_COMPARE_HEALTH_LIMIT_S`
+(1800 s). It writes `state/provision.json` (steps, `seconds_to_healthy`,
+`seconds_to_ready`, host monotonic from `up -d`) and fetches `ca.crt`. Exit 0
+healthy and ready; 1 up but not ready in time; 2 host prerequisites; 3 a step
+failed. `functional_check.sh <s> <run-id> <seed>` opens an ssh master tunnel
+(`state/tunnel.ctl`; host ports 8000 and 8080 must be free) to the guest's
+loopback APIs, reads `/metrics`, publishes one message from one simulated
+smartwatch over TLS on 8883 (`egw_simulator`, smoke scenario, QoS 1), waits up
+to `EGW_COMPARE_ACCEPT_LIMIT_S` (120 s) for `accepted` to grow by one, reads the
+twin `org.c2dta:<device_uuid>` back from Ditto and requires the run id at
+`features.ingestion.properties.last_run_id`. Records go to
+`results/functional-<stamp>-<run-id>/` (`metrics.before/after.json`,
+`sim/<run-id>/sent_events.jsonl`, `twin.json`, `check.json`, `functional.log`);
+exit 0 pass, 1 fail, 2 prerequisite. It is a reachability check, not a slice
+pass in the project's sense.
+
+## 5. What Terraform does and does not do
+
+- **Desired versus live.** Terraform records the desire: `terraform_data.prepared`
+  (input = scenario, hashes of the scenario file, `compare_env.sh` and `lib.sh`;
+  create → `prepare`; destroy-time → `destroy`; replaced only when the scenario
+  or its `.env` file changes) and `terraform_data.power` (`count` = 1 when
+  `desired_state = running`; create → `start`; destroy-time → `stop`). The live
+  state is **read, never inferred**: `data.external.status` runs
+  `compare_env.sh status` after the power step, and its JSON — `scenario`,
+  `prepared`, `running`, `pid`, `lock_holder`, `started_uptime_s`, `root_disk`,
+  `data_disk`, `base_sha256`, `manifest`, `console`, all strings — is the
+  `status` output. `running` is true only when the pid file names a live
+  process whose command line is `qemu-system-aarch64`.
+- **`check "live_state_matches_desired"`** re-reads `status` at plan and apply
+  and emits a **warning** (never an error) when the live state disagrees: a
+  guest that ended on its own, or one started by hand. Terraform does not
+  detect such a guest otherwise; `apply -replace='terraform_data.power[0]'`
+  (stop, which returns 0 when nothing runs, then start) restores agreement.
+- **Second `apply` = no-op.** With nothing changed no resource is created or
+  destroyed and no provisioner runs; only the data sources are re-read. Editing
+  a script changes the recorded input in place and runs nothing; it never
+  destroys disks.
+- **`stop`** (`desired_state = stopped`) destroys only the power resource:
+  stack `compose stop -t 60` where a deployment exists, `sync; sudo poweroff`
+  over ssh, else `system_powerdown` through the monitor socket, then a wait of
+  `EGW_COMPARE_STOP_WAIT_S` (180 s) on the host's monotonic clock. Disks,
+  results and the manifest stay.
+- **A failed stop** is exit 5: the pid file and the lock are kept, `logs/stop-<stamp>.log`
+  says what was tried, **no QEMU process is ever killed**, the Terraform apply
+  fails and the resource stays in state (the state stays honest). The operator
+  inspects the console and decides.
+- **`destroy`** stops first (same rules), then `compare_env.sh destroy`, which
+  removes only `disks/` and `state/` and refuses (exit 5, nothing removed)
+  while the guest runs. Bases, `logs/`, `results/` and `manifest.json` are
+  untouched; `tfstate/` keeps the (now empty) workspace.
+- **One guest at a time** — `start` (and the Debian first boot) refuse with
+  exit 2 when: `~/egw-exec/current_session` exists (a pilot session), any other
+  `qemu-system-aarch64` runs (`pgrep`; an unanswerable `pgrep` also refuses),
+  a listener sits on 2222 or 8883 (`ss -ltn`), or the lock is held by the other
+  scenario with a live pid file. Nothing else is ever touched.
+- `start` re-verifies every file in `base/<s>/SHA256SUMS` before booting; for
+  `debian13` that is several GiB and takes a while.
+
+## 6. Equal conditions and known differences
+
+Equal for both scenarios (fixed in `lib.sh`/`compare_env.sh`, recorded in each
+manifest and in `state/argv.txt`): the same QEMU binary and sha256; `-machine
+virt -accel tcg -cpu cortex-a76 -smp 4 -m 8192`; `virtio-net-pci` with MAC
+`52:54:00:12:35:02` and `-netdev user,…,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8883-:8883`;
+`virtio-rng-pci` from `/dev/urandom`; two `virtio-blk-pci` disks (root overlay,
+32 GiB raw ext4 data disk labelled `egw-data`, mounted at `/var/lib/docker` by
+the same fstab line); `virtio-gpu-pci` with `-display none`; serial to a file,
+monitor on a Unix socket, `-no-reboot`; direct kernel boot (`-kernel`,
+`-append`, no firmware); `mem=8192M`, `console=ttyAMA0`, `swiotlb=0`; user `egw`
+uid 1000 with key-only ssh and the same eight configuration files; the same
+deployment tree, `images.lock.env` digests, controller archive, limits and
+secrets (`provision_stack.sh`); one guest at a time on the same host.
+
+| Aspect | `yocto` | `debian13` |
+|---|---|---|
+| Base | the deploy `rootfs.ext4` **as it is on disk today** (booted read-write by the pilot sessions; sha256 recorded at copy time, which is not the build's) — a pristine rebuild is a Yocto build and is not authorised | official image 20261017-2634, SHA512-verified, then one cloud-init boot → `prepared.qcow2` (sha256 recorded) |
+| Kernel / initrd | 6.6.142-yocto-standard, no initramfs | `linux-image-6.12.113+deb13-cloud-arm64` with its initrd (extracted) |
+| Native boot path | direct kernel (as the pilot) | UEFI + GRUB; here direct kernel, recorded as a difference |
+| Root device / disk | `root=/dev/vda`; raw ext4, no partition table, 2,621,364,224 bytes (2.44 GiB), 344 MiB used at first boot | `root=UUID=…`; 3.0 GiB GPT image (ESP + root), root grown by `cloud-initramfs-growroot` at first boot; used size to be read from `df` |
+| Kernel command line | `root=/dev/vda rw mem=8192M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0` | `root=UUID=<uuid> rw mem=8192M console=ttyAMA0 swiotlb=0` |
+| Init | systemd 255.21 | systemd 257.13 |
+| Userland | BusyBox 1.36.1 `ash`, glibc 2.39, 614 packages, no package manager | GNU coreutils, `dash`, glibc 2.41, apt (`apt update` at first boot, no snapshot pin); package count from `/etc/egw-buildinfo.packages` |
+| Container engine | docker-moby 25.0.9, containerd 2.0.10, runc 1.1.14, Compose v2.26.0 | `docker.io 26.1.5+dfsg1-9+deb13u1`, `docker-compose 2.26.1-4`, Debian's containerd and runc (exact versions from the package manifest after the first boot) |
+| OpenSSH | 9.6p1 | 10.0p1 |
+| iptables | legacy xtables backend | nft backend |
+| cloud-init | absent | 25.1.4, disabled after the first boot (`/etc/cloud/cloud-init.disabled`) |
+| Timers | systemd's own only | `apt-daily*` masked; `e2scrub_all`, `fstrim`, `man-db`, `dpkg-db-backup`, `logrotate` left as shipped and listed in the guest facts |
+| Configuration paths | `/usr/lib/tmpfiles.d`, `/usr/lib/systemd/system/docker.service.d` | the same bytes under `/etc` |
+| Provenance file | `/etc/buildinfo` (image-buildinfo) | `/etc/egw-buildinfo` + `/etc/egw-buildinfo.packages` |
+
+The Debian versions above were read from the trixie archive on 2026-10-18; the
+guest's package manifest is the record. Every difference is recorded in the
+manifests and the guest facts and must appear in the limitations of any
+comparison that uses these environments.
+
+## 7. Secrets
+
+`~/egw-tcg/.env` is copied host → guest (`scp` to `/opt/egw/deployment/.env`,
+mode 600). On the host, `provision_stack.sh` checks only that its four names
+are assigned and carry no `CHANGE_ME` (no value is read), and
+`functional_check.sh` sources it in a subshell to hand
+`MOSQUITTO_SIMULATOR_PASSWORD` to the simulator through the environment
+(`EGW_MQTT_PASSWORD`), never on a command line and never printed; the broker
+passwords are derived **on the guest** (`generate-dev-auth.sh` with
+`set -a; . ./.env`).
+The seed holds the public key only (`render_seed.py` refuses a file with
+`-----BEGIN`); `firstboot_check.py` fails the first boot if private-key
+material reaches the console log. Manifests, `status`, `provision.json`, the
+Terraform state (variables, paths, hashes, the status JSON) and every log carry
+paths, hashes, versions and times, never a password or a key. Only `ca.crt`
+leaves the guest. The Yocto base copy may carry whatever the pilot sessions left
+on that root file system; it stays under `$EGW_COMPARE_ROOT` and nothing here
+reads it.
+
+## 8. Tests and static checks
+
+```bash
+cd src && python -m pytest tests/test_compare_env.py tests/test_compare_debian.py tests/test_compare_provision.py -q
+```
+
+All three run against stubs on a temporary `PATH` and say nothing about a real
+guest. `test_compare_env.py` (the CLI as Terraform runs it) skips as a module on
+`win32`, without `bash` or without Linux `/proc`; `test_compare_provision.py`
+(`provision_stack.sh` and `functional_check.sh` with a stub ssh whose "guest" is
+a fake root on this machine) skips as a module on `win32` or without `bash`;
+`test_compare_debian.py` runs the seed renderer and the first-boot judge on any
+platform and skips only its `extract_boot.sh` cases on `win32` or without
+`bash`, `dd`, `od` and `sha256sum`. The shellcheck tests skip without
+`shellcheck`; `test_terraform_fmt_check` skips without `terraform`;
+`test_terraform_validate` needs `terraform` **and** `EGW_COMPARE_TF_INIT=1`
+(its `init -backend=false` downloads the pinned providers).
+
+```bash
+git ls-files -z -- 'tools/compare/*.sh' | xargs -0 shellcheck --severity=error
+terraform fmt -check -recursive tools/compare/terraform
+terraform -chdir=tools/compare/terraform validate        # after init
+python tools/ci/check_markdown_links.py
+```
+
+## 9. Validation records — to be recorded
+
+One validation per scenario is authorised (the Debian provisioning first boot
+declared separately). Each record names the `results/validate-<stamp>/`
+directory, its `SHA256SUMS`, the manifest's `base_root_sha256`, and whether the
+run was **real** (a guest booted on the host) or only **simulated** (the stub
+tests of section 8). Until a row is filled, the answer is: not run.
+
+| Scenario | Boot | Configuration | Stack | Functional path | Close | Results dir / seal | Real or simulated |
+|---|---|---|---|---|---|---|---|
+| `yocto` | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded |
+| `debian13` — first boot | to be recorded | to be recorded | — | — | to be recorded | to be recorded | to be recorded |
+| `debian13` | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded | to be recorded |

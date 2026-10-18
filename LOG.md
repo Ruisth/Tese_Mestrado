@@ -5313,3 +5313,76 @@ is unchanged.
   preserving the first B, inheriting the closed A with provenance and binding
   the new identities and the root file system `3367c3af…`; a new session needs
   the student's separate approval and presence.
+
+## Entry #C059 — Comparison environments for the Yocto image and Debian 13 under one QEMU/TCG profile: lifecycle under Terraform, scripts and offline tests; no measurement
+
+- **Date:** 2026-10-18. **Scope:** comparison environments tooling (Yocto vs
+  Debian 13) — Terraform lifecycle, scripts, tests; no measurement. No change
+  to the controller, the image, the collector, the harness, the session
+  drivers, the plan or any pilot record; G4 stays `Not decided`.
+- **Authority.** The Project Manager's order as relayed by the student on
+  2026-10-18: implementation and offline tests in this block; one validation
+  boot per scenario (the Debian provisioning boot declared separately) to
+  follow under its own authorisation; no benchmark, no build, no controller
+  change.
+- **What was built** (`tools/compare/`, documented in its `README.md`): a
+  scenario contract (`scenarios/yocto.env`, `scenarios/debian13.env`) and a
+  shared library (`lib.sh`); the lifecycle CLI `compare_env.sh`
+  (`prepare | start | status | stop | destroy | manifest | disks`) with immutable,
+  checksummed base copies, qcow2 overlays on them, a fresh 32 GiB `egw-data`
+  disk per scenario, a manifest of every identity, daemonised QEMU with a pid
+  file, serial console to a file, a monitor socket and `-no-reboot`; the
+  Terraform module (`terraform/`, pinned to 1.16.6 with `hashicorp/local`
+  2.9.1 and `hashicorp/external` 2.4.2, one workspace per scenario, state
+  under `~/egw-compare/tfstate`) and its wrapper `tf.sh`; the Debian base
+  preparation (`debian/extract_boot.sh`: kernel, initrd and root UUID out of
+  the image without root; `debian/render_seed.py`: a NoCloud seed that carries
+  the image's eight configuration files byte for byte and the public key only;
+  `debian/firstboot_check.py`: the first boot counts only when cloud-init's
+  completion precedes the power-down and no key material reached the
+  console); `provision_stack.sh` (the runbook's 5.1–5.6 over ssh, idempotent,
+  pinned digests and the controller identity verified on the guest);
+  `functional_check.sh` (one synthetic event from one simulated device to its
+  twin); `validate.sh` (the authorised sequence, each phase recorded, the close
+  attempted after any failure, never a kill); `PROTOCOL.md`, a comparative
+  protocol **proposed for later approval**, not executed. Every download — the
+  Terraform archive, the two providers, the Debian image — is gated
+  (`EGW_COMPARE_ALLOW_DOWNLOAD=1` for the image) and waits for authorisation.
+- **Backend decision.** The libvirt provider was not viable without a
+  significant host migration: the WSL host runs no `libvirtd`, the QEMU in use
+  is poky's native 8.2.7 from the build sysroot, and the project's drivers own
+  the process, the slirp `hostfwd` and the direct kernel boot. Terraform is
+  therefore a thin layer — the built-in `terraform_data` with `local-exec`
+  over `compare_env.sh`, the `local` and `external` providers — that records
+  the desired state, while the live state is read by `compare_env.sh status`
+  (an `external` data source and a `check` block that warns on disagreement),
+  never inferred. A second `apply` runs nothing; `stop` preserves disks and
+  results; `destroy` removes only work disks and state after a controlled
+  stop; a stop that fails exits 5 and kills nothing.
+- **Boot-method decision.** Direct kernel boot (`-kernel`/`-append`) for both
+  scenarios, with each guest's own kernel: the Yocto `Image` as the pilot
+  booted it, Debian's `vmlinuz` and `initrd.img` extracted from the image.
+  Debian's native UEFI + GRUB path is not exercised and is recorded as a
+  difference, with the others (kernel, init, userland, engine versions, root
+  disk layout, cloud-init, timers) in the README's table and in the manifests.
+- **Equal profile.** The recorded pilot machine of 2026-10-09 for both:
+  `-machine virt -cpu cortex-a76 -smp 4 -m 8192`, TCG, the same QEMU binary
+  and sha256, MAC `52:54:00:12:35:02`, `hostfwd` 2222 and 8883 on the loopback,
+  virtio-rng, two virtio-blk disks, virtio-gpu, `mem=8192M`; one guest at a
+  time, refusing to start while a pilot session is open, another QEMU runs or
+  the ports are busy. The Yocto base is the deploy `rootfs.ext4` as it is on
+  disk today, after the pilot sessions booted it read-write; a pristine
+  rebuild is a Yocto build and is not authorised.
+- **Tests.** Offline, in the bench style of the session drivers: stub
+  binaries first on a temporary `PATH`, the CLI run as Terraform runs it, the
+  seed renderer and the first-boot judge on fixtures; the shellcheck and
+  Terraform format/validate checks skip where the tools are absent. They show
+  the scripts' contract, not a guest.
+- **Pending, each on its own authority.** The downloads' authorisation; the
+  provider lock file `terraform/.terraform.lock.hcl` (generated by
+  `providers lock` once `init` has run); the real validation of each scenario
+  (README section 9, "to be recorded"); the protocol's approval before any
+  comparison measurement.
+- **Unchanged.** The pilot evidence and its packages, the controller image and
+  its identity, the collector, the harness, the session drivers and the Yocto
+  image artefacts; nothing here is a comparison result.

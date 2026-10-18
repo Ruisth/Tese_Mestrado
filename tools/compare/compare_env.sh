@@ -28,6 +28,7 @@ usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -eq 2 ] || usage
 cmd=$1
 scenario=$2
+DISKS_CREATED=0
 scenario_load "$scenario"
 
 # --- bases ---------------------------------------------------------------------------------------
@@ -185,7 +186,10 @@ debian_firstboot() {
     mv "$B_DIR/prepared.qcow2.part" "$B_DIR/prepared.qcow2"
     chmod 0444 "$B_DIR/prepared.qcow2"
     rm -f "$ovl"
-    log_line "$S_LOG" "prepared base written: $B_DIR/prepared.qcow2"
+    # The data disk used by the provisioning boot holds Docker's first initialisation; the
+    # comparison starts from a fresh one, as the Yocto scenario does.
+    rm -f "$S_DATA_DISK"
+    log_line "$S_LOG" "prepared base written: $B_DIR/prepared.qcow2; the first-boot data disk was discarded"
 }
 
 # --- work disks and manifest ---------------------------------------------------------------------
@@ -204,14 +208,17 @@ prepare_work_disks() {
     if [ ! -s "$S_ROOT_DISK" ]; then
         "$COMPARE_QEMU_IMG" create -q -f qcow2 -b "$BASE_ROOT" -F "$ROOT_FORMAT" "$S_ROOT_DISK" || die "root overlay"
         log_line "$S_LOG" "root overlay created: $S_ROOT_DISK on $BASE_ROOT ($ROOT_FORMAT)"
+        DISKS_CREATED=1
     fi
     prepare_data_disk
 }
 
 base_sha() { awk -v f="$1" '$2 == f { print $1 }' "$B_DIR/SHA256SUMS" 2> /dev/null | head -n 1; }
 
+# write_manifest: written when absent and rewritten whenever the work disks were (re)created in
+# this run, so that a prepare after a destroy describes the new disks; otherwise left untouched.
 write_manifest() {
-    [ -s "$S_MANIFEST" ] && return 0
+    [ -s "$S_MANIFEST" ] && [ "${DISKS_CREATED:-0}" = 0 ] && return 0
     resolve_base
     local qv repo_commit dirty
     qv=$("$COMPARE_QEMU" --version 2> /dev/null | head -n 1)
