@@ -22,6 +22,7 @@ WORKING=$MEASURE/${SEALED_NAME%.json}.working.json   # one working copy per seal
 HARNESS=$MEASURE/harness
 VENV=${EGW_EXEC_VENV:-$COMPARE_EXEC/venv}
 PY=$VENV/bin/python
+MEASURE_RUN=${EGW_COMPARE_MEASURE_RUN:-$HERE/measure_run.sh}
 [ -r "$SEALED" ] || die "plan not readable: $SEALED"
 mkdir -p "$MEASURE/logs"
 LOG=$MEASURE/logs/series-$(stamp).log
@@ -50,7 +51,9 @@ while read -r rid sc status; do
     [ -n "$sc" ] || die "the plan names no scenario for $rid (comparison block)"
     if o=$(qemu_others); then echo "$o"; echo "STOP: a QEMU is running before $rid; the series stops"; exit 1; elif [ $? -eq 2 ]; then echo "STOP: pgrep could not answer"; exit 1; fi
     echo "== $rid ($sc): $(utc_now)"
-    bash "$HERE/measure_run.sh" "$sc" "$rid" "$WORKING"
+    # stdin from /dev/null: the driver (and the tools it runs) must never read the loop's own input,
+    # which once swallowed the remaining entries and ended a series after its second execution.
+    bash "$MEASURE_RUN" "$sc" "$rid" "$WORKING" < /dev/null
     rc=$?
     echo "== $rid ($sc): measure_run exit $rc at $(utc_now)"
     if [ "$rc" -ne 0 ]; then echo "STOP: the series stops after $rid (exit $rc): data preserved, nothing repeated; inspect $MEASURE/runs/$rid"; exit 1; fi

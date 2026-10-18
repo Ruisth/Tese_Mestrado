@@ -226,3 +226,24 @@ def test_guest_fetch_live_under_the_image_busybox(bench, tmp_path, busybox_dir) 
     assert local.read_bytes() == b'{"a": 1}\n' * 300 and "prefix verified" in result.stdout
     probe = subprocess.run(["sh", "-c", "head -c 1 /dev/null"], env={**os.environ, "PATH": path}, capture_output=True, text=True)
     assert probe.returncode != 0, "this busybox is expected to lack head -c (otherwise the case proves less)"
+
+
+def test_series_runs_every_planned_entry_even_when_the_driver_reads_stdin(bench, tmp_path) -> None:
+    """The second series ended after its second execution: the driver inherited the loop's stdin and a
+    tool inside it swallowed the remaining entries. The loop now feeds the driver /dev/null; a stub driver
+    that drains its stdin must still be called once per planned entry, in order."""
+    plan = {
+        "plan_version": "1.0",
+        "runs": [{"run_id": r, "condition_id": "nominal", "seed": 1, "status": s, "duration_s": 600, "warmup_s": 120,
+                  "rate_msg_s": 11.2} for r, s in (("a", "completed"), ("b", "planned"), ("c", "planned"), ("d", "planned"))],
+        "comparison": {"runs": {r: {"scenario": "yocto", "pair": 1, "order_in_pair": 1} for r in "abcd"}},
+    }
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    stub = bench.bin / "measure_run_stub.sh"
+    stub.write_text("#!/bin/sh\ncat > /dev/null\necho \"stub run $2\" >> \"$EGW_STUB_CALLS\"\nexit 0\n", encoding="utf-8")
+    stub.chmod(0o755)
+    result = bench.run_script(MEASURE_SERIES, str(path), EGW_COMPARE_MEASURE_RUN=str(stub))
+    calls = [line for line in bench.calls.read_text(encoding="utf-8").splitlines() if line.startswith("stub run")]
+    assert calls == ["stub run b", "stub run c", "stub run d"], (calls, _report(result))
+    assert "status 'completed', skipped" in result.stdout
