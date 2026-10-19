@@ -1,0 +1,211 @@
+{
+  "comparison": {
+    "id_suffix": "a02",
+    "master_seed": "S1, the seed of pair 1: the harness echoes this field into each manifest and derives nothing from it; the seed of every entry is its pair's (pair_seeds), set by this tool.",
+    "pair_order": [
+      [
+        "cmp-p1-yocto-a02",
+        "cmp-p1-debian13-a02"
+      ],
+      [
+        "cmp-p2-debian13-a02",
+        "cmp-p2-yocto-a02"
+      ],
+      [
+        "cmp-p3-yocto-a02",
+        "cmp-p3-debian13-a02"
+      ]
+    ],
+    "pair_seeds": {
+      "1": 2026101801,
+      "2": 2026101802,
+      "3": 2026101803
+    },
+    "purpose": "Exploratory comparison of the two gateway configurations (the Yocto image and Debian 13) under one QEMU/TCG profile, six nominal runs in three pairs; the results are not campaign attempts and carry no statistical significance.",
+    "runs": {
+      "cmp-p1-debian13-a02": {
+        "order_in_pair": 2,
+        "pair": 1,
+        "scenario": "debian13"
+      },
+      "cmp-p1-yocto-a02": {
+        "order_in_pair": 1,
+        "pair": 1,
+        "scenario": "yocto"
+      },
+      "cmp-p2-debian13-a02": {
+        "order_in_pair": 1,
+        "pair": 2,
+        "scenario": "debian13"
+      },
+      "cmp-p2-yocto-a02": {
+        "order_in_pair": 2,
+        "pair": 2,
+        "scenario": "yocto"
+      },
+      "cmp-p3-debian13-a02": {
+        "order_in_pair": 2,
+        "pair": 3,
+        "scenario": "debian13"
+      },
+      "cmp-p3-yocto-a02": {
+        "order_in_pair": 1,
+        "pair": 3,
+        "scenario": "yocto"
+      }
+    },
+    "supersedes": {
+      "path": "/home/ruisth/egw-compare/measure/plan.json",
+      "run_ids": [
+        "cmp-p1-yocto",
+        "cmp-p1-debian13",
+        "cmp-p2-debian13",
+        "cmp-p2-yocto",
+        "cmp-p3-yocto",
+        "cmp-p3-debian13"
+      ],
+      "sha256": "613d2ea932e0c9d1c54a3c0c20c041e3147c771e2cd29a3a1b916c983c86ef67"
+    }
+  },
+  "conditions": [
+    {
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "id": "nominal",
+      "metrics": [
+        "latency_ms_p50_p95_p99",
+        "delivery_counts",
+        "delivery_rate",
+        "cpu_pct_per_container",
+        "mem_bytes_per_container"
+      ],
+      "notes": "Ten nominal runs of ten minutes after two minutes of warm-up (plan 7.1).",
+      "performance_claims_allowed": true,
+      "rate_msg_s": 11.2,
+      "rates_msg_s": null,
+      "repetitions": 10,
+      "runner": "simulator",
+      "scenario": "nominal",
+      "warmup_s": 120
+    }
+  ],
+  "master_seed": 2026101801,
+  "plan_version": "1.0",
+  "protocol_version": "1.0.0",
+  "runs": [
+    {
+      "comparison": {
+        "order_in_pair": 1,
+        "pair": 1,
+        "scenario": "yocto"
+      },
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 1,
+      "rate_msg_s": 11.2,
+      "repetition": 1,
+      "run_id": "cmp-p1-yocto-a02",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2026101801,
+      "status": "planned",
+      "warmup_s": 120
+    },
+    {
+      "comparison": {
+        "order_in_pair": 2,
+        "pair": 1,
+        "scenario": "debian13"
+      },
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 2,
+      "rate_msg_s": 11.2,
+      "repetition": 1,
+      "run_id": "cmp-p1-debian13-a02",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2026101801,
+      "status": "planned",
+      "warmup_s": 120
+    },
+    {
+      "comparison": {
+        "order_in_pair": 1,
+        "pair": 2,
+        "scenario": "debian13"
+      },
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 3,
+      "rate_msg_s": 11.2,
+      "repetition": 2,
+      "run_id": "cmp-p2-debian13-a02",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2026101802,
+      "status": "planned",
+      "warmup_s": 120
+    },
+    {
+      "comparison": {
+        "order_in_pair": 2,
+        "pair": 2,
+        "scenario": "yocto"
+      },
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 4,
+      "rate_msg_s": 11.2,
+      "repetition": 2,
+      "run_id": "cmp-p2-yocto-a02",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2026101802,
+      "status": "planned",
+      "warmup_s": 120
+    },
+    {
+      "comparison": {
+        "order_in_pair": 1,
+        "pair": 3,
+        "scenario": "yocto"
+      },
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 5,
+      "rate_msg_s": 11.2,
+      "repetition": 3,
+      "run_id": "cmp-p3-yocto-a02",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2026101803,
+      "status": "planned",
+      "warmup_s": 120
+    },
+    {
+      "comparison": {
+        "order_in_pair": 2,
+        "pair": 3,
+        "scenario": "debian13"
+      },
+      "condition_id": "nominal",
+      "cooldown_s": 0,
+      "duration_s": 600,
+      "order": 6,
+      "rate_msg_s": 11.2,
+      "repetition": 3,
+      "run_id": "cmp-p3-debian13-a02",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 2026101803,
+      "status": "planned",
+      "warmup_s": 120
+    }
+  ]
+}

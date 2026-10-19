@@ -56,6 +56,8 @@ STEPS_JSON=
 T_UP=
 SECONDS_TO_HEALTHY=null
 SECONDS_TO_READY=null
+UPTIME_HEALTHY=null
+UPTIME_READY=null
 REPO_HEAD=$(git -C "$COMPARE_REPO" rev-parse HEAD 2> /dev/null || echo unknown)
 
 log() { log_line "$LOG" "$1"; }
@@ -75,6 +77,8 @@ finish() {
         printf '  "result": %s,\n  "exit": %s,\n  "log": %s,\n' "$(jstr "$result")" "$code" "$(jstr "$LOG")"
         printf '  "health_limit_s": %s,\n  "seconds_to_healthy": %s,\n  "seconds_to_ready": %s,\n' \
             "$HEALTH_LIMIT_S" "$SECONDS_TO_HEALTHY" "$SECONDS_TO_READY"
+        printf '  "health_step_s": %s,\n  "uptime_healthy_s": %s,\n  "uptime_ready_s": %s,\n' \
+            "$HEALTH_STEP_S" "$UPTIME_HEALTHY" "$UPTIME_READY"
         printf '  "steps": [%s\n  ]\n}\n' "$STEPS_JSON"
     } > "$RECORD.tmp" && mv "$RECORD.tmp" "$RECORD"
     rm -f "$LAST_OUT"
@@ -326,6 +330,7 @@ step_healthy_wait() {
         echo "   healthy $healthy/6 at +$(elapsed "$t0" "$now") s"
         if [ "$healthy" -eq 6 ]; then
             SECONDS_TO_HEALTHY=$(elapsed "$t0" "$now")
+            UPTIME_HEALTHY=$now
             break
         fi
         if over_limit "$t0" "$now"; then
@@ -341,6 +346,7 @@ step_healthy_wait() {
         echo "   /ready -> '$code' at +$(elapsed "$t0" "$now") s"
         if [ "$code" = 200 ]; then
             SECONDS_TO_READY=$(elapsed "$t0" "$now")
+            UPTIME_READY=$now
             break
         fi
         if over_limit "$t0" "$now"; then

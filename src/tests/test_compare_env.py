@@ -34,6 +34,8 @@ if not Path("/proc/self/cmdline").exists():
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPARE_DIR = REPO_ROOT / "tools" / "compare"
 SCRIPT = COMPARE_DIR / "compare_env.sh"
+#: The root overlay is named after the base image (lib.sh): <image>.rootfs.qcow2.
+ROOT_OVERLAY = "egw-gateway-image-qemuarm64.rootfs.qcow2"
 TF_DIR = COMPARE_DIR / "terraform"
 SECRET = "stub-secret-value"
 STATUS_KEYS = {"scenario", "prepared", "running", "pid", "lock_holder", "started_uptime_s", "root_disk", "data_disk",
@@ -92,6 +94,8 @@ SSH_STUB = r'''#!/usr/bin/env python3
 # Stub ssh: records the call; a command holding 'poweroff' ends the guest (the sleeper named in EGW_STUB_PIDFILE)
 # unless EGW_STUB_SSH_IGNORE_POWEROFF=1, a guest that does not act on it; anything else succeeds without effect.
 # EGW_STUB_SSH_RC, when set, is the exit code of every call (a guest whose sshd does not answer yet).
+# EGW_STUB_SSH_EXEC=1 runs the remote command (the last argument) locally with sh -c, so that the guest's
+# file system is this machine's: its stdout and exit status are the call's.
 import os
 import signal
 import sys
@@ -105,7 +109,37 @@ if any("poweroff" in a for a in args) and os.environ.get("EGW_STUB_SSH_IGNORE_PO
             os.kill(int(f.read().strip()), signal.SIGTERM)
     except (OSError, ValueError):
         pass
-sys.exit(int(os.environ.get("EGW_STUB_SSH_RC") or 0))
+if os.environ.get("EGW_STUB_SSH_RC"):
+    sys.exit(int(os.environ["EGW_STUB_SSH_RC"]))
+if os.environ.get("EGW_STUB_SSH_EXEC") == "1" and args:
+    import subprocess
+    sys.exit(subprocess.run(["sh", "-c", args[-1]]).returncode)
+sys.exit(0)
+'''
+
+SCP_STUB = r'''#!/usr/bin/env python3
+# Stub scp: copies local paths (the host part of egw@127.0.0.1:/path is dropped, the guest's file system being this
+# machine's). EGW_STUB_SCP_GROW_SRC=1 appends a line to the SOURCE after copying (a log still being written);
+# EGW_STUB_SCP_CORRUPT=1 appends a byte to the copy (a transfer that did not deliver the bytes read).
+import os
+import shutil
+import sys
+
+args = [a for a in sys.argv[1:] if not a.startswith("-")]
+with open(os.environ["EGW_STUB_CALLS"], "a", encoding="utf-8") as log:
+    log.write("scp " + " ".join(sys.argv[1:]) + "\n")
+src, dst = (a.split(":", 1)[1] if "@" in a else a for a in args[-2:])
+try:
+    shutil.copyfile(src, dst)
+except OSError as exc:
+    print(f"stub scp: {exc}", file=sys.stderr)
+    sys.exit(1)
+if os.environ.get("EGW_STUB_SCP_GROW_SRC") == "1":
+    with open(src, "a", encoding="utf-8") as f:
+        f.write("{\"late\": true}\n")
+if os.environ.get("EGW_STUB_SCP_CORRUPT") == "1":
+    with open(dst, "ab") as f:
+        f.write(b"x")
 '''
 
 QEMU_IMG_STUB = r'''#!/bin/sh
@@ -174,7 +208,7 @@ class Bench:
         self.deploy = tmp_path / "deploy"
         for directory in (self.bin, self.root, self.scenarios, self.exec_dir, self.home, self.deploy):
             directory.mkdir()
-        for name, text in (("qemu-system-aarch64", QEMU_STUB), ("ssh", SSH_STUB), ("qemu-img", QEMU_IMG_STUB),
+        for name, text in (("qemu-system-aarch64", QEMU_STUB), ("ssh", SSH_STUB), ("scp", SCP_STUB), ("qemu-img", QEMU_IMG_STUB),
                            ("mkfs.ext4", MKFS_STUB), ("blkid", BLKID_STUB), ("pgrep", PGREP_STUB), ("ss", SS_STUB)):
             path = self.bin / name
             path.write_text(text, encoding="utf-8")
@@ -224,6 +258,9 @@ class Bench:
             "EGW_STUB_QEMU_FAIL": "",
             "EGW_STUB_SSH_IGNORE_POWEROFF": "",
             "EGW_STUB_SSH_RC": "",
+            "EGW_STUB_SSH_EXEC": "",
+            "EGW_STUB_SCP_GROW_SRC": "",
+            "EGW_STUB_SCP_CORRUPT": "",
             "MOSQUITTO_SIMULATOR_PASSWORD": SECRET,
             "EGW_MQTT_PASSWORD": SECRET,
         })
@@ -343,7 +380,7 @@ def test_prepare_creates_layout_and_manifest(bench) -> None:
     assert _mode(bench.b_dir / "Image") == 0o444 and _mode(bench.b_dir / "rootfs.ext4") == 0o444
     assert _sha256(bench.b_dir / "rootfs.ext4") == rootfs_sha
     assert rootfs_sha in (bench.b_dir / "SHA256SUMS").read_text(encoding="utf-8")
-    for rel in ("disks/root.qcow2", "disks/data.img", "manifest.json"):
+    for rel in ("disks/" + ROOT_OVERLAY, "disks/data.img", "manifest.json"):
         assert (bench.s_dir / rel).is_file(), rel
     for rel in ("state", "logs", "results"):
         assert (bench.s_dir / rel).is_dir(), rel
@@ -351,7 +388,7 @@ def test_prepare_creates_layout_and_manifest(bench) -> None:
     # the root disk is an overlay on the immutable copy; the data disk a fresh ext4 labelled egw-data
     creates = [line.split() for line in bench.log() if line.startswith("qemu-img create")]
     assert len(creates) == 1, creates
-    for token in ("-f", "qcow2", "-b", str(bench.b_dir / "rootfs.ext4"), "-F", "raw", str(bench.disks / "root.qcow2")):
+    for token in ("-f", "qcow2", "-b", str(bench.b_dir / "rootfs.ext4"), "-F", "raw", str(bench.disks / ROOT_OVERLAY)):
         assert token in creates[0], (token, creates[0])
     mkfs = [line for line in bench.log() if line.startswith("mkfs.ext4 ")]
     assert len(mkfs) == 1 and "egw-data" in mkfs[0] and str(bench.disks / "data.img") in mkfs[0], mkfs
@@ -368,7 +405,7 @@ def test_prepare_creates_layout_and_manifest(bench) -> None:
 
 def test_prepare_is_idempotent(bench) -> None:
     bench.ok("prepare", "yocto")
-    watched = [bench.disks / "root.qcow2", bench.disks / "data.img", bench.manifest,
+    watched = [bench.disks / ROOT_OVERLAY, bench.disks / "data.img", bench.manifest,
                bench.b_dir / "Image", bench.b_dir / "rootfs.ext4"]
     files_before = bench.files()
     mtimes_before = [p.stat().st_mtime_ns for p in watched]
@@ -384,7 +421,7 @@ def test_prepare_refuses_missing_base(bench) -> None:
     result = bench.run("prepare", "yocto")
     assert result.returncode == 2, _report(result)
     assert "STOP:" in result.stderr and "missing.rootfs.ext4" in result.stderr, _report(result)
-    assert not (bench.disks / "root.qcow2").exists() and not bench.manifest.exists()
+    assert not (bench.disks / ROOT_OVERLAY).exists() and not bench.manifest.exists()
     assert not (bench.b_dir / "rootfs.ext4").exists()
     assert bench.status()["prepared"] == "false"
 
@@ -423,7 +460,7 @@ def test_start_writes_pid_and_status_running(bench) -> None:
     assert console is not None and Path(console).is_relative_to(bench.s_dir / "logs") and Path(console).is_file(), argv
     joined = " ".join(argv)
     for token in ("-cpu cortex-a76", "-smp 4", "-m 8192", "hostfwd=tcp:127.0.0.1:2222-:22",
-                  "hostfwd=tcp:127.0.0.1:8883-:8883", str(bench.disks / "root.qcow2"), str(bench.disks / "data.img"),
+                  "hostfwd=tcp:127.0.0.1:8883-:8883", str(bench.disks / ROOT_OVERLAY), str(bench.disks / "data.img"),
                   str(bench.b_dir / "Image")):
         assert token in joined, (token, joined)
     status = bench.status()
@@ -509,7 +546,7 @@ def test_status_after_prepare_names_the_artefacts(bench) -> None:
     bench.ok("prepare", "yocto")
     status = bench.status()
     assert status["prepared"] == "true" and status["running"] == "false" and status["pid"] == "", status
-    assert Path(status["root_disk"]).resolve() == (bench.disks / "root.qcow2").resolve(), status
+    assert Path(status["root_disk"]).resolve() == (bench.disks / ROOT_OVERLAY).resolve(), status
     assert Path(status["data_disk"]).resolve() == (bench.disks / "data.img").resolve(), status
     assert Path(status["manifest"]).resolve() == bench.manifest.resolve(), status
     manifest = json.loads(bench.manifest.read_text(encoding="utf-8"))
@@ -543,7 +580,7 @@ def test_stop_powers_off_and_clears(bench) -> None:
     assert status["running"] == "false" and status["pid"] == "" and status["lock_holder"] == "", status
     assert status["prepared"] == "true", status
     # a stop preserves the disks
-    assert (bench.disks / "root.qcow2").is_file() and (bench.disks / "data.img").is_file()
+    assert (bench.disks / ROOT_OVERLAY).is_file() and (bench.disks / "data.img").is_file()
 
 
 def test_stop_never_kills_when_guest_ignores_poweroff(bench) -> None:
@@ -572,7 +609,7 @@ def test_destroy_refuses_while_running(bench) -> None:
     assert result.returncode == 5, _report(result)
     assert "STOP:" in result.stderr, _report(result)
     assert _alive(pid) and bench.pid() == pid
-    for rel in ("disks/root.qcow2", "disks/data.img", "manifest.json", "state/argv.txt"):
+    for rel in ("disks/" + ROOT_OVERLAY, "disks/data.img", "manifest.json", "state/argv.txt"):
         assert (bench.s_dir / rel).is_file(), rel
     assert bench.status()["running"] == "true"
 
@@ -587,7 +624,7 @@ def test_destroy_keeps_bases_and_results(bench) -> None:
     bases = {p.name: _sha256(p) for p in bench.b_dir.iterdir()}
     logs_before = {p.name for p in (bench.s_dir / "logs").iterdir()}
     bench.ok("destroy", "yocto")
-    assert not (bench.disks / "root.qcow2").exists() and not (bench.disks / "data.img").exists()
+    assert not (bench.disks / ROOT_OVERLAY).exists() and not (bench.disks / "data.img").exists()
     state = bench.s_dir / "state"
     assert not state.exists() or [p for p in state.rglob("*") if p.is_file()] == [], "state files were kept"
     assert {p.name: _sha256(p) for p in bench.b_dir.iterdir()} == bases, "a base changed"

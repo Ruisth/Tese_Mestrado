@@ -122,6 +122,8 @@ accepted_after=
 accepted_delta=0
 twin_ok=false
 twin_path=
+uptime_accepted=null
+uptime_twin=null
 t_sim=$(uptime_s)
 log "host\$ $PY -m egw_simulator run --scenario smoke --seed $seed --devices smartwatch --rate 1.0 --duration 1 --run-id $run --broker 127.0.0.1 --port $COMPARE_MQTT_PORT --username egw-simulator --ca-cert $CA --egw-id egw-01 --output $OUT/sim --qos 1"
 (
@@ -160,6 +162,7 @@ if [ "$sim_rc" -eq 0 ] && [ "$sent" -ge 1 ]; then
         now=$(uptime_s)
         if [ -n "$accepted_after" ] && [ "$accepted_after" -ge $((accepted_before + 1)) ]; then
             accepted_delta=$((accepted_after - accepted_before))
+            uptime_accepted=$now
             seconds_to_accept=$(awk -v a="$t_sim" -v b="$now" 'BEGIN { printf "%.2f", b - a }')
             say "accepted $accepted_before -> $accepted_after after $seconds_to_accept s"
             break
@@ -200,6 +203,7 @@ PY
         ) || twin_verdict="false unreadable"
         twin_ok=${twin_verdict%% *}
         twin_path=${twin_verdict#* }
+        [ "$twin_ok" = true ] && uptime_twin=$(uptime_s)
         say "twin org.c2dta:$device_uuid: run id at ${twin_path} -> twin_ok=$twin_ok"
     else
         rm -f "$OUT/twin.json.tmp"
@@ -212,15 +216,20 @@ fi
 result=fail
 [ "$sim_rc" -eq 0 ] && [ "$sent" -ge 1 ] && [ "$accepted_delta" -ge 1 ] && [ "$twin_ok" = true ] && result=pass
 python3 - "$OUT/check.json" "$SCENARIO" "$run" "$seed" "$device_uuid" "$message_id" "$sent" "$sim_rc" \
-    "$accepted_before" "${accepted_after:-}" "$accepted_delta" "$twin_ok" "$twin_path" "$seconds_to_accept" "$result" "$(utc_now)" << 'PY'
+    "$accepted_before" "${accepted_after:-}" "$accepted_delta" "$twin_ok" "$twin_path" "$seconds_to_accept" "$result" "$(utc_now)" \
+    "$t_sim" "$uptime_accepted" "$uptime_twin" "$ACCEPT_STEP_S" << 'PY'
 import json, sys
-(path, scenario, run, seed, uuid, msg, sent, sim_rc, before, after, delta, twin_ok, twin_path, secs, result, utc) = sys.argv[1:]
+(path, scenario, run, seed, uuid, msg, sent, sim_rc, before, after, delta, twin_ok, twin_path, secs, result, utc,
+ up_sim, up_acc, up_twin, step) = sys.argv[1:]
 record = {
     "scenario": scenario, "run_id": run, "seed": int(seed), "device_uuid": uuid or None, "message_id": msg or None,
     "sent": int(sent), "simulator_exit": int(sim_rc), "accepted_before": int(before),
     "accepted_after": int(after) if after else None, "accepted_delta": int(delta), "twin_ok": twin_ok == "true",
     "twin_run_id_path": twin_path or None, "seconds_to_accept": None if secs == "null" else float(secs),
     "result": result, "utc": utc,
+    # host monotonic instants (the comparison's single clock) and the acceptance probe cadence
+    "uptime_simulator_start_s": float(up_sim), "uptime_accepted_s": None if up_acc == "null" else float(up_acc),
+    "uptime_twin_s": None if up_twin == "null" else float(up_twin), "accept_step_s": float(step),
 }
 with open(path, "w", encoding="utf-8") as f:
     json.dump(record, f, indent=2)

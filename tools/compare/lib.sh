@@ -63,7 +63,11 @@ scenario_load() {
     [ "${SCENARIO:-}" = "$name" ] || die "$f declares SCENARIO='${SCENARIO:-}', expected '$name'"
     S_DIR=$COMPARE_ROOT/scenarios/$name
     B_DIR=$COMPARE_ROOT/base/$name
-    S_ROOT_DISK=$S_DIR/disks/root.qcow2
+    # The root overlay is named after the base image, <image>.rootfs.qcow2: the harness identifies
+    # the rootfs drive of the hypervisor it records by '.rootfs' in the drive's file name.
+    IMAGE_NAME=$(basename "${BASE_IMAGE_FILE:-${BASE_ROOTFS_SRC:-root}}")
+    IMAGE_NAME=${IMAGE_NAME%.qcow2}; IMAGE_NAME=${IMAGE_NAME%.ext4}; IMAGE_NAME=${IMAGE_NAME%.rootfs}
+    S_ROOT_DISK=$S_DIR/disks/$IMAGE_NAME.rootfs.qcow2
     S_DATA_DISK=$S_DIR/disks/data.img
     S_PIDFILE=$S_DIR/state/qemu.pid
     S_MONITOR=$S_DIR/state/monitor.sock
@@ -162,6 +166,40 @@ gscp() {
     scp -i "$COMPARE_SSH_KEY" -P "$COMPARE_SSH_PORT" -o IdentitiesOnly=yes -o BatchMode=yes \
         -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$S_KNOWN_HOSTS" \
         -o ConnectTimeout=10 -o LogLevel=ERROR "$@"
+}
+
+# guest_fetch_file REMOTE LOCAL: copy a finished guest file and verify its sha256 against the guest's.
+# Every status is explicit: a hash the guest could not compute, a copy that failed, an empty copy and
+# a digest that differs are each a failure with its own line; nothing is inferred from silence.
+guest_fetch_file() {
+    local remote=$1 local=$2 rsum lsum
+    rsum=$(gssh "sha256sum '$remote'" 2> /dev/null) || { echo "fetch: the guest could not hash $remote"; return 1; }
+    rsum=${rsum%% *}
+    gscp -q "egw@127.0.0.1:$remote" "$local" || { echo "fetch: copy of $remote failed"; return 1; }
+    [ -s "$local" ] || { echo "fetch: the copy of $remote is empty"; return 1; }
+    lsum=$(sha256sum "$local" | cut -d' ' -f1)
+    [ -n "$rsum" ] && [ "$rsum" = "$lsum" ] || { echo "fetch: sha256 differs for $remote (guest ${rsum:-none}, copy $lsum)"; return 1; }
+    echo "fetch: $remote copied and verified ($(stat -c %s "$local") bytes)"
+}
+
+# guest_fetch_live REMOTE LOCAL: copy a guest file that may still be growing (an events log the
+# controller appends to), then verify the COPIED PREFIX: the guest hashes exactly the copy's length
+# of the file (dd bs=<length> count=1: the image's busybox head has no -c), read into a temporary
+# file so that a failed read is a failed status, never an empty hash. The guest's size at that
+# moment is reported beside the copy's; a copy with no bytes is a failure (an empty log is
+# reported by the caller as what it is, never silently verified).
+guest_fetch_live() {
+    local remote=$1 local=$2 size out rsize rsum lsum
+    gscp -q "egw@127.0.0.1:$remote" "$local" || { echo "fetch-live: copy of $remote failed"; return 1; }
+    size=$(stat -c %s "$local")
+    [ "$size" -gt 0 ] || { echo "fetch-live: the copy of $remote is empty (0 bytes)"; return 1; }
+    out=$(gssh "t=/tmp/prefix.\$\$; dd if='$remote' bs=$size count=1 2> /dev/null > \"\$t\" && wc -c < '$remote' && sha256sum \"\$t\"; rc=\$?; rm -f \"\$t\"; exit \$rc" 2> /dev/null) \
+        || { echo "fetch-live: the guest could not read the first $size bytes of $remote"; return 1; }
+    rsize=$(printf '%s\n' "$out" | sed -n '1p' | tr -dc '0-9')
+    rsum=$(printf '%s\n' "$out" | sed -n '2p' | cut -d' ' -f1)
+    lsum=$(sha256sum "$local" | cut -d' ' -f1)
+    [ -n "$rsum" ] && [ "$rsum" = "$lsum" ] || { echo "fetch-live: the copied prefix of $remote does not verify (guest ${rsum:-none}, copy $lsum)"; return 1; }
+    echo "fetch-live: $remote copied ($size bytes, prefix verified; the guest's file held ${rsize:-?} bytes when hashed)"
 }
 
 # monitor_cmd TEXT: send one HMP command to the guest's monitor socket (system_powerdown, info status).

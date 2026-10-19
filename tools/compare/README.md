@@ -59,7 +59,7 @@ the clone and outside the pilot's directories (`~/egw-tcg`, `~/egw-exec`,
 | Path | Holds | Lifetime |
 |---|---|---|
 | `base/<scenario>/` | immutable base copies, mode 0444, each listed in `SHA256SUMS` — `yocto`: `Image`, `rootfs.ext4`; `debian13`: the downloaded `.qcow2`, `vmlinuz`, `initrd.img`, `root-uuid.txt`, `partitions.txt`, `boot-files.sha256`, `prepared.qcow2` | preserved; verified with `sha256sum -c` at every `prepare` and `start` (a changed base is exit 3) |
-| `scenarios/<s>/disks/` | `root.qcow2` (overlay on the base), `data.img` (32 GiB raw ext4, label `egw-data`), `firstboot.qcow2` (Debian, transient) | disposable: removed by `destroy` |
+| `scenarios/<s>/disks/` | `<image>.rootfs.qcow2` (overlay on the base, named after the base image so the harness identifies the rootfs drive), `data.img` (32 GiB raw ext4, label `egw-data`), `firstboot.qcow2` (Debian, transient) | disposable: removed by `destroy` |
 | `scenarios/<s>/state/` | `qemu.pid`, `monitor.sock`, `known_hosts` (the guest's pinned host key), `argv.txt`, `started` (host uptime), `started_utc`, `console` (path), `seed/` (Debian), `ca.crt`, `provision.json` | removed by `destroy`, after copying `argv.txt`, `started*`, `provision.json` and the manifest to `results/destroy-<stamp>/` |
 | `scenarios/<s>/logs/` | `lifecycle.log`, `console-<stamp>.log`, `start-`, `stop-`, `provision-<stamp>.log`, `firstboot-*` | preserved |
 | `scenarios/<s>/results/` | `validate-<stamp>/` (with `SHA256SUMS`), `functional-*`, `destroy-<stamp>/` | preserved |
@@ -384,3 +384,96 @@ both scenarios.
 | `debian13` — first form of `apply` (2026-10-18 16:37:48–16:47:44Z) | pass: `tf.sh apply`, ssh in 50 s, running, no failed unit | pass: 6.12.113+deb13-cloud-arm64, 4 vCPU, MemTotal 8,197,128 kB, `/var/lib/docker` on `/dev/vdb` ext4 31.2 G label `egw-data`, Docker 26.1.5+dfsg1, Compose 2.26.1-4, 356 packages, `apt-daily*` masked | pass: provisioned in 444 s (pull 118 s, controller load 53 s, `up -d` 166 s, six healthy at +211 s, `/ready` 200 at +222 s) | pass: one event accepted in 15.9 s, twin `features.ingestion.properties.last_run_id` = run id | pass: `tf.sh stop` in 54 s, QEMU ended, no other QEMU | `scenarios/debian13/results/validate-20261018T163748Z` (32 files, `SHA256SUMS` `cd10bf30…`) | real |
 | `yocto` — **by the final commands** (2026-10-18 17:42:49–17:51:34Z, 525 s) | pass: `tf.sh yocto apply` ran prepare (nothing to recreate), start and `up.sh`: ssh in 22 s; first provisioning on this data disk — images 101 s, controller load 34 s, `up -d` 153 s, six healthy at +187 s, `/ready` 200 at +195 s; `ENVIRONMENT READY` 383 s after launch; `running`, no failed unit | pass: 6.6.142-yocto-standard, 4 vCPU, 8012 MiB, `/var/lib/docker` on `/dev/vdb` ext4 31.2 G (2.0 G used after the stack), Docker 25.0.9, Compose v2.26.0 | pass: the idempotent second run skipped every step by marker (the five images already verify), six healthy in 7 s, 53 s in all — a repeated `apply` reinstalls nothing | pass: one event (run `cmpval-yocto-20261018T175019Z`) accepted in 15.75 s, twin `last_run_id` = run id | pass: `tf.sh yocto stop` — `compose stop` exit 0, `sudo poweroff`, QEMU ended after 48 s, no other QEMU | `scenarios/yocto/results/validate-20261018T174249Z` (37 files, `SHA256SUMS` `dc9cb457…`) | real |
 | `debian13` — **by the final commands** (2026-10-18 17:51:52–18:01:27Z, 575 s) | pass: `tf.sh debian13 apply` ran prepare (nothing to recreate), start and `up.sh`: ssh in 46 s; tree and the five images already on this data disk from the afternoon run (skipped by marker), controller image present; `up -d` 194 s, six healthy at +238 s, `/ready` 503 at +250 s then 200 at +270 s; `ENVIRONMENT READY` 376 s after launch; `running`, no failed unit | pass: 6.12.113+deb13-cloud-arm64, 4 vCPU, 8005 MiB, root `/dev/vda1` 2.8 G (1.5 G used), `/var/lib/docker` on `/dev/vdb` ext4 31.2 G label `egw-data` (2.0 G used after the stack), Docker 26.1.5+dfsg1, Compose 2.26.1-4, 356 packages | pass: every step skipped or already present (tree marker, the five images verify, controller image present), six healthy in 8.8 s, `/ready` in 13.1 s, 86 s in all | pass: one event (run `cmpval-debian13-20261018T175956Z`) accepted in 25.13 s, twin `last_run_id` = run id | pass: `tf.sh debian13 stop` — `compose stop` exit 0, `sudo poweroff`, QEMU ended after 51 s, no other QEMU | `scenarios/debian13/results/validate-20261018T175152Z` (36 files, `SHA256SUMS` `132c76a9…`) | real |
+
+## 10. Minimal comparison — six measured executions
+
+The order of 2026-10-18 (after PR #62): three pairs of executions, Yocto →
+Debian, Debian → Yocto, Yocto → Debian, every metric collected in each, no
+other campaign. Everything reuses the tools above and the project's harness;
+the files under `measure_*` and `guest_meminfo_sampler.sh` are the minimal
+instrumentation that was missing. Results are **exploratory** (n = 3 per
+scenario, one QEMU/TCG profile): no statistical significance, no maximum
+capacity, nothing about physical ARM.
+
+```bash
+# once per scenario, guest off: the measured base (fresh disks, stack installed by `apply`, closed by `stop`, copied + sha256)
+bash tools/compare/measure_base.sh yocto
+bash tools/compare/measure_base.sh debian13
+# the plan: six nominal entries, one seed per pair (equal in both distributions), write-once
+PYTHONPATH=src ~/egw-exec/venv/bin/python tools/compare/measure_plan.py write --out ~/egw-compare/measure/plan.json --seeds S1 S2 S3
+# the six executions in the plan's order, then the harness analysis and the summary
+bash tools/compare/measure_series.sh ~/egw-compare/measure/plan.json
+# one execution by hand (the series calls exactly this)
+bash tools/compare/measure_run.sh <scenario> <run-id> ~/egw-compare/measure/plan.working.json
+```
+
+Each execution (`measure_run.sh`, record under `measure/runs/<run-id>/`,
+`timeline.json` + `SHA256SUMS`): disks restored from the measured base and
+verified → `tf.sh <s> apply` (instants on the host monotonic clock: `launch`
+immediately before the QEMU exec, first ssh success, six healthy, first
+`/ready` 200; probe cadences recorded) → `functional_check.sh` with its own run
+id `<run-id>.func` (instant of the confirmed twin) → 120 s at rest with the
+whole-guest memory sampled at 1 Hz (`MemTotal − MemAvailable`), then
+`df -P -k / /var/lib/docker` and the SUT environment record → the harness run
+of the plan entry (frozen `nominal`: 120 s warm-up, 600 s at 11.2 msg/s, 60 s
+confirmation; per-container collector; memory sampled meanwhile) → the
+runbook's drain helper through `tools/session/proof_hook_drained.sh` (130 s
+quiet, cap 900 s — reaching the cap is a result) → events after the drain,
+final `/metrics` and guest state → `tf.sh <s> stop`, QEMU confirmed ended. A
+result of the system (a drain at its cap, late or lost confirmations, a failed
+harness verdict) is recorded and never stops the series; an instrumentation
+failure preserves the data, closes the guest and stops it. Nothing is repeated
+or replaced by a script.
+
+Boot times are never the duration of `terraform apply`. Latency is the
+controller's reception → Ditto confirmation. `lost` is "no confirmation within
+the deadline", not definitive loss (the post-drain events file is kept).
+Memory is the whole gateway guest. Virtual capacity, image file size and space
+used in the guest are three different measures (`compare_env.sh disks`,
+`host-disks-before-load.txt`, `df-before-load.txt`). The validations of
+section 9 are not comparison results: their preparation differed.
+
+Two calculation rules of `measure_summary.py`, after the first measured
+execution showed the host wall clock stepping back 13 s inside a run:
+
+- **The load window is delimited on monotonic clocks only.** Its duration is
+  `finished_monotonic_ns − measured_started_monotonic_ns` of the harness
+  manifest (host clock); its position on the guest clock comes from the
+  controller marker the harness polls at the run end (`controller_marker`,
+  guest `monotonic_ns` paired with the host instant, lag within tolerance),
+  cross-checked against the message pairing `received_monotonic_ns −
+  publish_monotonic_ns` over at least 100 identities (agreement within 1 s).
+  Memory samples carry the guest's `/proc/uptime` and count only inside that
+  window. Without a demonstrable correspondence the window and every metric
+  that depends on it are left unavailable with the reason; nothing is filled
+  with zero and 600 s is never assumed. UTC stamps are reported, never used.
+- **Rates are estimates between two boundary samples.** The acceptance rate is
+  the difference of the controller's cumulative `accepted` between the last
+  metrics sample at or before each bound, both within 5 s of their bound, the
+  file ordered by the guest's monotonic clock and the counter never
+  decreasing; the covered span and both gaps are reported, and the figure is
+  named an estimate between samples, not an exact count inside the window.
+  The published rate is `sent_valid` over the monotonic load duration.
+
+**Results of series a02 (2026-10-18 21:37Z – 2026-10-19 00:39Z, six valid
+executions, plan `plan-a02.json` sha256 `94fc9691…`):**
+[`docs/evidence/compare-a02/`](../../docs/evidence/compare-a02/README.md)
+holds the table, the CSV and the JSON; the raw records are in the sealed
+`output_test` package named there. The load, 11.2 msg/s, is the synthetic
+load of the existing nominal scenario, inherited so that the executions are
+reproducible and comparable; it is not a requirement, a target or a pass
+threshold, and the figures describe the observed processing capacity under
+the load tried, never a maximum capacity. Median of three, Yocto vs
+Debian 13: boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s;
+memory inside the window 1 922.7 vs 2 304.3 MiB; root filesystem 489 vs
+1 458 MiB; observed acceptance rate 7.76 vs 4.95 msg/s (1.57×); confirmed by
+the end-of-load marker + 60 s 4 426 vs 2 394 of 6 720 (1.85×), the rest
+confirmed during the drain in the five executions whose post-drain log was
+verified; controller latency p50 220 s vs 351 s over those confirmations only;
+drain 344 s vs 668 s. In these emulated conditions the Yocto configuration
+showed shorter start-up times, lower memory and disk use and a higher observed
+acceptance rate than the Debian 13 configuration; exploratory, whole
+configurations with different kernels and runtimes, nothing about maximum
+capacity, physical ARM or an isolated effect of the distribution. The first
+attempt (`cmp-p1-yocto`, invalid by instrumentation) and the two stops of the
+series are recorded in the decision note; nothing was repeated.
