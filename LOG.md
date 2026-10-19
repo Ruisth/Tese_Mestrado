@@ -5426,3 +5426,69 @@ is unchanged.
   commands, no manual step between — holds for both, once each; nothing was
   measured and nothing repeated. Records: README section 9; the decision
   note and the sealed package in `output_test` (outside the repository).
+
+## Entry #C060 — Minimal comparison Yocto image vs Debian 13: six measured executions under one QEMU/TCG profile (series a02); exploratory results
+
+- **Date:** 2026-10-18/19. **Scope:** the comparison measurements ordered after
+  PR #62 (three pairs, six executions, every metric in each) and the minimal
+  instrumentation they needed. No change to the controller, the analyser, the
+  image, the collector, the bases or the pilot records; G4 stays `Not decided`.
+- **Authority.** The Project Manager's order "comparação mínima" and his two
+  closing orders (the review batch on `74cb1b4`; the two calculation rules);
+  the student's authorisation of the six executions and his "depois disto
+  corrigido podes repetir automaticamente".
+- **What was built** (`tools/compare/`, README section 10): `measure_base.sh`
+  (the measured base of a scenario: fresh disks, the stack installed by
+  `tf.sh apply`, closed by `stop`, both disks copied with sha256);
+  `measure_run.sh` (one execution: disks restored from the base and verified,
+  `apply`, the functional event, 120 s at rest with the whole-guest memory at
+  1 Hz, `df -P -k`, the SUT record, the harness run of the plan entry with the
+  collector, the runbook drain helper through `drain_hook.sh`, the post-drain
+  events, the reconciliation of every identity, final state, `stop`;
+  `timeline.json` on one host clock, sealed after the log is closed);
+  `measure_series.sh` (the entries in order, one guest at a time, then the
+  analysis and the summary); `measure_plan.py` (six nominal entries, one seed
+  per pair, `--id-suffix`, `--supersedes`); `guest_meminfo_sampler.sh`
+  (`MemTotal − MemAvailable` and `/proc/uptime` per line, BusyBox-safe);
+  `measure_summary.py` (per-run rows, median and min–max per scenario, the
+  notes). The lifecycle scripts record the host-monotonic instants of the QEMU
+  exec, the first ssh answer, six healthy, `/ready` 200 and the confirmed twin.
+- **Two calculation rules**, after the first execution showed the host wall
+  clock stepping back inside the run (15.7–22.0 s in every window): the load
+  window lives on monotonic clocks only — its duration from the harness
+  manifest's monotonic instants, its position on the guest from the controller
+  marker polled at the run end, cross-checked against at least 100 host–guest
+  event pairs within 1 s; without that correspondence the window and every
+  dependent metric are unavailable with the reason. Rates are estimates between
+  two boundary samples of the controller metrics, each within 5 s of its bound,
+  with the span and the gaps reported.
+- **Executions.** Plan `plan-a02.json` (sha256 `94fc9691…`, superseding the
+  first plan), ids `cmp-p<k>-<scenario>-a02`, seeds 2026101801/02/03. Six valid
+  runs (harness exit 0, drain quiet, controlled stop, sealed). Median of three,
+  Yocto vs Debian 13: boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs
+  322.3 s; gateway functional 258.8 s vs 341.9 s; guest memory at rest 1 893.6
+  vs 2 292.3 MiB and inside the 600 s window 1 922.7 vs 2 304.3 MiB (max 2 089.9
+  vs 2 501.1); root filesystem 489 vs 1 458 MiB, `/var/lib/docker` 2 023 MiB in
+  both; accepted within the 60 s deadline 4 426 vs 2 394 of 6 720 (65.9 % vs
+  35.6 %), estimated accepted rate 7.76 vs 4.95 msg/s for 11.20 published,
+  controller latency p50 220.1 s vs 350.6 s (p95 264.4 vs 441.8 s), drain
+  344.0 s vs 668.3 s; every identity accepted eventually where the post-drain
+  tail was read. Neither configuration keeps up with the nominal rate in this
+  emulated profile. Exploratory: n = 3, TCG on a shared x86-64 host, one
+  profile, one load; no significance, no capacity, nothing about physical ARM.
+- **Instrumentation record.** The first attempt (`cmp-p1-yocto`) was invalid
+  by instrumentation (overlay not named `.rootfs` → harness identity check;
+  the runbook helper needed the environment exported → drain never polled;
+  the live events file) and is kept as evidence outside the statistics; the
+  review batch (`74cb1b4`) fixed the permissions of the work copies, the
+  fetches with explicit statuses, the drain environment, the seal after the
+  log, and surfaced two more defects through an integrated offline path.
+  Series a02 stopped twice on instrumentation (BusyBox `head -c`, fixed by
+  `dd`; the driver inheriting the loop's stdin) and was continued from the
+  next planned entry each time; the summary gained `--plan`. Nothing was
+  repeated or replaced.
+- **Records.** `docs/evidence/compare-a02/` (table, CSV, JSON, plan); the
+  sealed package `output_test/runs/2026-10-19/HIST_2026-10-19-compare-measurements-a02`
+  (583 files, `SHA256SUMS` `87d7ada7…`) and the decision note
+  `output_test/decisions/2026-10-19_compare-measurements-a02.md`, outside the
+  repository.

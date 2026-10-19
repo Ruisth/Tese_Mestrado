@@ -454,3 +454,15 @@ execution showed the host wall clock stepping back 13 s inside a run:
   decreasing; the covered span and both gaps are reported, and the figure is
   named an estimate between samples, not an exact count inside the window.
   The published rate is `sent_valid` over the monotonic load duration.
+
+**Results of series a02 (2026-10-18 21:37Z – 2026-10-19 00:39Z, six valid
+executions, plan `plan-a02.json` sha256 `94fc9691…`):**
+[`docs/evidence/compare-a02/`](../../docs/evidence/compare-a02/README.md)
+holds the table, the CSV and the JSON; the raw records are in the sealed
+`output_test` package named there. Median of three, Yocto vs Debian 13: boot to
+ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s; memory inside the window
+1 922.7 vs 2 304.3 MiB; root filesystem 489 vs 1 458 MiB; accepted within the
+deadline 4 426 vs 2 394 of 6 720; controller latency p50 220 s vs 351 s; drain
+344 s vs 668 s. Neither keeps up with 11.2 msg/s in this emulated profile.
+The first attempt (`cmp-p1-yocto`, invalid by instrumentation) and the two
+stops of the series are recorded in the decision note; nothing was repeated.
