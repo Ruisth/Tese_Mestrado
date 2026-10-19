@@ -1,10 +1,27 @@
 {
-  "generated_utc": "2026-10-19T00:39:26Z",
+  "generated_utc": "2026-10-19T12:57:31Z",
   "measure_root": "/home/ruisth/egw-compare/measure",
-  "character": "Exploratory comparison: n=3 per scenario, one QEMU/TCG profile, no statistical significance claimed.",
+  "character": "Exploratory comparison of two complete gateway configurations: n = 3 per scenario, one QEMU/TCG profile, one synthetic load; no statistical significance claimed.",
+  "provenance": {
+    "generator": "tools/compare/measure_summary.py",
+    "generator_commit": "34a5f9da0fbf7705a578918b618e1de138cc0e92",
+    "generated_utc": "2026-10-19T12:57:31Z",
+    "inputs": {
+      "measure_root": "/home/ruisth/egw-compare/measure",
+      "plan": {
+        "path": "/home/ruisth/egw-compare/measure/plan-a02.json",
+        "sha256": "94fc96919cc0c9e2f074c0f39a7c3a1fe4397d9bd639d9f16bc01c2e5c821f7d"
+      },
+      "per_run_csv": {
+        "path": "/home/ruisth/egw-compare/measure/harness/processed/per_run.csv",
+        "sha256": "ae89a002b9aa3eefdd7d9b08a53101362be99575ed0832ed6d992d468d8b6872"
+      }
+    },
+    "note": "a derivative of the raw records; raw records and earlier summaries are not modified"
+  },
   "plan": {
-    "path": "/home/ruisth/egw-compare/measure/plan-a02.working.json",
-    "sha256": "93a034d04f0b0a3b2c514f084bf0e3524d70896054610554abe4fde935172bc6",
+    "path": "/home/ruisth/egw-compare/measure/plan-a02.json",
+    "sha256": "94fc96919cc0c9e2f074c0f39a7c3a1fe4397d9bd639d9f16bc01c2e5c821f7d",
     "run_ids": [
       "cmp-p1-yocto-a02",
       "cmp-p1-debian13-a02",
@@ -1006,13 +1023,19 @@
     }
   },
   "notes": [
+    "The 11.2 msg/s load is the synthetic load of the existing nominal scenario, inherited so that the executions are reproducible and comparable. It is not a requirement of the supervisor, a required capacity, a performance reference or a pass threshold. Queue growth and confirmations after the observation limit are observed behaviour under that load, not failures against it. The figures describe the observed processing capacity under the load tried; a single load cannot establish a maximum capacity.",
+    "The observation limit is the end-of-load controller marker + 60 s (the harness's confirmation window), not a 60 s delivery deadline per message.",
+    "Latency percentiles cover only the confirmations within that limit (their count is reported); they say nothing about the confirmations after it.",
+    "Validity: every execution has a valid harness run; the post-drain collection was verified in 5 of 6 (cmp-p1-yocto-a02 excluded from the after-drain buckets). Metrics are reported with their own n; the after-drain reconciliation has Yocto n = 2 and Debian 13 n = 3.",
+    "Time alignment uncertainty: marker lag and pairing discrepancy as reported per run (marker lag 0.018 to 0.085 s, pairing discrepancy -0.071 to -0.008 s), probe cadences ssh 5 s, ready 5 s, accept 3 s, drain 5 s, sampler cadence about 1 s under emulation; the host wall clock stepped back inside every window (wall_clock_step_s -21.976 to -15.723 s) and is never used.",
+    "Whole configurations are compared (different kernels, container runtimes and userlands), under TCG emulation on a shared x86-64 host; nothing isolates an effect of the distribution alone, and nothing is said about physical ARM hardware.",
     "Probe cadences: ssh 5 s, ready 5 s, accept 3 s, drain 5 s. The start times carry that cadence as their resolution.",
     "boot_ssh_s, stack_ready_s and gateway_functional_s are host-monotonic seconds from the instant recorded just before the QEMU launch (one clock, the host's /proc/uptime) to the first ssh answer, to the controller's /ready 200 and to the twin read back after the functional event.",
     "Latency is controller reception → Ditto confirmation, as the controller measures it; it is not simulator → Ditto and does not include the broker leg.",
     "`lost` means no confirmation within the harness's deadline, not definitive loss; `late_confirmations` counts confirmations that arrived after it.",
     "Memory is of the whole gateway guest: MemTotal − MemAvailable from the guest's /proc/meminfo, one sample per second (`mem_*_samples` says how many); median and max. It is not the containers' memory and not the host QEMU process. Each sampler line carries `uptime_s`, the guest's /proc/uptime (CLOCK_BOOTTIME, equal to the controller's CLOCK_MONOTONIC while the guest never suspends).",
     "The measured window lives on MONOTONIC clocks and on nothing else. Its duration is the harness manifest's finished_monotonic_ns − measured_started_monotonic_ns on the harness host (`load_duration_monotonic_s`). Its end on the guest clock is the controller's CLOCK_MONOTONIC instant polled at the run end (controller_monotonic_at_run_end_ns, paired with finished_monotonic_ns), accepted only when the controller marker is ok and its lag is within its tolerance (`clock_pairing_marker_lag_s`); its start is that end minus the duration (`mem_load_window_start_guest_s`, `mem_load_window_end_guest_s`). The pairing is cross-checked against the host-guest event pairs of sent_events.jsonl/events.jsonl: the minimum of received − publish over at least 100 message ids (`clock_pairing_pairs`) must place the window end within 1.0 s of the marker's (`clock_pairing_discrepancy_s`). When any of this fails the window is unavailable (`load_window_reason`) and every window-dependent cell is empty: 600 s is never assumed, and the two monotonic clocks are never subtracted without this pairing.",
-    "measured_window_utc is never used as the duration or the bounds: the host wall clock can step during a run (it did, by about −13 s, in the first real run). `load_window_utc_span_s` and `wall_clock_step_s` (UTC span − monotonic duration) are informational only.",
+    "measured_window_utc is never used as the duration or the bounds: the host wall clock can step during a run, and `wall_clock_step_s` (UTC span − monotonic duration) says by how much in each; it and `load_window_utc_span_s` are informational only.",
     "Load memory (`mem_load_*`) is bounded to that window: a sampler line counts when window start <= uptime_s <= window end on the guest clock. Warm-up, the confirmation window and the drain are outside it. `mem_loadfile_*` describe the whole load-phase file, including warm-up, confirmation and drain, for transparency only and are not the load figure.",
     "accepted_rate_est_msg_s is an estimated rate between the two boundary samples (gaps reported), not an exact count inside the window: controller_metrics.csv rows are placed by their guest monotonic_ns; the boundary samples are the last row at or before the window start and the last at or before its end, each required within 5.0 s before its bound (`accepted_rate_start_gap_s`, `accepted_rate_end_gap_s`), with the rows strictly time-ordered and the counter not decreasing; `accepted_between_samples` is the counter difference and `accepted_rate_span_s` the monotonic span between the two rows. `accepted_rate_reason` says why the estimate is unavailable.",
     "published_rate_msg_s = sent_valid / load_duration_monotonic_s: the simulator's publications during the measured run, not an acceptance rate. delivered_unique keeps the analyser's meaning (accepted within the deadline) and is not divided by anything here.",

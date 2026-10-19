@@ -11,10 +11,16 @@ configurations differ in kernel, container runtime and userland).
 
 | File | What |
 |---|---|
-| `table.md` | the comparative table: individual values in plan order, median and min–max per scenario, and the interpretation notes |
+| `table.md` | the comparative table: individual values in plan order, median, min–max and n per scenario, and the interpretation notes |
 | `summary.csv` | one row per execution with every column of the table |
 | `summary.json` | the same rows plus the per-scenario aggregates, the plan's identity and the rules' constants |
 | `plan-a02.json` | the sealed plan (six entries, one seed per pair, `supersedes` the first plan) |
+
+These three files are the corrected summary derivative `summary-a02-v2-20261019T125731Z` (generator commit
+`34a5f9d`; inputs and their digests in `summary.json` under `provenance`), produced after the framing order of
+2026-10-19 from the unchanged raw records; it replaces the earlier derivative `summary-a02-20261019T003925Z`, which
+stays in the original `output_test` package, and is also packaged as
+`output_test/runs/2026-10-19/HIST_2026-10-19-compare-measurements-a02-summary-v2`.
 
 How the figures are made: `tools/compare/README.md` section 10 (`measure_base.sh`, `measure_run.sh`,
 `measure_series.sh`, `measure_summary.py`) and the two calculation rules there — the load window lives on monotonic
