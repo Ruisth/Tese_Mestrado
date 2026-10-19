@@ -2,8 +2,9 @@
 # tools/compare/measure_series.sh <plan.json> - the six executions of the minimal comparison, in the
 # plan's order, one guest at a time, each by measure_run.sh; then the harness analysis of the six raw
 # runs and the summary (measure_summary.py). The plan given is the SEALED one: it is copied once to
-# $EGW_COMPARE_ROOT/measure/<plan name>.working.json (the harness rewrites entry statuses there) and its
-# sha256 is recorded. Before each execution the previous guest must be gone (no QEMU at all). The
+# $EGW_COMPARE_ROOT/measure/<plan name>.working.<sha256 prefix>.json (the harness rewrites entry statuses
+# there; a sidecar .source names the sealed plan it came from, and a working copy is continued only for
+# the plan it was made from) and its sha256 is recorded. Before each execution the previous guest must be gone (no QEMU at all). The
 # series stops at the first instrumentation failure or failed stop (data preserved, nothing repeated,
 # nothing replaced); a result of the system under test never stops it. It never repeats an entry: an
 # entry that is not `planned` in the working plan is skipped with a line saying so, which is how a
@@ -17,21 +18,28 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 [ $# -eq 1 ] || { echo "usage: measure_series.sh <plan.json>" >&2; exit 2; }
 SEALED=$1
 MEASURE=$COMPARE_ROOT/measure
+[ -r "$SEALED" ] || die "plan not readable: $SEALED"
+SEALED_SHA=$(sha256sum "$SEALED" | cut -d' ' -f1)
 SEALED_NAME=$(basename "$SEALED")
-WORKING=$MEASURE/${SEALED_NAME%.json}.working.json   # one working copy per sealed plan, never shared
+# One working copy per sealed plan, keyed by the plan's own digest: two sealed plans that share a file
+# name never share a working copy, and a working copy is continued only for the bytes it came from.
+WORKING=$MEASURE/${SEALED_NAME%.json}.working.${SEALED_SHA:0:12}.json
 HARNESS=$MEASURE/harness
 VENV=${EGW_EXEC_VENV:-$COMPARE_EXEC/venv}
 PY=$VENV/bin/python
 MEASURE_RUN=${EGW_COMPARE_MEASURE_RUN:-$HERE/measure_run.sh}
-[ -r "$SEALED" ] || die "plan not readable: $SEALED"
 mkdir -p "$MEASURE/logs"
 LOG=$MEASURE/logs/series-$(stamp).log
 exec > >(tee -a "$LOG") 2>&1
 echo "SERIES: $(utc_now) plan $SEALED sha256 $(sha256sum "$SEALED" | cut -d' ' -f1)"
 if [ -e "$WORKING" ]; then
-    echo "working plan exists ($WORKING): continuing it; entries already run are skipped"
+    # The sidecar names the sealed plan the working copy came from; a mismatch is a refusal, never a guess.
+    src=$(sed -n 's/^sha256 //p' "$WORKING.source" 2> /dev/null)
+    [ "$src" = "$SEALED_SHA" ] || die "working plan $WORKING exists but was not made from this sealed plan (source sha256 '${src:-none}', given $SEALED_SHA)"
+    echo "working plan exists ($WORKING, from sealed sha256 $SEALED_SHA): continuing it; entries already run are skipped"
 else
     cp -p "$SEALED" "$WORKING" || die "cannot write the working plan"
+    printf 'path %s\nsha256 %s\nutc %s\n' "$SEALED" "$SEALED_SHA" "$(utc_now)" > "$WORKING.source"
 fi
 
 ORDER=$(python3 - "$WORKING" << 'PY'

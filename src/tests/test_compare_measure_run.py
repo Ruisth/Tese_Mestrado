@@ -247,3 +247,36 @@ def test_series_runs_every_planned_entry_even_when_the_driver_reads_stdin(bench,
     calls = [line for line in bench.calls.read_text(encoding="utf-8").splitlines() if line.startswith("stub run")]
     assert calls == ["stub run b", "stub run c", "stub run d"], (calls, _report(result))
     assert "status 'completed', skipped" in result.stdout
+
+
+def test_series_working_copies_are_keyed_by_the_sealed_plan_digest(bench, tmp_path) -> None:
+    """Two sealed plans that share a file name in different directories get different working copies, each
+    continued only for the plan it came from; a working copy whose sidecar names another plan is refused."""
+    def plan_at(directory: Path, run_id: str) -> Path:
+        directory.mkdir()
+        plan = {"plan_version": "1.0",
+                "runs": [{"run_id": run_id, "condition_id": "nominal", "seed": 1, "status": "planned", "duration_s": 600,
+                          "warmup_s": 120, "rate_msg_s": 11.2}],
+                "comparison": {"runs": {run_id: {"scenario": "yocto", "pair": 1, "order_in_pair": 1}}}}
+        path = directory / "plan.json"
+        path.write_text(json.dumps(plan), encoding="utf-8")
+        return path
+    a = plan_at(tmp_path / "series-a", "run-a")
+    b = plan_at(tmp_path / "series-b", "run-b")
+    stub = bench.bin / "measure_run_stub.sh"
+    stub.write_text("#!/bin/sh\necho \"stub run $2\" >> \"$EGW_STUB_CALLS\"\nexit 0\n", encoding="utf-8")
+    stub.chmod(0o755)
+    bench.run_script(MEASURE_SERIES, str(a), EGW_COMPARE_MEASURE_RUN=str(stub))
+    bench.run_script(MEASURE_SERIES, str(b), EGW_COMPARE_MEASURE_RUN=str(stub))
+    calls = [line for line in bench.calls.read_text(encoding="utf-8").splitlines() if line.startswith("stub run")]
+    assert calls == ["stub run run-a", "stub run run-b"], calls
+    working = sorted(p.name for p in (bench.root / "measure").glob("plan.working.*.json"))
+    assert len(working) == 2 and all(len(n.split(".")[2]) == 12 for n in working), working
+    # a working copy left by another plan under this plan's name is refused, nothing run
+    foreign = next((bench.root / "measure").glob("plan.working.*.json"))
+    (bench.root / "measure" / (foreign.name + ".source")).write_text("path elsewhere\nsha256 deadbeef\n", encoding="utf-8")
+    sha = foreign.name.split(".")[2]
+    plan_for_foreign = a if __import__("hashlib").sha256(a.read_bytes()).hexdigest().startswith(sha) else b
+    result = bench.run_script(MEASURE_SERIES, str(plan_for_foreign), EGW_COMPARE_MEASURE_RUN=str(stub))
+    assert result.returncode == 2 and "was not made from this sealed plan" in result.stdout + result.stderr, _report(result)
+    assert len([l for l in bench.calls.read_text(encoding="utf-8").splitlines() if l.startswith("stub run")]) == 2

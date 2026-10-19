@@ -22,4 +22,6 @@ with the decision note `output_test/decisions/2026-10-19_compare-measurements-a0
 Headline (median of three): boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s; guest memory inside
 the window 1 922.7 MiB vs 2 304.3 MiB; root filesystem 489 MiB vs 1 458 MiB; accepted within the 60 s deadline
 4 426 vs 2 394 of 6 720; controller latency p50 220 s vs 351 s; drain 344 s vs 668 s. Neither configuration keeps
-up with the nominal rate in this emulated profile; every identity is accepted eventually.
+up with the nominal rate in this emulated profile. In the five executions whose post-drain log was read
+and verified, every published identity was accepted by the end of the drain (none without outcome); for
+`cmp-p1-yocto-a02` that log was not verified by the driver and no such figure is claimed.
