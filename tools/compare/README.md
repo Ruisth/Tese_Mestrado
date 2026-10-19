@@ -459,10 +459,21 @@ execution showed the host wall clock stepping back 13 s inside a run:
 executions, plan `plan-a02.json` sha256 `94fc9691…`):**
 [`docs/evidence/compare-a02/`](../../docs/evidence/compare-a02/README.md)
 holds the table, the CSV and the JSON; the raw records are in the sealed
-`output_test` package named there. Median of three, Yocto vs Debian 13: boot to
-ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s; memory inside the window
-1 922.7 vs 2 304.3 MiB; root filesystem 489 vs 1 458 MiB; accepted within the
-deadline 4 426 vs 2 394 of 6 720; controller latency p50 220 s vs 351 s; drain
-344 s vs 668 s. Neither keeps up with 11.2 msg/s in this emulated profile.
-The first attempt (`cmp-p1-yocto`, invalid by instrumentation) and the two
-stops of the series are recorded in the decision note; nothing was repeated.
+`output_test` package named there. The load, 11.2 msg/s, is the synthetic
+load of the existing nominal scenario, inherited so that the executions are
+reproducible and comparable; it is not a requirement, a target or a pass
+threshold, and the figures describe the observed processing capacity under
+the load tried, never a maximum capacity. Median of three, Yocto vs
+Debian 13: boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s;
+memory inside the window 1 922.7 vs 2 304.3 MiB; root filesystem 489 vs
+1 458 MiB; observed acceptance rate 7.76 vs 4.95 msg/s (1.57×); confirmed by
+the end-of-load marker + 60 s 4 426 vs 2 394 of 6 720 (1.85×), the rest
+confirmed during the drain in the five executions whose post-drain log was
+verified; controller latency p50 220 s vs 351 s over those confirmations only;
+drain 344 s vs 668 s. In these emulated conditions the Yocto configuration
+showed shorter start-up times, lower memory and disk use and a higher observed
+acceptance rate than the Debian 13 configuration; exploratory, whole
+configurations with different kernels and runtimes, nothing about maximum
+capacity, physical ARM or an isolated effect of the distribution. The first
+attempt (`cmp-p1-yocto`, invalid by instrumentation) and the two stops of the
+series are recorded in the decision note; nothing was repeated.

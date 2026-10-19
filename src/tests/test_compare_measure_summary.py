@@ -29,6 +29,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -292,6 +293,7 @@ def timeline(root: Path, run: dict[str, Any]) -> dict[str, Any]:
     return {
         "scenario": run["scenario"], "run_id": run["run_id"], "pair": run["pair"],
         "order_in_pair": run["order"], "seed": run["seed"], "commit": "0123abcd",
+        "condition": {"id": "nominal", "duration_s": 600, "warmup_s": 120, "rate_msg_s": 11.2, "rest_s": 120},
         "probe_cadence_s": dict(PROBES),
         "uptime_s": {
             "launch": launch, "ssh_ok": rel(run["ssh"]), "healthy": rel(200.0), "ready": rel(run["ready"]),
@@ -370,7 +372,7 @@ def outputs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     with (out / "summary.csv").open(encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     return {
-        "root": root, "out": out, "stderr": proc.stderr, "rows": rows,
+        "root": root, "out": out, "stderr": proc.stderr, "stdout": proc.stdout, "rows": rows,
         "by_id": {row["run_id"]: row for row in rows},
         "table": (out / "table.md").read_text(encoding="utf-8"),
         "json": json.loads((out / "summary.json").read_text(encoding="utf-8")),
@@ -665,42 +667,80 @@ def test_json_rows_and_scenario_aggregates(outputs: dict[str, Any]) -> None:
 
 def test_table_shows_both_scenarios_runs_medians_ranges_and_notes(outputs: dict[str, Any]) -> None:
     table = outputs["table"]
-    assert "n=3 per scenario" in table and "one QEMU/TCG profile" in table
-    assert "no statistical significance claimed" in table
+    assert ("Exploratory comparison of two complete gateway configurations: n = 3 per scenario, one QEMU/TCG "
+            "profile, one synthetic load; no statistical significance claimed.") in table
     assert "Yocto median" in table and "Debian 13 median" in table and "Debian 13 min–max" in table
     rows = table_rows(table)
     mem_rest = rows["Guest memory used at rest, median, MiB (`mem_rest_median_mib`)"]
-    assert mem_rest == ["410.0 / 430.0 / 450.0", "430.0", "410.0–450.0",
-                        "610.0 / 600.0 / 620.0", "610.0", "600.0–620.0"]
+    assert mem_rest == ["410.0 / 430.0 / 450.0", "430.0", "410.0–450.0", "3",
+                        "610.0 / 600.0 / 620.0", "610.0", "600.0–620.0", "3"]
     mem_load = rows["Guest memory used inside the measured window, median, MiB (`mem_load_median_mib`)"]
-    assert mem_load == ["1110.0 / — / —", "1110.0", "1110.0–1110.0", "1210.0 / — / 1220.0", "1215.0", "1210.0–1220.0"]
-    assert rows["Whole load-phase sampler file, samples (`mem_loadfile_samples`)"][:3] == ["7 / 7 / —", "7", "7–7"]
-    assert rows["Launch to stack ready (/ready 200), s (`stack_ready_s`)"][:3] == ["383.0 / 390.0 / —", "386.5", "383.0–390.0"]
+    assert mem_load == ["1110.0 / — / —", "1110.0", "1110.0–1110.0", "1", "1210.0 / — / 1220.0", "1215.0", "1210.0–1220.0", "2"]
+    assert rows["Whole load-phase sampler file, samples (`mem_loadfile_samples`)"][:4] == ["7 / 7 / —", "7", "7–7", "2"]
+    assert rows["Launch to stack ready (/ready 200), s (`stack_ready_s`)"][:4] == ["383.0 / 390.0 / —", "386.5", "383.0–390.0", "2"]
     assert rows["Measured window on the host monotonic clock, s (`load_duration_monotonic_s`)"] == [
-        "600.100 / 600.100 / 600.100", "600.100", "600.100–600.100", "600.100 / — / 600.100", "600.100", "600.100–600.100"]
-    assert rows["Host wall-clock step inside the window: UTC span − monotonic duration, s (`wall_clock_step_s`)"][3:] == [
-        "-13.000 / — / 0.000", "-6.500", "-13.000–0.000"]
-    assert rows["Clock cross-check: window end from the pairs − from the marker, s (`clock_pairing_discrepancy_s`)"][:3] == [
-        "0.005 / 0.005 / 2.005", "0.005", "0.005–2.005"]
+        "600.100 / 600.100 / 600.100", "600.100", "600.100–600.100", "3", "600.100 / — / 600.100", "600.100", "600.100–600.100", "2"]
+    assert rows["Host wall-clock step inside the window: UTC span − monotonic duration, s (`wall_clock_step_s`)"][4:] == [
+        "-13.000 / — / 0.000", "-6.500", "-13.000–0.000", "2"]
+    assert rows["Clock cross-check: window end from the pairs − from the marker, s (`clock_pairing_discrepancy_s`)"][:4] == [
+        "0.005 / 0.005 / 2.005", "0.005", "0.005–2.005", "3"]
     assert rows["Measured window start on the guest monotonic clock, s (`mem_load_window_start_guest_s`)"] == [
-        "507.900 / — / —", "507.900", "507.900–507.900", "507.900 / — / 507.900", "507.900", "507.900–507.900"]
-    assert rows["Estimated accepted rate between the boundary samples, msg/s (`accepted_rate_est_msg_s`)"] == [
-        "7.00 / — / —", "7.00", "7.00–7.00", "8.00 / — / —", "8.00", "8.00–8.00"]
+        "507.900 / — / —", "507.900", "507.900–507.900", "1", "507.900 / — / 507.900", "507.900", "507.900–507.900", "2"]
+    assert rows["Observed acceptance rate under the load tried, msg/s (estimate between the two boundary samples) "
+                "(`accepted_rate_est_msg_s`)"] == ["7.00 / — / —", "7.00", "7.00–7.00", "1", "8.00 / — / —", "8.00", "8.00–8.00", "1"]
     assert rows["Window end − end boundary sample, s (`accepted_rate_end_gap_s`)"][:2] == ["0.600 / — / —", "0.600"]
-    assert rows["Published rate, msg/s (sent_valid / load_duration_monotonic_s) (`published_rate_msg_s`)"] == [
-        "11.20 / 11.20 / 11.20", "11.20", "11.20–11.20", "11.20 / — / 11.20", "11.20", "11.20–11.20"]
+    assert rows["Synthetic load published by the simulator during the measured run, msg/s (the experiment's inherited "
+                "scenario value; not a requirement, target or threshold) (`published_rate_msg_s`)"] == [
+        "11.20 / 11.20 / 11.20", "11.20", "11.20–11.20", "3", "11.20 / — / 11.20", "11.20", "11.20–11.20", "2"]
     assert rows["Why the measured window is unavailable (`load_window_reason`)"] == [
-        "— / controller marker not ok / pairing discrepancy 2.005 s exceeds 1.0 s", "—", "—",
-        "— / harness manifest.json missing / —", "—", "—"]
+        "— / controller marker not ok / pairing discrepancy 2.005 s exceeds 1.0 s", "—", "—", "—",
+        "— / harness manifest.json missing / —", "—", "—", "—"]
     assert rows["Why the rate estimate is unavailable (`accepted_rate_reason`)"][0] == \
         "— / measured window unavailable / measured window unavailable"
-    assert "20.600 s before it" in rows["Why the rate estimate is unavailable (`accepted_rate_reason`)"][3]
-    assert rows["After the drain: accepted late (`drain_accepted_late`)"] == ["28 / — / —", "28", "28–28", "2 / 28 / 28", "28", "2–28"]
-    assert rows["Lost (no confirmation within the deadline) (`lost`)"] == ["20 / 10 / 30", "20", "10–30", "2 / — / 4", "3", "2–4"]
+    assert "20.600 s before it" in rows["Why the rate estimate is unavailable (`accepted_rate_reason`)"][4]
+    assert rows["Reconciliation after the drain (verified post-drain log only): accepted late (`drain_accepted_late`)"] == [
+        "28 / — / —", "28", "28–28", "1", "2 / 28 / 28", "28", "2–28", "3"]
+    assert rows["Reconciliation at the harness fetch: no outcome (`fetch_no_outcome`)"][:4] == ["25 / 10 / —", "17.5", "10–25", "2"]
+    assert rows["Not confirmed by that limit (lost in the analyser's sense; not definitive loss) (`lost`)"] == [
+        "20 / 10 / 30", "20", "10–30", "3", "2 / — / 4", "3", "2–4", "2"]
+    assert rows["Confirmed by the end-of-load marker + 60 s (the harness's observation limit; delivered_unique) "
+                "(`delivered_unique`)"][:2] == ["6700 / 6710 / 6690", "6700"]
+    for label in ("Share confirmed by that limit (`delivery_rate`)",
+                  "Confirmed after that limit, at the harness fetch (`late_confirmations`)",
+                  "Controller latency p50, ms, over the confirmations within the observation limit only (see latency samples) "
+                  "(`latency_ms_p50`)",
+                  "Controller latency p95, ms, over the confirmations within the observation limit only (see latency samples) "
+                  "(`latency_ms_p95`)",
+                  "Confirmations within the limit that enter the latency percentiles (`latency_samples`)",
+                  "Drain to a 130 s quiet window, s (observed behaviour after the load) (`drain_s`)",
+                  "Reconciliation at the harness fetch: accepted in time (`fetch_accepted_in_time`)",
+                  "Reconciliation after the drain (verified post-drain log only): accepted without an ack instant "
+                  "(`drain_accepted_no_ack`)"):
+        assert label in rows, label
     assert rows["Post-drain event log fetch, as the driver said (`drain_fetch_claim`)"] == [
-        "fetched / not-fetched / —", "—", "—", "unstated / fetched / fetched", "—", "—"]
-    assert rows["Drain result (`drain_result`)"] == ["quiet / quiet / gave-up", "—", "—", "quiet / quiet / quiet", "—", "—"]
+        "fetched / not-fetched / —", "—", "—", "—", "unstated / fetched / fetched", "—", "—", "—"]
+    assert rows["Drain result (`drain_result`)"] == ["quiet / quiet / gave-up", "—", "—", "—", "quiet / quiet / quiet", "—", "—", "—"]
     for phrase in (
+        # The framing notes.
+        "The 11.2 msg/s load is the synthetic load of the existing nominal scenario, inherited so that the "
+        "executions are reproducible and comparable. It is not a requirement of the supervisor, a required "
+        "capacity, a performance reference or a pass threshold.",
+        "a single load cannot establish a maximum capacity",
+        "The observation limit is the end-of-load controller marker + 60 s (the harness's confirmation window), "
+        "not a 60 s delivery deadline per message.",
+        "Latency percentiles cover only the confirmations within that limit (their count is reported); they say "
+        "nothing about the confirmations after it.",
+        "Validity: 5 of 6 executions have a harness run the analyser marks valid (cmp-debian13-p2: not valid, or "
+        "without a per-run row); the post-drain collection was verified in 4 of 6 (cmp-yocto-p2, cmp-yocto-p3 "
+        "excluded from the after-drain buckets). Metrics are reported with their own n; the after-drain "
+        "reconciliation has Yocto n = 1 and Debian 13 n = 3.",
+        "Time alignment uncertainty: marker lag and pairing discrepancy as reported per run (marker lag 0.030 to "
+        "0.030 s, pairing discrepancy 0.005 to 2.005 s), probe cadences ssh 2 s, ready 5 s, accept 1 s, sampler "
+        "cadence about 1 s under emulation; the host wall clock stepped (|wall_clock_step_s| >= 0.5 s) in 1 of 5 "
+        "windows (-13.000 to 0.000 s) and is never used.",
+        "Whole configurations are compared (different kernels, container runtimes and userlands), under TCG "
+        "emulation on a shared x86-64 host; nothing isolates an effect of the distribution alone, and nothing is "
+        "said about physical ARM hardware.",
         # The earlier notes, all kept.
         "Probe cadences: ssh 2 s, ready 5 s, accept 1 s", "host-monotonic",
         "controller reception → Ditto confirmation", "no confirmation within the harness's deadline",
@@ -723,6 +763,44 @@ def test_table_shows_both_scenarios_runs_medians_ranges_and_notes(outputs: dict[
         assert phrase in table, phrase
     assert "clock_offset.json" not in table and "delivered_unique / 600" not in table
     assert "Warnings while summarising:" in table
+
+
+def test_table_has_an_n_column_per_scenario_matching_the_aggregates(outputs: dict[str, Any]) -> None:
+    table, doc = outputs["table"], outputs["json"]
+    header = [c.strip() for c in table.splitlines()[4].split("|")[1:-1]]
+    assert header == ["Metric", "Yocto: runs in pair order", "Yocto median", "Yocto min–max", "Yocto n",
+                      "Debian 13: runs in pair order", "Debian 13 median", "Debian 13 min–max", "Debian 13 n"]
+    rows = table_rows(table)
+    for column, label, _decimals in tool.METRICS:
+        cells = rows[f"{label} (`{column}`)"]
+        assert len(cells) == 8, column
+        assert cells[3] == str(doc["scenarios"]["yocto"]["metrics"][column]["n"]), column
+        assert cells[7] == str(doc["scenarios"]["debian13"]["metrics"][column]["n"]), column
+    # n differs per metric and per side: the wall-clock step has Debian 13 n = 2 (no window for pair 2),
+    # the after-drain buckets have Yocto n = 1, the fetch buckets Yocto n = 2.
+    assert rows["Host wall-clock step inside the window: UTC span − monotonic duration, s (`wall_clock_step_s`)"][3::4] == ["3", "2"]
+    assert rows["Reconciliation after the drain (verified post-drain log only): accepted in time (`drain_accepted_in_time`)"][3::4] == ["1", "3"]
+    assert rows["Reconciliation at the harness fetch: accepted in time (`fetch_accepted_in_time`)"][3::4] == ["2", "3"]
+    assert rows["Guest memory used at rest, median, MiB (`mem_rest_median_mib`)"][3::4] == ["3", "3"]
+    for column, label in tool.CATEGORICAL:
+        assert rows[f"{label} (`{column}`)"][3::4] == ["—", "—"], column
+    assert doc["scenarios"]["yocto"]["metrics"]["drain_accepted_in_time"]["n"] == 1
+
+
+def test_provenance_block_and_line(outputs: dict[str, Any]) -> None:
+    doc = outputs["json"]
+    prov = doc["provenance"]
+    assert prov["generator"] == "tools/compare/measure_summary.py"
+    assert prov["generator_commit"] is None or re.fullmatch(r"[0-9a-f]{40}", prov["generator_commit"])
+    assert prov["generated_utc"] == doc["generated_utc"]
+    per_run = outputs["root"] / "processed" / "per_run.csv"
+    sha = hashlib.sha256(per_run.read_bytes()).hexdigest()
+    assert prov["inputs"] == {"measure_root": str(outputs["root"]), "plan": None,
+                              "per_run_csv": {"path": str(per_run), "sha256": sha}}
+    assert prov["note"] == "a derivative of the raw records; raw records and earlier summaries are not modified"
+    line = f"provenance: generator {prov['generator_commit'] or 'unknown'} plan none per_run {sha[:12]}"
+    assert line in outputs["stdout"].splitlines()
+    assert list(prov) == ["generator", "generator_commit", "generated_utc", "inputs", "note"]
 
 
 def test_exit_codes(tmp_path: Path) -> None:
@@ -800,12 +878,15 @@ def test_plan_selects_the_runs_in_its_order_and_names_the_rest(tmp_path: Path) -
     assert note in doc["notes"] and any("cmp-ghost-p9" in w for w in doc["warnings"])
     table = (out / "table.md").read_text(encoding="utf-8")
     assert f"Plan `{plan}` (sha256 `{sha}`), 4 planned run(s)." in table.splitlines()[2]
-    assert "n=1 (Yocto) and n=2 (Debian 13)" in table and f"- {note}" in table
+    assert "n = 1 (Yocto) and n = 2 (Debian 13)" in table and f"- {note}" in table
     # The table keeps the plan's order within each scenario: Debian pair 3 before pair 1.
     rows_md = table_rows(table)
     assert rows_md["Guest memory used at rest, median, MiB (`mem_rest_median_mib`)"] == [
-        "410.0", "410.0", "410.0–410.0", "620.0 / 610.0", "615.0", "610.0–620.0"]
+        "410.0", "410.0", "410.0–410.0", "1", "620.0 / 610.0", "615.0", "610.0–620.0", "2"]
     assert "Debian 13: runs in plan order" in table
+    # The plan is part of the provenance, in the JSON and on stdout.
+    assert doc["provenance"]["inputs"]["plan"] == {"path": str(plan), "sha256": sha}
+    assert re.search(rf"^provenance: generator \S+ plan {sha[:12]} per_run [0-9a-f]{{12}}$", proc.stdout, re.M)
     # Without --plan nothing changes: six rows in pair order, no plan record.
     proc = run_tool(tmp_path, per_run, tmp_path / "out-all")
     assert proc.returncode == 0 and "note:" not in proc.stdout

@@ -5469,13 +5469,36 @@ is unchanged.
   322.3 s; gateway functional 258.8 s vs 341.9 s; guest memory at rest 1 893.6
   vs 2 292.3 MiB and inside the 600 s window 1 922.7 vs 2 304.3 MiB (max 2 089.9
   vs 2 501.1); root filesystem 489 vs 1 458 MiB, `/var/lib/docker` 2 023 MiB in
-  both; accepted within the 60 s deadline 4 426 vs 2 394 of 6 720 (65.9 % vs
-  35.6 %), estimated accepted rate 7.76 vs 4.95 msg/s for 11.20 published,
-  controller latency p50 220.1 s vs 350.6 s (p95 264.4 vs 441.8 s), drain
-  344.0 s vs 668.3 s; every identity accepted eventually where the post-drain
-  tail was read. Neither configuration keeps up with the nominal rate in this
-  emulated profile. Exploratory: n = 3, TCG on a shared x86-64 host, one
-  profile, one load; no significance, no capacity, nothing about physical ARM.
+  both; observed acceptance rate between boundary samples 7.76 vs 4.95 msg/s
+  (1.57×) under the synthetic load of 11.20 msg/s published; confirmed by the
+  end-of-load marker + 60 s (the harness's observation limit) 4 426 vs 2 394
+  of 6 720 (1.85×; 65.9 % vs 35.6 %), the rest confirmed during the drain in
+  the five executions whose post-drain log was verified (reconciliation Yocto
+  n = 2, Debian n = 3; cmp-p1-yocto-a02 claims nothing); controller latency
+  p50 220.1 s vs 350.6 s (p95 264.4 vs 441.8 s) over those confirmations only;
+  drain 344.0 s vs 668.3 s. Conclusion: in the emulated conditions tried, the
+  Yocto configuration showed shorter start-up times, lower memory and disk use
+  and a higher observed acceptance rate than the Debian 13 configuration.
+  Exploratory: n = 3, TCG on a shared x86-64 host, one profile, one load,
+  whole configurations with different kernels and runtimes; no significance,
+  no maximum capacity, nothing about physical ARM, no isolated effect of the
+  distribution.
+- **Framing (the Project Manager's order of 2026-10-19, applied in one pass
+  to the summary generator's labels and notes, the tables, the README, the
+  results note and the PR description).** The 11.2 msg/s is presented only as
+  the synthetic load used in the executions, inherited from the experimental
+  scenario and kept in the method for reproducibility; it is not a requirement
+  of the supervisor, a required capacity, a performance reference or a pass
+  threshold, and no msg/s target or pass criterion is introduced. Queue growth
+  and confirmations after the observation limit are observed behaviour, not
+  failures. The limit is written as the end-of-load marker + 60 s, never a
+  60 s delivery of each message; latency percentiles cover only the
+  confirmations within it; the ratios 1.57× (observed rate) and 1.85×
+  (confirmations within the limit) are kept apart; the time alignment
+  uncertainty (marker lag, pairing discrepancy, probe and sampler cadences) is
+  stated. The corrected summary is a new derivative with provenance; raw
+  records, original seals, controller, analyser, load and earlier summaries
+  are unchanged.
 - **Instrumentation record.** The first attempt (`cmp-p1-yocto`) was invalid
   by instrumentation (overlay not named `.rootfs` → harness identity check;
   the runbook helper needed the environment exported → drain never polled;

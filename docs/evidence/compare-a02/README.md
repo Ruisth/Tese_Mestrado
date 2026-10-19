@@ -1,9 +1,13 @@
 # Minimal comparison Yocto image vs Debian 13 — series a02 (2026-10-18/19)
 
-Exploratory comparison of the two gateway configurations under one QEMU/TCG profile (`-cpu cortex-a76 -smp 4
--m 8192`, poky native QEMU 8.2.7, the same pinned images and configuration), three pairs of executions
-(Y→D, D→Y, Y→D), the frozen `nominal` load (600 s at 11.2 msg/s after 120 s of warm-up), every metric in each
-execution. n = 3 per scenario; no statistical significance, no maximum capacity, nothing about physical ARM.
+Exploratory comparison of two complete gateway configurations under one QEMU/TCG profile (`-cpu cortex-a76
+-smp 4 -m 8192`, poky native QEMU 8.2.7, the same pinned images and configuration), three pairs of executions
+(Y→D, D→Y, Y→D), every metric in each execution. The load — the frozen `nominal` scenario, 600 s at 11.2 msg/s
+after 120 s of warm-up — is the synthetic load inherited from the experimental scenario so that the executions
+are reproducible and comparable; it is not a requirement, a target or a pass threshold. The figures describe the
+observed processing capacity under the load tried; a single load cannot establish a maximum capacity. n = 3 per
+scenario; no statistical significance, nothing about physical ARM, no isolated effect of the distribution (the
+configurations differ in kernel, container runtime and userland).
 
 | File | What |
 |---|---|
@@ -19,9 +23,17 @@ boundary samples. Raw records, logs, seals and the tool identities are outside t
 `output_test/runs/2026-10-19/HIST_2026-10-19-compare-measurements-a02` (583 files, `SHA256SUMS` sha256 `87d7ada7…`),
 with the decision note `output_test/decisions/2026-10-19_compare-measurements-a02.md`.
 
-Headline (median of three): boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s; guest memory inside
-the window 1 922.7 MiB vs 2 304.3 MiB; root filesystem 489 MiB vs 1 458 MiB; accepted within the 60 s deadline
-4 426 vs 2 394 of 6 720; controller latency p50 220 s vs 351 s; drain 344 s vs 668 s. Neither configuration keeps
-up with the nominal rate in this emulated profile. In the five executions whose post-drain log was read
-and verified, every published identity was accepted by the end of the drain (none without outcome); for
-`cmp-p1-yocto-a02` that log was not verified by the driver and no such figure is claimed.
+Headline (median of three, Yocto vs Debian 13): boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs 322.3 s;
+guest memory inside the measured window 1 922.7 MiB vs 2 304.3 MiB; root filesystem 489 MiB vs 1 458 MiB;
+observed acceptance rate between boundary samples 7.76 vs 4.95 msg/s (1.57×); confirmed by the end-of-load
+marker + 60 s (the harness's observation limit, not a per-message deadline) 4 426 vs 2 394 of 6 720 (1.85×);
+controller latency p50 220 s vs 351 s over those confirmations only (n = 4 426 vs 2 394); drain 344 s vs 668 s.
+Queue growth and confirmations after the limit are observed behaviour under that load, not failures against it.
+Validity: six executions with a valid harness run; five with the post-drain collection verified — in those five
+every published identity was accepted by the end of the drain; the first Yocto execution (`cmp-p1-yocto-a02`)
+keeps its localised instrumentation fault and enters no after-drain figure (reconciliation: Yocto n = 2,
+Debian 13 n = 3). Time alignment: marker lag 0.018–0.085 s, pairing discrepancy ≤ 0.071 s, probe cadences
+5/5/3 s, sampler about 1 s. Conclusion: in the emulated conditions tried, the Yocto configuration showed shorter
+start-up times, lower memory and disk use and a higher observed acceptance rate than the Debian 13
+configuration; exploratory results that establish no maximum capacity, no behaviour on physical ARM and no
+isolated effect of the distribution.

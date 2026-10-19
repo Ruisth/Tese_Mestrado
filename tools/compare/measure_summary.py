@@ -75,6 +75,7 @@ import csv
 import hashlib
 import json
 import statistics
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -145,29 +146,34 @@ METRICS: list[tuple[str, str, int]] = [
     ("df_root_used_kib", "Root filesystem used before load, KiB", 0),
     ("df_docker_used_kib", "/var/lib/docker used before load, KiB", 0),
     ("sent_valid", "Valid messages sent", 0),
-    ("published_rate_msg_s", "Published rate, msg/s (sent_valid / load_duration_monotonic_s)", 2),
-    ("delivered_unique", "Delivered unique (accepted within the deadline)", 0),
+    ("published_rate_msg_s", "Synthetic load published by the simulator during the measured run, msg/s "
+                             "(the experiment's inherited scenario value; not a requirement, target or threshold)", 2),
+    ("delivered_unique", "Confirmed by the end-of-load marker + 60 s (the harness's observation limit; delivered_unique)", 0),
     ("accepted_between_samples", "Accepted between the two boundary samples (counter difference)", 0),
     ("accepted_rate_span_s", "Span between the two boundary samples, s", 3),
     ("accepted_rate_start_gap_s", "Window start − start boundary sample, s", 3),
     ("accepted_rate_end_gap_s", "Window end − end boundary sample, s", 3),
-    ("accepted_rate_est_msg_s", "Estimated accepted rate between the boundary samples, msg/s", 2),
-    ("delivery_rate", "Delivery rate", 4),
-    ("lost", "Lost (no confirmation within the deadline)", 0),
-    ("late_confirmations", "Late confirmations", 0),
+    ("accepted_rate_est_msg_s", "Observed acceptance rate under the load tried, msg/s "
+                                "(estimate between the two boundary samples)", 2),
+    ("delivery_rate", "Share confirmed by that limit", 4),
+    ("lost", "Not confirmed by that limit (lost in the analyser's sense; not definitive loss)", 0),
+    ("late_confirmations", "Confirmed after that limit, at the harness fetch", 0),
     ("duplicates", "Duplicates", 0),
     ("double_accepted", "Double accepted", 0),
-    ("latency_ms_p50", "Latency p50, ms", 1),
-    ("latency_ms_p95", "Latency p95, ms", 1),
-    ("latency_samples", "Latency samples", 0),
-    ("fetch_accepted_in_time", "At the harness fetch: accepted in time", 0),
-    ("fetch_accepted_late", "At the harness fetch: accepted late", 0),
-    ("fetch_no_outcome", "At the harness fetch: no outcome", 0),
-    ("drain_accepted_in_time", "After the drain: accepted in time", 0),
-    ("drain_accepted_late", "After the drain: accepted late", 0),
-    ("drain_accepted_no_ack", "After the drain: accepted without an ack instant", 0),
-    ("drain_no_outcome", "After the drain: no outcome", 0),
-    ("drain_s", "Drain, s", 1),
+    ("latency_ms_p50", "Controller latency p50, ms, over the confirmations within the observation limit only "
+                       "(see latency samples)", 1),
+    ("latency_ms_p95", "Controller latency p95, ms, over the confirmations within the observation limit only "
+                       "(see latency samples)", 1),
+    ("latency_samples", "Confirmations within the limit that enter the latency percentiles", 0),
+    ("fetch_accepted_in_time", "Reconciliation at the harness fetch: accepted in time", 0),
+    ("fetch_accepted_late", "Reconciliation at the harness fetch: accepted late", 0),
+    ("fetch_no_outcome", "Reconciliation at the harness fetch: no outcome", 0),
+    ("drain_accepted_in_time", "Reconciliation after the drain (verified post-drain log only): accepted in time", 0),
+    ("drain_accepted_late", "Reconciliation after the drain (verified post-drain log only): accepted late", 0),
+    ("drain_accepted_no_ack", "Reconciliation after the drain (verified post-drain log only): "
+                              "accepted without an ack instant", 0),
+    ("drain_no_outcome", "Reconciliation after the drain (verified post-drain log only): no outcome", 0),
+    ("drain_s", "Drain to a 130 s quiet window, s (observed behaviour after the load)", 1),
 ]
 DECIMALS = {column: decimals for column, _label, decimals in METRICS}
 CATEGORICAL: list[tuple[str, str]] = [
@@ -744,8 +750,70 @@ def probe_cadences(timelines: list[dict[str, Any]]) -> str:
     return "; ".join(seen) if seen else "not recorded"
 
 
-def notes(timelines: list[dict[str, Any]]) -> list[str]:
+def span_text(values: list[float], decimals: int = 3) -> str:
+    return f"{min(values):.{decimals}f} to {max(values):.{decimals}f} s" if values else "not available"
+
+
+def series_facts(rows: list[dict[str, Any]], timelines: list[dict[str, Any]],
+                 per_run: dict[str, dict[str, str]]) -> dict[str, str]:
+    """The validity and time-alignment notes, computed from the rows so that they hold for any series."""
+    total = len(rows)
+    if per_run:
+        not_valid: list[str] = []
+        for row, timeline in zip(rows, timelines):
+            harness_id = str((timeline.get("harness") or {}).get("run_id") or row["run_id"])
+            if per_run.get(harness_id, {}).get("validity") != "valid":
+                not_valid.append(str(row["run_id"]))
+        harness = ("every execution has a valid harness run" if not not_valid else
+                   f"{total - len(not_valid)} of {total} executions have a harness run the analyser marks valid "
+                   f"({', '.join(not_valid)}: not valid, or without a per-run row)")
+    else:
+        harness = "the harness validity could not be read (no per-run CSV)"
+    excluded = [str(r["run_id"]) for r in rows if r["drain_accepted_in_time"] is None]
+    drain = (f"the post-drain collection was verified in all {total}" if not excluded else
+             f"the post-drain collection was verified in {total - len(excluded)} of {total} "
+             f"({', '.join(excluded)} excluded from the after-drain buckets)")
+    per_scenario = " and ".join(
+        f"{SCENARIO_LABELS[s]} n = {sum(1 for r in rows if r['scenario'] == s and r['drain_accepted_in_time'] is not None)}"
+        for s in SCENARIOS)
+    lags = [r["clock_pairing_marker_lag_s"] for r in rows if r["clock_pairing_marker_lag_s"] is not None]
+    discrepancies = [r["clock_pairing_discrepancy_s"] for r in rows if r["clock_pairing_discrepancy_s"] is not None]
+    steps = [r["wall_clock_step_s"] for r in rows if r["wall_clock_step_s"] is not None]
+    stepped = [s for s in steps if abs(s) >= 0.5]
+    if not steps:
+        wall = "the host wall-clock step could not be measured (no window)"
+    elif len(stepped) == len(steps) and all(s < 0 for s in steps):
+        wall = f"the host wall clock stepped back inside every window (wall_clock_step_s {span_text(steps)}) and is never used"
+    else:
+        wall = (f"the host wall clock stepped (|wall_clock_step_s| >= 0.5 s) in {len(stepped)} of {len(steps)} windows "
+                f"({span_text(steps)}) and is never used")
+    return {
+        "validity": f"Validity: {harness}; {drain}. Metrics are reported with their own n; the after-drain "
+                    f"reconciliation has {per_scenario}.",
+        "alignment": f"Time alignment uncertainty: marker lag and pairing discrepancy as reported per run (marker lag "
+                     f"{span_text(lags)}, pairing discrepancy {span_text(discrepancies)}), probe cadences "
+                     f"{probe_cadences(timelines)}, sampler cadence about 1 s under emulation; {wall}.",
+    }
+
+
+def notes(timelines: list[dict[str, Any]], facts: dict[str, str]) -> list[str]:
+    rates = sorted({number((t.get("condition") or {}).get("rate_msg_s")) for t in timelines} - {None})
+    load = f"The {rates[0]:g} msg/s load" if len(rates) == 1 else "The synthetic load"
     return [
+        f"{load} is the synthetic load of the existing nominal scenario, inherited so that the executions are "
+        "reproducible and comparable. It is not a requirement of the supervisor, a required capacity, a performance "
+        "reference or a pass threshold. Queue growth and confirmations after the observation limit are observed "
+        "behaviour under that load, not failures against it. The figures describe the observed processing capacity "
+        "under the load tried; a single load cannot establish a maximum capacity.",
+        "The observation limit is the end-of-load controller marker + 60 s (the harness's confirmation window), not "
+        "a 60 s delivery deadline per message.",
+        "Latency percentiles cover only the confirmations within that limit (their count is reported); they say "
+        "nothing about the confirmations after it.",
+        facts["validity"],
+        facts["alignment"],
+        "Whole configurations are compared (different kernels, container runtimes and userlands), under TCG "
+        "emulation on a shared x86-64 host; nothing isolates an effect of the distribution alone, and nothing is "
+        "said about physical ARM hardware.",
         f"Probe cadences: {probe_cadences(timelines)}. The start times carry that cadence as their resolution.",
         "boot_ssh_s, stack_ready_s and gateway_functional_s are host-monotonic seconds from the instant "
         "recorded just before the QEMU launch (one clock, the host's /proc/uptime) to the first ssh answer, "
@@ -770,8 +838,8 @@ def notes(timelines: list[dict[str, Any]]) -> list[str]:
         "any of this fails the window is unavailable (`load_window_reason`) and every window-dependent cell is "
         "empty: 600 s is never assumed, and the two monotonic clocks are never subtracted without this pairing.",
         "measured_window_utc is never used as the duration or the bounds: the host wall clock can step during a "
-        "run (it did, by about −13 s, in the first real run). `load_window_utc_span_s` and `wall_clock_step_s` "
-        "(UTC span − monotonic duration) are informational only.",
+        "run, and `wall_clock_step_s` (UTC span − monotonic duration) says by how much in each; it and "
+        "`load_window_utc_span_s` are informational only.",
         "Load memory (`mem_load_*`) is bounded to that window: a sampler line counts when window start <= "
         "uptime_s <= window end on the guest clock. Warm-up, the confirmation window and the drain are outside "
         "it. `mem_loadfile_*` describe the whole load-phase file, including warm-up, confirmation and drain, for "
@@ -816,10 +884,11 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 def header_line(aggregates: dict[str, dict[str, Any]]) -> str:
     counts = {scenario: aggregates[scenario]["n_runs"] for scenario in SCENARIOS}
     if len(set(counts.values())) == 1:
-        n_text = f"n={next(iter(counts.values()))} per scenario"
+        n_text = f"n = {next(iter(counts.values()))} per scenario"
     else:
-        n_text = " and ".join(f"n={n} ({SCENARIO_LABELS[s]})" for s, n in counts.items())
-    return f"Exploratory comparison: {n_text}, one QEMU/TCG profile, no statistical significance claimed."
+        n_text = " and ".join(f"n = {n} ({SCENARIO_LABELS[s]})" for s, n in counts.items())
+    return (f"Exploratory comparison of two complete gateway configurations: {n_text}, one QEMU/TCG profile, "
+            "one synthetic load; no statistical significance claimed.")
 
 
 def plan_line(plan: dict[str, Any] | None) -> str:
@@ -840,19 +909,20 @@ def plan_notes(plan: dict[str, Any] | None) -> list[str]:
 
 
 def write_table(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, dict[str, Any]],
-                timelines: list[dict[str, Any]], generated: str, plan: dict[str, Any] | None) -> None:
+                note_list: list[str], generated: str, plan: dict[str, Any] | None) -> None:
     # The rows arrive in their final order (the plan's, or pair order): the table keeps it.
     by_scenario = {s: [r for r in rows if r["scenario"] == s] for s in SCENARIOS}
     order = "plan order" if plan is not None else "pair order"
     head = ["Metric"]
     for scenario in SCENARIOS:
         label = SCENARIO_LABELS[scenario]
-        head += [f"{label}: runs in {order}", f"{label} median", f"{label} min–max"]
+        head += [f"{label}: runs in {order}", f"{label} median", f"{label} min–max", f"{label} n"]
     lines = ["# Yocto image vs Debian 13 — measurement summary", "",
              f"**{header_line(aggregates)}** Generated {generated} from {len(rows)} run(s). {plan_line(plan)}", "",
              "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
 
     def cells(column: str, decimals: int | None, aggregated: bool) -> list[str]:
+        """Per scenario: the runs' values, the median, the min–max and n (the observations behind them)."""
         out: list[str] = []
         for scenario in SCENARIOS:
             runs = by_scenario[scenario]
@@ -864,8 +934,9 @@ def write_table(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, di
                 if agg["min"] is not None:
                     span = f"{fmt(agg['min'], decimals)}–{fmt(agg['max'], decimals)}"
                 out.append(span or "—")
+                out.append(str(agg["n"]))
             else:
-                out += ["—", "—"]
+                out += ["—", "—", "—"]
         return out
 
     for column, label in (("run_id", "Run id"), ("pair", "Pair"), ("order_in_pair", "Order in pair"), ("seed", "Seed")):
@@ -874,29 +945,81 @@ def write_table(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, di
         lines.append("| " + " | ".join([f"{label} (`{column}`)"] + cells(column, decimals, True)) + " |")
     for column, label in CATEGORICAL:
         lines.append("| " + " | ".join([f"{label} (`{column}`)"] + cells(column, None, False)) + " |")
-    lines += ["", "Notes:", ""] + [f"- {note}" for note in notes(timelines) + plan_notes(plan)]
+    lines += ["", "Notes:", ""] + [f"- {note}" for note in note_list]
     if WARNINGS:
         lines += ["", "Warnings while summarising:", ""] + [f"- {w}" for w in WARNINGS]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def write_json(path: Path, rows: list[dict[str, Any]], aggregates: dict[str, dict[str, Any]],
-               timelines: list[dict[str, Any]], generated: str, measure_root: Path,
-               plan: dict[str, Any] | None) -> None:
+               note_list: list[str], generated: str, measure_root: Path,
+               plan: dict[str, Any] | None, provenance: dict[str, Any]) -> None:
     document = {
         "generated_utc": generated,
         "measure_root": str(measure_root),
         "character": header_line(aggregates),
+        "provenance": provenance,
         "plan": plan,
         "rules": {"min_pairs": MIN_PAIRS, "pairing_tolerance_s": PAIRING_TOLERANCE_S,
                   "rate_bound_proximity_s": RATE_BOUND_PROXIMITY_S},
         "columns": COLUMNS,
         "runs": rows,
         "scenarios": aggregates,
-        "notes": notes(timelines) + plan_notes(plan),
+        "notes": note_list,
         "warnings": list(WARNINGS),
     }
     path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+
+
+# ---------------------------------------------------------------------------
+# Provenance
+# ---------------------------------------------------------------------------
+
+GENERATOR = "tools/compare/measure_summary.py"
+PROVENANCE_NOTE = "a derivative of the raw records; raw records and earlier summaries are not modified"
+
+
+def generator_commit() -> str | None:
+    """HEAD of the repository holding this script, read with git; None when that cannot be read."""
+    try:
+        done = subprocess.run(["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    commit = done.stdout.strip()
+    return commit if done.returncode == 0 and len(commit) == 40 else None
+
+
+def sha256_of(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def provenance_record(measure_root: Path, plan: dict[str, Any] | None, per_run_csv: Path | None,
+                      generated: str) -> dict[str, Any]:
+    return {
+        "generator": GENERATOR,
+        "generator_commit": generator_commit(),
+        "generated_utc": generated,
+        "inputs": {
+            "measure_root": str(measure_root),
+            "plan": {"path": plan["path"], "sha256": plan["sha256"]} if plan is not None else None,
+            "per_run_csv": {"path": str(per_run_csv), "sha256": sha256_of(per_run_csv)} if per_run_csv is not None else None,
+        },
+        "note": PROVENANCE_NOTE,
+    }
+
+
+def provenance_line(provenance: dict[str, Any]) -> str:
+    def short(record: dict[str, Any] | None) -> str:
+        return record["sha256"][:12] if record and record.get("sha256") else "none"
+    inputs = provenance["inputs"]
+    return (f"provenance: generator {provenance['generator_commit'] or 'unknown'} "
+            f"plan {short(inputs['plan'])} per_run {short(inputs['per_run_csv'])}")
 
 
 # ---------------------------------------------------------------------------
@@ -969,15 +1092,19 @@ def summarise(measure_root: Path, per_run_csv: Path | None, out_dir: Path, plan_
         if row["scenario"] not in SCENARIOS:
             warn(f"{row['run_id']}: scenario '{row['scenario']}' is not one of {', '.join(SCENARIOS)}; listed, not aggregated")
     if plan is None:
-        rows.sort(key=sort_key)
+        order = sorted(range(len(rows)), key=lambda i: sort_key(rows[i]))
+        rows, timelines = [rows[i] for i in order], [timelines[i] for i in order]
     aggregates = aggregate(rows)
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    note_list = notes(timelines, series_facts(rows, timelines, per_run)) + plan_notes(plan)
+    provenance = provenance_record(measure_root, plan, per_run_csv, generated)
     out_dir.mkdir(parents=True, exist_ok=True)
     write_csv(out_dir / "summary.csv", rows)
-    write_table(out_dir / "table.md", rows, aggregates, timelines, generated, plan)
-    write_json(out_dir / "summary.json", rows, aggregates, timelines, generated, measure_root, plan)
+    write_table(out_dir / "table.md", rows, aggregates, note_list, generated, plan)
+    write_json(out_dir / "summary.json", rows, aggregates, note_list, generated, measure_root, plan, provenance)
     for note in plan_notes(plan):
         print(f"note: {note}")
+    print(provenance_line(provenance))
     print(f"summary: {len(rows)} run(s) -> {out_dir / 'summary.csv'}, table.md, summary.json"
           + (f"; {len(WARNINGS)} warning(s)" if WARNINGS else ""))
     return 0
