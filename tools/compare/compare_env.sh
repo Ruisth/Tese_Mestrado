@@ -1,5 +1,6 @@
 #!/bin/bash
-# tools/compare/compare_env.sh - lifecycle of ONE comparison guest (scenario `yocto` or `debian13`)
+# tools/compare/compare_env.sh - lifecycle of ONE comparison guest (scenario `yocto`, `debian13` or
+# `yoctowrynose`)
 # under the shared QEMU/TCG machine profile. Called by the Terraform module (tools/compare/terraform)
 # and usable by hand. It never starts a second guest, never stops a QEMU it did not start, never
 # kills a QEMU process, and never writes into the clone or into the pilot's directories.
@@ -48,6 +49,17 @@ resolve_base() {
             BASE_INITRD=$B_DIR/initrd.img
             ROOT_UUID=$(cat "$B_DIR/root-uuid.txt" 2> /dev/null || true)
             ;;
+        uefi-disk)
+            # A whole GPT disk booted by UEFI firmware: no -kernel/-append. The read-only firmware code and
+            # the variable-store template are base copies; each scenario boots a writable copy of the
+            # template ($S_UEFI_VARS, a work file like the disks).
+            BASE_ROOT=$B_DIR/$(basename "$BASE_ROOTFS_SRC")
+            BASE_KERNEL=
+            BASE_INITRD=
+            ROOT_UUID=
+            BASE_FW_CODE=$B_DIR/edk2-aarch64-code.fd
+            BASE_FW_VARS=$B_DIR/edk2-arm-vars.fd
+            ;;
         *) die "scenario $SCENARIO: unknown BASE_KIND '$BASE_KIND'" ;;
     esac
 }
@@ -82,6 +94,23 @@ prepare_base_yocto() {
     base_copy "$BASE_KERNEL_SRC" "$B_DIR/Image"
     base_copy "$BASE_ROOTFS_SRC" "$B_DIR/rootfs.ext4"
     base_seal Image rootfs.ext4
+}
+
+prepare_base_uefi() {
+    local src_dir
+    [ -s "$BASE_ROOTFS_SRC" ] || die "base disk missing: $BASE_ROOTFS_SRC"
+    [ -s "$BASE_FW_CODE_SRC" ] || die "UEFI firmware missing: $BASE_FW_CODE_SRC"
+    [ -s "$BASE_FW_VARS_SRC" ] || die "UEFI variable-store template missing: $BASE_FW_VARS_SRC"
+    resolve_base
+    # The source package carries its own SHA256SUMS: verify it before the first copy.
+    src_dir=$(dirname "$BASE_ROOTFS_SRC")
+    if [ ! -s "$BASE_ROOT" ] && [ -s "$src_dir/SHA256SUMS" ]; then
+        (cd "$src_dir" && sha256sum -c --quiet SHA256SUMS) || { DIE_CODE=3 die "the source package $src_dir does not match its SHA256SUMS"; }
+    fi
+    base_copy "$BASE_FW_CODE_SRC" "$BASE_FW_CODE"
+    base_copy "$BASE_FW_VARS_SRC" "$BASE_FW_VARS"
+    base_copy "$BASE_ROOTFS_SRC" "$BASE_ROOT"
+    base_seal "$(basename "$BASE_ROOT")" edk2-aarch64-code.fd edk2-arm-vars.fd
 }
 
 prepare_base_debian() {
@@ -121,10 +150,16 @@ qemu_argv() {
         -device virtio-gpu-pci -display none
         -serial "file:$console" -serial null
         -monitor "unix:$S_MONITOR,server,nowait"
-        -no-reboot
-        -kernel "$BASE_KERNEL")
-    [ -n "$BASE_INITRD" ] && QEMU_ARGV+=(-initrd "$BASE_INITRD")
-    QEMU_ARGV+=(-append "$append")
+        -no-reboot)
+    if [ -n "$BASE_KERNEL" ]; then
+        QEMU_ARGV+=(-kernel "$BASE_KERNEL")
+        [ -n "$BASE_INITRD" ] && QEMU_ARGV+=(-initrd "$BASE_INITRD")
+        QEMU_ARGV+=(-append "$append")
+    else
+        # uefi-disk: firmware code read-only (pflash unit 0), the scenario's variable store (unit 1).
+        QEMU_ARGV+=(-drive "if=pflash,format=raw,readonly=on,file=$BASE_FW_CODE"
+            -drive "if=pflash,format=raw,file=$S_UEFI_VARS")
+    fi
     [ "$mode" = daemon ] && QEMU_ARGV+=(-daemonize -pidfile "$S_PIDFILE")
     return 0
 }
@@ -210,6 +245,11 @@ prepare_work_disks() {
         log_line "$S_LOG" "root overlay created: $S_ROOT_DISK on $BASE_ROOT ($ROOT_FORMAT)"
         DISKS_CREATED=1
     fi
+    if [ "$BASE_KIND" = uefi-disk ] && [ ! -s "$S_UEFI_VARS" ]; then
+        cp "$BASE_FW_VARS" "$S_UEFI_VARS" || die "UEFI variable store"
+        chmod 0644 "$S_UEFI_VARS"
+        log_line "$S_LOG" "UEFI variable store created: $S_UEFI_VARS from $BASE_FW_VARS"
+    fi
     prepare_data_disk
 }
 
@@ -229,6 +269,7 @@ write_manifest() {
         base_root="$BASE_ROOT" base_root_sha256="$(base_sha "$(basename "$BASE_ROOT")")" \
         base_kernel="$BASE_KERNEL" base_kernel_sha256="$(base_sha "$(basename "$BASE_KERNEL")")" \
         base_initrd="$BASE_INITRD" base_initrd_sha256="$([ -n "$BASE_INITRD" ] && base_sha "$(basename "$BASE_INITRD")")" \
+        base_firmware="${BASE_FW_CODE:-}" base_firmware_sha256="$([ -n "${BASE_FW_CODE:-}" ] && base_sha "$(basename "$BASE_FW_CODE")")" \
         base_source_rootfs="$BASE_ROOTFS_SRC" base_source_kernel="$BASE_KERNEL_SRC" \
         base_image_url="$BASE_IMAGE_URL" base_image_sha512="$BASE_IMAGE_SHA512" root_uuid="$ROOT_UUID" \
         root_format="$ROOT_FORMAT" kernel_append="${KERNEL_APPEND//@ROOT_UUID@/$ROOT_UUID}" \
@@ -284,6 +325,7 @@ cmd_prepare() {
     case $BASE_KIND in
         yocto-deploy) prepare_base_yocto ;;
         debian-cloud) prepare_base_debian ;;
+        uefi-disk) prepare_base_uefi ;;
         *) die "unknown BASE_KIND '$BASE_KIND'" ;;
     esac
     prepare_work_disks
@@ -304,8 +346,14 @@ cmd_start() {
     fi
     [ -s "$S_ROOT_DISK" ] && [ -s "$S_DATA_DISK" ] || die "scenario $SCENARIO is not prepared (run: compare_env.sh prepare $SCENARIO)"
     resolve_base
-    [ -s "$BASE_KERNEL" ] || die "kernel missing: $BASE_KERNEL"
-    base_seal "$(basename "$BASE_ROOT")" "$(basename "$BASE_KERNEL")"
+    if [ "$BASE_KIND" = uefi-disk ]; then
+        [ -s "$BASE_FW_CODE" ] || die "UEFI firmware missing: $BASE_FW_CODE"
+        [ -s "$S_UEFI_VARS" ] || die "scenario $SCENARIO has no UEFI variable store (run: compare_env.sh prepare $SCENARIO)"
+        base_seal "$(basename "$BASE_ROOT")" edk2-aarch64-code.fd edk2-arm-vars.fd
+    else
+        [ -s "$BASE_KERNEL" ] || die "kernel missing: $BASE_KERNEL"
+        base_seal "$(basename "$BASE_ROOT")" "$(basename "$BASE_KERNEL")"
+    fi
     start_guards
     s=$(stamp)
     console=$S_DIR/logs/console-$s.log
@@ -412,7 +460,7 @@ cmd_destroy() {
     for f in "$S_DIR/state/argv.txt" "$S_DIR/state/started" "$S_DIR/state/started_utc" "$S_DIR/state/provision.json" "$S_MANIFEST"; do
         [ -e "$f" ] && cp -p "$f" "$keep/"
     done
-    rm -f "$S_ROOT_DISK" "$S_DATA_DISK" "$S_DIR/disks/firstboot.qcow2"
+    rm -f "$S_ROOT_DISK" "$S_DATA_DISK" "$S_UEFI_VARS" "$S_DIR/disks/firstboot.qcow2"
     rm -rf "$S_DIR/state"
     lock_release
     log_line "$S_LOG" "destroyed: work disks and state removed; bases, logs, results kept (copies in $keep)"

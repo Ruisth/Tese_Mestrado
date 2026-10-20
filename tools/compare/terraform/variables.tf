@@ -1,10 +1,10 @@
 variable "scenario" {
-  description = "Which operating system the guest boots: yocto (egw-gateway-image) or debian13."
+  description = "Which operating system the guest boots: yocto (egw-gateway-image), debian13, or yoctowrynose (the yoctoWrynose UEFI image)."
   type        = string
 
   validation {
-    condition     = contains(["yocto", "debian13"], var.scenario)
-    error_message = "scenario must be one of: yocto, debian13."
+    condition     = contains(["yocto", "debian13", "yoctowrynose"], var.scenario)
+    error_message = "scenario must be one of: yocto, debian13, yoctowrynose."
   }
 }
 
