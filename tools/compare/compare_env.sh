@@ -97,14 +97,27 @@ prepare_base_yocto() {
 }
 
 prepare_base_uefi() {
-    local src_dir
+    local src_dir f rel need=0
     [ -s "$BASE_ROOTFS_SRC" ] || die "base disk missing: $BASE_ROOTFS_SRC"
     [ -s "$BASE_FW_CODE_SRC" ] || die "UEFI firmware missing: $BASE_FW_CODE_SRC"
     [ -s "$BASE_FW_VARS_SRC" ] || die "UEFI variable-store template missing: $BASE_FW_VARS_SRC"
     resolve_base
-    # The source package carries its own SHA256SUMS: verify it before the first copy.
-    src_dir=$(dirname "$BASE_ROOTFS_SRC")
-    if [ ! -s "$BASE_ROOT" ] && [ -s "$src_dir/SHA256SUMS" ]; then
+    # The source is a sealed package: whenever a base copy is still to be made, the package's own
+    # SHA256SUMS must exist, list the three files used (all inside the package) and verify, before
+    # anything is copied. An unsealed or partly sealed package is refused (exit 3); copies already made
+    # are checked by base_seal against this scenario's own record.
+    for f in "$BASE_ROOT" "$BASE_FW_CODE" "$BASE_FW_VARS"; do [ -s "$f" ] || need=1; done
+    if [ "$need" = 1 ]; then
+        src_dir=$(dirname "$BASE_ROOTFS_SRC")
+        [ -s "$src_dir/SHA256SUMS" ] || { DIE_CODE=3 die "the source package $src_dir has no SHA256SUMS: nothing is copied from an unsealed package"; }
+        for f in "$BASE_ROOTFS_SRC" "$BASE_FW_CODE_SRC" "$BASE_FW_VARS_SRC"; do
+            case $f in
+                "$src_dir"/*) rel=${f#"$src_dir"/} ;;
+                *) DIE_CODE=3 die "$f is outside the source package $src_dir" ;;
+            esac
+            awk -v r="$rel" '{ p = $2; sub(/^\.\//, "", p) } p == r { found = 1 } END { exit !found }' "$src_dir/SHA256SUMS" \
+                || { DIE_CODE=3 die "the SHA256SUMS of the source package $src_dir does not list $rel"; }
+        done
         (cd "$src_dir" && sha256sum -c --quiet SHA256SUMS) || { DIE_CODE=3 die "the source package $src_dir does not match its SHA256SUMS"; }
     fi
     base_copy "$BASE_FW_CODE_SRC" "$BASE_FW_CODE"

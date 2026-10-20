@@ -712,15 +712,20 @@ BASE_IMAGE_FILE=
 """
 
 
-def _uefi_package(bench: Bench, corrupt: bool = False) -> Path:
-    """A package laid out as the yoctoWrynose one: disk, firmware/, and a SHA256SUMS of './name' lines."""
+def _uefi_package(bench: Bench, corrupt: bool = False, sums: str = "full") -> Path:
+    """A package laid out as the yoctoWrynose one: disk, firmware/, and a SHA256SUMS of './name' lines.
+    sums: "full" (the three files), "partial" (the disk left out), "empty" (an empty file) or "none" (no file)."""
     pkg = bench.deploy / "yoctoWrynose"
     (pkg / "firmware").mkdir(parents=True)
     (pkg / "yoctoWrynose.qcow2").write_bytes(b"QFI\xfb" + bytes(range(256)) * 64)
     (pkg / "firmware" / "edk2-aarch64-code.fd").write_bytes(b"code" * 1024)
     (pkg / "firmware" / "edk2-arm-vars.fd").write_bytes(b"\0" * 4096)
     rels = ("./firmware/edk2-aarch64-code.fd", "./firmware/edk2-arm-vars.fd", "./yoctoWrynose.qcow2")
-    (pkg / "SHA256SUMS").write_text("".join(f"{_sha256(pkg / r)}  {r}\n" for r in rels), encoding="utf-8")
+    if sums == "partial":
+        rels = rels[:2]
+    if sums != "none":
+        lines = "" if sums == "empty" else "".join(f"{_sha256(pkg / r)}  {r}\n" for r in rels)
+        (pkg / "SHA256SUMS").write_text(lines, encoding="utf-8")
     if corrupt:
         with open(pkg / "yoctoWrynose.qcow2", "ab") as f:
             f.write(b"x")
@@ -763,11 +768,14 @@ def test_uefi_disk_scenario_boots_through_firmware(bench) -> None:
     assert (b_dir / "edk2-aarch64-code.fd").is_file() and (b_dir / "yoctoWrynose.qcow2").is_file()
 
 
-def test_uefi_disk_refuses_a_package_that_fails_its_checksums(bench) -> None:
-    _uefi_package(bench, corrupt=True)
+@pytest.mark.parametrize("corrupt, sums", [(True, "full"), (False, "none"), (False, "empty"), (False, "partial")])
+def test_uefi_disk_refuses_an_unverified_package(bench, corrupt, sums) -> None:
+    """No base copy is made from a package whose own SHA256SUMS is missing, empty, incomplete or failing."""
+    _uefi_package(bench, corrupt=corrupt, sums=sums)
     result = bench.run("prepare", "yoctowrynose")
     assert result.returncode == 3, _report(result)
-    assert not (bench.root / "base" / "yoctowrynose" / "yoctoWrynose.qcow2").exists()
+    b_dir = bench.root / "base" / "yoctowrynose"
+    assert not any((b_dir / n).exists() for n in ("yoctoWrynose.qcow2", "edk2-aarch64-code.fd", "edk2-arm-vars.fd"))
 
 
 def test_kernel_scenarios_keep_their_argv(bench) -> None:
