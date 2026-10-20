@@ -15,6 +15,9 @@ bash tools/compare/tf.sh debian13 apply   # the same for Debian 13, only after y
 bash tools/compare/tf.sh debian13 stop
 ```
 
+A third scenario, `yoctowrynose`, boots the yoctoWrynose image (Yocto Project 6.0.3, a UEFI disk) with the same
+two commands, for demonstration and functional use; it is not part of the measured comparison (section 11).
+
 `apply` runs, with no prompt, the whole sequence of [`up.sh`](up.sh):
 (1) work copies prepared if absent (`compare_env.sh prepare`); (2) the guest
 booted under QEMU/TCG with the fixed machine profile of section 6; (3) ssh
@@ -477,3 +480,28 @@ configurations with different kernels and runtimes, nothing about maximum
 capacity, physical ARM or an isolated effect of the distribution. The first
 attempt (`cmp-p1-yocto`, invalid by instrumentation) and the two stops of the
 series are recorded in the decision note; nothing was repeated.
+
+## 11. Third scenario — `yoctowrynose` (UEFI disk, demonstration only)
+
+`yoctowrynose` boots the yoctoWrynose image: Yocto Project 6.0.3 "Wrynose", MACHINE `genericarm64`, one GPT disk in
+qcow2 (an EFI system partition with systemd-boot, the kernel and an initramfs, and an ext4 root). Its base kind,
+`uefi-disk`, copies three files from the sealed image package (default `~/images/yoctoWrynose`, overridable with
+`EGW_WRYNOSE_PACKAGE`) after checking the package's own `SHA256SUMS`: the disk, the edk2 firmware code and the
+variable-store template. Each scenario boots a writable copy of the template (`disks/uefi-vars.fd`, removed by
+`destroy`); QEMU receives the firmware as two pflash drives, the code read-only first, and no `-kernel`/`-append`:
+the kernel command line is the one of the disk's systemd-boot entry. The machine profile, devices, ports, data disk,
+provisioning and controlled stop are those of the other two scenarios. The image authorises its own test key
+(`~/.ssh/egw_wrynose_share`, overridable with `EGW_WRYNOSE_SSH_KEY`); the scenario file sets it, so the other
+scenarios keep the campaign key.
+
+```bash
+bash tools/compare/tf.sh yoctowrynose apply
+bash tools/compare/tf.sh yoctowrynose stop
+```
+
+The first `apply` copies the bases and pulls the five pinned images onto a fresh data disk, so it takes longer than
+the later ones (about 9 min against 6-7 min observed on 2026-10-20). Known differences are listed in
+`scenarios/yoctowrynose.env` and recorded in the manifest; among them, the boot includes firmware and initramfs, so
+its boot times are not comparable with series a02. The measured runs of section 10 remain `yocto` and `debian13`:
+the harness identity check I1 needs a kernel passed by QEMU, and `measure_plan.py`/`measure_summary.py` know the
+measured pair only.
