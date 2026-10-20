@@ -688,3 +688,102 @@ def test_terraform_validate() -> None:
     result = subprocess.run([terraform, f"-chdir={TF_DIR}", "validate"], capture_output=True, text=True, env=env,
                             timeout=120)
     assert result.returncode == 0, _report(result)
+
+
+# --- the uefi-disk kind (scenario yoctowrynose) ------------------------------------------------------
+
+UEFI_SCENARIO_ENV = """# shellcheck shell=bash
+# Scenario yoctowrynose for the tests: a UEFI disk package with its firmware, no kernel of its own.
+SCENARIO=yoctowrynose
+DISTRO_LABEL="Poky 6.0.3 (wrynose) egw-gateway-image test"
+GUEST_HOSTNAME=yoctowrynose
+BASE_KIND=uefi-disk
+BASE_ROOTFS_SRC={disk}
+BASE_FW_CODE_SRC={code}
+BASE_FW_VARS_SRC={vars}
+BASE_KERNEL_SRC=
+BASE_INITRD_SRC=
+ROOT_FORMAT=qcow2
+KERNEL_APPEND=
+FIRSTBOOT_APPEND=
+BASE_IMAGE_URL=
+BASE_IMAGE_SHA512=
+BASE_IMAGE_FILE=
+"""
+
+
+def _uefi_package(bench: Bench, corrupt: bool = False, sums: str = "full") -> Path:
+    """A package laid out as the yoctoWrynose one: disk, firmware/, and a SHA256SUMS of './name' lines.
+    sums: "full" (the three files), "partial" (the disk left out), "empty" (an empty file) or "none" (no file)."""
+    pkg = bench.deploy / "yoctoWrynose"
+    (pkg / "firmware").mkdir(parents=True)
+    (pkg / "yoctoWrynose.qcow2").write_bytes(b"QFI\xfb" + bytes(range(256)) * 64)
+    (pkg / "firmware" / "edk2-aarch64-code.fd").write_bytes(b"code" * 1024)
+    (pkg / "firmware" / "edk2-arm-vars.fd").write_bytes(b"\0" * 4096)
+    rels = ("./firmware/edk2-aarch64-code.fd", "./firmware/edk2-arm-vars.fd", "./yoctoWrynose.qcow2")
+    if sums == "partial":
+        rels = rels[:2]
+    if sums != "none":
+        lines = "" if sums == "empty" else "".join(f"{_sha256(pkg / r)}  {r}\n" for r in rels)
+        (pkg / "SHA256SUMS").write_text(lines, encoding="utf-8")
+    if corrupt:
+        with open(pkg / "yoctoWrynose.qcow2", "ab") as f:
+            f.write(b"x")
+    (bench.scenarios / "yoctowrynose.env").write_text(UEFI_SCENARIO_ENV.format(
+        disk=pkg / "yoctoWrynose.qcow2", code=pkg / "firmware" / "edk2-aarch64-code.fd",
+        vars=pkg / "firmware" / "edk2-arm-vars.fd"), encoding="utf-8")
+    return pkg
+
+
+def test_uefi_disk_scenario_boots_through_firmware(bench) -> None:
+    """prepare seals disk and firmware as base copies and makes a writable variable store; start passes no kernel
+    and two pflash drives (code read-only first, the scenario's store second); destroy removes the store only."""
+    pkg = _uefi_package(bench)
+    s_dir = bench.root / "scenarios" / "yoctowrynose"
+    b_dir = bench.root / "base" / "yoctowrynose"
+    env = {"EGW_STUB_PIDFILE": str(s_dir / "state" / "qemu.pid")}
+    bench.ok("prepare", "yoctowrynose", **env)
+    for name in ("yoctoWrynose.qcow2", "edk2-aarch64-code.fd", "edk2-arm-vars.fd"):
+        assert _mode(b_dir / name) == 0o444, name
+        assert (b_dir / name).read_bytes() == next(pkg.rglob(name)).read_bytes(), name
+    assert {"yoctoWrynose.qcow2", "edk2-aarch64-code.fd", "edk2-arm-vars.fd"} <= set(
+        (b_dir / "SHA256SUMS").read_text(encoding="utf-8").split())
+    store = s_dir / "disks" / "uefi-vars.fd"
+    assert store.read_bytes() == (pkg / "firmware" / "edk2-arm-vars.fd").read_bytes()
+    assert _mode(store) == 0o644
+    assert (s_dir / "disks" / "yoctoWrynose.rootfs.qcow2").is_file()
+    manifest = json.loads((s_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["base"]["firmware_sha256"] == _sha256(pkg / "firmware" / "edk2-aarch64-code.fd")
+    assert manifest["base"]["kernel"] == "" and manifest["kernel_append"] == ""
+    bench.ok("start", "yoctowrynose", **env)
+    argv = bench.qemu_starts()[-1]
+    assert not {"-kernel", "-initrd", "-append"} & set(argv), argv
+    pflash = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "-drive" and argv[i + 1].startswith("if=pflash")]
+    assert pflash == [f"if=pflash,format=raw,readonly=on,file={b_dir / 'edk2-aarch64-code.fd'}",
+                      f"if=pflash,format=raw,file={store}"], argv
+    assert "-no-reboot" in argv and f"id=disk0,file={s_dir / 'disks' / 'yoctoWrynose.rootfs.qcow2'},if=none,format=qcow2" in argv
+    bench.ok("stop", "yoctowrynose", **env)
+    bench.ok("destroy", "yoctowrynose", **env)
+    assert not store.exists()
+    assert (b_dir / "edk2-aarch64-code.fd").is_file() and (b_dir / "yoctoWrynose.qcow2").is_file()
+
+
+@pytest.mark.parametrize("corrupt, sums", [(True, "full"), (False, "none"), (False, "empty"), (False, "partial")])
+def test_uefi_disk_refuses_an_unverified_package(bench, corrupt, sums) -> None:
+    """No base copy is made from a package whose own SHA256SUMS is missing, empty, incomplete or failing."""
+    _uefi_package(bench, corrupt=corrupt, sums=sums)
+    result = bench.run("prepare", "yoctowrynose")
+    assert result.returncode == 3, _report(result)
+    b_dir = bench.root / "base" / "yoctowrynose"
+    assert not any((b_dir / n).exists() for n in ("yoctoWrynose.qcow2", "edk2-aarch64-code.fd", "edk2-arm-vars.fd"))
+
+
+def test_kernel_scenarios_keep_their_argv(bench) -> None:
+    """The kernel route is unchanged by the uefi-disk kind: -kernel and -append, no pflash."""
+    bench.ok("prepare", "yocto")
+    bench.ok("start", "yocto")
+    argv = bench.qemu_starts()[-1]
+    assert argv[argv.index("-kernel") + 1] == str(bench.b_dir / "Image")
+    assert argv[argv.index("-append") + 1] == "root=/dev/vda rw console=ttyAMA0"
+    assert not any(a.startswith("if=pflash") for a in argv), argv
+    bench.ok("stop", "yocto")

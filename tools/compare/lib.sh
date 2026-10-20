@@ -2,9 +2,11 @@
 # tools/compare/lib.sh - settings and helpers shared by the comparison-environment scripts.
 # Sourced, never executed. Everything here is host-side (WSL2 Ubuntu-24.04, GNU userland).
 #
-# Two scenarios share ONE machine profile (the recorded pilot profile of 2026-10-09) and differ only
+# The scenarios share ONE machine profile (the recorded pilot profile of 2026-10-09) and differ only
 # in the operating system booted: `yocto` (the project's egw-gateway-image) and `debian13` (Debian 13
-# genericcloud arm64, provisioned once for the same application stack). Only one guest runs at a time.
+# genericcloud arm64, provisioned once for the same application stack) - the measured pair - plus
+# `yoctowrynose` (the yoctoWrynose image, Yocto 6.0.3, booted through UEFI firmware; demonstration and
+# functional use, not part of the measured series). Only one guest runs at a time.
 #
 # Overridable settings (environment):
 #   EGW_COMPARE_ROOT          state root OUTSIDE the clone (default $HOME/egw-compare)
@@ -35,7 +37,7 @@ COMPARE_DATA_DISK_LABEL=egw-data
 COMPARE_SEED_PORT=${EGW_COMPARE_SEED_PORT:-8099}
 COMPARE_STOP_WAIT_S=${EGW_COMPARE_STOP_WAIT_S:-180}
 COMPARE_FIRSTBOOT_LIMIT_S=${EGW_COMPARE_FIRSTBOOT_LIMIT_S:-1800}
-COMPARE_SCENARIO_NAMES="yocto debian13"
+COMPARE_SCENARIO_NAMES="yocto debian13 yoctowrynose"
 # The machine profile is the same for both scenarios and is never read from the scenario file.
 COMPARE_MACHINE_ARGS=(-machine virt -accel tcg -cpu cortex-a76 -smp 4 -m 8192)
 # The regex the session tooling uses to see QEMU processes (tools/session/guest_common.sh).
@@ -69,6 +71,7 @@ scenario_load() {
     IMAGE_NAME=${IMAGE_NAME%.qcow2}; IMAGE_NAME=${IMAGE_NAME%.ext4}; IMAGE_NAME=${IMAGE_NAME%.rootfs}
     S_ROOT_DISK=$S_DIR/disks/$IMAGE_NAME.rootfs.qcow2
     S_DATA_DISK=$S_DIR/disks/data.img
+    S_UEFI_VARS=$S_DIR/disks/uefi-vars.fd
     S_PIDFILE=$S_DIR/state/qemu.pid
     S_MONITOR=$S_DIR/state/monitor.sock
     S_KNOWN_HOSTS=$S_DIR/state/known_hosts

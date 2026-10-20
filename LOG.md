@@ -5515,3 +5515,30 @@ is unchanged.
   (583 files, `SHA256SUMS` `87d7ada7…`) and the decision note
   `output_test/decisions/2026-10-19_compare-measurements-a02.md`, outside the
   repository.
+
+---
+
+## Entry #C061 — A third comparison scenario, `yoctowrynose`, boots the yoctoWrynose UEFI image for the demonstration
+
+- **Date:** 2026-10-20. **Scope:** `tools/compare/` only: a third scenario next to the measured pair. No change to the
+  `yocto` or `debian13` scenarios, the controller, the analyser, the harness, the pilot records or series a02; G4
+  stays `Not decided`.
+- **Authority.** The student's request of 2026-10-20 for a third option, beside `yocto` and `debian13`, that runs
+  the whole demonstration in the same way (bring-up, simulator with one and three wearables, observers, controlled
+  close) for the final video, and his order to push the branch and open the pull request.
+- **The image.** yoctoWrynose: Yocto Project 6.0.3 "Wrynose", MACHINE `genericarm64`, one GPT disk in qcow2 booted
+  by edk2 firmware, systemd-boot, kernel 6.18.39 and an initramfs; Docker Engine 29.3.0 and Compose 5.1.0 on BusyBox
+  1.37.0. It was built outside this repository; its kas manifest and layer travel inside the sealed image package.
+- **What changed.** A base kind `uefi-disk` in `compare_env.sh` (base copies of disk, firmware code and
+  variable-store template after the package's own `SHA256SUMS`; a writable store per scenario; two pflash drives and
+  no `-kernel`/`-append`; the firmware hash in the manifest), the scenario file and its Terraform variables, the name
+  in `lib.sh`, three offline tests and README section 11.
+- **Verification.** Offline: the comparison tests pass, and the `yocto` and `debian13` QEMU command lines are
+  identical before and after the change. Live, after a WSL restart, each of the three scenarios was brought up with
+  `tf.sh apply`, run through the demonstration scripts with one and three simulated wearables and closed with
+  `stop`: every step exited 0, 60 of 60 and 135 of 135 messages were confirmed in the twins, and no QEMU process was
+  left. For `yoctowrynose`, ssh answered after 62 s and the environment was ready after 384 s with the comparison's
+  QEMU 8.2.7.
+- **Limits.** Demonstration and functional use only. A measured `yoctowrynose` run would be invalid under the
+  harness identity check I1, which needs a kernel passed by QEMU, and the measurement plan and summary know the
+  measured pair only; its boot times include firmware and initramfs and are not comparable with series a02.
