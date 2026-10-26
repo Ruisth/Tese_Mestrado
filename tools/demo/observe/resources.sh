@@ -1,5 +1,5 @@
 #!/bin/bash
-# tools/demo/observe/resources.sh <yocto|debian13|yoctoWrynose> [interval_s=10] - Terminal 5: resources of
+# tools/demo/observe/resources.sh <yocto|debian13|yoctoWrynose> [interval_s=10] - Terminal 4: resources of
 # the guest and of the containers, every interval, from the guest's own tools (free, /proc/loadavg,
 # df -P -k, docker stats --no-stream). Three blocks kept apart: GUEST (whole VM), CONTAINERS, DISK (/ and
 # /var/lib/docker separately). These are observations of the demonstration, not measurements and not

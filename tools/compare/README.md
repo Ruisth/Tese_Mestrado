@@ -49,7 +49,7 @@ event to its twin and record the result.
 What it is **not**: the lifecycle commands of sections 0–5 measure nothing and
 claim nothing. The measured comparison is the separate procedure of section 10,
 executed once as series a02 on 2026-10-18/19
-([`docs/results.md`](../../docs/results.md), R9). [`PROTOCOL.md`](PROTOCOL.md)
+([`docs/results.md`](../../docs/results.md#yocto-vs-debian-13), Yocto vs Debian 13). [`PROTOCOL.md`](PROTOCOL.md)
 is the earlier proposal and was not executed as written; its pilot figures are
 planning inputs and are not citable. Section 9 records the validations of
 2026-10-18.

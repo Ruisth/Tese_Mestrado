@@ -1,192 +1,229 @@
-# EGW — Digital Twin Edge Gateway
+# EGW: Digital Twin Edge Gateway
 
-EGW is an edge gateway for the Consumer-Controlled Digital Twin Architecture (C2DTA). It receives
-telemetry from wearable devices over MQTT and keeps one digital twin per device in Eclipse Ditto, on
-the gateway itself. This repository holds the gateway built and evaluated for a master's dissertation
-at ISCTE-IUL (Theme 1, C2DTA).
+## Project overview
 
-> Every measured figure in this repository comes from an ARM64 guest emulated by QEMU/TCG on an x86-64 host.
-> Nothing was run on a physical ARM board or on a native ARM64 machine.
+EGW is an edge gateway for wearable devices. It receives the data that a wearable sends (for example heart
+rate or temperature) and keeps an up-to-date digital copy of each device, called a **digital twin**. The
+gateway runs on a small Linux system built with the Yocto Project, close to the devices, instead of in
+the cloud.
 
-## What this repository contributes
+The work is part of a master's dissertation at Iscte (Lisbon) on the Consumer-Controlled Digital Twin
+Architecture (C2DTA). This repository holds the gateway, the simulated devices, the tools to run them and
+the recorded results.
 
-- **A gateway image.** A Yocto Project image (Poky 5.0.19 Scarthgap, `MACHINE=qemuarm64`,
-  `egw-gateway-image`) with systemd and Docker that runs the gateway as six containers.
-- **The controller** ([`src/egw_controller`](src/egw_controller/)), the gateway's own service: it turns
-  MQTT telemetry into Ditto twin updates.
-- **The contracts**: [`src/CONTRACTS.md`](src/CONTRACTS.md) (v1.2), JSON Schemas for the envelope and
-  three wearables, and W3C WoT Thing Descriptions.
-- **A deterministic wearable simulator** ([`src/egw_simulator`](src/egw_simulator/)): smartwatch, smart
-  ring and smart clothing, with six scenarios from `smoke` to `soak`.
-- **Lifecycle and measurement tooling** ([`tools/compare`](tools/compare/README.md)): one command each to
-  start, query and stop the gateway under QEMU/TCG, for the Yocto image or for Debian 13 with the same
-  stack, and the scripts that measured one against the other.
-- **Evidence** under `docs/evidence/`: the functional runs, sealed with SHA-256 manifests, and the
-  comparison's summary table and plan (its raw records are sealed in a local package; see
-  [docs/results.md](docs/results.md)).
+> The gateway always ran on an ARM64 computer **emulated** by QEMU on an ordinary PC, with the simulated
+> devices on the same PC. Nothing was run on a physical board.
 
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
-    subgraph HOST["x86-64 host: Windows 11 + WSL2 Ubuntu 24.04"]
-        SIM["Wearable simulator<br/>egw_simulator, 1 or 3 devices"]
-        TF["tools/compare/tf.sh<br/>start, status, stop"]
-        OBS["Observers<br/>MQTT, twins, resources, logs"]
+    subgraph PC["PC (Windows + WSL)"]
+        SIM["Simulated wearables"]
     end
-    subgraph GUEST["ARM64 guest emulated by QEMU/TCG: cortex-a76, 4 vCPU, 8 GiB<br/>Yocto egw-gateway-image or Debian 13, six containers"]
-        MQ["Mosquitto 2.0.22<br/>MQTT over TLS :8883"]
-        CT["Controller<br/>validation, UUIDv5 check,<br/>deduplication, bounded retry"]
-        subgraph DITTO["Eclipse Ditto 3.9.4"]
-            GW["gateway<br/>HTTP API /api/2"]
-            POL["policies"]
-            THG["things"]
-        end
-        DB[("MongoDB 7.0<br/>Ditto storage")]
+    subgraph GW["Emulated ARM64 gateway (QEMU)"]
+        MQ["Mosquitto<br/>MQTT broker"]
+        CT["Controller"]
+        DT["Eclipse Ditto<br/>digital twins"]
+        DB[("MongoDB<br/>Ditto's storage")]
     end
-    SIM -- "MQTT QoS 1 over TLS<br/>host port 8883 forwarded" --> MQ
-    MQ -- "c2dt/+/+/telemetry" --> CT
-    CT -- "HTTP: PUT policy and thing,<br/>PATCH merge-patch" --> GW
-    GW --> POL
-    GW --> THG
-    POL --> DB
-    THG --> DB
-    TF -- "boot, SSH :2222, controlled stop" --> GUEST
-    OBS -.->|"SSH, read only"| GUEST
+    SIM -- "telemetry over MQTT (TLS)" --> MQ
+    MQ --> CT
+    CT -- "update the twin (HTTP)" --> DT
+    DT --> DB
 ```
 
-The simulator runs on the host; the six containers run inside the guest. Only MQTT (8883) and SSH (2222)
-are forwarded from the host; the Ditto API and the controller API listen on the guest's loopback. The
-4 vCPU and 8 GiB are emulator settings, not a physical gateway. Components, ports, the path of one
-message and the code map are in [docs/architecture.md](docs/architecture.md).
+1. The simulated wearables send telemetry over MQTT, encrypted with TLS, to the **Mosquitto** broker.
+2. The **controller** reads each message, checks it, ignores repeated messages and updates the device's
+   twin.
+3. **Eclipse Ditto** holds one twin per device. **MongoDB** is where Ditto stores the twins; it does not
+   carry the messages.
 
-## Implemented features
+Mosquitto, the controller, MongoDB and three Ditto services run as six containers inside the emulated
+gateway. Main versions: Yocto Project 5.0 (Scarthgap), Eclipse Ditto 3.9.4, Mosquitto 2.0.22,
+MongoDB 7.0 and QEMU 8.2.7. Details: [docs/architecture.md](docs/architecture.md).
 
-| Area | What exists |
-|---|---|
-| Telemetry ingress | MQTT over TLS on port 8883, username and password, a per-identity ACL, QoS 1 |
-| Processing | JSON Schema validation (draft 2020-12), topic and payload identity checks, the `message_id` recomputed as a UUIDv5, deduplication kept in the twin, one outcome per message (`accepted`, `rejected`, `duplicate`, `failed`) |
-| Twins | First contact creates one Ditto policy and one thing per device (`org.c2dta:<device-uuid>`); each message is a merge-patch; bounded retry on timeout, connection error and 5xx |
-| Delivery | Persistent MQTT session; the PUBACK is requested only after the outcome is written, so the broker resends anything not acknowledged ([ADR 0011](docs/adr/0011-controller-restart-recovery.md)) |
-| Storage | Eclipse Ditto 3.9.4 core services (gateway, policies, things) on MongoDB 7.0.39 |
-| Operation | Health, readiness and metrics endpoints on the controller; the five registry images pinned by digest; controlled power-off |
-| Environments | `yocto` and `debian13`, measured; `yoctowrynose` (Yocto 6.0.3, UEFI disk), demonstration only and not measured |
+## Before you start
 
-## Scope actually evaluated
+The commands below need a prepared computer. Cloning the repository is not enough: the gateway images
+and some settings are created once and kept outside the repository.
 
-- **G1, 2026-08-14.** The base image (`egw-image`) built from a clean checkout and booted five times
-  under strict checks. Functional platform layer only.
-- **G2, 2026-09-21.** One smartwatch flow, MQTT/TLS to controller to Ditto to API, and twin persistence
-  across one whole-stack restart. Bounded functional scope.
-- **G3, 2026-10-07.** The functional battery T1–T9, accepted by the student as the functional P0 freeze
-  on the emulated candidate. It ran in sessions S1–S4 (2026-10-02 to 2026-10-07); T6 passed under its
-  criterion amended on 2026-10-05. The families: T1 smokes and harness, T2 three wearables, T3 invalid
-  payloads, T4 replay and sequence reset, T5 dropout and reconnection, T6 controller restart, T7 MongoDB
-  and Ditto faults, T8 guest reboot, T9 TLS and authorisation.
-- **Comparison a02, 2026-10-18/19.** The Yocto image against Debian 13 under one QEMU/TCG profile
-  (`-cpu cortex-a76 -smp 4 -m 8192`): six valid executions in three pairs, each under the inherited
-  `nominal` load (600 s at 11.2 msg/s). Exploratory, n = 3 per scenario. In the conditions tried, the
-  Yocto configuration started faster, used less memory and disk and showed a higher observed acceptance
-  rate.
+**One-time preparation** (described in [docs/demo.md](docs/demo.md), section 1):
 
-Not evaluated: G4 to G7 are not decided, no pilot result is cited and the 95-run campaign was never
-executed; no physical or native ARM64 platform; the `yoctowrynose` scenario. Formal gate outcomes are
-recorded only in the [gate decision log](docs/governance/gate_decision_log.md). Figures, sources and
-data: [docs/results.md](docs/results.md).
+- Windows with WSL2 (Ubuntu 24.04);
+- the gateway image built with Yocto, and the Debian 13 image if you want to compare;
+- QEMU, Terraform and a Python environment with the device simulator;
+- the SSH key of the gateway user and a local configuration file with the passwords (never stored in Git);
+- the controller's container image.
 
-## Three paths
+**Every time:**
 
-| To… | Start at | What it covers |
-|---|---|---|
-| **Demonstrate** | [docs/demo.md](docs/demo.md) | One-time preparation; start Yocto or Debian 13, one at a time; simulate one or three wearables; watch MQTT telemetry, the twins in Ditto, CPU, memory, disk and logs; stop the simulator and power the guest off |
-| **Browse the code** | [docs/architecture.md](docs/architecture.md) | Components, communication, ports, the path of one message and a code map by directory |
-| **Verify the results** | [docs/results.md](docs/results.md), then [docs/reproduce.md](docs/reproduce.md) | Each result with its table, data and analysis code, and what is held locally only; the environment, the image build and how to reproduce the analysis |
+- open a WSL terminal (`bash -l`) and go to the root of the repository clone;
+- run **only one environment at a time** (Yocto or Debian 13).
 
-After the preparation in [docs/demo.md](docs/demo.md), from a clone on the WSL2 file system in a login
-shell, one guest at a time:
+## Start with the menu
+
+The simplest way:
 
 ```bash
-bash tools/compare/tf.sh yocto apply     # boot, start the six containers, wait until ready; stays running
-bash tools/compare/tf.sh yocto status    # live state as one JSON object
-bash tools/compare/tf.sh yocto stop      # stop the stack, power the guest off; disks and logs kept
+bash tools/demo/demo.sh
 ```
 
-## Main limitations
+1. Choose **1** (Yocto) or **2** (Debian 13) to start the gateway.
+2. Wait until it prints `ENVIRONMENT READY` (a few minutes; the first start takes longer).
+3. Choose **4** for one wearable or **5** for three types of wearable. The simulation stops by itself after
+   60 seconds.
+4. Choose **6** to see the twins.
+5. Choose **8** and answer `y` to power the gateway off.
 
-- **Emulation only.** QEMU 8.2.7 TCG on an x86-64 host, with the load generator on the same host. There
-  is no run on a physical SoC, on native ARM64 or under KVM. Timing, throughput and resource figures
-  describe that emulated configuration only; they are not native ARM capacity, physical-device latency
-  or energy figures.
-- **Timed delivery at 11.2 msg/s was not sustained under TCG.** The two 600 s runs of G3 (T1 harness
-  and T6) did not confirm every message by its deadline, the two 300 s T7 fault rows left a large
-  late backlog, and in every a02 execution the observed acceptance rate stayed below the load
-  published; the 30–180 s rows were in time. The 11.2 msg/s is an inherited experimental load, not a
-  requirement.
-- **Small, exploratory comparison.** n = 3 per scenario, no statistical significance, no maximum
-  capacity, and no isolated effect of the distribution: the two configurations differ in kernel,
-  container runtime and userland.
-- **Consumer control is minimal.** The gateway creates one Ditto policy per device on first contact.
-  The C2DTA consumer agents, DIDs and verifiable credentials, DIDComm, ledgers and decentralised storage
-  are not implemented ([traceability](docs/academic/c2dta_p0_traceability.md)).
-- **Some data are local only.** The a02 raw records, some analysis and plotting scripts and the newest
-  unit-test seal are held outside the repository; [docs/results.md](docs/results.md) marks each one.
-- **`yoctowrynose` is not measured.** It is an additional scenario for demonstration and functional
-  use; its image was built outside this repository.
+The menu prints each command it runs. It does not open the observation terminals of the next section;
+open them yourself if you want them. Leaving the menu (**0**) does **not** power the gateway off; only
+option **8** does.
 
-## Dissertation
+## Run the demonstration manually
 
-- The current manuscript is the student's Word file, kept outside this repository; it is neither
-  published nor replaced here.
-- [`thesis/`](thesis/README.md) holds a historical LaTeX conversion of 2026-09-17 (Chapters 1–2
-  imported, Chapters 3–6 headings only) and the records of the research protocol. It is not the
-  current dissertation.
-- The AI-use declaration is part of the dissertation, not of this repository. [`ai/`](ai/) keeps the
-  prompt kits adapted from the C2DTA student repository template.
+Each step is one command. Use a separate WSL terminal for each terminal number.
 
-## History
+**Terminal 1: start the gateway**
 
-Plans, gate decisions, proposals, reviews, past runbooks, the work log and the previous front page are
-indexed in [docs/history/README.md](docs/history/README.md). They are records; their recorded content
-is kept, and a few carry a dated status note at the top.
-The full documentation index is [docs/README.md](docs/README.md).
-
-## Repository layout
-
-```
-./
-├─ src/                  # the gateway: controller, simulator, harness, deployment, Yocto layer, tests
-│  ├─ CONTRACTS.md       # normative interfaces (topics, envelope, twins, ports), v1.2
-│  ├─ egw_controller/    # MQTT-to-Ditto bridge
-│  ├─ egw_simulator/     # wearable simulator (3 wearables, 6 scenarios)
-│  ├─ egw_experiments/   # experiment harness and analysis
-│  ├─ deployment/        # Compose stack: Mosquitto, Ditto, MongoDB, controller
-│  ├─ yocto/             # kas manifests and the meta-egw layer
-│  ├─ schemas/ things/   # JSON Schemas and WoT Thing Descriptions
-│  └─ tests/             # broker-free unit tests (pytest)
-├─ tools/                # compare/ (lifecycle, comparison), demo/ (demonstration wrappers),
-│                        # session/ and probe/ (past sessions, diagnostics), ci/, test/
-├─ docs/                 # the five guides, evidence capsules, ADRs, governance, setup, reviews, history
-├─ experiments/          # harness results tree and the G4 pilot plan
-├─ diagrams/             # Mermaid and PlantUML diagrams
-├─ thesis/               # historical LaTeX conversion and research-protocol records
-├─ paper/                # IEEE article, deferred
-├─ ai/                   # prompt kits
-├─ PROGRESS.md           # dated state records (history; current state: this page and docs/)
-└─ LOG.md                # work diary
+```bash
+bash tools/compare/tf.sh yocto apply
 ```
 
-## Rules of this repository
+Wait for the line `ENVIRONMENT READY`. The command then ends, but the gateway keeps running. Check its
+state at any time:
 
-- Work lands on `dev` through pull requests; `main` receives stable versions only
-  ([CONTRIBUTING.md](CONTRIBUTING.md)).
-- Nothing is declared done without verifiable evidence (commit, log, test or data).
-- Sealed evidence under `docs/evidence/` is never edited; failed attempts and negative results are kept.
-  `experiments/results/raw/` becomes immutable at the data freeze (`data-v1`), which has not occurred.
-- No quantitative figure enters the dissertation without raw data, a manifest and an analysis script.
-- Evidence from the emulated guest is functional; its timing, throughput and resource figures are
-  informational, labelled emulated and describe that configuration only. Any future native or
-  hardware-accelerated ARM64 guest is a distinct environment with its own recorded provenance.
-- Secrets never enter Git; [`src/deployment/.env.example`](src/deployment/.env.example) is the template.
-- British English is the working language
-  ([language policy](docs/governance/language-policy.md)); the Portuguese Resumo and external
-  administrative drafts are the exceptions.
+```bash
+bash tools/compare/tf.sh yocto status
+```
+
+**Terminals 2, 3 and 4: open the observers** (each one runs until you press Ctrl+C)
+
+```bash
+bash tools/demo/observe/mqtt.sh yocto
+```
+
+```bash
+bash tools/demo/observe/ditto.sh yocto
+```
+
+```bash
+bash tools/demo/observe/resources.sh yocto
+```
+
+**Terminal 5: start the simulated devices** (choose one)
+
+One smartwatch:
+
+```bash
+bash tools/demo/wearables/simulate.sh yocto 1
+```
+
+Three types of wearable (smartwatch, smart ring and smart clothing):
+
+```bash
+bash tools/demo/wearables/simulate.sh yocto 3
+```
+
+The simulation ends by itself after 60 seconds.
+
+**Look at the twins once** (any terminal)
+
+```bash
+bash tools/demo/observe/ditto.sh yocto 5 once
+```
+
+**Finish**
+
+If the simulation is still running:
+
+```bash
+bash tools/demo/wearables/stop.sh
+```
+
+Close the observers with Ctrl+C, then power the gateway off and check that it is off:
+
+```bash
+bash tools/compare/tf.sh yocto stop
+```
+
+```bash
+bash tools/compare/tf.sh yocto status
+```
+
+To use Debian 13, power the running gateway off first, then repeat the same commands with `debian13` in
+place of `yocto`.
+
+### What each terminal shows
+
+| Terminal | View | What you can see |
+|---|---|---|
+| 5 | Simulator | The messages the simulated devices send |
+| 2 | MQTT | The messages the broker receives |
+| 3 | Ditto | The state of each twin, and whether the current simulation updated it |
+| 4 | Resources | CPU, memory and disk use of the gateway and its containers |
+| 1 | Environment status | Whether the gateway is running |
+
+A message seen in the MQTT view has reached the broker; it does not yet prove that the twin changed. The
+Ditto view proves that: every few seconds it reads the twins and marks the ones updated by the current
+simulation. It is a repeated query, not a live stream of events.
+
+More options (other durations, the service logs, an additional Yocto scenario):
+[docs/demo.md](docs/demo.md).
+
+## What was implemented and evaluated
+
+1. **Building and starting the Yocto image.** The base image was built from scratch and started five times
+   in a row, passing automatic checks each time; the gateway image, which adds the container platform, was
+   then built and started in QEMU.
+2. **Integrating the services.** The broker, the controller, Ditto and MongoDB run together inside the
+   image.
+3. **Simulated devices.** A smartwatch, a smart ring and a smart clothing item, each sending its own kind
+   of data.
+4. **From telemetry to twin.** Messages from one device, then from three device types at once, reached
+   their twins.
+5. **Tests of the main behaviours.** Invalid messages are rejected without changing the twin; repeated
+   messages are ignored; the gateway recovers after a network drop, a controller restart, a database or
+   twin-service failure and a reboot of the gateway, and the twins survive the reboot. A device that does
+   not trust the broker's certificate cannot connect; the broker refuses a wrong password, an unencrypted
+   connection and anonymous clients; and a client without permission received nothing from a topic it may
+   not read.
+6. **An exploratory comparison of Yocto and Debian 13.** The same services ran on both systems with the same
+   emulator settings, three times each.
+
+## Results and limitations
+
+- **Emulation only.** All figures describe an emulated ARM64 computer on a PC. They say nothing about speed,
+  capacity or energy on real hardware.
+- **Timing under load.** In every 10-minute run at the test load (11.2 messages per second), on Yocto and
+  on Debian 13, the emulated gateway fell behind: many messages were not confirmed within the time limit
+  (60 s after the load ended). Runs of 30 to 180 s at the same load were in time.
+- **Recovery has costs.** While the database or the twin service was down, some messages failed and were
+  never applied. After the controller restart every message was applied once, but many late; that test
+  did not judge delivery time.
+- **A limited comparison.** In three runs each, the Yocto configuration started faster and used less memory
+  and disk than Debian 13. This holds for the configurations tried, not for Yocto and Debian in general.
+- **Consumer control is mostly not implemented.** The gateway gives each device a basic access policy. The
+  other parts of C2DTA (consumer agents, decentralised identities, verifiable credentials and a ledger)
+  are outside this implementation.
+
+Every result, with its data and the code that analysed it: [docs/results.md](docs/results.md).
+
+## Code and documentation
+
+| Folder or file | What it holds |
+|---|---|
+| [`src/egw_controller/`](src/egw_controller/) | The controller: from MQTT messages to twin updates |
+| [`src/egw_simulator/`](src/egw_simulator/) | The simulated wearables |
+| [`src/deployment/`](src/deployment/) | The six containers and their configuration |
+| [`src/yocto/`](src/yocto/) | The Yocto layer and build files of the gateway image |
+| [`src/CONTRACTS.md`](src/CONTRACTS.md) | Message formats, topics and interfaces |
+| [`tools/compare/`](tools/compare/README.md) | Start, check and power off the gateway; the comparison measurements |
+| [`tools/demo/`](tools/demo/README.md) | The menu, the device simulation and the observers |
+| [`docs/architecture.md`](docs/architecture.md) | How the parts fit together, and a map of the code |
+| [`docs/demo.md`](docs/demo.md) | The full demonstration guide, including the one-time preparation |
+| [`docs/results.md`](docs/results.md) | The results, their data and their analysis code |
+| [`docs/reproduce.md`](docs/reproduce.md) | How to rebuild the image and repeat the measurements |
+| [`docs/evidence/`](docs/evidence/) | The original recorded data, kept unchanged |
+
+How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Full documentation index: [docs/README.md](docs/README.md).

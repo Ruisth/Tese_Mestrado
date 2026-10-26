@@ -1,5 +1,5 @@
 #!/bin/bash
-# tools/demo/observe/ditto.sh <yocto|debian13|yoctoWrynose> [interval_s=5] [once] - Terminal 4: PERIODIC
+# tools/demo/observe/ditto.sh <yocto|debian13|yoctoWrynose> [interval_s=5] [once] - Terminal 3: PERIODIC
 # QUERIES of the demonstration's twins in Ditto (a poll of the twin STATE every interval; not a
 # real-time event stream). The devices are discovered from the current demonstration run's own record
 # ($DEMO_RUNS/<run>/sent_events.jsonl, written by the simulator): no UUID is typed by hand. Each line:

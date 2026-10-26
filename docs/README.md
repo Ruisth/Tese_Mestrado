@@ -1,21 +1,17 @@
-# docs/ — index
+# Documentation index
 
-Documentation of EGW, the Digital Twin Edge Gateway. Start with the five guides below; each fact has
-one primary page, and the others link to it. Every measured figure comes from an ARM64 guest emulated
-by QEMU/TCG on an x86-64 host.
+Start with the [main README](../README.md); the five guides below give more detail. Every measured
+figure comes from an ARM64 computer emulated by QEMU on an ordinary PC.
 
 ## The five guides
 
-| Guide | Use it to | Content |
-|---|---|---|
-| [architecture.md](architecture.md) | Browse the code | Components, communication, ports, the path of one message, code map |
-| [demo.md](demo.md) | Demonstrate the gateway | Preparation, manual commands in independent terminals, expected results |
-| [results.md](results.md) | Verify the results | Results presented in the dissertation, each with its table, data and analysis code; data held locally only are declared |
-| [reproduce.md](reproduce.md) | Reproduce | Environment, image build, measurement and analysis |
-| [history/README.md](history/README.md) | Read the records | Decisions, old plans, proposals, reviews, past runbooks, work logs and the previous front page |
-
-The front page is [`../README.md`](../README.md). Formal gate outcomes are recorded only in the
-[gate decision log](governance/gate_decision_log.md): G0, G1, G2 and G3 accepted; G4 to G7 not decided.
+| Guide | Read it to |
+|---|---|
+| [architecture.md](architecture.md) | See how the parts fit together and find the code |
+| [demo.md](demo.md) | Prepare the PC and run the demonstration |
+| [results.md](results.md) | Check each result, its data and the code that analysed it |
+| [reproduce.md](reproduce.md) | Rebuild the image and repeat the measurements |
+| [history/README.md](history/README.md) | Read the project's records: earlier plans, reviews and work logs |
 
 ## Contracts and architecture decisions
 
@@ -36,12 +32,12 @@ capsule and states which data are held outside the repository.
 
 | Capsule | Date | Content |
 |---|---|---|
-| [`evidence/compare-a02/`](evidence/compare-a02/README.md) | 2026-10-18/19 | Yocto image vs Debian 13, series a02: table, per-execution summary and plan; the raw records are local only |
-| [`evidence/g3-battery-2026-10/`](evidence/g3-battery-2026-10/README.md) | 2026-10-02 to 2026-10-07 | The 38 packages of the G3 battery, sessions S1–S4 |
-| [`evidence/finite-proof-r03/`](evidence/finite-proof-r03/README.md) | 2026-09-28 | Finite proof of ADR 0011, third attempt: an engineering diagnostic of one run |
-| [`evidence/g2-complete-flow/`](evidence/g2-complete-flow/README.md) | 2026-09-20/21 | G2: one smartwatch flow and twin persistence across a whole-stack restart |
+| [`evidence/compare-a02/`](evidence/compare-a02/README.md) | 2026-10-18/19 | Yocto image vs Debian 13: table, one row per run and the plan; the raw records are kept locally |
+| [`evidence/g3-battery-2026-10/`](evidence/g3-battery-2026-10/README.md) | 2026-10-02 to 2026-10-07 | The functional tests: 38 record folders |
+| [`evidence/finite-proof-r03/`](evidence/finite-proof-r03/README.md) | 2026-09-28 | A diagnostic run of the controller's recovery after a restart |
+| [`evidence/g2-complete-flow/`](evidence/g2-complete-flow/README.md) | 2026-09-20/21 | One smartwatch end to end, and its twin kept across a restart of the six containers |
 | [`evidence/integrated-qemu/`](evidence/integrated-qemu/README.md) | 2026-09-18 | Integrated image build and boots, and an isolated MongoDB 7.0.39 test |
-| [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/README.md) | 2026-08-11 and 2026-08-14 | G1: preliminary build and two boots (2026-08-11); clean-checkout build and five strict boots (2026-08-14) |
+| [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/README.md) | 2026-08-11 and 2026-08-14 | The base image: a preliminary build and two starts; a clean build and five checked starts |
 | [`evidence/tests/`](evidence/tests/) | 2026-08-08 to 2026-08-11 | Unit-test runs, one directory per commit; the newest in the repository is `2026-08-11-head-4e67717` (701 passed) |
 | [`evidence/word-import-2026-09-17/`](evidence/word-import-2026-09-17/README.md) | 2026-09-17 | Verification of the LaTeX import of the Word manuscript |
 | [`evidence/rehearsal/`](evidence/rehearsal/2026-08-08-dry-rehearsal.md) | 2026-08-08 | Dry rehearsal of the campaign logistics; no result |
@@ -60,9 +56,9 @@ capsule and states which data are held outside the repository.
 
 | File | Content |
 |---|---|
-| [`governance/gate_decision_log.md`](governance/gate_decision_log.md) | The only formal record of gate outcomes, with superseded row states kept verbatim |
-| [`governance/decisions/`](governance/decisions/) | Decision records of G0 (2026-09-19), G2 (2026-09-21) and G3 (2026-10-07) |
-| [`governance/g3-battery-2026-10-results.md`](governance/g3-battery-2026-10-results.md) | G3 battery results, row by row, and the standing rows |
+| [`governance/gate_decision_log.md`](governance/gate_decision_log.md) | The formal record of the project's decisions |
+| [`governance/decisions/`](governance/decisions/) | Decision records |
+| [`governance/g3-battery-2026-10-results.md`](governance/g3-battery-2026-10-results.md) | The functional tests, run by run |
 | [`governance/language-policy.md`](governance/language-policy.md) | British English, ISO 8601 dates and the authorised wearable-data terminology |
 | [`governance/external_source_register.md`](governance/external_source_register.md) | Checksummed identities of sources held outside the repository |
 | [`governance/provenance-history-rewrite.md`](governance/provenance-history-rewrite.md) | Evidence tag, verified bundles and exact-tree mappings across the history rewrite |
@@ -75,24 +71,24 @@ Supervisor-request logs, readiness maps and memos are listed in [history/README.
 
 | File | Content |
 |---|---|
-| [`academic/c2dta_p0_traceability.md`](academic/c2dta_p0_traceability.md) | C2DTA paper function to P0 implementation, stub or deferred work (v1.2, 2026-09-18) |
+| [`academic/c2dta_p0_traceability.md`](academic/c2dta_p0_traceability.md) | Each C2DTA function: implemented, stub or not implemented |
 | [`academic/gateway_requirements_and_platform_selection.md`](academic/gateway_requirements_and_platform_selection.md) | Record: REQ-01 to REQ-18 and the Pi 5 / i.MX95 screening (v1.0, 2026-09-21), documentary |
-| [`../diagrams/c2dta_five_layer_reference.puml`](../diagrams/c2dta_five_layer_reference.puml) ([SVG](../diagrams/c2dta_five_layer_reference.svg)) | Five-layer C2DTA reference with P0 and deferred status; its "live ARM64 evidence pending" labels predate 2026-09-18 |
+| [`../diagrams/c2dta_five_layer_reference.puml`](../diagrams/c2dta_five_layer_reference.puml) ([SVG](../diagrams/c2dta_five_layer_reference.svg)) | Five-layer C2DTA reference drawing, marking what is implemented; its "live ARM64 evidence pending" labels are out of date |
 
 ## Claim–evidence integrity
 
 | File | Content |
 |---|---|
-| [`claim_evidence_matrix.md`](claim_evidence_matrix.md) ([CSV](claim_evidence_matrix.csv)) | Claims C01–C15 of the planned campaign and their maintenance rules; the a02 comparison lies outside this matrix |
+| [`claim_evidence_matrix.md`](claim_evidence_matrix.md) ([CSV](claim_evidence_matrix.csv)) | Claims of a larger planned measurement series that was not run; the Yocto–Debian comparison is outside it |
 
-## G0 — scope and start-up (records)
+## Scope and start-up (records)
 
 | File | Content |
 |---|---|
 | [`g0/scope_and_rqs.md`](g0/scope_and_rqs.md) | Scope and RQ1–RQ3, version 2.0 (2026-09-18); the dissertation holds the current wording |
-| [`g0/backlog.md`](g0/backlog.md) | Backlog by gate, G0 to G7 |
-| [`g0/risks.md`](g0/risks.md) | Risk register R1–R33 and RA1–RA15 |
+| [`g0/backlog.md`](g0/backlog.md) | Backlog of the planned work |
+| [`g0/risks.md`](g0/risks.md) | Risk register |
 | [`g0/supervisor_email_g0.md`](g0/supervisor_email_g0.md) | Draft scope email to the supervisors, in Portuguese; not sent |
 | [`g0/two_layer_thesis_proposal.md`](g0/two_layer_thesis_proposal.md) | Two-layer thesis proposal; not adopted |
-| [`g0/supervisor_decision_matrix.csv`](g0/supervisor_decision_matrix.csv) | Requests D001–D010 with recommended positions |
+| [`g0/supervisor_decision_matrix.csv`](g0/supervisor_decision_matrix.csv) | Questions for the supervisors, with recommended positions |
 | [`g0/supervisor_seven_questions_matrix.md`](g0/supervisor_seven_questions_matrix.md) | Response matrix for the seven supervisor questions |

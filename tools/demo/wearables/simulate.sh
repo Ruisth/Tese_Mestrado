@@ -1,6 +1,6 @@
 #!/bin/bash
 # tools/demo/wearables/simulate.sh <yocto|debian13|yoctoWrynose> <1|3> [duration_s] [rate_msg_s] [--dry-run]
-# Terminal 2: the EXISTING simulator (python -m egw_simulator run, in the venv) publishes telemetry for
+# Terminal 5: the EXISTING simulator (python -m egw_simulator run, in the venv) publishes telemetry for
 # one smartwatch (1) or the three profiles smartwatch + smart_ring + smart_clothing (3) to the running
 # guest's broker (TLS on the host's 127.0.0.1:8883, forwarded by QEMU to the guest; QoS 1). A short,
 # bounded demonstration run: its parameters are printed before anything is published, the run id is
