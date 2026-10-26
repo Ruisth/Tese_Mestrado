@@ -304,7 +304,9 @@ step_apt() {
     read -r -a pkgs <<< "$missing"
     log=$(new_log apt)
     note "installing with sudo apt-get (sudo may ask for your password): $missing"
-    sudo -v || stop 1 "sudo refused"
+    # 'sudo true', not 'sudo -v': 'sudo -v' asks for a password whenever any sudoers rule needs one, even
+    # for a user allowed to run every command without one, and would wait for a password nobody types
+    sudo true || stop 1 "sudo refused"
     # On a fresh install apt-daily or unattended-upgrades may hold the dpkg lock: wait for it (10 minutes)
     # instead of failing at once.
     { sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update \

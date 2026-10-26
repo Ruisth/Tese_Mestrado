@@ -698,6 +698,17 @@ out=$(prep HOME="$H10t" 'parse_args --kit /x/k.zip; step_terraform'); rc=$?
 same "step 3, download failing: exit 1" 1 "$rc"
 same "step 3: the state root marked" 0 "$([ -s "$H10t/egw-compare/.egw-demo-host" ]; echo $?)"
 same "step 3: no download folder left (stale or new)" "" "$(find "$H10t/egw-compare/bin" -maxdepth 1 -name '.download.*')"
+# Step 2 alone, for a user who may run every command without a password while another sudoers rule
+# (the sudo group's) still asks for one: there 'sudo -v' asks for a password, 'sudo true' does not. The
+# step must not wait for a password nobody types (the apt stand-in installs nothing, so it stops after).
+stub sudo 'echo "sudo $*" >> "$STUB_LOG"; [ "${1:-}" != -v ] || { echo "sudo: a password is required" >&2; exit 1; }'
+: > "$LOGF"
+out=$(prep HOME="$TMP/home10s" STUB_DPKG=missing 'parse_args --kit /x/k.zip; step_apt'); rc=$?
+same "step 2, sudo without a password: stops only after apt-get (exit 1)" 1 "$rc"
+hasnt "step 2, sudo without a password: not refused" "sudo refused" "$out"
+has "step 2, sudo without a password: apt-get ran" "sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update" "$(cat "$LOGF")"
+hasnt "step 2, sudo without a password: no 'sudo -v'" "sudo -v" "$(cat "$LOGF")"
+stub sudo 'echo "sudo $*" >> "$STUB_LOG"; exit 99'
 # A real run with every external step stubbed: Terraform present (in a state root this script marked),
 # a venv whose python answers the import check, tf.sh and compare_env.sh stubs in the stand-in clone.
 mkdir -p "$H10/egw-compare/bin" "$H10/.local/share/egw-demo/venv/bin"
