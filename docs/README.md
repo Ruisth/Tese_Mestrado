@@ -1,151 +1,98 @@
 # docs/ — index
 
-EGW project documentation. The normative source for scope, schedule and gates is
-[`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-(**version 2.1**, requirements and delivery amendment of 2026-09-21,
-retaining the QEMU-only execution baseline adopted on 2026-09-18). Internal technical contracts:
-[`../src/CONTRACTS.md`](../src/CONTRACTS.md).
-The single source of operational state for every deliverable is
-[`../PROGRESS.md`](../PROGRESS.md); formal gate decisions are recorded solely
-in [`governance/gate_decision_log.md`](governance/gate_decision_log.md), which
-currently records **G1 as Accepted** (2026-08-14, functional platform layer
-only), **G0 as Accepted** (2026-09-19, project initiation and baseline
-alignment only; [decision record](governance/decisions/2026-09-19-g0-closure.md)),
-**G2 as Accepted** (2026-09-21, bounded functional scope only: one bounded
-smartwatch → MQTT/TLS → controller → Ditto → API flow, and stored-twin
-persistence across one declared, quiescent whole-stack service restart, on the
-identified Yocto ARM64 guest emulated with QEMU/TCG on an x86-64 host, with the
-qualifications of the review;
-[decision record](governance/decisions/2026-09-21-g2-closure.md)), **G3 as
-Accepted** (2026-10-07, the functional P0 freeze on the documented ARM64
-candidate emulated with QEMU/TCG only, with the qualifications of the Project
-Manager's opinion; [decision record](governance/decisions/2026-10-07-g3-closure.md))
-and every other gate as Not decided *(G0 added on 2026-09-19, G2 on 2026-09-21,
-G3 on 2026-10-07)*.
+Documentation of EGW, the Digital Twin Edge Gateway. Start with the five guides below; each fact has
+one primary page, and the others link to it. Every measured figure comes from an ARM64 guest emulated
+by QEMU/TCG on an x86-64 host.
 
-## Requirements and platform selection added on 2026-09-21
+## The five guides
 
-- [Gateway requirements and initial platform matrix](academic/gateway_requirements_and_platform_selection.md):
-  18 requirements, source/criterion/test links, Pi 5 versus i.MX95 screening,
-  Pi 4 exclusion and a conditional initial reference target.
-- [Plan v2.1](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), section 4.1.1:
-  SUP-01–SUP-07 with owners, dates, dependencies and acceptance criteria.
-- [Preserved v2.0](governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_2026-09-19.md):
-  exact source revision before this additive amendment.
+| Guide | Use it to | Content |
+|---|---|---|
+| [architecture.md](architecture.md) | Browse the code | Components, communication, ports, the path of one message, code map |
+| [demo.md](demo.md) | Demonstrate the gateway | Preparation, manual commands in independent terminals, expected results |
+| [results.md](results.md) | Verify the results | Results presented in the dissertation, each with its table, data and analysis code; data held locally only are declared |
+| [reproduce.md](reproduce.md) | Reproduce | Environment, image build, measurement and analysis |
+| [history/README.md](history/README.md) | Read the records | Decisions, old plans, proposals, reviews, past runbooks, work logs and the previous front page |
 
-## Execution baseline retained from version 2.0
+The front page is [`../README.md`](../README.md). Formal gate outcomes are recorded only in the
+[gate decision log](governance/gate_decision_log.md): G0, G1, G2 and G3 accepted; G4 to G7 not decided.
 
-The current version 2.1 at the canonical path retains the execution decisions
-below. The original adopted text is preserved in
-[the version 2.0 archive](governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_2026-09-19.md).
-The texts under
-[`governance/proposals/`](governance/proposals/README.md) are kept as the
-record of what was proposed; where they differ from the canonical text, the
-canonical text governs.
-
-- [The adopted plan](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md):
-  integrated Yocto evaluation under QEMU/TCG; one execution path with planning
-  targets to the planned submission of 2026-10-20 (final deadline 2026-10-31);
-  two evidence classes separating emulated results from native ARM64 evidence,
-  which does not exist.
-- [Scope and RQs](g0/scope_and_rqs.md), version 2.0: the integrated objective
-  and RQ1–RQ3, bounded to the emulated environment. The title and the research
-  questions are **reported approved** by the student, with RQ3 evaluated in
-  QEMU; the approved verbatim wording lives in the student manuscript, so what
-  the repository publishes is a scope summary.
-- [Alignment memo, revised draft](governance/proposals/supervisor_alignment_memo_v2.0_proposal.md):
-  draft, not sent.
-- [ADR 0008](adr/0008-integrated-yocto-arm64-evaluation.md): Accepted by the
-  student for project execution (2026-09-18), as amended for QEMU-only
-  execution and again on 2026-09-19 — academic framing reported approved by the
-  student; the QEMU evaluation scope of RQ3 is reported approved, and only the
-  open part of D014 — the wording of the native-evidence limitation and of
-  claims about emulated timing and resource figures — remains to be agreed
-  *(corrected 2026-09-19; previously listed the academic use of emulated
-  results (D014) as not agreed)*.
-
-**The supervisor position has two halves.** The alignment package covering what
-remains open — the thresholds (D007); the open part of D014, which is only the
-wording of the native-evidence limitation and of claims about emulated timing
-and resource figures (the QEMU evaluation scope of RQ3 is reported approved —
-reported by the student, undated, not a documented supervisor decision — and is
-not re-requested, and the numerical criteria belong to D007); the authenticity
-of the local template copy inside D004; and the storage semantics inside D010 —
-**has not been sent** *(corrected 2026-09-19; previously listed the academic
-use of emulated results (D014) as open)*, and D001, D007, D008 and D012 are
-`proposed_not_sent`. Against that, the student **reports** that the
-state-of-the-art material was sent, that a supervisor approved proceeding with
-the QEMU tests, and that twelve further items were confirmed — the title, the
-research questions with RQ3 in QEMU, the local-core scope, a scoping review as
-the review method, an attempt at the historical 95-run quantity, no second
-operator, the review schedule, the mandatory institutional template, a mandatory
-AI-use declaration, an optional article, the authorised wearable-data
-terminology and a local evidence copy. Every one of those is **reported by the
-student**, none is a documented supervisor decision and none carries a date; the
-student's adoption is not a supervisor decision either.
-The services execute inside the Yocto guest; the deployment, runbook and
-dissertation adaptations are partly exercised and partly pending. Native ARM64
-deployment is documented, unverified future work. Adoption closes no gate and
-admits no claim.
-
-## G0 — scope and start-up
+## Contracts and architecture decisions
 
 | File | Content |
 |---|---|
-| [`g0/scope_and_rqs.md`](g0/scope_and_rqs.md) | **Version 2.0 (2026-09-18):** the integrated objective and RQ1–RQ3 bounded to the emulated environment, the mandatory P0, explicit exclusions and closed premises. The technical scope is adopted for execution; the title and the research-question wording are **reported approved by the student** under D011 — reported, not a documented supervisor decision — with the approved verbatim wording held in the student manuscript rather than here |
-| [`g0/supervisor_email_g0.md`](g0/supervisor_email_g0.md) | Draft of the scope email to the supervisors (gate G0). Its infrastructure escalation for a native ARM64 measurement VM is **historical**: that request was deferred with the native route on 2026-09-18. **Drafted, not sent** — sending is a student action. *Corrected 2026-09-19: it no longer discharges a G0 item, because G0 was accepted on that date under a revised exit scope that does not require proof that this draft was sent; the draft is not marked as sent.* Kept in Portuguese under the language policy's exception for external administrative communication |
-| [`g0/two_layer_thesis_proposal.md`](g0/two_layer_thesis_proposal.md) | Versioned proposal for a two-layer title, objective, RQs, abstract and Resumo. **PROPOSED - NOT SENT - NOT APPROVED** and **superseded by the integrated scope** adopted on 2026-09-18; it has no normative effect, and the title and RQs the student reports approved are the integrated ones of D011, not this two-layer framing |
-| [`g0/supervisor_decision_matrix.csv`](g0/supervisor_decision_matrix.csv) | D001-D010: decisions requested from the supervisors, recommended positions and explicit blockers; superseded as a live request by D011–D014 and retained for the record. It contains no mutable state; the authoritative status is in the governance decision log |
-| [`g0/supervisor_seven_questions_matrix.md`](g0/supervisor_seven_questions_matrix.md) | Evidence-bounded response matrix for the seven supervisor questions, linked to diagrams and traceability artefacts |
-| [`g0/backlog.md`](g0/backlog.md) | Actionable backlog by gate (G0→G7): actions, expected evidence, dependencies and cutting rules — no state |
-| [`g0/risks.md`](g0/risks.md) | Historical and current risk register with early signals and mitigation: R1–R33 and RA1–RA15, plus the residual risks of the adopted baseline and, since 2026-09-19, the findings of the integration battery and the diagnostic attempts (the controller-restart queue finding and the delivery backlog under emulation), registered against existing identifiers. Risk identifiers inherited from earlier plan versions are retained for traceability and do not create scope beyond the adopted plan |
+| [`../src/CONTRACTS.md`](../src/CONTRACTS.md) | Normative interfaces, v1.2 (2026-09-24): topics, envelope, twins, ports, outcomes |
+| [`adr/README.md`](adr/README.md) | Index of the ADRs 0001–0011 and their recorded statuses |
+| [`../diagrams/README.md`](../diagrams/README.md) | Diagram families: Mermaid views in [`../diagrams/architecture.md`](../diagrams/architecture.md) (drawn against CONTRACTS v1.1) and the PlantUML five-layer C2DTA reference |
+
+## Evidence
+
+Capsules under `docs/evidence/`; none is ever edited. Most have a `README.md` and `SHA256SUMS` at
+their root or in their dated subfolders. The exceptions: `compare-a02/` is a derived summary whose
+inputs and digests are in its `summary.json`, with its raw package sealed locally; `tests/` has no
+README and its first directory (`2026-08-08`) has no seal; the rehearsal is a single note.
+`python tools/ci/verify_evidence.py` checks the seals. [results.md](results.md) maps each result to its
+capsule and states which data are held outside the repository.
+
+| Capsule | Date | Content |
+|---|---|---|
+| [`evidence/compare-a02/`](evidence/compare-a02/README.md) | 2026-10-18/19 | Yocto image vs Debian 13, series a02: table, per-execution summary and plan; the raw records are local only |
+| [`evidence/g3-battery-2026-10/`](evidence/g3-battery-2026-10/README.md) | 2026-10-02 to 2026-10-07 | The 38 packages of the G3 battery, sessions S1–S4 |
+| [`evidence/finite-proof-r03/`](evidence/finite-proof-r03/README.md) | 2026-09-28 | Finite proof of ADR 0011, third attempt: an engineering diagnostic of one run |
+| [`evidence/g2-complete-flow/`](evidence/g2-complete-flow/README.md) | 2026-09-20/21 | G2: one smartwatch flow and twin persistence across a whole-stack restart |
+| [`evidence/integrated-qemu/`](evidence/integrated-qemu/README.md) | 2026-09-18 | Integrated image build and boots, and an isolated MongoDB 7.0.39 test |
+| [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/README.md) | 2026-08-11 and 2026-08-14 | G1: preliminary build and two boots (2026-08-11); clean-checkout build and five strict boots (2026-08-14) |
+| [`evidence/tests/`](evidence/tests/) | 2026-08-08 to 2026-08-11 | Unit-test runs, one directory per commit; the newest in the repository is `2026-08-11-head-4e67717` (701 passed) |
+| [`evidence/word-import-2026-09-17/`](evidence/word-import-2026-09-17/README.md) | 2026-09-17 | Verification of the LaTeX import of the Word manuscript |
+| [`evidence/rehearsal/`](evidence/rehearsal/2026-08-08-dry-rehearsal.md) | 2026-08-08 | Dry rehearsal of the campaign logistics; no result |
+
+## Setup guides
+
+| File | Content |
+|---|---|
+| [`setup/wsl2_ubuntu_yocto.md`](setup/wsl2_ubuntu_yocto.md) | WSL2, Ubuntu 24.04, Yocto Scarthgap, kas and QEMU on the build host |
+| [`setup/local_test_outputs.md`](setup/local_test_outputs.md) | The local `output_test` folder: one verified package per attempt, failures included |
+| [`setup/git_backup_remote.md`](setup/git_backup_remote.md) | Git backup and the private remote |
+| [`setup/qemu_integrated_gateway.md`](setup/qemu_integrated_gateway.md) | The manual runbook of 2026-09-18/19. Its §1–2 and §4 remain the preparation steps used by [demo.md](demo.md) and [reproduce.md](reproduce.md); §5.1–5.6 are automated by `tools/compare/provision_stack.sh`; §6.1 is the source of the measurement's helper file. Its status notes are historical |
+| [`setup/vm_arm64_hetzner.md`](setup/vm_arm64_hetzner.md) | Record: native ARM64 VM checklist, deferred on 2026-09-18 and never used |
 
 ## Governance
 
 | File | Content |
 |---|---|
-| [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | Normative plan **v2.0**, adopted 2026-09-18 with the QEMU-only execution amendment: integrated Yocto scope under QEMU/TCG, evidence classes, the single QEMU execution path, cuts and acceptance contract. Version 1.2 is preserved unmodified in [`governance/archive/`](governance/archive/) |
-| [`governance/decisions/2026-09-19-g0-closure.md`](governance/decisions/2026-09-19-g0-closure.md) | Durable copy of the G0 decision: **Accepted on 2026-09-19** by the student, with the project manager's concurrence, for project initiation and baseline alignment, quoting the dated project-management register entry it comes from. It is a dated change of G0's exit scope, not a retroactive pass against the legacy criteria, and it carries the residual-obligation table (G2/G3, G4, G4/G6, Chapters 1–4 and G6, G7, and the off-machine copy as an active resilience action owned by the student). It closes no other gate and admits no claim |
-| [`governance/decisions/2026-09-21-g2-closure.md`](governance/decisions/2026-09-21-g2-closure.md) | Durable transcription of the G2 decision: **Accepted on 2026-09-21** by the student, **in a bounded functional scope only** — one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow, and stored-twin persistence across one declared, quiescent whole-stack service restart, on the identified Yocto ARM64 guest **emulated with QEMU/TCG on an x86-64 host** — with the qualifications of the review. The student's approval, quoted in translation, is the decision; the file records the accepted scope, the candidate's identities, the evidence references (the capsule `evidence/g2-complete-flow/`, executed at `b7e0c83`, reviewed at pull request 40, head `2d70143`), the four qualifications the approval retains, the explicit exclusions and what the decision does not change. It closes no other gate and admits no claim; the residual limitations disclosed by the acceptance proposal remain, neither accepted nor waived |
-| [`governance/decisions/2026-10-07-g3-closure.md`](governance/decisions/2026-10-07-g3-closure.md) | Durable transcription of the G3 decision: **Accepted on 2026-10-07** by the student, **as the functional P0 freeze on the documented ARM64 candidate emulated with QEMU/TCG only** — the nine integration/recovery families from the authorised sessions S1–S4, test 6 under its criterion amended prospectively on 2026-10-05 — with the four qualifications of the Project Manager's opinion; it admits no claim, shows no timely delivery at the nominal rate and authorises neither the G4 pilot nor the campaign |
-| [`governance/proposals/acceptance_protocol_update_2026-09-19.md`](governance/proposals/acceptance_protocol_update_2026-09-19.md) | **PROPOSED — for review, not adopted.** Acceptance and protocol proposals after the integration battery of 2026-09-18 and the invalid timed attempts of 2026-09-19: short-run selection, a lifecycle-aware rule for a deliberate restart, late delivery as its own issue (the delivery backlog under QEMU/TCG and the controller-restart queue finding), the test 4 sequence-reset coverage (with the Ditto repeat of test 7, also not run), binding each run to its exact instrument and the acceptance sequence after resumption; each item names who decides it. It resumes no test and admits no evidence. *(Status note added 2026-09-30: item 1 is answered by decision 1b of 2026-09-30 as a procedure choice, with no rule moved, and item 2 is superseded by decision 1a's narrower proved-down interval — see the [pending-decisions page](governance/proposals/2026-09-29-g3-pending-decisions.md); items 3 to 6 are unchanged.)* |
-| [`governance/proposals/`](governance/proposals/README.md) | The [plan v2.0 proposal text](governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) — **adopted on 2026-09-18 and kept here as the record of what was proposed**, superseded by the canonical text — together with the [scope and RQs v2.0 proposal](governance/proposals/scope_and_rqs_v2.0_proposal.md) and the draft [alignment memo](governance/proposals/supervisor_alignment_memo_v2.0_proposal.md), which remain a proposal and a draft |
-| [`governance/supervisor_decision_log.csv`](governance/supervisor_decision_log.csv) | Preserved D001-D010 history and new D011-D014 integrated-plan requests, with **mixed statuses** since 2026-09-19. The `status` column takes exactly three values: `proposed_not_sent` (D001, D007, D008, D012), `confirmed_reported_by_student` (D002, D009) and `partly_confirmed_reported_by_student` (the rest, each row naming its confirmed and its unresolved part). The two `…_reported_by_student` values record **what the student reports a supervisor confirmed** and are never a documented supervisor decision; `sent_at` and `response_at` are empty in every row, because no date was reported. A note inside a row dated 2026-09-18 names the project-management record the confirmations were recorded in; the rows themselves were written on 2026-09-19, and the confirmations are undated (the convention is stated in [`governance/gate_decision_log.md`](governance/gate_decision_log.md)). A draft or silence is never approval for the rows that stay open |
-| [`governance/language-policy.md`](governance/language-policy.md) | British English, ISO 8601 dates and — since 2026-09-19 — the **authorised wearable-data terminology** for active prose, with the literal `/telemetry` topic, interface identifiers, reference titles, quotations and sealed evidence preserved. It is the single place that policy is written down |
-| [`governance/external_source_register.md`](governance/external_source_register.md) | Checksummed identities and redistribution controls for sources held outside the repository |
+| [`governance/gate_decision_log.md`](governance/gate_decision_log.md) | The only formal record of gate outcomes, with superseded row states kept verbatim |
+| [`governance/decisions/`](governance/decisions/) | Decision records of G0 (2026-09-19), G2 (2026-09-21) and G3 (2026-10-07) |
+| [`governance/g3-battery-2026-10-results.md`](governance/g3-battery-2026-10-results.md) | G3 battery results, row by row, and the standing rows |
+| [`governance/language-policy.md`](governance/language-policy.md) | British English, ISO 8601 dates and the authorised wearable-data terminology |
+| [`governance/external_source_register.md`](governance/external_source_register.md) | Checksummed identities of sources held outside the repository |
 | [`governance/provenance-history-rewrite.md`](governance/provenance-history-rewrite.md) | Evidence tag, verified bundles and exact-tree mappings across the history rewrite |
+| [`governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) | Record: integrated plan v2.1 (2026-09-21); earlier versions in [`governance/archive/`](governance/archive/) |
+| [`governance/proposals/`](governance/proposals/README.md) | Record: proposals and the texts of adopted proposals |
+
+Supervisor-request logs, readiness maps and memos are listed in [history/README.md](history/README.md).
 
 ## Academic alignment package
 
 | File | Content |
 |---|---|
-| [`academic/c2dta_p0_traceability.md`](academic/c2dta_p0_traceability.md) | Paper EGW function -> P0 implementation -> stub/interface -> future integration matrix, software inventory and rules preventing causal performance comparisons between the paper and this dissertation |
-| [`../diagrams/c2dta_five_layer_reference.puml`](../diagrams/c2dta_five_layer_reference.puml) ([SVG](../diagrams/c2dta_five_layer_reference.svg)) | Editable five-layer C2DTA reference architecture with P0/deferred status. Its "live ARM64 evidence pending" labels predate 2026-09-18 and are corrected in [`../diagrams/README.md`](../diagrams/README.md) pending a rendering pass |
-| [`../diagrams/two_layer_experimental_deployment.puml`](../diagrams/two_layer_experimental_deployment.puml) ([SVG](../diagrams/two_layer_experimental_deployment.svg)) | Editable two-layer experimental deployment proposal — **historical**, superseded by the integrated emulated deployment in [`../diagrams/architecture.md`](../diagrams/architecture.md) |
+| [`academic/c2dta_p0_traceability.md`](academic/c2dta_p0_traceability.md) | C2DTA paper function to P0 implementation, stub or deferred work (v1.2, 2026-09-18) |
+| [`academic/gateway_requirements_and_platform_selection.md`](academic/gateway_requirements_and_platform_selection.md) | Record: REQ-01 to REQ-18 and the Pi 5 / i.MX95 screening (v1.0, 2026-09-21), documentary |
+| [`../diagrams/c2dta_five_layer_reference.puml`](../diagrams/c2dta_five_layer_reference.puml) ([SVG](../diagrams/c2dta_five_layer_reference.svg)) | Five-layer C2DTA reference with P0 and deferred status; its "live ARM64 evidence pending" labels predate 2026-09-18 |
 
-## claim→evidence integrity
-
-| File | Content |
-|---|---|
-| [`claim_evidence_matrix.csv`](claim_evidence_matrix.csv) | claim→evidence matrix supporting the plan §7 acceptance contract |
-| [`claim_evidence_matrix.md`](claim_evidence_matrix.md) | Readable view of the matrix and its maintenance rules |
-| [`evidence/tests/`](evidence/tests/) | Sealed records of suite runs (JUnit + stdout + environment + `SHA256SUMS`). **M2** evidence: unit tests, with fakes, on Windows — it closes no gate and validates no claim. Only the newest directory is current; the earlier ones are historical, each tied to the commit it tested |
-| [`evidence/integrated-qemu/`](evidence/integrated-qemu/README.md) | Sealed technical evidence of 2026-09-18 for the integrated QEMU/TCG gateway profile of pull request #28: build (one failed attempt preserved) and two boots of `egw-gateway-image` with every acceptance check passing, and an isolated MongoDB 7.0.39 test on that guest. **Functional only, ARM64 emulated on x86-64.** The capsule covers build, boot and that isolated MongoDB test: it contains no stack deployment, no end-to-end flow and no measurement. The first-flow record of 2026-09-18 is candidate evidence held **outside the repository** and is not in this capsule. Sealing is not acceptance: no gate is accepted and no claim is supported |
-| [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/) | Sealed G1 evidence: the 2026-08-11 bring-up seal (`egw-image` build, two preliminary boots) and the 2026-08-14 strict capsule (`2026-08-14-clean-build-f0e19d5/`: clean identified checkout build, five strict boots with seven required assertions each, failed first attempt preserved). **Functional only** — it supports no performance or security statement; the gate outcome is recorded solely in [`governance/gate_decision_log.md`](governance/gate_decision_log.md) |
-
-## Setup guides (executed by the student)
+## Claim–evidence integrity
 
 | File | Content |
 |---|---|
-| [`setup/wsl2_ubuntu_yocto.md`](setup/wsl2_ubuntu_yocto.md) | WSL2 + Ubuntu 24.04 + Yocto Scarthgap + kas + QEMU, and the evidence for G1 |
-| [`setup/vm_arm64_hetzner.md`](setup/vm_arm64_hetzner.md) | ARM64 measurement-VM checklist, environment manifest, Docker, hardening and teardown. **Deferred with the native route on 2026-09-18**: no host is secured, none is requested by the adopted plan, and the file is retained as a checklist for any future native work — see R28 in [`g0/risks.md`](g0/risks.md) and [`adr/0007-three-tier-platform-model.md`](adr/0007-three-tier-platform-model.md) |
-| [`setup/qemu_integrated_gateway.md`](setup/qemu_integrated_gateway.md) | Runbook for the integrated QEMU/TCG gateway profile (Yocto ARM64 guest emulated on the x86-64 host, six containers inside the guest). Sections 1 to 3.4 (build and boot) were executed once on 2026-09-18 with every acceptance check passing; that record is sealed in [`evidence/integrated-qemu/`](evidence/integrated-qemu/README.md) (sealing is not acceptance). Section 3.5 was exercised the same day in an isolated form (MongoDB 7.0.39 start test) and its record is sealed alongside them, in [`evidence/integrated-qemu/2026-09-18-mongodb7-isolated/`](evidence/integrated-qemu/README.md). Sections 4 to 6 were exercised the same day for the first bounded end-to-end flow; **that record is a locally hash-sealed candidate held outside the published evidence package, not admitted**. The nine integration/recovery test families of Sections 7 to 9 were exercised once on 2026-09-18 — functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, neither the sequence-reset sub-check of test 4 nor the Ditto repeat of test 7 was run, and the timed harness parts of tests 1 and 6 are invalid *(corrected 2026-09-19: the earlier "seven passed" overstated the record)* — and that record is a locally hash-sealed candidate archive held outside the repository, not admitted to the project evidence record, so the battery is **not complete**; whether the Section 7 to 9 steps were pasted as written is not recorded here. Rationale and package audit: [`reviews/2026-09-17-egw-image-audit.md`](reviews/2026-09-17-egw-image-audit.md) |
-| [`setup/local_test_outputs.md`](setup/local_test_outputs.md) | The local `output_test` folder: one verified package per test attempt, failures included, exported from WSL to Windows; layout, run ids, the three separate verdicts and the export rules |
-| [`setup/git_backup_remote.md`](setup/git_backup_remote.md) | Git backup and the private remote (risks R25/RA13) |
+| [`claim_evidence_matrix.md`](claim_evidence_matrix.md) ([CSV](claim_evidence_matrix.csv)) | Claims C01–C15 of the planned campaign and their maintenance rules; the a02 comparison lies outside this matrix |
 
-## Architecture decisions
+## G0 — scope and start-up (records)
 
 | File | Content |
 |---|---|
-| [`adr/README.md`](adr/README.md) | Index and conventions of the ADRs, including current status and supersession links; ADR 0002 is historical and superseded by plan v1.1 |
-| [`adr/0007-three-tier-platform-model.md`](adr/0007-three-tier-platform-model.md) | Three platform tiers: QEMU is functional-only, a burstable ARM64 instance may serve functional integration but never produce numbers, and only a non-burstable native ARM64 instance may produce numbers for RQ3. Extends ADR 0001. **Proposed; superseded for the adopted execution baseline by ADR 0008 (2026-09-18)** and retained as the rule set for any future native work. It was never validated by the supervisors |
+| [`g0/scope_and_rqs.md`](g0/scope_and_rqs.md) | Scope and RQ1–RQ3, version 2.0 (2026-09-18); the dissertation holds the current wording |
+| [`g0/backlog.md`](g0/backlog.md) | Backlog by gate, G0 to G7 |
+| [`g0/risks.md`](g0/risks.md) | Risk register R1–R33 and RA1–RA15 |
+| [`g0/supervisor_email_g0.md`](g0/supervisor_email_g0.md) | Draft scope email to the supervisors, in Portuguese; not sent |
+| [`g0/two_layer_thesis_proposal.md`](g0/two_layer_thesis_proposal.md) | Two-layer thesis proposal; not adopted |
+| [`g0/supervisor_decision_matrix.csv`](g0/supervisor_decision_matrix.csv) | Requests D001–D010 with recommended positions |
+| [`g0/supervisor_seven_questions_matrix.md`](g0/supervisor_seven_questions_matrix.md) | Response matrix for the seven supervisor questions |

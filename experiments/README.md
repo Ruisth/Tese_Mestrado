@@ -1,14 +1,37 @@
 # Experiments — campaign evidence tree
 
-> **2026-09-18 integrated-Yocto adoption.** Under [plan v2.0](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md), **adopted by the student on 2026-09-18 with the QEMU-only execution amendment** (it supersedes plan v1.2; the proposal text of 2026-09-16 is kept as history under [`docs/governance/proposals/`](../docs/governance/proposals/README.md)), SUT for the final campaign means the identified Yocto guest emulated under QEMU/TCG, including its kernel/rootfs and containers, and manifest validation and deployment are adapted before the integrated pilot. Emulated QEMU/TCG runs, historical or new, are functional and integration evidence only and are never native ARM64 performance (adopted plan, section 3.5). Adoption is a decision of the student: it records no supervisor approval, accepts no gate and admits no claim, and no data was created by it.
+> **Status.** This is the manual of the experiment harness (`src/egw_experiments/`), written for
+> the 95-run campaign protocol of the integrated plan. **That campaign was never executed.**
+>
+> - Gates G4 (pilot and the `exp-v1` protocol freeze) and G5 (campaign) are `Not decided` in the
+>   [gate log](../docs/governance/gate_decision_log.md).
+> - `results/` holds no campaign data.
+> - The soak and the data freeze `data-v1` never took place.
+>
+> **The harness itself was used**, through its `run` and `analyze` paths:
+>
+> - by the G3 functional battery of 2026-10-02 to 2026-10-07, driven by `tools/session/`;
+> - by the Yocto vs Debian 13 comparison of 2026-10-18/19, driven by `tools/compare/measure_*`.
+>
+> Those results, their data and their code are indexed in [`../docs/results.md`](../docs/results.md).
+> How to repeat them is in [`../docs/reproduce.md`](../docs/reproduce.md).
+>
+> **The system under test** is the ARM64 guest emulated by QEMU/TCG on the x86-64 host,
+> including its kernel, root file system and containers. The harness reaches it on `127.0.0.1`
+> through QEMU's port forwards, and runs declare `--execution-mode tcg-emulated` (see "Execution
+> mode and core provenance").
+>
+> **Native-VM examples.** Text and examples below that address an "ARM VM" or `vm:` date from the
+> native-VM plan, which was deferred on 2026-09-18. Read "VM" as the system under test. Emulated
+> runs are functional and integration evidence only, never native ARM64 performance.
 
 This directory holds the experimental campaign of the EGW thesis: the frozen
 campaign plan and the evidence tree defined by the plan (section 5.8). All
 tooling lives in `src/egw_experiments/` and is standard-library only for the
 core analysis; `matplotlib` is an optional extra used exclusively for figures.
 The collection topology implements the corrections of the 2026-08-08 audit
-(section 9): SUT evidence is produced ON the ARM VM and ingested by the
-harness, which runs OFF the VM.
+(section 9): SUT evidence is produced ON the system under test (the emulated
+guest) and ingested by the harness, which runs OFF it, on the host.
 
 ```text
 experiments/
@@ -44,8 +67,10 @@ experiments/
 
 ## Topology (audit 9.1–9.3)
 
-- The harness and the simulator run OFF the ARM VM (plan 5.1): `--broker`
-  is the VM's address, port 8883 with TLS (CONTRACTS 1).
+- The harness and the simulator run OFF the system under test (plan 5.1):
+  `--broker` is the address that reaches its broker, port 8883 with TLS
+  (CONTRACTS 1); for the emulated guest that is `127.0.0.1`, through QEMU's
+  forward.
 - The controller writes `events.jsonl` ON the VM
   (`{EGW_EVENT_LOG_DIR}/{run_id}/events.jsonl`); the harness fetches it
   automatically after the confirmation window.
@@ -61,7 +86,9 @@ experiments/
 ## Condition → claim map (audit 9.5)
 
 Protocol source of truth: `src/egw_experiments/protocol.py`
-(`CONDITION_CLAIMS`); claims live in `docs/claim_evidence_matrix.csv`.
+(`CONDITION_CLAIMS`); claims live in `docs/claim_evidence_matrix.csv`. This
+is the campaign's protocol as frozen in the code. It was never executed, and
+no claim of the matrix is validated.
 
 | Condition | Runs | Runner | Claims |
 |---|---|---|---|
@@ -100,6 +127,9 @@ ssh -N -L 8000:127.0.0.1:8000 vm &
 ```
 
 ### 1. Plan (once, before the campaign; frozen at gate G4 / tag `exp-v1`)
+
+*(G4 is `Not decided` and no `exp-v1` tag exists: the campaign plan was
+never frozen.)*
 
 ```bash
 python -m egw_experiments plan --master-seed 42
@@ -140,9 +170,11 @@ simulator-runner condition through exactly the same code path as `run`.
 
 The invocation below is the REAL end-to-end batch: the harness starts,
 stops and fetches the SUT collector itself (sprint P5), so nothing has to
-exist beforehand and no per-run manual step remains. Replace `vm` with the
-SSH host alias of the Hetzner ARM VM (`~/.ssh/config` entry with `User`,
-`IdentityFile` and `ControlMaster auto` so the hooks reuse one connection):
+exist beforehand and no per-run manual step remains. Replace `vm` with an
+SSH host alias of the system under test (`~/.ssh/config` entry with `User`,
+`IdentityFile` and `ControlMaster auto` so the hooks reuse one connection).
+The example was written for the native ARM VM, which was never used; see the
+note after it for the emulated form:
 
 ```bash
 ssh -N -L 8000:127.0.0.1:8000 vm &        # loopback-only controller API
@@ -717,6 +749,10 @@ hypervisor record (G4 core provenance covers simulator runs only); the
 analysis reads it as unrecorded.
 
 ### 3. Freeze raw (data freeze `data-v1`, gate G5)
+
+*(Never applied: no campaign data exists and G5 is `Not decided`. The G3 and
+comparison records are sealed in their own packages; see
+[`../docs/results.md`](../docs/results.md).)*
 
 After the freeze, everything under `results/raw/` is immutable. No file in
 a raw run directory may be edited, added or deleted afterwards. Integrity
@@ -1541,6 +1577,8 @@ Additional evidence criteria:
   `controller metrics missing` — it is never blank.
 
 ### Soak Definition of Done (C13, work order P1b)
+
+*(The 24 h soak was never run; these criteria have never been applied.)*
 
 The single 24 h soak run is accepted only when ALL hold (thresholds in
 `protocol.py`, each PENDING ADVISOR SIGN-OFF before `exp-v1`), on top of

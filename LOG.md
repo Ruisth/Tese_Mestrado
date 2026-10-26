@@ -5542,3 +5542,27 @@ is unchanged.
 - **Limits.** Demonstration and functional use only. A measured `yoctowrynose` run would be invalid under the
   harness identity check I1, which needs a kernel passed by QEMU, and the measurement plan and summary know the
   measured pair only; its boot times include firmware and initramfs and are not comparable with series a02.
+
+---
+
+## Entry #C062 — The repository reorganised for assessment: a short front page, five guides and the demonstration wrappers
+
+- **Date:** 2026-10-26. **Scope:** documentation, navigation and the demonstration wrappers only. No change to the
+  controller, simulator, harness, deployment, Yocto layer, schemas, comparison or session tooling, CI, evidence
+  capsules, governance records or ADRs; no guest was started, no image built and nothing measured.
+- **Authority.** The student's work order of 2026-10-26: organise the repository so that supervisors and examiners
+  can see what was built, how the architecture works, how to run the demonstration, where the results and evidence
+  are, and what is not implemented, in one pull request to `dev`.
+- **What changed.** `README.md` is now a short presentation (contribution, architecture diagram, implemented
+  features, the scope actually evaluated, three paths, limitations); the previous front page is kept verbatim in
+  `docs/history/README-before-2026-10-26.md`. Five guides: `docs/architecture.md`, `docs/demo.md`,
+  `docs/results.md`, `docs/reproduce.md` and `docs/history/README.md`. The demonstration wrappers that existed only
+  on the student's WSL host are in `tools/demo/`, with configurable paths, no secrets and an offline check. Stale
+  statements were corrected in `docs/README.md`, `src/README.md`, `thesis/README.md` (the September LaTeX
+  conversion is a historical version), `experiments/README.md`, `diagrams/README.md` and `tools/compare/README.md`.
+- **Verification.** Offline only: the Markdown link check, the evidence verifier (73 seals), the JSON check, the
+  thesis-tool tests, `bash -n` and ShellCheck (`--severity=error`) on the new scripts and
+  `tools/demo/tests/offline_check.sh`; `git diff` against `eaeb35f` is empty for every protected path.
+- **Limits.** The demonstration commands were documented from the scripts and earlier runs (Entry #C061), not
+  re-run for this change. Some inputs stay local only (base images, `.env`, keys, the `output_test` packages);
+  `docs/reproduce.md` lists them.
