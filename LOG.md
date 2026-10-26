@@ -5615,6 +5615,15 @@ is unchanged.
   `mosquitto_sub` running inside the broker container until power-off, because Docker does not end a process
   started by `docker compose exec` when its client goes away. The observer now ends its own subscriber, matched
   by a client id unique to each run.
-- **Verification.** `tools/setup/tests/offline_check.sh` (336 passed), `tools/demo/tests/offline_check.sh`
-  (97 passed), the Markdown link check (159 files). Not tested: a 16 GB PC with the `.wslconfig` limit, and a
-  `sudo` that asks for a password.
+- **Independent review.** Four reviewers and an adversarial verifier for each kept 13 findings, all fixed with a
+  test that failed first. The kit's secret scan no longer reads a compressed ext4 image as an empty archive,
+  finds disk images by their content rather than their name, refuses a qcow2 with snapshots or a backing file,
+  matches an assignment that follows a NUL byte, and refuses anything after the test key in its file. The
+  rebuilt kit is byte-identical to the one tested. The preparation now warns below 11 GiB (12 GiB contradicted
+  its own `.wslconfig` advice), waits for the package-lists lock, refuses a Yocto base copy from another kit and
+  checks the profile's lock before the Debian download. The MQTT observer also ends at once on `kill <pid>`.
+  After the fixes, the script was run again and the Yocto gateway was started and stopped again on the same
+  distribution, with the MQTT observer ended both ways and nothing left behind.
+- **Verification.** `tools/setup/tests/offline_check.sh` (441 passed), `tools/demo/tests/offline_check.sh`
+  (101 passed), the Markdown link check (159 files), the evidence verifier (73 seals). Not tested: a 16 GB PC
+  with the `.wslconfig` limit, and a `sudo` that asks for a password.

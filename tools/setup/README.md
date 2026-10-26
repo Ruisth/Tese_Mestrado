@@ -118,6 +118,7 @@ On 2026-10-26, on the author's PC, in a new Ubuntu 24.04 WSL distribution with n
 | Demonstration on Debian 13 | the same: 135 sent, 135 seen, 3 twins updated |
 | Power-off | both gateways by `ssh-poweroff`; no QEMU process left |
 | A second run of the script | steps 2 to 10 `SKIP` in 2 s; no file changed |
+| After the review fixes, the same day | the script again all `SKIP` (step 4 now also compares the Yocto base copy with the kit); a second `tf.sh yocto apply` ready after 4 min 58 s; the MQTT observer ended by Ctrl+C and by `kill <pid>`, with nothing left on the PC or in the gateway |
 
 Not tested: a 16 GB PC with the `.wslconfig` limit above, and an Ubuntu user whose `sudo` asks for a
 password (the script then asks for it once).
