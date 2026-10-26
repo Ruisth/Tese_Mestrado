@@ -57,7 +57,8 @@ The scripts read the same variables as `tools/compare`, so one shell profile ser
 - `observe/mqtt.sh` reads the controller's broker password inside the gateway, from the deployment's own
   `.env`. The value never reaches the PC and is never printed. While this observer runs, it can be seen in
   process arguments inside the gateway and the broker container (`docker compose exec -e …`,
-  `mosquitto_sub -P …`).
+  `mosquitto_sub -P …`). Docker does not end that subscriber when the observer's connection closes, so on
+  exit, Ctrl+C included, the observer ends it (SIGTERM, matched by its client id, unique to each run).
 - `observe/ditto.sh` sends the header `x-ditto-pre-authenticated: pre:egw-controller` from inside the
   gateway. This is Ditto's pre-authenticated identity of the controller, not a password, and it is
   reachable only inside the gateway.

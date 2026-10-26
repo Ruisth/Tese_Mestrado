@@ -90,7 +90,7 @@ bash tools/demo/observe/mqtt.sh yocto
 
 It runs `mosquitto_sub -v` on `c2dt/#` inside the broker container, as the controller's read-only client.
 One line per message, `topic payload`. This is what the broker received; it does not yet prove that the
-twin changed.
+twin changed. On Ctrl+C it also ends that subscriber inside the container, found by its own client id.
 
 ```text
 c2dt/egw-01/<device-uuid>/telemetry {<JSON: schema_version, run_id, message_id, seq, ts, egw_id, device_uuid, device_type, measurements>}

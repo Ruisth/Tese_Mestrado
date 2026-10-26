@@ -217,12 +217,49 @@ else
     sk "end-to-end stub run: needs ps with -eo and python3"
 fi
 
+echo "== 4c. Ctrl+C on mqtt.sh also ends its subscriber inside the broker container"
+# Docker does not end a process started by 'docker compose exec' when its client goes away, so the
+# observer ends its own subscriber, found by its client id. A stub ssh records each remote command and,
+# for the subscriber, waits as mosquitto_sub would; the observer's process group then gets SIGINT, as a
+# terminal sends on Ctrl+C (SIGINT reset to its default first: a background job here would ignore it).
+if python3 -c 'import os, signal' > /dev/null 2>&1 && pgrep -g 1 > /dev/null 2>&1; then
+    mkdir -p "$TMP/bin_mqtt"
+    cat > "$TMP/bin_mqtt/ssh" << 'EOF'
+#!/bin/bash
+printf '%s\n' "${*: -1}" >> "$STUB_SSH_LOG"
+case ${*: -1} in *mosquitto_sub*) exec sleep 30 ;; esac
+EOF
+    chmod +x "$TMP/bin_mqtt/ssh"
+    : > "$TMP/ssh_mqtt.log"
+    env -i PATH="$TMP/bin_mqtt:$TMP/bin:$PATH" HOME="$H" DEMO_TOOLS="$TMP/stubtools" STUB_RUNNING=true \
+        STUB_SSH_LOG="$TMP/ssh_mqtt.log" python3 -c 'import os, signal, sys
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+os.setsid()
+os.execvp(sys.argv[1], sys.argv[1:])' bash "$DEMO/observe/mqtt.sh" yocto > "$TMP/mqtt.out" 2>&1 < /dev/null &
+    obs=$!
+    for _ in 1 2 3 4 5 6 7 8 9 10; do grep -q mosquitto_sub "$TMP/ssh_mqtt.log" 2> /dev/null && break; sleep 1; done
+    kill -INT -- -"$obs" 2> /dev/null
+    wait "$obs"
+    rc=$?
+    same "mqtt.sh on Ctrl+C: exit 130" 130 "$rc"
+    id=$(sed -n 's/.* -i \(demo-observer-[^ ]*\) .*/\1/p' "$TMP/ssh_mqtt.log" | head -n 1)
+    case $id in demo-observer-*-*) ok "mqtt.sh: the subscriber has a client id of its own ($id)" ;; *) ko "mqtt.sh: the subscriber has a client id of its own (got '$id')" ;; esac
+    same "mqtt.sh on Ctrl+C: that subscriber, and only it, ended in the container" "exec -T mosquitto pkill -f $id" \
+        "$(grep -o 'exec -T mosquitto pkill .*' "$TMP/ssh_mqtt.log")"
+    same "mqtt.sh on Ctrl+C: nothing left in its process group" "" "$(pgrep -g "$obs" 2> /dev/null)"
+    pkill -g "$obs" 2> /dev/null
+else
+    sk "mqtt.sh Ctrl+C check: needs python3 and pgrep -g"
+fi
+
 echo "== 5. static rules"
 personal=$(grep -rnE '/home/[A-Za-z]|[A-Za-z]:[\\/]Users[\\/]' "$DEMO" --include='*.sh' --include='*.md' | grep -v '^[^:]*/tests/' || true)
 if [ -z "$personal" ]; then ok "no personal paths"; else ko "personal paths: $personal"; fi
 sourcing=$(grep -rlE '^[[:space:]]*\. "\$DEMO_SECRETS"' "$DEMO" --include='*.sh' | sed "s|^$DEMO/||" | tr '\n' ' ')
 same "only wearables/simulate.sh sources the secrets file" "wearables/simulate.sh " "$sourcing"
-forced=$(grep -rnE 'kill -(9|KILL)|pkill|killall' "$DEMO" --include='*.sh' | grep -v '^[^:]*/tests/' || true)
+# one exception, exact: mqtt.sh ends its own subscriber in the broker container (SIGTERM, by its client id)
+forced=$(grep -rnE 'kill -(9|KILL)|pkill|killall' "$DEMO" --include='*.sh' | grep -v '^[^:]*/tests/' \
+    | grep -vxF "$DEMO/observe/mqtt.sh:$(grep -n 'exec -T mosquitto pkill -f \$ID"' "$DEMO/observe/mqtt.sh" | head -n 1)" || true)
 if [ -z "$forced" ]; then ok "no forced kill"; else ko "forced kill: $forced"; fi
 
 echo
