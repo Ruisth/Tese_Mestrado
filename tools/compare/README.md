@@ -2,9 +2,8 @@
 
 ## 0. Two commands per scenario
 
-The scripts are the files of this folder, `tools/compare/` in the repository
-(branch `tools/compare-envs-terraform`); on the WSL host they run from a
-checkout such as `~/egw-exec/compare-repo`, and everything they create lives
+The scripts are the files of this folder, `tools/compare/` in the repository;
+on the WSL host they run from a checkout such as `~/egw-exec/compare-repo`, and everything they create lives
 under `$EGW_COMPARE_ROOT` (default `~/egw-compare`, section 2). From the root
 of the clone, in a WSL login shell, one scenario at a time:
 
@@ -47,11 +46,13 @@ desired state and reads the live one; `provision_stack.sh`,
 `functional_check.sh` and `validate.sh` bring the stack up, push one synthetic
 event to its twin and record the result.
 
-What it is **not**: it measures nothing and claims nothing. The pilot figures
-quoted in [`PROTOCOL.md`](PROTOCOL.md) are planning inputs and are not
-citable. A comparison measurement needs a later, separate authorisation and the
-approval of that protocol; until a record appears in section 9 below, no guest
-has been booted by this tooling.
+What it is **not**: the lifecycle commands of sections 0–5 measure nothing and
+claim nothing. The measured comparison is the separate procedure of section 10,
+executed once as series a02 on 2026-10-18/19
+([`docs/results.md`](../../docs/results.md), R9). [`PROTOCOL.md`](PROTOCOL.md)
+is the earlier proposal and was not executed as written; its pilot figures are
+planning inputs and are not citable. Section 9 records the validations of
+2026-10-18.
 
 ## 2. Layout on disk
 
