@@ -103,6 +103,24 @@ The demonstration starts the gateway with `tf.sh`. You do not need the kit's own
 `yoctoScarthgap/run-linux.sh`: it starts a QEMU outside the guards of `tools/compare`, and while it runs
 `tf.sh ... apply` and step 10 of the script refuse to start.
 
+## Tested
+
+On 2026-10-26, on the author's PC, in a new Ubuntu 24.04 WSL distribution with nothing else installed
+(31 GiB of memory for WSL), from a clone of this repository and the kit `egw-demo-kit-20261026`:
+
+| What | Result |
+|---|---|
+| The preparation | 11 of 11 steps OK in 8.5 minutes, Debian 13 included |
+| First `tf.sh yocto apply` | ssh after 17 s; `ENVIRONMENT READY` after 5 min 49 s |
+| Demonstration on Yocto | 3 wearables for 60 s: 135 messages sent, 135 seen by the MQTT observer, the 3 twins updated by the run; menu options 3, 6 and 8 |
+| First `tf.sh debian13 apply` | ssh after 40 s; `ENVIRONMENT READY` after 9 min 3 s |
+| Demonstration on Debian 13 | the same: 135 sent, 135 seen, 3 twins updated |
+| Power-off | both gateways by `ssh-poweroff`; no QEMU process left |
+| A second run of the script | steps 2 to 10 `SKIP` in 2 s; no file changed |
+
+Not tested: a 16 GB PC with the `.wslconfig` limit above, and an Ubuntu user whose `sudo` asks for a
+password (the script then asks for it once).
+
 ## Limits
 
 - **A demonstration, not a reproduction of the measurements.** The PC uses Ubuntu 24.04's QEMU 8.2.x. The

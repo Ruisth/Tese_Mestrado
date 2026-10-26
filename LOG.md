@@ -5588,3 +5588,33 @@ is unchanged.
 - **Verification.** Offline only: the Markdown link check (158 files), the evidence verifier (73 seals),
   `tools/demo/tests/offline_check.sh` (94 passed) and a scan of the README and guides for internal codes;
   `git diff` against `c1d46ab` is empty for every protected path.
+
+---
+
+## Entry #C064 — Another PC prepared for the demonstration with one script and a kit
+
+- **Date:** 2026-10-26. **Scope:** the new `tools/setup/` (`prepare_demo_host.sh`, `make_demo_kit.sh`, their
+  offline check and guide); `tools/demo/observe/mqtt.sh` and `tools/demo/tests/offline_check.sh`; links in
+  `README.md`, `docs/demo.md` and `tools/demo/README.md`. No change to the system, images, criteria, results or
+  evidence.
+- **Authority.** The student's request of 2026-10-26: give the image to another person as a ZIP with a script
+  that does the one-time preparation, so that only a WSL terminal is needed; test it, then implement it and update
+  the documentation.
+- **What changed.** `make_demo_kit.sh` builds the kit (the sanitised Yocto package and the controller archive,
+  with `SHA256SUMS`) after a secret scan; the kit holds no password and not the sealed image of the measurements.
+  `prepare_demo_host.sh` prepares a WSL2 Ubuntu 24.04 in eleven idempotent steps: packages, Terraform, the kit,
+  the test key, a passwords file with new random values, the virtual environment, a settings file read by login
+  shells, `terraform init` and the Debian 13 first boot. It refuses a WSL that already holds its own comparison
+  set-up.
+- **Tested end to end** in a new Ubuntu 24.04 WSL distribution: the preparation (8.5 minutes), both scenarios
+  started, a three-wearable demonstration on each (135 messages sent and 135 seen at the broker, three twins
+  updated), the menu, both power-offs and a second run of the script (nothing changed). Results in
+  `tools/setup/README.md`. The test found three defects, each fixed with an offline test: `sudo -v` waited for a
+  password that a password-free `sudo` never asks for, so the apt step hung; a false warning about the virtio
+  network ROM, which Ubuntu 24.04 installs in `/usr/lib/ipxe/qemu`; and Ctrl+C on the MQTT observer left its
+  `mosquitto_sub` running inside the broker container until power-off, because Docker does not end a process
+  started by `docker compose exec` when its client goes away. The observer now ends its own subscriber, matched
+  by a client id unique to each run.
+- **Verification.** `tools/setup/tests/offline_check.sh` (336 passed), `tools/demo/tests/offline_check.sh`
+  (97 passed), the Markdown link check (159 files). Not tested: a 16 GB PC with the `.wslconfig` limit, and a
+  `sudo` that asks for a password.

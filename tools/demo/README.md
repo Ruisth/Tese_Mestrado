@@ -29,7 +29,9 @@ output, is [docs/demo.md](../../docs/demo.md).
 
 ## Settings
 
-The scripts read the same variables as `tools/compare`, so one shell profile serves both.
+The scripts read the same variables as `tools/compare`, so one shell profile serves both. On a PC
+prepared with [`tools/setup/prepare_demo_host.sh`](../setup/README.md), that profile is written by the
+script (`~/.config/egw-demo/env.sh`) and nothing below needs setting by hand.
 
 | Variable | Default | Used for |
 |---|---|---|
