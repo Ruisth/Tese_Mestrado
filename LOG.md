@@ -5623,7 +5623,10 @@ is unchanged.
   its own `.wslconfig` advice), waits for the package-lists lock, refuses a Yocto base copy from another kit and
   checks the profile's lock before the Debian download. The MQTT observer also ends at once on `kill <pid>`.
   After the fixes, the script was run again and the Yocto gateway was started and stopped again on the same
-  distribution, with the MQTT observer ended both ways and nothing left behind.
-- **Verification.** `tools/setup/tests/offline_check.sh` (441 passed), `tools/demo/tests/offline_check.sh`
+  distribution, with the MQTT observer ended both ways and nothing left behind. The automated review of the
+  pull request found two more, fixed the same way: the scan now opens what decompression yields and refuses
+  anything packed deeper than six levels, and step 4 compares the base copy's kernel as well as its root file
+  system. The kit rebuilt with the final scan is still byte-identical.
+- **Verification.** `tools/setup/tests/offline_check.sh` (457 passed), `tools/demo/tests/offline_check.sh`
   (101 passed), the Markdown link check (159 files), the evidence verifier (73 seals). Not tested: a 16 GB PC
   with the `.wslconfig` limit, and a `sudo` that asks for a password.

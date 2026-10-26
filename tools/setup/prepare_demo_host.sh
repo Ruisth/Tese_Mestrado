@@ -24,7 +24,7 @@
 #    4 kit              extraction outside the clone, the kit's SHA256SUMS; the root file system converted
 #                       (qemu-img) to the raw ext4 file the yocto scenario reads; the controller archive
 #                       checked against its identity record; refused while the yocto scenario's base copy
-#                       ($EGW_COMPARE_ROOT/base/yocto) holds another kit's root file system. Keep the ZIP:
+#                       ($EGW_COMPARE_ROOT/base/yocto) holds another kit's root file system or kernel. Keep the ZIP:
 #                       a re-run reads it again
 #    5 ssh key          the kit's TEST key installed as ~/.ssh/egw_compare_share (mode 600), never over
 #                       a different key
@@ -541,17 +541,24 @@ kit_deploy() {
 }
 
 # base_check DEP: compare_env.sh copies the yocto scenario's base once into $COMPARE_ROOT/base/yocto
-# (base_copy: rootfs.ext4, then never refreshed) and records it in that folder's SHA256SUMS (base_seal).
-# Stop when that record names another root file system than the one in DEP (as DEP/SHA256SUMS records
-# it): the settings would name this kit while tf.sh kept booting the earlier kit's image.
+# (base_copy: Image and rootfs.ext4, then never refreshed) and records them in that folder's SHA256SUMS
+# (base_seal). Stop when that record names another root file system or kernel than the ones in DEP (as
+# DEP/SHA256SUMS records them): the settings would name this kit while tf.sh kept booting the earlier kit.
 base_check() {
-    local dep=$1 rootfs base new
-    base=$(awk '$2 == "rootfs.ext4" { print $1 }' "$COMPARE_ROOT/base/yocto/SHA256SUMS" 2> /dev/null | head -n 1)
+    local dep=$1 targets
+    targets=$(yocto_targets "$dep")
+    base_check_one "$dep" rootfs.ext4 "$(printf '%s\n' "$targets" | sed -n 1p)" "root file system"
+    base_check_one "$dep" Image "$(printf '%s\n' "$targets" | sed -n 2p)" kernel
+}
+# base_check_one DEPLOY BASE-NAME SOURCE WHAT: stop when base/yocto/SHA256SUMS records BASE-NAME with
+# another sha256 than SOURCE has in DEPLOY/SHA256SUMS (base_copy never replaces either file).
+base_check_one() {
+    local base new
+    base=$(awk -v f="$2" '$2 == f { print $1 }' "$COMPARE_ROOT/base/yocto/SHA256SUMS" 2> /dev/null | head -n 1)
     [ -n "$base" ] || return 0
-    rootfs=$(yocto_targets "$dep" | head -n 1)
-    new=$(awk -v f="$(basename "$rootfs")" '$2 == f { print $1 }' "$dep/SHA256SUMS" 2> /dev/null | head -n 1)
+    new=$(awk -v f="$(basename "$3")" '$2 == f { print $1 }' "$1/SHA256SUMS" 2> /dev/null | head -n 1)
     [ "$base" = "$new" ] && return 0
-    stop 2 "$COMPARE_ROOT/base/yocto holds the root file system of another kit (rootfs.ext4 ${base:0:12}..., this kit's ${new:0:12}...), and tools/compare never replaces a base copy: run 'bash tools/compare/tf.sh yocto destroy', remove $COMPARE_ROOT/base/yocto and run this script again"
+    stop 2 "$COMPARE_ROOT/base/yocto holds the $4 of another kit ($2 ${base:0:12}..., this kit's ${new:0:12}...), and tools/compare never replaces a base copy: run 'bash tools/compare/tf.sh yocto destroy', remove $COMPARE_ROOT/base/yocto and run this script again"
 }
 
 # zip_member ZIP NAME: the bytes of one member of ZIP on standard output (python3: no unzip needed).

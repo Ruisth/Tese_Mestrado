@@ -512,6 +512,15 @@ make_package() {
         esac
         rm -f "$TMP/disk.payload" ;;
     esac
+    # an assignment inside six or nine nested .tar.gz archives, and inside gzip data compressed twice
+    case $v in *" nest6 "* | *" nest9 "*)
+        local n=$TMP/nest.$RANDOM$RANDOM inner=secret.txt k=6 i
+        case $v in *" nest9 "*) k=9 ;; esac
+        mkdir -p "$n" && printf 'DITTO_DEVOPS_PASSWORD=private-value\n' > "$n/$inner"
+        for i in $(seq 1 "$k"); do tar -C "$n" -czf "$n/l$i.tar.gz" "$inner" && rm -f "$n/$inner" && inner=l$i.tar.gz; done
+        mv "$n/$inner" "$d/nested.tar.gz" && rm -rf "$n" ;;
+    esac
+    case $v in *" gz-gz "*) printf 'DITTO_DEVOPS_PASSWORD=private-value\n' | gzip -n | gzip -n > "$d/notes.gz" ;; esac
     (cd "$d" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS)
     case $v in *" sums-bad "*) printf 'x' >> "$d/README.md" ;; esac
     rm -rf "$r" "$w"
@@ -636,6 +645,9 @@ refusal key-tail "" "keys/egw_compare_share: the allowed test key is not one Ope
 refusal snap "" "yoctoScarthgap/yoctoScarthgap.qcow2: 1 internal snapshot(s)"
 refusal backing "" "yoctoScarthgap/data.qcow2: a backing file"
 refusal data-ext "" "yoctoScarthgap/data.qcow2: an external data file"
+refusal nest6 "" "secret.txt: env (a PASSWORD assignment"
+refusal nest9 "" "nested more than 6 levels deep, which this scan does not open"
+refusal gz-gz "" "notes.gz: env (a PASSWORD assignment"
 
 echo "== 9. the kit in step 4 (zip from section 8)"
 KS='parse_args --kit "$Z"; step_kit'
@@ -682,6 +694,17 @@ printf '%s  rootfs.ext4\n' "$(sha256sum "$KT/deploy/egw-gateway-image-qemuarm64.
 out=$(prep HOME="$H9" EGW_COMPARE_ROOT="$R9" Z="$ZIP" "$KS"); rc=$?
 same "a base copy of this kit: exit 0" 0 "$rc"
 has "a base copy of this kit: SKIP" "[4/11] kit: SKIP" "$out"
+# The kernel too: base_copy never replaces base/yocto/Image either, so this kit's root file system with
+# another kit's kernel is refused as well; both of this kit pass.
+RSUM9=$(sha256sum "$KT/deploy/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4" | cut -d' ' -f1)
+printf '%064d  Image\n%s  rootfs.ext4\n' 0 "$RSUM9" > "$R9/base/yocto/SHA256SUMS"
+out=$(prep HOME="$H9" EGW_COMPARE_ROOT="$R9" Z="$ZIP" "$KS"); rc=$?
+same "a base copy with another kit's kernel: exit 2" 2 "$rc"
+has "a base copy with another kit's kernel: refused in step 4" "[4/11] kit: STOP: $R9/base/yocto holds the kernel of another kit" "$out"
+printf '%s  Image\n%s  rootfs.ext4\n' "$(sha256sum "$KT/deploy/Image" | cut -d' ' -f1)" "$RSUM9" > "$R9/base/yocto/SHA256SUMS"
+out=$(prep HOME="$H9" EGW_COMPARE_ROOT="$R9" Z="$ZIP" "$KS"); rc=$?
+same "a base copy of this kit, kernel included: exit 0" 0 "$rc"
+has "a base copy of this kit, kernel included: SKIP" "[4/11] kit: SKIP" "$out"
 # Another kit with the same date (another package) must not pass as the extracted one.
 P8b=$TMP/p8b
 make_package "$P8b"

@@ -269,8 +269,9 @@ python3 -I - "$TOP" "$ALLOWED_KEY" "$RAW" "${EXTRA[@]}" << 'PY'
         through qemu-img before this scan).
 Archives (.tar, .tar.gz, .tgz) are read member by member, nested image layers included; data that opens
 as a tar with no member (an ext4 image starts with 1024 zero bytes, which read as an empty tar) is scanned
-as data instead. Compressed data (gzip, xz, bzip2) is opened, never scanned in compressed form; data this
-scan cannot open (zstd, or a damaged stream) is a hit, so that the scan fails closed. The allowed test key
+as data instead. Compressed data (gzip, xz, bzip2) is opened, never scanned in compressed form, and what it
+holds is scanned again. Archives and compression are opened six levels deep; anything still packed below
+that, and data this scan cannot open (zstd, or a damaged stream), is a hit, so that the scan fails closed. The allowed test key
 must be one OpenSSH private key and nothing after its END line. The raw disk images (the root file system
 and any extra disk, given as label/path pairs after it) are read by their data extents (holes skipped)
 with the pem and env rules."""
@@ -293,6 +294,8 @@ NOT_B64 = re.compile(rb"[^A-Za-z0-9+/=]")
 DISK_MAGIC = ((0, b"QFI\xfb", "qcow2"), (0, b"KDMV", "VMDK"), (0, b"vhdxfile", "VHDX"), (64, b"\x7f\x10\xda\xbe", "VDI"))
 ENV_LINE = re.compile(rb"[ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]*PASSWORD[A-Z0-9_]*=[\"']?[^\s\x00\"'$]")
 TEXT_ASSIGN = re.compile(rb"(?i)(?<![a-z0-9_])[a-z0-9_]*password[a-z0-9_]*[ \t]*=[ \t]*[\"']?[^\s\"'$]")
+# How many levels of archives and compression the scan opens, one inside the other; deeper is a hit.
+MAX_DEPTH = 6
 hits = []
 
 
@@ -382,7 +385,11 @@ def scan_data(where, data, depth, text_rule, top=False):
     if kind == "zstd":
         hits.append(f"{where}: zstd-compressed data, which this scan cannot open")
         return 0
-    if depth < 3 and (kind or data[257:262] == b"ustar"):
+    if kind or data[257:262] == b"ustar":
+        # Fail closed at the depth limit: what is still packed there is not opened, so it is a hit.
+        if depth >= MAX_DEPTH:
+            hits.append(f"{where}: an archive or compressed data nested more than {MAX_DEPTH} levels deep, which this scan does not open")
+            return 0
         nested = open_tar(data)
         if nested is not None:
             with nested:
@@ -396,7 +403,8 @@ def scan_data(where, data, depth, text_rule, top=False):
         except (OSError, EOFError, ValueError, zlib.error, lzma.LZMAError):
             hits.append(f"{where}: unreadable {kind} data")
             return 0
-        text_rule = top = False
+        # The opened data is scanned again: it may itself be compressed or an archive.
+        return scan_data(where, data, depth + 1, text_rule=False)
     disk = disk_image(data)
     if disk and not (top and disk == "qcow2"):
         hits.append(f"{where}: disk (a {disk} image, whose contents this scan cannot read)")
