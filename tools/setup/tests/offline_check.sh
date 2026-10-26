@@ -709,6 +709,13 @@ hasnt "step 2, sudo without a password: not refused" "sudo refused" "$out"
 has "step 2, sudo without a password: apt-get ran" "sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update" "$(cat "$LOGF")"
 hasnt "step 2, sudo without a password: no 'sudo -v'" "sudo -v" "$(cat "$LOGF")"
 stub sudo 'echo "sudo $*" >> "$STUB_LOG"; exit 99'
+# The ROM of the virtio network card: Ubuntu 24.04's ipxe-qemu installs it in /usr/lib/ipxe/qemu (on
+# QEMU's firmware path), other builds in /usr/share/qemu; found in either folder, no warning.
+mkdir -p "$TMP/rom_a" "$TMP/rom_b" && : > "$TMP/rom_b/efi-virtio.rom"
+out=$(prep EGW_SETUP_ROM_DIRS="$TMP/rom_a $TMP/rom_b" 'qemu_check')
+hasnt "QEMU check, ROM in the second folder: no warning" "WARN" "$out"
+out=$(prep EGW_SETUP_ROM_DIRS="$TMP/rom_a" 'qemu_check')
+has "QEMU check, ROM in no folder: a warning naming the folders" "WARN: efi-virtio.rom (package ipxe-qemu) is in none of: $TMP/rom_a;" "$out"
 # A real run with every external step stubbed: Terraform present (in a state root this script marked),
 # a venv whose python answers the import check, tf.sh and compare_env.sh stubs in the stand-in clone.
 mkdir -p "$H10/egw-compare/bin" "$H10/.local/share/egw-demo/venv/bin"

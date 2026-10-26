@@ -84,13 +84,15 @@ CONFIG_DIR=${EGW_DEMO_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/egw-demo}
 VENV=${EGW_DEMO_VENV:-${XDG_DATA_HOME:-$HOME/.local/share}/egw-demo/venv}
 LOG_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/egw-demo/setup
 SSH_KEY=$HOME/.ssh/egw_compare_share
-# Test hooks, used by tools/setup/tests/offline_check.sh only: the files read by step 1 and the QEMU
-# binaries (the settings file names whatever these resolve to; the defaults are Ubuntu's).
+# Test hooks, used by tools/setup/tests/offline_check.sh only: the files read by step 1, the QEMU
+# binaries (the settings file names whatever these resolve to; the defaults are Ubuntu's) and the folders
+# searched for the virtio network card's ROM.
 PROC_VERSION=${EGW_SETUP_PROC_VERSION:-/proc/version}
 OS_RELEASE=${EGW_SETUP_OS_RELEASE:-/etc/os-release}
 MEMINFO=${EGW_SETUP_MEMINFO:-/proc/meminfo}
 QEMU=${EGW_SETUP_QEMU:-/usr/bin/qemu-system-aarch64}
 QEMU_IMG=${EGW_SETUP_QEMU_IMG:-/usr/bin/qemu-img}
+ROM_DIRS=${EGW_SETUP_ROM_DIRS:-/usr/share/qemu /usr/lib/ipxe/qemu}
 
 STEPS=11
 CUR=0
@@ -283,7 +285,10 @@ qemu_check() {
         printf '%s\n' "$devs" | grep -q "\"$d\"" || miss="$miss $d"
     done
     [ -z "$miss" ] || stop 2 "${QEMU_VERSION:-$QEMU} lacks the device(s):$miss"
-    [ -e /usr/share/qemu/efi-virtio.rom ] || warn "/usr/share/qemu/efi-virtio.rom (package ipxe-qemu) is absent: QEMU may refuse the virtio-net-pci card"
+    # the ROM of the virtio-net-pci card: Ubuntu 24.04's ipxe-qemu installs it in /usr/lib/ipxe/qemu, which is
+    # on QEMU's firmware path; other builds keep it in /usr/share/qemu
+    for d in $ROM_DIRS; do [ -e "$d/efi-virtio.rom" ] && return 0; done
+    warn "efi-virtio.rom (package ipxe-qemu) is in none of: $ROM_DIRS; QEMU may refuse the virtio-net-pci card"
 }
 
 step_apt() {
