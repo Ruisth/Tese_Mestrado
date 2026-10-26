@@ -43,12 +43,12 @@ comparison-tool tests skip on Windows or without `bash`.
 **Where the integration testing is.** It was done on the emulated guest, not in pytest: the nine
 integration families T1–T9 ran through the session drivers in
 [`../tools/session/`](../tools/session/README.md). Gate G3 was accepted on 2026-10-07 on those
-results. See [`../docs/results.md`](../docs/results.md) (R6).
+results. See [`../docs/results.md`](../docs/results.md#functional-tests) (Functional tests).
 
 **Test records.** The newest test record in the repository is
 [`../docs/evidence/tests/2026-08-11-head-4e67717/`](../docs/evidence/tests/2026-08-11-head-4e67717/):
 701 passed at `4e67717`. A later full run, on 2026-10-08, is held locally only
-([`../docs/results.md`](../docs/results.md), R13). Unit tests close no gate and validate no claim
+([`../docs/results.md`](../docs/results.md#other-records), Other records). Unit tests close no gate and validate no claim
 of the [claim matrix](../docs/claim_evidence_matrix.md).
 
 ## Run the simulator (reference invocation, CONTRACTS §7)

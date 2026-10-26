@@ -5566,3 +5566,25 @@ is unchanged.
 - **Limits.** The demonstration commands were documented from the scripts and earlier runs (Entry #C061), not
   re-run for this change. Some inputs stay local only (base images, `.env`, keys, the `output_test` packages);
   `docs/reproduce.md` lists them.
+
+---
+
+## Entry #C063 — The front page and the guides rewritten for readers who do not know the development process
+
+- **Date:** 2026-10-26. **Scope:** `README.md`, the presentation guides (`docs/demo.md`, `docs/architecture.md`,
+  `docs/results.md`, `docs/reproduce.md`, the top of `docs/README.md`, `tools/demo/README.md`), two dangling
+  cross-references (`src/README.md`, `tools/compare/README.md`) and the terminal numbers in the header comments of
+  four `tools/demo` scripts. No change to the system, images, criteria, results or evidence; no guest, simulation
+  or measurement.
+- **Authority.** The student's correction order of 2026-10-26, which replaces the earlier guidance on history and
+  rules in the front page: plain English, no internal codes, gates, numbered sessions, decisions or approval dates
+  in the README and the presentation guides; the README in a fixed order (overview, how it works, before you start,
+  the menu, the manual commands, what was implemented and evaluated, results and limitations, code and
+  documentation), with the demonstration commands in the README itself.
+- **What changed.** The README shows the menu (`tools/demo/demo.sh`) and the independent commands, each checked
+  against the scripts, and a table of what each terminal shows. The guides are about a third shorter; they keep
+  software versions, reproduction parameters and every negative or qualified result, and keep internal names only
+  in file paths. The original records keep their identifiers and dates.
+- **Verification.** Offline only: the Markdown link check (158 files), the evidence verifier (73 seals),
+  `tools/demo/tests/offline_check.sh` (94 passed) and a scan of the README and guides for internal codes;
+  `git diff` against `c1d46ab` is empty for every protected path.

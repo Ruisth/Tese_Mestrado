@@ -1,5 +1,5 @@
 #!/bin/bash
-# tools/demo/observe/mqtt.sh <yocto|debian13|yoctoWrynose> - Terminal 3: the MQTT publications as the
+# tools/demo/observe/mqtt.sh <yocto|debian13|yoctoWrynose> - Terminal 2: the MQTT publications as the
 # broker sees them. Runs mosquitto_sub INSIDE the broker container of the guest (the procedure of the
 # battery's ACL test: TLS on localhost:8883 with the broker's CA, the controller's read-only identity
 # on c2dt/#, its own client id); prints "topic payload" per message. The controller's password is read
