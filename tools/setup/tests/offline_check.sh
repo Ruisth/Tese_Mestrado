@@ -19,9 +19,13 @@
 #      modes, records, a second call that converts nothing, a non-ext4 result refused;
 #   8. make_demo_kit.sh on a stand-in package and controller archive: the zip, its .sha256, the layout
 #      and modes; refusals for every rule of the secret scan, a damaged package, the sealed image's
-#      names, a missing clean-scan record, a controller record mismatch, an existing zip, --out in the
-#      clone, a data disk that is not empty or not ext4, a zstd layer, a key inside an xz layer; binary
-#      key markers without a body and 'password=None' in an image layer are NOT hits;
+#      names (also compressed, and .wic), a missing clean-scan record, a controller record mismatch, an
+#      existing zip, --out in the clone, a data disk that is not empty or not ext4 (also one known only by
+#      its qcow2 magic), a qcow2 with snapshots, a backing file or a data file, a zstd layer, a key inside
+#      an xz layer, a compressed ext4 under a neutral name, a disk image inside an archive, a root file
+#      system file whose first line is a password assignment, a password assignment right after a NUL
+#      byte, anything after the test key's END line;
+#      binary key markers without a body and 'password=None' in an image layer are NOT hits;
 #   9. step 4 on that zip: dry run, extraction, conversion, SKIP on a re-run (also with the overlays of
 #      run-linux.sh in yoctoScarthgap/work/), a different kit of the same date refused, a stale extraction
 #      folder removed, .sha256 mismatch, missing .sha256, a tampered extracted file, unsafe or foreign zip
@@ -88,11 +92,14 @@ stub qemu-system-aarch64 'case "$*" in
     "-device help") printf "name \"virtio-net-pci\", bus PCI\nname \"virtio-blk-pci\", bus PCI\nname \"virtio-rng-pci\", bus PCI\nname \"virtio-gpu-pci\", bus PCI\n" ;;
     *) echo "qemu-system-aarch64 $*" >> "$STUB_LOG"; exit 99 ;;
 esac'
-# qemu-img: "convert" drops the 512-byte stand-in qcow2 header (the payload is a real ext4 image).
+# qemu-img: "convert" drops the 512-byte stand-in qcow2 header (the payload is a real ext4 image); "info"
+# answers the JSON kept in that header after byte 8, else a plain qcow2 (no snapshot, backing or data file).
 stub qemu-img 'echo "qemu-img $*" >> "$STUB_LOG"
 case ${1:-} in
     --version) echo "qemu-img version 8.2.2 (offline-check stub)" ;;
     convert) dd if="${*: -2:1}" of="${*: -1}" bs=512 skip=1 conv=sparse status=none ;;
+    info) j=$(head -c 512 "${*: -1}" | tail -c +9 | tr -d "\000")
+        if [ -n "$j" ]; then printf "%s\n" "$j"; else echo "{\"format\": \"qcow2\", \"virtual-size\": 8388608}"; fi ;;
     *) exit 99 ;;
 esac'
 
@@ -371,8 +378,9 @@ make_rootfs() {
     rm -f "$TMP/rootfs.ext4"
     truncate -s 8M "$TMP/rootfs.ext4" && mkfs.ext4 -q -F -d "$1" "$TMP/rootfs.ext4" > /dev/null 2>&1
 }
-# fake_qcow2 PAYLOAD OUT: a 512-byte header with the qcow2 magic, then PAYLOAD (the stub converts it back).
-fake_qcow2() { { printf 'QFI\373'; head -c 508 /dev/zero; cat "$1"; } > "$2"; }
+# fake_qcow2 PAYLOAD OUT [INFO]: a 512-byte header with the qcow2 magic, then PAYLOAD (the stub converts it
+# back); INFO, the JSON the stub's "qemu-img info" answers, is kept in the header.
+fake_qcow2() { local j=${3:-}; { printf 'QFI\373\0\0\0\0%s' "$j"; head -c $((504 - ${#j})) /dev/zero; cat "$1"; } > "$2"; }
 K7=$TMP/k7/egw-demo-kit-20990101
 mkdir -p "$K7/yoctoScarthgap" "$TMP/r7/etc"
 printf 'stand-in\n' > "$TMP/r7/etc/hostname"
@@ -415,29 +423,47 @@ echo "== 8. make_demo_kit.sh (stand-in package and controller archive)"
 # markers but no key body, an empty data disk (ext4 with lost+found only), BUILDINFO naming the key and
 # the clean final scan, SHA256SUMS.
 make_package() {
-    local d=$1 r v e
+    local d=$1 r v e j w
     shift
     v=" $* "
     r=$TMP/rootsrc.$RANDOM$RANDOM
     e=$TMP/datasrc.$RANDOM$RANDOM
-    mkdir -p "$d/keys" "$r/home/egw/.ssh" "$r/opt/egw/deployment/data/events" "$r/usr/bin" "$e"
+    w=$TMP/extrasrc.$RANDOM$RANDOM
+    mkdir -p "$d/keys" "$r/home/egw/.ssh" "$r/opt/egw/deployment/data/events" "$r/usr/bin" "$e" "$w/etc"
     case $v in *" data-file "*) printf 'left behind\n' > "$e/events.log" ;; esac
     case $v in
         *" data-raw "*) head -c 65536 /dev/urandom > "$TMP/data.payload" ;;
         *) make_rootfs "$e" && mv "$TMP/rootfs.ext4" "$TMP/data.payload" || return 1 ;;
     esac
-    fake_qcow2 "$TMP/data.payload" "$d/data.qcow2"
+    case $v in
+        *" backing "*) j='{"format": "qcow2", "backing-filename": "base.qcow2"}' ;;
+        *" data-ext "*) j='{"format": "qcow2", "format-specific": {"type": "qcow2", "data": {"data-file": "data.raw"}}}' ;;
+        *) j= ;;
+    esac
+    fake_qcow2 "$TMP/data.payload" "$d/data.qcow2" "$j"
     rm -rf "$e" "$TMP/data.payload"
     ssh-keygen -q -t ed25519 -N '' -C 'egw comparison images local test key' -f "$d/keys/egw_compare_share" > /dev/null || return 1
     cp "$d/keys/egw_compare_share.pub" "$r/home/egw/.ssh/authorized_keys"
     case $v in *" ak-extra "*)
         ssh-keygen -q -t ed25519 -N '' -f "$r/extra" > /dev/null && cat "$r/extra.pub" >> "$r/home/egw/.ssh/authorized_keys" && rm -f "$r/extra" "$r/extra.pub" ;;
     esac
+    case $v in *" key-tail "*) printf 'MOSQUITTO_SIMULATOR_PASSWORD=abc123def\n' >> "$d/keys/egw_compare_share" ;; esac
     printf '%s\n\0%s\n\0' "$PEM_B_SSH" "$PEM_E_SSH" > "$r/usr/bin/fake-ssh"
     case $v in *" rootfs-env "*) printf 'A=1\n' > "$r/opt/egw/deployment/.env" ;; esac
     case $v in *" rootfs-pem "*) printf '%s\n%s\n%s\n' "$PEM_B_RSA" "$(head -c 120 /dev/urandom | base64 -w 64)" "$PEM_E_RSA" > "$r/usr/bin/key.pem" ;; esac
+    # a file whose first line is the assignment, after a file (a-filler, written first) whose last block
+    # ends in zero padding (rootfs-pw) or in 4096 bytes of text without a line break (rootfs-pw-blk)
+    case $v in *" rootfs-pw "* | *" rootfs-pw-blk "*)
+        mkdir -p "$r/opt/egw/conf"
+        case $v in
+            *" rootfs-pw "*) printf 'x\n' > "$r/opt/egw/conf/a-filler" ;;
+            *) head -c 4096 /dev/zero | tr '\0' x > "$r/opt/egw/conf/a-filler" ;;
+        esac
+        printf 'ADMIN_PASSWORD=abc123def\n' > "$r/opt/egw/conf/notes.conf" ;;
+    esac
     make_rootfs "$r" || return 1
-    fake_qcow2 "$TMP/rootfs.ext4" "$d/yoctoScarthgap.qcow2"
+    case $v in *" snap "*) j='{"format": "qcow2", "snapshots": [{"id": "1", "name": "pilot"}]}' ;; *) j= ;; esac
+    fake_qcow2 "$TMP/rootfs.ext4" "$d/yoctoScarthgap.qcow2" "$j"
     head -c 65536 /dev/urandom > "$d/Image"
     printf '# stand-in package\n' > "$d/README.md"
     printf '#!/bin/sh\necho stand-in\n' > "$d/run-linux.sh"
@@ -449,10 +475,39 @@ make_package() {
     case $v in *" pem "*) printf '%s\n%s\n%s\n' "$PEM_B_RSA" "$(head -c 120 /dev/urandom | base64 -w 64)" "$PEM_E_RSA" > "$d/notes.txt" ;; esac
     case $v in *" pw-env "*) printf 'MOSQUITTO_SIMULATOR_PASSWORD=abc123def\n' > "$d/conf.txt" ;; esac
     case $v in *" pw-text "*) printf 'db_password = hunter2\n' > "$d/notes2.txt" ;; esac
+    # an assignment right after a NUL byte, with no line break in the 512 bytes before it
+    case $v in *" pw-nul "*) { head -c 600 /dev/zero | tr '\0' x; printf '\0ADMIN_PASSWORD=abc123def\n'; } > "$d/notes.bin" ;; esac
     case $v in *" ext4 "*) cp "$TMP/rootfs.ext4" "$d/rootfs.ext4" ;; esac
+    # the sealed image's deploy name, compressed; disk images by their names (the content does not matter)
+    case $v in *" sealed-gz "*) gzip -n -c "$TMP/rootfs.ext4" > "$d/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4.gz" ;; esac
+    case $v in *" wic "*) head -c 4096 /dev/urandom > "$d/egw-image.wic" ;; esac
+    case $v in *" wic-xz "*) head -c 4096 /dev/urandom > "$d/egw-image.wic.xz" ;; esac
+    case $v in *" rootfs-ext4x "*) head -c 4096 /dev/urandom > "$d/image.rootfs.ext4-old" ;; esac
+    # a compressed ext4 under a neutral name (its first 1024 bytes are zero, which opens as an empty tar)
+    # holding a private key
+    case $v in *" gz-ext4 "* | *" tgz-ext4 "*)
+        printf '%s\n%s\n%s\n' "$PEM_B_RSA" "$(head -c 120 /dev/urandom | base64 -w 64)" "$PEM_E_RSA" > "$w/etc/hidden.key"
+        make_rootfs "$w" || return 1
+        case $v in *" gz-ext4 "*) gzip -n -c "$TMP/rootfs.ext4" > "$d/disk.img.gz" ;; *) gzip -n -c "$TMP/rootfs.ext4" > "$d/backup.tar.gz" ;; esac
+        rm -f "$w/etc/hidden.key" ;;
+    esac
+    # a qcow2 known only by its magic: a data disk that is not empty
+    case $v in *" img-extra "*)
+        printf 'left behind\n' > "$w/etc/events.log"
+        make_rootfs "$w" && fake_qcow2 "$TMP/rootfs.ext4" "$d/extra.img" || return 1 ;;
+    esac
+    # disk images inside an archive, which this scan cannot read
+    case $v in *" tar-qcow2 "* | *" tar-vmdk "*)
+        rm -rf "$w" && mkdir -p "$w" && head -c 4096 /dev/urandom > "$TMP/disk.payload"
+        case $v in
+            *" tar-qcow2 "*) fake_qcow2 "$TMP/disk.payload" "$w/disk.qcow2" && tar -C "$w" -czf "$d/bundle.tar.gz" disk.qcow2 ;;
+            *) { printf 'KDMV'; cat "$TMP/disk.payload"; } > "$w/disk.vmdk" && tar -C "$w" -czf "$d/bundle.tar.gz" disk.vmdk ;;
+        esac
+        rm -f "$TMP/disk.payload" ;;
+    esac
     (cd "$d" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS)
     case $v in *" sums-bad "*) printf 'x' >> "$d/README.md" ;; esac
-    rm -rf "$r"
+    rm -rf "$r" "$w"
 }
 # make_controller DIR [variant]: an OCI-layout archive with one gzip layer whose Python source holds
 # 'password=None' (not a hit), and its identity record.
@@ -495,6 +550,7 @@ P8=$TMP/p8
 I8=$TMP/i8
 make_package "$P8"
 make_controller "$I8"
+: > "$LOGF"
 out=$(mk "$TMP/out8" "$P8" "$I8"); rc=$?
 ZIP=$TMP/out8/egw-demo-kit-20990101.zip
 same "kit built: exit 0" 0 "$rc"
@@ -502,6 +558,8 @@ same "kit built: exit 0" 0 "$rc"
 has "kit built: KIT line" "KIT egw-demo-kit-20990101" "$out"
 has "the scan reports no hit" ": 0 hit(s)" "$out"
 has "the empty data disk is read and scanned" "1 other disk image(s)" "$out"
+same "qemu-img info on each disk image before its conversion" "info convert info convert" \
+    "$(grep -oE '^qemu-img (info|convert)' "$LOGF" | cut -d' ' -f2 | paste -sd' ' -)"
 same "zip and .sha256 present" 0 "$([ -s "$ZIP" ] && [ -s "$ZIP.sha256" ]; echo $?)"
 same ".sha256 matches the zip" 0 "$(cd "$TMP/out8" && sha256sum -c --quiet egw-demo-kit-20990101.zip.sha256 > /dev/null 2>&1; echo $?)"
 hasnt "no private-key text printed" "$PK" "$out"
@@ -555,6 +613,22 @@ refusal data-file "" "yoctoScarthgap/data.qcow2: the file system holds more than
 refusal data-raw "" "yoctoScarthgap/data.qcow2: not an unpartitioned ext4 file system"
 refusal "" layer-zstd "zstd-compressed data, which this scan cannot open"
 refusal "" layer-xz-pem "hidden.key: pem"
+refusal sealed-gz "" "the package lists egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4.gz"
+refusal wic "" "the package lists egw-image.wic"
+refusal wic-xz "" "the package lists egw-image.wic.xz"
+refusal rootfs-ext4x "" "the package lists image.rootfs.ext4-old"
+refusal gz-ext4 "" "disk.img.gz: pem"
+refusal tgz-ext4 "" "backup.tar.gz: pem"
+refusal img-extra "" "yoctoScarthgap/extra.img: the file system holds more than an empty lost+found"
+refusal tar-qcow2 "" "bundle.tar.gz!disk.qcow2: disk (a qcow2 image"
+refusal tar-vmdk "" "bundle.tar.gz!disk.vmdk: disk (a VMDK image"
+refusal rootfs-pw "" "rootfs (raw): env (1 PASSWORD"
+refusal rootfs-pw-blk "" "rootfs (raw): env (1 PASSWORD"
+refusal pw-nul "" "notes.bin: env"
+refusal key-tail "" "keys/egw_compare_share: the allowed test key is not one OpenSSH private key alone"
+refusal snap "" "yoctoScarthgap/yoctoScarthgap.qcow2: 1 internal snapshot(s)"
+refusal backing "" "yoctoScarthgap/data.qcow2: a backing file"
+refusal data-ext "" "yoctoScarthgap/data.qcow2: an external data file"
 
 echo "== 9. the kit in step 4 (zip from section 8)"
 KS='parse_args --kit "$Z"; step_kit'

@@ -8,7 +8,8 @@
 #
 #   --package   the SANITISED portable package of the Yocto image (README.md, BUILDINFO.txt, SHA256SUMS,
 #               yoctoScarthgap.qcow2, Image, keys/egw_compare_share and .pub ...). Never the sealed
-#               measured image: a package that lists an .ext4, a rootfs* or an .env file is refused.
+#               measured image: a package that lists an .ext4 or .wic (also compressed: .ext4.gz ...), a
+#               rootfs*, a *rootfs*.ext4* or an .env file is refused.
 #   --images    the folder with egw-controller-0.1.0-arm64.tar and its .identity.txt
 #               (default $EGW_IMAGES_DIR, else $HOME/egw-images, as in tools/compare/provision_stack.sh)
 #   --out       where egw-demo-kit-<date>.zip and egw-demo-kit-<date>.zip.sha256 are written (default
@@ -25,11 +26,13 @@
 #     fingerprint of the shipped test key, whose private and public halves match;
 #   - the controller archive matches its identity record, from a clean build context;
 #   - a secret scan of the staging tree finds nothing: no .env file name, no complete PEM private-key
-#     block other than the test key, no password assignment with a value - in every file, inside the
-#     controller's image layers and the package's tar.gz (compressed members are opened; one this scan
-#     cannot read, zstd for example, is a hit), and in every disk image read through qemu-img: the root
-#     file system (there the pilot's known secret files must be absent and authorized_keys must hold the
-#     test key only) and any other .qcow2 of the package (data.qcow2: an empty ext4, only lost+found).
+#     block other than the test key (which must hold that one key and nothing after it), no password
+#     assignment with a value - in every file, inside the controller's image layers and the package's
+#     tar.gz (compressed members are opened; one this scan cannot read, zstd for example, or a disk image
+#     inside an archive or compressed data, is a hit), and in every disk image read through qemu-img: the
+#     root file system (there the pilot's known secret files must be absent and authorized_keys must hold
+#     the test key only) and any other file with the qcow2 magic (data.qcow2: an empty ext4, only
+#     lost+found); a qcow2 with internal snapshots, a backing file or a data file is a hit.
 # Any hit refuses the kit; the scan reports where and which rule, never the matched text.
 # The staging tree is a temporary folder under ${TMPDIR:-/tmp} (on the Linux file system, so that the
 # test key keeps mode 600), removed at the end.
@@ -100,13 +103,15 @@ echo "== package: $PKG"
 [ -s "$PKG/SHA256SUMS" ] || die 3 "the package has no SHA256SUMS: nothing is taken from an unsealed package"
 LISTED=$(awk '{ p = substr($0, 67); sub(/^\.\//, "", p); print p }' "$PKG/SHA256SUMS")
 [ -n "$LISTED" ] || die 3 "the package's SHA256SUMS lists nothing"
+SEALED="the sealed image (an .ext4 or .wic, compressed or not), a root file system copy or an .env file never goes into the kit"
 while IFS= read -r rel; do
     case $rel in
         '' | /* | *..* | *[!A-Za-z0-9._/-]*) die 3 "unexpected path in the package's SHA256SUMS: '$rel'" ;;
     esac
     case /$rel in
-        *.ext4 | */rootfs* | */.env | */.env.* | *.env) die 3 "the package lists $rel: the sealed image, a root file system copy or an .env file never goes into the kit" ;;
+        *.ext4 | *.ext4.* | *.wic | *.wic.* | */rootfs* | */.env | */.env.* | *.env) die 3 "the package lists $rel: $SEALED" ;;
     esac
+    case ${rel##*/} in *rootfs*.ext4*) die 3 "the package lists $rel: $SEALED" ;; esac
 done <<< "$LISTED"
 for f in $PKG_REQUIRED; do
     printf '%s\n' "$LISTED" | grep -qxF -- "$f" || die 3 "the package's SHA256SUMS does not list $f"
@@ -182,6 +187,32 @@ EOF
 
 # --- 6. secret scan --------------------------------------------------------------------------------
 echo "== secret scan"
+# qcow2_hits LABEL FILE: a HIT line for each part of the qcow2 FILE that its conversion to raw does not read
+# (internal snapshots) or that lies outside it (a backing file, an external data file), from qemu-img info;
+# returns 1 when there is one (also when qemu-img info gives no answer).
+qcow2_hits() {
+    local why
+    why=$("$QIMG" info -f qcow2 --output=json "$2" 2> /dev/null | python3 -I -c '
+import json, sys
+try:
+    info = json.load(sys.stdin)
+except ValueError:
+    info = None
+if not isinstance(info, dict):
+    print("qemu-img info gave no readable answer")
+    sys.exit()
+if info.get("snapshots"):
+    print("%d internal snapshot(s), which the conversion to raw does not read" % len(info["snapshots"]))
+if info.get("backing-filename") or info.get("full-backing-filename"):
+    print("a backing file, which is not in the kit and not scanned")
+if ((info.get("format-specific") or {}).get("data") or {}).get("data-file"):
+    print("an external data file, which is not in the kit and not scanned")
+')
+    [ -n "$why" ] || return 0
+    printf '%s\n' "$why" | while IFS= read -r w; do echo "   HIT $1: $w"; done
+    return 1
+}
+qcow2_hits yoctoScarthgap/yoctoScarthgap.qcow2 "$TOP/yoctoScarthgap/yoctoScarthgap.qcow2" || die 3 "the secret scan refused the kit (hits above); nothing was zipped"
 RAW=$STAGE/rootfs.raw
 "$QIMG" convert -f qcow2 -O raw "$TOP/yoctoScarthgap/yoctoScarthgap.qcow2" "$RAW" > /dev/null 2>&1 || die 3 "qemu-img could not read yoctoScarthgap.qcow2"
 [ "$(od -An -tx1 -j1080 -N2 "$RAW" | tr -d ' \n')" = 53ef ] || die 3 "the root file system is not an unpartitioned ext4"
@@ -200,40 +231,49 @@ fi
 # dir_names RAW DIR: the names in folder DIR of the ext4 image RAW, sorted, on one line (the unused
 # entries of a preallocated folder such as lost+found, inode 0, are left out).
 dir_names() { debugfs -R "ls -p $2" "$1" 2> /dev/null | awk -F/ 'NF >= 6 && $2 != 0 { print $6 }' | LC_ALL=C sort | paste -sd' ' -; }
-# Every other disk image of the package (data.qcow2, the empty data disk) is read the same way: it must be
-# an unpartitioned ext4 holding nothing but an empty lost+found, and its data goes through the pem and env
-# rules below (label and raw file in pairs).
+# Every other disk image of the kit (data.qcow2, the empty data disk; any staged file with the qcow2 magic,
+# whatever its name) is read the same way: it must be an unpartitioned ext4 holding nothing but an empty
+# lost+found, and its data goes through the pem and env rules below (label and raw file in pairs).
 EXTRA=()
 n=0
-while IFS= read -r rel; do
-    case $rel in *.qcow2) ;; *) continue ;; esac
-    [ "$rel" != yoctoScarthgap.qcow2 ] || continue
+while IFS= read -r -d '' f; do
+    rel=${f#"$TOP"/}
+    [ "$rel" != yoctoScarthgap/yoctoScarthgap.qcow2 ] || continue
+    [ "$(od -An -tx1 -N4 "$f" | tr -d ' \n')" = 514649fb ] || continue
+    qcow2_hits "$rel" "$f" || { HITS=$((HITS + 1)); continue; }
     n=$((n + 1))
     xraw=$STAGE/extra-$n.raw
-    "$QIMG" convert -f qcow2 -O raw "$TOP/yoctoScarthgap/$rel" "$xraw" > /dev/null 2>&1 || die 3 "qemu-img could not read $rel"
+    "$QIMG" convert -f qcow2 -O raw "$f" "$xraw" > /dev/null 2>&1 || die 3 "qemu-img could not read $rel"
     if [ "$(od -An -tx1 -j1080 -N2 "$xraw" | tr -d ' \n')" != 53ef ]; then
-        echo "   HIT yoctoScarthgap/$rel: not an unpartitioned ext4 file system, so its contents cannot be checked"
+        echo "   HIT $rel: not an unpartitioned ext4 file system, so its contents cannot be checked"
         HITS=$((HITS + 1))
     elif [ "$(dir_names "$xraw" /)" != ". .. lost+found" ] || [ "$(dir_names "$xraw" /lost+found)" != ". .." ]; then
-        echo "   HIT yoctoScarthgap/$rel: the file system holds more than an empty lost+found (an extra disk ships empty)"
+        echo "   HIT $rel: the file system holds more than an empty lost+found (an extra disk ships empty)"
         HITS=$((HITS + 1))
     fi
-    EXTRA+=("yoctoScarthgap/$rel (raw)" "$xraw")
-done <<< "$LISTED"
+    EXTRA+=("$rel (raw)" "$xraw")
+done < <(find "$TOP" -type f -print0 | LC_ALL=C sort -z)
 python3 -I - "$TOP" "$ALLOWED_KEY" "$RAW" "${EXTRA[@]}" << 'PY'
 """Secret scan of the staging tree. Rules (the matched text is never printed):
   name  a file or archive member called .env, *.env or .env.*;
   pem   a COMPLETE PEM private-key block: BEGIN line, line break, at least 64 base64 characters, no NUL,
         the END line of the same type (C string literals of ssh binaries have the markers but no body);
   env   a line-start assignment NAME=value with PASSWORD in an upper-case NAME and a value that is not
-        a $reference (every file, archive member and the root file system);
+        a $reference (every file, archive member and the root file system); a line starts after a line
+        break or a NUL byte, and in a disk image also on a 1024-byte boundary (a file's first line
+        starts a block, whatever ends the block before it);
   text  in the kit's own text files (not inside archives, whose program sources legitimately hold
-        'password=None'): any identifier containing 'password' (any case) assigned '=' a value.
-Archives (.tar, .tar.gz, .tgz) are read member by member, nested image layers included. Compressed data
-(gzip, xz, bzip2) is opened, never scanned in compressed form; data this scan cannot open (zstd, or a
-damaged stream) is a hit, so that the scan fails closed. The raw disk images (the root file system and
-any extra disk, given as label/path pairs after it) are read by their data extents (holes skipped) with
-the pem and env rules."""
+        'password=None'): any identifier containing 'password' (any case) assigned '=' a value;
+  disk  a disk image (qcow2, VMDK, VHDX, VDI) inside an archive or compressed data, or one other than a
+        qcow2 among the kit's files: its contents cannot be read here (a qcow2 file of the kit is read
+        through qemu-img before this scan).
+Archives (.tar, .tar.gz, .tgz) are read member by member, nested image layers included; data that opens
+as a tar with no member (an ext4 image starts with 1024 zero bytes, which read as an empty tar) is scanned
+as data instead. Compressed data (gzip, xz, bzip2) is opened, never scanned in compressed form; data this
+scan cannot open (zstd, or a damaged stream) is a hit, so that the scan fails closed. The allowed test key
+must be one OpenSSH private key and nothing after its END line. The raw disk images (the root file system
+and any extra disk, given as label/path pairs after it) are read by their data extents (holes skipped)
+with the pem and env rules."""
 import bz2
 import gzip
 import io
@@ -247,7 +287,10 @@ import zlib
 top, allowed, raw = sys.argv[1], sys.argv[2], sys.argv[3]
 extra = list(zip(sys.argv[4::2], sys.argv[5::2]))
 PEM_BEGIN = re.compile(rb"-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY-----")
+SSH_BEGIN, SSH_END = b"-----BEGIN OPENSSH PRIVATE KEY-----", b"-----END OPENSSH PRIVATE KEY-----"
 NOT_B64 = re.compile(rb"[^A-Za-z0-9+/=]")
+# The magic bytes of disk image formats: (offset, magic, name).
+DISK_MAGIC = ((0, b"QFI\xfb", "qcow2"), (0, b"KDMV", "VMDK"), (0, b"vhdxfile", "VHDX"), (64, b"\x7f\x10\xda\xbe", "VDI"))
 ENV_LINE = re.compile(rb"[ \t]*(?:export[ \t]+)?[A-Z][A-Z0-9_]*PASSWORD[A-Z0-9_]*=[\"']?[^\s\x00\"'$]")
 TEXT_ASSIGN = re.compile(rb"(?i)(?<![a-z0-9_])[a-z0-9_]*password[a-z0-9_]*[ \t]*=[ \t]*[\"']?[^\s\"'$]")
 hits = []
@@ -271,13 +314,20 @@ def pem_offsets(data, base=0):
     return found
 
 
-def env_offsets(data, base=0):
+def env_offsets(data, base=0, block=0):
+    """The offsets of the env-rule assignments in DATA (read at offset BASE). A line starts after a line
+    break or a NUL byte; with BLOCK (a disk image), also on a BLOCK boundary, where a file's data starts
+    whatever ends the block before it."""
     found = set()
     i = data.find(b"PASSWORD")
     while i >= 0:
-        s = data.rfind(b"\n", max(0, i - 512), i) + 1
+        lo = max(0, i - 512)
+        s = max(data.rfind(b"\n", lo, i), data.rfind(b"\x00", lo, i)) + 1
+        b = i - (base + i) % block if block else -1
         if (s > 0 or i < 512) and ENV_LINE.match(data, s):
             found.add(base + s)
+        elif b >= 0 and ENV_LINE.match(data, b):
+            found.add(base + b)
         i = data.find(b"PASSWORD", i + 8)
     return found
 
@@ -316,9 +366,18 @@ def compression(data):
     return None
 
 
-def scan_data(where, data, depth, text_rule):
+def disk_image(data):
+    """The disk image format of DATA by its magic bytes, or None."""
+    for off, magic, name in DISK_MAGIC:
+        if data[off:off + len(magic)] == magic:
+            return name
+    return None
+
+
+def scan_data(where, data, depth, text_rule, top=False):
     """Scan DATA (a file or an archive member): a tar is read member by member and compressed data is
-    opened first. Returns the number of nested archive members read."""
+    opened first. TOP: DATA is a file of the kit as it is (a qcow2 there was read through qemu-img).
+    Returns the number of nested archive members read."""
     kind = compression(data)
     if kind == "zstd":
         hits.append(f"{where}: zstd-compressed data, which this scan cannot open")
@@ -327,14 +386,20 @@ def scan_data(where, data, depth, text_rule):
         nested = open_tar(data)
         if nested is not None:
             with nested:
-                return scan_archive(where, nested, depth + 1)
+                count = scan_archive(where, nested, depth + 1)
+            if count:
+                return count
+            # No member: not a tar after all (an ext4 image starts with zero blocks); scanned as data.
     if kind:
         try:
             data = DECOMPRESS[kind](data)
         except (OSError, EOFError, ValueError, zlib.error, lzma.LZMAError):
             hits.append(f"{where}: unreadable {kind} data")
             return 0
-        text_rule = False
+        text_rule = top = False
+    disk = disk_image(data)
+    if disk and not (top and disk == "qcow2"):
+        hits.append(f"{where}: disk (a {disk} image, whose contents this scan cannot read)")
     scan_bytes(where, data, text_rule)
     return 0
 
@@ -373,17 +438,23 @@ for dirpath, dirnames, filenames in os.walk(top):
                 hits.append(f"{rel}: unreadable archive ({exc.__class__.__name__})")
                 continue
             with tf:
-                members += scan_archive(rel, tf)
-            continue
+                count = scan_archive(rel, tf)
+            members += count
+            if count:
+                continue
+            # No member: not a tar after all (an ext4 image starts with zero blocks); scanned as data.
         with open(path, "rb") as fh:
             data = fh.read()
         if rel == allowed:
-            # The one private key that ships: it must be what it claims, an OpenSSH key (checked against
-            # its public half and BUILDINFO.txt before the scan).
-            if not data.startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----"):
-                hits.append(f"{rel}: the allowed test key is not an OpenSSH private key")
+            # The one private key that ships: it must be what it claims, ONE OpenSSH key (checked against
+            # its public half and BUILDINFO.txt before the scan) and nothing after its END line, which
+            # would ship unscanned.
+            end = data.find(SSH_END)
+            if (not data.startswith(SSH_BEGIN) or len(PEM_BEGIN.findall(data)) != 1 or end < 0
+                    or data[end + len(SSH_END):].strip()):
+                hits.append(f"{rel}: the allowed test key is not one OpenSSH private key alone")
             continue
-        members += scan_data(rel, data, 0, text_rule=True)
+        members += scan_data(rel, data, 0, text_rule=True, top=True)
 
 
 def scan_raw(label, path):
@@ -407,7 +478,8 @@ def scan_raw(label, path):
                 fh.seek(off)
                 data = fh.read(n)
                 pem |= pem_offsets(data, off)
-                env |= env_offsets(data, off)
+                # 1024: every ext4 block size is a multiple of it
+                env |= env_offsets(data, off, 1024)
                 scanned += len(data)
                 off += window
             pos = stop

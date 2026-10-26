@@ -158,10 +158,12 @@ bash tools/setup/make_demo_kit.sh --package <sanitised yoctoScarthgap folder> --
 It writes `egw-demo-kit-<date>.zip` and `egw-demo-kit-<date>.zip.sha256`. Before zipping, it verifies the
 package's `SHA256SUMS`, its record of a clean secret scan, the test key's two halves and the controller
 archive against its identity record. It then scans every file, the image layers (compressed members are
-opened; one it cannot open, such as zstd, refuses the kit) and every disk image of the package, read
-through `qemu-img`: the root file system and the data disk, which must be an empty ext4. It looks for
-`.env` files, private keys other than the test key and password assignments. Any hit refuses the kit,
-and no matched text is printed. A package that lists an `.ext4` or `rootfs` file (the sealed image) is
+opened; one it cannot open, such as zstd, or a disk image inside an archive refuses the kit) and every
+disk image of the package (any file with the qcow2 magic), read through `qemu-img`: the root file system
+and the data disk, which must be an empty ext4; a qcow2 with snapshots, a backing file or a data file is
+refused. It looks for `.env` files, private keys other than the test key (whose file holds that key and
+nothing else) and password assignments. Any hit refuses the kit, and no matched text is printed. A
+package that lists an `.ext4` or `.wic` file (also compressed) or a `rootfs` file (the sealed image) is
 refused.
 
 ## Offline check
