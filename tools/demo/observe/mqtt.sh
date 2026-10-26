@@ -19,12 +19,19 @@ say "MQTT observer on $s: broker-side view of c2dt/# (topic c2dt/<egw-id>/<devic
 ID=demo-observer-$(date -u +%Y%m%dT%H%M%SZ)-$$
 COMPOSE='cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env'
 REMOTE='cd /opt/egw/deployment && set -a && . ./.env && set +a && exec docker compose --env-file .env --env-file images.lock.env exec -T -e MQTT_PW="$MOSQUITTO_CONTROLLER_PASSWORD" mosquitto sh -c "exec mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -V mqttv311 -i '"$ID"' -u egw-controller -P \"\$MQTT_PW\" -t c2dt/# -q 1 -v"'
+SSH=
 end_subscriber() {
     trap - EXIT INT TERM HUP
+    # the job is a subshell running dssh: its ssh child first, then the subshell
+    [ -z "$SSH" ] || kill -TERM $(ps -o pid= --ppid "$SSH" 2> /dev/null) "$SSH" 2> /dev/null
     dssh "$s" "$COMPOSE exec -T mosquitto pkill -f $ID" > /dev/null 2>&1 < /dev/null
 }
 trap end_subscriber EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
-dssh "$s" "$REMOTE"
+# The stream runs as a job, so that a signal to this script (Ctrl+C, or 'kill <pid>' from another
+# terminal) is handled at once instead of after the ssh session ends.
+dssh "$s" "$REMOTE" &
+SSH=$!
+wait "$SSH"
