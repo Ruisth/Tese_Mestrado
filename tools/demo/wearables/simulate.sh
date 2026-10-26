@@ -79,10 +79,12 @@ say "publishing ($duration s) - Ctrl+C stops only the simulator"
 SIM=$!
 echo "$SIM" > "$DEMO_STATE/sim.pid"
 trap 'kill -INT "$SIM" 2> /dev/null' INT TERM
-# live view of what is being published (device, seq, message id), from the simulator's own record
+# live view of what is being published (device, seq, message id), from the simulator's own record;
+# 'tail --pid' stops following once the simulator has exited, and the reader then sees end of input,
+# so the view ends by itself instead of being left behind
 sleep 2
 F=$DEMO_RUNS/$RUN/sent_events.jsonl
-( tail -n +1 -F "$F" 2> /dev/null | python3 -u -c '
+( tail -n +1 -F --pid="$SIM" "$F" 2> /dev/null | python3 -u -c '
 import json, sys
 for line in sys.stdin:
     try:
@@ -95,8 +97,14 @@ for line in sys.stdin:
 TAIL=$!
 wait "$SIM"
 rc=$?
-sleep 1
-kill "$TAIL" 2> /dev/null
+# bounded wait for the view to end; if it has not, signal (TERM) only its own processes: the tail and the
+# reader are children of the view's subshell, which a signal to the subshell alone would leave running
+for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$TAIL" 2> /dev/null || break; sleep 1; done
+if kill -0 "$TAIL" 2> /dev/null; then
+    for p in $(ps -o pid= --ppid "$TAIL" 2> /dev/null); do kill "$p" 2> /dev/null; done
+    kill "$TAIL" 2> /dev/null
+fi
+wait "$TAIL" 2> /dev/null
 rm -f "$DEMO_STATE/sim.pid"
 say "simulator ended (exit $rc); run $RUN; sent $(grep -c . "$F" 2> /dev/null || echo 0) message(s) - see the observers for the MQTT publications and the Ditto twins"
 exit $rc

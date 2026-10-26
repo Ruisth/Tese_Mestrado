@@ -180,6 +180,43 @@ echo 999999 > "$TMP/st3/sim.pid"
 same "stop.sh clears the record of a pid that is not running" 0 "$(rc_of sim DEMO_STATE="$TMP/st3" bash "$DEMO/wearables/stop.sh")"
 same "the stale record is removed" 1 "$(rc_of test -e "$TMP/st3/sim.pid")"
 
+echo "== 4b. a full simulate.sh run against stubs leaves no live-view process behind"
+# A bounded stub simulator (fake venv python), a stub secrets file and CA, the stub compare_env.sh
+# (running) and the stub ssh (/ready 200): simulate.sh runs end to end without any guest. After it
+# exits, no 'tail -F' on the run's file and no live-view reader may be left running (PR #65 review).
+if command -v ps > /dev/null 2>&1 && ps -eo pid=,args= > /dev/null 2>&1 && python3 -c 'import json' > /dev/null 2>&1; then
+    mkdir -p "$TMP/venv/bin" "$TMP/cmp/scenarios/yocto/state"
+    cat > "$TMP/venv/bin/python" << 'EOF'
+#!/bin/bash
+[ "$*" = "-c import egw_simulator" ] && exit 0
+while [ $# -gt 0 ]; do case $1 in --run-id) run=$2; shift ;; --output) out=$2; shift ;; esac; shift; done
+mkdir -p "$out/$run"
+for i in 1 2 3; do printf '{"device_type": "smartwatch", "seq": %s}\n' "$i" >> "$out/$run/sent_events.jsonl"; sleep 1; done
+EOF
+    chmod +x "$TMP/venv/bin/python"
+    echo 'MOSQUITTO_SIMULATOR_PASSWORD=stub-not-a-secret' > "$TMP/stub.env"
+    echo stub-ca > "$TMP/cmp/scenarios/yocto/state/ca.crt"
+    # output to a file, not a command substitution: a left-over view process would keep a pipe open
+    # and hang this check instead of failing it
+    sim DEMO_VENV="$TMP/venv" DEMO_SECRETS="$TMP/stub.env" EGW_COMPARE_ROOT="$TMP/cmp" DEMO_TOOLS="$TMP/stubtools" \
+        STUB_RUNNING=true STUB_HTTP=200 DEMO_STATE_ROOT="$TMP/ds" bash "$DEMO/wearables/simulate.sh" yocto 1 3 > "$TMP/sim.out" 2>&1
+    rc=$?
+    out=$(cat "$TMP/sim.out")
+    same "simulate.sh end to end against stubs exits 0" 0 "$rc"
+    case $out in *"published  smartwatch      seq 3"*) ok "the live view printed the published records" ;; *) ko "the live view printed the published records" ;; esac
+    sleep 1
+    left=$(ps -eo pid=,args= | grep -F -e "$TMP/ds/runs" -e 'for line in sys.stdin' | grep -v grep || true)
+    if [ -z "$left" ]; then
+        ok "no live-view process left after simulate.sh exits"
+    else
+        ko "live-view processes left after simulate.sh exits: $left"
+        for p in $(printf '%s\n' "$left" | awk '{print $1}'); do kill "$p" 2> /dev/null; done
+    fi
+    same "the simulation record is cleared" 1 "$(rc_of test -e "$TMP/ds/state/sim.pid")"
+else
+    sk "end-to-end stub run: needs ps with -eo and python3"
+fi
+
 echo "== 5. static rules"
 personal=$(grep -rnE '/home/[A-Za-z]|[A-Za-z]:[\\/]Users[\\/]' "$DEMO" --include='*.sh' --include='*.md' | grep -v '^[^:]*/tests/' || true)
 if [ -z "$personal" ]; then ok "no personal paths"; else ko "personal paths: $personal"; fi
