@@ -20,7 +20,8 @@ in an Ubuntu terminal. Then the menu `bash tools/demo/demo.sh`, or the manual co
   not install (error `0x80370102`).
 - **16 GB of RAM in the PC.** The emulated gateway is given 8 GiB. By default WSL gets only half of the
   PC's memory, so on a 16 GB PC raise it: create `%UserProfile%\.wslconfig` with the two lines `[wsl2]`
-  and `memory=12GB`, then run `wsl --shutdown` in PowerShell. The script warns below 12 GiB.
+  and `memory=12GB`, then run `wsl --shutdown` in PowerShell. WSL then reports about 11.7 GiB; the
+  script warns below 11 GiB.
 - **About 25 GB of free disk** in WSL.
 - **Internet during the preparation.** It downloads Ubuntu packages, Terraform, Python packages and the
   Debian 13 image. The first start of each scenario also pulls five container images.
@@ -62,16 +63,16 @@ twice. `sudo` asks for your Ubuntu password once, for `apt-get`.
 
 | Step | What it does |
 |---|---|
-| 1 host checks | WSL 2, Ubuntu 24.04, the clone on the Linux file system, not root, no comparison set-up of its own (see above); checks the ZIP against its `.sha256` and its layout; warns on memory and disk |
-| 2 apt packages | Installs the packages below (waiting if another apt holds the lock); checks that QEMU offers the CPU and devices of the machine profile |
+| 1 host checks | WSL 2, Ubuntu 24.04, the clone on the Linux file system, not root, no comparison set-up of its own (see above); checks the ZIP against its `.sha256` and its layout; warns below 11 GiB of memory or 25 GB of free disk |
+| 2 apt packages | Installs the packages below (waiting up to 10 minutes if another apt holds the package lists or the dpkg lock); checks that QEMU offers the CPU and devices of the machine profile |
 | 3 terraform | Terraform 1.16.6 into `~/egw-compare/bin`, checked against HashiCorp's `SHA256SUMS`; marks `~/egw-compare` as made by this script |
-| 4 kit | Unpacks the ZIP to `~/egw-kit`, checks `SHA256SUMS`, converts the image to the raw ext4 file the `yocto` scenario reads, checks the controller archive |
+| 4 kit | Unpacks the ZIP to `~/egw-kit`, checks `SHA256SUMS`, converts the image to the raw ext4 file the `yocto` scenario reads, checks the controller archive. Refused while `~/egw-compare/base/yocto` holds the image of another kit, which `tools/compare` never replaces: run `bash tools/compare/tf.sh yocto destroy`, remove that folder and run again |
 | 5 ssh key | Installs the test key as `~/.ssh/egw_compare_share` (mode 600); never replaces a different key |
 | 6 secrets file | Creates `~/.config/egw-demo/deployment.env` from `src/deployment/.env.example` with fresh random passwords (mode 600); never overwrites it and never prints a value |
 | 7 python venv | `~/.local/share/egw-demo/venv` with the project installed from `src/` |
 | 8 settings | Writes `~/.config/egw-demo/env.sh` (paths only) and one marked line that loads it in `~/.profile` (or in `~/.bash_profile` when that file exists) |
 | 9 terraform init | `tf.sh yocto init` and `tf.sh debian13 init` |
-| 10 debian 13 | Downloads the pinned Debian 13 image (checked against its published SHA512) and boots it once to install Docker, as [tools/compare](../compare/README.md) describes. Several minutes. Refused while another QEMU runs |
+| 10 debian 13 | Downloads the pinned Debian 13 image (checked against its published SHA512) and boots it once to install Docker, as [tools/compare](../compare/README.md) describes. Several minutes. Refused while another QEMU runs or another scenario holds the profile's lock (`tf.sh <s> stop` frees it) |
 | 11 summary | The next commands |
 
 Step 10 is optional. The image URL is pinned to one dated Debian build, which Debian may remove in time,

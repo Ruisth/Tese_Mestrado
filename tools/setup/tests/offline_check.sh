@@ -7,7 +7,8 @@
 #   1. bash -n on every script under tools/setup;
 #   2. shellcheck --severity=error on the same scripts when shellcheck is installed;
 #   3. prepare_demo_host.sh arguments: usage, refusals, --kit=, --no-debian, --dry-run, derived paths;
-#   4. step 1 against stub host files: WSL 2 / WSL 1 / not WSL, Ubuntu 24.04 / 22.04, low memory, root,
+#   4. step 1 against stub host files: WSL 2 / WSL 1 / not WSL, Ubuntu 24.04 / 22.04, low memory (no
+#      warning for the 11.7 GiB that memory=12GB in .wslconfig gives), root,
 #      a clone or a location under /mnt or on a 9p drive, a location inside the clone, CRLF line endings,
 #      a missing kit; a host with its own comparison set-up refused (EGW_* settings, a state root without
 #      the marker, the measurement key, the session tooling), its own settings and marker accepted;
@@ -29,11 +30,12 @@
 #   9. step 4 on that zip: dry run, extraction, conversion, SKIP on a re-run (also with the overlays of
 #      run-linux.sh in yoctoScarthgap/work/), a different kit of the same date refused, a stale extraction
 #      folder removed, .sha256 mismatch, missing .sha256, a tampered extracted file, unsafe or foreign zip
-#      layouts, an inner SHA256SUMS mismatch;
+#      layouts, an inner SHA256SUMS mismatch, a yocto base copy of another kit refused;
+#  9b. step 5 with that kit: a different key pair or public half never replaced, a loose mode set to 600;
 #  10. the whole script on the stand-in clone: a dry run that writes nothing and calls no sudo, curl or
-#      convert; a damaged ZIP stopped in step 1; the step-10 guards (a running QEMU, a busy port); step 3
-#      marking the state root and removing a stale download; a real run with every external step stubbed,
-#      then re-runs (plain, and with the settings sourced as in a login shell) in which every step is
+#      convert; a damaged ZIP stopped in step 1; the step-10 guards (a running QEMU, a busy port, the
+#      profile's lock); step 2 waiting for the package lists lock; step 3 marking the state root and
+#      removing a stale download; a real run with every external step stubbed, then re-runs (plain, and with the settings sourced as in a login shell) in which every step is
 #      SKIP and HOME is unchanged;
 #  11. static rules: no personal paths, no process killing, no set -x;
 #  12. the settings as the REAL tools read them: tools/compare/lib.sh with scenarios/yocto.env (the base
@@ -134,6 +136,8 @@ printf 'Linux version 6.8.0-45-generic (buildd@lcy02-amd64-075) #45-Ubuntu SMP\n
 printf 'NAME="Ubuntu"\nID=ubuntu\nVERSION_ID="24.04"\n' > "$TMP/os_2404"
 printf 'NAME="Ubuntu"\nID=ubuntu\nVERSION_ID="22.04"\n' > "$TMP/os_2204"
 printf 'MemTotal:       16303428 kB\n' > "$TMP/mem16"
+# what WSL reports on a 16 GB PC with memory=12GB in .wslconfig, as tools/setup/README.md advises
+printf 'MemTotal:       12249000 kB\n' > "$TMP/mem12"
 printf 'MemTotal:        8000000 kB\n' > "$TMP/mem8"
 
 # envrun [VAR=value ...] CMD...: CMD in a clean environment: throw-away HOME ($TMP/home unless given),
@@ -207,8 +211,11 @@ same "kit missing: exit 2 in step 1" 2 "$rc"
 has "kit missing: named in step 1" "[1/11] host checks: STOP: kit not found or not readable" "$out"
 out=$(prep EGW_SETUP_MEMINFO="$TMP/mem8" "$H1"); rc=$?
 same "8 GiB: still exit 0" 0 "$rc"
-has "8 GiB: memory warning with the .wslconfig hint" "below 12 GiB" "$out"
+has "8 GiB: memory warning with the .wslconfig hint" "below 11 GiB" "$out"
 has "8 GiB: .wslconfig named" ".wslconfig" "$out"
+out=$(prep EGW_SETUP_MEMINFO="$TMP/mem12" "$H1"); rc=$?
+same "memory=12GB in .wslconfig (11.7 GiB): exit 0" 0 "$rc"
+hasnt "memory=12GB in .wslconfig (11.7 GiB): no memory warning" "GiB of memory, below" "$out"
 out=$(prep EGW_SETUP_PROC_VERSION="$TMP/pv_wsl1" "$H1"); rc=$?
 same "WSL 1: exit 2" 2 "$rc"
 has "WSL 1: named" "this is WSL 1" "$out"
@@ -659,6 +666,22 @@ out=$(prep HOME="$H9" Z="$ZIP" "$KS"); rc=$?
 same "re-run after run-linux.sh (work/ present): exit 0" 0 "$rc"
 has "re-run after run-linux.sh (work/ present): SKIP" "[4/11] kit: SKIP" "$out"
 rm -rf "$KT/yoctoScarthgap/work"
+# compare_env.sh copies the yocto base once (base/yocto/rootfs.ext4, recorded in base/yocto/SHA256SUMS)
+# and never refreshes it: a base copied from another kit is refused, since the settings would name this
+# kit while tf.sh keeps booting the other one; a base of this kit passes.
+R9=$TMP/root9
+mkdir -p "$R9/base/yocto"
+printf '%064d  Image\n%064d  rootfs.ext4\n' 0 0 > "$R9/base/yocto/SHA256SUMS"
+out=$(prep HOME="$H9" EGW_COMPARE_ROOT="$R9" Z="$ZIP" "$KS"); rc=$?
+same "a base copy of another kit: exit 2" 2 "$rc"
+has "a base copy of another kit: refused in step 4" "[4/11] kit: STOP: $R9/base/yocto holds the root file system of another kit" "$out"
+has "a base copy of another kit: the way out" "run 'bash tools/compare/tf.sh yocto destroy', remove $R9/base/yocto and run this script again" "$out"
+out=$(prep HOME="$H9" EGW_COMPARE_ROOT="$R9" Z="$ZIP" 'parse_args --kit "$Z" --dry-run; step_kit'); rc=$?
+same "a base copy of another kit, dry run: exit 2 too" 2 "$rc"
+printf '%s  rootfs.ext4\n' "$(sha256sum "$KT/deploy/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4" | cut -d' ' -f1)" > "$R9/base/yocto/SHA256SUMS"
+out=$(prep HOME="$H9" EGW_COMPARE_ROOT="$R9" Z="$ZIP" "$KS"); rc=$?
+same "a base copy of this kit: exit 0" 0 "$rc"
+has "a base copy of this kit: SKIP" "[4/11] kit: SKIP" "$out"
 # Another kit with the same date (another package) must not pass as the extracted one.
 P8b=$TMP/p8b
 make_package "$P8b"
@@ -735,6 +758,41 @@ out=$(prep HOME="$TMP/home9e" Z="$TMP/unlisted.zip" "$KS"); rc=$?
 same "unlisted file in the kit: exit 3" 3 "$rc"
 has "unlisted file in the kit: named" "not listed in the kit's SHA256SUMS: unlisted.txt" "$out"
 
+echo "== 9b. the test key (step 5, the kit extracted in section 9)"
+S5="parse_args --kit /x/k.zip; KIT_TOP='$KT'; step_ssh_key"
+# A different key pair where the test key goes: refused, both halves left as they are.
+H9k=$TMP/home9k
+mkdir -p "$H9k/.ssh"
+ssh-keygen -q -t ed25519 -N '' -C 'own key' -f "$H9k/.ssh/egw_compare_share" > /dev/null
+before=$(cd "$H9k/.ssh" && sha256sum egw_compare_share egw_compare_share.pub)
+out=$(prep HOME="$H9k" "$S5"); rc=$?
+same "a different key pair: exit 2" 2 "$rc"
+has "a different key pair: never overwritten" "[5/11] ssh key: STOP: $H9k/.ssh/egw_compare_share (or .pub) exists and differs from the kit's test key; it is never overwritten" "$out"
+same "a different key pair: both halves unchanged" "$before" "$(cd "$H9k/.ssh" && sha256sum egw_compare_share egw_compare_share.pub)"
+hasnt "a different key pair: no private-key text printed" "$PK" "$out"
+# Only a different public half: refused too, and no private half written beside it.
+H9p=$TMP/home9p
+mkdir -p "$H9p/.ssh"
+cp "$H9k/.ssh/egw_compare_share.pub" "$H9p/.ssh/"
+out=$(prep HOME="$H9p" "$S5"); rc=$?
+same "only a different .pub: exit 2" 2 "$rc"
+has "only a different .pub: never overwritten" "it is never overwritten" "$out"
+same "only a different .pub: unchanged, no private half written" "0|1" \
+    "$(cmp -s "$H9k/.ssh/egw_compare_share.pub" "$H9p/.ssh/egw_compare_share.pub"; echo $?)|$([ -e "$H9p/.ssh/egw_compare_share" ]; echo $?)"
+# The kit's own key with a loose mode: set to 600; the dry run only reports it.
+H9m=$TMP/home9m
+mkdir -p "$H9m/.ssh"
+cp "$KT/yoctoScarthgap/keys/egw_compare_share" "$KT/yoctoScarthgap/keys/egw_compare_share.pub" "$H9m/.ssh/"
+chmod 644 "$H9m/.ssh/egw_compare_share"
+out=$(prep HOME="$H9m" "parse_args --kit /x/k.zip --dry-run; KIT_TOP='$KT'; step_ssh_key"); rc=$?
+same "the kit's key at mode 644, dry run: exit 0" 0 "$rc"
+has "the kit's key at mode 644, dry run: WOULD" "[5/11] ssh key: WOULD set mode 600 on $H9m/.ssh/egw_compare_share" "$out"
+same "the kit's key at mode 644, dry run: mode unchanged" 644 "$(mode_of "$H9m/.ssh/egw_compare_share")"
+out=$(prep HOME="$H9m" "$S5"); rc=$?
+same "the kit's key at mode 644: exit 0" 0 "$rc"
+has "the kit's key at mode 644: OK" "[5/11] ssh key: OK ($H9m/.ssh/egw_compare_share present; mode set to 600)" "$out"
+same "the kit's key at mode 644: mode now 600" 600 "$(mode_of "$H9m/.ssh/egw_compare_share")"
+
 echo "== 10. the whole script on the stand-in clone"
 H10=$TMP/home10
 mkdir -p "$H10"
@@ -758,6 +816,32 @@ has "a QEMU running: never stopped" "is never stopped by this script" "$out"
 out=$(envrun HOME="$H10" STUB_SS_LINE='LISTEN 0 128 127.0.0.1:8883 0.0.0.0:*' bash "$PREP" --kit "$ZIP" --dry-run); rc=$?
 same "a busy port: step 10 refuses (exit 2)" 2 "$rc"
 has "a busy port: named" "already have a listener: 8883" "$out"
+# The profile's lock (tools/compare/lib.sh lock_acquire): held by another scenario whose state/qemu.pid
+# is not empty, compare_env.sh would refuse the first boot, so step 10 refuses before the download. A lock
+# whose holder has no pid left (stale) or that debian13 holds itself is taken by compare_env.sh: no refusal.
+H10l=$TMP/home10l
+LK=$H10l/egw-compare/lock/active
+mkdir -p "$LK" "$H10l/egw-compare/scenarios/yocto/state"
+: > "$H10l/egw-compare/.egw-demo-host"
+echo yocto > "$LK/holder"
+echo 4242 > "$H10l/egw-compare/scenarios/yocto/state/qemu.pid"
+out=$(envrun HOME="$H10l" bash "$PREP" --kit "$ZIP" --dry-run); rc=$?
+same "the profile's lock held by yocto: step 10 refuses (exit 2)" 2 "$rc"
+has "the profile's lock held by yocto: the way out named" "[10/11] debian 13: STOP: the profile's lock is held by scenario 'yocto'" "$out"
+has "the profile's lock held by yocto: tf.sh yocto stop" "power it off (bash tools/compare/tf.sh yocto stop) and run again" "$out"
+: > "$LK/holder"
+out=$(envrun HOME="$H10l" bash "$PREP" --kit "$ZIP" --dry-run); rc=$?
+same "the profile's lock naming no scenario: step 10 refuses (exit 2)" 2 "$rc"
+has "the profile's lock naming no scenario: named" "[10/11] debian 13: STOP: the profile's lock $LK names no scenario" "$out"
+echo yocto > "$LK/holder"
+: > "$H10l/egw-compare/scenarios/yocto/state/qemu.pid"
+out=$(envrun HOME="$H10l" bash "$PREP" --kit "$ZIP" --dry-run); rc=$?
+same "a stale lock (empty qemu.pid of its holder): exit 0" 0 "$rc"
+has "a stale lock (empty qemu.pid of its holder): step 10 WOULD" "[10/11] debian 13: WOULD" "$out"
+echo debian13 > "$LK/holder"
+out=$(envrun HOME="$H10l" bash "$PREP" --kit "$ZIP" --dry-run); rc=$?
+same "the lock held by debian13 itself: exit 0" 0 "$rc"
+has "the lock held by debian13 itself: step 10 WOULD" "[10/11] debian 13: WOULD" "$out"
 : > "$LOGF"
 out=$(envrun HOME="$TMP/home10z" bash "$PREP" --kit "$TMP/z1/egw-demo-kit-20990101.zip"); rc=$?
 same "a damaged ZIP: exit 3" 3 "$rc"
@@ -780,8 +864,48 @@ stub sudo 'echo "sudo $*" >> "$STUB_LOG"; [ "${1:-}" != -v ] || { echo "sudo: a 
 out=$(prep HOME="$TMP/home10s" STUB_DPKG=missing 'parse_args --kit /x/k.zip; step_apt'); rc=$?
 same "step 2, sudo without a password: stops only after apt-get (exit 1)" 1 "$rc"
 hasnt "step 2, sudo without a password: not refused" "sudo refused" "$out"
-has "step 2, sudo without a password: apt-get ran" "sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update" "$(cat "$LOGF")"
+has "step 2, sudo without a password: apt-get ran" "sudo env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt-get -o DPkg::Lock::Timeout=600 update" "$(cat "$LOGF")"
 hasnt "step 2, sudo without a password: no 'sudo -v'" "sudo -v" "$(cat "$LOGF")"
+# Step 2 while apt-daily refreshes the package lists on a fresh install: 'apt-get update' cannot take
+# /var/lib/apt/lists/lock (DPkg::Lock::Timeout covers the dpkg lock only) and is run again while it says
+# so, every EGW_SETUP_APT_LOCK_SLEEP_S seconds for at most EGW_SETUP_APT_LOCK_WAIT_S in all; any other
+# failure is not retried. Here sudo runs the stand-ins: apt-get's update finds the lock held its first
+# STUB_APT_LOCKED times (STUB_APT_OTHER: fails otherwise), its install makes dpkg-query see the packages.
+stub sudo 'echo "sudo $*" >> "$STUB_LOG"; exec "$@"'
+stub apt-get 'echo "apt-get $*" >> "$STUB_LOG"
+case " $* " in
+    *" update "*)
+        [ -z "${STUB_APT_OTHER:-}" ] || { echo "E: Some index files failed to download." >&2; exit 100; }
+        if [ "$(grep -c "^apt-get .* update\$" "$STUB_LOG")" -le "${STUB_APT_LOCKED:-0}" ]; then
+            echo "E: Could not get lock /var/lib/apt/lists/lock. It is held by process 4243 (apt-get)" >&2
+            exit 100
+        fi ;;
+    *" install "*) : > "$STUB_APT_DONE" ;;
+esac'
+stub dpkg-query 'if [ -e "${STUB_APT_DONE:-/nonexistent}" ]; then printf "install ok installed"; else exit 1; fi'
+mkdir -p "$TMP/rom_ok" && : > "$TMP/rom_ok/efi-virtio.rom"
+A2="parse_args --kit /x/k.zip; step_apt"
+: > "$LOGF"
+out=$(prep HOME="$TMP/home10a" STUB_APT_DONE="$TMP/apt10a.done" STUB_APT_LOCKED=2 EGW_SETUP_APT_LOCK_SLEEP_S=0 EGW_SETUP_ROM_DIRS="$TMP/rom_ok" "$A2"); rc=$?
+same "step 2, lists lock held twice: exit 0" 0 "$rc"
+[ "$rc" = 0 ] || printf '%s\n' "$out" | sed 's/^/      | /'
+has "step 2, lists lock held twice: OK" "[2/11] apt packages: OK (installed:" "$out"
+same "step 2, lists lock held twice: the wait said once" 1 "$(printf '%s\n' "$out" | grep -c 'another apt holds the package lists lock')"
+same "step 2, lists lock held twice: update run three times, install once" "3|1" \
+    "$(grep -c '^apt-get .* update$' "$LOGF")|$(grep -c '^apt-get .* install -y ' "$LOGF")"
+: > "$LOGF"
+out=$(prep HOME="$TMP/home10b" STUB_APT_DONE="$TMP/apt10b.done" STUB_APT_LOCKED=99 EGW_SETUP_APT_LOCK_SLEEP_S=1 EGW_SETUP_APT_LOCK_WAIT_S=0 "$A2"); rc=$?
+same "step 2, lists lock held past the wait: exit 1" 1 "$rc"
+has "step 2, lists lock held past the wait: apt-get failed" "[2/11] apt packages: STOP: apt-get failed" "$out"
+has "step 2, lists lock held past the wait: the reason shown" "Could not get lock /var/lib/apt/lists/lock" "$out"
+same "step 2, lists lock held past the wait: one update, no install" "1|0" \
+    "$(grep -c '^apt-get .* update$' "$LOGF")|$(grep -c '^apt-get .* install ' "$LOGF")"
+: > "$LOGF"
+out=$(prep HOME="$TMP/home10c" STUB_APT_DONE="$TMP/apt10c.done" STUB_APT_OTHER=1 EGW_SETUP_APT_LOCK_SLEEP_S=0 EGW_SETUP_APT_LOCK_WAIT_S=2 "$A2"); rc=$?
+same "step 2, another update failure: exit 1" 1 "$rc"
+same "step 2, another update failure: not retried" 1 "$(grep -c '^apt-get .* update$' "$LOGF")"
+stub dpkg-query 'if [ "${STUB_DPKG:-installed}" = installed ]; then printf "install ok installed"; else exit 1; fi'
+stub apt-get 'echo "apt-get $*" >> "$STUB_LOG"; exit 99'
 stub sudo 'echo "sudo $*" >> "$STUB_LOG"; exit 99'
 # The ROM of the virtio network card: Ubuntu 24.04's ipxe-qemu installs it in /usr/lib/ipxe/qemu (on
 # QEMU's firmware path), other builds in /usr/share/qemu; found in either folder, no warning.

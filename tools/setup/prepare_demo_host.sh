@@ -15,14 +15,17 @@
 #                       not written by this script, a state root without this script's marker, the
 #                       measurement key or the session tooling): this script is for a separate PC or WSL
 #                       distribution; the kit ZIP readable, equal to <zip>.sha256 and safely laid out;
-#                       warnings below 12 GiB of memory and 25 GB of free disk
+#                       warnings below 11 GiB of memory and 25 GB of free disk
 #    2 apt packages     the host packages of tools/compare and tools/demo (sudo apt-get, waiting for the
-#                       dpkg lock), then QEMU's CPU and device lists read (help output only: no guest)
+#                       package lists lock and the dpkg lock), then QEMU's CPU and device lists read (help
+#                       output only: no guest)
 #    3 terraform        1.16.6 into $EGW_COMPARE_ROOT/bin/terraform, checked against HashiCorp's SHA256SUMS
 #                       (and, on x86-64, against the sha256 recorded in tools/compare/README.md)
 #    4 kit              extraction outside the clone, the kit's SHA256SUMS; the root file system converted
 #                       (qemu-img) to the raw ext4 file the yocto scenario reads; the controller archive
-#                       checked against its identity record. Keep the ZIP: a re-run reads it again
+#                       checked against its identity record; refused while the yocto scenario's base copy
+#                       ($EGW_COMPARE_ROOT/base/yocto) holds another kit's root file system. Keep the ZIP:
+#                       a re-run reads it again
 #    5 ssh key          the kit's TEST key installed as ~/.ssh/egw_compare_share (mode 600), never over
 #                       a different key
 #    6 secrets file     the deployment .env made from src/deployment/.env.example with fresh random
@@ -35,7 +38,8 @@
 #   10 debian 13        EGW_COMPARE_ALLOW_DOWNLOAD=1 compare_env.sh prepare debian13: the dated image checked
 #                       against its published SHA512, then one provisioning boot under QEMU (several
 #                       minutes, at most EGW_COMPARE_FIRSTBOOT_LIMIT_S, 1800 s by default); refused while any
-#                       qemu-system-aarch64 runs or a port of the profile is busy; optional (--no-debian)
+#                       qemu-system-aarch64 runs, a port of the profile is busy or another scenario's guest
+#                       holds the profile's lock; optional (--no-debian)
 #   11 summary          the next commands
 #
 # Locations (environment; all outside the clone and off the Windows file system):
@@ -64,7 +68,9 @@ TF_URL=https://releases.hashicorp.com/terraform/$TF_VERSION
 TF_SHA256_LINUX_AMD64=38034b38d03096399a7a1264a14561a8029b2b496fd1f169452656e53968f1b7
 # The host packages of tools/compare and tools/demo (tools/setup/README.md says why each is needed).
 APT_PACKAGES="qemu-system-arm qemu-utils ipxe-qemu python3 python3-venv unzip curl ca-certificates openssh-client e2fsprogs iproute2 procps git"
-MIN_MEM_KB=$((12 * 1024 * 1024))
+# The guest is given 8 GiB. memory=12GB in .wslconfig (tools/setup/README.md) makes WSL report about
+# 11.7 GiB, so the warning starts below 11 GiB.
+MIN_MEM_KB=$((11 * 1024 * 1024))
 MIN_FREE_KB=$((25 * 1000 * 1000 * 1000 / 1024))
 CONTROLLER_TAR=egw-controller-0.1.0-arm64.tar
 CONTROLLER_RECORD=egw-controller-0.1.0-arm64.identity.txt
@@ -85,14 +91,17 @@ VENV=${EGW_DEMO_VENV:-${XDG_DATA_HOME:-$HOME/.local/share}/egw-demo/venv}
 LOG_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/egw-demo/setup
 SSH_KEY=$HOME/.ssh/egw_compare_share
 # Test hooks, used by tools/setup/tests/offline_check.sh only: the files read by step 1, the QEMU
-# binaries (the settings file names whatever these resolve to; the defaults are Ubuntu's) and the folders
-# searched for the virtio network card's ROM.
+# binaries (the settings file names whatever these resolve to; the defaults are Ubuntu's), the folders
+# searched for the virtio network card's ROM, and how long step 2 waits for the package lists lock (the
+# pause between tries and the bound on the whole wait, in seconds).
 PROC_VERSION=${EGW_SETUP_PROC_VERSION:-/proc/version}
 OS_RELEASE=${EGW_SETUP_OS_RELEASE:-/etc/os-release}
 MEMINFO=${EGW_SETUP_MEMINFO:-/proc/meminfo}
 QEMU=${EGW_SETUP_QEMU:-/usr/bin/qemu-system-aarch64}
 QEMU_IMG=${EGW_SETUP_QEMU_IMG:-/usr/bin/qemu-img}
 ROM_DIRS=${EGW_SETUP_ROM_DIRS:-/usr/share/qemu /usr/lib/ipxe/qemu}
+APT_LOCK_SLEEP_S=${EGW_SETUP_APT_LOCK_SLEEP_S:-10}
+APT_LOCK_WAIT_S=${EGW_SETUP_APT_LOCK_WAIT_S:-600}
 
 STEPS=11
 CUR=0
@@ -253,7 +262,7 @@ step_host() {
     mem_kb=$(awk '/^MemTotal:/ { print $2; exit }' "$MEMINFO" 2> /dev/null)
     case $mem_kb in '' | *[!0-9]*) mem_kb=0 ;; esac
     if [ "$mem_kb" -lt "$MIN_MEM_KB" ]; then
-        warn "WSL has $(awk -v k="$mem_kb" 'BEGIN { printf "%.1f", k / 1048576 }') GiB of memory, below 12 GiB; the guest is given 8 GiB. Raise WSL's limit in Windows: %UserProfile%\\.wslconfig with '[wsl2]' and 'memory=12GB', then 'wsl --shutdown'"
+        warn "WSL has $(awk -v k="$mem_kb" 'BEGIN { printf "%.1f", k / 1048576 }') GiB of memory, below 11 GiB; the guest is given 8 GiB. Raise WSL's limit in Windows: %UserProfile%\\.wslconfig with '[wsl2]' and 'memory=12GB', then 'wsl --shutdown'"
     fi
     free_kb=$(df -Pk "$HOME" 2> /dev/null | awk 'NR == 2 { print $4 }')
     case $free_kb in '' | *[!0-9]*) free_kb=0 ;; esac
@@ -291,6 +300,26 @@ qemu_check() {
     warn "efi-virtio.rom (package ipxe-qemu) is in none of: $ROM_DIRS; QEMU may refuse the virtio-net-pci card"
 }
 
+# apt_update LOG: sudo apt-get update, appended to LOG. DPkg::Lock::Timeout covers the dpkg lock only, not
+# /var/lib/apt/lists/lock that 'update' takes, which apt-daily holds while it refreshes the lists on a
+# fresh install: while the output says 'Could not get lock', it is run again every APT_LOCK_SLEEP_S
+# seconds, for at most APT_LOCK_WAIT_S seconds in all. Any other failure returns at once. LC_ALL=C keeps
+# that message in English.
+apt_update() {
+    local log=$1 start=$SECONDS out rc said=0
+    while :; do
+        out=$(sudo env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt-get -o DPkg::Lock::Timeout=600 update 2>&1)
+        rc=$?
+        printf '%s\n' "$out" >> "$log"
+        [ "$rc" != 0 ] || return 0
+        case $out in *"Could not get lock"*) ;; *) return "$rc" ;; esac
+        [ $((SECONDS - start + APT_LOCK_SLEEP_S)) -le "$APT_LOCK_WAIT_S" ] || return "$rc"
+        [ "$said" = 1 ] || note "another apt holds the package lists lock: trying again every $APT_LOCK_SLEEP_S s, for at most $APT_LOCK_WAIT_S s"
+        said=1
+        sleep "$APT_LOCK_SLEEP_S"
+    done
+}
+
 step_apt() {
     step 2 "apt packages"
     local missing log
@@ -312,10 +341,10 @@ step_apt() {
     # 'sudo true', not 'sudo -v': 'sudo -v' asks for a password whenever any sudoers rule needs one, even
     # for a user allowed to run every command without one, and would wait for a password nobody types
     sudo true || stop 1 "sudo refused"
-    # On a fresh install apt-daily or unattended-upgrades may hold the dpkg lock: wait for it (10 minutes)
-    # instead of failing at once.
-    { sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 update \
-        && sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y "${pkgs[@]}"; } >> "$log" 2>&1 \
+    # On a fresh install apt-daily or unattended-upgrades may hold the package lists lock or the dpkg
+    # lock: wait for each (10 minutes) instead of failing at once.
+    { apt_update "$log" \
+        && sudo env DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y "${pkgs[@]}" >> "$log" 2>&1; } \
         || { tail_of "$log"; stop 1 "apt-get failed; see $log"; }
     missing=$(pkg_missing)
     [ -z "$missing" ] || stop 1 "still not installed: $missing; see $log"
@@ -511,6 +540,20 @@ kit_deploy() {
     DEPLOY_STATE=converted
 }
 
+# base_check DEP: compare_env.sh copies the yocto scenario's base once into $COMPARE_ROOT/base/yocto
+# (base_copy: rootfs.ext4, then never refreshed) and records it in that folder's SHA256SUMS (base_seal).
+# Stop when that record names another root file system than the one in DEP (as DEP/SHA256SUMS records
+# it): the settings would name this kit while tf.sh kept booting the earlier kit's image.
+base_check() {
+    local dep=$1 rootfs base new
+    base=$(awk '$2 == "rootfs.ext4" { print $1 }' "$COMPARE_ROOT/base/yocto/SHA256SUMS" 2> /dev/null | head -n 1)
+    [ -n "$base" ] || return 0
+    rootfs=$(yocto_targets "$dep" | head -n 1)
+    new=$(awk -v f="$(basename "$rootfs")" '$2 == f { print $1 }' "$dep/SHA256SUMS" 2> /dev/null | head -n 1)
+    [ "$base" = "$new" ] && return 0
+    stop 2 "$COMPARE_ROOT/base/yocto holds the root file system of another kit (rootfs.ext4 ${base:0:12}..., this kit's ${new:0:12}...), and tools/compare never replaces a base copy: run 'bash tools/compare/tf.sh yocto destroy', remove $COMPARE_ROOT/base/yocto and run this script again"
+}
+
 # zip_member ZIP NAME: the bytes of one member of ZIP on standard output (python3: no unzip needed).
 zip_member() {
     python3 -I -c 'import sys, zipfile; sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))' "$1" "$2" 2> /dev/null
@@ -554,6 +597,7 @@ step_kit() {
     kit_deploy "$KIT_TOP"
     rc=$?
     [ "$rc" = 0 ] || stop "$rc" "$DEPLOY_MSG"
+    [ "$DEPLOY_STATE" = would ] || base_check "$KIT_TOP/deploy"
     if [ "$extracted" = present ] && [ "$DEPLOY_STATE" = present ]; then
         report "SKIP ($KIT_TOP verified; deploy/ holds the converted root file system; controller archive matches its record)"
     elif [ "$DEPLOY_STATE" = would ]; then
@@ -833,7 +877,7 @@ step_tf_init() {
 
 step_debian() {
     step 10 "debian 13"
-    local others rc p busy='' log
+    local others rc p busy='' log holder
     if [ "$NO_DEBIAN" = 1 ]; then
         report "SKIP (--no-debian; later: EGW_COMPARE_ALLOW_DOWNLOAD=1 bash tools/compare/compare_env.sh prepare debian13)"
         return 0
@@ -856,6 +900,15 @@ $others" ;;
     done
     [ -z "$busy" ] || stop 2 "host port(s) needed by the Debian first boot already have a listener:$busy"
     [ ! -e "${EGW_EXEC:-$HOME/egw-exec}/current_session" ] || stop 2 "a pilot session is open (${EGW_EXEC:-$HOME/egw-exec}/current_session)"
+    # The profile's lock as lock_acquire (tools/compare/lib.sh) reads it: held by another scenario whose
+    # state/qemu.pid is not empty (or naming none), compare_env.sh refuses; a stale one it takes over.
+    if [ -e "$COMPARE_ROOT/lock/active" ]; then
+        holder=$(cat "$COMPARE_ROOT/lock/active/holder" 2> /dev/null)
+        [ -n "$holder" ] || stop 2 "the profile's lock $COMPARE_ROOT/lock/active names no scenario, so compare_env.sh would refuse the first boot; when no tools/compare command is running, remove that folder and run again"
+        if [ "$holder" != debian13 ] && [ -s "$COMPARE_ROOT/scenarios/$holder/state/qemu.pid" ]; then
+            stop 2 "the profile's lock is held by scenario '$holder' ($COMPARE_ROOT/scenarios/$holder/state/qemu.pid is not empty), so compare_env.sh would refuse the first boot; power it off (bash tools/compare/tf.sh $holder stop) and run again"
+        fi
+    fi
     [ "$DRY" = 1 ] && { report "WOULD run: EGW_COMPARE_ALLOW_DOWNLOAD=1 bash tools/compare/compare_env.sh prepare debian13 (download of the pinned image, SHA512 check, one provisioning boot)"; return 0; }
     log=$(new_log debian13-prepare)
     note "downloading the pinned Debian 13 image (about 0.4 GB, SHA512-checked) and booting it once to install the"
