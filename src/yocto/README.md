@@ -1,4 +1,8 @@
-# src/yocto — EGW-OS (Yocto/kas) for gate G1
+# src/yocto — Yocto layer and kas files of the gateway image
+
+> **Reading note.** This page is a working record written during the project. It keeps the internal labels of
+> that time (milestones such as G1 to G4, work orders and review codes), which
+> [docs/history/README.md](../../docs/history/README.md) explains. For the overview, start at the [main README](../../README.md).
 
 Versioned, repeatable same-operator build of `egw-image`, the C2DTA Edge
 Gateway operating-system image, for the `qemuarm64` machine with Yocto Project
@@ -170,7 +174,7 @@ host CPU, RAM and disk. No specific duration is claimed here — record the
 actual duration from the timestamped build log as evidence. Subsequent builds
 reuse the shared sstate cache and are much faster.
 
-## Gate G1 acceptance checklist (plan v1.1, 13–18 August)
+## Acceptance checklist of the base image (historical record, plan v1.1, 13–18 August)
 
 Evidence rule: unlogged runs do not count. Every item below must be backed by a
 recorded log copied into the evidence area and referenced from the

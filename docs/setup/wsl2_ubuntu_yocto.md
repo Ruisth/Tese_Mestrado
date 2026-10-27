@@ -236,8 +236,8 @@ sha256sum $(find . -name "*.rootfs*" -o -name "Image*" 2>/dev/null) \
 
 Then copy `~/yocto/logs/` into the workspace evidence area, e.g.
 `experiments/results/raw/g1-boot-01/logs/`, add a `manifest.json` (scenario,
-commit, environment, timestamps) and reference it from `PROGRESS.md` and the
-claim→evidence matrix (claims C01/C02 in `docs/claim_evidence_matrix.md`).
+commit, environment, timestamps) and reference it from the progress record and the
+claim→evidence matrix (claims C01/C02; both now in `docs/history/`).
 
 ## 9. Troubleshooting quick list
 

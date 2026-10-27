@@ -76,6 +76,9 @@ outside the repository. A new PC needs:
   administrator), with hardware virtualisation turned on;
 - 16 GB of RAM, with at least 12 GB given to WSL (`%UserProfile%\.wslconfig`), about 25 GB of free disk and
   internet access during the preparation;
+- the repository cloned **inside Ubuntu**, on the Linux file system (for example
+  `git clone <repository URL> ~/egw`), not under `/mnt/c` and not with Git for Windows: the preparation
+  script refuses both;
 - the **demonstration kit**: a ZIP of about 180 MB with the gateway image and the controller's container
   image, plus its `.sha256` checksum file. The kit is not in the repository. It is shared by the author
   on request; ask the repository owner, [@Ruisth](https://github.com/Ruisth). Keep the `.sha256` file next
@@ -212,8 +215,8 @@ Every result, with its data and the code that analysed it: [docs/results.md](doc
 | [`src/`](src/) | The controller, the wearable simulator, the message contracts, the deployment of the six services, the Yocto layer and the tests |
 | [`tools/`](tools/) | Preparation of a new PC (`setup/`), start and power-off with Terraform and the comparison (`compare/`), the demonstration and observers (`demo/`), and the tools the measurements used (`session/`) |
 | [`experiments/`](experiments/) | Experiment configurations and plans |
-| [`diagrams/`](diagrams/) | Architecture diagrams |
+| [`diagrams/`](diagrams/README.md) | Earlier diagrams and the C2DTA reference drawing; the current architecture is in [docs/architecture.md](docs/architecture.md) |
 | [`docs/`](docs/README.md) | The guides: [architecture](docs/architecture.md), [demonstration](docs/demo.md), [results](docs/results.md) and [reproduction](docs/reproduce.md) |
-| [`docs/evidence/`](docs/evidence/) | The original recorded data, sealed and kept unchanged |
+| [`docs/evidence/`](docs/evidence/) | The original recorded data, sealed and kept unchanged; described in the [documentation index](docs/README.md#evidence) |
 | [`docs/history/`](docs/history/README.md) | Project records: work log, progress record, reviews and other internal documents |
 | [`thesis/`](thesis/README.md), [`paper/`](paper/README.md) | A historical LaTeX conversion of an early dissertation draft (17 September 2026) and a placeholder for a deferred article; the dissertation itself is a separate document |

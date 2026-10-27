@@ -7,26 +7,10 @@
 
 ## Why it is deferred
 
-The scientific article is **out of scope until after the thesis submission**.
-Section 4.5 of the adopted plan keeps the article and the detailed defence
-preparation outside the mandatory core of the project and records the article as
-**deferred, not deleted**: the student **reports** that a supervisor said it is
-optional and not required for delivery, that it may improve the grade without any
-guarantee, and that it therefore leaves mandatory acceptance and the critical
-path. That is reported by the student, not a documented supervisor decision, and
-it removes no obligation from the thesis itself. The article is considered after
-the thesis and its evidence are secure. Nothing is drafted in this directory
-before then. See
-[`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-§4.5.
-
-**Superseded planning dates.** When this file was last revised (2026-09-19), it
-gave the planned submission as **2026-10-20**, with 2026-10-21 to 2026-10-31 as a
-contingency window for essential corrections only, and it placed the article
-outside that window. Those were the planning dates of that time. They are kept
-here as a record and are not the current schedule. An earlier wording cited the
-archived Portuguese v1.0 plan and assumed a September 2026 submission; both are
-superseded as well.
+The scientific article is outside the mandatory core of the project and is **deferred, not deleted**,
+until after the dissertation (section 4.5 of the
+[development plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)). Nothing is drafted in this
+directory before then.
 
 ## Template to use when the paper starts
 

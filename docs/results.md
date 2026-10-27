@@ -22,7 +22,7 @@ data are and which code analysed them. It adds no result and changes no outcome.
 ## Data and section numbers
 
 - **Dissertation numbers** (sections, tables, figures) refer to the dissertation version of October
-  2026. The manuscript is kept outside this repository ([thesis/README.md](../thesis/README.md)). Its
+  2026; if the submitted version differs, it prevails. The manuscript is kept outside this repository ([thesis/README.md](../thesis/README.md)). Its
   Table B.1 lists the same data.
 - **Data in the repository** are folders under [`evidence/`](evidence/), copied byte for byte and never
   edited. Their `SHA256SUMS` files are checked by `python tools/ci/verify_evidence.py`.
@@ -34,18 +34,18 @@ data are and which code analysed them. It adds no result and changes no outcome.
 | Result | Dissertation | Outcome as recorded |
 |---|---|---|
 | [Building and starting the image](#building-and-starting-the-image) | 5.1, Table D.3 | Built and started; first attempts failed and are kept |
-| [One device end to end](#one-device-end-to-end) | 4.6, 5.2, Table 5.4 | 60 of 60 in time; twin kept after a restart |
-| [Three device types at once](#three-device-types-at-once) | 5.2, Table 5.1 | Passed |
+| [One device end to end](#wearable-to-twin-integration-one-device) | 4.6, 5.2, Table 5.4 | 60 of 60 in time; twin kept after a restart |
+| [Three device types at once](#wearable-to-twin-integration-three-device-types) | 5.2, Table 5.1 | Passed |
 | [Invalid messages](#invalid-messages) | 5.2, Table 5.1 | Passed |
 | [Repeated messages](#repeated-messages) | 5.2, Table 5.1 | Passed |
-| [Network drop](#network-drop) | 5.2, Table 5.1 | Passed, on a stated reading of the broker log |
+| [Network drop](#recovery-after-disconnection-network-drop) | 5.2, Table 5.1 | Passed, on a stated reading of the broker log |
 | [Controller restart](#controller-restart) | 4.4, 5.2, Tables 5.1 and B.1 | Passed under a relaxed criterion; many messages late |
 | [Database or twin-service failure](#database-or-twin-service-failure) | 5.2, Table 5.1 | Passed; not timed |
 | [Gateway reboot and persistence](#gateway-reboot-and-persistence) | 5.2, Table 5.1 | Passed |
 | [Broker access control](#broker-access-control) | 5.2, Table 5.1 | Passed, for the controls tested |
 | [Delivery time under sustained load](#delivery-time-under-sustained-load) | 5.3 | **Not met** |
 | [Resource use](#resource-use) | 5.4, 5.5, Tables 5.2 and D.8 | Descriptive |
-| [Yocto vs Debian 13](#yocto-vs-debian-13) | 5.5, Table 5.3, Figures 5.1–5.2 | Exploratory, three runs each |
+| [Yocto vs Debian 13](#comparison-of-yocto-and-debian-13) | 5.5, Table 5.3, Figures 5.1–5.2 | Exploratory, three runs each |
 | [Host-load check](#host-load-check) | 5.6, 5.7, Tables D.5–D.7 | One run; data kept locally |
 
 ## Building and starting the image
@@ -68,7 +68,7 @@ data are and which code analysed them. It adds no result and changes no outcome.
   `src/yocto/scripts/` (`build.sh`, `build-profile.sh`, `run-qemu.sh`, `run-qemu-integrated.sh`,
   `boot_check.py`); steps in [setup/qemu_integrated_gateway.md](setup/qemu_integrated_gateway.md) §2–3.
 
-## One device end to end
+## Wearable-to-twin integration: one device
 
 - **Done:** one simulated smartwatch sent one message per second for 60 s (seed 20260921). The six
   containers were then restarted together, with no message in flight.
@@ -94,7 +94,7 @@ records and a `SHA256SUMS` seal.
   `recovery_qualification.py`); the test scripts in `tools/session/`; steps in
   [setup/qemu_integrated_gateway.md](setup/qemu_integrated_gateway.md) §7.
 
-### Three device types at once
+### Wearable-to-twin integration: three device types
 
 - **Done:** a smartwatch, a smart ring and a smart clothing item sent together for 60 s; three shorter
   runs of 30 s did the same.
@@ -119,7 +119,7 @@ records and a `SHA256SUMS` seal.
 - **Data:** [repeat](evidence/g3-battery-2026-10/2026-10-02/20261002T160154Z_g3-qualification-t4-replay_attempt01/),
   [new run](evidence/g3-battery-2026-10/2026-10-02/20261002T161432Z_g3-qualification-t4-reset_attempt01/).
 
-### Network drop
+### Recovery after disconnection (network drop)
 
 - **Done:** during a 180 s run, the simulated devices lost their connection three times and
   reconnected, holding 165 messages meanwhile.
@@ -221,7 +221,7 @@ records and a `SHA256SUMS` seal.
   Table 5.2 and Table D.8 come from scripts kept locally. The medians can be recomputed from the sealed
   files ([reproduce.md](reproduce.md)).
 
-### Yocto vs Debian 13
+### Comparison of Yocto and Debian 13
 
 - **Done:** the same six containers ran on the Yocto image and on Debian 13, with the same emulator
   settings and the same load: 600 s at 11.2 msg/s after 120 s of warm-up. Three pairs of runs, in the
@@ -280,7 +280,8 @@ records and a `SHA256SUMS` seal.
 - **A pilot of longer, repeated runs** (Section 5.7). It was started but not finished, and the
   dissertation cites no figure from it. One session stopped at its start, and one run was recorded as
   failed: 33 messages failed while its backlog cleared. Plan:
-  [plan of the pilot](../experiments/g4-pilot/README.md); records kept locally.
+  [plan of the pilot](../experiments/g4-pilot/README.md) (a project record written before any pilot run, with
+  internal labels); records kept locally.
 - **Demonstration checks are not results.** The checks of the two comparison environments
   ([tools/compare/README.md](../tools/compare/README.md) §9) and of the demonstration scenarios
   ([demo.md](demo.md)) only show that the demonstration works. The additional Yocto demonstration

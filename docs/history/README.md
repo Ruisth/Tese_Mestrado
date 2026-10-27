@@ -24,10 +24,11 @@ record itself uses one. Formal milestone outcomes are recorded only in the
 
 Both were at the repository root until 27 October 2026.
 
-- [LOG.md](LOG.md) — work diary, entries #C001–#C064 (#C001–#C010 in Portuguese); among them #C055 the
+- [LOG.md](LOG.md) — work diary, entries #C001–#C065 (#C001–#C010 in Portuguese); among them #C055 the
   test battery accepted as the functional freeze (G3), #C059 the comparison tooling, #C060 the
-  Yocto–Debian 13 comparison (series a02), #C061 the `yoctowrynose` scenario, and #C062–#C064 the
-  reorganisation for readers and the preparation of another PC for the demonstration.
+  Yocto–Debian 13 comparison (series a02), #C061 the `yoctowrynose` scenario, #C062–#C064 the
+  reorganisation for readers and the preparation of another PC for the demonstration, and #C065 the
+  organisation of the repository for the assessment version.
 - [PROGRESS.md](PROGRESS.md) — deliverable state record; each block carries its own date; its top block
   of 2026-09-21 and its planned dates are that version's planning targets.
 

@@ -5630,3 +5630,26 @@ is unchanged.
 - **Verification.** `tools/setup/tests/offline_check.sh` (457 passed), `tools/demo/tests/offline_check.sh`
   (101 passed), the Markdown link check (159 files), the evidence verifier (73 seals). Not tested: a 16 GB PC
   with the `.wslconfig` limit, and a `sudo` that asks for a password.
+
+---
+
+## Entry #C065 — The repository organised for the assessment version on main
+
+- **Date:** 2026-10-27. **Scope:** internal records moved into `docs/history/` (`LOG.md`, `PROGRESS.md`, `ai/`,
+  `docs/reviews/`, `docs/g0/`, the claim–evidence matrix, two set-up records, the paper assembly prompt and the
+  two-layer drawing), with every affected link rewritten; the front page in six sections; the guides, tool READMEs,
+  indexes and the labels of historical and deferred folders. No change to code, scripts, the system, images,
+  criteria, results or evidence; no guest, build or measurement.
+- **Authority.** The student's order of 2026-10-27 to prepare the version for the supervisors and examiners on
+  main: one organisation pull request to dev, then a promotion pull request from dev to main with no new content.
+- **Kept in place.** `docs/governance/` (three files are link targets of sealed capsule READMEs and the plan is read
+  by a test), `docs/adr/`, `thesis/` (built by a required check and linked from a sealed README),
+  `tools/session/`, `tools/probe/` and the runbooks read by tests. They leave the main navigation or carry a reading
+  note instead. `thesis/` is labelled as the historical LaTeX conversion of 17 September 2026; the check is still
+  named `thesis build`, and only its step and artifact names changed.
+- **Dated citations.** Citations pinned to a commit (for example `PROGRESS.md:509` in ADR 0011, or the plan
+  citations in `experiments/g4-pilot/`) keep the path the file had at that commit. Sealed evidence is unchanged and
+  still names the old paths in its text; `docs/history/README.md` maps earlier paths to current ones.
+- **Verification.** Offline only: Markdown links, the evidence seals, JSON and YAML parsing, the `thesis/tools`
+  tests, the offline checks of `tools/setup` and `tools/demo`, and the Python test suite; one consolidated review
+  of accuracy, order compliance, preservation and navigation, with each finding verified.

@@ -21,7 +21,7 @@ Gateway**, by Rui Miguel Franco Duarte (student number 94494), for the Master in
 Telecommunications and Computer Engineering. These fields come from the Word source. Unknown
 supervisor details remain blank.
 
-## Source boundary and provenance
+## Record of the conversion: source boundary and provenance
 
 **What the import kept.** It preserves the supplied Word prose:
 

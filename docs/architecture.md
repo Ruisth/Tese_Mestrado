@@ -199,7 +199,7 @@ Reference drawing (not normative):
 |---|---|
 | [`tools/compare/`](../tools/compare/README.md) | Starting, checking and powering off each configuration (`tf.sh`, `functional_check.sh`, `scenarios/`), and the comparison measurements (`measure_*`) |
 | [`tools/demo/`](../tools/demo/README.md) | The demonstration: menu (`demo.sh`), simulated devices (`wearables/`), observers (`observe/`). It needs nothing from `tools/session/`. |
-| [`tools/session/`](../tools/session/README.md) | Scripts that drove the earlier test runs. The comparison measurements also need three of them: `proof_hook_drained.sh` (waits until the controller is quiet), `nominal_account.py` (finds which messages were confirmed late or not at all) and `regen_helpers.py` (writes the helper file the wait uses). Keep this folder where it is. |
+| [`tools/session/`](../tools/session/README.md) | Scripts that drove the earlier test runs. The comparison measurements also need three of them: `proof_hook_drained.sh` (waits until the controller is quiet), `nominal_account.py` (finds which messages were confirmed late or not at all) and `regen_helpers.py` (writes the helper file the wait uses). Keep this folder where it is. Its README keeps the internal labels of that time. |
 | [`tools/probe/`](../tools/probe/README.md), `tools/test/` | A diagnostic of how the broker holds messages while the controller is away; BusyBox test helpers. Not needed to run or measure. |
 | `tools/ci/` | Checks run by the automatic workflow (`verify_evidence.py`, `check_markdown_links.py`) |
 

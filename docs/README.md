@@ -17,7 +17,7 @@ figure comes from an ARM64 computer emulated by QEMU on an ordinary PC.
 | File | Content |
 |---|---|
 | [`../src/CONTRACTS.md`](../src/CONTRACTS.md) | Normative interfaces, v1.2 (2026-09-24): topics, envelope, twins, ports, outcomes |
-| [`adr/README.md`](adr/README.md) | Index of the architecture decision records 0001–0011 (there is no 0009), with the recorded status of each |
+| [`adr/README.md`](adr/README.md) | Index of the architecture decision records 0001–0011 (there is no 0009), with the recorded status of each. They were written at the time, so a status reflects its date: for example, the test battery that ADR 0011 lists as pending has since run (see [results.md](results.md)) |
 | [`../diagrams/README.md`](../diagrams/README.md) | Diagram families: Mermaid views in [`../diagrams/architecture.md`](../diagrams/architecture.md) (drawn against CONTRACTS v1.1) and the PlantUML five-layer C2DTA reference |
 
 ## Evidence
@@ -70,7 +70,7 @@ These are still used by the guides.
 | [`tools/compare/`](../tools/compare/README.md) | Start, check and power off each configuration (`tf.sh`, `functional_check.sh`, `scenarios/`), and the comparison measurements (`measure_*`) |
 | [`tools/demo/`](../tools/demo/README.md) | The demonstration: the menu (`demo.sh`), the simulated devices (`wearables/`) and the observers (`observe/`) |
 | [`tools/setup/`](../tools/setup/README.md) | Preparing another PC for the demonstration from a kit (`prepare_demo_host.sh`, `make_demo_kit.sh`) |
-| [`tools/session/`](../tools/session/README.md) | Scripts that drove the earlier test runs. The comparison measurement calls two of them (`proof_hook_drained.sh` and `nominal_account.py`), and [reproduce.md](reproduce.md) runs a third, `regen_helpers.py`, to write the helper file. Keep this folder where it is |
+| [`tools/session/`](../tools/session/README.md) | Scripts that drove the earlier test runs. The comparison measurement calls two of them (`proof_hook_drained.sh` and `nominal_account.py`), and [reproduce.md](reproduce.md) runs a third, `regen_helpers.py`, to write the helper file. Keep this folder where it is Its README keeps the internal labels of that time. |
 | [`tools/probe/`](../tools/probe/README.md) | A diagnostic of how the broker holds messages while the controller is away (ADR 0011). Not needed to run or measure |
 | `tools/ci/`, `tools/test/` | The checks run by the automatic workflow (`verify_evidence.py`, `check_markdown_links.py`); BusyBox test helpers |
 

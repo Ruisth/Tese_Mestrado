@@ -2,7 +2,7 @@
 
 > **Earlier diagrams.** They were drawn against `src/CONTRACTS.md` v1.1 (the contract is now v1.2). The current architecture is in [`../docs/architecture.md`](../docs/architecture.md).
 
-> **Plan v2.0 adopted 2026-09-18 (QEMU-only execution amendment).** The deployment diagram below records the **integrated emulated topology** of [the adopted plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) and [ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md), whose status is *Accepted by the student for project execution (2026-09-18) — not agreed by the supervisors*. The separate-platform figure of plan v1.2 is historical: update the dissertation figures during the planned editorial revision and do not reuse the old deployment figure as the architecture of record. Drawing a component accepts no gate and admits no claim.
+> **Historical record.** The deployment diagram below drew the **integrated emulated topology** adopted on 2026-09-18 ([the development plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) and [ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md)). The earlier separate-platform figure is historical and is not the architecture of record.
 
 Sources of truth: the versioned
 [`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
