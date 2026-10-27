@@ -1,5 +1,9 @@
 # Session drivers — guest sessions and bounded checks, exported as they run
 
+> **Reading note.** This page is a working record written during the project. It keeps the internal labels of
+> that time (milestones such as G1 to G4, work orders and review codes), which
+> [docs/history/README.md](../../docs/history/README.md) explains. For the overview, start at the [main README](../../README.md).
+
 These bash drivers run the bounded checks of the project-management work order
 of 2026-09-19 (section 2.C) on the integrated QEMU/TCG gateway, and export every
 attempt, at completion and on failure, to the local `output_test` folder

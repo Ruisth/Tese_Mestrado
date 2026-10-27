@@ -635,7 +635,7 @@ Section 1. Its edited source is `thesis/latex/chapters/02_background.tex`, whose
 generated copy is `thesis/sections/05_background.md`; neither is touched by this
 revision, because the LaTeX tree is edited under its own change. The correction
 is due before the Chapters 1–4 hand-off of 2026-10-01 and is tracked as a row in
-[`../../docs/g0/backlog.md`](../../docs/g0/backlog.md).
+[`../../docs/g0/backlog.md`](../../docs/history/g0/backlog.md).
 
 ## 19. Amendment log
 

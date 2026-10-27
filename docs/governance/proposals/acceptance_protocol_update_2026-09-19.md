@@ -14,7 +14,7 @@
 > proposals are the Developer's; the principles they implement are set by the
 > project review. Each item below names who decides it. Adopting an item is a
 > separate, explicit decision of the student, recorded in
-> [`LOG.md`](../../../LOG.md) with its date and basis; the canonical texts it
+> [`LOG.md`](../../history/LOG.md) with its date and basis; the canonical texts it
 > touches change only afterwards, in a change made for that purpose, the form
 > change of item 4 apart. Merging this file adopts nothing.
 >
@@ -427,7 +427,7 @@ image deployed in the guest was not verified.
 
 **Why it matters.** Finding 2 bears directly on claim C12, whose acceptance
 includes delivery across the restart
-([claim matrix](../../claim_evidence_matrix.md)), and on RQ2. It is a design and
+([claim matrix](../../history/claim_evidence_matrix.md)), and on RQ2. It is a design and
 data-path issue, not only a matter of emulator speed.
 
 ### Proposal

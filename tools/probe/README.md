@@ -1,5 +1,9 @@
 # The broker-hold measurement (ADR 0011, condition C3)
 
+> **Reading note.** This page is a working record written during the project. It keeps the internal labels of
+> that time (milestones such as G1 to G4, work orders and review codes), which
+> [docs/history/README.md](../../docs/history/README.md) explains. For the overview, start at the [main README](../../README.md).
+
 **An engineering diagnostic, not a G3 run.** One bounded measurement of the
 pinned Mosquitto 2.0.22 alone, designed in package D's gate item 1, section 7,
 and summarised in ADR 0011, "The broker measurement". It asks one question of

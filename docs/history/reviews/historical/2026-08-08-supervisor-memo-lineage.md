@@ -31,7 +31,7 @@ outside experimental results.
 ## Active successor
 
 The proposal was reviewed and carried forward, not copied as authority, in
-[`../../governance/supervisor_alignment_memo.md`](../../governance/supervisor_alignment_memo.md).
+[`../../governance/supervisor_alignment_memo.md`](../../../governance/supervisor_alignment_memo.md).
 The active decision log adds D007 (experimental thresholds) and D008 (platform
 roles). All eight entries remain `proposed_not_sent`. Only the active log may
 record later sending or responses; the legacy files remain untouched.

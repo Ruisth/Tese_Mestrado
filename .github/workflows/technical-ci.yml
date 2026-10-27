@@ -83,14 +83,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             biber latexmk cm-super texlive-bibtex-extra texlive-fonts-extra \
             texlive-lang-portuguese texlive-latex-extra texlive-science
-      - name: Build dissertation and supervisor draft
+      - name: Build the historical LaTeX conversion of 17 September 2026 (not the current dissertation)
         working-directory: thesis/latex
         run: |
           latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
           latexmk -pdf -interaction=nonstopmode -halt-on-error ch2_supervisor_draft.tex
       - uses: actions/upload-artifact@v6
         with:
-          name: thesis-pdfs
+          name: thesis-latex-historical-2026-09-17
           path: |
             thesis/latex/main.pdf
             thesis/latex/ch2_supervisor_draft.pdf

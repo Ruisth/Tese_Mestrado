@@ -1,6 +1,7 @@
 # src/: EGW implementation
 
-All the implementation code of the Digital Twin Edge Gateway (C2DTA Theme 1). The binding
+All the implementation code of the Digital Twin Edge Gateway, the edge gateway of the
+Consumer-Controlled Digital Twin Architecture (C2DTA) studied in the dissertation. The binding
 interfaces are in [CONTRACTS.md](CONTRACTS.md) (v1.2, 2026-09-24). How the parts fit together is
 in [`../docs/architecture.md`](../docs/architecture.md).
 
@@ -40,16 +41,18 @@ comparison-tool tests skip on Windows or without `bash`.
 **Integration markers.** The `integration` marker is registered and deselected by default
 (`addopts` in `pyproject.toml`), and no test carries it.
 
-**Where the integration testing is.** It was done on the emulated guest, not in pytest: the nine
-integration families T1–T9 ran through the session drivers in
-[`../tools/session/`](../tools/session/README.md). Gate G3 was accepted on 2026-10-07 on those
-results. See [`../docs/results.md`](../docs/results.md#functional-tests) (Functional tests).
+**Where the integration testing is.** It was done on the emulated gateway, not in pytest. The test
+battery (wearable-to-twin integration with three device types, invalid and repeated messages,
+recovery after disconnection, controller restart, database or twin-service failure, gateway reboot
+and persistence, broker access control) and the 10-minute run without faults were driven by the test
+scripts in [`../tools/session/`](../tools/session/README.md). See
+[`../docs/results.md`](../docs/results.md#functional-tests) (Functional tests).
 
 **Test records.** The newest test record in the repository is
 [`../docs/evidence/tests/2026-08-11-head-4e67717/`](../docs/evidence/tests/2026-08-11-head-4e67717/):
 701 passed at `4e67717`. A later full run, on 2026-10-08, is held locally only
-([`../docs/results.md`](../docs/results.md#other-records), Other records). Unit tests close no gate and validate no claim
-of the [claim matrix](../docs/claim_evidence_matrix.md).
+([`../docs/results.md`](../docs/results.md#other-records), Other records). Unit tests do not replace
+the tests on the emulated gateway.
 
 ## Run the simulator (reference invocation, CONTRACTS §7)
 
@@ -81,10 +84,12 @@ by `deployment/scripts/build-controller-image.sh`.
 
 ## Evaluate
 
-The evaluation reported in the dissertation was not the 95-run campaign. It comprised:
+The evaluation reported in the dissertation comprised:
 
-- the G3 functional battery on the emulated guest;
-- the Yocto vs Debian 13 comparison, run with `tools/compare/measure_*`.
+- the test battery on the emulated gateway (see above);
+- the Yocto-Debian comparison, run with `tools/compare/measure_*`.
+
+A larger planned series of repeated measurements was not run.
 
 Both use `egw_experiments` to run and analyse. Read:
 
@@ -93,9 +98,8 @@ Both use `egw_experiments` to run and analyse. Read:
 - [`../experiments/README.md`](../experiments/README.md), the harness manual;
 - [`deployment/README.md`](deployment/README.md), the stack runbook.
 
-The harness manual is written for that campaign, which was never executed. The stack runbook was
+The harness manual was written for that larger series, which was not run. The stack runbook was
 written for a native ARM64 virtual machine that produced no reported result. The deployment steps
-of the
-evaluated system are those of the
+of the evaluated system are those of the
 [integrated runbook](../docs/setup/qemu_integrated_gateway.md) §4–5, automated by
 `tools/compare/provision_stack.sh`.

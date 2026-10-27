@@ -54,7 +54,7 @@ ADR file numbered 0009 or 0011 has been added on any ref of the repository
 [C]. 0009 is kept for the MongoDB 8 evaluation: it is referenced as
 `docs/adr/0009-mongodb-8-evaluation.md` in
 `docs/evidence/integrated-qemu/2026-09-18-mongodb7-isolated/README.md:72` and
-in `docs/reviews/2026-09-17-egw-image-audit.md:615`, and ADR 0010 records that
+in `docs/history/reviews/2026-09-17-egw-image-audit.md:615`, and ADR 0010 records that
 0009 "is kept for other open work" (`docs/adr/0010-controller-progress-counters.md:10`).
 Nothing outside `docs/evidence/` refers to 0011 [C]. Numbers are never reused
 (`docs/adr/README.md`), so this record takes 0011.
@@ -1837,7 +1837,7 @@ gate note.
   `docs/adr/README.md` (status: accepted by the student for bounded
   implementation), the LOG entry the coordinated update requires (`#C041`),
   the amendment note in ADR 0010 and the review record under
-  `docs/reviews/2026-09-23-adr-0011-package-d/`.
+  `docs/history/reviews/2026-09-23-adr-0011-package-d/`.
 
 **Tests** — regression tests with fakes, before any guest run:
 
@@ -2510,7 +2510,7 @@ throughput problem" corrected as marked there (the project manager's residual
 D2 finding of 2026-09-24), the closing paragraph restated, and the review
 record — analyses, gate notes, scripts, outputs, verification reports, annex
 and decision request — committed under
-`docs/reviews/2026-09-23-adr-0011-package-d/` (its `README.md` says what is
+`docs/history/reviews/2026-09-23-adr-0011-package-d/` (its `README.md` says what is
 not kept there and where it is). The review of the published record on the
 same day added the twin's evidence to S4 (a named N1 case needs the device's
 `accepted_count` surplus, or R3 applies) and restated the two remaining
@@ -2575,7 +2575,7 @@ Since 2026-09-24 the two scripts, their outputs, the analyses this record
 cites (`controller_today.md`, `restart_evidence.md`, `backlog_diagnosis.md`),
 the verification reports, the review annex, the decision request and the four
 gate notes with their scripts and outputs are the review record
-`docs/reviews/2026-09-23-adr-0011-package-d/` (its `README.md` lists them),
+`docs/history/reviews/2026-09-23-adr-0011-package-d/` (its `README.md` lists them),
 from which every `gates/…`, `scripts/…`, `out/…`, `[F:…]`, `[I…]` and `[G:…]`
 citation of this record resolves; `pkgD/v2/` in the paths above reads as that
 directory. The documentation copies of `gates/sources/` are identified there

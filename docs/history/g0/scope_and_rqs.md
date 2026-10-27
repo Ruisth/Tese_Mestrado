@@ -1,14 +1,14 @@
 # G0 - Scope and research questions (integrated Yocto ARM64 gateway, evaluated under QEMU)
 
 **2026-09-21 cross-reference:** plan v2.1 adds the
-[requirements/platform matrix](../academic/gateway_requirements_and_platform_selection.md)
+[requirements/platform matrix](../../academic/gateway_requirements_and_platform_selection.md)
 and SUP-04 for the supervisor's proposed requirements–selection–evaluation
 sequence. The current title and RQ numbering below are preserved; the matrix
 contains a crosswalk for discussion, not an approved replacement wording.
 
 
 > Scope document under the versioned integrated plan
-> ([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
+> ([`../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
 > **v2.1, 2026-09-21, retaining the QEMU-only execution baseline adopted in
 > v2.0 on 2026-09-18**). The scope text itself remains version 2.0; the new
 > matrix/crosswalk does not rewrite its RQs. Archived plans remain historical. This document
@@ -45,7 +45,7 @@ the requested decisions and recommendations are D001-D010 in
 [`supervisor_decision_matrix.csv`](supervisor_decision_matrix.csv), extended by
 D011-D014 for the integrated objective. That matrix contains no mutable status.
 The authoritative decision state is kept only in
-[`../governance/supervisor_decision_log.csv`](../governance/supervisor_decision_log.csv),
+[`../governance/supervisor_decision_log.csv`](../../governance/supervisor_decision_log.csv),
 whose statuses have been mixed since 2026-09-19: D001, D007, D008 and D012 stay
 `proposed_not_sent`, D002 and D009 are `confirmed_reported_by_student`, and the
 remaining rows are `partly_confirmed_reported_by_student`, each naming its
@@ -57,10 +57,10 @@ The August G0 email is drafted in
 sent** — sending it is a student action. It does not stand for the whole
 supervisor relationship: the student separately reports that the
 state-of-the-art material was sent, with no date or copy held. Gate outcomes are recorded solely in
-[`../governance/gate_decision_log.md`](../governance/gate_decision_log.md)
+[`../governance/gate_decision_log.md`](../../governance/gate_decision_log.md)
 (as at 2026-09-18: G1 accepted for the functional platform layer only; G0 and
 G2–G7 not decided, and the adoption of plan v2.0 changed none of them); the
-state of every deliverable lives in [`../../PROGRESS.md`](../../PROGRESS.md).
+state of every deliverable lives in [`../../PROGRESS.md`](../PROGRESS.md).
 
 ---
 
@@ -130,7 +130,7 @@ documented supervisor decision, and not re-requested. What D014 still holds
 open is only the wording of the native-evidence limitation and of claims about
 emulated timing and resource figures; numerical criteria belong to D007.
 *(Corrected 2026-09-19 to match the narrowed D014 row of the
-[decision log](../governance/supervisor_decision_log.csv); this paragraph
+[decision log](../../governance/supervisor_decision_log.csv); this paragraph
 previously said that whether emulated results may be used as the academic
 evaluation at all was D014 and remained unanswered.)*
 
@@ -249,7 +249,7 @@ marketplace, a UI or any other cut function.
   statements that they left mandatory scope; those statements are marked where
   they stand rather than deleted. Section 1 adopts the authorised wearable-data
   wording of
-  [`../governance/language-policy.md`](../governance/language-policy.md) while
+  [`../governance/language-policy.md`](../../governance/language-policy.md) while
   keeping the literal `/telemetry` topic. **Every confirmation above is reported
   by the student**: none is a documented supervisor decision, none carries a
   date, and none closes a gate or admits a claim. The academic use of emulated

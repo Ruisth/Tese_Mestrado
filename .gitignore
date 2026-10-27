@@ -49,7 +49,7 @@ experiments/results/raw/*
 *.toc
 thesis/latex/main.pdf
 
-# Local backups (copy off Nextcloud manually; see docs/setup/git_backup_remote.md)
+# Local backups (copy off Nextcloud manually; see docs/history/setup/git_backup_remote.md)
 backups/
 
 # OS

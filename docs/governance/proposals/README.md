@@ -20,7 +20,7 @@ the current position; the texts below keep their own wording as history.
 | Subject | File in force (canonical path) |
 |---|---|
 | Integrated plan | [`../INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../INTEGRATED_DEVELOPMENT_PLAN_2026.md), **version 2.0, adopted by the student on 2026-09-18** with the QEMU-only execution amendment |
-| Scope and research questions | Section 3 of the adopted plan, mirrored by [`../../g0/scope_and_rqs.md`](../../g0/scope_and_rqs.md), **version 2.0 of 2026-09-18**, amended 2026-09-19: its technical scope is adopted, and its title and research-question wording are **reported approved by the student** under D011 — reported, not documented, with the approved verbatim RQ wording held in the student manuscript. The August version 1.1 of 2026-08-13 is preserved in the repository history at `dev` revision `9179612` |
+| Scope and research questions | Section 3 of the adopted plan, mirrored by [`../../g0/scope_and_rqs.md`](../../history/g0/scope_and_rqs.md), **version 2.0 of 2026-09-18**, amended 2026-09-19: its technical scope is adopted, and its title and research-question wording are **reported approved by the student** under D011 — reported, not documented, with the approved verbatim RQ wording held in the student manuscript. The August version 1.1 of 2026-08-13 is preserved in the repository history at `dev` revision `9179612` |
 | Supervisor alignment memo | [`../supervisor_alignment_memo.md`](../supervisor_alignment_memo.md), the August memo of record, itself unsent |
 
 "In force" means the text the project executes against. The August memo as a
@@ -97,7 +97,7 @@ never-as-a-standalone-edit rule.
 1. Adoption is a **separate, explicit decision of the student**, taken after
    consulting the supervisors. A draft, a sent request, silence or the merge of
    a pull request is not adoption.
-2. The decision is recorded in [`LOG.md`](../../../LOG.md) with its date and its
+2. The decision is recorded in [`LOG.md`](../../history/LOG.md) with its date and its
    basis, and the supervisors' replies are recorded in the
    [supervisor decision log](../supervisor_decision_log.csv).
 3. Only then is the canonical file replaced by the adopted text, in a change
@@ -114,7 +114,7 @@ never-as-a-standalone-edit rule.
 **Status of this procedure for plan v2.0, as at 2026-09-19.** Steps 1 to 3 are
 complete: the student adopted the plan on 2026-09-18 with the QEMU-only
 execution amendment, the decision and its basis are recorded in
-[`LOG.md`](../../../LOG.md), the canonical file carries the adopted text, and
+[`LOG.md`](../../history/LOG.md), the canonical file carries the adopted text, and
 version 1.2 is archived unmodified with its verified checksum. **Step 4 is
 narrowed but outstanding:** what is still unanswered is D007 (the thresholds and the other numerical
 criteria), the open part of D014 and the unresolved halves of D004 and D010:

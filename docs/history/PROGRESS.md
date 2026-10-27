@@ -2,7 +2,7 @@
 
 ## Current documentary update — 2026-09-21
 
-At the student's request, [plan v2.1](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+At the student's request, [plan v2.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
 adds requirements, initial platform selection and seven supervisor deliverables.
 Prepared from the integrated dev baseline ccd5fd6 in an isolated worktree;
 the older dirty Windows checkout and original Word are preserved. Integration
@@ -28,7 +28,7 @@ accounts for 60 events without loss/late confirmation; the second preserves
 twin state across a controlled down/up with no intervening publication.
 Both identify clean execution revision b7e0c83 and ARM64 emulation under
 QEMU/TCG. Their local location follows the
-[local-output convention](docs/setup/local_test_outputs.md); they have not
+[local-output convention](../setup/local_test_outputs.md); they have not
 been incorporated or admitted by this documentation change. Persistence of
 stored state is not proof of lossless in-flight recovery.
 
@@ -48,9 +48,9 @@ the row itself, like the rest of this table, keeps the scope of this update.)*
 
 
 > **This file is the single source of state for the project.** The backlog
-> ([`docs/g0/backlog.md`](docs/g0/backlog.md)) holds only actions, expected
+> ([`docs/g0/backlog.md`](g0/backlog.md)) holds only actions, expected
 > evidence, dependencies and cut rules — it holds no state. The formal record of
-> gate outcomes is [`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md);
+> gate outcomes is [`docs/governance/gate_decision_log.md`](../governance/gate_decision_log.md);
 > the "Accepted at gate" column below mirrors it. Structure as per the external audit of 2026-08-08
 > (§5.1, §5.2, §14).
 
@@ -62,8 +62,8 @@ snapshot supersedes the older draft's page/word counts and completeness
 statements; it does not change the governance plan, record supervisor
 approval or accept a gate or claim. Integrated-Yocto wording is imported
 source content, not evidence that a plan amendment has been adopted. See
-[the import record](thesis/latex/WORD_IMPORT.md) and
-[source inventory](thesis/latex/word-import-manifest.json) for the source
+[the import record](../../thesis/latex/WORD_IMPORT.md) and
+[source inventory](../../thesis/latex/word-import-manifest.json) for the source
 identity and current verification evidence.
 
 Updated: 2026-09-18 for the plan v2.0 proposal section and two
@@ -81,8 +81,8 @@ carry the same record.
 Updated: 2026-09-18 for the **adoption of plan v2.0 with the QEMU-only
 execution amendment**. The student adopted it for project execution on that
 date and instructed its publication at the canonical path; see
-[the adopted plan](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
-[ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md) — *Accepted by
+[the adopted plan](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md),
+[ADR 0008](../adr/0008-integrated-yocto-arm64-evaluation.md) — *Accepted by
 the student for project execution; academic framing reported approved by the
 student, academic use of emulated results not agreed* *(marker added
 2026-09-19: that half of D014 is withdrawn as an open question; the open part
@@ -115,7 +115,7 @@ Updated again on 2026-09-19 for two things ([LOG `#C035`](LOG.md)). **First,
 G0 is accepted:** the student (Rui Duarte) decided on 2026-09-19 that G0 can be
 considered closed, and the project manager concurs; G0 is recorded as
 *Accepted* for project initiation and baseline alignment
-([decision record](docs/governance/decisions/2026-09-19-g0-closure.md)). It is
+([decision record](../governance/decisions/2026-09-19-g0-closure.md)). It is
 a dated change of G0's exit scope, not a retroactive pass against the legacy
 criteria: the historical alignment package and the verified off-machine copy
 are **not** marked as performed, and the residual obligations are reallocated
@@ -137,8 +137,8 @@ G2 for *one bounded smartwatch → MQTT/TLS → controller → Ditto → API flo
 stored-twin persistence across one declared, quiescent whole-stack service
 restart, on the identified Yocto ARM64 guest **emulated with QEMU/TCG on an
 x86-64 host*** — and for nothing else
-([decision record](docs/governance/decisions/2026-09-21-g2-closure.md); G2 row
-of the [gate-decision log](docs/governance/gate_decision_log.md), whose previous
+([decision record](../governance/decisions/2026-09-21-g2-closure.md); G2 row
+of the [gate-decision log](../governance/gate_decision_log.md), whose previous
 state is kept under "Superseded row states"). The evidence is the published
 capsule `docs/evidence/g2-complete-flow/` — the seven attempts of the guest
 session of 2026-09-20/21, the failed preflight among them and kept, executed at
@@ -161,7 +161,7 @@ passed negative test, and exercised negative cases remain G3 work; and (4) the
 original attempts, the failed preflight included, retain their original bytes,
 timestamps, provenance and outcomes, with post-session driver fixes **not**
 credited as having run during the accepted session. Section 6 of the
-[acceptance proposal](docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md)
+[acceptance proposal](../governance/proposals/2026-09-21-g2-acceptance-proposal.md)
 also discloses sixteen residual limitations of the demonstration itself (among
 them one device, sixty messages at about 1 msg/s, one restart with the queue
 empty, one guest and one repetition, an emulated platform on a shared host, a
@@ -177,7 +177,7 @@ them, and no native, performance, capacity, efficiency or stability conclusion
 follows from G2. **The pause on test acceptance, answered by the student on
 2026-09-21** (it is recorded in the 2026-09-19 note above, in the G3 bullet of
 the gate-status block, in the row of the nine-families record and in the
-critical-path row of those families): it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix); bounded engineering diagnostics continue, as they have since the continuation of 2026-09-19, and the nine families then run as one qualifying battery on the frozen candidate. *(Marker added 2026-09-24: the recovery decision is taken — [ADR 0011](docs/adr/0011-controller-restart-recovery.md), option 5, accepted by the student for bounded implementation; the pause stays until the candidate is frozen after that implementation and its finite proof, each guest session under its own authorisation. The bounded implementation is written and verified with fakes — LOG #C042 (merged into `dev` on 2026-09-25); the proof's evaluator and session driver are written and verified with fakes — LOG #C043 (2026-09-25), the identification rules awaiting the Project Manager's confirmation; the proof itself, the battery and the pilot are pending, each guest session under its own authorisation.)* *(Marker added 2026-09-29: the finite proof ran three times — r01 and r02 on 2026-09-26, inconclusive; r03 on 2026-09-28, supports — and on 2026-09-29 the student accepted r03, with qualifications, as meeting the diagnostic's purpose for that run ([ADR 0011, "The decision recorded on 2026-09-29"](docs/adr/0011-controller-restart-recovery.md); evidence in [`docs/evidence/finite-proof-r03/`](docs/evidence/finite-proof-r03/README.md); LOG #C046). It is not collection compliance — the Docker kill/start timeline is missing — and not a G3 pass. The pause stays: the candidate is not frozen, and the battery and the pilot are pending, each guest session under its own authorisation; what G3 still needs is in the [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md).)*
+critical-path row of those families): it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix); bounded engineering diagnostics continue, as they have since the continuation of 2026-09-19, and the nine families then run as one qualifying battery on the frozen candidate. *(Marker added 2026-09-24: the recovery decision is taken — [ADR 0011](../adr/0011-controller-restart-recovery.md), option 5, accepted by the student for bounded implementation; the pause stays until the candidate is frozen after that implementation and its finite proof, each guest session under its own authorisation. The bounded implementation is written and verified with fakes — LOG #C042 (merged into `dev` on 2026-09-25); the proof's evaluator and session driver are written and verified with fakes — LOG #C043 (2026-09-25), the identification rules awaiting the Project Manager's confirmation; the proof itself, the battery and the pilot are pending, each guest session under its own authorisation.)* *(Marker added 2026-09-29: the finite proof ran three times — r01 and r02 on 2026-09-26, inconclusive; r03 on 2026-09-28, supports — and on 2026-09-29 the student accepted r03, with qualifications, as meeting the diagnostic's purpose for that run ([ADR 0011, "The decision recorded on 2026-09-29"](../adr/0011-controller-restart-recovery.md); evidence in [`docs/evidence/finite-proof-r03/`](../evidence/finite-proof-r03/README.md); LOG #C046). It is not collection compliance — the Docker kill/start timeline is missing — and not a G3 pass. The pause stays: the candidate is not frozen, and the battery and the pilot are pending, each guest session under its own authorisation; what G3 still needs is in the [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md).)*
 
 Updated: 2026-10-07 — **G3 is accepted as the functional P0 freeze on the
 documented emulated candidate** ([LOG `#C055`](LOG.md)). The student (Rui Duarte)
@@ -186,8 +186,8 @@ QEMU/TCG documented in pull request #58, with the qualifications of the Project
 Manager's opinion, accepting the authorised execution in sessions S1–S4 and the
 prospective amendment of test 6, preserving the historical results and the
 declared limitations
-([decision record](docs/governance/decisions/2026-10-07-g3-closure.md); G3 row of
-the [gate-decision log](docs/governance/gate_decision_log.md), whose previous
+([decision record](../governance/decisions/2026-10-07-g3-closure.md); G3 row of
+the [gate-decision log](../governance/gate_decision_log.md), whose previous
 state is kept under "Superseded row states"). **The decision is the student's
 own**: the merge of #58 (`65e780e`, over the reviewed tree `c2f7c22`), the
 capsule and the green checks are none of them that decision. It admits no
@@ -196,7 +196,7 @@ performance, capacity or stability claim, shows no timely delivery at
 
 Addendum 2026-09-18, controller observability only: `GET /metrics` gains the
 additive progress counters `received`, `in_progress` and `processing_errors`
-([ADR 0010](docs/adr/0010-controller-progress-counters.md), status Proposed;
+([ADR 0010](../adr/0010-controller-progress-counters.md), status Proposed;
 `src/CONTRACTS.md` section 5). They are verified by unit tests with fakes
 only and have not been run on a gateway, against a live broker or Ditto, or
 on ARM64. The addendum changes no gate, claim, maturity level or sealed test
@@ -208,7 +208,7 @@ no normative effect and academic alignment remains subject to D001; a
 clean-checkout image build plus five strict QEMU boots is sealed under
 `docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`; **gate G1 was
 formally accepted on 2026-08-14** in
-[`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md),
+[`docs/governance/gate_decision_log.md`](../governance/gate_decision_log.md),
 scope: functional platform layer only, D006 unaffected; the plan was bumped to
 v1.2 to regularise the in-place amendment of v1.1; the current sealed unit
 figure remains 701 tests).
@@ -230,10 +230,10 @@ one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow and
 stored-twin persistence across one declared, quiescent whole-stack service
 restart, on the identified guest emulated with QEMU/TCG on an x86-64 host, with
 the qualifications of its
-[decision record](docs/governance/decisions/2026-09-21-g2-closure.md), and G3 on
+[decision record](../governance/decisions/2026-09-21-g2-closure.md), and G3 on
 2026-10-07, the functional P0 freeze on the documented emulated candidate only,
 with the qualifications of its
-[decision record](docs/governance/decisions/2026-10-07-g3-closure.md); accepting
+[decision record](../governance/decisions/2026-10-07-g3-closure.md); accepting
 any of them validated no claim — and G4–G7 remain undecided *(corrected 2026-09-19
 with the G0 decision; this sentence previously read "Gate G1 is the only
 accepted gate", read "Gates G1 and G0 are the accepted gates … G2–G7 remain
@@ -247,11 +247,11 @@ The student instructed that the evaluated system must boot the Yocto-built
 Linux image and run the gateway services inside it, and — because no native
 ARM64 host could be obtained — that it be evaluated under QEMU/TCG on the
 existing x86-64 workstation. On 2026-09-18 the student adopted
-[plan v2.0 with the QEMU-only execution amendment](docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+[plan v2.0 with the QEMU-only execution amendment](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
 as the execution baseline;
-[ADR 0008](docs/adr/0008-integrated-yocto-arm64-evaluation.md) is *Accepted by
+[ADR 0008](../adr/0008-integrated-yocto-arm64-evaluation.md) is *Accepted by
 the student for project execution (2026-09-18)*. The proposal texts stay under
-[`docs/governance/proposals/`](docs/governance/proposals/README.md) as the
+[`docs/governance/proposals/`](../governance/proposals/README.md) as the
 record of what was proposed; the canonical text governs where the two differ.
 
 The adoption settles **execution only**. The title, the research questions with
@@ -277,9 +277,9 @@ scope and evidence.
 | Item under the adopted plan | Implemented / verified state | Next evidence required |
 |---|---|---|
 | Original G1 Yocto/QEMU platform | Existing build and five strict boots; original G1 acceptance preserved | No relabelling as a native integrated gateway |
-| Integrated QEMU/TCG profile (ARM64 emulated on the x86-64 WSL2 workstation) | Ordered first by the project review once no native ARM64 virtual machine could be obtained on 2026-09-17. In pull request #28 (merged into `dev` on 2026-09-18) the integrated image was built (commit `03e333e`) and booted twice under QEMU/TCG (commit `3209b17`) on 2026-09-18 with every build and boot acceptance check passing. The same day an isolated MongoDB 7.0.39 test passed on that guest (start, write/read, restart, persistence across a guest power cycle); the build, boot and MongoDB records were sealed as technical evidence in `docs/evidence/integrated-qemu/` (pull request #29, merged into `dev` on 2026-09-18). Pull requests #32 (broker secret hand-over and ACL probe) and #31 (controller progress counters) were merged into `dev` the same day; merging validates no stack and accepts no gate. Later the same day the six-container stack was **deployed inside the guest** and the first bounded end-to-end functional test (one smartwatch, 1 Hz, 60 s) **ran**: 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. Maximum latency 12,286 ms — **emulated, informational, never a performance result**. The record of that run is **a locally hash-sealed candidate (all 51 `SHA256SUMS` entries verify), outside the published evidence package and not admitted**, so it supports no claim. Two defects it exposed were fixed on `dev`: the controller was attached to the wrong Compose network (`9ffd365`) and the host shell inherited a relative schema directory (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session (512 MiB container limit); the corrective change (768 MiB for the three Ditto services and a graceful stop of the stack before power-off) is merged into `dev` through pull request #34 (`d0c9238`), and only bounded observations follow from it (see the Ditto-resources risk in [`docs/g0/risks.md`](docs/g0/risks.md)). No general or prolonged stability is claimed, no official campaign has been completed or admitted (the diagnostic measurements, such as the latency above, are not accepted campaign results or native performance evidence), and sealing is not acceptance | Incorporate the locally hash-sealed first-flow record into the published evidence package; re-measure the Ditto memory footprint under the limits of pull request #34 before any stability statement; complete the nine integration/recovery test families of the runbook (**exercised once on 2026-09-18**: functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 were not run and the timed harness parts of tests 1 and 6 are invalid; that record is a locally hash-sealed candidate archive held outside the repository and not admitted, so the battery is not complete — *corrected 2026-09-19: the earlier "seven passed" overstated it*). Functional and integration evidence only, never native ARM64 performance evidence (adopted plan, evidence classes) |
+| Integrated QEMU/TCG profile (ARM64 emulated on the x86-64 WSL2 workstation) | Ordered first by the project review once no native ARM64 virtual machine could be obtained on 2026-09-17. In pull request #28 (merged into `dev` on 2026-09-18) the integrated image was built (commit `03e333e`) and booted twice under QEMU/TCG (commit `3209b17`) on 2026-09-18 with every build and boot acceptance check passing. The same day an isolated MongoDB 7.0.39 test passed on that guest (start, write/read, restart, persistence across a guest power cycle); the build, boot and MongoDB records were sealed as technical evidence in `docs/evidence/integrated-qemu/` (pull request #29, merged into `dev` on 2026-09-18). Pull requests #32 (broker secret hand-over and ACL probe) and #31 (controller progress counters) were merged into `dev` the same day; merging validates no stack and accepts no gate. Later the same day the six-container stack was **deployed inside the guest** and the first bounded end-to-end functional test (one smartwatch, 1 Hz, 60 s) **ran**: 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0. Maximum latency 12,286 ms — **emulated, informational, never a performance result**. The record of that run is **a locally hash-sealed candidate (all 51 `SHA256SUMS` entries verify), outside the published evidence package and not admitted**, so it supports no claim. Two defects it exposed were fixed on `dev`: the controller was attached to the wrong Compose network (`9ffd365`) and the host shell inherited a relative schema directory (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM **during the power-off** of that session (512 MiB container limit); the corrective change (768 MiB for the three Ditto services and a graceful stop of the stack before power-off) is merged into `dev` through pull request #34 (`d0c9238`), and only bounded observations follow from it (see the Ditto-resources risk in [`docs/g0/risks.md`](g0/risks.md)). No general or prolonged stability is claimed, no official campaign has been completed or admitted (the diagnostic measurements, such as the latency above, are not accepted campaign results or native performance evidence), and sealing is not acceptance | Incorporate the locally hash-sealed first-flow record into the published evidence package; re-measure the Ditto memory footprint under the limits of pull request #34 before any stability statement; complete the nine integration/recovery test families of the runbook (**exercised once on 2026-09-18**: functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 were not run and the timed harness parts of tests 1 and 6 are invalid; that record is a locally hash-sealed candidate archive held outside the repository and not admitted, so the battery is not complete — *corrected 2026-09-19: the earlier "seven passed" overstated it*). Functional and integration evidence only, never native ARM64 performance evidence (adopted plan, evidence classes) |
 | Native Yocto VM target — **future work under the adopted plan** | Not implemented or boot-verified; AWS custom AMI route documented as a candidate. The student confirmed on 2026-09-16 that no ARM64 VM and no benchmarks existed; no provider allocation is assumed. On 2026-09-17 no native ARM64 virtual machine could be obtained (cloud attempts failed). The QEMU-only amendment of 2026-09-18 removes the native target from mandatory scope: it is **documented, unverified future work**, it blocks no gate of the adopted plan, and no allocation, spending or native build is requested | Nothing is required of it for this dissertation. If native work is ever authorised: platform-specific image, native boot, image identity, network/storage/reboot, each with its own protocol and data. Latency, throughput, saturation and resource-capacity results stay outside the adopted scope and are recorded as an explicit limitation |
-| Services on Yocto (G2) | Controller/simulator/Compose code exists; a bounded integrated trace was produced inside the emulated guest on 2026-09-18 (row above) — **emulated, a locally hash-sealed candidate outside the published evidence package, not admitted**. *(Updated 2026-09-21; this cell previously ended "so no acceptance evidence exists and G2 stays Not decided".)* The later session of 2026-09-20/21, executed at `b7e0c83`, was published as the capsule `docs/evidence/g2-complete-flow/`, and on that evidence **the student accepted G2 on 2026-09-21 in a bounded functional scope**: one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow and stored-twin persistence across one declared, quiescent whole-stack service restart, on the identified guest, **emulated (QEMU/TCG) on an x86-64 host**, with the four qualifications its approval retains ([decision record](docs/governance/decisions/2026-09-21-g2-closure.md), section 5); the residual limitations disclosed in section 6 of the acceptance proposal remain, neither accepted nor waived by it. The candidate of 2026-09-18 keeps the status this cell gives it and is not admitted by that decision | Nothing further is required for the accepted G2 scope, which covers the identified candidate only: a later changed image needs its own verification. Still owed downstream and unaffected by the acceptance: the nine integration/recovery families and in-flight restart recovery (G3); the nominal 11.2 msg/s workload, which failed its delivery deadline on 2026-09-19; exercised invalid-payload, duplicate-replay and transport-refusal cases; an explicitly captured readiness status and body in future planned runs; and a locked set of controller Python dependencies before the experimental freeze *(updated 2026-09-21; previously "Sealed, identity-reconciled MQTT/TLS → controller → Ditto → API evidence from the guest, labelled emulated; the nine integration/recovery families")* |
+| Services on Yocto (G2) | Controller/simulator/Compose code exists; a bounded integrated trace was produced inside the emulated guest on 2026-09-18 (row above) — **emulated, a locally hash-sealed candidate outside the published evidence package, not admitted**. *(Updated 2026-09-21; this cell previously ended "so no acceptance evidence exists and G2 stays Not decided".)* The later session of 2026-09-20/21, executed at `b7e0c83`, was published as the capsule `docs/evidence/g2-complete-flow/`, and on that evidence **the student accepted G2 on 2026-09-21 in a bounded functional scope**: one bounded smartwatch → MQTT/TLS → controller → Ditto → API flow and stored-twin persistence across one declared, quiescent whole-stack service restart, on the identified guest, **emulated (QEMU/TCG) on an x86-64 host**, with the four qualifications its approval retains ([decision record](../governance/decisions/2026-09-21-g2-closure.md), section 5); the residual limitations disclosed in section 6 of the acceptance proposal remain, neither accepted nor waived by it. The candidate of 2026-09-18 keeps the status this cell gives it and is not admitted by that decision | Nothing further is required for the accepted G2 scope, which covers the identified candidate only: a later changed image needs its own verification. Still owed downstream and unaffected by the acceptance: the nine integration/recovery families and in-flight restart recovery (G3); the nominal 11.2 msg/s workload, which failed its delivery deadline on 2026-09-19; exercised invalid-payload, duplicate-replay and transport-refusal cases; an explicitly captured readiness status and body in future planned runs; and a locked set of controller Python dependencies before the experimental freeze *(updated 2026-09-21; previously "Sealed, identity-reconciled MQTT/TLS → controller → Ditto → API evidence from the guest, labelled emulated; the nine integration/recovery families")* |
 | Experimental pipeline | Tools and historical unit checks exist; no valid integrated pilot or campaign | Guest-bound provenance, runtime verification, pilot and frozen protocol |
 | Dissertation | Chapters 1–2 imported from the supplied Word manuscript on 2026-09-17; Chapters 3–6 are empty structure (see the update note above) | Architecture and RQ sections revised to the adopted integrated, emulation-bounded scope; evidence-based results; full review and final format. The title and the RQs are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries. D001's two-layer wording was never sent and is superseded as a live request |
 | Supervisor agreement | **Reported confirmed by the student**, recorded on 2026-09-18 and published here on 2026-09-19 (LOG #C033), and recorded as reported rather than as documented decisions: the state-of-the-art material sent; approval to proceed with the QEMU tests; the title, verbatim *Blockchain-powered Personal AI – Digital Twin Edge Gateway*; the research questions with RQ3 evaluated in QEMU; the local-core scope; a scoping review as the review method; an attempt at the historical 95-run quantity under QEMU; no second operator; the review schedule of Chapters 1–4 on 2026-10-01, full draft on 2026-10-08 and feedback 2026-10-09 to 2026-10-14; the mandatory institutional template; a mandatory AI-use declaration; an optional article; the authorised wearable-data terminology; and a local evidence copy. No date, message or supervisor name was reported for any of them. **Still outstanding:** the reduced alignment package. The student's adoption of the plan is **not** a supervisor decision and is not recorded as one | Replies recorded in the decision log for the rows that stay open: D007 (thresholds and the other numerical criteria), the open part of D014 (only the wording of the native-evidence limitation and of claims about emulated timing and resource figures; the QEMU evaluation scope of RQ3 is reported approved — reported by the student, undated, not a documented supervisor decision — and is not re-requested) *(corrected 2026-09-19; previously listed the academic use of emulated results under D014 as open)*, the authenticity of the local template copy with the cover and metadata (inside D004), and the operational storage semantics (inside D010). D012 stays deferred with the native route; no allocation or spending is requested. The unresolved parts of D011 and D013 — the approved verbatim RQ wording, which lives in the student manuscript, and the dates after the feedback window — are tracked in their rows, not re-requested. *Since the G0 decision of 2026-09-19 these replies are no longer G0 conditions: D007 is owed at G4 before `exp-v1`, the template authenticity at G7, and any genuinely unsettled method or claim detail is tracked specifically at G4/G6 rather than through a blanket D014 blocker; nothing here is marked as sent* |
@@ -361,7 +361,7 @@ below are unchanged by it.*
 | Git repository initialised and published | yes | static — private remote active since 2026-08-11 (`Ruisth/Tese_Mestrado`); on 2026-08-13 the ruleset was aligned with the written policy: pull requests and merge commits only on `main`/`dev`, force-push/deletion forbidden, review-thread resolution required and six technical/metadata checks mandatory in strict mode. PRs #12–#25 passed all required checks and were merged; all known review threads are resolved with factual replies. The preliminary G1 build is reachable through protected tag `evidence/g1-yocto-build-5770c0a`, and a second protected tag `evidence/g1-bringup-driver-367c929` preserves the bring-up driver lineage. Ten inventoried bundles verify, plus one **unversioned post-PR-#25 handover bundle** (`egw-20260814-post-pr25-merge.bundle`, SHA-256 `53014902…`, complete history to the PR #25 merge `2dafae1`) — the current handover artefact, deliberately kept out of the provenance inventory per the management order. A verified off-machine copy is still pending: it stays open until destination-side hash verification and the restore drill are completed | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment (gate log). The verified off-machine copy is **not** covered by that acceptance: it is reallocated to an active resilience action owned by the student, retained in the risk register and the backlog and required at G7 — neither verified nor waived *(updated 2026-09-19; previously "G0 — In progress")* | M2 |
 | Normative plan (v1.1, since bumped to v1.2), provenance register and technical CI | yes | static — the normative plan, archived byte-identical v1.0, D001–D008 log, source/provenance registers and CI workflows were merged to `dev` through PR #12. On 2026-08-13 its required GitHub checks passed for Python 3.11/3.14, contracts/evidence/links, shell safety, LaTeX and metadata; this verifies the change but does not itself accept a gate. Plan v2.0 was first published as a proposal under `docs/governance/proposals/` (documentation pull requests of 2026-09-18; LOG #C028) and was **adopted by the student on 2026-09-18 with the QEMU-only execution amendment** (LOG #C032), replacing v1.2 at the canonical path; v1.2 is preserved unmodified in `docs/governance/archive/`. Adoption is a student decision: it records no supervisor approval and accepts no gate | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment, the v2.0 baseline being published (gate log; *updated 2026-09-19, previously "G0 — In progress"*); G1 — Complete (accepted 2026-08-14, gate log) | M2 |
 | Normative contracts (`src/CONTRACTS.md` v1.1) + JSON schemas | yes | unit — `tests/test_schemas.py` (part of the current sealed suite of 701 tests); static — 7 valid JSON files; real integration not demonstrated *(marker added 2026-09-21: save for one comparison — in the bounded flow of the session of 2026-09-20/21, published as `docs/evidence/g2-complete-flow/`, the twin read through the API was compared field for field against section 4 of the contract and matched, with no automated schema validation of the response recorded; no wider real integration is demonstrated, and the sealed suite is unchanged)* | G2 — Complete **for the bounded functional scope accepted on 2026-09-21** (gate log): in the accepted bounded flow the twin read through the API was compared against section 4 of the contract and matched, with no automated schema validation of the response recorded. Nothing wider is accepted; G3 — Complete **for the functional P0 freeze accepted on 2026-10-07** (gate log): `src/CONTRACTS.md` v1.2 `247e3b02…` and `src/schemas` `1d5284cf…` frozen and unchanged through the battery's sessions S1–S4 *(G3 part updated 2026-10-07; previously "G3 — Pending", itself updated 2026-09-21 from "G2 — Pending")* | M2 |
-| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; its formal claim admission is the one step still outstanding, the second-operator requirement of D006 being reported waived), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence** — all `Pending — no evidence`, C13 included: the 24-hour soak returns as a **target to attempt** under QEMU inside the 95-run composition, subject to the pilot's feasibility check, superseding its earlier deferral out of scope. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package. The decision log now carries mixed statuses (2026-09-19): `proposed_not_sent` for D001, D007, D008 and D012, `confirmed_reported_by_student` for D002 and D009, and `partly_confirmed_reported_by_student` for the rest, each naming its confirmed and its unresolved part; `sent_at` and `response_at` are empty everywhere. The title and the RQ wording published in [`docs/g0/scope_and_rqs.md`](docs/g0/scope_and_rqs.md) v2.0 are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment (gate log). This covers the scope document and the matrix as an instrument, not any claim — **0 of 15 are accepted** — and maintaining the matrix continues through G6 *(updated 2026-09-19; previously "G0 — Pending")* | M1 |
+| Scope, RQs and claim→evidence matrix (15 claims) | yes | static — **0 of 15 claims accepted**: C01 is partial (the same-operator clean-checkout rebuild is sealed; its formal claim admission is the one step still outstanding, the second-operator requirement of D006 being reported waived), C02 holds the preliminary bring-up seal and the separate strict five-boot G1 set (the later predefined `data-v1` identities remain pending unless a dated protocol decision admits this set), and the remaining **13 have no admissible experimental evidence** — all `Pending — no evidence`, C13 included: the 24-hour soak returns as a **target to attempt** under QEMU inside the 95-run composition, subject to the pilot's feasibility check, superseding its earlier deferral out of scope. The two-layer title/objective/RQ/abstract wording and the D001–D010 matrix live in the PR #15 proposal package. The decision log now carries mixed statuses (2026-09-19): `proposed_not_sent` for D001, D007, D008 and D012, `confirmed_reported_by_student` for D002 and D009, and `partly_confirmed_reported_by_student` for the rest, each naming its confirmed and its unresolved part; `sent_at` and `response_at` are empty everywhere. The title and the RQ wording published in [`docs/g0/scope_and_rqs.md`](g0/scope_and_rqs.md) v2.0 are **reported approved by the student** under D011 — reported, not documented — with the approved verbatim RQ wording held in the student manuscript, so the repository publishes scope summaries | G0 — Complete: accepted on 2026-09-19 for project initiation and baseline alignment (gate log). This covers the scope document and the matrix as an instrument, not any claim — **0 of 15 are accepted** — and maintaining the matrix continues through G6 *(updated 2026-09-19; previously "G0 — Pending")* | M1 |
 | Backlog and risk register | yes | no (management documents) | G0 — Complete: accepted on 2026-09-19 (gate log); both documents are maintained at every state change *(updated 2026-09-19; previously "G0 — Pending")* | M1 |
 | WSL2 Ubuntu 24.04 guide (ext4) | yes | **installed, exercised and captured**: WSL2 with Ubuntu 24.04.4 LTS is operational, with the build directory on ext4, and produced both Yocto evidence sets. The 2026-08-14 capsule records the kernel, OS, kas/Python/Git versions, filesystem type, capacity and the separate build/driver commits in `environment.txt` (Ubuntu 26.04 was rejected first because it ships Python 3.14, outside the tested envelope of Yocto Scarthgap) | G0 — Complete: accepted on 2026-09-19 (gate log) *(updated 2026-09-19; previously "G0 — Pending")* | M2 |
 | ARM64 VM (native measurement platform) — **deferred future work** | no | no — no university request/reply, public quotation, provisioned host or environment capture is recorded. Earlier Oracle/Hetzner/Azure attempts did not yield a non-burstable host. Under the adopted plan of 2026-09-18 the university request, the 48-hour fallback rule and the AWS `c6g.xlarge` default leave mandatory scope: **no allocation, spending or native build is requested**, and the EUR 30 ceiling stands only as a limit on any future native work that a new budget decision (D012) authorises | not a gate item of the adopted plan — **deferred with the native route; it blocks no gate**. Its absence bounds what RQ3 may claim and is recorded as an explicit limitation | M0 |
@@ -378,7 +378,7 @@ gate.
 
 | Deliverable | Implemented | Verified | Accepted at gate | M |
 |---|---|---|---|---|
-| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — preliminary and strict evidence sealed**: the 2026-08-11 seal preserves the first build and two automated bring-up boots. On 2026-08-14 a new checkout/build directory at `f0e19d5` completed all 5,715 BitBake tasks successfully while deliberately reusing the external downloads/sstate cache (2,261 tasks did not need rerun; not a cold-cache claim). Rootfs SHA-256 is `6c37fcc1…`, kernel SHA-256 is `4457ef38…`, and the manifest has 639 packages. The first strict attempt is preserved as `fail`: the guest returned exact `STATE=running`, zero failed units and clean power-down, but the pre-fix predicate rejected doubled PTY carriage returns. PR #18, merged as `9fe38ff`, fixed the predicate and added a regression; five new IDs then each passed 7 of 7 required assertions, recorded 2 of 2 observations, reached the console and powered down cleanly. Both seals verify independently. Functional evidence only: nothing here supports a performance or security statement | **G1 — Complete: accepted on 2026-08-14** (decision recorded in [`docs/governance/gate_decision_log.md`](docs/governance/gate_decision_log.md), authority: student; scope: functional platform layer only — it validates no claim and supports no performance statement). The second-operator requirement of D006 is reported waived, recorded on 2026-09-18 (the date of the record, never of the waiver, for which none was reported), so no reconstruction is owed; the repeatability wording stays *versioned* and *repeatable build by the author*, and the later predefined `data-v1` identities are not silently replaced | M5 (functional scope) |
+| `kas` manifest + `meta-egw` layer + `egw-image` recipe | yes | **integration — preliminary and strict evidence sealed**: the 2026-08-11 seal preserves the first build and two automated bring-up boots. On 2026-08-14 a new checkout/build directory at `f0e19d5` completed all 5,715 BitBake tasks successfully while deliberately reusing the external downloads/sstate cache (2,261 tasks did not need rerun; not a cold-cache claim). Rootfs SHA-256 is `6c37fcc1…`, kernel SHA-256 is `4457ef38…`, and the manifest has 639 packages. The first strict attempt is preserved as `fail`: the guest returned exact `STATE=running`, zero failed units and clean power-down, but the pre-fix predicate rejected doubled PTY carriage returns. PR #18, merged as `9fe38ff`, fixed the predicate and added a regression; five new IDs then each passed 7 of 7 required assertions, recorded 2 of 2 observations, reached the console and powered down cleanly. Both seals verify independently. Functional evidence only: nothing here supports a performance or security statement | **G1 — Complete: accepted on 2026-08-14** (decision recorded in [`docs/governance/gate_decision_log.md`](../governance/gate_decision_log.md), authority: student; scope: functional platform layer only — it validates no claim and supports no performance statement). The second-operator requirement of D006 is reported waived, recorded on 2026-09-18 (the date of the record, never of the waiver, for which none was reported), so no reconstruction is owed; the repeatability wording stays *versioned* and *repeatable build by the author*, and the later predefined `data-v1` identities are not silently replaced | M5 (functional scope) |
 | Integrated QEMU/TCG gateway profile (`kas/egw-qemuarm64-integrated.yml`, `egw-gateway-image`, `egw-gateway-config`, `scripts/build-profile.sh`, `scripts/run-qemu-integrated.sh`, runbook `docs/setup/qemu_integrated_gateway.md`) | built and booted once under QEMU/TCG (2026-09-18); later the same day the six-container stack was **deployed in the guest** and the first bounded end-to-end flow ran — build, boot and MongoDB evidence sealed (row below), the first-flow record **locally hash-sealed but outside the published evidence package and not admitted**; sealing is not acceptance | build from commit `03e333e` (5,556 tasks) after a first attempt at `68f9ae7` failed on an RPM directory-mode conflict; two boots from commit `3209b17` after a first boot attempt failed in the wrapper's `runqemu` invocation; every artefact and guest acceptance check of runbook 2.4 and 3.4 passed (Cortex-A76 model, 4 vCPUs, 8 GiB, data disk on `/var/lib/docker`, Compose v2.26.0, key-only SSH, persistence across boots); kernel `Image` byte-identical to G1 although its tasks were re-executed; G1 build tree and inputs untouched, the eight evidence seals verify (59 artefacts). Record: `docs/reviews/2026-09-17-egw-image-audit.md` Section 13. Evidence sealed in `docs/evidence/integrated-qemu/`. ARM64 **emulated**: functional evidence only | none — the profile is the environment of the adopted plan v2.0 (2026-09-18, QEMU-only amendment); adoption accepts no gate | M1 |
 | Evidence of the integrated QEMU/TCG profile (pull request #28): build, two boots, isolated MongoDB 7 test | sealed 2026-09-18 — **functional only, emulated; this capsule covers build, boot and an isolated MongoDB test and contains no stack deployment, no end-to-end flow and no measurement** | integration (emulated) — `docs/evidence/integrated-qemu/`: image built at `03e333e` after a preserved failed attempt at `68f9ae7`, two boots at `3209b17` with every build and guest acceptance check passing (Cortex-A76 model, 4 vCPUs, 8 GiB, data disk on `/var/lib/docker`, Docker 25.0.9 with Compose v2.26.0, key-only SSH, persistence across boots), kernel `Image` byte-identical to G1, G1 build tree unchanged; MongoDB 7.0.39 pulled by digest inside the guest: start, write/read, restart, recreation and persistence across a guest power cycle, 35 checks, 0 failed. Manifests verified by `tools/ci/verify_evidence.py` | none — sealing is not acceptance; no gate, no claim | M2 |
 | Record of the first end-to-end flow in the guest (2026-09-18) | produced 2026-09-18 — **a locally hash-sealed candidate held outside the repository (all 51 `SHA256SUMS` entries verify); not in `docs/evidence/` and not admitted** | integration (emulated), locally hash-sealed, not admitted — six containers deployed inside the Yocto guest; one smartwatch at 1 Hz for 60 s; 60 sent, 60 delivered unique, 0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected; twin `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited 0; maximum latency 12,286 ms, **emulated and informational, never a performance result**. The run exposed and led to two fixes on `dev` (controller on the wrong Compose network, `9ffd365`; relative schema directory inherited by the host shell, `dc6d8bb`, `22fb0a9`), and a memory-cgroup OOM killed the `ditto-things` JVM during the power-off of that session at the 512 MiB container limit; the corrective change was made separately and is merged into `dev` through pull request #34 (`d0c9238`), with general or prolonged stability not demonstrated | none — a candidate outside the published evidence package admits no claim and closes no gate; it becomes admissible only once incorporated into the published evidence package and admitted by a dated decision | M2 (emulated, not admitted) |
@@ -392,9 +392,9 @@ gate.
 | WoT TD 1.1 Thing Descriptions | yes | unit — `tests/test_things.py` cross-checks TD↔schema; real integration not demonstrated | G2–G3 — Pending | M2 |
 | Experimental harness + analysis | yes | unit — audit §9 gaps corrected on 2026-08-08 (blocks P1a–P1c: gating by validity, host provenance, acceptance with completeness, soak DoD, cadence caps, saturation with sufficiency of evidence, write-once sealed raw data, `campaign` batch runner); PR #13 rejects resource samples from a different UTC window, enforces at least 90% coverage and the protocol gap cap per container, makes simulator run directories write-once, propagates QEMU pipeline failures and makes `systemd=running` plus zero failed units strict boot assertions. After the PR #17 campaign-path regression and PR #18 PTY regression, the current evidence branch passed `718` tests locally on 2026-08-14; this is **not** a new test-evidence seal, so the canonical sealed figure remains 701. Live proof of the harness and the hashed runtime lock for the controller image are now owed by the **emulated guest**, before the protocol freeze | G4 — Pending (the harness sits outside G1's accepted functional scope) | M2 |
 | `experiments/results/` evidence structure | yes | static — `raw/processed/figures` directories created; zero data (experimental evidence M0) | G5 — Pending | M1 |
-| Dissertation (Word-source Chapters 1–2 with empty remaining sections) | yes | local document verification — source fidelity passed for 56 text blocks, 117 table cells, 33 references and the figure; seven projection tests passed; Markdown regeneration is identical; the supplied-template PDF compiles to 43 pages, including empty structure and front matter, with no unresolved citations or overfull boxes. Evidence: [WORD_IMPORT.md](thesis/latex/WORD_IMPORT.md). Previous draft counts are historical; this is not bibliographic validation or a complete dissertation | G6 — Pending | M2 (document verification only) |
+| Dissertation (Word-source Chapters 1–2 with empty remaining sections) | yes | local document verification — source fidelity passed for 56 text blocks, 117 table cells, 33 references and the figure; seven projection tests passed; Markdown regeneration is identical; the supplied-template PDF compiles to 43 pages, including empty structure and front matter, with no unresolved citations or overfull boxes. Evidence: [WORD_IMPORT.md](../../thesis/latex/WORD_IMPORT.md). Previous draft counts are historical; this is not bibliographic validation or a complete dissertation | G6 — Pending | M2 (document verification only) |
 | Review sources (`thesis/research/study_selection.csv`) | yes | historical research register — 25 sources recorded, with verified metadata (Crossref/W3C/OASIS/official pages). **Reading depth: 7 assessed in full text (S001, S004–S009) and 18 by title/abstract only** (`stage=title_abstract`, provisional inclusion for the previous supervisor draft; the full-text pass is still to be run). This register is unchanged and is not a verification record for the 33 Word-imported reference strings. No fresh metadata audit is claimed; institutional queries remain pending (student action, risk R17) | G6 — Pending | M1 |
-| Standalone Chapter 2 review derivative | yes | local document verification — current source follows the imported Chapter 2 and compiles to 10 pages with no unresolved citations or overfull boxes. Evidence: [WORD_IMPORT.md](thesis/latex/WORD_IMPORT.md). The PR #14 16-page PDF and its former checksum describe the historical draft only. Source conversion is not evidence that a document was sent | not a gate item — sending is a student action (no gate closes on this) | M2 (document verification only) |
+| Standalone Chapter 2 review derivative | yes | local document verification — current source follows the imported Chapter 2 and compiles to 10 pages with no unresolved citations or overfull boxes. Evidence: [WORD_IMPORT.md](../../thesis/latex/WORD_IMPORT.md). The PR #14 16-page PDF and its former checksum describe the historical draft only. Source conversion is not evidence that a document was sent | not a gate item — sending is a student action (no gate closes on this) | M2 (document verification only) |
 | Unit test suite | yes | unit — **sealed evidence: `701 passed`** over clean HEAD `4e67717` in `docs/evidence/tests/2026-08-11-head-4e67717/`, with JUnit, stdout, environment, interpreter, `pip freeze`, `pip check`, pytest version, SHA-256 of the lock file and `SHA256SUMS`. Current sealed figure: `701`. Earlier sealings are kept for traceability and are **historical only** (`683`, `618`, `593`, `515`), each tied to the commit it tested and never the current figure. **Zero live/`integration` tests exist** — creating them is a prerequisite for G3 *(marker added 2026-10-07: the runbook's nine integration/recovery families have since run on the emulated guest, in the G3 battery of sessions S1–S4)* | G3 — Complete **for the functional P0 freeze accepted on 2026-10-07** (gate log): the nine families ran on the emulated guest; the unit suite itself is unchanged *(updated 2026-10-07; previously "G3 — Pending")* | M2 |
 | Post-audit harness corrections (event fetch, 2 environments, collector on the VM, measured window, conditions C10–C14, queue growth, normalised CPU) | yes | unit — tests included in the current sealed suite of 701 (they were first sealed in the historical run of `593`); campaign plan with 95 runs — a historical plan of the native era, superseded by the emulated functional campaign to be selected at the bounded pilot; acceptance requires completeness (by identity against the plan when the plan is supplied to the analysis) and evidence — including evidence of real recovery in C12; real execution now owed by the emulated guest | G3 — Complete **for the functional P0 freeze accepted on 2026-10-07** (gate log): the harness ran test 1's `nominal-r02` and test 6's `controller_restart-r04` on the emulated guest; G4 — Pending *(updated 2026-10-07; previously "G3–G4 — Pending")* | M2 |
 
@@ -409,7 +409,7 @@ data); what remains still depends on the external actions below.
 Factual record after the adoption of plan v2.0 with the QEMU-only execution
 amendment. **The adoption closes no gate and admits no claim**; gate outcomes
 are recorded solely in
-[`the formal gate-decision log`](docs/governance/gate_decision_log.md).
+[`the formal gate-decision log`](../governance/gate_decision_log.md).
 *Corrected in place on 2026-09-19 (previously "as at 2026-09-18"): the G0
 bullet records the G0 decision of that date, and the G3 bullet replaces the
 overstated account of the integration battery ([LOG `#C035`](LOG.md)).*
@@ -428,7 +428,7 @@ new first paragraph as history.*
 
 - **G0 — Accepted on 2026-09-19**, authority: the student (Rui Duarte), with
   the project manager's concurrence; scope: **project initiation and baseline
-  alignment** ([decision record](docs/governance/decisions/2026-09-19-g0-closure.md)).
+  alignment** ([decision record](../governance/decisions/2026-09-19-g0-closure.md)).
   This is a dated change of G0's exit scope, **not a retroactive pass against
   the legacy criteria**: the historical alignment package is not marked as
   sent and the verified off-machine copy is not marked as performed. No
@@ -467,7 +467,7 @@ new first paragraph as history.*
   stored-twin persistence across one declared, quiescent whole-stack service
   restart, on the identified Yocto ARM64 guest emulated with QEMU/TCG on an
   x86-64 host** — and nothing else
-  ([decision record](docs/governance/decisions/2026-09-21-g2-closure.md)). The
+  ([decision record](../governance/decisions/2026-09-21-g2-closure.md)). The
   evidence is the published capsule `docs/evidence/g2-complete-flow/`, the seven
   attempts of the guest session of 2026-09-20/21 executed at commit `b7e0c83`,
   reviewed at pull request 40, head `2d70143`: 60 valid messages at 1 Hz for
@@ -520,8 +520,8 @@ new first paragraph as history.*
   QEMU/TCG** — the nine families, each sub-check on its own adopted criterion,
   from the authorised sessions S1–S4, test 6 under the criterion amended
   prospectively on 2026-10-05, the contracts frozen at v1.2
-  ([decision record](docs/governance/decisions/2026-10-07-g3-closure.md); the
-  standing rows in the [results addendum](docs/governance/g3-battery-2026-10-results.md)).
+  ([decision record](../governance/decisions/2026-10-07-g3-closure.md); the
+  standing rows in the [results addendum](../governance/g3-battery-2026-10-results.md)).
   The four qualifications of the Project Manager's opinion are retained: not
   native performance or a complete campaign; a disclosed sequence of sessions,
   not one pass in order with identical tools; test 6's eventual exactly-once
@@ -552,12 +552,12 @@ new first paragraph as history.*
   passed and that only tests 1 and 6 carried a failing harness part.)*
   *(Marker added 2026-09-29: the readiness of each family on the option-5
   candidate, with what blocks it, is mapped in the
-  [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md); no family
+  [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md); no family
   was run and no criterion changed.)* *(Marker added 2026-09-29, later: the two
   deferred acquisition defects are repaired and the run-scoped capture is wired
   into the runbook's G3 procedures, tested with stubs only (LOG #C047); the
   decisions needed before G3 are set out, not taken, in the
-  [pending-decisions page](docs/governance/proposals/2026-09-29-g3-pending-decisions.md);
+  [pending-decisions page](../governance/proposals/2026-09-29-g3-pending-decisions.md);
   G3 stays paused.)* *(Marker added 2026-09-30: capture compatibility verified on
   the guest in a short window, without load or faults - one authorised session,
   `compat-capture-r01` (LOG #C048). It is not G3 readiness: the four decisions
@@ -565,7 +565,7 @@ new first paragraph as history.*
   lock and the battery's authorisation; G3 stays paused.)* *(Marker added
   2026-09-30, later: Rui adopted, prospectively and with conditions, the four
   decisions of the
-  [pending-decisions page](docs/governance/proposals/2026-09-29-g3-pending-decisions.md)
+  [pending-decisions page](../governance/proposals/2026-09-29-g3-pending-decisions.md)
   — the proved-down interval at a controller restart, T1's harness run on an
   unused `nominal` entry, N1 identities reported only, the timed families with
   T3 accepted on its post-drain copy, and T4 judged per identity. They are
@@ -587,11 +587,11 @@ new first paragraph as history.*
   not demonstrated, the procedure having waited for a QEMU exit the launcher
   never produces while the guest rebooted inside the same process, and its
   procedure is corrected offline (LOG #C050). The consolidated rows are in
-  the [results addendum](docs/governance/g3-battery-2026-10-results.md), the
+  the [results addendum](../governance/g3-battery-2026-10-results.md), the
   dated family notes in the
-  [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md), and the
+  [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md), and the
   twenty packages are indexed, not copied, in
-  [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md).
+  [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md).
   No family, gate or claim is accepted; the pause stays; the next runtime is
   a separately authorised bounded T8/T9 completion session, with T6 and T5
   each needing Rui's own decision.)* *(Marker added 2026-10-05: T8 and T9
@@ -606,7 +606,7 @@ new first paragraph as history.*
   (T1–T4, T7–T9); T5 waits on Rui's interpretation and T6 on his choice
   between new valid evidence under the current criterion and a prospective,
   scoped amendment. Rows 13 and 14 of the
-  [results addendum](docs/governance/g3-battery-2026-10-results.md); LOG
+  [results addendum](../governance/g3-battery-2026-10-results.md); LOG
   #C051. No family, gate or claim is accepted; G3 stays `Not decided`.)*
   *(Marker added 2026-10-05, later: the student decided T5's interpretation
   as the Project Manager recommended — three deliberate fault disconnects plus
@@ -617,7 +617,7 @@ new first paragraph as history.*
   4.3 carry dated amendments. T6's run r03 stays invalid; a valid new run
   still needs a collection-validity rule, `collector-duration` on monotonic
   bounds and a new plan entry, then one authorised session. G3 stays
-  `Not decided` ([decision record](docs/governance/g3-t5-t6-decisions-2026-10-05.md);
+  `Not decided` ([decision record](../governance/g3-t5-t6-decisions-2026-10-05.md);
   LOG #C052).)* *(Marker added 2026-10-05, later still: the student adopted
   the T6 page's option A with the Project Manager's conditions, and T6's
   offline prerequisites are implemented with regressions — the transition
@@ -638,10 +638,10 @@ new first paragraph as history.*
   criteria — T1–T5 in S1, T7 in S2, T8 and T9 in S3, T6 in S4 — with the
   invalid, incomplete and halted attempts kept as recorded. The 38 packages
   are published as byte copies in
-  [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md),
-  and the [closing proposal](docs/governance/proposals/2026-10-07-g3-closing-proposal.md)
+  [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md),
+  and the [closing proposal](../governance/proposals/2026-10-07-g3-closing-proposal.md)
   sets out G3's criteria clause by clause for Rui's dated decision; row 15
-  of the [results addendum](docs/governance/g3-battery-2026-10-results.md);
+  of the [results addendum](../governance/g3-battery-2026-10-results.md);
   LOG #C054. G3 stays `Not decided` until that decision; the G4 pilot needs
   its own preparation and authorisation.)*
 - **G4 — Not decided.** No bounded pilot and no protocol freeze; the controller
@@ -683,7 +683,7 @@ new first paragraph as history.*
 Factual record of the situation. **Nothing here declares a gate closed or
 failed**: the gate decision belongs to the student and the supervisors and is
 recorded only in the
-[`formal gate-decision log`](docs/governance/gate_decision_log.md), with its
+[`formal gate-decision log`](../governance/gate_decision_log.md), with its
 dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
 
 - **G0 (13–15 August) — In progress.** The versioned plan/provenance controls,
@@ -705,7 +705,7 @@ dated decision record. [`LOG.md`](LOG.md) is a diary, not that authority.
   each with 7 of 7 required assertions, 2 of 2 observations, zero failed units
   and a clean power-down. **The gate was formally accepted on 2026-08-14**
   (student authority, decision recorded in the
-  [gate decision log](docs/governance/gate_decision_log.md)); the acceptance
+  [gate decision log](../governance/gate_decision_log.md)); the acceptance
   covers the functional platform layer only and validates no claim. A
   second-operator reconstruction is the separate D006 decision, and later
   `data-v1` identities remain separate. No QEMU evidence supports a
@@ -750,7 +750,7 @@ a four-core physical gateway; and no number from a burstable host would ever
 enter the dissertation if native work resumed.
 
 The historical tier table of 2026-08-14 is retained in
-[`docs/adr/0007-three-tier-platform-model.md`](docs/adr/0007-three-tier-platform-model.md)
+[`docs/adr/0007-three-tier-platform-model.md`](../adr/0007-three-tier-platform-model.md)
 and in the risk register, and applies only to any future native work.
 
 ## Effort control — critical path (audit §5.2)
@@ -765,7 +765,7 @@ student — do not invent hours. Empty cells = still to be estimated/filled in.
 > them. The durations of work carried out by agents do not enter this table —
 > they are recorded in the entries of [`LOG.md`](LOG.md). While these three
 > columns remain empty, **there is no completion forecast** and risk RA15 stays
-> materialised (see [`docs/g0/risks.md`](docs/g0/risks.md)).
+> materialised (see [`docs/g0/risks.md`](g0/risks.md)).
 
 Due dates below are the **planning targets** of the adopted plan v2.0 of
 2026-09-18. None of them is an achieved milestone; a missed target is reported
@@ -786,7 +786,7 @@ it was and is not re-derived here.
 | Clean Yocto rebuild + five strict QEMU boots | Student | | | | 2026-08-18 | **produced and sealed 2026-08-14:** build at `f0e19d5`; five fresh result/log pairs driven at `9fe38ff`, each with `systemd=running`, zero failed units and clean shutdown; one earlier instrumentation failure preserved; nested `SHA256SUMS` verifies | | gate G1 accepted 2026-08-14 (gate log); the second operator of D006 is reported waived, so nothing further is owed here |
 | Governance publication of the adopted plan | Both | | | | 2026-09-18 | this documentation change; it confirms consistency only and accepts no gate | | |
 | First bounded end-to-end flow in the guest | Both | | | | 2026-09-18 | **ran 2026-09-18, emulated:** 60/60 accounted, twin `last_seq` 59, reconciliation exit 0; record a locally hash-sealed candidate held outside the published evidence package, not admitted | | incorporation into the published evidence package and admission are outstanding |
-| Nine integration/recovery test families in the guest | Both | | | | 2026-09-21 to 2026-09-24 | per-test evidence, failures and residual risks; **exercised once on 2026-09-18, not complete** — functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 were not run and the timed harness parts of tests 1 and 6 are invalid; the record is a locally hash-sealed candidate archive held outside the repository, not admitted *(corrected 2026-09-19: previously "seven passed")* | | test acceptance paused at the student's request; teardown-OOM correction merged through pull request #34, with only bounded observations and stability not demonstrated; the resource-sampler instrumentation defect is a separate change; the delivery backlog under QEMU/TCG and the controller-restart queue finding are open *(marker added 2026-10-07: the families ran in the qualifying battery, sessions S1–S4 of 2026-10-02 to 2026-10-07, and G3 was accepted on 2026-10-07 as the functional P0 freeze — [decision record](docs/governance/decisions/2026-10-07-g3-closure.md); the delivery backlog stays a sizing finding, timely delivery at 11.2 msg/s not shown)* |
+| Nine integration/recovery test families in the guest | Both | | | | 2026-09-21 to 2026-09-24 | per-test evidence, failures and residual risks; **exercised once on 2026-09-18, not complete** — functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 were not run and the timed harness parts of tests 1 and 6 are invalid; the record is a locally hash-sealed candidate archive held outside the repository, not admitted *(corrected 2026-09-19: previously "seven passed")* | | test acceptance paused at the student's request; teardown-OOM correction merged through pull request #34, with only bounded observations and stability not demonstrated; the resource-sampler instrumentation defect is a separate change; the delivery backlog under QEMU/TCG and the controller-restart queue finding are open *(marker added 2026-10-07: the families ran in the qualifying battery, sessions S1–S4 of 2026-10-02 to 2026-10-07, and G3 was accepted on 2026-10-07 as the functional P0 freeze — [decision record](../governance/decisions/2026-10-07-g3-closure.md); the delivery backlog stays a sizing finding, timely delivery at 11.2 msg/s not shown)* |
 | Stable integrated QEMU baseline | Both | | | | 2026-09-25 | no unresolved failure incompatible with the claimed stability scope | | nine test families |
 | Bounded pilot + protocol freeze (`exp-v1`) | Both | | | | 2026-09-26 to 2026-09-29 | prospectively selected run identities, repeats, durations and acceptance criteria; hashed runtime lock for the controller image | | stable baseline; D007 |
 | Frozen emulated functional campaign | Both | | | | 2026-09-30 to 2026-10-02 | complete `raw/<run_id>/` + `SHA256SUMS` for the frozen set | | `exp-v1` |

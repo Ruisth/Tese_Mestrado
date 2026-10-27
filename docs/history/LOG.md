@@ -9,7 +9,7 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
 > date than the entry before it — see `#C010`, published as a second `#C006`
 > and renumbered on 2026-08-12 to remove the collision, with its date and
 > content unchanged. Entries written from 2026-08-11 onwards are in British
-> English, per [`docs/governance/language-policy.md`](docs/governance/language-policy.md);
+> English, per [`docs/governance/language-policy.md`](../governance/language-policy.md);
 > the earlier Portuguese entries are historical records and are corrected only
 > by dated notes, never rewritten.
 
@@ -240,7 +240,7 @@ Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Pr�
   R25/RA13 permanece aberto, dependente de ação do estudante).
 - **Retificação a #C005:** a formulação «RA1–RA15 da reanálise mapeados» usada
   na entrada #C005 era **demasiado ampla** e foi retirada de
-  [`docs/g0/risks.md`](docs/g0/risks.md) (então `riscos.md`). Vários RA estavam apenas implícitos
+  [`docs/g0/risks.md`](g0/risks.md) (então `riscos.md`). Vários RA estavam apenas implícitos
   nas linhas R16–R27 e **RA15 (ausência de horas/forecast) está materializado**,
   não mitigado. O ficheiro de riscos passa a seguir RA1–RA15 linha a linha, com
   estado explícito e evidência ou dependência bloqueante por risco.
@@ -502,7 +502,7 @@ histórico existe agora num domínio de falha independente do disco local.
 - **Phase:** G1 (functional platform — bring-up of the built image) and G0
   (governance and preservation)
 - **Language:** first entry written under
-  [`docs/governance/language-policy.md`](docs/governance/language-policy.md)
+  [`docs/governance/language-policy.md`](../governance/language-policy.md)
   (British English, sole working language since 2026-08-11). The entries above
   stay in Portuguese: published history is corrected by dated notes and never
   rewritten.
@@ -645,7 +645,7 @@ required assertions passed and three supplementary observations recorded
   and R29 is why no
   burstable instance may produce a number. The three-tier platform model, until
   now recorded only in `PROGRESS.md` and in this LOG, is written up as
-  [ADR 0007](docs/adr/0007-three-tier-platform-model.md) (**Proposed**, awaiting
+  [ADR 0007](../adr/0007-three-tier-platform-model.md) (**Proposed**, awaiting
   supervisor validation), which extends ADR 0001.
 
 ### Governance: language policy and the pull-request workflow
@@ -1064,8 +1064,8 @@ is unchanged.
 - **Bibliography boundary:** Preserve the Word reference strings through
   Biber/IEEE with a custom verbatim-reference driver; no new metadata audit
   or correction is asserted. The existing research register is unchanged.
-- **Verification record:** [WORD_IMPORT.md](thesis/latex/WORD_IMPORT.md) and
-  [word-import-manifest.json](thesis/latex/word-import-manifest.json).
+- **Verification record:** [WORD_IMPORT.md](../../thesis/latex/WORD_IMPORT.md) and
+  [word-import-manifest.json](../../thesis/latex/word-import-manifest.json).
   Local source-fidelity checks, seven projection regression tests, identical
   Markdown regeneration and both PDF builds passed. The PDFs contain 43 and
   10 pages respectively, without unresolved citations or overfull boxes;
@@ -1371,7 +1371,7 @@ is unchanged.
   + dropped + processing_errors + in_progress + queue_depth`.
 - **Contract rule followed:** plan v1.2 section 1 ("material changes require
   an ADR and regression tests") →
-  [ADR 0010](docs/adr/0010-controller-progress-counters.md), status
+  [ADR 0010](../adr/0010-controller-progress-counters.md), status
   Proposed, and regression tests that keep the exact values of the existing
   fields. `src/CONTRACTS.md` section 5 gains a dated additive sub-section
   (semantics, identity, restart rules for readers, shutdown exclusion); the
@@ -1461,7 +1461,7 @@ is unchanged.
   The test module extracts every `$REC` command line from the runbook and
   parses it, so a drift between document and interface fails a case.
 - **Action (runbook):**
-  [`docs/setup/qemu_integrated_gateway.md`](docs/setup/qemu_integrated_gateway.md)
+  [`docs/setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md)
   Sections 3.5, 4, 4.5, 5 to 7 and Appendix B follow the implemented route:
   controller built with the script from a clean checkout, copied, streamed
   into `docker load` and compared with its identity record (4.1, 4.3, 4.4,
@@ -2204,7 +2204,7 @@ is unchanged.
   already carried; the gate log named both; `PROGRESS.md` tagged the
   off-machine copy "G0 — In progress" and the alignment email "G0 — Blocked".
 - **Action — the G0 decision.**
-  [`docs/governance/decisions/2026-09-19-g0-closure.md`](docs/governance/decisions/2026-09-19-g0-closure.md)
+  [`docs/governance/decisions/2026-09-19-g0-closure.md`](../governance/decisions/2026-09-19-g0-closure.md)
   (new) is the durable decision record, readable from a clean checkout: G0
   **Accepted** on 2026-09-19 for project initiation and baseline alignment,
   authority Student (Rui Duarte), with the project manager's concurrence; the
@@ -2311,7 +2311,7 @@ is unchanged.
   a dated note, admitting nothing, that points to the findings and to the
   proposed restart rule.
 - **Action — the acceptance and protocol proposals.**
-  [`docs/governance/proposals/acceptance_protocol_update_2026-09-19.md`](docs/governance/proposals/acceptance_protocol_update_2026-09-19.md)
+  [`docs/governance/proposals/acceptance_protocol_update_2026-09-19.md`](../governance/proposals/acceptance_protocol_update_2026-09-19.md)
   (new), marked **PROPOSED — for review, not adopted**, gives the verified facts
   and, per item, what stays unchanged and who decides: (1) short-run selection
   — keep the 30-distinct-instant minimum and the 60 s confirmation rule, and
@@ -2433,14 +2433,14 @@ is unchanged.
   kernel, rootfs and controller archive are reused; each guest session records
   how the Yocto checkout, the clean clone and the deployed tree differ.
 - **Action — local outputs.** `egw_experiments.local_export`
-  ([`docs/setup/local_test_outputs.md`](docs/setup/local_test_outputs.md)):
+  ([`docs/setup/local_test_outputs.md`](../setup/local_test_outputs.md)):
   one package per attempt under `output_test/runs/<date>/<run_id>/`, never
   replacing an earlier one, with every copied file re-read and compared by
   SHA-256, raw capsules copied byte for byte with their own seals, secrets and
   private keys excluded with redacted derivatives, special files listed and
   never read, instrumentation validity, system outcome and copy verification
   kept apart, and an index regenerated from the packages on disk. The session
-  drivers of [`tools/session/`](tools/session/README.md) run the bounded
+  drivers of [`tools/session/`](../../tools/session/README.md) run the bounded
   checks and export every attempt on every exit path.
 - **Action — the collector in the executable workflow.** `--expect-services`
   with the six Compose names reaches the collector through the start hook;
@@ -2788,7 +2788,7 @@ is unchanged.
   that followed is documentary: publication, traceability and wording. **No test
   was repeated, no sealed record was rewritten and no gate was decided.**
 - **The proposal.**
-  [`docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md`](docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md)
+  [`docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md`](../governance/proposals/2026-09-21-g2-acceptance-proposal.md)
   sets the session against the normative G2 clauses and the conditions common to
   G2–G7 one row at a time, with the exact evidence path for each. It resolves
   G2.3 by the supplement, under the qualification stated there; it qualifies the
@@ -2920,7 +2920,7 @@ is unchanged.
   and the deliverables SUP-01 to SUP-07); its section 4.3 is byte-identical to
   version 2.0's, so the criteria assessed are the criteria in force.
 - **Where it is recorded.**
-  [`docs/governance/decisions/2026-09-21-g2-closure.md`](docs/governance/decisions/2026-09-21-g2-closure.md)
+  [`docs/governance/decisions/2026-09-21-g2-closure.md`](../governance/decisions/2026-09-21-g2-closure.md)
   (new) is the durable transcription of the decision, readable from a clean
   checkout — the student's approval being the decision: the decision and its
   source, the approval quoted in translation, the accepted scope verbatim, the
@@ -4679,11 +4679,11 @@ is unchanged.
     client refused, the exposure observations recorded. Controlled close;
     root file system `6fce1688…` after it.
   - *Records:* rows 13 and 14 and the opening table in the
-    [results addendum](docs/governance/g3-battery-2026-10-results.md),
+    [results addendum](../governance/g3-battery-2026-10-results.md),
     with the Project Manager's boundaries; dated notes on T8 and T9 in the
-    [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md);
+    [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md);
     the eleven packages of 2026-10-05 indexed with their seals in
-    [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md)
+    [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md)
     (`PACKAGES.sha256` now 31 lines); a PROGRESS marker.
 - **Tests.** No code changed. Every seal of the eleven packages verified
   read-only on 2026-10-05 (`sha256sum -c` in each: 11 of 11, 838 entries);
@@ -4744,7 +4744,7 @@ is unchanged.
     amendments in the runbook's "Timed families" paragraph and test 6's
     Expected paragraph (the earlier text kept for earlier runs) and in plan
     section 4.3's G3 paragraph; the
-    [decision record](docs/governance/g3-t5-t6-decisions-2026-10-05.md)
+    [decision record](../governance/g3-t5-t6-decisions-2026-10-05.md)
     holds both decisions; notes in the results addendum, the readiness map,
     the claim matrix's C12 row and PROGRESS.
 - **Tests.** One regression test pins the amended text
@@ -4854,7 +4854,7 @@ is unchanged.
   Rui's authorisation of 2026-10-07 («Autorizo a sessão S4 nos termos do
   parecer do PM») of the request of 2026-10-05 with its preparation
   supplement of 2026-10-07 (the records are published byte for byte in
-  [`docs/evidence/g3-battery-2026-10/records/`](docs/evidence/g3-battery-2026-10/records/)),
+  [`docs/evidence/g3-battery-2026-10/records/`](../evidence/g3-battery-2026-10/records/)),
   on the Project Manager's register entries
   "2026-10-05 21:56 WEST — S4 preparation: one bounded emergency-procedure
   correction" and "2026-10-07 14:19 WEST — S4 T6 passed; consolidate G3
@@ -4947,7 +4947,7 @@ is unchanged.
     1/4` (r01–r03 not evidenced) is kept unchanged: the scoped judgement of
     test 6 neither accepts the campaign nor requalifies an earlier run.
   - *The evidence published* in
-    [`docs/evidence/g3-battery-2026-10/`](docs/evidence/g3-battery-2026-10/README.md):
+    [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md):
     byte copies of 38 packages under `<UTC date>/<package>/` — the 31
     indexed in #C050 and #C051 and the seven of test 6 (the host preparation
     and its supplement, S4's guest session, preflight and gate, the t6
@@ -4972,7 +4972,7 @@ is unchanged.
     checker skips the files a sealed package lists (captured bytes, vouched
     for by their seal). The originals stay in `output_test`.
   - *The closing proposal*,
-    [`docs/governance/proposals/2026-10-07-g3-closing-proposal.md`](docs/governance/proposals/2026-10-07-g3-closing-proposal.md),
+    [`docs/governance/proposals/2026-10-07-g3-closing-proposal.md`](../governance/proposals/2026-10-07-g3-closing-proposal.md),
     proposes G3's closure clause by clause — T1–T9 and their sub-checks,
     the continuity of the image and configuration, the contracts frozen,
     the P0 defects and the limitations — and keeps the tools that changed
@@ -4980,9 +4980,9 @@ is unchanged.
     test 6's prerequisites and the authorised collector replacement) apart
     from the system under test. It decides nothing.
   - *The records.* Row 15, the S4 section and the delay paragraph in the
-    [results addendum](docs/governance/g3-battery-2026-10-results.md); a
+    [results addendum](../governance/g3-battery-2026-10-results.md); a
     marker, the T6 note, the r04 line of issue 4 and decision 7 marked done
-    in the [G3 readiness map](docs/governance/g3-readiness-map-2026-09-29.md);
+    in the [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md);
     a PROGRESS marker. The gate decision log is unchanged: G3
     `Not decided`.
 - **Tests.** No file of the system under test or of the session tools
@@ -5046,8 +5046,8 @@ is unchanged.
   claims de desempenho, capacidade ou estabilidade, nem autoriza o piloto G4
   ou a campanha.» Transcribed, with a translation, the four qualifications,
   the evidence and the exclusions, into the decision record
-  [`docs/governance/decisions/2026-10-07-g3-closure.md`](docs/governance/decisions/2026-10-07-g3-closure.md);
-  the G3 row of the [gate-decision log](docs/governance/gate_decision_log.md)
+  [`docs/governance/decisions/2026-10-07-g3-closure.md`](../governance/decisions/2026-10-07-g3-closure.md);
+  the G3 row of the [gate-decision log](../governance/gate_decision_log.md)
   is `Accepted`, 2026-10-07, the student, with the row it replaces kept
   verbatim under "Superseded row states"; README, PROGRESS, `docs/README.md`,
   the proposals index, the closing proposal (a dated status marker; its
@@ -5630,3 +5630,26 @@ is unchanged.
 - **Verification.** `tools/setup/tests/offline_check.sh` (457 passed), `tools/demo/tests/offline_check.sh`
   (101 passed), the Markdown link check (159 files), the evidence verifier (73 seals). Not tested: a 16 GB PC
   with the `.wslconfig` limit, and a `sudo` that asks for a password.
+
+---
+
+## Entry #C065 — The repository organised for the assessment version on main
+
+- **Date:** 2026-10-27. **Scope:** internal records moved into `docs/history/` (`LOG.md`, `PROGRESS.md`, `ai/`,
+  `docs/reviews/`, `docs/g0/`, the claim–evidence matrix, two set-up records, the paper assembly prompt and the
+  two-layer drawing), with every affected link rewritten; the front page in six sections; the guides, tool READMEs,
+  indexes and the labels of historical and deferred folders. No change to code, scripts, the system, images,
+  criteria, results or evidence; no guest, build or measurement.
+- **Authority.** The student's order of 2026-10-27 to prepare the version for the supervisors and examiners on
+  main: one organisation pull request to dev, then a promotion pull request from dev to main with no new content.
+- **Kept in place.** `docs/governance/` (three files are link targets of sealed capsule READMEs and the plan is read
+  by a test), `docs/adr/`, `thesis/` (built by a required check and linked from a sealed README),
+  `tools/session/`, `tools/probe/` and the runbooks read by tests. They leave the main navigation or carry a reading
+  note instead. `thesis/` is labelled as the historical LaTeX conversion of 17 September 2026; the check is still
+  named `thesis build`, and only its step and artifact names changed.
+- **Dated citations.** Citations pinned to a commit (for example `PROGRESS.md:509` in ADR 0011, or the plan
+  citations in `experiments/g4-pilot/`) keep the path the file had at that commit. Sealed evidence is unchanged and
+  still names the old paths in its text; `docs/history/README.md` maps earlier paths to current ones.
+- **Verification.** Offline only: Markdown links, the evidence seals, JSON and YAML parsing, the `thesis/tools`
+  tests, the offline checks of `tools/setup` and `tools/demo`, and the Python test suite; one consolidated review
+  of accuracy, order compliance, preservation and navigation, with each finding verified.

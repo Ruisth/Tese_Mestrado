@@ -16,6 +16,13 @@ in the [demonstration guide](demo.md).
 | The above, plus the local raw records of the comparison (§6) | Rebuild the comparison summary byte for byte (§5.3) |
 | The full environment (§1–4) and the local inputs (§6) | Run the comparison again: new data, not the recorded files |
 
+**The demonstration kit is not a reproduction.** A PC prepared with the demonstration kit
+([tools/setup](../tools/setup/README.md)) runs the [demonstration](demo.md) only. It uses Ubuntu's QEMU
+8.2.x and a sanitised copy of the image, whose checksum differs from that of the measured image.
+Repeating the measurements needs the original inputs: QEMU 8.2.7 from the Yocto build, the original
+sealed root file system of the measurements (§2; a rebuild gives a new file with a new checksum) and
+the inputs kept locally (§6).
+
 ## 1. Environment
 
 **Recorded PC:** x86-64, Windows 11 with WSL2 Ubuntu 24.04, 16 logical CPUs and 31 GiB visible to
@@ -29,14 +36,19 @@ WSL, Python 3.12.3 in WSL.
   The tools read `EGW_*` environment variables; put any non-default value in the login profile.
 
 **Python environment.** The package root is `src/`; the tools find the environment through
-`EGW_EXEC_VENV` (default `~/egw-exec/venv`). These are the commands of the automatic checks:
+`EGW_EXEC_VENV` (default `~/egw-exec/venv`). These are the commands of the automatic checks, run from
+the root of the clone:
 
 ```bash
 python3 -m venv ~/egw-exec/venv && . ~/egw-exec/venv/bin/activate
 cd src
 python -m pip install -e '.[dev,analysis]'
 python -m pytest tests -q
+cd ..                                     # back to the root of the clone
 ```
+
+The commands in the rest of this page also run from the root of the clone, with this environment
+active.
 
 **Other tools**
 
@@ -61,6 +73,7 @@ python -m pytest tests -q
   runbook. It is always read from this path.
 
   ```bash
+  mkdir -p ~/egw-tcg
   python3 tools/session/regen_helpers.py docs/setup/qemu_integrated_gateway.md ~/egw-tcg/itest-helpers.sh
   ```
 
@@ -74,6 +87,7 @@ expected outputs and checks: runbook §2. The layer and kas files:
 cd src/yocto
 export EGW_AUTHORIZED_KEYS_FILE=$HOME/.ssh/egw_campaign.pub
 ./scripts/build-profile.sh integrated     # kas build of kas/egw-qemuarm64-integrated.yml into build-integrated/
+cd ../..                                  # back to the root of the clone
 ```
 
 - **Layer versions** (`kas/egw-qemuarm64-integrated.lock.yml`): poky `bb983546…`,
@@ -109,22 +123,24 @@ Debian archive, so a new preparation can get newer package versions than the rec
 ## 4. Repeat the comparison measurements
 
 The procedure that ran is in [tools/compare/README.md](../tools/compare/README.md); its records are
-in [`evidence/compare-a02/`](evidence/compare-a02/README.md). `tools/compare/PROTOCOL.md` is an
-earlier proposal, not what ran.
+in the [Yocto–Debian comparison records](evidence/compare-a02/README.md). `tools/compare/PROTOCOL.md`
+is an earlier proposal, not what ran.
 
 ```bash
 # once per configuration, with no gateway running: the measured base (the disks right after installation)
 bash tools/compare/measure_base.sh yocto
 bash tools/compare/measure_base.sh debian13
-# the plan: three pairs, one seed per pair (the recorded seeds); written once
+# the plan: three pairs, one seed per pair (the recorded seeds); written once.
+# --id-suffix is optional and names the runs of a new series; "rerun1" is only an example.
 PYTHONPATH=src "${EGW_EXEC_VENV:-$HOME/egw-exec/venv}/bin/python" tools/compare/measure_plan.py write \
     --out "${EGW_COMPARE_ROOT:-$HOME/egw-compare}/measure/plan.json" \
-    --seeds 2026101801 2026101802 2026101803 [--id-suffix SUFFIX]
+    --seeds 2026101801 2026101802 2026101803 --id-suffix rerun1
 # the six runs in the plan's order, then the analysis and the summary
 bash tools/compare/measure_series.sh "${EGW_COMPARE_ROOT:-$HOME/egw-compare}/measure/plan.json"
 ```
 
-- **Recorded plan:** `evidence/compare-a02/plan-a02.json` (suffix `a02`). Give a new run a new suffix.
+- **Recorded plan:** `evidence/compare-a02/plan-a02.json` (suffix `a02`). Give a new series a new
+  suffix (1 to 16 letters, digits or hyphens).
 - **One run** (`measure_run.sh`): restore the measured base, start, send one test message to its
   twin, rest for 120 s, then the load: 120 s warm-up, 600 s at 11.2 msg/s, 60 s to confirm. Then
   wait until the controller has been quiet for 130 s (at most 900 s) and power off. The load is an
@@ -180,7 +196,8 @@ python -m egw_experiments analyze --base-dir "$work" --plan "$work/plan.json"
 ### 5.3 Rebuild the comparison summary (needs the local raw records)
 
 ```bash
-pkgm=<local raw records of the comparison>/measure
+# set this to the measure/ folder of your local copy of the comparison's raw records (§6)
+pkgm="/path/to/HIST_2026-10-19-compare-measurements-a02/measure"
 python3 tools/compare/measure_summary.py --measure-root "$pkgm" \
     --plan docs/evidence/compare-a02/plan-a02.json \
     --per-run-csv "$pkgm/harness/processed/per_run.csv" --out "$(mktemp -d)"

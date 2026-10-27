@@ -7,12 +7,12 @@ baseline retain their historical meaning; the current plan owns the schedule.
 ## Supervisor deliverables added on 2026-09-21
 
 Dates, ownership and exit criteria are in the
-[plan, section 4.1.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+[plan, section 4.1.1](../../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
 Operational state is recorded only in PROGRESS.
 
 | ID | Action / expected evidence | Dependency and scope control |
 |---|---|---|
-| SUP-01 | Review and maintain the [requirements matrix](../academic/gateway_requirements_and_platform_selection.md), linking each criterion to a component and test | Contracts and feedback; preserve D007 distinctions and keep documentary selection separate from test success |
+| SUP-01 | Review and maintain the [requirements matrix](../../academic/gateway_requirements_and_platform_selection.md), linking each criterion to a component and test | Contracts and feedback; preserve D007 distinctions and keep documentary selection separate from test success |
 | SUP-02 | Review the initial SoC decision and close documentary gaps needed for discussion | SUP-01 and primary sources; no procurement or native porting added |
 | SUP-03 | Consolidate V1 architecture, external dependencies, provenance and consumer-control inventory | Existing diagram and C2DTA mapping; no new SSI, UI, blockchain or radio feature |
 | SUP-04 | Prepare exact RQ/manuscript alignment changes for the new requirements/selection/evaluation sequence | SUP-01–SUP-03; current wording and QEMU boundary remain until an explicit aligned revision |
@@ -22,7 +22,7 @@ Operational state is recorded only in PROGRESS.
 
 
 > **Plan v2.0 adopted 2026-09-18 (QEMU-only execution amendment).** The
-> student adopted [plan v2.0](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
+> student adopted [plan v2.0](../../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
 > as the execution baseline on 2026-09-18. The **live actions are those of the
 > QEMU execution path** in the section below. The gate sections that follow are
 > the **dated August backlog, kept as history**: their windows have elapsed and
@@ -40,18 +40,18 @@ Operational state is recorded only in PROGRESS.
 
 > **This file owns actions only**: required work, expected evidence,
 > dependencies and cut rules. The versioned schedule and scope authority is
-> the [integrated development plan v2.1](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
+> the [integrated development plan v2.1](../../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md).
 > The current state of every deliverable and gate lives exclusively in
-> [`../../PROGRESS.md`](../../PROGRESS.md); do not record completion,
+> [`../../PROGRESS.md`](../PROGRESS.md); do not record completion,
 > implementation status, execution results or evidence counts here.
 >
 > Recurring dependencies: **WSL2 ext4** means Ubuntu 24.04 on WSL2 with the
 > Yocto checkout and build directory on a Linux filesystem (see
-> [`../setup/wsl2_ubuntu_yocto.md`](../setup/wsl2_ubuntu_yocto.md));
+> [`../setup/wsl2_ubuntu_yocto.md`](../../setup/wsl2_ubuntu_yocto.md));
 > **integrated emulated guest** means the Yocto-produced ARM64 kernel and root
 > filesystem booted under QEMU/TCG on the existing x86-64 workstation, hosting
 > the six containers, with the simulator and harness outside it (see
-> [`../setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md)).
+> [`../setup/qemu_integrated_gateway.md`](../../setup/qemu_integrated_gateway.md)).
 > The published profile specifies four virtual CPUs and 8 GiB of RAM: emulator
 > settings recorded per run, never a demonstrated equivalence to a four-core
 > physical gateway. **ARM64 measurement VM** — a native, non-burstable ARM64
@@ -137,11 +137,11 @@ cause, the remaining work and a revised forecast; it is never silently moved.
 These actions govern the 2026-09-17 Word-source conversion and subsequent
 manuscript work. They do not revise the gate schedule or acceptance rules
 below; current deliverable state remains in
-[`PROGRESS.md`](../../PROGRESS.md).
+[`PROGRESS.md`](../PROGRESS.md).
 
 | Action | Expected evidence | Dependencies |
 |---|---|---|
-| Preserve the supplied Word manuscript in the canonical LaTeX source and regenerate its Markdown mirror | Source SHA-256, chapter/table/figure/reference inventory, source-fidelity checks and build record in [WORD_IMPORT.md](../../thesis/latex/WORD_IMPORT.md) and [word-import-manifest.json](../../thesis/latex/word-import-manifest.json) | Supplied DOCX and `Template_LaTeX`; reproducible LaTeX/Pandoc toolchain |
+| Preserve the supplied Word manuscript in the canonical LaTeX source and regenerate its Markdown mirror | Source SHA-256, chapter/table/figure/reference inventory, source-fidelity checks and build record in [WORD_IMPORT.md](../../../thesis/latex/WORD_IMPORT.md) and [word-import-manifest.json](../../../thesis/latex/word-import-manifest.json) | Supplied DOCX and `Template_LaTeX`; reproducible LaTeX/Pandoc toolchain |
 | Keep unprovided chapters and front matter empty until separately authorised content is available | Chapters 3–6 contain headings/empty sections only; no restored old prose, sample text, TODOs or invented completion text | Explicitly supplied or authorised manuscript content; existing evidence-admission rules |
 | Review differences between the imported title/RQs/integrated-Yocto wording and the governance baseline separately | Dated alignment decision; no inference of implementation or supervisor approval from a format conversion. The title and RQs the student reports approved (D011) are the reference; the approved verbatim RQ wording is in the manuscript, not here | The student's report; unchanged governance controls |
 | Verify the 33 imported reference strings through the research protocol before academic release | Primary-source checks and research-register updates, distinguishing metadata verification from full-text reading | Access to the cited sources; separately authorised academic revision |
@@ -157,7 +157,7 @@ below; current deliverable state remains in
 
 > **G0 accepted on 2026-09-19** — authority: the student (Rui Duarte), with the
 > project manager's concurrence; scope: project initiation and baseline
-> alignment ([decision record](../governance/decisions/2026-09-19-g0-closure.md)).
+> alignment ([decision record](../../governance/decisions/2026-09-19-g0-closure.md)).
 > This is a dated change of G0's exit scope, **not** a retroactive pass against
 > the cut rule below, which is kept as written: the alignment request and the
 > verified off-machine copy are **not** marked as performed. The residual
@@ -186,7 +186,7 @@ this gate.
 | Action | Expected evidence | Dependencies |
 |---|---|---|
 | Keep the scope document aligned with the title and RQs the student reports approved | [`scope_and_rqs.md`](scope_and_rqs.md) carrying the reported-approved title verbatim and scope summaries of the approved RQs, each marked as reported by the student and never as a documented decision. The student's adoption of plan v2.0 is not that approval either | The student's report; the approved verbatim RQ wording, held in the student manuscript |
-| Send the **reduced** alignment package — D007, the open part of D014 (limitation and claim wording) and the unresolved halves of D004 and D010 — using the revised memo | Sent-message copy/date; `sent_at` and response references in the canonical decision log. *(Corrected 2026-09-19; previously also required a reply on the academic use of emulated results (D014) before the evaluation chapter is written: the QEMU evaluation scope of RQ3 is reported approved and is not re-requested.)* *Since the G0 decision of 2026-09-19 this is no longer a G0 condition and is not marked as sent: the D007 request belongs to G4 before `exp-v1`, the template authenticity inside D004 to G7, and D014's genuinely unsettled detail is tracked at G4/G6 rather than as a blanket precondition of the evaluation chapter* | Student action; the [revised memo draft](../governance/proposals/supervisor_alignment_memo_v2.0_proposal.md) |
+| Send the **reduced** alignment package — D007, the open part of D014 (limitation and claim wording) and the unresolved halves of D004 and D010 — using the revised memo | Sent-message copy/date; `sent_at` and response references in the canonical decision log. *(Corrected 2026-09-19; previously also required a reply on the academic use of emulated results (D014) before the evaluation chapter is written: the QEMU evaluation scope of RQ3 is reported approved and is not re-requested.)* *Since the G0 decision of 2026-09-19 this is no longer a G0 condition and is not marked as sent: the D007 request belongs to G4 before `exp-v1`, the template authenticity inside D004 to G7, and D014's genuinely unsettled detail is tracked at G4/G6 rather than as a blanket precondition of the evaluation chapter* | Student action; the [revised memo draft](../../governance/proposals/supervisor_alignment_memo_v2.0_proposal.md) |
 | Hold a short alignment meeting when written decisions remain unresolved | Minutes recording each decision, owner and follow-up date | Supervisors' availability |
 | Maintain an Ubuntu 24.04 WSL2 ext4 Yocto environment | `wsl -l -v`, filesystem proof for the build directory and environment capture | Student machine; WSL2 ext4 guide |
 | ~~Request a university ARM64 measurement host and apply the 48-hour fallback rule~~ — **deferred with the native route on 2026-09-18** | None. It is not an obligation of the adopted plan and closes no gate. If native work is ever authorised, the original evidence list applies unchanged: request/reply record, price quotation before provisioning, and provider, region, CPU, tenancy/shared-vCPU, kernel, OS and clock provenance after provisioning | A new budget decision (D012); the EUR 30 ceiling; [`../setup/vm_arm64_hetzner.md`](../setup/vm_arm64_hetzner.md) as a generic checklist only |
@@ -212,7 +212,7 @@ the gate; QEMU evidence never supports performance claims.
 | Preserve preliminary bring-up evidence separately from the acceptance campaign | Immutable evidence inventory and provenance note that prevents preliminary artefacts from being substituted for the strict campaign | Evidence-integrity tooling |
 | Verify `linux/arm64` support for every deployment image by pinned digest | Archived `docker manifest inspect` output per image | Network access; image lock; ARM64 deployment review |
 | Update stale build-input comments **at the next Yocto functional rebuild — never as a standalone edit** (changing a recipe changes its checksum and forces a rebuild), and no later than the release candidate (G7). The affected inputs are `egw-image.bb` (its DESCRIPTION still says "two QEMU boots") and, since 2026-09-18, `egw-gateway-image.bb`, `egw-gateway-config.bb` and `kas/egw-qemuarm64-integrated.yml`, whose comments still describe plan v2.0 as an unpublished working revision although it was adopted and published on 2026-09-18 | Corrected comments in the rebuild's recipes and manifest; a note that the existing G1 and integrated-profile evidence remains pinned to the original inputs and is not invalidated | Next functional Yocto rebuild |
-| Regenerate the PlantUML sources and their SVGs together — `diagrams/two_layer_experimental_deployment.puml`, `diagrams/c2dta_five_layer_reference.puml` and both `.svg` files — **never as a standalone edit of one of the pair**, applying the corrections recorded in [`../../diagrams/README.md`](../../diagrams/README.md), and no later than the release candidate (G7) | Regenerated `.puml` sources and matching SVGs carrying the corrected wording; a note that no earlier rendering is invalidated | A machine with a PlantUML installation |
+| Regenerate the PlantUML sources and their SVGs together — `diagrams/two_layer_experimental_deployment.puml`, `diagrams/c2dta_five_layer_reference.puml` and both `.svg` files — **never as a standalone edit of one of the pair**, applying the corrections recorded in [`../../diagrams/README.md`](../../../diagrams/README.md), and no later than the release candidate (G7) | Regenerated `.puml` sources and matching SVGs carrying the corrected wording; a note that no earlier rendering is invalidated | A machine with a PlantUML installation |
 | Complete institutional searches and full-text verification for claims used in Chapters 1–2 | Search exports, selection decisions and audited bibliography in `thesis/research/` | Institutional IEEE/ACM/Scopus or Web of Science access |
 
 ## G2 — Live vertical slice (window of 15–23 August, elapsed; gate accepted 2026-09-21)
@@ -222,7 +222,7 @@ the gate; QEMU evidence never supports performance claims.
 > stored-twin persistence across one declared, quiescent whole-stack service
 > restart, on the identified Yocto ARM64 guest emulated with QEMU/TCG on an
 > x86-64 host, with the qualifications of the review
-> ([decision record](../governance/decisions/2026-09-21-g2-closure.md)). The
+> ([decision record](../../governance/decisions/2026-09-21-g2-closure.md)). The
 > items below keep their own states: this acceptance admits no claim and moves
 > nothing that belongs to G3.
 
@@ -237,7 +237,7 @@ the reforecast triggers of the adopted schedule.
 | Deploy the minimal ARM64 compose stack inside the guest: Mosquitto TLS, Ditto, MongoDB and controller | Clean `docker compose up`; health/readiness output; pinned image digests; runtime lock and `pip check` record | Integrated emulated guest; operational certificates and secrets |
 | Incorporate the locally hash-sealed first-flow record of 2026-09-18 into the published evidence package | Sealed capsule with manifest and verified checksums, labelled emulated, naming the run identities and the maximum latency as an informational emulated observation; sealing is not acceptance | The candidate record held outside the repository |
 | Resolve the `ditto-things` power-off OOM and the container memory sizing — *done through pull request #34; the follow-up is to re-measure the Ditto footprint after the remaining tests* | A separate change with its own evidence: a graceful stop before power-off and container memory limits sized against the observed usage; no general or prolonged stability statement from the bounded observations that followed | Integrated emulated guest |
-| Complete the nine integration/recovery test families of the runbook | Per-test evidence, retained failures and a residual-risk list. The families were exercised once on 2026-09-18 — functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`) — and the timed harness parts of tests 1 and 6 are invalid — and that record is a locally hash-sealed candidate archive held outside the repository, not admitted, so the battery is **not complete** and admits no claim *(corrected 2026-09-19: previously "seven passed")*. After resumption, follow the proposed [acceptance sequence](../governance/proposals/acceptance_protocol_update_2026-09-19.md) (proposed, not adopted): one fresh bounded acceptance pair first, then only the affected or missing checks | Stable deployment in the guest; the instrumentation fix for the resource sampler; test acceptance resumed by the student |
+| Complete the nine integration/recovery test families of the runbook | Per-test evidence, retained failures and a residual-risk list. The families were exercised once on 2026-09-18 — functional results shown for tests 2 and 8 and the tested checks of test 9, and the specific behaviours of tests 3, 4 (duplicate handling) and 7 (the MongoDB fault only); test 5 fails its deadline criterion, two sub-checks were not run — the sequence-reset sub-check of test 4 (`itest-dup-02`) and the Ditto repeat of test 7 (`itest-ditto-fault-01`) — and the timed harness parts of tests 1 and 6 are invalid — and that record is a locally hash-sealed candidate archive held outside the repository, not admitted, so the battery is **not complete** and admits no claim *(corrected 2026-09-19: previously "seven passed")*. After resumption, follow the proposed [acceptance sequence](../../governance/proposals/acceptance_protocol_update_2026-09-19.md) (proposed, not adopted): one fresh bounded acceptance pair first, then only the affected or missing checks | Stable deployment in the guest; the instrumentation fix for the resource sampler; test acceptance resumed by the student |
 | Run the two missing sub-checks: the sequence-reset sub-check of test 4 and the Ditto repeat of test 7 *(added 2026-09-19)* | Test 4: `run_test itest-dup-02 42 --scenario smoke --duration 60` giving `lost = 0` and every `delta` line `OK`, as the runbook requires, under its own run identity — or an equivalent existing record mapped to it; none was found in the 2026-09-18 archive. Test 7: the fault repeated once for Ditto (`R=itest-ditto-fault-01; SVC=ditto-things`, then the runbook's fault line and evaluation line again), accepted only when the interruption and the recovery are both shown; until then test 7 has demonstrated the MongoDB fault only. Neither was run on 2026-09-18: both steps are prose in the runbook and the extraction used for the battery took only fenced code blocks; extract both next time | Test acceptance resumed by the student; stable deployment in the guest |
 | Retain and follow up the test 5 deadline failure *(added 2026-09-19)* | Test 5 of 2026-09-18 fails its stated criterion — 326 of 2,016 valid events were confirmed after the controller-clock deadline, against `lost = 0` and `late_confirmations = 0` — and that valid negative result is retained and analysed, never repeated until a pass and discarded. Any new attempt uses a new run identity and unchanged deadline semantics, and reconciles the two validation paths that disagreed on the simulator manifest | The delivery-backlog diagnosis below; test acceptance resumed by the student |
 | Diagnose the delivery backlog under QEMU/TCG *(added 2026-09-19)* | A diagnosis, under unchanged deadline semantics, of why the controller — a single consumer processing messages sequentially against Ditto — sustained about 3-8 acknowledgements per second against 11.2 msg/s published in the invalid attempts of 2026-09-19, with its queue growing by 4.7-10.6 per second; read the guest-side event logs, which were not read for the diagnostic counts. A lower future workload comes only through an explicit prospective QEMU protocol decision; a deadline is never moved after lateness is observed | Guest-side logs after resumption; D007 and the protocol at G4 |
@@ -246,7 +246,7 @@ the reforecast triggers of the adopted schedule.
 | Execute the wearable→MQTT→controller→Ditto vertical slice | `sent_events.jsonl`, `events.jsonl` and `GET /twins/{device_id}` showing the expected materialised state | Controller, broker, Ditto and simulator |
 | Run the simulator `smoke` scenario against the real broker | Simulator manifest and write-once raw output for a live run | Live compose stack |
 | Add and run live integration tests | Persisted Linux test report containing at least one real MQTT/Ditto integration path; fakes remain unit evidence only | Integrated emulated guest |
-| Advance Chapters 1–3 and the integrated emulated deployment diagram of [`../../diagrams/architecture.md`](../../diagrams/architecture.md), which is the design of record since 2026-09-18 (the two-layer deployment diagram is historical and is not reused as the architecture of record) | Compiling thesis sources and editable diagrams with no unsupported result claims. Diagram labels follow the authorised wearable-data wording of [`../governance/language-policy.md`](../governance/language-policy.md), keeping the literal `/telemetry` topic | The title and RQs reported approved; the open rows D007, D014 and the template half of D004 |
+| Advance Chapters 1–3 and the integrated emulated deployment diagram of [`../../diagrams/architecture.md`](../../../diagrams/architecture.md), which is the design of record since 2026-09-18 (the two-layer deployment diagram is historical and is not reused as the architecture of record) | Compiling thesis sources and editable diagrams with no unsupported result claims. Diagram labels follow the authorised wearable-data wording of [`../governance/language-policy.md`](../../governance/language-policy.md), keeping the literal `/telemetry` topic | The title and RQs reported approved; the open rows D007, D014 and the template half of D004 |
 
 ## G3 — P0 feature freeze (window of 24–30 August, elapsed; gate accepted 2026-10-07)
 
@@ -254,7 +254,7 @@ the reforecast triggers of the adopted schedule.
 > the functional P0 freeze on the documented ARM64 candidate emulated with
 > QEMU/TCG, the nine families from the authorised sessions S1–S4, with the
 > qualifications of its
-> [decision record](../governance/decisions/2026-10-07-g3-closure.md). The
+> [decision record](../../governance/decisions/2026-10-07-g3-closure.md). The
 > items below keep their own states: this acceptance admits no claim and moves
 > nothing that belongs to G4. *(Until 2026-10-07 this heading read "live target:
 > the nine test families, 2026-09-21 to 2026-09-24".)*

@@ -1,17 +1,32 @@
 # Diagrams
 
+> **The current architecture is not drawn here.** It is in the [main README](../README.md) and in
+> [`../docs/architecture.md`](../docs/architecture.md), which follows `src/CONTRACTS.md` v1.2 and
+> also shows the Debian 13 guest. This folder holds earlier diagrams and an academic reference. They
+> are kept because other pages link to them.
+
+## What each diagram is
+
+| Diagram | Status | Read it as |
+|---|---|---|
+| Current architecture: [`../README.md`](../README.md) and [`../docs/architecture.md`](../docs/architecture.md) | **Current** | The diagrams to read first |
+| [`architecture.md`](architecture.md) | **Earlier** | Mermaid diagrams drawn against `src/CONTRACTS.md` v1.1. The contract is now v1.2, and the v1.2 changes are not drawn (last section) |
+| [`c2dta_five_layer_reference.puml`](c2dta_five_layer_reference.puml) ([rendered SVG](c2dta_five_layer_reference.svg)) | **Academic reference** | The five C2DTA layers of the reference paper, with what this project implements marked; non-normative. Some labels are out of date (see "Deferred" below) |
+| [`two_layer_experimental_deployment.puml`](../docs/history/diagrams/two_layer_experimental_deployment.puml) ([rendered SVG](../docs/history/diagrams/two_layer_experimental_deployment.svg)) | **Historical, moved** | Moved to `docs/history/diagrams/`. An earlier deployment proposal, superseded on 2026-09-18 |
+
 ## Diagram families
 
-This directory contains deliberately separate diagram families. The operational
-Mermaid diagrams carry the deployment design of record; the PlantUML sources are
-the academic reference diagram and one historical figure.
+This directory contains deliberately separate diagram families. The Mermaid
+diagrams in `architecture.md` drew the deployment design of record of
+2026-09-18; the PlantUML sources are the academic reference diagram and one
+historical figure, now in `docs/history/diagrams/`.
 
 | Source | Purpose | Normative status |
 |---|---|---|
-| [`architecture.md`](architecture.md) | Mermaid diagrams of the contracted P0 behaviour and of the platform | Must remain aligned with `src/CONTRACTS.md`. Drawn against v1.1. The contract is now v1.2, and the v1.2 changes are not yet drawn (last section) |
-| [`c2dta_five_layer_reference.puml`](c2dta_five_layer_reference.puml) ([rendered SVG](c2dta_five_layer_reference.svg)) | Editable PlantUML reconstruction of the paper's five C2DTA layers, with implemented/configured P0 components distinguished from deferred paper components | Academic reference diagram; non-normative |
-| [`two_layer_experimental_deployment.puml`](two_layer_experimental_deployment.puml) ([rendered SVG](two_layer_experimental_deployment.svg)) | Editable PlantUML view of the separation between the Yocto/QEMU functional artefact and a native-ARM64 service stack | **Historical.** Superseded on 2026-09-18 by the integrated emulated deployment of the adopted plan v2.0; it was never approved by the supervisors and must not be reused as the architecture of record |
-| [`architecture.md`](architecture.md), deployment diagram | Mermaid view of the **integrated emulated deployment**: the Yocto ARM64 guest under QEMU/TCG with the six containers inside it and the generator outside | The deployment design of record ([ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md)). The Debian 13 comparison guest is not drawn; see [`../docs/architecture.md`](../docs/architecture.md) |
+| [`architecture.md`](architecture.md) | Mermaid diagrams of the implemented core behaviour and of the platform | Drawn against `src/CONTRACTS.md` v1.1; the contract is now v1.2 and the v1.2 changes are not drawn (last section). [`../docs/architecture.md`](../docs/architecture.md) is current |
+| [`c2dta_five_layer_reference.puml`](c2dta_five_layer_reference.puml) ([rendered SVG](c2dta_five_layer_reference.svg)) | Editable PlantUML reconstruction of the paper's five C2DTA layers, with the implemented and configured core components distinguished from deferred paper components | Academic reference diagram; non-normative |
+| [`two_layer_experimental_deployment.puml`](../docs/history/diagrams/two_layer_experimental_deployment.puml) ([rendered SVG](../docs/history/diagrams/two_layer_experimental_deployment.svg)) | Editable PlantUML view of the separation between the Yocto/QEMU functional artefact and a native-ARM64 service stack | **Historical**, moved to `docs/history/diagrams/`. Superseded on 2026-09-18 by the integrated emulated deployment; not the architecture of record |
+| [`architecture.md`](architecture.md), deployment diagram | Mermaid view of the **integrated emulated deployment**: the Yocto ARM64 guest under QEMU/TCG with the six containers inside it and the generator outside | The deployment design as of 2026-09-18 ([ADR 0008](../docs/adr/0008-integrated-yocto-arm64-evaluation.md)); an earlier drawing. Read [`../docs/architecture.md`](../docs/architecture.md), which also shows the Debian 13 guest |
 
 The PlantUML diagrams do not extend the P0 contract. Grey components reproduce
 the supplied paper's reference architecture only and are explicitly deferred.
@@ -29,11 +44,13 @@ Green/yellow P0 components are further qualified as code/configuration,
 provisioned infrastructure or evidence; drawing a component never upgrades its
 evidence maturity.
 
-Render the PlantUML sources with a local PlantUML installation, for example:
+Render the PlantUML sources with a local PlantUML installation, for example, from this folder:
 
 ```text
-plantuml -charset UTF-8 -tsvg c2dta_five_layer_reference.puml two_layer_experimental_deployment.puml
+plantuml -charset UTF-8 -tsvg c2dta_five_layer_reference.puml ../docs/history/diagrams/two_layer_experimental_deployment.puml
 ```
+
+PlantUML writes each SVG next to its source.
 
 The committed SVGs were generated and visually checked on 2026-08-13 with the
 official native PlantUML 1.2026.6 release (Git commit `6287b33`). The verified
@@ -96,12 +113,13 @@ the kind risk R26 covers.
 
 **Drawing is not evidence.** Drawing a component never upgrades its evidence maturity. The
 published records of the stack in the guest are functional evidence of an emulated system only:
-the G2 flow and the G3 battery. They are listed in [`../docs/results.md`](../docs/results.md).
+the wearable-to-twin integration run and the test battery. They are listed in
+[`../docs/results.md`](../docs/results.md).
 
 ## Deferred: the PlantUML sources and their SVGs
 
 Two statements inside the PlantUML sources predate 2026-09-18 and are now
-inaccurate: `two_layer_experimental_deployment.puml` is titled as a proposed
+inaccurate: `two_layer_experimental_deployment.puml` (now in `docs/history/diagrams/`) is titled as a proposed
 two-layer deployment and carries a native measurement host, and
 `c2dta_five_layer_reference.puml` labels the P0 core "live ARM64 evidence
 pending" although emulated functional evidence now exists. Editing a `.puml`
@@ -124,8 +142,9 @@ from their rendered output. The corrections are therefore recorded here:
   pending" as "P0 artefact exists; emulated functional evidence only, no
   admitted claim", and read the note "it does not yet contain a live
   native-ARM64 vertical-slice result" as "it contains no admitted
-  vertical-slice result; the published emulated runs (the G2 flow and the G3 battery in
-  `docs/evidence/`) are functional evidence only, and no native result exists".
+  vertical-slice result; the published emulated runs (the wearable-to-twin integration run and
+  the test battery in `docs/evidence/`) are functional evidence only, and no native result
+  exists".
 
 Regenerate both sources and their SVGs together, with the documented PlantUML
 command above, in the first change made on a machine that has PlantUML

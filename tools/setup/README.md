@@ -5,6 +5,9 @@ receive two things: this repository and a **kit** (one ZIP file with its `.sha25
 in an Ubuntu terminal. Then the menu `bash tools/demo/demo.sh`, or the manual commands of the
 [main README](../../README.md), work with no other preparation.
 
+**How to get the kit.** The kit is not in the repository. The author shares it on request, as two files:
+`egw-demo-kit-<date>.zip` and `egw-demo-kit-<date>.zip.sha256`.
+
 | Script | Who runs it | What it does |
 |---|---|---|
 | [`make_demo_kit.sh`](make_demo_kit.sh) | the author, once | Builds the kit ZIP from the sanitised image package and the controller archive, after a secret scan |
@@ -31,14 +34,15 @@ in an Ubuntu terminal. Then the menu `bash tools/demo/demo.sh`, or the manual co
   need access to it, or the author gives you a copy that you unpack inside Ubuntu.
 - **A PC without its own comparison set-up.** The script refuses a WSL that already runs the comparison
   tools (the `EGW_*` settings, `~/egw-compare` without the script's marker, the measurement key
-  `~/.ssh/egw_campaign` or `~/egw-exec`). It would otherwise take that set-up over. To try it on such a
-  PC, use a separate WSL distribution (for example a `wsl --import` of a clean Ubuntu 24.04).
+  `~/.ssh/egw_campaign` or the author's measurement workspace `~/egw-exec`). It would otherwise take that
+  set-up over. To try it on such a PC, use a separate WSL distribution (for example a `wsl --import` of
+  a clean Ubuntu 24.04).
 
 ## What the kit holds
 
 | In the ZIP (`egw-demo-kit-<date>/`) | What it is |
 |---|---|
-| `yoctoScarthgap/` | The shareable copy of the Yocto 5.0 (Scarthgap) gateway image of the comparison, unchanged. It was sanitised before it was shared: no stack configuration, no broker keys, no pilot evidence, new SSH host keys at first boot (see its `BUILDINFO.txt`) |
+| `yoctoScarthgap/` | A copy of the Yocto 5.0 (Scarthgap) gateway image used in the comparison, sanitised before it was shared: the stack configuration, the broker keys and the records of earlier test sessions were removed, and the image makes new SSH host keys at its first boot (see its `BUILDINFO.txt`). Because of these changes, its checksum differs from that of the measured image |
 | `yoctoScarthgap/keys/egw_compare_share` | A **test** SSH key, the only key that copy of the image accepts. It is not the key of the measurements |
 | `controller/` | The controller's container image for `linux/arm64` and its identity record |
 | `SHA256SUMS`, `README.txt` | Checksums of every file; a short note |
@@ -55,22 +59,25 @@ In an Ubuntu terminal, from the root of the clone:
 bash tools/setup/prepare_demo_host.sh --kit /mnt/c/Users/<you>/Downloads/egw-demo-kit-<date>.zip
 ```
 
-Keep the `.sha256` file next to the ZIP; it is checked. Keep both after the preparation too: a re-run
-reads them again. `--dry-run` reports every step and changes nothing. `--no-debian` leaves out the
-Debian 13 scenario (step 10). The script prints one line per step: `OK`, `SKIP` (already done), `WOULD`
+Keep the `.sha256` file next to the ZIP: step 1 then checks the whole ZIP against it. Without it, the
+script only warns and goes on; step 4 still checks every file of the kit against the kit's own
+`SHA256SUMS`. Keep both files after the preparation too: a re-run reads them again.
+
+`--dry-run` reports every step and changes nothing. `--no-debian` leaves out the Debian 13 scenario
+(step 10). The script prints one line per step: `OK`, `SKIP` (already done), `WOULD`
 (dry run) or `STOP: <reason>`. Run again after a stop: finished steps are skipped and nothing is changed
 twice. `sudo` asks for your Ubuntu password once, for `apt-get`.
 
 | Step | What it does |
 |---|---|
-| 1 host checks | WSL 2, Ubuntu 24.04, the clone on the Linux file system, not root, no comparison set-up of its own (see above); checks the ZIP against its `.sha256` and its layout; warns below 11 GiB of memory or 25 GB of free disk |
+| 1 host checks | WSL 2, Ubuntu 24.04, the clone on the Linux file system, not root, no comparison set-up of its own (see above); checks the ZIP against its `.sha256` (when present) and its layout; warns below 11 GiB of memory or 25 GB of free disk |
 | 2 apt packages | Installs the packages below (waiting up to 10 minutes if another apt holds the package lists or the dpkg lock); checks that QEMU offers the CPU and devices of the machine profile |
 | 3 terraform | Terraform 1.16.6 into `~/egw-compare/bin`, checked against HashiCorp's `SHA256SUMS`; marks `~/egw-compare` as made by this script |
 | 4 kit | Unpacks the ZIP to `~/egw-kit`, checks `SHA256SUMS`, converts the image to the raw ext4 file the `yocto` scenario reads, checks the controller archive. Refused while `~/egw-compare/base/yocto` holds the image of another kit, which `tools/compare` never replaces: run `bash tools/compare/tf.sh yocto destroy`, remove that folder and run again |
 | 5 ssh key | Installs the test key as `~/.ssh/egw_compare_share` (mode 600); never replaces a different key |
 | 6 secrets file | Creates `~/.config/egw-demo/deployment.env` from `src/deployment/.env.example` with fresh random passwords (mode 600); never overwrites it and never prints a value |
 | 7 python venv | `~/.local/share/egw-demo/venv` with the project installed from `src/` |
-| 8 settings | Writes `~/.config/egw-demo/env.sh` (paths only) and one marked line that loads it in `~/.profile` (or in `~/.bash_profile` when that file exists) |
+| 8 settings | Writes `~/.config/egw-demo/env.sh` (paths only) and one marked line that loads it in the login profile bash reads: `~/.bash_profile` if it exists, else `~/.bash_login` if it exists, else `~/.profile` |
 | 9 terraform init | `tf.sh yocto init` and `tf.sh debian13 init` |
 | 10 debian 13 | Downloads the pinned Debian 13 image (checked against its published SHA512) and boots it once to install Docker, as [tools/compare](../compare/README.md) describes. Several minutes. Refused while another QEMU runs or another scenario holds the profile's lock (`tf.sh <s> stop` frees it) |
 | 11 summary | The next commands |
@@ -153,11 +160,12 @@ line in the profile. The Ubuntu packages stay installed.
 On the author's WSL host, with the sanitised package and the controller archive:
 
 ```bash
-bash tools/setup/make_demo_kit.sh --package <sanitised yoctoScarthgap folder> --out <folder> \
+bash tools/setup/make_demo_kit.sh --package <sanitised yoctoScarthgap folder> [--out <folder>] \
     [--images ~/egw-images] [--date YYYYMMDD] [--qemu-img <path>]
 ```
 
-It writes `egw-demo-kit-<date>.zip` and `egw-demo-kit-<date>.zip.sha256`. Before zipping, it verifies the
+It writes `egw-demo-kit-<date>.zip` and `egw-demo-kit-<date>.zip.sha256` to `--out` (default
+`~/egw-kit-out`, outside the clone). Before zipping, it verifies the
 package's `SHA256SUMS`, its record of a clean secret scan, the test key's two halves and the controller
 archive against its identity record. It then scans every file, the image layers (compressed members are
 opened; one it cannot open, such as zstd, or a disk image inside an archive refuses the kit) and every

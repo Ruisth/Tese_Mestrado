@@ -2,8 +2,10 @@
 
 This guide runs the gateway live and follows each message from a simulated wearable to its digital twin:
 simulator → Mosquitto (MQTT) → controller → Ditto, with MongoDB as Ditto's storage
-([architecture.md](architecture.md)). The short version is in the [main README](../README.md); this page
-adds the preparation, every option and default, the expected output and where files are written.
+([architecture.md](architecture.md)). MQTT carries the messages, Ditto keeps the state of each twin and
+MongoDB gives persistence: Ditto stores the twins in it. The short version is in the
+[main README](../README.md); this page adds the preparation, every option and default, the expected
+output and where files are written.
 
 > The gateway runs on an ARM64 computer emulated by QEMU on an x86-64 PC. A demonstration measures
 > nothing: the observers show observations, not results. The message rates below are demonstration
@@ -18,10 +20,11 @@ each item is. Settings and defaults: [tools/compare](../tools/compare/README.md)
 
 **On another PC, with the demonstration kit,** one command does the host packages of item 1 and items 2
 to 8, once WSL2 and Ubuntu 24.04 are installed:
-`bash tools/setup/prepare_demo_host.sh --kit <egw-demo-kit-<date>.zip>`. The kit holds the image and the
-controller archive; the script creates new passwords and a settings file read by login shells. It uses
-Ubuntu's QEMU (8.2.x) instead of the 8.2.7 of item 2, which runs the demonstration but is not the version
-of the recorded measurements. Item 9 is not in the kit. See [tools/setup](../tools/setup/README.md).
+`bash tools/setup/prepare_demo_host.sh --kit <egw-demo-kit-<date>.zip>`. The kit holds a sanitised copy
+of the image and the controller archive; the script creates new passwords and a settings file read by
+login shells. It uses Ubuntu's QEMU (8.2.x) instead of the 8.2.7 of item 2. Such a PC runs the
+demonstration but does not reproduce the recorded measurements, which used QEMU 8.2.7 and the original
+image ([reproduce.md](reproduce.md)). Item 9 is not in the kit. See [tools/setup](../tools/setup/README.md).
 
 1. **WSL2 with Ubuntu 24.04** and the host packages listed in `tools/compare/README.md` (Yocto build host:
    [setup/wsl2_ubuntu_yocto.md](setup/wsl2_ubuntu_yocto.md)).
@@ -46,8 +49,11 @@ of the recorded measurements. Item 9 is not in the kit. See [tools/setup](../too
 ## 2. Before each session
 
 - Open WSL **login** shells (`bash -l`), so that the `EGW_*` settings of your profile apply, and go to the
-  root of the repository clone. Keep the clone on the WSL file system, not under `/mnt/c`.
-- Run **one gateway at a time**. The start command refuses a second one.
+  root of the repository clone. Every command on this page runs in WSL, from that folder. Keep the clone
+  on the WSL file system, not under `/mnt/c`.
+- Run **one gateway at a time**. The start command refuses a second one. To use Debian 13, power the
+  running gateway off first (see *Finish*), then run the same commands with `debian13` in place of
+  `yocto`.
 - Choose a scenario. In the commands below, `<s>` stands for it.
 
 | Scenario `<s>` | What it starts | Use |
@@ -58,8 +64,9 @@ of the recorded measurements. Item 9 is not in the kit. See [tools/setup](../too
 
 ## 3. Step by step
 
-The terminal numbers are those of the main README. Each observer (terminals 2, 3, 4 and 6) first checks
-that the gateway is running, then runs until Ctrl+C, which ends only that observer.
+Use a separate WSL terminal for each step that keeps running; the terminal numbers below only label
+them. Each observer (terminals 2, 3, 4 and 6) first checks that the gateway is running, then runs until
+Ctrl+C, which ends only that observer.
 
 ### Terminal 1: start the gateway
 
@@ -84,10 +91,15 @@ ENVIRONMENT READY: yocto - stack healthy, controller ready; it stays running. Cl
 On the PC used for this work this took about 6 to 7 minutes (about 9 for the first `yoctowrynose` start).
 The first start of a scenario also copies the base images and downloads the five pinned container images.
 
-**If the start is refused** (exit 2), a `STOP:` line gives the reason: another `qemu-system-aarch64` is
-running, the ports are already in use, or another scenario holds the lock. Power that gateway off first
-(see *Finish*), then run `apply` again; it first runs a controlled stop, which does nothing if no gateway
-is running. A failed `apply` leaves the gateway running for inspection; close it with `stop`.
+**Wait for `ENVIRONMENT READY`** before starting any wearable (terminal 5). Until the controller answers
+`/ready`, `simulate.sh` refuses to publish.
+
+**If the start is refused,** nothing is started. Terraform ends with an error, and `tf.sh` returns its
+non-zero status; Terraform's error message shows that the start script exited with status 2. A `STOP:`
+line in the output gives the reason: another `qemu-system-aarch64` is running, the ports are already in
+use, or another scenario holds the lock. Power that gateway off first (see *Finish*), then run `apply`
+again; it first runs a controlled stop, which does nothing if no gateway is running. A failed `apply`
+leaves the gateway running for inspection; close it with `stop`.
 
 ### Terminal 2: the MQTT messages
 
@@ -184,13 +196,15 @@ pgrep -af '^(\S*/)?qemu-system-aarch64( |$)' || echo "no QEMU process left"
 
 - `stop.sh` signals only the recorded simulator (SIGINT, then SIGTERM after 10 s; never SIGKILL). It
   prints `simulation stopped (run demo-...); the guest keeps running`, or `no demonstration simulation recorded`.
-- `tf.sh <s> stop` stops the services (`docker compose stop -t 60`), powers the gateway off over SSH and
-  waits up to 180 s for QEMU to end: `STOPPED yocto: pid <pid> ended (ssh-poweroff)`. Disks, settings
-  and logs are kept, so the twins of earlier simulations are still there at the next start.
-- If the stop fails, it exits 5 with `STOP: QEMU pid <pid> ... was NOT killed`. **Never kill QEMU.** Read
-  `$EGW_COMPARE_ROOT/scenarios/<s>/logs/stop-*.log` and the console log, then decide.
-- `tf.sh <s> destroy` is not part of normal use: it deletes the work disks, so the next `apply` sets
-  everything up again.
+- `tf.sh <s> stop` is the normal power-off. It stops the services (`docker compose stop -t 60`), powers
+  the gateway off over SSH and waits up to 180 s for QEMU to end:
+  `STOPPED yocto: pid <pid> ended (ssh-poweroff)`. Disks, settings and logs are kept, so the twins of
+  earlier simulations are still there at the next start.
+- If the stop fails, the stop script prints `STOP: QEMU pid <pid> ... was NOT killed` and exits with
+  status 5; Terraform reports this as an error, and `tf.sh` returns a non-zero status. **Never kill
+  QEMU.** Read `$EGW_COMPARE_ROOT/scenarios/<s>/logs/stop-*.log` and the console log, then decide.
+- `tf.sh <s> destroy` is **not** an equivalent of `stop` and not part of normal use: after a controlled
+  stop it deletes the work disks, and the twins with them, so the next `apply` sets everything up again.
 
 A one-message check without the observers is `tools/compare/functional_check.sh`, described in
 [tools/compare/README.md](../tools/compare/README.md).
@@ -209,7 +223,7 @@ bash tools/demo/demo.sh
 | 6 | One query of the twins |
 | 7 | Stop the simulation |
 | 8 | After a `[y/N]` question: stop the simulation, power off, then check that no QEMU process is left |
-| 0 | Leave; the gateway keeps running |
+| 0 | Leave the menu. This does **not** power the gateway off: it keeps running until option 8 (or `tf.sh <s> stop`) |
 
 Each option prints the command it runs. Options 3 to 6 and 8 use the scenario of the running gateway, or
 ask for one. The menu opens no terminals; start the observers yourself.
@@ -221,6 +235,7 @@ ask for one. The menu opens no terminals; start the observers yourself.
 | `$EGW_COMPARE_ROOT/scenarios/<s>/` (default `~/egw-compare`) | Disks, state, logs (`up-`, `provision-`, `stop-`, `console-<stamp>.log`) and results |
 | `$DEMO_STATE_ROOT` (default `~/.local/state/egw-demo`) | The current simulation (`state/`) and the simulator's output (`runs/<run>/sent_events.jsonl`) |
 
-Nothing is committed. Inside the clone, only Terraform's working folder
-`tools/compare/terraform/.terraform/` is written, and Git ignores it. Demonstration output is not
-evidence.
+Nothing is committed. Inside the clone, only folders that Git ignores are written: Terraform's working
+folder `tools/compare/terraform/.terraform/`, `src/egw.egg-info/` (from installing the project from
+`src/` with `pip install -e`) and Python's `__pycache__/` folders (written when the tools run).
+Demonstration output is not evidence.

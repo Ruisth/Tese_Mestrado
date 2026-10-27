@@ -126,7 +126,7 @@ identical at `489bc9e`, `80e833f`, `8e49261` and `1fd9792`
 (`HIST_2026-10-02-g3-battery-host-preparation` `part1-record/console.txt`
 lines 17, 28, 37; `HIST_2026-10-05-g3-t8t9-host-preparation` lines 32, 45, 53;
 `HIST_2026-10-05-g3-t6-host-preparation` lines 64, 78, 87). **Met**: Q1 is the
-freeze record; [`backlog.md`](../../g0/backlog.md) line 255 still says "v1.1"
+freeze record; [`backlog.md`](../../history/g0/backlog.md) line 255 still says "v1.1"
 (Packet line 80).
 
 ### 4.5 No open P0 defect; the `ditto-things` incident
@@ -137,7 +137,7 @@ freeze record; [`backlog.md`](../../g0/backlog.md) line 255 still says "v1.1"
   (Packet line 228); no row is a valid SUT failure (Addendum lines 44–55,
   77–83).
 - **Two findings of 2026-09-19 stay "Open"**, neither labelled P0
-  ([`risks.md`](../../g0/risks.md) lines 230–231): a restart appears to
+  ([`risks.md`](../../history/g0/risks.md) lines 230–231): a restart appears to
   discard the in-memory queue, though ADR 0011 option 5 and its proof r03
   have since been accepted, the proof with qualifications
   ([ADR 0011](../../adr/0011-controller-restart-recovery.md) lines 3–12), and
@@ -202,7 +202,7 @@ A rebuild at `1fd9792` would differ from the retained image (LOG lines
    the artefact chain only, and T6's populations are the initial, late and
    final ones of section 7.2, never summed.
 3. Any claim: no C10 or C12 admission; C06, C10, C11, C12, C14 stay "Pending —
-   no evidence" ([claim matrix](../../claim_evidence_matrix.md) lines 167–175).
+   no evidence" ([claim matrix](../../history/claim_evidence_matrix.md) lines 167–175).
    T5's `check` warning about C10, a documented layout mismatch, stays as
    recorded ([decision record](../g3-t5-t6-decisions-2026-10-05.md) lines 9–16).
 4. T7 beyond its two bounded faults, one stop of MongoDB and one of Ditto: no

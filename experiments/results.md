@@ -1,45 +1,53 @@
 # Experimental results
 
-> **No experimental data exists yet.** This file is the summary surface the
-> repository template expects; it is filled from `results/processed/` once the
-> campaign runs, and never by hand.
+> **The results are not in this file.** Every result of the dissertation is listed, with its data
+> and the code that analysed it, in [`../docs/results.md`](../docs/results.md).
+>
+> This file was the summary surface for the planned 95-run campaign, which the repository template
+> expects. **That campaign was not run.** It was replaced by the Yocto–Debian 13 comparison (three
+> runs per system), whose results are in [`../docs/results.md`](../docs/results.md) together with
+> the test battery and the other records. The rest of this file is kept as the record of the
+> planned campaign. Its zeros describe that campaign only, not the project.
 
-## Status
+## Status of the planned campaign
 
 | Item | State |
 |---|---|
-| Runs executed | **0** of 95 planned |
-| Raw data in `results/raw/` | none |
-| Processed tables in `results/processed/` | none |
-| Figures in `results/figures/` | none |
-| Claims validated | **0 of 15** |
-| Protocol frozen (`exp-v1`) | not yet — requires a valid pilot first |
-| Data freeze (`data-v1`) | not yet |
+| Runs of the planned campaign executed | **0** of 95 planned: the campaign was not run |
+| Raw data in `results/raw/` | none: the folder holds only a placeholder file. The data of the results obtained are in `docs/evidence/` or kept locally, as listed in [`../docs/results.md`](../docs/results.md) |
+| Processed tables in `results/processed/` | none (same reason) |
+| Figures in `results/figures/` | none (same reason) |
+| Claims of the planned campaign validated | **0 of 15**. The claims are listed in the [claim–evidence matrix](../docs/history/claim_evidence_matrix.md), now kept as a record |
+| Protocol frozen (`exp-v1`) | never: it required a valid pilot first, and the pilot of longer runs was started but not finished |
+| Data freeze (`data-v1`) | never: there was no campaign data to freeze |
 
-The campaign environment of the plan adopted on 2026-09-18 is the integrated
+The campaign environment of the plan adopted on 2026-09-18 was the integrated
 Yocto ARM64 guest emulated under QEMU/TCG on the existing x86-64 workstation.
 Every timing and resource figure produced there is informational and labelled
 emulated: it describes only that configuration and is never native ARM64
 capacity, physical-device latency or a performance claim. No native,
 non-burstable ARM64 instance exists and none is required by the adopted plan;
-its absence is an explicit limitation on RQ3 — see the risk register (R28) and
-`PROGRESS.md`.
+its absence is an explicit limitation on RQ3 — see the
+[risk register](../docs/history/g0/risks.md) (R28) and the
+[state record](../docs/history/PROGRESS.md), both now kept as records.
 
-## How this file gets filled
+## How this file was to be filled
 
-Everything below the status table is regenerated, never typed:
+Everything below the status table was to be regenerated, never typed:
 
 ```bash
 python -m egw_experiments analyze --base-dir experiments/results --plan experiments/campaign_plan.json
 ```
 
 That single command rebuilds `results/processed/` and `results/figures/` from
-`results/raw/`, which is sealed and immutable after the data freeze. The tables
-quoted here must be copies of those outputs, with the originating `run_id`s
-named, so that any number in the dissertation can be traced back to raw data,
-the command that produced it and the commit it ran on.
+`results/raw/`, which was to be sealed and immutable after the data freeze. The
+tables quoted here were to be copies of those outputs, with the originating
+`run_id`s named, so that any number in the dissertation could be traced back to
+raw data, the command that produced it and the commit it ran on. The same
+`analyze` command is the one used to re-analyse a recorded run of the results
+that were obtained ([`../docs/reproduce.md`](../docs/reproduce.md) §5).
 
-## What will be summarised here
+## What the planned campaign would have summarised here
 
 | Condition | Runs planned | Metric reported |
 |---|---:|---|
@@ -54,7 +62,9 @@ the command that produced it and the commit it ran on.
 | `controller_restart` | 3 | delivery across a restart, no double acceptance |
 | `soak` | 1 | 24 h stability, sampling continuity, no unrecovered interruption |
 
-## Rules that apply to every number placed here
+## Rules that were to apply to every number placed here
+
+These rules were written for the planned campaign and are kept as its record.
 
 - A run marked `invalid` never contributes to a table or a figure.
 - Load levels without the full set of valid runs are reported as

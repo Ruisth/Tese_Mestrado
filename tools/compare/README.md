@@ -2,10 +2,14 @@
 
 ## 0. Two commands per scenario
 
-The scripts are the files of this folder, `tools/compare/` in the repository;
-on the WSL host they run from a checkout such as `~/egw-exec/compare-repo`, and everything they create lives
-under `$EGW_COMPARE_ROOT` (default `~/egw-compare`, section 2). From the root
-of the clone, in a WSL login shell, one scenario at a time:
+The scripts are the files of this folder, `tools/compare/` in the repository.
+Run them from the root of the clone, kept on the WSL Linux file system (for
+example `~/egw`, as in [tools/setup](../setup/README.md)), in a WSL login
+shell, one scenario at a time. Everything they create lives under
+`$EGW_COMPARE_ROOT` (default `~/egw-compare`, section 2). `~/egw-exec`, which
+appears in some defaults below, is the author's measurement workspace; another
+PC is prepared with [tools/setup](../setup/README.md) instead, which refuses a
+host that has it.
 
 ```bash
 bash tools/compare/tf.sh yocto apply      # up: prepare if absent, boot, ssh, stack up, healthy; stays running
@@ -39,7 +43,7 @@ result of each scenario is in section 9.
 
 This folder prepares, starts, stops and removes two isolated ARM64 guests under
 the **same** emulated machine: `yocto`, the project's `egw-gateway-image` as the
-pilot sessions booted it, and `debian13`, a dated Debian 13 genericcloud image
+earlier test sessions booted it, and `debian13`, a dated Debian 13 genericcloud image
 provisioned once for the same application stack. One bash CLI
 (`compare_env.sh`) owns the lifecycle; a thin Terraform module records the
 desired state and reads the live one; `provision_stack.sh`,
@@ -48,17 +52,17 @@ event to its twin and record the result.
 
 What it is **not**: the lifecycle commands of sections 0–5 measure nothing and
 claim nothing. The measured comparison is the separate procedure of section 10,
-executed once as series a02 on 2026-10-18/19
-([`docs/results.md`](../../docs/results.md#yocto-vs-debian-13), Yocto vs Debian 13). [`PROTOCOL.md`](PROTOCOL.md)
-is the earlier proposal and was not executed as written; its pilot figures are
-planning inputs and are not citable. Section 9 records the validations of
-2026-10-18.
+executed once, on 2026-10-18/19
+([`docs/results.md`](../../docs/results.md#comparison-of-yocto-and-debian-13), Yocto vs Debian 13). [`PROTOCOL.md`](PROTOCOL.md)
+is the earlier proposal and was not executed as written; the figures it quotes
+from earlier trial sessions are planning inputs and are not citable. Section 9
+records the validations of 2026-10-18.
 
 ## 2. Layout on disk
 
 Everything lives under `$EGW_COMPARE_ROOT` (default `~/egw-compare`), outside
-the clone and outside the pilot's directories (`~/egw-tcg`, `~/egw-exec`,
-`~/yocto`), which these scripts never write to.
+the clone and outside the author's build and measurement directories
+(`~/egw-tcg`, `~/egw-exec`, `~/yocto`), which these scripts never write to.
 
 | Path | Holds | Lifetime |
 |---|---|---|
@@ -72,8 +76,10 @@ the clone and outside the pilot's directories (`~/egw-tcg`, `~/egw-exec`,
 | `tfstate/<scenario>/terraform.tfstate` | Terraform state, one workspace per scenario (local backend, `workspace_dir`) | preserved |
 | `bin/terraform`, `plugin-cache/` | the pinned Terraform binary; `TF_PLUGIN_CACHE_DIR` | preserved |
 
-Inside the clone only `tools/compare/terraform/.terraform/` (provider binaries,
-backend settings) appears; it is ignored by git. The lock file
+Inside the clone these scripts create only `tools/compare/terraform/.terraform/`
+(provider binaries, backend settings). Installing the project with
+`pip install -e` adds `src/egw.egg-info/`, and running the Python tools writes
+`__pycache__/` folders. Git ignores all three. The lock file
 `tools/compare/terraform/.terraform.lock.hcl` is the one generated file that
 belongs in the repository (section 3).
 
@@ -96,13 +102,23 @@ belongs in the repository (section 3).
   and its `.identity.txt` (`EGW_IMAGES_DIR`), and the virtual environment
   `~/egw-exec/venv` with the project installed (`import egw_simulator` must
   work; `EGW_EXEC_VENV`).
-- No pilot session open (`~/egw-exec/current_session` absent), no other
-  `qemu-system-aarch64` running, host ports 2222 and 8883 free.
+- No session of [`tools/session/`](../session/README.md) open
+  (`~/egw-exec/current_session` absent), no other `qemu-system-aarch64`
+  running, host ports 2222 and 8883 free.
+
+The paths above are those of the author's measurement PC. On another PC,
+[`tools/setup/prepare_demo_host.sh`](../setup/README.md) provides the
+equivalents from the demonstration kit (Ubuntu's QEMU 8.2.x instead of 8.2.7,
+the kit's image and test key, a new secrets file, a virtual environment) and
+records them in `~/.config/egw-demo/env.sh`. Such a PC runs the start and stop
+commands and the demonstration; it does not reproduce the measurements of
+section 10.
 
 ### Terraform 1.16.6, installed to `$EGW_COMPARE_ROOT/bin/terraform`
 
-The archive, the two providers and the Debian image are downloads; they run
-only under an authorised download.
+The archive, the two providers and the Debian image are downloaded from the
+internet; the Debian image only when `EGW_COMPARE_ALLOW_DOWNLOAD=1` is set
+(section 4).
 
 ```bash
 mkdir -p ~/egw-compare/bin && cd ~/egw-compare/bin
@@ -161,12 +177,13 @@ bash tools/compare/compare_env.sh status   <s>   # always 0; JSON of strings (se
 bash tools/compare/compare_env.sh stop     <s>   # 0 stopped or not running; 5 still running (nothing killed)
 bash tools/compare/compare_env.sh destroy  <s>   # 0 removed; 5 refused while running
 bash tools/compare/compare_env.sh manifest <s>   # prints the manifest path
+bash tools/compare/compare_env.sh disks    <s>   # virtual size, host allocation and apparent size of each disk file
 ```
 
 **Debian base, first `prepare` only.** The image
 `debian-13-genericcloud-arm64-20261017-2634.qcow2` is fetched from
 `cloud.debian.org` and checked against its published SHA512 only when
-`EGW_COMPARE_ALLOW_DOWNLOAD=1` is set (an authorised download); without it
+`EGW_COMPARE_ALLOW_DOWNLOAD=1` is set; without it
 `prepare debian13` stops at exit 2 and names the URL. Then `debian/extract_boot.sh`
 takes `vmlinuz`, `initrd.img` and the root UUID out of the image with `qemu-img`,
 a GPT parser and `debugfs` (no root, nothing mounted), and the **provisioning
@@ -192,7 +209,7 @@ overlay is created on it. The data disk attached to that first boot (where
 Docker initialised `/var/lib/docker`) is discarded and a fresh `data.img` is
 created, so both scenarios start their comparison from an empty data disk.
 
-**The authorised functional sequence** (one attempt, no repetition, no load):
+**The functional validation sequence** (one attempt, no repetition, no load):
 
 ```bash
 bash tools/compare/validate.sh <s>              # 0 pass; 1 a phase failed (guest closed); 2 not started; 5 close failed
@@ -231,8 +248,9 @@ twin `org.c2dta:<device_uuid>` back from Ditto and requires the run id at
 `features.ingestion.properties.last_run_id`. Records go to
 `results/functional-<stamp>-<run-id>/` (`metrics.before/after.json`,
 `sim/<run-id>/sent_events.jsonl`, `twin.json`, `check.json`, `functional.log`);
-exit 0 pass, 1 fail, 2 prerequisite. It is a reachability check, not a slice
-pass in the project's sense.
+exit 0 pass, 1 fail, 2 prerequisite. It is a reachability check, not one of
+the functional tests reported in
+[`docs/results.md`](../../docs/results.md#functional-tests).
 
 ## 5. What Terraform does and does not do
 
@@ -279,7 +297,8 @@ pass in the project's sense.
   while the guest runs. Bases, `logs/`, `results/` and `manifest.json` are
   untouched; `tfstate/` keeps the (now empty) workspace.
 - **One guest at a time** — `start` (and the Debian first boot) refuse with
-  exit 2 when: `~/egw-exec/current_session` exists (a pilot session), any other
+  exit 2 when: `~/egw-exec/current_session` exists (a session of
+  `tools/session/` is open), any other
   `qemu-system-aarch64` runs (`pgrep`; an unanswerable `pgrep` also refuses),
   a listener sits on 2222 or 8883 (`ss -ltn`), or the lock is held by the other
   scenario with a live pid file. Nothing else is ever touched.
@@ -303,9 +322,9 @@ secrets (`provision_stack.sh`); one guest at a time on the same host.
 
 | Aspect | `yocto` | `debian13` |
 |---|---|---|
-| Base | the deploy `rootfs.ext4` **as it is on disk today** (booted read-write by the pilot sessions; sha256 recorded at copy time, which is not the build's) — a pristine rebuild is a Yocto build and is not authorised | official image 20261017-2634, SHA512-verified, then one cloud-init boot → `prepared.qcow2` (sha256 recorded) |
+| Base | the deploy `rootfs.ext4` **as it is on disk today** (booted read-write by the earlier test sessions; sha256 recorded at copy time, which is not the build's) — a pristine rebuild would be a new Yocto build and was not made | official image 20261017-2634, SHA512-verified, then one cloud-init boot → `prepared.qcow2` (sha256 recorded) |
 | Kernel / initrd | 6.6.142-yocto-standard, no initramfs | `linux-image-6.12.113+deb13-cloud-arm64` with its initrd (extracted) |
-| Native boot path | direct kernel (as the pilot) | UEFI + GRUB; here direct kernel, recorded as a difference |
+| Native boot path | direct kernel (as in the earlier test sessions) | UEFI + GRUB; here direct kernel, recorded as a difference |
 | Root device / disk | `root=/dev/vda`; raw ext4, no partition table, 2,621,364,224 bytes (2.44 GiB), 344 MiB used at first boot | `root=UUID=…`; 3.0 GiB GPT image (ESP + root), root grown by `cloud-initramfs-growroot` at first boot; used size to be read from `df` |
 | Kernel command line | `root=/dev/vda rw mem=8192M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0` | `root=UUID=<uuid> rw mem=8192M console=ttyAMA0 swiotlb=0` |
 | Init | systemd 255.21 | systemd 257.13 |
@@ -325,9 +344,9 @@ comparison that uses these environments.
 
 ## 7. Secrets
 
-`~/egw-tcg/.env` is copied host → guest (`scp` to `/opt/egw/deployment/.env`,
-mode 600). On the host, `provision_stack.sh` checks only that its four names
-are assigned and carry no `CHANGE_ME` (no value is read), and
+The secrets file (`EGW_COMPARE_SECRETS_ENV`, default `~/egw-tcg/.env`) is
+copied host → guest (`scp` to `/opt/egw/deployment/.env`, mode 600). On the
+host, `provision_stack.sh` checks only that its four names are assigned and carry no `CHANGE_ME` (no value is read), and
 `functional_check.sh` sources it in a subshell to hand
 `MOSQUITTO_SIMULATOR_PASSWORD` to the simulator through the environment
 (`EGW_MQTT_PASSWORD`), never on a command line and never printed; the broker
@@ -338,9 +357,9 @@ The seed holds the public key only (`render_seed.py` refuses a file with
 material reaches the console log. Manifests, `status`, `provision.json`, the
 Terraform state (variables, paths, hashes, the status JSON) and every log carry
 paths, hashes, versions and times, never a password or a key. Only `ca.crt`
-leaves the guest. The Yocto base copy may carry whatever the pilot sessions left
-on that root file system; it stays under `$EGW_COMPARE_ROOT` and nothing here
-reads it.
+leaves the guest. The Yocto base copy may carry whatever the earlier test
+sessions left on that root file system; it stays under `$EGW_COMPARE_ROOT`
+and nothing here reads it.
 
 ## 8. Tests and static checks
 
@@ -369,9 +388,9 @@ python tools/ci/check_markdown_links.py
 
 ## 9. Validation records
 
-One validation per scenario is authorised (the Debian provisioning first boot
-declared separately). Each record names the `results/validate-<stamp>/`
-directory, its `SHA256SUMS`, the manifest's `base_root_sha256`, and whether the
+The validation runs of both scenarios are listed below, with the Debian
+provisioning first boot as a separate row. Each record names the
+`results/validate-<stamp>/` directory, its `SHA256SUMS`, the manifest's `base_root_sha256`, and whether the
 run was **real** (a guest booted on the host) or only **simulated** (the stub
 tests of section 8). The rows below are the records of 2026-10-18: the three
 runs under the first form of `apply` (start only; the validation driver then
@@ -391,9 +410,9 @@ both scenarios.
 
 ## 10. Minimal comparison — six measured executions
 
-The order of 2026-10-18 (after PR #62): three pairs of executions, Yocto →
-Debian, Debian → Yocto, Yocto → Debian, every metric collected in each, no
-other campaign. Everything reuses the tools above and the project's harness;
+The procedure: three pairs of executions, Yocto → Debian, Debian → Yocto,
+Yocto → Debian, every metric collected in each, and no other series.
+Everything reuses the tools above and the project's harness;
 the files under `measure_*` and `guest_meminfo_sampler.sh` are the minimal
 instrumentation that was missing. Results are **exploratory** (n = 3 per
 scenario, one QEMU/TCG profile): no statistical significance, no maximum
@@ -404,12 +423,21 @@ capacity, nothing about physical ARM.
 bash tools/compare/measure_base.sh yocto
 bash tools/compare/measure_base.sh debian13
 # the plan: six nominal entries, one seed per pair (equal in both distributions), write-once
-PYTHONPATH=src ~/egw-exec/venv/bin/python tools/compare/measure_plan.py write --out ~/egw-compare/measure/plan.json --seeds S1 S2 S3
+PYTHONPATH=src "${EGW_EXEC_VENV:-$HOME/egw-exec/venv}/bin/python" tools/compare/measure_plan.py write \
+    --out ~/egw-compare/measure/plan.json --seeds <seed1> <seed2> <seed3>
 # the six executions in the plan's order, then the harness analysis and the summary
 bash tools/compare/measure_series.sh ~/egw-compare/measure/plan.json
-# one execution by hand (the series calls exactly this)
-bash tools/compare/measure_run.sh <scenario> <run-id> ~/egw-compare/measure/plan.working.json
+# one execution by hand, on the working copy of the plan that the series made
+bash tools/compare/measure_run.sh <scenario> <run-id> ~/egw-compare/measure/plan.working.<sha256-prefix>.json
 ```
+
+The seeds are three distinct whole numbers; the recorded plan used 2026101801,
+2026101802 and 2026101803. `measure_series.sh` leaves the plan it is given
+unchanged: it copies it once to
+`$EGW_COMPARE_ROOT/measure/<plan name>.working.<first 12 hex digits of its sha256>.json`
+(for `plan.json`, `plan.working.<sha256-prefix>.json`), records the source in a
+`.source` file beside it, and passes that working copy to `measure_run.sh` for
+each execution.
 
 Each execution (`measure_run.sh`, record under `measure/runs/<run-id>/`,
 `timeline.json` + `SHA256SUMS`): disks restored from the measured base and
@@ -459,8 +487,8 @@ execution showed the host wall clock stepping back 13 s inside a run:
   named an estimate between samples, not an exact count inside the window.
   The published rate is `sent_valid` over the monotonic load duration.
 
-**Results of series a02 (2026-10-18 21:37Z – 2026-10-19 00:39Z, six valid
-executions, plan `plan-a02.json` sha256 `94fc9691…`):**
+**Results of the measured comparison (2026-10-18 21:37Z – 2026-10-19 00:39Z,
+six valid executions, plan `plan-a02.json` sha256 `94fc9691…`):**
 [`docs/evidence/compare-a02/`](../../docs/evidence/compare-a02/README.md)
 holds the table, the CSV and the JSON; the raw records are in the sealed
 `output_test` package named there. The load, 11.2 msg/s, is the synthetic
@@ -479,8 +507,8 @@ showed shorter start-up times, lower memory and disk use and a higher observed
 acceptance rate than the Debian 13 configuration; exploratory, whole
 configurations with different kernels and runtimes, nothing about maximum
 capacity, physical ARM or an isolated effect of the distribution. The first
-attempt (`cmp-p1-yocto`, invalid by instrumentation) and the two stops of the
-series are recorded in the decision note; nothing was repeated.
+attempt (`cmp-p1-yocto`, invalid because of an instrumentation fault) and the
+two stops of the series are kept in the local records; nothing was repeated.
 
 ## 11. Third scenario — `yoctowrynose` (UEFI disk, demonstration only)
 
@@ -493,7 +521,7 @@ variable-store template. Each scenario boots a writable copy of the template (`d
 the kernel command line is the one of the disk's systemd-boot entry. The machine profile, devices, ports, data disk,
 provisioning and controlled stop are those of the other two scenarios. The image authorises its own test key
 (`~/.ssh/egw_wrynose_share`, overridable with `EGW_WRYNOSE_SSH_KEY`); the scenario file sets it, so the other
-scenarios keep the campaign key.
+scenarios keep their own key (`EGW_COMPARE_SSH_KEY`).
 
 ```bash
 bash tools/compare/tf.sh yoctowrynose apply
@@ -503,6 +531,6 @@ bash tools/compare/tf.sh yoctowrynose stop
 The first `apply` copies the bases and pulls the five pinned images onto a fresh data disk, so it takes longer than
 the later ones (about 9 min against 6-7 min observed on 2026-10-20). Known differences are listed in
 `scenarios/yoctowrynose.env` and recorded in the manifest; among them, the boot includes firmware and initramfs, so
-its boot times are not comparable with series a02. The measured runs of section 10 remain `yocto` and `debian13`:
-the harness identity check I1 needs a kernel passed by QEMU, and `measure_plan.py`/`measure_summary.py` know the
-measured pair only.
+its boot times are not comparable with the measured comparison. The measured runs of section 10 remain `yocto` and
+`debian13`: the harness's image-identity check needs a kernel passed directly by QEMU (`-kernel`), and
+`measure_plan.py`/`measure_summary.py` know the measured pair only.

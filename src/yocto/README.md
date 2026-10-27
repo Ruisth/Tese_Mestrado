@@ -1,4 +1,8 @@
-# src/yocto — EGW-OS (Yocto/kas) for gate G1
+# src/yocto — Yocto layer and kas files of the gateway image
+
+> **Reading note.** This page is a working record written during the project. It keeps the internal labels of
+> that time (milestones such as G1 to G4, work orders and review codes), which
+> [docs/history/README.md](../../docs/history/README.md) explains. For the overview, start at the [main README](../../README.md).
 
 Versioned, repeatable same-operator build of `egw-image`, the C2DTA Edge
 Gateway operating-system image, for the `qemuarm64` machine with Yocto Project
@@ -19,7 +23,7 @@ sections 4.3, 5.1, 8 and 9.1 "Plataforma").
 > native-ARM64 instance, the third tier of the platform model, is withdrawn from
 > mandatory scope and deferred with the native route (adopted plan, sections 3.5
 > and 8); the provisioning checklist at
-> [`docs/setup/vm_arm64_hetzner.md`](../../docs/setup/vm_arm64_hetzner.md) is
+> [`docs/history/setup/vm_arm64_hetzner.md`](../../docs/history/setup/vm_arm64_hetzner.md) is
 > retained only for that future work, and the rule that a burstable ARM64
 > instance is admitted for functional integration only and never for numbers
 > applies to it as well. Timing and resource figures produced in the emulated
@@ -170,11 +174,13 @@ host CPU, RAM and disk. No specific duration is claimed here — record the
 actual duration from the timestamped build log as evidence. Subsequent builds
 reuse the shared sstate cache and are much faster.
 
-## Gate G1 acceptance checklist (plan v1.1, 13–18 August)
+## Acceptance checklist of the base image (historical record, plan v1.1, 13–18 August)
 
 Evidence rule: unlogged runs do not count. Every item below must be backed by a
 recorded log copied into the evidence area and referenced from the
-claim->evidence matrix. There are two immutable scopes:
+claim->evidence matrix (now kept as a record in
+[`docs/history/claim_evidence_matrix.md`](../../docs/history/claim_evidence_matrix.md)).
+There are two immutable scopes:
 
 - the [2026-08-11 preliminary seal](../../docs/evidence/g1-yocto-qemu/README.md)
   records the build at `5770c0a` and two bring-up boots driven at `32f6604`;
@@ -219,7 +225,8 @@ Each scope has its own `SHA256SUMS`, and both verify from a clean clone.
       demonstrates implementation and verification; accepting the gate was a
       separate decision, recorded in
       `docs/governance/gate_decision_log.md` with a dated decision record;
-      `PROGRESS.md` mirrors the current operational state.
+      `PROGRESS.md`, now kept as a record in `docs/history/PROGRESS.md`,
+      mirrored the operational state at the time.
       The acceptance covers the functional platform layer only and validated
       no claim; none of the 15 claims is accepted. C01 now
       has a same-operator clean-checkout build but remains partial pending D006
@@ -266,7 +273,7 @@ x86-64 host: whatever it produces is functional and integration evidence, never
 native ARM64 performance evidence. Procedure:
 [`docs/setup/qemu_integrated_gateway.md`](../../docs/setup/qemu_integrated_gateway.md);
 rationale and package audit:
-[`docs/reviews/2026-09-17-egw-image-audit.md`](../../docs/reviews/2026-09-17-egw-image-audit.md).
+[`docs/history/reviews/2026-09-17-egw-image-audit.md`](../../docs/history/reviews/2026-09-17-egw-image-audit.md).
 
 ## Raspberry Pi 5 overlay (documented-only)
 

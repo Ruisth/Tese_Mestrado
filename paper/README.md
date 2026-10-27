@@ -1,25 +1,21 @@
-# Paper — IEEE Article (Deferred)
+# Paper — IEEE Article (Deferred, not started)
 
-The scientific article is **out of scope until after the thesis submission**.
-Section 4.5 of the adopted plan keeps the article and the detailed defence
-preparation outside P0 and records the article as **deferred, not deleted**: the
-student **reports** that a supervisor said it is optional and not required for
-delivery, that it may improve the grade without any guarantee, and that it
-therefore leaves mandatory acceptance and the critical path. That is reported by
-the student, not a documented supervisor decision, and it removes no obligation
-from the thesis itself. Planned submission is **2026-10-20**, with 2026-10-21 to
-2026-10-31 a contingency window for essential corrections only; the article is
-considered after the thesis and its evidence are secure, not inside that window.
-Nothing is drafted in this directory before then. The earlier wording here cited
-the archived Portuguese v1.0 plan and assumed a September 2026 submission; both
-are superseded. See
-[`../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)
-§4.5.
+> **Status: deferred. Nothing has been written.** This folder is a placeholder for a scientific
+> article planned for after the dissertation. Each of the seven section files holds only a "Not
+> started" notice, the bibliography has no entries and `figs/` holds only its README. Nothing here is part of the dissertation or of
+> its results. The results are listed in [`../docs/results.md`](../docs/results.md).
+
+## Why it is deferred
+
+The scientific article is outside the mandatory core of the project and is **deferred, not deleted**,
+until after the dissertation (section 4.5 of the
+[development plan](../docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md)). Nothing is drafted in this
+directory before then.
 
 ## Template to use when the paper starts
 
 The paper follows the structure defined in the C2DTA Student Repository
-Template (`../../C2DTA Student Repository Template.docx`):
+Template, a Word file kept outside this repository:
 
 ```
 paper/
@@ -35,9 +31,15 @@ paper/
 ├─ refs/
 │  ├─ references.bib      # DOIs only (template rule: no arXiv/MDPI)
 │  └─ venue-policy.md     # citation policy + venue checklist
-├─ manifest.yaml          # section order + metadata for assembly
-└─ README-GPT.md          # assembly prompt
+└─ manifest.yaml          # section order + metadata for assembly
 ```
+
+The template also places an assembly prompt, `README-GPT.md`, in this folder.
+That prompt was marked "not to be used yet". It is now kept as a record in
+[`../docs/history/paper/README-GPT.md`](../docs/history/paper/README-GPT.md).
+It names `thesis/sections/` as the dissertation; that folder is now the
+historical mirror of the LaTeX conversion of 2026-09-17
+([`../thesis/README.md`](../thesis/README.md)), not the current dissertation.
 
 Notes for that future work:
 
@@ -49,6 +51,9 @@ Notes for that future work:
   normative contracts (e.g. the contracts use the term "telemetry"
   normatively), the venue policy decision is recorded in
   `refs/venue-policy.md` before writing.
-- All results in the paper come from the thesis evidence base
-  (`../experiments/results/` + `../docs/claim_evidence_matrix.md`); the
-  no-numbers-without-evidence rule applies unchanged.
+- All results in the paper come from the thesis evidence base, now indexed in
+  [`../docs/results.md`](../docs/results.md); the no-numbers-without-evidence
+  rule applies unchanged. The pointers this file gave earlier were
+  `../experiments/results/` (never filled, because the planned campaign was not
+  run) and the claim–evidence matrix, now kept as a record in
+  [`../docs/history/claim_evidence_matrix.md`](../docs/history/claim_evidence_matrix.md).

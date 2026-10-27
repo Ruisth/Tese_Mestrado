@@ -205,8 +205,8 @@ Reforecast triggers (forecast dates): A0 not sent by 2026-09-21; M1 not done by 
 In this order. Nothing below weakens evidence integrity, the validity rules, the supervisors' review, the AI-use declaration or final QA.
 
 1. **Anything outside P0, and the separate article and defence preparation,** stay out (plan v1.2 section 3.4; section 2 above).
-2. **Non-prerequisite engineering:** converting the nine tests into automated integration tests; the optional host-side sampler of the QEMU process (runbook section 9 item 5); auxiliary APIs (the G2 cut rule of [`docs/g0/backlog.md`](../../g0/backlog.md)).
-3. **Optional exposition in the text,** before evidence or scope (mitigation of risk R8 in [`docs/g0/risks.md`](../../g0/risks.md)).
+2. **Non-prerequisite engineering:** converting the nine tests into automated integration tests; the optional host-side sampler of the QEMU process (runbook section 9 item 5); auxiliary APIs (the G2 cut rule of [`docs/g0/backlog.md`](../../history/g0/backlog.md)).
+3. **Optional exposition in the text,** before evidence or scope (mitigation of risk R8 in [`docs/g0/risks.md`](../../history/g0/risks.md)).
 4. **Optional campaign conditions,** only as a documented limitation and only through a justified amendment recorded before the freeze (section 5 item 6). Which conditions are optional is not recorded anywhere and needs a decision of the student.
 5. **Native performance evidence for RQ3,** through D014 and only with the supervisors' agreement: the evaluation then contains emulated functional and integration evidence, and latency, throughput, saturation and resource results become an explicit limitation and future work. Missing evidence becomes an explicit limitation; it is never replaced by an inferred result.
 6. **Never as a shortcut:** reverting to Ubuntu-hosted benchmarks; changing thresholds after the freeze; feature work after the data freeze; using 2026-10-21 to 2026-10-31 for functionality.
